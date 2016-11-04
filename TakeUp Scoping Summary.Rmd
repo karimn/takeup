@@ -1,0 +1,429 @@
+---
+title: "TakeUp Scoping Summary"
+output:
+  word_document: default
+  pdf_document:
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(plyr)
+library(magrittr)
+library(tidyr)
+library(purrr)
+library(foreign)
+library(ggplot2)
+library(stringr)
+library(tm)
+library(wordcloud)
+library(parallel)
+library(foreach)
+library(Hmisc)
+
+knitr::opts_chunk$set(echo=FALSE, cache=TRUE, cache.path="takeup_scoping_cache/", fig.path="takeup_scoping_figure/")
+
+theme_set(theme_bw() + 
+            theme(panel.border=element_rect(color=NA), 
+                  axis.ticks=element_blank(), 
+                  strip.background=element_rect(color=NA, size=2)))
+```
+
+```{r util-funs, message=FALSE, warning=FALSE}
+transform.txt.to.factor <- function(.col, .levels, factorize=FALSE) {
+  .col %>% 
+    sub(sprintf(".*(%s).*", paste(.levels, collapse="|")), "\\L\\1", ., ignore.case=TRUE, perl=TRUE) %>% 
+    capitalize %>% 
+    { if (factorize) factor(., levels=.levels, labels=capitalize(.levels)) else . }
+}
+
+transform.yes.no <- function(.col, factorize=FALSE) transform.txt.to.factor(.col, c("yes", "no"), factorize)
+
+get.response.term.docs <- function(.data, prefix, question.num, to.merge.question.num) {
+  .data %>% 
+    select(matches(sprintf("^%s(%s)", prefix, paste(union(question.num, to.merge.question.num), collapse="|")))) %>% 
+    gather(question, value, convert=FALSE) %>%
+    mutate(question=factor(ifelse(grepl(sprintf("^%s(%s)", prefix, paste(to.merge.question.num, collapse="|")), question), sub("\\d$", "", question), as.character(question)))) %>% 
+    group_by(question) %>% 
+    dplyr::summarize(text=paste(value, collapse=" ")) %>% 
+    ungroup %>% 
+    mutate(question=sub(sprintf("%s(\\d+)[a-b]?_(.+)", prefix), "\\2 (\\1)", question) %>% gsub("_", ".", .)) %>% 
+    { VCorpus(DataframeSource(.), readerControl=list(reader=readTabular(mapping=list(content="text", id="question")))) } %>% 
+    tm_map(stripWhitespace) %>% 
+    tm_map(removePunctuation, preserve_intra_word_dashes=TRUE) %>% 
+    tm_map(content_transformer(tolower)) %>% 
+    tm_map(removeWords, stopwords("english")) %>% 
+    # tm_map(stemDocument) %>% # Need to add parallel for this
+    TermDocumentMatrix 
+}
+ 
+tdm.to.data <- . %>% 
+    as.matrix %>% 
+    adply(.margins=2, function(column) {
+      column[column > 1] %>% 
+        data.frame(word=names(.), count=., stringsAsFactors=FALSE) %>% 
+        arrange(desc(count)) %>%
+        mutate(word=factor(word, levels=word)) 
+      }) %>% 
+    dplyr::rename(question=Docs) %>% 
+    mutate(question.num=str_extract(as.character(question), "\\d+(?=\\))") %>% as.integer,
+           question=str_replace(question, "\\(\\d+\\)$", ""))
+```
+
+```{r data-cleaning, warning=FALSE}
+individ.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_INDIVIDUAL_27112015.dta") %>% 
+  select(matches(sprintf("^ind(%s)", paste(c(5, 7, 9, 11, 14:15, 20, 31, 34, 38, 41, 44, 47:49, 50, 53:55, 57, 60), collapse="|")))) %>% 
+  gather(question, response) %>% 
+  mutate(question.num=str_extract(question, "(?<=ind)\\d+") %>% as.numeric,
+         question=sub("^ind\\d+_", "", question) %>% gsub("_", ".", .) %>% paste(sprintf("(%d)", question.num))) %>% 
+  mutate(response=ifelse(question.num %in% c(9, 50, 53:54, 56), transform.yes.no(response), response)) %>% 
+  mutate(response=ifelse(question.num == 60, transform.txt.to.factor(response, c("bracelet", "ribbon", "ink")), response)) %>% 
+  mutate(response=ifelse(question.num == 52, response %>% 
+                           tolower %>% 
+                           sub("don't\\s+care", "no", .) %>% 
+                           sub("care|happy", "yes", .) %>% 
+                           transform.yes.no, response)) %>% 
+  mutate(response=ifelse(question.num == 48, ifelse(grepl("ink", response, ignore.case=TRUE), "yes", ifelse(nchar(response) > 0, "no", NA)) %>% transform.yes.no, response),
+         question=ifelse(question.num == 48, "know.voting.from.ink (48)", question)) %>% 
+  filter(question.num != 48 | !is.na(response)) %>% 
+  mutate(question=ifelse(question.num == 52, "care.others.know.if.voted (52)", question)) %>% 
+  mutate(question=ifelse(question.num == 53, "want.to.show.if.voted (53)", question)) %>% 
+  mutate(question=ifelse(question.num == 54, "want.to.know.others.voted (54)", question)) %>% 
+  mutate(response=ifelse(question.num == 55, 
+                         sub(".*?(\\d+|a|one|two|three)\\s+(day|week|month).*", "\\1 \\2", response, perl=TRUE) %>% 
+                           str_split(" ") %>% 
+                           map(~ switch(.[1], one=1, two=2, three=3, .[1]) %>% as.numeric * switch(.[2], day=1, week=7, month=30, NA)) %>% 
+                           unlist, 
+                         response))
+
+individ.fgd.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_FOCUS_27112015.dta") %>% 
+  select(matches(sprintf("^fgd(%s)", paste(c(7:8, 11, 13:14, 17, 22) * 100, collapse="|")))) %>% 
+  gather(question, response) %>% 
+  mutate(question.num=str_extract(question, "(?<=fgd)\\d+") %>% as.numeric %>% divide_by(100),
+         question=sub("^fgd\\d+_", "", question) %>% gsub("_", ".", .) %>% paste(sprintf("(%d)", question.num))) %>% 
+  mutate(question=ifelse(grepl("deworm.health", question, fixed=TRUE), sprintf("deworm.own.affect.others (%d)", question.num), question)) %>% 
+  mutate(question=ifelse(grepl("yours", question, fixed=TRUE), sprintf("deworm.others.affect.yours (%d)", question.num), question)) 
+
+teacher.fgd.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_TEACHERS_27112015.dta") %>% 
+  select(matches(sprintf("^tgd(%s)", paste(c(5, 14:15, 19) * 100, collapse="|")))) %>% 
+  set_names(names(.) %>% gsub("^tgd\\d+_", "", .) %>% gsub("_", ".", .)) %>% 
+  dplyr::rename(possible.deworm.adults.school=encourage.adults)
+
+healthworker.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_HEALTHWORKER_27112015.dta") %>% 
+  select(matches(sprintf("^np(%s)", paste(c(3, 5, 6, 7, 10, 14, 19, 23, 28) + 100, collapse="|")))) %>% 
+  gather(question, response) %>% 
+  mutate(question.num=str_extract(question, "(?<=np)\\d+") %>% as.numeric %>% subtract(100),
+         question=sub("^np\\d+_", "", question) %>% gsub("_", ".", .) %>% paste(sprintf("(%d)", question.num)))
+```
+
+```{r text-mining}
+tdm.individ.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_INDIVIDUAL_27112015.dta") %>% 
+  get.response.term.docs("ind", c(19, 21, 26:27, 32:33, 36, 42, 43), c(28, 29, 39, 45, 51)) %>% 
+  tdm.to.data %>% 
+  mutate(question=sprintf("%s (%d)", question, question.num))
+
+td.individ.fgd.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_FOCUS_27112015.dta") %>% 
+  get.response.term.docs("fgd", NULL, c(c(5, 10, 15, 18:19, 21, 23:24) * 100, "2000a"))
+
+tdm.individ.fgd.data <- td.individ.fgd.data %>% 
+  tdm.to.data %>% 
+  mutate(question.num=question.num/100) %>% 
+  mutate(question=ifelse(.$question.num == 15, sprintf("why.not.buy.meds (%d)", question.num), as.character(question))) %>% 
+  mutate(question=ifelse(.$question.num == 18, sprintf("why.not.treat.adults.schools (%d)", question.num), as.character(question))) %>% 
+  mutate(question=ifelse(.$question.num == 19, sprintf("learn.about.important.events (%d)", question.num), as.character(question))) %>% 
+  mutate(question=ifelse(.$question.num == 20, sprintf("health.promoters (%d)", question.num), as.character(question)))
+
+tdm.healthworker.data <- read.dta("~/Data/TakeUp/NP_TAKEUP_HEALTHWORKER_27112015.dta") %>% 
+  get.response.term.docs("np", NULL, c(c(11, 20:22, 24, 25) + 100, "126b", "129b")) %>% 
+  tdm.to.data %>% 
+  mutate(question.num=question.num - 100) %>% 
+  mutate(question=ifelse(.$question.num == 11, sprintf("why.deworm.parents (%d)", question.num), as.character(question))) %>% 
+  mutate(question=ifelse(.$question.num == 26, sprintf("how.healthworker.encourage.adults (%d)", question.num), as.character(question))) %>% 
+  mutate(question=ifelse(.$question.num == 29, sprintf("who.health.promoter (%d)", question.num), as.character(question))) 
+```
+
+# Treatment Implementation
+
+## Location
+
+```{r convenient-location, fig.height=4, fig.cap="Most convenient location for adult deworming (question 36 in individual survey)"}
+tdm.individ.data %>% 
+  filter(grepl("convenient.location", question)) %>%
+  # filter(question.num %in% 33) %>% 
+  ggplot(aes(word, count)) +
+  geom_bar(stat="identity") +
+  scale_y_discrete("") +
+  scale_x_discrete("") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1)) 
+```
+
+```{r hw-convenient-location, fig.height=4, fig.cap="Most convenient location for adult deworming, reported by healthworkers (question 21 in healthworker survey)"}
+tdm.healthworker.data %>% 
+  filter(question.num == 26) %>% 
+  ggplot(aes(word, count)) +
+  geom_bar(stat="identity") +
+  scale_y_discrete("") +
+  scale_x_discrete("") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1)) 
+```
+
+```{r deworm-adults-yesno, fig.height=2, fig.cap="Adults attitude towards deworming in schools (individual FGD)"}
+individ.fgd.data %>% 
+  filter(question.num %in% c(13, 17) | grepl("affect\\.(yours|others)", question)) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() 
+```
+
+```{r deworm-adults, fig.height=4, fig.cap="Common words in reason why adults don't want to be dewormed at school (question 18 in individual FGD)"}
+tdm.individ.fgd.data %>% 
+  filter(question.num == 18) %>%
+  ggplot(aes(word, count)) +
+  geom_bar(stat="identity") +
+  scale_y_discrete("") +
+  scale_x_discrete("") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1)) 
+```
+
+```{r individual-responses-yesno, fig.height=3, fig.cap="Individual responses on deworming (individual survey)"}
+individ.data %>% 
+  filter(question.num %in% c(7, 9, 11, 15), response %in% c("Yes", "No")) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() 
+```
+
+```{r travel-time-purchase-drugs, fig.height=4, fig.cap="Travel Time to Purchase Drugs (individual survey)"}
+individ.data %>% 
+  filter(grepl("time.to.purchase", question, fixed=TRUE)) %>% 
+  mutate(response=as.numeric(response)) %>% 
+  filter(response >= 0) %>% 
+  ggplot() +
+  geom_histogram(aes(response), binwidth=5) +
+  scale_x_continuous("Minutes", breaks=seq(0, 60, 10))
+```
+
+* Schools are preferred location for treatment since dispensaries are often far away; some parents already come to schools to receive treatment during deworming days. The location is familiar and often close in proximity. [KN] Figure 1 shows that schools are the most convenient reported location. Healthworkers reported similar location preferences (Figure 2).
+* [KN] Figure 3 shows that most adults are not aware that they can be dewormed at schools during Deworming Day.
+* If we decide to work with schools, we should have a separate area on the school ground where adult deworming takes place – to counter stigma concerns. [KN] Figure 3 there are about half of adults wouldn't want to be dewormed on Deworming Day. A lot of those reported fear of being mocked/insulted by children (Figure 4).
+* Alternative locations: 
+    - Churches (controversial)
+    - Dispensaries (those are often far away)
+    - Markets (need to learn more about them – can we set up a booth there?)
+    - Chemist (closer than government dispensary)
+* Some adults say that pharmacies/dispensaries are close everywhere. Gov't health centers 30mins up to hours of walking – further away. Convenient location that men name: trading centers, since many people come by or at church since visible at road and people will come and ask what is going on.
+* Teachers also mentioned schools, churches and funerals.
+* [KN] Figure 6 shows a histogram of the time individuals were willing to purchase deworming drugs (conditional on actually purchasing drugs, Figure 5). The modal time appears to be 30 minutes.
+* Teachers are divided in their views on whether adults should be deworming DD. Those saying no, say it would interrupt teaching and it would be "hectic".
+
+## Providers
+
+```{r where-purchase-drugs, fig.height=4, fig.cap="Where drugs are bought (individual survey)"}
+tdm.individ.data %>% 
+  filter(question.num == 19) %>%
+  ggplot(aes(word, count)) +
+  geom_bar(stat="identity") +
+  scale_y_discrete("", breaks=seq(0, 30, 5)) +
+  scale_x_discrete("") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1)) 
+```
+
+```{r hw-sell-drugs, fig.height=1.25, fig.cap="Proportion of deworming treatment buyers (healtworker survey)"}
+healthworker.data %>% 
+  filter(question.num %in% 19) %>% 
+  mutate(response=transform.txt.to.factor(response, c("almost all", "many", "very few people"))) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  scale_y_discrete("count") +
+  coord_flip() 
+```
+
+* [KN] The majority of individuals reported purchasing deworming drugs from chemists and pharmacists (Figure 7). About half the individuals reported having purchased deworming drugs when surveyed alone, while almost everyone said they didn't when asked in a focus group.
+* Work with CHWs since adults already go to CHWs for services, they know community members (could help spread messages?) and they trust them.
+* [KN] Health workers reported that majority of community members buy deworming drugs from them (Figure 8)
+
+## Availability of treatment 
+```{r hw-how-long-adult-deworming, fig.height=1.25, fig.cap="Optimal duration for adult deworming (question 23 of healthworker survey)"}
+healthworker.data %>% 
+  filter(question.num %in% 23) %>% 
+  mutate(response=transform.txt.to.factor(response, c("one deworming day", "one week"))) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  scale_y_discrete("count") +
+  coord_flip() 
+```
+
+Offer treatment on multiple days. Assumption: many adults will come esp. women, and people who do not come can be “convinced” through social incentive. [KN] Healthworkers reported a week as the ideal duration of the adult deworming MDA.
+
+## Different demographic groups
+Need a strategy for elderly people who cannot walk to a central location: (i) allow relative to pick up pills for them and take them on their own, (ii) have CHW/CHVs visit them. Assumption: elderly people carry enough worms that we need to deworm them too.
+
+# Messaging
+
+```{r info-channels, fig.height=4, fig.cap="Information channels (individual FGD)"}
+tdm.individ.fgd.data %>% 
+  filter(question.num %in% c(19:20)) %>% 
+  ggplot(aes(word, count)) +
+  geom_bar(stat="identity") +
+  scale_y_discrete("") +
+  scale_x_discrete("") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1)) +
+  facet_wrap(~ question, scales="free")
+```
+
+```{r deworm-discuss, fig.height=1.25, fig.cap="Do individuals discuss deworming children with others (individual survey)"}
+individ.data %>% 
+  filter(grepl("discuss.deworming", question, fixed=TRUE)) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() 
+```
+
+* Important to avoid stigmatization, two strategies:
+    a) Phrase deworming as civic duty: every adult needs to come for deworming to help eradicate worms and protect children’s health, even if they think or feel that they do not have worms. 
+    b) Preventative health behavior that is similar to using latrines – one strategy that adults are familiar with to avoid the spreading of worms.
+* Important to pitch that deworming is for everyone: even an adult does not have worms b/c a) may not notice and b) help others). 
+* Note, as mentioned above, that reports on whether individuals previously brought deworming drugs where different between individual and group surveys. This might suggest that people don't want to admit being dewormed in front of others.
+* Village elders and church leaders seem main respected channels for transmitting messages. CHWs are also commonly suggested as good health promoters (Figure 9).
+ 
+# Current beliefs, knowledge and deworming practice 
+
+## Knowledge 
+* Adults think of deworming as making them strong and healthy. They understand that worms can spread through people who carry worms but the motivation to deworm is largely private benefits.
+* Adults seem to firmly believe that adults can get worms, too (Figure 5). They report to have taken deworming treatment in the past. However, they also say that they have not bought deworming drugs for themselves (this is inconsistent between individual and focus group surveys). 
+* Some concerns about side effects. Yet, not directly related to them but mentioned as reasons for why other people may not come for treatment. 
+* Men are aware too that could infect other family members, say that would feel embarrassed if had worms because of reinfection to others. Note: some people are fully aware of externalities. [KN] Figure 3 shows that while parents realize that if other children have worms it would affect their children, if their own children are dewormed it would not have any affect on others. This is a strange inconsistency. Perhaps most people on understand negative externalities.
+* A lot of healthworkers said that education and information campaigns would be the best way to encourage adult deworming take-up.
+
+## Current utilization 
+* Differences across age groups: younger adults with kids more likely to have attended school-based deworming and have taken pill themselves esp. females. Older people are less likely to have taken treatment. [KN] Most children are dewormed (Figure 5).
+* Say that deworm every 3 months. Some mention that to stop the spreading of worms is the reason why they deworm kids, and to reduce the sickling of children. 
+* Adults would deworm themselves if they had worms; young people are more likely to have purchased deworming drugs, but would have purchased it for a smaller child (150 Ksh) e.g. at the Chemist. 
+
+## Barriers to utilization 
+* People fear that could be harmful or are ignorant. Note: No concerns about side effects among adults we interviewed (e.g. not heard of, no problem).  Adults who we interviewed said that they think others may not come for deworming because they are worried treatment is harmful or they are ignorant. 
+* Further reasons for not coming: a) feel ashamed and lack of information (always same responses, potential main barriers); suggest that for those who feel ashamed offered household deworming so that don’t have to come to central location. 
+* What can be done to lower these barriers? Adults named education, home visits, provide deworming tablets in shopping centers/markets, schools and central locations.
+People are busy with work, jobs (esp. men).
+
+_*Question for us*: To what extent should we educate about/explain the social benefits? Should we focus on the private aspect (e.g. you may have worms but not notice) and/or family (e.g. spread to kid, husband and/or include wider community (e.g. to max potential social image concerns)?_
+
+# Social dimension of treatment (potential for social image concerns)
+
+```{r individual-image-related, fig.height=2, fig.cap="Individual responses on image related questions (individual survey)"}
+individ.data %>% 
+  filter(question.num %in% c(38, 41, 44)) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() 
+```
+
+```{r attitudes-image-related, fig.height=8, fig.cap="Individual words used in image related responses (individual survey)", eval=FALSE}
+tdm.individ.data %>% 
+  filter(question.num %in% c(39, 45)) %>%
+  ggplot(aes(word, count)) +
+  geom_bar(stat="identity") +
+  scale_y_discrete("") +
+  scale_x_discrete("") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1)) +
+  facet_wrap(~ question, scales="free", ncol=1)
+```
+
+* Adults explain that would feel uncomfortable if found out that their husband/wife had worms and worry that they could get infected. Feel uncomfortable and worry to get laughed at. 
+* Young women too expressed discomfort if husband had worms since he could spread the worms to the rest of the family. Note: in addition to private benefits, adults are mostly concerned about spreading worms to family members. 
+* One person said that they would feel bad if had worms because they would be likely to affect those who don’t have worms. 
+
+# Stated acceptability of adult deworming
+* Almost all adults report that would come for deworming – gave a clear "Yes". 
+* Respondents said that they would encourage entire family to deworm 
+
+# Visibility of treatment – feasibility of social incentive
+* Respondents stated that would like to observe who has dewormed and who has not because that way can 
+    a) identify people who did not go and 
+    b) advice them to get dewormed too.
+* [KN] Figure 11 shows that the majority of people want to be able to send and recieve public signals on deworming compliance. 
+    - They report not being affected by other's decisions; they mostly frame deworming as a private good. 
+    - Their responses on why they would want to receive a signal were not informative
+    - A lot of people reported wanting to signal in order to encourage others to do the same
+* General openness to "showing others that dewormed" i.e. wear a symbol that dewormed, welcome so that have confirmation that received tablet and can show others. 
+
+## Potential analogy to voting
+
+```{r voting, fig.height=3.5, fig.cap="Individual responses on voting related questions (individual survey)", dependson="data-cleaning"}
+individ.data %>% 
+  filter(question.num %in% c(47:48, 50, 52:54, 56), response %in% c("Yes", "No")) %>% 
+  ggplot() +
+  geom_bar(aes(x=question, fill=response), position="dodge") +
+  scale_fill_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() 
+
+```
+
+```{r ink-days, fig.cap="How long does voting ink stay (individual survey)", fig.height=3, warning=FALSE, dependson="data-cleaning"}
+individ.data %>% 
+  filter(question.num == 55) %>% 
+  mutate(response=as.numeric(response)) %>% {
+    av.days <- median(.$response, na.rm=TRUE)
+    
+    ggplot(.) +
+      geom_density(aes(response)) +
+      geom_vline(xintercept=av.days, linetype="dashed") +
+      ggplot2::annotate("text", x=av.days, y=.125, hjust=-0.1, label=(sprintf("Median %%~~%% %.0f", av.days)), parse=TRUE, size=4) +
+      scale_x_continuous("Days") 
+  }
+```
+
+```{r voting-obstacles, fig.height=1.5, fig.cap="Obstacles to voting (individual survey)"}
+individ.data %>% 
+  filter(grepl("obstacles (", question, fixed=T)) %$% 
+  response %>% 
+  str_split(" ") %>% 
+  unlist %>% 
+  as.numeric %>% 
+  keep(~ . > 0) %>% 
+  factor(levels=1:3, labels=c("Only one day", "Long lines", "Distance")) %>% 
+  data.frame(response=.) %>% 
+  ggplot(aes(x=response)) +
+  geom_bar() +
+  scale_x_discrete("") +
+  coord_flip() 
+```
+
+* [KN] Everyone said they knew if their community members voted (Figure 13)
+* [KN] The majority states that voting ink was how they knew others voted, and voting ink did not bother them (Figure 13)
+* [KN] Average response on how long voting ink lasted was 7 days (Figure 14)
+* [KN] Individuals were split between those who cared and didn't care if others knew they voted (Figure 13) 
+* [KN] The majority wanted to send and receive a signal on voting (Figure 13)
+* think of non-voters as people who hinder change. [KN] Voting is viewed as a civic duty, a public good in constrast to deworming (above).
+* [KN] Almost everyone reported voting in the last elections.
+* [KN] The main obstacle to voting was the long lines, followed by distance to polling stations (Figure 15)
+
+## Different social incentives
+
+```{r social-incentive-choice, fig.height=1.5, fig.cap="Choice of social incentive (individual survey)"}
+individ.data %>% 
+  filter(question.num == 60) %>% 
+  ggplot(aes(x=response)) +
+  geom_bar() +
+  scale_x_discrete("") +
+  coord_flip() 
+```
+
+* Ink: pro because that is what is normally used, what people know. Say would opt for ink if bracelet not available. 
+* Bracelet: pro because can easily see and more durable. People like color green. Bracelet could be purchased in market – so has to be unique. (Note: same applies to ink, no?)
+* Ribbon: no because don't want to pin on all clothes. 
+* Adults seem open to different incentives, as long as culturally appropriate and easy to wear/visible/durable OR because something that used to: ink. Other reasons to wear: to encourage others.
+* [KN] It is very surprising that anyone chose ink when given the alternatives of bracelets and ribbons. In fact ink beat ribbons and the number of people who picked it where more than half the number who picked bracelets (Figure 16).
