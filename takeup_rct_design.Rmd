@@ -1,0 +1,526 @@
+---
+title: "TakeUp Experiment Design"
+output: 
+  html_notebook:
+    number_sections: yes
+    toc: yes
+    toc_float:
+      collapsed: no
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+library(plyr)
+library(dplyr)
+library(tibble)
+library(magrittr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(scales)
+library(broom)
+library(printr)
+library(parallel)
+library(foreach)
+library(sp)
+library(rgeos)
+library(maptools)
+library(lme4)
+library(car)
+
+options(contrasts=c("contr.Treatment", getOption("contrasts")[2]))
+
+source("util.R")
+
+tryCatch({ # Try to allow parallel processing
+  config <- yaml::yaml.load_file("local_config.yaml")
+  doParallel::registerDoParallel(cores = config$cores)
+}, error = function(e) registerDoSEQ()) # No good, go sequential
+
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
+```{r load-data, include=FALSE}
+load("pilot_forms.RData")
+```
+
+# Power Analysis
+
+## DGP
+
+<!-- We use deworming take-up data from the pilot to estimate the logit data generating process -->
+<!-- \[ \Pr[Y_{ijd} = 1 | Z_j, D_j, d] = G(\pi_0 + \pi_1 Z_j + \pi_2 D_j + u_{j} + e_{jd}) \] -->
+<!-- where  -->
+
+<!-- * $G$ is the logit index function -->
+<!-- * $Y_{ijd}$ is a take-up indicator for individual $i$ in village $j$ at day $d$ -->
+<!-- * $Z_j$ and $D_j$ are the village's treatment and distance to the point-of-treatment location, respectively -->
+<!-- * $u_j \sim N(0, \sigma_u)$ is a village random effect -->
+<!-- * $e_{jd} \sim N(0, \sigma_e)$ is a village-deworming day random effect -->
+
+<!-- We use the estimated standard deviation $\hat{\sigma}_u$ in a Monte Carlo simulation for power analysis. -->
+
+```{r calc-dgp, echo=FALSE, eval=FALSE, dependson="load-data"}
+icc.data <- form.2a.data %>% 
+  filter(cluster.targeted.village, mda.type != "d2d", incentive != "airtime") %>% 
+  left_join(village.data[, c("village.code", "min.dist.pot")], by = "village.code") %>% 
+  group_by(village.code, cluster, deworming.day, incentive, mda.type) %>% 
+  # Calculate the take-up proportion per village per day
+  summarize(take.up = n(), 
+            village.pop = first(village.pop),
+            take.up.prop = take.up / village.pop,
+            min.dist.pot = first(min.dist.pot)) %>% 
+  ungroup %>% 
+  mutate(day = deworming.day) 
+
+icc.data %>% 
+  filter(deworming.day %in% 1:8) %>% 
+  # Convert the proportions data to individual level data
+  aod::splitbin(cbind(village.pop * take.up.prop, village.pop * (1 - take.up.prop)) ~ cluster + min.dist.pot + incentive + deworming.day, data = .) %$% tab %>%
+  rename(y = village.pop, # Individual take-up indicator variable in {0, 1}
+         village = idbin) %>% # Cluster ID
+  as.data.frame %>% 
+  glmer(y ~ incentive + min.dist.pot + (1|village/deworming.day), data = ., family = binomial(link = "logit")) %>% # Village and Village-day random effects
+  summary
+```
+
+We use a Monte Carlo simulation to conduct our power analysis. For each simulation iteration we draw sample from
+
+<!-- \[ \Pr[Y_{ij} = 1 | \mathbf{Z}_j] = G\left(\alpha + \beta Z_j + \sum_{k>1} \delta_k Z_{jk} + u_j\right) \] -->
+\[ \Pr[Y_{ij} = 1 | \mathbf{Z}_j, M_{ij}, S_{ij}] = G\left(\alpha + \sum^3_{k=1} \beta_k Z_{jk} + \delta M_{ij} + \gamma_0 S_{ij} + \sum^3_{k=1} \gamma_k S_{ij}\times Z_{ik} + u_j\right) \]
+where
+
+* $Z_{ik}$ is an indicator for treatment arm $k \in \{1, .., K\}$. 
+* $M_{ij}$ is an indicator for reminder SMS treatment.
+* $S_{ij}$ is an indicator for reminder and social information SMS treatment.
+* $u_j \sim N(0, \hat{\sigma}_u)$
+* We set $\alpha = 0$, effectively setting the baseline proportion of take-up to 50%. This is the most conservative value for this parameter allowing greater intraclass variability in the binary outcome model.
+
+## Monte Carlo Power Analysis
+
+```{r dgp-simulation-fun, cache=FALSE, echo=FALSE}
+# Function to calculate the logit index model coefficient corresponding to treatment effect
+# Not actually very accurate when you have a random effect with a large SD
+tu.calc.logit.treatment.coef <- function(index.intercept, treatment.effect) {
+  qlogis(plogis(index.intercept) + treatment.effect) - index.intercept 
+}
+
+tu.dgp.factory <- function(index.intercept = 0) { # Of logit index
+  # Doing this using a function factory is starting not to make a lot of sense; the factory function isn't doing much over here
+  function(cluster.re.sd = 1, # Random effects SDs
+           treatment.arms = c("ink", "bracelet", "calendar"),
+           total.num.clusters = 150,
+           treatment.control.clusters.ratio = 1,
+           sms.treat.sample.size.control = 15,
+           sms.treat.sample.size.treatment = 25,
+           treatment.effect = 0.05,
+           treatment.effect.seq = FALSE) {
+    cluster.size <- max(sms.treat.sample.size.control*3, sms.treat.sample.size.treatment*2)
+    
+    num.treatment.arms <- length(treatment.arms)
+    
+    # Try to evenly fit the treatment arms in the total number of clusters
+    num.clusters.per.arm <- total.num.clusters %/% ((num.treatment.arms * treatment.control.clusters.ratio) + 1) %>% 
+      c(., rep(. * treatment.control.clusters.ratio, num.treatment.arms)) %>% 
+      # If there any left over cluster randomly allocate to different *treatment* arms
+      add(sample((total.num.clusters %% ((num.treatment.arms * treatment.control.clusters.ratio) + 1)) %>% 
+                   { c(0, rep(1, .), rep(0, (num.treatment.arms) - .)) } ))
+    
+    # Calculate treatment coefficients, setting the first treatment to have a zero effect
+    if (treatment.effect.seq) {
+      treatment.coef <- treatment.effect %>% { seq(0, num.treatment.arms * ., . + 1) }
+    } else {
+      treatment.coef <- c(0, rep(treatment.effect, num.treatment.arms)) 
+    } 
+    
+    names(treatment.coef) <- c("control", treatment.arms)
+    
+    treatment.coef %<>% tu.calc.logit.treatment.coef(index.intercept, .)
+    
+    assign.sms.treatment <- . %>% { 
+      # Select text message sample. 
+      # We're not doing different treatment for _cluster_ control and treatment arms.
+      if (!first(.$any.treatment.arm)) { # Control
+        mutate(., 
+               sms.treat = sample(rep(c(NA, "control", "reminder.and.info", "reminder.only"), 
+                                      c(nrow(.) - sms.treat.sample.size.control * 3, 
+                                        rep(sms.treat.sample.size.control, 3))))) 
+      } else { # Treated (any)
+        mutate(., 
+               sms.treat = sample(rep(c(NA, "control", "reminder.and.info"), 
+                                      c(nrow(.) - sms.treat.sample.size.treatment * 2, 
+                                        rep(sms.treat.sample.size.treatment, 2))))) 
+      }
+    }  
+    
+    generated.data <- tibble(cluster.id = rep(seq_len(total.num.clusters), each = cluster.size),
+                             person.id = paste(cluster.id, 
+                                               seq_len(total.num.clusters * cluster.size), 
+                                               sep = "-"),
+                             cluster.re = rep(rnorm(total.num.clusters, sd = cluster.re.sd), 
+                                              each = cluster.size)) %>% # Giving each cluster a random effect
+      mutate_at(vars(ends_with(".id")), funs(factor)) %>% 
+      # Assign a treatment to each cluster
+      left_join(distinct(., cluster.id) %>% 
+                  mutate(treatment = sample(rep(c("control", treatment.arms), num.clusters.per.arm))),
+                by = "cluster.id") %>% 
+      left_join(filter(., treatment == "control") %>% 
+                  distinct(cluster.id) %>% 
+                  mutate(treatment2 = sample(rep(sample(c("pure.control", "sms.control")), 
+                                                 times = c(nrow(.) %/% 2, nrow(.) %/% 2 + nrow(.) %% 2)))),
+                by = "cluster.id") %>% 
+      mutate(treatment2 = ifelse(is.na(treatment2), treatment, treatment2),
+             any.treatment.arm = 1*(treatment != "control"),
+             control.arm = 1*(treatment == "control")) %>% 
+      group_by(cluster.id) %>% 
+      # Calculate the cluster-level latent model and binary outcome
+      mutate(cluster.model.index = index.intercept + treatment.coef[treatment] + cluster.re,
+             cluster.prob = plogis(cluster.model.index),
+             y = rbinom(n(), 1, prob = first(cluster.prob))) %>% 
+      do(assign.sms.treatment(.)) %>% 
+      ungroup %>% 
+      filter(!is.na(sms.treat)) %>%
+      mutate_at(vars(treatment, sms.treat), funs(relevel(factor(.), ref = "control")))  %>%
+      mutate(incentive.treatment = case_when(.$treatment %in% c("ink", "bracelet") ~ "social.incentive",
+                                    .$treatment == "calendar" ~ "private.incentive",
+                                    TRUE ~ "control") %>% factor %>% relevel(ref = "control"),
+             treatment2 = factor(treatment2) %>% relevel(ref = "pure.control"))
+    
+    return(generated.data)
+  }
+}
+```
+
+```{r reg-specifications, include=FALSE}
+reg.var.factory <- function(.spec, .restrict.pattern = NULL) 
+  . %>% # Make a function
+    model.frame(.spec, data = .) %>% {
+      lst(mm = model.matrix(attr(., "terms"), .) %>% {
+        if (!is.null(.restrict.pattern)) {
+          magrittr::extract(., , !aaply(colnames(.), 1, . %>% str_detect(.restrict.pattern) %>% any))
+        } else return(.)
+      },
+        y = model.response(., "numeric"))
+    }
+
+reg.specs <- lst(#any.treatment.1 = reg.var.factory(y ~ any.treatment.arm * sms.treat,
+                 #                                  coll(":sms.treat[T.reminder.only]")), 
+                 
+                 # any.treatment.2 = . %>% 
+                 #   mutate(sms.treat = relevel(sms.treat, ref = "reminder.only")) %>%
+                 #   (reg.var.factory(y ~ any.treatment.arm * sms.treat,
+                 #                    coll(":sms.treat[T.control]"))),
+                 
+                 each.treatment.1 = reg.var.factory(y ~ treatment * sms.treat,
+                                                    coll(":sms.treat[T.reminder.only]")),
+
+                 each.treatment.2 = . %>%
+                   mutate(treatment = relevel(treatment, ref = "ink")) %>%
+                   (reg.var.factory(y ~ treatment * sms.treat,
+                                    regex("^(treatment\\[T.(bracelet|calendar)\\]:)?sms.treat\\[T.reminder.only\\]"))),
+
+                 split.control.1 = reg.var.factory(y ~ treatment2 * sms.treat,
+                                                   regex(c("^(treatment2\\[T.(bracelet|calendar|ink)\\]:)?sms.treat\\[T.reminder.only\\]",
+                                                           "^sms.treat",
+                                                           "pure.control]:"))))
+```
+
+\begin{align}
+Y_{ij} &= \pi_{10} + \pi_{11} \mathbb{1}(\sum^3_{k=1} Z_{jk} > 0) + \pi_{12} M_{ij} + \pi_{13} S_{ij} + \pi_{14} \mathbb{1}(\sum^3_{k=1} S_{ij}\times Z_{ik} > 0) + \varepsilon_{1,ij} \\
+Y_{ij} &= \pi_{20} + \sum^3_{k=1} \pi_{2k} Z_{jk} + \pi_{24} M_{ij} + \pi_{25} S_{ij} + \sum^3_{k=1} \pi_{2,k + 5} S_{ij}\times Z_{ik} + \varepsilon_{2,ij}
+\end{align}
+
+```{r reg-fun, cache=FALSE}
+tu.regression <- function(.data, bootstrap.reps = 0) {
+  ldply(reg.specs, .id = "spec", function(current.spec) {
+    spec.var <- current.spec(.data) 
+    mm <- spec.var$mm 
+    y <- spec.var$y 
+    
+    num.clusters <- length(unique(.data$cluster.id)) 
+  
+    # Cluster robust standard errors 
+    calc.crse <- function(.lf) { 
+      dfc <- (num.clusters/(num.clusters - 1)) * ((nrow(.data) - 1)/(nrow(.data) - .lf$rank)) * (1/nrow(.data))
+      
+      crossprod(mm) %>% # Bread
+        divide_by(nrow(.data)) %>% 
+        solve %>% { 
+            aaply(matrix(residuals(.lf), nrow = nrow(.data)), 2, function(u.col) {
+              (. %*% (crossprod(apply(u.col * mm, 2, function(x) tapply(x, .data$cluster.id, sum)))/nrow(.data)) %*% .) %>% 
+                multiply_by(dfc) %>% # Degrees of freedom correction
+                diag %>% 
+                sqrt
+            })
+        }
+    }
+  
+    # Restricted/unrestricted OLS 
+    # ols.res <- foreach(restrict.index = if (bootstrap.reps > 0) seq_len(length(treatments)) else 1) %do% {
+    #   if(restrict.index > 1) {
+    #     restrictions <- -restrict.index
+    #   } else { # No reminder only SMS treatment
+    #     # restrictions <- -grep(":sms.treat[T.reminder.only]", colnames(mm), fixed = T) 
+    #     # 
+    #     # if (length(restrictions) == 0) {
+    #     #   restrictions <- -grep(":sms.treat[T.control]", colnames(mm), fixed = T) 
+    #     # }
+    #   }
+      
+      # lf <- lm.fit(mm[, restrictions], y)
+    lf <- lm.fit(mm, y)
+
+    ols.res <- calc.crse(lf) %>%
+      list(fit.res.mat = matrix(c(fitted(lf), residuals(lf)), ncol = 2), crse = ., coef = coefficients(lf))
+    # }
+    
+    
+    # crse <- purrr::map(ols.res, ~ .$crse) 
+    
+    # unrestricted.ret <- tibble(var.name = names(ols.res[[1]]$coef[-1]),
+    #                            est = ols.res[[1]]$coef[-1],
+    #                            crse = ols.res[[1]]$crse[-1])
+    
+    unrestricted.ret <- tibble(var.name = names(ols.res$coef[-1]),
+                               est = ols.res$coef[-1],
+                               crse = ols.res$crse[-1])
+    
+    unrestricted.ret %>% {
+      if (bootstrap.reps > 0) { 
+        stop("Code path needs fixing!")
+        
+        names(crse) <- treatments
+        fit.res.mat <- purrr::map(ols.res, ~ .$fit.res.mat) %>% simplify2array
+        dimnames(fit.res.mat)[[2]] <- c("fitted", "residual")
+        
+        # Start bootstrapping
+        bstrp.res.mat <- foreach(rep = seq_len(reps)) %do% { # Keeping it sequential for now
+          bstrp.y <- .data$cluster.id %>% 
+            table %>% 
+            rep(sample(c(-1, 1), length(.), replace = TRUE), .) %>%
+            multiply_by(fit.res.mat[, "residual", -1]) %>% 
+            add(fit.res.mat[, "fitted", -1]) 
+          
+          bstrp.lf <- lm.fit(mm, bstrp.y) 
+          
+          coefficients(bstrp.lf) / t(calc.crse(bstrp.lf))
+        } %>% 
+          simplify2array
+        
+        bind_cols(., 
+                  aaply(bstrp.res.mat[-1, , ], 3, diag) %>% 
+                    aaply(2, . %>% quantile(probs = c(0.0125, 0.025, 0.05, 0.95, 0.975, 0.9875))) %>% 
+                    cbind(ols.res[[1]]$coef[-1] / ols.res[[1]]$crse[-1], .) %>% 
+                    aaply(1, function(x) cut(x[1], c(-Inf, x[-1], Inf), labels = FALSE) - (length(x) %/% 2) - 1) %>% 
+                    t %>% 
+                    as.data.frame %>% 
+                    set_names(paste(names(.), rep(c("reject.lvl"), each = length(treatments) - 1), sep = ".")))
+      } else return(.) 
+    } 
+  })
+}
+```
+
+```{r simulation-fun, cache=FALSE, echo=FALSE}
+tu.dgp <- tu.dgp.factory()
+
+# run.simul <- function(simul.reps, wild.reps, bb.reps, ...) {
+run.simul <- function(simul.reps, wild.reps, ...) {
+  foreach(simul.rep = seq_len(simul.reps), .combine = bind_rows) %dopar% {
+    simul.data <- tu.dgp(...) 
+    
+    wild.res <- simul.data %>% 
+      tu.regression(bootstrap.reps = wild.reps) %>% 
+      mutate(rep = simul.rep) 
+     
+    # blk.bstrp.res <- simul.data %>%  
+    #   block.bootstrap(bb.reps, "cluster.id") %>% 
+    #   do(broom::tidy(lm(y ~ treated + treatment.variant, data = .))) %>%
+    #   # do(broom::tidy(lm(y ~ treatment, data = .))) %>%
+    #   filter(term != "(Intercept)") %>% 
+    #   select(term, estimate) %>% 
+    #   group_by(term) %>% 
+    #   summarize(bbse = sd(estimate), bb.mean.y = mean(estimate)) %>% 
+    #   ungroup 
+    
+    # simul.data %>% 
+    #   filter(!is.na(sms.treat)) %>% {
+    #     if (!empty(.)) {
+    #       block.bootstrap(., bb.reps, "cluster.id") %>% 
+    #         do(broom::tidy(lm(y ~ sms.treat*treatment, data = .))) %>%
+    #         filter(term != "(Intercept)") %>% 
+    #         select(term, estimate) %>% 
+    #         group_by(term) %>% 
+    #         summarize(bbse = sd(estimate), bb.mean.y = mean(estimate)) %>% 
+    #         ungroup %>%
+    #         rename(treatment = term) %>% 
+    #         mutate(sms.treat.ols = TRUE) %>% 
+    #         bind_rows(left_join(wild.res, blk.bstrp.res, by = c("treatment" = "term")) %>% 
+    #                     mutate(sms.treat.ols = FALSE)) 
+    #     } else {
+    #       left_join(wild.res, blk.bstrp.res, by = c("treatment" = "term")) %>% 
+    #         mutate(sms.treat.ols = FALSE) 
+    #     }
+    #   } %>% 
+    #   mutate(rep = simul.rep) 
+    
+    return(wild.res)
+  } #, error = function(err) browser())
+}
+```
+
+Below is the simulation output showing probability of rejecting the null hypotheses and MDEs, with a test size of 10\% and power 80\%. I report results for two one levels of intracluster correlation (a cluster random effect SD of 0.15 and 0.65). The SD of 0.15 is what was observed in the first wave of the RCT for the the control clusters.
+<!-- , on the extremely high end (estimated from the pilot data) at $\text{ICC} \approx 0.2$ and a more conventional but still conservative one at $\text{ICC} \approx 0.11$. -->
+
+```{r simulation, echo=FALSE, dependson="dgp-simulation-fun"}
+simul.res <- expand.grid(cluster.re.sd = c(0.15, 0.65), 
+                         treatment.effect = c(0, 0.2), 
+                         sms.treat.sample.size.treatment = 25, # c(20, 25, 30),
+                         sms.treat.sample.size.control = 15) %>% # c(10, 15, 20)) %>% 
+  purrr::by_row(~ do.call(run.simul, c(as.list(.), list(simul.reps = 500, wild.rep = 0)))) %>% 
+  unnest 
+```
+
+```{r, eval=FALSE, echo=FALSE, dependson="dgp-simulation-fun"}
+simul.res.2 <- expand.grid(total.num.clusters = 150, num.treatment.arms = 3, treatment.control.clusters.ratio = 1, cluster.re.sd = c(0.65), treatment.effect = c(0.2, 0.3), sms.treat.sample.size = 0, cluster.size = c(10, 25)) %>% 
+  purrr::by_row(~ do.call(run.simul, c(as.list(.), list(simul.reps = 1000, wild.rep = 0, bb.reps = 400)))) %>%
+  unnest 
+```
+
+```{r prepare-simulation-results, echo=FALSE, cache=FALSE, dependson="simulation"}
+prep.simul.results <- function(.simul.res, 
+                               grouping = c("cluster.re.sd", "sms.treat.sample.size.treatment", "sms.treat.sample.size.control", "treatment.effect", "spec", "var.name")) {
+  .simul.res %>% 
+    group_by_(.dots = grouping) %>% 
+    summarize(mean.est = mean(est),
+              sd.est = sd(est),
+              crse.prob.reject = mean(abs(est/crse) >= qnorm(0.05, lower.tail = FALSE)), 
+              mean.crse = mean(crse),
+              mde.crse = mean.crse * 2.8,
+              mde.monte.carlo =  sd.est * 2.8) %>% 
+    as.data.frame 
+}
+
+prepared.simul.res <- simul.res %>% 
+  prep.simul.results %>% 
+  mutate(cluster.re.sd = factor(cluster.re.sd)) %>%
+  rename(sms.ss.control = sms.treat.sample.size.control,
+         sms.ss.treat = sms.treat.sample.size.treatment) 
+```
+
+### Minimum Detectable Effect
+
+#### SMS Individual Level Treatment
+
+```{r, eval=FALSE}
+prepared.simul.res %>% 
+  filter(treatment.effect == 0.2, !grepl("[T.control]", var.name, fixed = TRUE)) %>% 
+  arrange(spec, var.name, cluster.re.sd, sms.treat.sample.size.control, sms.treat.sample.size.treatment) %>% 
+  rename(sms.ss.control = sms.treat.sample.size.control,
+         sms.ss.treat = sms.treat.sample.size.treatment) %>% 
+  d_ply(.(spec), . %>% 
+          select(-c(spec, treatment.effect, crse.prob.reject)) %>% 
+          knitr::kable(digits = 4) %>% #, col.names = c("Cluster RE SE", "SMS Sample Size (Treated)", "SMS Sample Size (Control)", "Coefficient")) %>% 
+          print)
+```
+
+```{r sms-mde-plots, fig.height=7, fig.width=7, fig.align="center"}
+prepared.simul.res %>% 
+  filter(treatment.effect == 0) %>% {
+    # filter(., 
+    #        spec == "any.treatment.1", 
+    #        sms.ss.treat == 25,
+    #        var.name == "sms.treat[T.reminder.and.info]") %>% {
+    #   ggplot(.) +
+    #     geom_line(aes(x = sms.ss.control, y = mde.crse, color = cluster.re.sd)) +
+    #     geom_point(aes(x = sms.ss.control, y = mde.crse, color = cluster.re.sd)) +
+    #     scale_color_discrete("Cluster RE SD") +
+    #     scale_x_continuous("Control Arm SMS Sample Size") +
+    #     scale_y_continuous("MDE", breaks = seq(0.05, 0.1, 0.001)) +
+    #     ggtitle("Comparing SMS Treatment/Control in the Control Arm") 
+    # } %>% plot
+    
+    filter(., 
+           spec == "each.treatment.2", 
+           sms.ss.control == 15, 
+           var.name == "sms.treat[T.reminder.and.info]") %>% {
+      ggplot(.) +
+        geom_line(aes(x = sms.ss.treat, y = mde.crse, color = cluster.re.sd)) + 
+        geom_point(aes(x = sms.ss.treat, y = mde.crse, color = cluster.re.sd)) + 
+        scale_color_discrete("Cluster RE SD") +
+        scale_x_continuous("Treat Arm SMS Sample Size") +
+        scale_y_continuous("MDE", breaks = seq(0.05, 0.15, 0.001)) +
+        ggtitle("Comparing SMS Treatment/Control in a Treatment Arm")
+    } %>% 
+      plot
+  }
+```
+
+#### Cluster-level Intention-to-Treat Effect
+
+```{r itt-mde-plots, fig.height=7, fig.width=8, fig.align="center"}
+prepared.simul.res %>% 
+  filter(spec == "each.treatment.2", 
+         sms.ss.control == 15, 
+         var.name == "treatment[T.bracelet]") %>% {
+           
+  # group_by(treatment.effect) %>% 
+  # do(plot.obj = ggplot(.) +
+  ggplot(.) +
+    geom_line(aes(x = sms.ss.treat, y = mde.crse, color = cluster.re.sd)) + 
+    geom_point(aes(x = sms.ss.treat, y = mde.crse, color = cluster.re.sd)) + 
+    scale_color_discrete("Cluster RE SD") +
+    scale_x_continuous("Take-up Sample Size", breaks = unique(.$sms.ss.treat)) +
+    scale_y_continuous("MDE", breaks = seq(0.05, 0.15, 0.001)) +
+    ggtitle(sprintf("Comparing Take-up Between Any Two Arms")) +
+    facet_wrap(~ treatment.effect, labeller = "label_both")
+} %>% plot
+             
+  
+# %>% 
+#   ungroup 
+```
+
+
+```{r, eval=FALSE, include=FALSE, echo=FALSE, cache=FALSE, results='asis'}
+prepared.simul.res %>% 
+  select(-c(treatment.control.clusters.ratio, treatment.effect, ends_with("reject"))) %>%
+  mutate(num.treatment.arms = num.treatment.arms + 1,
+         treatment = str_replace(treatment, "treated", "\\\\beta") %>% str_replace("treatment\\.variant(\\d)", "\\\\delta_\\1") %>% sprintf("$%s$", .)) %>%
+  group_by(cluster.re.sd) %>%
+  filter(treatment != "$\\delta_3$",
+         total.num.clusters %in% c(100, 150)) %>% 
+  d_ply(.(cluster.re.sd), . %>% { knitr::kable(.[, -1],
+                                             digits = 4,
+                                             col.names = c("Clusters", "Arms", "Cluster Size", "Estimator", "ATE", "CRSE MDE", "MC MDE", "Bstrp MDE"),
+                                             caption = sprintf("Cluster Random Effects SD = %.2f", first(.$cluster.re.sd)) ) } %>% print)
+```
+
+<!-- #### Individual-level Text Message Intention-to-Treat Effect -->
+
+```{r, eval=FALSE, include=FALSE, echo=FALSE, cache=FALSE, results='asis'}
+sms.prepared.simul.res %>% 
+  select(-c(treatment.control.clusters.ratio, ends_with("reject"), mean.est, mde.crse, mde.monte.carlo)) %>%
+  mutate(num.treatment.arms = num.treatment.arms + 1) %>% 
+         # treatment = str_replace(treatment, "sms.treat", "eta") %>% str_replace("treatment\\.variant(\\d)", "\\\\delta_\\1") %>% sprintf("$%s$", .)) %>%
+  group_by(cluster.re.sd) %>%
+  filter(treatment %in% c("sms.treat", "sms.treat:treatment1"),
+         total.num.clusters %in% c(100, 150)) %>% 
+  d_ply(.(cluster.re.sd), . %>% { knitr::kable(.[, -1],
+                                             digits = 4, 
+                                             col.names = c("Clusters", "Arms", "Cluster ITT ATE", "Estimator", "Sample Size", "Bstrp MDE"),
+                                             caption = sprintf("Cluster Random Effects SD = %.2f", first(.$cluster.re.sd)) ) } %>% print)
+```
+  
+### Coverage
+
+```{r, echo=FALSE, cache=FALSE}
+prepared.simul.res %>% 
+  filter(treatment == "treatment.variant2", total.num.clusters %in% c(100, 150)) %>%  
+  select(-c(treatment.control.clusters.ratio, treatment.effect, mean.est, treatment, starts_with("mde"))) %>%  
+  mutate(num.treatment.arms = num.treatment.arms + 1) %>%
+  knitr::kable(digits = 4, col.names = c("RE SD", "Clusters", "Arms", "Cluster Size", "CRSE Reject", "Bstrp Reject"))
+```
+

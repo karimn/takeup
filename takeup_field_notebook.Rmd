@@ -1,0 +1,3497 @@
+---
+title: "TakeUp Field Notebook"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_notebook:
+    code_folding: hide
+    fig_caption: yes
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+    toc_float:
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+library(plyr)
+library(dplyr)
+library(multidplyr)
+library(tibble)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(readr)
+library(haven)
+library(broom)
+library(ggplot2)
+library(scales)
+library(viridis)
+library(ggrepel)
+library(ggmap)
+library(stringr)
+library(knitr)
+library(bigmemory)
+
+source("util.R")
+source("takeup_rct_assign_clusters.R")
+
+knitr::opts_chunk$set(cache = TRUE)
+
+config <- yaml::yaml.load_file("local_config.yaml")
+
+doParallel::registerDoParallel(cores = config$cores)
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+
+datetime.format <- "%b %d, %Y %I:%M:%S %p"
+takeup.datetime.type <- col_datetime(datetime.format)
+takeup.date.type <- col_date(datetime.format)
+```
+
+# Cluster Survey
+
+## Point-of-Treatment
+
+```{r cluster-survey-data}
+clusters.to.drop <- c(277, # Too close other cluster (I think 503)
+                      491, 492, # Problematic urban clusters
+                      1, # Village dispute about PoT
+                      678, # Hostile community member
+                      737) # Data fabrication and medication theft
+
+cluster.wave.county.data <- read_rds("takeup_cluster_wave_county_5.0.rds")
+
+cluster.info.to.drop <- c("uuid:3a491628-a0e8-4be0-9afc-c2cca08fc450", # Bad entries
+                          "uuid:fcd3137e-7ddb-4f2e-9140-680e7638e42c",
+                          "uuid:00fe16c6-5de1-4ff8-a9c8-92101ef4bd01",
+                          "uuid:e3a47c54-f7f2-4af0-bd5b-0de12d997cb0")
+
+cluster.info <- read_csv("Cluster Survey V3 July 04.csv",
+                         col_types = list(SubmissionDate = takeup.date.type)) %>% 
+  bind_rows(v3 = ., v1 = read_dta("Cluster Survey V1.dta") %>%
+                   transmute(cluster.id = clusterid,
+                             SubmissionDate = submissiondate,
+                             KEY = key,
+                             `gps2-Longitude` = gps2longitude,
+                             `gps2-Latitude` = gps2latitude,
+                             SubmissionDate = parse_date(SubmissionDate, "%d/%m/%Y %T"),
+                             deviceid = as.character(deviceid),
+                             manual_long2, manual_lat2, location_type, alt_name, comments, enumerator), 
+            .id = "data.source") %>%
+  filter(!is.na(cluster.id), deviceid != "(web)", !KEY %in% cluster.info.to.drop) %>% 
+  arrange(cluster.id, SubmissionDate) %>% 
+  group_by(cluster.id) %>%
+  slice(n()) %>%
+  ungroup %>%
+  rename(alt.pot.lon = `gps2-Longitude`,
+         alt.pot.lat = `gps2-Latitude`) %>%
+  mutate(alt.pot.lon = ifelse(is.na(alt.pot.lon), read_lon_ant, alt.pot.lon),
+         alt.pot.lat = ifelse(is.na(alt.pot.lat), read_lat_ant, alt.pot.lat),
+         alt.pot.lon = ifelse(is.na(alt.pot.lon), manual_long2, alt.pot.lon),
+         alt.pot.lat = ifelse(is.na(alt.pot.lat), manual_lat2, alt.pot.lat),
+         location_type = factor(location_type, levels = 1:5, labels = c("Clinic", "Church", "Market", "Home", "Other")),
+         cluster.id = as.integer(cluster.id)) %>% 
+  rename(old.county.code = county) %>%
+  mutate(old.county.code = factor(old.county.code, levels = 1:3, labels = c("Busia", "Kakamega", "Siaya"))) %>% 
+  left_join(cluster.wave.county.data, "cluster.id") 
+
+pot.info <- cluster.info %>%
+  select(enumerator, enumerator_other, wave, county, cluster.id, alt.pot.lon, alt.pot.lat, alt_name, location_type, comments, SubmissionDate, data.source)
+
+pot.verify.data <- read_csv("POT verification.csv", 
+                            col_types = list(SubmissionDate = takeup.datetime.type)) %>%
+  rename(cluster.id = cluster_id,
+         lon.verify = `gps-Longitude`,
+         lat.verify = `gps-Latitude`) %>% 
+  select(-county) %>% 
+  left_join(cluster.wave.county.data, "cluster.id") %>% 
+  filter(wave == 1 | SubmissionDate >= "2016-10-16", !is.na(lon.verify), !is.na(lat.verify)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(num.entries = n()) %>% 
+  filter(min_rank(SubmissionDate) == n()) %>% 
+  ungroup 
+
+pot.info %<>% 
+  left_join(#filter(pot.verify.data, !is.na(lon.verify), !is.na(lat.verify)),
+            pot.verify.data,
+            c("wave", "county", "cluster.id"), 
+            suffix = c(".original", ".verify")) %>% 
+  set_names(str_replace(names(.), "\\.original$", "")) 
+
+pot.info %<>% 
+  filter(!is.na(lon.verify), !is.na(lat.verify), !is.na(alt.pot.lon), !is.na(alt.pot.lat)) %>% 
+  mutate(verify.dist = gDistance(convert.to.sp(., ~ alt.pot.lon + alt.pot.lat, wgs.84) %>% spTransform(kenya.proj4),
+                                 convert.to.sp(., ~ lon.verify + lat.verify, wgs.84) %>% spTransform(kenya.proj4), byid = TRUE) %>% diag) %>% 
+  select(KEY, verify.dist) %>% 
+  right_join(pot.info, "KEY")
+```
+
+```{r}
+pot.info %>% 
+  filter(wave == 2) %>% 
+  count(cluster.id) %>% 
+  filter(n > 1) %>%  
+  left_join(pot.info, "cluster.id") %>% 
+  arrange(cluster.id, SubmissionDate.verify) %>% 
+  select(cluster.id, SubmissionDate.verify, verify.dist) #%>% print(n = 40)
+```
+
+```{r wave-2-pot-info-csv, eval=FALSE}
+pot.info %>% 
+  filter(wave == 2) %>% 
+  convert.to.sp(~ lon.verify + lat.verify, wgs.84) %>% {
+  # convert.to.sp(~ alt.pot.lon + alt.pot.lat, wgs.84) %>% {
+    bind_rows(level.1.50m = buffer.clusters(., 50) %>% 
+                spTransform(wgs.84) %>% 
+                unionSpatialPolygons(.@data$cluster.id) %>% 
+                tidy,
+              level.2.100m = buffer.clusters(., 100) %>% 
+                spTransform(wgs.84) %>% 
+                unionSpatialPolygons(.@data$cluster.id) %>% 
+                tidy,
+              .id = "box.range")
+  } %>% 
+  group_by(box.range, id) %>% 
+  summarize(lon.min = min(long),
+            lon.max = max(long),
+            lat.min = min(lat),
+            lat.max = max(lat)) %>% 
+  group_by(id) %>% 
+  gather(min.max, val, -c(box.range, id)) %>% 
+  mutate(min.max = paste(box.range, min.max, sep = ".")) %>% 
+  ungroup %>% 
+  transmute(cluster.id = as.integer(id), min.max, val) %>% 
+  spread(min.max, val) %>% 
+  right_join(pot.info, "cluster.id") %>% 
+  filter(wave == 2) %>% 
+  select(cluster.id, matches("(lon|lat)\\.(verify|min|max)$")) %>% 
+  write_csv(sprintf("takeup_pot_location_w2_%s.csv", now() %>% date %>% format.Date("%Y%m%d")))
+```
+
+```{r}
+pot.info %>% 
+  filter(!is.na(verify.dist), !is.na(wave)) %T>% {
+    count(., wave) %>% print
+  } %>% 
+  filter(wave == 2) %T>% {
+    summary(.$verify.dist) %>% print
+  } %>% 
+  filter(verify.dist > 50) %>% 
+  select(cluster.id, verify.dist, SubmissionDate.verify)
+```
+
+
+## Villages
+
+```{r villages-data}
+rct.village.codes <- read_csv("village_codes_2.csv", skip = 1, col_names = c("village.cluster.id", "village_name", "village")) %>% 
+  mutate(village.cluster.id = as.integer(village.cluster.id))
+
+# We're already reading this above (cluster-survey-data), but not in exactly the same format...
+cluster.survey.data <- read_rds("takeup_cluster_survey.rds") 
+
+rct.villages <- read_rds("rct_target_villages_2.0.rds") %>% 
+  mutate(new.village = FALSE) %>% 
+  bind_rows(read_rds("rct_target_villages_2.0-4.rds") %>% 
+              mutate(new.village = TRUE))
+
+all.villages <- rct.villages %>% 
+  bind_rows(anti_join(cluster.survey.data, ., c("cluster.id", "target.village.id"))) %>% 
+  mutate(targeted.village = !is.na(new.village),
+         cluster.id = as.integer(cluster.id),
+         target.village_name = str_trim(target.village_name) %>% str_replace_all("\\s+", " ")) %>% 
+  left_join(rct.village.codes, c("cluster.id" = "village.cluster.id", "target.village_name" = "village_name")) %>% 
+  left_join(select(pot.info, cluster.id, matches("alt.pot.(lon|lat)"), location_type), "cluster.id") %>% 
+  group_by(is.na(village)) %>% 
+  do({ # Adding some village IDs for village that weren't in the code file shared by Arthur
+    if(is.na(first(.$village))) {
+      mutate(., village = 1000 + seq_len(nrow(.)))
+    } else {
+      return(.)
+    }
+  }) %>% 
+  ungroup %>% 
+  mutate(dist.group = convert.to.sp(., ~ target.lon + target.lat, wgs.84) %>% 
+           spTransform(kenya.proj4) %>% 
+           gDistance(byid = TRUE) %>% 
+           as.dist %>% 
+           hclust %>% 
+           cutree(h = 1000)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(num.dist.groups = unique(dist.group) %>% length) %>% 
+  ungroup %>% 
+  left_join(cluster.wave.county.data, "cluster.id") %>% 
+  mutate(village.name.group = target.village_name %>% 
+           str_trim %>% 
+           str_replace("\\s*[A-Z]\\d?$", "") %>% 
+           str_replace_all("\\s+", " ") %>% 
+           str_replace_all("'", "") %>% 
+           str_to_upper %>% 
+           str_replace("\\s+[A-Z]\\d?$", "") %>% 
+           str_replace(regex("\\s+(village|upper|lower|group|east|west|north|south|rural|urban|township|central)$", ignore_case = TRUE), "") %>% 
+           str_replace(regex("\\s+(MWILUECHINA)$", ignore_case = TRUE), "") %>% 
+           str_replace(regex("\\s*(\\(.+\\)|estate|township)$", ignore_case = TRUE), "") %>% 
+           str_replace("\\s+[A-Z]\\d?$", ""),
+         vill.name.dist.group = adist(village.name.group) %>% 
+           as.dist %>% 
+           hclust %>% 
+           cutree(h = 1))
+
+rm(rct.villages)
+
+rct.village.codes %<>%
+  left_join(select(all.villages, village, targeted.village), "village")
+
+pre.census.data <- read_rds("pre.census.processed.rds")
+```
+
+```{r, eval=FALSE}
+all.villages %>% 
+  filter(!is.na(wave)) %>% 
+  group_by(cluster.id) %>% 
+  filter(n_distinct(dist.group) > 1) %>% 
+  ungroup %>% 
+  select(wave, county, cluster.id, village, dist.group, targeted.village, matches("^(alt\\.pot|target)\\.?(lon|lat)")) %>% 
+  arrange(cluster.id) %>% 
+  group_by(cluster.id) %>% 
+  do(plot.obj = {
+    data.box <- make_bbox(target.lon, target.lat, data = .)
+    
+    ggplot(., mapping = aes(target.lon, target.lat)) +
+      coord_fixed(xlim = data.box[c("left", "right")], ylim = data.box[c("bottom", "top")]) +
+      geom_point(aes(color = factor(dist.group))) +
+      geom_point(aes(x = alt.pot.lon, y = alt.pot.lat)) +
+      labs(title = sprintf("Cluster %d", first(.$cluster.id)), x = "", y = "") +
+      theme(axis.text = element_blank())
+  }) %>% 
+  ungroup %$%
+  plot.obj %>% 
+  walk(plot)
+
+all.villages %>% count(vill.name.dist.group) %>% filter(n > 1) %>% left_join(all.villages, "vill.name.dist.group") %>% select(village.name.group, vill.name.dist.group) %>% print(n = 300)
+
+all.villages %>% group_by(village.name.group) %>% filter(n_distinct(dist.group) > 1) %>% ungroup %>% select(cluster.id, village.name.group, target.village_name) %>% arrange(village.name.group) %>% count(village.name.group)
+```
+
+
+# Census
+
+## Data
+
+```{r target-county-spatial-data, include=FALSE}
+rct.counties <- c("Busia", "Siaya", "Kakamega")
+busia.subcounties <- c("butula", "nambale", "teso south", "teso north") 
+siaya.subcounties <- c("gem", "ugenya", "ugunja")
+
+ke.lvl2.adm.data <- read_rds("~/Data/TakeUp/KEN_adm2.rds")
+ke.lvl3.adm.data <- read_rds("~/Data/TakeUp/KEN_adm3.rds")
+
+counties.adm.data <- ke.lvl2.adm.data[ke.lvl2.adm.data$NAME_1 %in% rct.counties, ] #, "Vihiga"), ]
+subcounties.adm.data <- counties.adm.data[!counties.adm.data$NAME_1 %in% c("Busia", "Siaya") | counties.adm.data$NAME_2 %in% str_to_title(c(busia.subcounties, siaya.subcounties)), ]
+
+county.bbox <- counties.adm.data@bbox
+subcounty.bbox <- subcounties.adm.data@bbox
+```
+
+
+```{r data, echo=TRUE, message=FALSE}
+validate.coords <- . %>% 
+  mutate(invalid.coord = 
+           (!is.na(lon) & (lon > county.bbox["x", "max"] | lon < county.bbox["x", "min"])) |
+           (!is.na(lat) & (lat > county.bbox["y", "max"] | lat < county.bbox["y", "min"])))
+
+tu.data.reader <- function(file.name, submit.datetime.type = NULL) { # =  "%b %d, %Y %I:%M:%S %p") {
+  read_csv(file.name, col_types = list(SubmissionDate = if (is.null(submit.datetime.type)) takeup.datetime.type else submit.datetime.type,
+                                       manual_long = col_number(),
+                                       manual_lat = col_number())) %>% 
+    mutate(isValidated = isValidated == "true") %>% 
+    rename(lat = `gps-Latitude`,
+           lon = `gps-Longitude`,
+           cluster.id = cluster_id) %>% 
+    filter(deviceid != "(web)") %>% 
+    mutate(lon = ifelse(is.na(lon), manual_long, lon),
+           lat = ifelse(is.na(lat), manual_lat, lat)) %>% 
+    validate.coords
+}
+
+hh.census.data.pre24th <- tu.data.reader("census_gps_util23.csv", 
+                                         submit.datetime.type = col_datetime("%d/%m/%Y %H:%M")) %>% 
+  filter(SubmissionDate >= "2016-08-22") %>% 
+  mutate_at(vars(present, return, number_individuals, instance, check), as.numeric)
+
+factor.have.phone <- . %>% factor(levels = 0:2, labels = c("No", "Yes", "Don't know number"))
+
+   
+hh.census.data <- tu.data.reader("Census.csv") %>% 
+  filter(SubmissionDate >= "2016-08-25") %>% 
+  bind_rows(hh.census.data.pre24th) %>% 
+  select(-c(RI, matches("^IC\\d{1,2}$"))) %>% 
+  left_join(rct.village.codes, by = "village") %>%
+  mutate(village_name = factor(village_name),
+         present = ifelse(is.na(present) & SubmissionDate <= "2016-08-22", NA, present),
+         return = as.numeric(return),
+         hhh_have_phone = factor.have.phone(hhh_have_phone))
+
+missing.gps.data <- read_csv("missing_gps.csv") %>% 
+  select(KEY, `gps-Latitude`, `gps-Longitude`, gps_work, manual_long, manual_lat) %>% 
+  mutate(lon = ifelse(is.na(`gps-Longitude`), manual_long, `gps-Longitude`),
+         lat = ifelse(is.na(`gps-Latitude`), manual_lat, `gps-Latitude`),
+         data.source = "missing_gps") %>% 
+  select(-c(starts_with("gps-"), starts_with("manual_"))) %>% 
+  filter(!is.na(KEY), !is.na(lon), !is.na(lat))  
+
+missing.gps.149.data <- read_csv("missing_gps_149.csv") %>% 
+  transmute(lon = gpslongitude,
+            lat = gpslatitude, 
+            KEY = `key of form with missing GPS data`,
+            data.source = "missing_gps_149")
+
+missing.gps.360.data <- read_csv("missing_gps_360.csv") %>% 
+  transmute(lon = gpslongitude,
+            lat = gpslatitude, 
+            KEY = `key of form missing GPS data`,
+            data.source = "missing_gps_149")
+
+missing.gps.844.data <- read_csv("missing_gps_844.csv") %>%
+  rename(key.gps = `Key with GPS`,
+         key.missing.gps = `Key missing GPS`) %>%
+  inner_join(hh.census.data, c("key.gps" = "KEY")) %>% 
+  transmute(lon, lat, KEY = key.missing.gps, data.source = "missing_gps_844")
+
+hh.census.data %<>% {
+  mask <- .$KEY %in% missing.gps.844.data$KEY
+
+  mutate_at(., vars(lon, lat), funs(ifelse(mask, NA, .)))  
+}
+
+missing.gps.data %<>% 
+  bind_rows(missing.gps.149.data, missing.gps.360.data, missing.gps.844.data) %>% 
+  validate.coords
+
+hh.census.data %<>% 
+  left_join(missing.gps.data, by = "KEY") %>% 
+  filter(is.na(data.source) | data.source != "missing_gps_149" | cluster.id == 149) %>%
+  mutate(lon = ifelse(is.na(lon.x), lon.y, lon.x),
+         lat = ifelse(is.na(lat.x), lat.y, lat.x),
+         gps_work = ifelse(is.na(gps_work.y), gps_work.x, as.numeric(gps_work.y)),
+         invalid.coord = ifelse(is.na(invalid.coord.y), invalid.coord.x, invalid.coord.y)) %>% 
+  select(-matches("\\.[xy]$"))
+
+hh.census.data %<>% 
+  anti_join(ldply(c("takeup_returns_toremove.csv", 
+                    "takeup_moved_notvalid_toremove.csv",
+                    "takeup_noconsent_toremove.csv"), read_csv),
+            by = c("KEY" = "key"))
+
+hh.id.dict <- read_rds("takeup_hh_id_dict.rds")
+
+hh.census.data %<>% 
+  select(-county) %>% 
+  left_join(cluster.wave.county.data, "cluster.id") %>% 
+  left_join(hh.id.dict, "KEY")
+
+person.id.dict <- read_rds("takeup_person_id_dict.rds")
+
+clean.names <- . %>% 
+  mutate_at(vars(matches("1st|mid|2nd|clan")), str_to_upper) %>% 
+  mutate_at(vars(matches("1st|mid|2nd|clan")), 
+            funs(ifelse(. %in% c("NONE", "N/A", "NA", "NO"), NA, .))) %>% 
+  mutate_at(vars(matches("1st|2nd|clan")), 
+            funs(ifelse(nchar(.) < 2, NA, .))) %>% 
+  mutate(last_name = ifelse(is.na(name2nd) & !is.na(name_mid), name_mid, name2nd),
+         name_mid = ifelse(is.na(name2nd) & !is.na(name_mid), NA, name_mid)) 
+
+census.data <- hh.census.data %>% {
+  individ.data <- read_csv("Census-survey-individual.csv")
+  anti_join(., individ.data, c("KEY" = "PARENT_KEY")) %>% 
+    count(SubmissionDate) %>% 
+    rename(num.hhs.without.individuals = n) %>% 
+    knitr::kable(col.names = c("Submission Date", "Number HH w/o individuals")) %>% 
+    print
+  
+  inner_join(., individ.data, c("KEY" = "PARENT_KEY"), suffix = c(".hh", ".individ"))
+} %>% 
+  mutate(two.digit.match = ifelse(have_phone == 1, two_digits == two_digits_check, NA),
+         have_phone = factor.have.phone(have_phone)) %>% 
+  group_by(KEY) %>% 
+  mutate(num.individuals = n(),
+         hh.has.phone = any(have_phone == "Yes"),
+         hh.has.non.phone = any(have_phone != "Yes")) %>% 
+  ungroup %>% 
+  clean.names %>% 
+  filter(!is.na(name1st) & (!is.na(name_mid) | !is.na(name2nd))) %>% 
+  left_join(person.id.dict, "KEY.individ")
+
+#This step would also remove all households with no individuals (inner join)
+hh.census.data %<>%
+  inner_join(distinct(census.data, KEY, num.individuals, hh.has.phone, hh.has.non.phone), "KEY")
+```
+
+```{r, eval=FALSE}
+# cluster.wave.county.data <- hh.census.data %>% 
+#   filter(!is.na(cluster.id)) %>% 
+#   distinct(cluster.id, wave, county)
+
+cluster.wave.county.data <- cluster.info %>% 
+  distinct(wave, county, cluster.id) %>% 
+  mutate(wave = if_else(.$cluster.id %in% clusters.to.drop, 0, wave) %>% na_if(0))
+
+write_rds(cluster.wave.county.data, "takeup_cluster_wave_county_2.0.rds")
+```
+
+
+```{r cluster-review, include=FALSE}
+load("takeup_cluster_review.RData")
+```
+
+
+
+Breakdown by surveys by day:
+
+```{r surveys-by-day}
+hh.census.data %>% 
+  group_by(SubmissionDate) %>% 
+  summarize(num.hhs = n(),
+            num.individuals = sum(num.individuals),
+            num.clusters = unique(cluster.id) %>% { length(.) - any(is.na(.)) },
+            num.villages = unique(village) %>% { length(.) - any(is.na(.)) }) %>% 
+  ungroup %>% 
+  knitr::kable(col.names = c("Submission Date", "Households", "Individuals", "Clusters", "Villages"))
+```
+
+<!-- Testing the number of individuals in the data against reported number: -->
+
+```{r, eval=FALSE}
+# This isn't very important; we are expecting some difference (see Arthur's response on Slack)
+hh.census.data %>% 
+  validate::check_that(number_individuals == num.individuals) %>% 
+  summary %>% 
+  knitr::kable()
+```
+
+
+
+```{r boundaries, include=FALSE}
+pot.ranges <- pot.info %>% 
+  convert.to.sp(~ alt.pot.lon + alt.pot.lat, wgs.84) %>% 
+  buffer.clusters(.width = 2500) %>% 
+  spTransform(wgs.84) %>% {
+    merge(tidy(.), 
+          select(.@data, cluster.id), 
+          by.x = "id", by.y = "row.names", all.x = TRUE, all.y = FALSE) 
+  } %>% 
+  mutate(boundary.type = "pot") 
+
+get.survey.boundary <- function(.data, .boundary.type, .group.by = c("cluster.id")) {
+  .data %>% 
+    filter(!is.na(lon), !is.na(lat)) %>% 
+    group_by_(.dots = .group.by) %>% 
+    do((function(cluster.pc.hh) {
+      cluster.pc.hh %>% 
+        convert.to.sp(~ lon + lat, wgs.84) %>% 
+        gConvexHull %>% 
+        spTransform(kenya.proj4) %>% 
+        gBuffer %>% 
+        spTransform(wgs.84) %>% 
+        tidy %>%
+        mutate(group = paste(group, cluster.pc.hh$cluster.id[1], sep = "-")) 
+    })(.)) %>% 
+    ungroup %>% 
+    mutate(boundary.type = .boundary.type)
+}
+
+pre.census.hhs.boundary <- pre.census.data %>% 
+  mutate(cluster.id = as.integer(act.cluster.id)) %>% 
+  get.survey.boundary("pre.census.convex.hull")
+
+boundaries <- bind_rows(pot.ranges, pre.census.hhs.boundary) %>% 
+  mutate(group = paste(group, boundary.type, sep = "-")) %>% 
+  rename(lon = long)  
+```
+
+```{r dist-to-pot, echo=FALSE}
+known.pot.locations <- pot.info %>%
+  filter(!is.na(alt.pot.lon) | !is.na(lon.verify), !is.na(alt.pot.lat) | !is.na(lat.verify)) %>%
+  mutate(alt.pot.lon = ifelse(is.na(alt.pot.lon), lon.verify, alt.pot.lon),
+         alt.pot.lat = ifelse(is.na(alt.pot.lat), lat.verify, alt.pot.lat)) %>% 
+  distinct(cluster.id, .keep_all = TRUE)
+
+known.village.locations <- all.villages %>%  #rct.villages %>%
+  filter(targeted.village, !is.na(target.lon), !is.na(target.lat)) %>%
+  distinct(cluster.id, target.village.id, .keep_all = TRUE)
+
+identify.closest.cluster <- function(.data, data.coords.formula = ~ lon + lat,  key.variable = "KEY") {
+  # min.dist.df <- .data %>% 
+  .data %>%
+    filter(rowSums(is.na(model.frame(data.coords.formula, data = ., na.action = NULL))) == 0) %>% 
+    # filter(!is.na(lon), !is.na(lat)) %>%
+    (function (.located.data) {
+      convert.to.sp(.located.data, data.coords.formula, wgs.84) %>% 
+        spTransform(kenya.proj4) %>% 
+        gDistance(known.village.locations %>%
+                    convert.to.sp(~ target.lon + target.lat, wgs.84) %>%
+                    spTransform(kenya.proj4),
+                  byid = TRUE) %>%
+        adply(2, function(dist.col) {
+          in.range.dist <- dist.col[dist.col <= 2000]
+      
+          if (length(in.range.dist) == 0) {
+            tibble(min.dist = NA, closest.cluster = NA)
+          } else {
+            tibble(min.dist = min(in.range.dist),
+                   closest.village = known.village.locations$target.village.id[which(dist.col <= min.dist)], 
+                   closest.cluster = known.village.locations$cluster.id[which(dist.col <= min.dist)]) %>% 
+              distinct(closest.cluster, .keep_all = TRUE)
+          }
+          
+        }, .parallel = TRUE) %>% 
+        bind_cols(.located.data, .) %>% 
+        select_(.dots = c(key.variable, "min.dist", "closest.cluster")) 
+    })
+}
+
+hh.census.data %<>%
+  filter(!is.na(lon), !is.na(lat), !invalid.coord, cluster.id %in% known.village.locations$cluster.id) %>%
+  identify.closest.cluster %>% 
+  right_join(hh.census.data, by = "KEY") %>% 
+  mutate(misidentified.cluster = cluster.id != closest.cluster)
+
+hh.census.data %>% 
+  count(misidentified.cluster)
+```
+
+Aside from some corrections of cluster ID due to incorrect coding, 
+
+* we're dropping households from cluster 954 that were found in the census that are very different from the pre-census
+
+```{r corrections}
+cluster.954.to.drop <- read_rds("cluster_954_to_drop.rds")
+
+get.outside.keys <- function(.data, .cluster.id) 
+  .data %>% 
+    filter(cluster.id == .cluster.id, !invalid.coord, !is.na(lon), !is.na(lat)) %>% 
+    convert.to.sp(~ lon + lat, wgs.84) %>% 
+    magrittr::extract(!gWithin(., boundaries %>% 
+                                filter(cluster.id == .cluster.id, boundary.type == "pre.census.convex.hull") %>% 
+                                convert.to.sp(~ lon + lat, wgs.84) %>% 
+                                gConvexHull %>% 
+                                buffer.clusters(50) %>% 
+                                spTransform(wgs.84), byid = TRUE) %>% 
+                        c, ) %>% `@`(data) %$% KEY
+  
+corrected.hhs <- hh.census.data %>%
+  filter(cluster.id %in% c(492, 254, 149, 360, 834, 587, 951, 1272, 735, 293, 1313), 
+         misidentified.cluster) %>% 
+  mutate(cluster.id = closest.cluster,
+         misidentified.cluster = FALSE) %>% 
+  select(-c(wave, county)) %>% 
+  left_join(cluster.wave.county.data, "cluster.id")
+
+cluster.hh.to.drop <- c(954, 197, 1442, 1242, 378, 431, 1426) %>% 
+  map(~ get.outside.keys(hh.census.data, .)) %>% 
+  c(c(147, 587, 735, 293, 844) %>% # Drop out of range households 
+      map(~ filter(hh.census.data, cluster.id == ., is.na(closest.cluster)) %$% KEY)) %>% 
+  unlist %>% 
+  c("uuid:13ca71aa-d966-4956-8d8b-83673fd3f74a",
+    "uuid:04d0d59b-e33b-49c6-b55f-ccf2eda14213",
+    "uuid:fbedfc11-9e02-46c6-bf04-dfb817facefc",
+    "uuid:611bf6c7-a84c-4210-809a-1d2b072dc682",
+    "uuid:937590a7-b024-43c0-9bff-53d87defc663")
+
+
+hh.census.data <- corrected.hhs %>% 
+  bind_rows(anti_join(hh.census.data, ., "KEY")) %>% 
+  mutate(cluster.id = ifelse(KEY %in% cluster.hh.to.drop, NA, cluster.id)) #%>% 
+         # county = if_else(cluster.id == 103, "Siaya", as.character(county)) %>% factor,
+         # wave = if_else(cluster.id == 103, 1, wave))
+
+census.data %<>% { 
+  bind_rows(anti_join(., select(corrected.hhs, KEY), "KEY"), 
+            left_join(select(corrected.hhs, KEY, wave, county, cluster.id), select(., -c(wave, county, cluster.id)), "KEY"))
+} %>% 
+  mutate(cluster.id = ifelse(KEY %in% cluster.954.to.drop, NA, cluster.id))
+         # county = if_else(cluster.id == 103, "Siaya", as.character(county)) %>% factor,
+         # wave = if_else(cluster.id == 103, 1, wave))
+```
+
+### Households in Clusters
+
+```{r cluster-level-hhs, echo=FALSE}
+cluster.census.data <- hh.census.data %>% 
+  group_by(cluster.id) %>% 
+  summarize(num.hhs = n(), 
+            num.invalid.gps.coord = sum(invalid.coord),
+            num.hhs.gps.work = sum(gps_work, na.rm = TRUE),
+            num.hhs.gps.work.na = sum(is.na(gps_work)),
+            num.hhs.no.coord = sum(is.na(lon) | is.na(lat)),
+            num.hhs.misidentified = sum(misidentified.cluster, na.rm = TRUE),
+            num.hhs.out.of.range = sum(is.na(closest.cluster)),
+            num.hhs.present = sum(present, na.rm = TRUE),
+            num.hhs.present.na = sum(is.na(present)),
+            num.hhs.return = sum(return, na.rm = TRUE),
+            num.hhs.return.na = sum(is.na(return)),
+            last.submission = max(SubmissionDate)) %>% 
+  ungroup %>% 
+  arrange(last.submission)
+
+knitr::kable(cluster.census.data, 
+             col.names = c("Cluster", "Total Count", "Invalid Coords", "GPS Worked", "GPS Worked NA", "No Coords", "Misidentified", "Out of Range", "Present", "Present NA", "Return", "Return NA", "Last Submission"))
+
+```
+
+Remove all households that were not present, moved (_and_ there are no individuals record in that household), or did not consent.
+
+```{r data-cleanup}
+hh.census.data %<>% filter(!invalid.coord, 
+                           is.na(present) | (present == 1),
+                           is.na(moved) | (moved == 0) | (num.individuals > 0),
+                           is.na(consent) | (consent == 1),
+                           !is.na(cluster.id),
+                           !is.na(lon), !is.na(lat)) %>% 
+  mutate(old.cluster.id = ifelse(cluster.id %in% clusters.to.drop, cluster.id, NA),
+         cluster.id = ifelse(cluster.id %in% clusters.to.drop, NA, cluster.id)) %>% 
+                           # !cluster.id %in% clusters.to.drop) %>% 
+  group_by(cluster.id) %>% 
+  filter(n() >= 50) %>% 
+  ungroup
+
+old.census.villages <- census.data %>% 
+  select(KEY.individ, cluster.id, village)
+
+census.data %<>% select(-cluster.id) %>% right_join(distinct(hh.census.data, cluster.id, old.cluster.id, KEY), "KEY") 
+```
+
+```{r census-boundaries}
+census.hhs.boundaries <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  get.survey.boundary("census.convex.hull") %>% 
+  mutate(group = paste(group, boundary.type, sep = "-")) %>% 
+  rename(lon = long)  
+
+village.census.hh.boundaries <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  get.survey.boundary("census.convex.hull", .group.by = c("cluster.id", "village_name")) %>% 
+  mutate(group = paste(group, boundary.type, sep = "-")) %>% 
+  rename(lon = long)  
+
+boundaries %<>% bind_rows(census.hhs.boundaries)  
+```
+
+Below is a table comparing the number of households in the census to the pre-census:
+
+```{r num-hh}
+num.hh.data <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  count(cluster.id) %>% 
+  left_join(pre.census.data %>%
+              mutate(act.cluster.id = as.integer(act.cluster.id)) %>% 
+              count(act.cluster.id),
+            by = c("cluster.id" = "act.cluster.id"),
+            suffix = c(".census", ".pre.census"))
+
+num.hh.data
+```
+
+It appears that quite a few of the houses that were found during the pre-census are not actually standalone households. Some indviduals live in a separate structure, but eat their means under a different roof.
+
+Distribution of number of households:
+```{r}
+summary(cluster.census.data$num.hhs)
+```
+
+
+```{r, fig.align="center", fig.width=10, out.width=20}
+
+num.hh.data %>% 
+  gather(survey, num.hhs, -cluster.id) %>% 
+  ggplot() +
+  geom_bar(aes(factor(cluster.id), y = num.hhs, fill = survey), stat = "identity", position = "dodge") +
+  scale_fill_discrete("Survey", labels = c("Census", "Pre-census")) +
+  ylab("Number of Households") +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  count(cluster.id) %>% 
+  ggplot() +
+  geom_histogram(aes(n), binwidth = 50, boundary = 50) +
+  scale_x_continuous("Individuals/Cluster", breaks = seq(0, 600, 50))
+
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  distinct(cluster.id, KEY) %>% 
+  count(cluster.id) %>% { 
+    ggplot(.) +
+      geom_histogram(aes(n), binwidth = 50, boundary = 50) +
+      scale_x_continuous("Households/Cluster", breaks = seq(0, 600, 50)) 
+  } 
+```
+
+```{r, eval=FALSE}
+cluster.census.data %>% 
+  ggplot() +
+  geom_histogram(aes(num.hhs), binwidth = 50) +
+  scale_y_continuous(breaks = seq(0, 40, 5)) 
+```
+
+
+```{r hh-individuals, fig.align="center", fig.width=8}
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  ggplot() +
+  geom_bar(aes(factor(num.individuals))) +
+  xlab("Individuals/HH")  
+```
+
+
+
+### Number of Individuals in Clusters and Villages
+
+```{r}
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  count(cluster.id)
+
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  count(cluster.id, village) # village_name)
+```
+
+### Cluster Distribution by County
+
+```{r cluster-county, echo=FALSE}
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  distinct(cluster.id, county) %>% 
+  ggplot() +
+  geom_bar(aes(county), alpha = 0.5, color = "black") +
+  labs(x = "", y = "")
+```
+
+
+## Cluster Household Maps
+
+Below is a separate map per cluster. Small filled circles indicate the point-of-treatments.  Triangles indicate targeted village centers. 
+
+```{r plot-census-hhs-code, include=FALSE}
+plot.census.hhs <- function(.data, .rct.villages.data, .cluster.id, .zoom = 13, 
+                            .label = TRUE, 
+                            .hh.types = c("all", "focal.only"), 
+                            .hh.color = c("cluster.relation", "reported.village"),
+                            use.google.maps = TRUE) {
+  factor.cluster.type <- . %>% 
+    factor(levels = c("focal", "not.focal", "unkown.cluster", "misidentified.cluster", "out.of.range"), 
+           labels = c("Focal", "Not Focal", "Unknown Cluster", "Incorrect Cluster", "Out of Range"))
+  
+  .data %<>%
+    mutate(cluster.type = case_when(is.na(.$cluster.id) ~ "unknown.cluster",
+                                    is.na(.$closest.cluster) ~ "out.of.range",
+                                    .$closest.cluster != .$cluster.id ~ "misidentified.cluster",
+                                    .$cluster.id %in% .cluster.id ~ "focal",
+                                    TRUE ~ "not.focal") %>% 
+             factor.cluster.type)
+  
+  .rct.villages.data %<>% 
+    mutate(cluster.type = ifelse(is.na(cluster.id), 
+                                 "unknown.cluster",
+                                 ifelse(cluster.id %in% .cluster.id,
+                                        "focal",
+                                        "not.focal")) %>% 
+             factor.cluster.type)
+  
+  focal.hhs <- .data %>% 
+    filter(cluster.id == .cluster.id, cluster.type == "Focal")
+  
+  cluster.boundaries <- boundaries %>%
+    filter(cluster.id %in% .cluster.id)
+  
+  if (empty(focal.hhs)) {
+    hhs.center <- .rct.villages.data[1, c("alt.pot.lon", "alt.pot.lat"), drop = TRUE] %>% 
+      unlist
+  } else {
+    hhs.center <- focal.hhs %>% 
+      select(lon, lat) %>% 
+      bind_rows(cluster.boundaries %>% 
+                  filter(boundary.type == "pot") %>% 
+                  select(lon, lat)) %>% 
+      make_bbox(lon, lat, data = .) 
+    
+  }
+  
+  hh.color.var <- switch(match.arg(.hh.color), 
+                         cluster.relation = "cluster.type",
+                         reported.village = "villaage")
+  
+  if (use.google.maps) {
+    hhs.center %<>% 
+      matrix(nrow = 2) %>% 
+      rowMeans()
+    
+    plot.obj <- ggmap(get_googlemap(center = hhs.center,
+                                    maptype = "terrain", # "hybrid", 
+                                    zoom = .zoom, 
+                                    scale = 2,
+                                    style = "element:labels|visibility:off", # Drop all labels from map
+                                    key = config$google_api_key)) 
+  } else {
+    plot.obj <- ggplot() +
+      coord_fixed(xlim = hhs.center[c("left", "right")], ylim = hhs.center[c("bottom", "top")]) 
+  }
+  
+  plot.obj <- plot.obj +
+    geom_point(aes_string("lon", "lat", fill = hh.color.var), shape = 22, alpha = 0.25, size = 2, stroke = 0, 
+               data = switch(match.arg(.hh.types), all = .data, focal.only = focal.hhs)) 
+  
+  if (.label) {
+    plot.obj <- plot.obj +
+      geom_label_repel(aes(alt.pot.lon, alt.pot.lat, label = cluster.id), segment.color = "black",  
+                       data = .rct.villages.data %>% 
+                         filter(cluster.type == "Not Focal") %>% 
+                         distinct(cluster.id, .keep_all = TRUE)) 
+  }
+  
+  
+  plot.obj <- plot.obj +
+    geom_point(aes(alt.pot.lon, alt.pot.lat, fill = cluster.type), shape = 21, color = "black", size = 2, stroke = 1, 
+               data = distinct(.rct.villages.data, cluster.id, .keep_all = TRUE)) +
+    geom_point(aes(target.lon, target.lat, fill = cluster.type), shape = 24, color = "black", size = 2, stroke = 1, 
+               data = .rct.villages.data) +
+    ggtitle(sprintf("Cluster %s", paste(.cluster.id, collapse = ", "))) +
+    scale_color_discrete("Boundaries", labels = c("Census", "PoT", "Pre-census")) +  
+    scale_fill_discrete(if (hh.color.var == "cluster.type") "Cluster Type" else "Village", 
+                            drop = hh.color.var != "cluster.type") +
+    labs(x = "", y = "") +
+    theme(axis.text = element_blank())
+  
+
+  if (!is.null(cluster.boundaries)) {
+    plot.obj <- plot.obj +
+      geom_polygon(aes(lon, lat, group = group, color = boundary.type), linetype = "dotted", alpha = 0, data = cluster.boundaries)
+  }
+  
+  return(plot.obj)
+}
+
+generate.hh.plots <- function(.data, cluster.ids = NULL) { 
+  .data %>% 
+    filter(!invalid.coord, !is.na(cluster.id)) %>% {
+      if (!is.null(cluster.ids)) filter(., cluster.id %in% cluster.ids) else return(.)
+    } %>% 
+    filter(!is.na(lon), !is.na(lat)) %>% { # BUGBUG
+      plot.fun <- partial(plot.census.hhs, 
+                          .data = ., 
+                          .rct.villages.data = all.villages %>% filter(targeted.village),
+                          use.google.maps = FALSE) 
+      
+      
+      map(unique(.$cluster.id), ~ plot.fun(.cluster.id = .))
+    }
+}
+
+```
+
+```{r plot-hhs, dependson="plot-census-hhs-code", echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=10, fig.align="center", eval=FALSE}
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id) %>% 
+  filter(first(cluster.id) %in% cluster.review$cluster.id & all(SubmissionDate <= last.review.date)) %>%
+  ungroup %>% 
+  generate.hh.plots %>% 
+  compact %>% 
+  l_ply(plot)
+```
+
+### To Review
+
+```{r to-review-plot-hhs, dependson="plot-census-hhs-code", echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=10, fig.align="center", eval=FALSE}
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id) %>% 
+  filter((!first(cluster.id) %in% cluster.review$cluster.id) | any(SubmissionDate > last.review.date)) %>%
+  ungroup %>% 
+  generate.hh.plots %>% 
+  l_ply(. %>% plot)
+```
+
+<!-- # Household Groupings -->
+
+<!-- The purpose of this section is to analyze how the pre-census and census exercises differ in the the households identified. In order to do this we use a household "grouping" approach: we group together household locations, combining coordinates from both the pre-census and census data, based on distance. In an ideal situation, if every pre-census and census household are perfectly matched, there would be one group for each pair (one pre-census and one census data point). Each such group is then assigned a category of -->
+
+<!-- * _Pure Pre-census_: the group contains only pre-census households -->
+<!-- * _Pure Census_: the group contains only census households -->
+<!-- * _Mixed_: the group contains both pre-census and census households  -->
+
+<!-- Obviously this is not a perfect approach because a group can contain multiple households that are very close.  Nevertheless, it should provide a workable approach to identify problem clusters.  -->
+
+<!-- We consider two measures of distance to group households 25 and 50 meters. -->
+
+```{r identify-hh-groups, include=FALSE, eval=FALSE}
+identify.prox.cluster <- function(cluster.hhs, na.hhs, group.dist = 25) {
+  if (!any(cluster.hhs$survey.type == "census")) {
+    return(NULL)
+  }
+  
+  bind_rows(cluster.hhs, na.hhs) %>% {
+    tryCatch(mutate(., 
+                    hh.prox.group = sprintf("%d-%d", 
+                                            cluster.hhs$cluster.id[1], 
+                                            convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+                                              spTransform(kenya.proj4) %>% 
+                                              gDistance(byid = TRUE) %>% 
+                                              as.dist %>% 
+                                              hclust %>% 
+                                              cutree(h = group.dist)), # meters distance between hhs
+                    prox.cluster.id = cluster.hhs$cluster.id[1]),
+             error = function(err) { 
+               mutate(., hh.prox.group = NA, prox.cluster.id = NA)
+             })
+    }
+}
+
+get.group.polygons <- function(group.hhs, convert.to.wgs.84 = TRUE) {
+  if (is.na(group.hhs$hh.prox.group[1])) {
+    return(NULL)
+  }
+ 
+  convert.to.sp(group.hhs, ~ lon + lat, wgs.84) %>% 
+    gConvexHull() %>% 
+    buffer.clusters(.width = 5) %>% {
+      if (convert.to.wgs.84) spTransform(., wgs.84) else . 
+    } %>% 
+    tidy %>% 
+    mutate(lon = long) 
+}
+
+generate.grouping.data <- function(hh.data, group.dist) {
+  hh.data %>%
+    ddply(.(cluster.id), . %>% 
+            identify.prox.cluster(cluster.hhs = .,
+                                  na.hhs = filter(hh.locations, is.na(cluster.id)),
+                                  group.dist = group.dist)) %>% 
+    group_by(prox.cluster.id, hh.prox.group) %>% 
+    mutate(mix.ratio = sum(survey.type == "census") / n(),
+           ignore.centering = all(is.na(cluster.id) | (survey.type == "census" & cluster.id != closest.cluster))) %>% 
+    ungroup %>% 
+    mutate(mix.cat = case_when(.$mix.ratio == 0 ~ "pure.pre.census",
+                               .$mix.ratio == 1 ~ "pure.census",
+                               TRUE ~ "mixed") %>% factor,
+           group.dist = group.dist)
+}
+
+hh.locations <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  select(cluster.id, closest.cluster, lon, lat, village, KEY) %>% 
+  mutate(survey.type = "census") %>% 
+  bind_rows(pre.census.data %>% 
+              mutate(cluster.id = as.integer(act.cluster.id),
+                     survey.type = "pre.census") %>% 
+              select(cluster.id, lon, lat, survey.type)) %>% 
+  filter(!is.na(lon), !is.na(lat)) 
+
+grouping.data <- adply(c(25, 50), 1, . %>% generate.grouping.data(hh.locations, .))
+```
+
+<!-- ## Distribution of Pure/Mixed Household Groups -->
+
+<!-- The below plots show the distribution of group categories in each cluster. -->
+
+```{r, echo=FALSE, eval=FALSE}
+counted.grouping.data <- grouping.data %>% 
+  filter(!is.na(prox.cluster.id)) %>% 
+  group_by(group.dist, hh.prox.group, group.dist) %>% 
+  filter(any((!is.na(cluster.id) & cluster.id == prox.cluster.id) | 
+           (!is.na(closest.cluster) & closest.cluster == prox.cluster.id))) %>% 
+  ungroup 
+
+dlply(counted.grouping.data, .(prox.cluster.id), 
+      . %>% { 
+        ggplot(.) + 
+          geom_bar(aes(mix.cat, fill = factor(group.dist)), position = "dodge") +
+          scale_x_discrete("", labels = c("Both Surveys", "Census Only", "Pre-census Only"), drop = FALSE) +
+          scale_fill_discrete("Grouping Distance") +
+          ggtitle(sprintf("Cluster %d", .$prox.cluster.id[1]))
+        }) %>% 
+  l_ply(plot)
+```
+
+
+<!-- The below table shows the count and proportion of total and unmatched pre-census and census households. -->
+
+```{r unmatched-survey-stats, eval=FALSE, include=FALSE}
+unmatched.hh.data <- counted.grouping.data %>% 
+  group_by(prox.cluster.id, group.dist) %>% 
+  summarize(total.pre.census.num = sum(survey.type == "pre.census"),
+            total.census.num = sum(survey.type == "census"),
+            unmatched.pre.census.num = sum(mix.cat == "pure.pre.census"),
+            unmatched.census.num = sum(mix.cat == "pure.census"),
+            unmatched.pre.census.prop =  unmatched.pre.census.num / total.pre.census.num, 
+            unmatched.census.prop = unmatched.census.num / total.census.num)
+
+unmatched.hh.data %>% 
+  filter(group.dist == 50) %>% 
+  arrange(desc(unmatched.pre.census.prop), desc(unmatched.census.prop)) %>% 
+  select(-group.dist) %>% 
+  kable(digits = 2, col.names = c("Cluster", "Total Pre-census", "Total Census", "Unmatched Pre-census", "Unmatched Census", "Unmatched Proportion Pre-census", "Unmatched Proportion Census"))
+```
+
+<!-- ## Plots of Poor Pre-census/Census Coverage -->
+
+<!-- Below we show spatial plots of the cluster household groups for a number of the most problematic clusters: those that have 50% of either their pre-census or census households unmatched. -->
+
+```{r, eval=FALSE, include=FALSE}
+problem.clusters <- unmatched.hh.data %>% 
+  filter(group.dist == 50, unmatched.census.prop > 0.5 | unmatched.pre.census.prop > 0.5) %$% 
+  prox.cluster.id %>% 
+  unique
+
+grouping.polygons.data <- grouping.data %>% 
+  filter(prox.cluster.id %in% problem.clusters, group.dist == 50) %>% {
+  left_join(ddply(., 
+                  .(prox.cluster.id, hh.prox.group, group.dist), 
+                  . %>% get.group.polygons(convert.to.wgs.84 = FALSE)),
+            distinct(., hh.prox.group, group.dist, .keep_all = TRUE) %>% 
+              select(-c(lon, lat)), 
+            by = c("prox.cluster.id", "hh.prox.group", "group.dist"))
+}
+```
+
+```{r hh-group-ploting, fig.align='center', fig.width=10, include=FALSE, eval=FALSE}
+plot.simple.prox.groups <- function(cluster.group.polygons) {
+  cluster.bbox <- make_bbox(lon, lat, data = filter(cluster.group.polygons, !ignore.centering))
+  mat.cluster.bbox <- matrix(cluster.bbox, nrow = 2)
+  
+  cluster.group.polygons %>% 
+    mutate(mix.cat = factor(mix.cat, 
+                            levels = c("pure.pre.census", "mixed", "pure.census"),
+                            labels = c("Pre-census Only", "Both", "Census Only"))) %>% 
+  ggplot() +
+    coord_fixed(xlim = mat.cluster.bbox[1, ], ylim = mat.cluster.bbox[2, ]) +
+    geom_polygon(aes(lon, lat, group = hh.prox.group, color = mix.cat, fill = mix.cat), alpha = 0.5) +
+    labs(x = "", y = "") +
+    scale_color_discrete("") +
+    scale_fill_discrete("") +
+    ggtitle(sprintf("Cluster %d", cluster.group.polygons$prox.cluster.id[1])) +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank()) +
+    facet_wrap(~ group.dist)
+}
+
+plot.prox.groups <- function(cluster.hhs, .group.polygons, .zoom = 15) {
+  hhs.center <- cluster.hhs %>% 
+    filter(!is.na(cluster.id)) %>% 
+    make_bbox(lon, lat, data = .) %>% 
+    matrix(nrow = 2) %>% 
+    rowMeans()
+  
+  plot.obj <- ggmap(get_googlemap(center = hhs.center,
+                                  maptype = "hybrid",
+                                  zoom = .zoom, 
+                                  scale = 2,
+                                  style = "element:labels|visibility:off", # Drop all labels from map
+                                  key = config$google_api_key)) +
+    geom_point(aes(lon, lat, fill = survey.type, shape = is.na(cluster.id)), color = "white", alpha = 1, size = 2, stroke = 1, data = cluster.hhs) +
+    ggtitle(sprintf("Cluster %d", cluster.hhs$cluster.id[1])) +
+    scale_fill_discrete("Survey Type") +
+    scale_shape_manual("Correct Cluster ID", values = c(21, 24)) +
+    labs(x = "", y = "") +
+    theme(axis.text = element_blank())
+  
+  if (!is.null(.group.polygons)) {
+    plot.obj <- plot.obj +
+      geom_polygon(aes(lon, lat, group = factor(hh.prox.group)), color = "orange", alpha = 0.1, size = 1, 
+                   data = filter(.group.polygons, prox.cluster.id == cluster.hhs$prox.cluster.id[1])) 
+  }
+  
+  plot(plot.obj)
+}
+
+grouping.plots <- grouping.polygons.data %>% 
+  dlply(.(group.dist, prox.cluster.id), plot.simple.prox.groups) 
+```
+
+```{r, echo=FALSE, eval=FALSE}
+l_ply(grouping.plots, plot)
+```
+
+
+## Demographics
+
+### Phones
+
+```{r hhh-have-phone, fig.width=10, fig.align="center"}
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  ggplot() +
+  geom_bar(aes(hhh_have_phone)) +
+  labs(x = "Head of household has phone")
+```
+
+```{r individ-have-phone, fig.width=10, fig.align="center"}
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  ggplot() +
+  geom_bar(aes(have_phone)) + 
+  labs(x = "household member has phone")
+
+mean.phone.own.data <- census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id) %>% 
+  summarize(mean.phone.own = mean(have_phone == "Yes")) 
+
+mean.phone.own.data %>% {
+    ggplot(.) +
+      geom_histogram(aes(mean.phone.own), binwidth = 0.1, alpha = 0.5, color = "black") +
+      geom_vline(xintercept = median(.$mean.phone.own), color = "red", linetype = "dashed")
+  }
+```
+
+
+### Gender
+
+```{r}
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  mutate(gender = factor(gender, levels = 1:2, labels = c("Male", "Female"))) %>% 
+  ggplot() +
+  geom_bar(aes(gender)) 
+```
+
+### Age
+
+```{r, fig.width=12, fig.align="center"}
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  mutate(know_age = factor(know_age, levels = 1:4, labels = c("Exact", "ID", "Roughly", "Doesn't Know/Guess"))) %>% 
+  ggplot() +
+  geom_bar(aes(know_age)) 
+```
+
+```{r, fig.width=12, warning=FALSE, fig.align="center"}
+census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  ggplot() +
+  geom_histogram(aes(age), binwidth = 5) +
+  scale_x_continuous(breaks = seq(10, 100, 10)) 
+```
+
+
+
+
+## Geographic Characteristics
+
+### Village-PoT Distances
+
+```{r, include=FALSE}
+factor.dist.pot <- . %>% { ifelse(. <= 2500/2, "close", "far") %>% factor }
+
+village.centers <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(wave, county, cluster.id) %>% 
+  do(center = convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+       gCentroid %>% 
+       `@`(coords) %>% 
+       as_data_frame) %>% 
+  ungroup %>% 
+  unnest %>% 
+  rename(lon = x, lat = y) %>% 
+  left_join(select(pot.info, wave, county, cluster.id, starts_with("alt.pot."), ends_with(".verify")),
+            c("wave", "county", "cluster.id"))
+
+get.vill.pot.dist <- function(filtered.village.centers, 
+                              pot.coords.formula = ~ alt.pot.lon + alt.pot.lat) {
+  convert.to.sp(filtered.village.centers, ~ lon + lat, wgs.84) %>% 
+    spTransform(kenya.proj4) %>% 
+    gDistance(convert.to.sp(filtered.village.centers, pot.coords.formula, wgs.84) %>% 
+                spTransform(kenya.proj4), ., byid = TRUE) %>% 
+    (function (dist.mat) {
+      mutate(filtered.village.centers,
+             dist.to.own.pot = diag(dist.mat), # dist.mat[own.cluster.mask],
+             dist.pot.group = factor.dist.pot(dist.to.own.pot),
+             closest.other = `diag<-`(dist.mat, NA) %>% 
+               aaply(1, . %>% min(na.rm = TRUE))) %>% 
+        bind_cols(seq(2500/2, 7500, 2500/2) %>% {
+          setNames(map(., ~ rowSums(dist.mat < ., na.rm = TRUE)), paste0("num.within.", .))
+        })
+    })
+}
+
+vill.pot.dist <- village.centers %>% 
+  filter(cluster.id %in% known.pot.locations$cluster.id) %>% 
+  get.vill.pot.dist
+
+verify.vill.pot.dist <- village.centers %>% 
+  filter(cluster.id %in% known.pot.locations$cluster.id, !is.na(lon.verify), !is.na(lat.verify)) %>% 
+  get.vill.pot.dist(pot.coords.formula = ~ lon.verify + lat.verify) 
+```
+
+```{r}
+vill.pot.dist %>% 
+  right_join(verify.vill.pot.dist, c("wave", "county", "cluster.id"), suffix = c(".origin", ".verify")) %>% 
+  select(wave, county, cluster.id, matches("dist.pot.group"), matches("dist.to.own")) %>% 
+  left_join(select(pot.info, cluster.id, verify.dist), "cluster.id") %>% 
+  filter(wave == 2, dist.pot.group.origin != dist.pot.group.verify)
+```
+
+```{r, echo=FALSE}
+vill.pot.dist %>% { 
+  ggplot(.) +
+    geom_histogram(aes(dist.to.own.pot), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
+    scale_x_continuous("Distance to Own PoT", breaks = seq(0, 5000, 2500/4)) + 
+    scale_y_continuous(breaks = seq(0, 100, 2)) 
+} 
+
+vill.pot.dist %>% 
+  select(starts_with("num.within"), cluster.id, lon, lat, dist.to.own.pot) %>% 
+  gather(within.m, num.pot, -c(cluster.id, lon, lat, dist.to.own.pot)) %>% 
+  separate(within.m, into = c("temp", "within.m"), sep = "num.within.") %>% 
+  filter(within.m <= 5000) %>% 
+  select(-temp) %>% {
+  ggplot(.) +
+    geom_freqpoly(aes(num.pot, color = within.m), binwidth = 1) +
+    scale_x_continuous("Number of PoT", breaks = 0:10) +
+    scale_y_continuous(breaks = seq(0, 200, 20)) +
+    scale_color_discrete("Within (meters)")
+  }
+
+plot.marginal.dist.to.other <- function(.data, .color = NULL) {
+  .data %>% 
+    mutate(marginal.dist = closest.other - dist.to.own.pot,
+           dist.to.own.pot.cat = cut(dist.to.own.pot, 
+                                     breaks = c(0,  2500/2, 10000),
+                                     labels = c("Close", "Far"))) %>% {
+    plot.obj <- ggplot(.) +
+      geom_histogram(aes_string("marginal.dist", group = .color, fill = .color), alpha = 0.5, color = "black", binwidth = 500, boundary = 0, position = "dodge") +
+      scale_y_continuous(breaks = seq(0, 50, 2)) +
+      scale_x_continuous("Marginal Distance to Other PoT", breaks = seq(-1000, 10000, 1000))
+                                     
+    plot(plot.obj + 
+           geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.25, .5, 0.75)), 
+                      color = "red", linetype = "dashed"))
+    
+    plot(plot.obj + facet_wrap(~ dist.to.own.pot.cat))
+  }
+}
+
+vill.pot.dist %>% plot.marginal.dist.to.other
+```
+
+
+### Intra-cluster Household Distance
+
+```{r intra-hh-dist-data, include=FALSE}
+get.hh.dist <- function(village.hhs) {
+  convert.to.sp(village.hhs, ~ lon + lat, wgs.84) %>% 
+    spTransform(kenya.proj4) %>% 
+    gDistance(byid = TRUE) %>% {
+      upper.map <- upper.tri(.)
+      tibble(hh.dist = magrittr::extract(., upper.map),
+             from = village.hhs$KEY %>% 
+               magrittr::extract(-length(.)) %>% 
+               rep(times = seq(length(.), 1)),
+             to = village.hhs$KEY %>% 
+               matrix(ncol = length(.), nrow = length(.), byrow = TRUE) %>% 
+               magrittr::extract(upper.map))
+    }  
+}
+
+hh.pair.distance <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id) %>% 
+  do(get.hh.dist(.)) %>% 
+  ungroup
+
+hh.med.dist <- hh.pair.distance %>% 
+  mutate(temp = from, from = to, to = temp) %>% 
+  select(-temp) %>% 
+  bind_rows(hh.pair.distance) %>% 
+  group_by(cluster.id, from) %>% 
+  summarize(median.dist = median(hh.dist))
+
+```
+
+```{r intra-hh-dist-plot, echo=FALSE}
+hh.pair.distance %>% 
+  ggplot() +
+  geom_density(aes(x = hh.dist)) +
+  coord_cartesian(xlim = c(0, 5000)) + 
+  theme(legend.position = "none")
+```
+
+### Density
+
+```{r cluster-density}
+cluster.density <- hh.pair.distance %>% 
+  mutate(temp = from, from = to, to = temp) %>% 
+  select(-temp) %>% 
+  bind_rows(hh.pair.distance) %>% 
+  arrange(from, hh.dist) %>% 
+  group_by(cluster.id, from) %>% 
+  filter(row_number() <= 50) %>% 
+  summarize(med.dist = median(hh.dist)) %>% 
+  group_by(cluster.id) %>% 
+  summarize(med.dist = median(med.dist)) %>% 
+  ungroup 
+```
+
+```{r, echo=FALSE}
+ggplot(cluster.density) +
+  geom_histogram(aes(med.dist), binwidth = 25, boundary = 0, alpha = 0.5, color = "black") +
+  geom_vline(xintercept = quantile(cluster.density$med.dist, prob = c(0.25, 0.5, 0.75)), color = "red", linetype = "dashed") +
+  scale_x_continuous("", breaks = seq(0, 700, 50))
+```
+
+# Study Randomization and Sampling
+
+```{r}
+find.backcheck.pool <- . %>%
+  semi_join(cluster.strat.data, "cluster.id") %>% 
+  filter(!is.na(cluster.id), !cluster.id %in% clusters.to.drop) 
+
+count.num.enum.to.backcheck <- . %>% 
+  count(enumerator) %>% 
+  ungroup %>% 
+  filter(!is.na(enumerator), enumerator != 99, n > 1) %>% 
+  distinct(enumerator) %>% 
+  nrow
+
+find.backcheck.candidates <- function(rct.clusters, .num.enum) {
+  distinct(rct.clusters, cluster.id) %>% {
+    foreach (search.index = 1:500, .combine = bind_rows) %dopar% {
+      candidate.sample <- sample_frac(., 0.5) %>% 
+        mutate(search.index = search.index)
+      
+      num.enum <- candidate.sample %>% 
+        left_join(rct.clusters, "cluster.id") %>% 
+        count(enumerator) %>% 
+        ungroup %>% 
+        filter(n > 1) %>% 
+        nrow
+      
+      if (num.enum < .num.enum) {
+        return(NULL)
+      }
+      
+      candidate.sample %>% 
+        mutate(cluster.hash = unique(cluster.id) %>%
+                 sort %>% 
+                 paste(collapse = "-"))
+    } %>% 
+    (function(all.candidates) { 
+      distinct(all.candidates, search.index) %>% 
+        slice(1) %>% 
+        left_join(all.candidates) 
+    })
+  }
+}
+```
+
+
+```{r wave-1-data}
+wave.1.hh.data <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  filter(wave == 1) %>% 
+  select(cluster.id, KEY, tu.hh.id) 
+
+wave.1.individuals <- wave.1.hh.data %>% 
+  distinct(KEY) %>% 
+  left_join(census.data, "KEY")  %>% 
+  select(cluster.id, KEY, KEY.individ, tu.person.id, name1st, check1st, name_mid, check_mid, name2nd, check2nd, clan, clan_check, two_digits, two_digits_check, age, have_phone) 
+```
+
+```{r, fig.width=8}
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  count(cluster.id) %>% {
+    summary(.$n) %>% print
+    mutate(., cluster.size = cut(n, breaks = seq(0, 300, 25), include.lowest = TRUE)) %>% 
+      count(cluster.size) %>% 
+      print
+    ggplot(.) +
+      geom_histogram(aes(n), color = "black", alpha = 0.5, binwidth = 25, boundary = 25) +
+      scale_y_continuous(breaks = seq(0, 30, 2), limits = c(0, 30)) +
+      scale_x_continuous("", breaks = seq(0, 300, 25)) 
+  }
+```
+
+## Stratified Cluster Randomization
+
+http://blogs.worldbank.org/impactevaluations/tools-of-the-trade-doing-stratified-randomization-with-uneven-numbers-in-some-strata
+
+```{r}
+cluster.density %>% 
+  left_join(num.hh.data, "cluster.id") %>% 
+  ggplot(aes(n.census, med.dist)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Number of Households", y = "Median Distance Between Households")
+
+cluster.density %>% 
+  left_join(mean.phone.own.data, "cluster.id") %>% 
+  ggplot(aes(mean.phone.own, med.dist)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Proportion of Phone Ownership", y = "Median Distance Between Households")
+```
+
+```{r stratied-cluster-randomization, eval=FALSE}
+arms <- c("control", "ink", "bracelet", "calendar")
+
+
+cluster.strat.data <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id, county) %>% 
+  summarize(num.hh = n()) %>% 
+  ungroup %>%
+  left_join(vill.pot.dist, "cluster.id") %>% 
+  left_join(cluster.density, "cluster.id") %>% 
+  left_join(mean.phone.own.data, "cluster.id") %>% 
+  mutate(county.group = ifelse(county == "Kakamega", "Kakamega", "Busia-Siaya") %>% factor,
+         density.group = ifelse(med.dist <= median(med.dist), "high", "low") %>% factor) %>% 
+  group_by(county, dist.pot.group) %>% 
+  mutate(assigned.treatment = sample(c(rep(arms, times = n() %/% length(arms)), sample(arms, n() %% length(arms))))) %>% 
+  ungroup
+```
+
+```{r}
+cluster.strat.data <- read_rds("takeup_cluster_randomization_1.0.rds") %>% 
+  select(-county) %>%
+  mutate(assigned.treatment = factor(assigned.treatment, levels = c("control", "ink", "calendar", "bracelet"))) %>% 
+  # left_join(distinct(hh.census.data, cluster.id, wave), "cluster.id")  
+  left_join(cluster.wave.county.data, "cluster.id")  
+
+hh.census.data %<>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment), 
+            c("wave", "county", "cluster.id"))
+
+census.data %<>% 
+  # left_join(select(cluster.strat.data, cluster.id, assigned.treatment), "cluster.id")
+  left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment), 
+            c("wave", "county", "cluster.id"))
+
+cluster.strat.data %>% count(assigned.treatment)
+cluster.strat.data %>% count(county, assigned.treatment)
+cluster.strat.data %>% count(county, dist.pot.group, assigned.treatment)
+```
+
+```{r, eval=FALSE}
+cluster.strat.data %>% 
+  select(cluster.id, county, assigned.treatment) %>% 
+  write_csv("takeup_cluster_treatment_assignment_1.0.csv")
+```
+
+```{r all-villages-csv, eval=FALSE}
+cluster.strat.data %>% 
+  left_join(mutate(cluster.survey.data, cluster.id = as.integer(cluster.id)), "cluster.id") %>%
+  left_join(rct.villages, c("cluster.id", "target.village.id")) %>% 
+  transmute(cluster.id = as.integer(cluster.id), 
+            target.village_name = target.village_name.x, 
+            targeted = !is.na(target.village_name.y)) %>% 
+  write_csv("takeup_all_village.csv")
+```
+
+
+## Baseline Sample
+
+```{r wave1-baseline, eval=FALSE}
+wave.1.baseline.individuals <- wave.1.hh.data %>%
+  group_by(cluster.id) %>% 
+  filter(n() >= 50) %>% # No baseline for very small clusters
+  group_by(cluster.id) %>% 
+  sample_n(17) %>% 
+  ungroup %>% 
+  distinct(KEY) %>% 
+  left_join(wave.1.individuals, "KEY") %>% 
+  group_by(KEY) %>% 
+  mutate(individual.sample.order = sample(n())) %>% 
+  ungroup %>% 
+  bind_rows(wave.1.baseline.individuals, .)
+
+wave.1.baseline.individuals %<>% 
+  distinct(KEY) %>% 
+  mutate(survey.rand.index = sample(rep(1:4, times = n()/4))) %>% 
+  right_join(wave.1.baseline.individuals, "KEY")
+```
+
+```{r load-wave1-baseline-sample}
+wave.1.baseline.individuals <- read_rds("takeup_baseline_1.3.rds") %>% 
+  left_join(person.id.dict, "KEY.individ")
+
+wave.1.baseline.hh <- wave.1.baseline.individuals %>% 
+  distinct(KEY) %>% 
+  left_join(hh.census.data, "KEY")  
+```
+
+```{r, eval=FALSE, include=FALSE}
+wave.1.baseline.individuals %>% 
+  select(KEY.individ, tu.person.id, individual.sample.order, survey.rand.index) %>% 
+  left_join(census.data, "KEY.individ") %>%
+  write_csv("takeup_baseline_1.3.csv")
+```
+
+```{r baseline-names}
+wave.1.baseline.individuals %>% 
+  count(name1st == check1st) 
+
+wave.1.baseline.individuals %>% 
+  count((is.na(name_mid) & is.na(check_mid)) | is.na(name2nd) | name_mid == check_mid)
+
+wave.1.baseline.individuals %>% 
+  count((is.na(name2nd) & is.na(check2nd)) | name2nd == check2nd) 
+
+wave.1.baseline.individuals %>% 
+  count((is.na(clan) & is.na(clan_check)) | clan == clan_check) 
+
+wave.1.baseline.individuals %>% 
+  count((is.na(two_digits) & is.na(two_digits_check)) | two_digits == two_digits_check)
+
+```
+
+```{r wave2-baseline-sample, eval=FALSE}
+hh.census.data <- wave.1.baseline.individuals %>% 
+  distinct(KEY) %>% 
+  mutate(baseline.sample.wave = 1) %>% 
+  right_join(hh.census.data, "KEY")
+
+wave.2.baseline.individuals <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id) %>% 
+  filter(all(is.na(baseline.sample.wave))) %>% 
+  group_by(cluster.id) %>% 
+  sample_n(17) %>% 
+  ungroup %>% 
+  distinct(KEY) %>% 
+  left_join(census.data, "KEY") %>% 
+  group_by(KEY) %>% 
+  mutate(individual.sample.order = sample(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2)  
+```
+
+```{r}
+wave.2.baseline.individuals <- read_rds("takeup_baseline_w2_1.0.rds") %>% 
+  left_join(person.id.dict, "KEY.individ")
+
+hh.census.data <- list(wave.1.baseline.individuals, wave.2.baseline.individuals) %>% 
+  map(~ distinct(., KEY)) %>% 
+  bind_rows(.id = "baseline.sample.wave") %>% 
+  mutate(baseline.sample.wave = as.numeric(baseline.sample.wave)) %>% 
+  right_join(hh.census.data, "KEY")
+
+census.data <- list(wave.1.baseline.individuals,
+                    wave.2.baseline.individuals) %>% 
+  map(~ distinct(., KEY.individ, individual.sample.order)) %>% 
+  bind_rows %>%
+  filter(individual.sample.order <= 2) %>% 
+  right_join(census.data, "KEY.individ") %>% 
+  left_join(select(hh.census.data, KEY, baseline.sample.wave), "KEY")  
+```
+
+
+## Text Messaging Sample
+
+```{r sms-selection-setup}
+num.non.phone.owner.sms.ctrl <- 8
+num.phone.owner.sms.ctrl <- 17
+num.extra.phone.owner.sms.ctrl <- 8
+```
+
+```{r wave-1-sms-1, eval=FALSE}
+wave.1.sms.1.individuals <- wave.1.individuals %>% 
+  distinct(cluster.id, KEY, hh.has.phone) %>% 
+  group_by(cluster.id) %>% 
+  filter(n() >= 50 & hh.has.phone) %>% 
+  sample_n(17) %>% 
+  ungroup %>% 
+  distinct(KEY) %>% 
+  left_join(wave.1.individuals, "KEY") %>% 
+  filter(have_phone == "Yes") %>% 
+  group_by(KEY) %>%
+  mutate(individual.sample.order = sample.int(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2) %>% 
+  bind_rows(wave.1.sms.1.individuals)
+```
+
+```{r load-wave1-sms-1-sample}
+wave.1.sms.1.individuals <- read_rds("takeup_sms_1_w1_1.3.rds") %>% 
+  mutate(sms.set = 1) %>% 
+  left_join(person.id.dict, "KEY.individ")
+
+wave.1.sms.1.hh <- wave.1.sms.1.individuals %>% 
+  distinct(KEY) %>% 
+  left_join(hh.census.data, "KEY") %>% 
+  select(cluster.id, KEY)
+
+# census.data %<>% left_join(select(hh.census.data, KEY, sms.treatment))
+```
+
+```{r, include=FALSE, eval=FALSE}
+wave.1.sms.1.individuals %>% 
+  select(KEY.individ, tu.person.id, individual.sample.order) %>% 
+  left_join(census.data, "KEY.individ") %>%
+  write_csv("takeup_sms_1_w1_1.3.csv")
+```
+
+```{r wave2-sms-1-sample, eval=FALSE}
+hh.census.data <- wave.1.sms.1.individuals %>% 
+  distinct(KEY) %>% 
+  mutate(sms.treatment = "social.info") %>% 
+  right_join(hh.census.data, "KEY")
+
+wave.2.sms.1.individuals <- hh.census.data %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(cluster.id) %>% 
+  filter(all(is.na(sms.treatment))) %>% 
+  ungroup %>% 
+  left_join(select(census.data, KEY, have_phone), "KEY") %>% 
+  distinct(cluster.id, KEY, hh.has.phone) %>%
+  filter(hh.has.phone) %>% 
+  group_by(cluster.id) %>%
+  sample_n(17) %>% 
+  ungroup %>% 
+  distinct(KEY) %>% 
+  left_join(census.data, "KEY") %>% 
+  filter(have_phone == "Yes") %>% 
+  group_by(KEY) %>%
+  mutate(individual.sample.order = sample.int(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2)  
+```
+
+```{r load-sms-1-sample}
+wave.2.sms.1.individuals <- read_rds("takeup_sms_1_w2_1.1.rds") %>% 
+  mutate(sms.set = 1) %>% 
+  left_join(person.id.dict, "KEY.individ")
+```
+
+```{r sms-stage-2, eval=FALSE}
+reminder.only.sms <- cluster.strat.data %>% 
+  filter(assigned.treatment == "control") %>% 
+  distinct(cluster.id) %>% 
+  left_join(hh.census.data, "cluster.id") %>% 
+  filter(is.na(sms.treatment)) %>% 
+  distinct(KEY) %>% 
+  left_join(select(census.data, cluster.id, KEY, have_phone), "KEY") %>% 
+  distinct(cluster.id, KEY, hh.has.phone) %>%
+  filter(hh.has.phone) %>% 
+  group_by(cluster.id) %>%
+  sample_n(17) %>% 
+  ungroup %>% 
+  distinct(KEY) %>% 
+  left_join(census.data, "KEY") %>% 
+  filter(have_phone == "Yes") %>% 
+  group_by(KEY) %>%
+  mutate(individual.sample.order = sample.int(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2)  
+
+  
+add.social.info.sms <- cluster.strat.data %>% 
+  filter(assigned.treatment != "control") %>% 
+  distinct(cluster.id) %>% 
+  left_join(hh.census.data, "cluster.id") %>% 
+  filter(is.na(sms.treatment)) %>% 
+  distinct(KEY) %>% 
+  left_join(select(census.data, cluster.id, KEY, have_phone), "KEY") %>% 
+  distinct(cluster.id, KEY, hh.has.phone) %>%
+  filter(hh.has.phone) %>% 
+  group_by(cluster.id) %>%
+  sample_n(12) %>% 
+  ungroup %>% 
+  distinct(KEY) %>% 
+  left_join(census.data, "KEY") %>% 
+  filter(have_phone == "Yes") %>% 
+  group_by(KEY) %>%
+  mutate(individual.sample.order = sample.int(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2)  
+```
+
+```{r original-sms-ctrl-wave1, eval=FALSE}
+# pick.sms.ctrl.sample <- function(.data, sample.size) 
+#   .data %>% 
+#     distinct(cluster.id) %>% 
+#     left_join(hh.census.data, "cluster.id") %>% 
+#     filter(is.na(sms.treatment)) %>% #, hh.has.phone) %>%  # Control sample coming from general population
+#     distinct(cluster.id, KEY) %>% 
+#     group_by(cluster.id) %>%
+#     mutate(cluster.size = n()) %>% 
+#     do(sample_n(., min(sample.size, first(.$cluster.size)))) %>% 
+#     ungroup %>% 
+#     distinct(KEY) %>% 
+#     left_join(census.data, "KEY") %>% 
+#     filter(have_phone == "Yes") %>% 
+#     group_by(KEY) %>%
+#     mutate(individual.sample.order = sample.int(n())) %>% 
+#     ungroup %>% 
+#     filter(individual.sample.order <= 2)  
+# 
+# wave1.sms.ctrl.individuals <- cluster.strat.data %>% 
+#   filter(wave == 1) %>% 
+#   pick.sms.ctrl.sample(sample.size = 25 + 4) %>% 
+#   transmute(KEY.individ, sms.treatment = "sms.control") 
+```
+
+```{r sms-control-nonphone-wave1, eval=FALSE}
+
+wave1.no.phone.ctrl.individuals <- hh.census.data %>% 
+  filter(wave == 1, !is.na(assigned.treatment), !is.na(cluster.id), is.na(sms.treatment)) %>% {
+    ctrl.non.phone <- filter(., hh.has.non.phone) %>% 
+      distinct(cluster.id, KEY) %>% 
+      group_by(cluster.id) %>% 
+      mutate(hh.sample.size = min(num.non.phone.owner.sms.ctrl + 4, n())) %>% 
+      do(sample_n(., first(.$hh.sample.size))) %>%
+      do(left_join(., sample_n(., max(0, first(.$hh.sample.size) - num.non.phone.owner.sms.ctrl)) %>% 
+                     transmute(cluster.id, KEY, sms.ctrl.backup.nonphone = TRUE),
+                   c("cluster.id", "KEY"))) %>% 
+      ungroup %>% 
+      distinct(KEY, sms.ctrl.backup.nonphone) %>% 
+      left_join(census.data, "KEY") %>% 
+      filter(have_phone != "Yes") %>% 
+      group_by(KEY) %>%
+      mutate(individual.sample.order = sample.int(n())) %>% 
+      ungroup %>% 
+      filter(individual.sample.order <= 2) 
+    
+    return(ctrl.non.phone)
+  } %>% 
+  transmute(KEY.individ, 
+            sms.ctrl.backup = coalesce(sms.ctrl.backup.nonphone, FALSE),
+            sms.ctrl.sample.order = individual.sample.order,
+            sms.treatment = "sms.control") 
+
+#write_rds(wave1.no.phone.ctrl.individuals, "takeup_sms_ctrl_nonphone_1.0_wave1.rds")
+```
+
+```{r sms-control-wave2, eval=FALSE}
+wave2.sms.ctrl.individuals <- hh.census.data %>%
+  filter(wave == 2, !is.na(assigned.treatment), !is.na(cluster.id), is.na(sms.treatment)) %>% {
+    ctrl.non.phone <- filter(., hh.has.non.phone) %>% 
+      distinct(cluster.id, KEY) %>% 
+      group_by(cluster.id) %>% 
+      mutate(hh.sample.size = min(num.non.phone.owner.sms.ctrl + 4, n())) %>% 
+      do(sample_n(., first(.$hh.sample.size))) %>%
+      do(left_join(., sample_n(., max(0, first(.$hh.sample.size) - num.non.phone.owner.sms.ctrl)) %>% 
+                     transmute(cluster.id, KEY, sms.ctrl.backup = TRUE),
+                   c("cluster.id", "KEY"))) %>% 
+      ungroup %>% 
+      distinct(KEY, sms.ctrl.backup) %>% 
+      left_join(select(census.data, -sms.ctrl.backup), "KEY") %>% 
+      filter(have_phone != "Yes") %>% 
+      group_by(KEY) %>%
+      mutate(individual.sample.order = sample.int(n())) %>% 
+      ungroup %>% 
+      filter(individual.sample.order <= 2) %>% 
+      mutate(sms.ctrl.subpop = "non.phone.owner")
+    
+    anti_join(., distinct(ctrl.non.phone, KEY), "KEY") %>%
+      filter(hh.has.phone) %>%
+      distinct(cluster.id, KEY) %>%
+      group_by(cluster.id) %>%
+      mutate(hh.sample.size = min(num.phone.owner.sms.ctrl + num.extra.phone.owner.sms.ctrl, n())) %>% 
+      do(sample_n(., first(.$hh.sample.size))) %>%
+      do(left_join(., sample_n(., max(0, first(.$hh.sample.size) - num.phone.owner.sms.ctrl)) %>% 
+                     transmute(cluster.id, KEY, sms.ctrl.backup = TRUE),
+                   c("cluster.id", "KEY"))) %>% 
+      ungroup %>%
+      distinct(KEY, sms.ctrl.backup) %>%
+      left_join(select(census.data, -sms.ctrl.backup), "KEY") %>% 
+      filter(have_phone == "Yes") %>%
+      group_by(KEY) %>%
+      mutate(individual.sample.order = sample.int(n())) %>%
+      ungroup %>%
+      filter(individual.sample.order <= 2) %>%
+      mutate(sms.ctrl.subpop = "phone.owner") %>% 
+      bind_rows(ctrl.non.phone)
+  } %>% 
+  transmute(KEY.individ, sms.ctrl.subpop,
+            sms.ctrl.backup = coalesce(sms.ctrl.backup, FALSE),
+            sms.ctrl.sample.order = individual.sample.order,
+            sms.treatment = "sms.control") 
+
+ # write_rds(wave2.sms.ctrl.individuals, "takeup_sms_ctrl_1.0_wave2.rds")
+```
+
+```{r need-more-sms-backups-wave1, eval=FALSE}
+more.sms.backup <- read_csv("wave1_sms_more_backup.csv") %>% 
+  transmute(cluster.id = Cluster_id,
+            total.missing = `Missing people no replacement`,
+            social.info = `Social Influence`,
+            reminder.only = Reminder) 
+
+more.sms.backup <- hh.census.data %>% 
+  select(cluster.id, KEY, sms.treatment) %>% 
+  right_join(more.sms.backup, "cluster.id") %>% 
+  filter(is.na(sms.treatment)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster.size = n()) %>% 
+  do(sample_n(., min(first(.$cluster.size), first(.$social.info) + first(.$reminder.only)))) %>% 
+  mutate(sms.treatment = sample(rep(c("social.info", "reminder.only"), times = c(first(social.info), first(reminder.only))), n())) %>%
+  ungroup %>% 
+  distinct(KEY, sms.treatment) %>% 
+  left_join(select(census.data, -sms.treatment), "KEY") %>% 
+  filter(have_phone == "Yes") %>% 
+  group_by(KEY) %>%
+  mutate(individual.sample.order = sample.int(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2)  
+```
+
+```{r need-more-sms-backups-wave2, eval=FALSE}
+more.sms.backup.wave2 <- hh.census.data %>% 
+  filter(is.na(sms.treatment), county == "Kakamega", hh.has.phone) %>% 
+  select(cluster.id, KEY) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster.size = n()) %>% 
+  do(sample_n(., min(first(.$cluster.size), 2))) %>% 
+  mutate(sms.treatment = "unassigned.treatment") %>% 
+  ungroup %>% 
+  distinct(KEY, sms.treatment) %>% 
+  left_join(select(census.data, -sms.treatment), "KEY") %>% 
+  filter(have_phone == "Yes") %>% 
+  group_by(KEY) %>%
+  mutate(individual.sample.order = sample.int(n())) %>% 
+  ungroup %>% 
+  filter(individual.sample.order <= 2)  
+```
+
+```{r identify-backups-sms-ctrl-wave1, eval=FALSE} 
+wave1.sms.ctrl.individuals <- read_rds('takeup_sms_ctrl_4.0_wave1.rds')  # These are phone-only monitored controls
+
+wave1.sms.ctrl.individuals %<>% 
+  left_join(select(census.data, KEY.individ, KEY, cluster.id, assigned.treatment), "KEY.individ") %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(KEY) %>% 
+  mutate(sms.ctrl.sample.order = sample(seq_len(n()))) %>% 
+  ungroup %>% 
+  group_by(cluster.id) %>% 
+  do((function(.data) {
+    distinct(.data, KEY) %>%
+      mutate(num.backups = n() - min(n(), num.phone.owner.sms.ctrl)) %>% 
+      sample_n(first(.$num.backups)) %>% 
+      mutate(sms.ctrl.backup = TRUE) %>% 
+      right_join(.data, "KEY") 
+  })(.)) %>% 
+  mutate(sms.ctrl.backup = coalesce(sms.ctrl.backup, FALSE)) %>% 
+  ungroup %>% 
+  select(-c(KEY, num.backups, cluster.id, assigned.treatment))
+
+write_rds(wave1.sms.ctrl.individuals, 'takeup_sms_ctrl_4.1_wave1.rds') 
+```
+
+```{r update-main-data-with-sms}
+sms.treated <- read_rds("takeup_sms_sample_all_5.rds")
+
+wave1.sms.ctrl.individuals <- bind_rows(phone.owner = read_rds('takeup_sms_ctrl_4.1_wave1.rds'),
+                                        non.phone.owner = read_rds("takeup_sms_ctrl_nonphone_1.0_wave1.rds"),
+                                        .id = "sms.ctrl.subpop")
+
+wave2.sms.ctrl.individuals <- read_rds("takeup_sms_ctrl_1.0_wave2.rds")
+
+hh.census.data <- bind_rows(sms.treated, wave1.sms.ctrl.individuals, wave2.sms.ctrl.individuals) %>%
+  left_join(select(census.data, KEY.individ, KEY), "KEY.individ") %>% 
+  distinct(KEY, sms.treatment, sms.ctrl.backup, sms.ctrl.subpop) %>% 
+  right_join(hh.census.data, "KEY")
+
+census.data <- bind_rows(sms.treated, wave1.sms.ctrl.individuals, wave2.sms.ctrl.individuals) %>%
+  right_join(census.data, "KEY.individ", suffix = c(".sms.recruit", ".census"))
+
+census.data %<>%
+  mutate(phone = ifelse(nchar(phone) == 10 & str_sub(phone, 1, 1) == "0", str_sub(phone, 2), phone),
+         phone = ifelse(!is.na(phone), paste0("+254", phone), NA),
+         monitored = (!is.na(sms.treatment) & (sms.treatment == "sms.control" | sms.consent)) | !is.na(individual.sample.order)) 
+```
+
+
+```{r generate-sample-csv, eval=FALSE} 
+census.data %>% 
+  filter(!is.na(individual.sample.order.baseline)) %>% 
+  # select(cluster.id, KEY, KEY.individ, baseline.sample.wave, individual.sample.order.baseline) %>% 
+  arrange(cluster.id, KEY, individual.sample.order.baseline) %>% 
+  write_csv("takeup_baseline_sample_1.1.csv")
+
+census.data %>% 
+  filter(!is.na(individual.sample.order.sms)) %>% 
+  # select(cluster.id, KEY, KEY.individ, sms.treatment, individual.sample.order.sms) %>% 
+  arrange(cluster.id, KEY, individual.sample.order.sms) %>% 
+  write_csv("takeup_sms_sample_2.1.csv")
+```
+
+### SMS Airtime Reward
+
+```{r pick-sample, eval=FALSE}
+sms.airtime.sample <- census.data %>% 
+  filter(wave == 2, !is.na(sms.status.total), !is.na(sms.status.success), sms.status.success > 0) %>% 
+  group_by(cluster.id, sms.treatment) %>% 
+  sample_n(2) %>% 
+  mutate(airtime.order = seq(1, n())) %>% 
+  ungroup %>% 
+  select(KEY.individ, airtime.order)
+
+# write_rds(sms.airtime.sample, "takeup_sms_airtime_sample_1.1.rds")
+```
+
+```{r}
+sms.airtime.sample <- read_rds("takeup_sms_airtime_sample_1.1.rds")
+
+census.data %<>%
+  left_join(sms.airtime.sample, "KEY.individ") %>% 
+  mutate(airtime.sample = !is.na(airtime.order))
+  # mutate(airtime.sample = KEY.individ %in% sms.airtime.sample$KEY.individ)  
+```
+
+## Endline 
+
+https://evidenceaction.slack.com/files/karim/F2NK1MYC8/Endline_Survey_and_Reconsent_Sample
+
+```{r}
+# Depends on updated census.data with up-to-date SMS statuses
+select.endline.sample <- function(eligible.individ) {
+  assign.endline.survey.type <- . %>% 
+    mutate(endline.survey.type = sample(c(rep(c("paired", "individual"), n() %/% 2), 
+                                          sample(c("paired", "individual"), n() %% 2))))
+  
+  if (first(eligible.individ$sms.treatment) == "sms.control") {
+    distinct(eligible.individ, KEY, assigned.treatment) %>% 
+      mutate(needed.sample = ifelse(first(assigned.treatment) == "control", 15, 20),
+             hh.sample.size = min(first(needed.sample) + 2, n())) %>% 
+      sample_n(first(.$hh.sample.size)) %>% 
+      left_join(sample_n(., min(first(.$hh.sample.size), first(.$needed.sample))) %>% 
+                  transmute(KEY, endline.backup = FALSE),
+                "KEY") %>% 
+      assign.endline.survey.type %>% 
+      select(KEY, endline.survey.type, endline.backup) %>%  
+      left_join(eligible.individ, "KEY") %>% 
+      filter(!is.na(sms.treatment))
+  } else {
+    eligible.individ %>% 
+      sample_frac(1) %>% 
+      distinct(KEY, .keep_all = TRUE) %>% # There is one hh in wave 1 that had two people recruited from
+      mutate(hh.sample.size = min(5 + 2, n())) %>% #cluster.size = n()) %>% 
+      sample_n(first(.$hh.sample.size)) %>% 
+      assign.endline.survey.type %>% 
+      left_join(sample_n(., min(first(.$hh.sample.size), 5)) %>% 
+                  transmute(KEY, endline.backup = FALSE),
+                "KEY") 
+  }
+}
+```
+
+
+```{r select-wave1-endline, eval=FALSE}
+wave1.endline.individuals <- census.data %>% 
+  filter(wave == 1,
+         !is.na(sms.treatment),
+         sms.treatment == "sms.control" | sms.consent, # & between(sms.status.success, 4, 6)),
+         is.na(sms.ctrl.backup) | !sms.ctrl.backup) %>% 
+  group_by(cluster.id, sms.treatment) %>% 
+  do(select.endline.sample(.)) %>% 
+  ungroup %>% 
+  transmute(KEY.individ, 
+            endline.survey.type, 
+            endline.backup = coalesce(endline.backup, TRUE),
+            endline = TRUE)
+
+# write_rds(wave1.endline.individuals, "takeup_endline_wave1_8.0.rds")
+```
+
+```{r select-wave2-endline, eval=FALSE}
+wave2.endline.individuals <- census.data %>% 
+  filter(wave == 2,
+         !is.na(sms.treatment),
+         sms.treatment == "sms.control" | sms.consent, # & between(sms.status.success, 4, 6)),
+         is.na(sms.ctrl.backup) | !sms.ctrl.backup) %>% 
+  group_by(cluster.id, sms.treatment) %>% 
+  do(select.endline.sample(.)) %>% 
+  ungroup %>% 
+  transmute(KEY.individ, 
+            endline.survey.type, 
+            endline.backup = coalesce(endline.backup, TRUE),
+            endline = TRUE)
+
+# write_rds(wave2.endline.individuals, "takeup_endline_wave2_1.0.rds")
+```
+
+```{r update-main-data-endline}
+wave1.endline.individuals <- read_rds("takeup_endline_wave1_8.0.rds")
+wave2.endline.individuals <- read_rds("takeup_endline_wave2_1.0.rds")
+
+census.data %<>%
+  left_join(bind_rows(wave1.endline.individuals, wave2.endline.individuals), "KEY.individ") %>% 
+  mutate(endline = coalesce(endline, FALSE)) %>% 
+  mutate(endline.type = case_when(is.na(.$sms.treatment) | (.$sms.treatment != "sms.control" & !.$sms.consent) ~ "", # Converted to NA below
+                                  .$endline & !.$endline.backup ~ "endline",
+                                  .$endline & .$endline.backup ~ "endline.backup",
+                                  !.$endline & (is.na(.$sms.ctrl.backup) | !.$sms.ctrl.backup) & (.$wave == 2) ~ "endline.backup",
+                                  !.$endline & (is.na(.$sms.ctrl.backup) | !.$sms.ctrl.backup) ~ "reconsent",
+                                  !.$endline & (!is.na(.$sms.ctrl.backup) | .$sms.ctrl.backup) ~ "reconsent.backup",
+                                  TRUE ~ "unexpected") %>% na_if(""))
+
+hh.census.data %<>% 
+  left_join(filter(census.data, !is.na(endline.type)) %>% 
+              distinct(KEY, endline, endline.backup, endline.type), "KEY") %>% 
+  mutate(endline = coalesce(endline, FALSE))
+```
+
+```{r}
+select.know.table <- function(cluster.monitored) {
+  cluster.monitored %>% 
+    filter(endline) %>% 
+    rowwise() %>% 
+    do({
+      sample.space <- filter(cluster.monitored, 
+                             KEY.individ != .$KEY.individ, is.na(sms.ctrl.backup) | !sms.ctrl.backup) %$% 
+        KEY.individ
+      
+      num.other <- ifelse(.$endline.survey.type == "individual", 10, 20) 
+      
+      data_frame(KEY.individ = .$KEY.individ, KEY.individ.other = sample(sample.space, num.other))
+    })
+}
+```
+
+```{r select-know-table-wave1, eval=FALSE}
+wave1.know.table.dict <- census.data %>% 
+  filter(wave == 1,
+         sms.treatment == "sms.control" | sms.consent) %>% 
+  group_by(cluster.id) %>% 
+  do(select.know.table(.)) %>% 
+  ungroup
+
+write_rds(wave1.know.table.dict, "takeup_know_table_dict_wave1_4.0.rds")
+```
+
+```{r select-know-table-wave2, eval=FALSE}
+wave2.know.table.dict <- census.data %>% 
+  filter(wave == 2,
+         sms.treatment == "sms.control" | sms.consent) %>% 
+  group_by(cluster.id) %>% 
+  do(select.know.table(.)) %>% 
+  ungroup
+
+# write_rds(wave2.know.table.dict, "takeup_know_table_dict_wave2_1.0.rds")
+```
+
+```{r generate-endline-csv-wave1, eval=FALSE}
+wave1.know.table.dict <- read_rds("takeup_know_table_dict_wave1_4.0.rds")
+
+census.data %>% 
+  filter(wave == 1,
+         sms.treatment == "sms.control" | sms.consent) %>% 
+  write_csv("takeup_endline_wave1_4.0.csv")
+
+wave1.know.table.dict %>% 
+  left_join(select(census.data, KEY.individ, matches("^(check|name)(1st|2nd|_mid)|nickname")), "KEY.individ") %>% 
+  group_by(KEY.individ) %>% 
+  mutate(know.other.index = rep(1:10, n() %/% 10)) %>% 
+  ungroup %>% 
+  arrange(KEY.individ, know.other.index) %>% 
+  write_csv("takeup_know_table_dict_wave1_4.0.csv")
+```
+
+```{r generate-endline-csv-wave2, eval=FALSE}
+wave2.know.table.dict <- read_rds("takeup_know_table_dict_wave2_1.0.rds")
+
+census.data %>% 
+  filter(wave == 2, 
+         sms.treatment == "sms.control" | sms.consent) %>% 
+  write_csv("takeup_endline_wave2_1.0.csv")
+
+wave2.know.table.dict %>% 
+  left_join(select(census.data, KEY.individ, matches("^(check|name)(1st|2nd|_mid)|nickname")), "KEY.individ") %>% 
+  group_by(KEY.individ) %>% 
+  mutate(know.other.index = rep(1:10, n() %/% 10)) %>% 
+  ungroup %>% 
+  arrange(KEY.individ, know.other.index) %>% 
+  write_csv("takeup_know_table_dict_wave2_1.0.csv")
+```
+
+```{r}
+census.data %>% 
+  filter(!is.na(endline.type), is.na(sms.ctrl.sample.order) | sms.ctrl.sample.order == 1) %>%
+  mutate(arm.treatment = ifelse(assigned.treatment == "control", "control", "any.incentive")) %>%
+  group_by(arm.treatment, endline.type, sms.treatment) %>% 
+  count(cluster.id) %>% 
+  do(tidy(summary(.$n)))
+```
+
+
+
+### Sampling Maps
+
+```{r, echo=FALSE, warning=FALSE, eval=FALSE}
+plot.sampling <- function(cluster.ids, .data) {
+  
+  .data %<>% 
+    filter(cluster.id %in% cluster.ids) %>% 
+    mutate(sms.treatment = factor(sms.treatment, levels = c("reminder.only", "social.info"), labels = c("Reminder Only", "Reminder + Social Info")))
+  
+  cluster.boundaries <- boundaries %>% 
+    filter(cluster.id %in% cluster.ids, boundary.type %in% "census.convex.hull")
+  
+  hhs.center <- cluster.boundaries %>% 
+    make_bbox(lon, lat, data = .) 
+  
+  plot.obj <- ggplot(.data) +
+    coord_fixed(xlim = hhs.center[c("left", "right")], ylim = hhs.center[c("bottom", "top")]) +
+    geom_point(aes(lon, lat, color = sms.treatment, shape = hh.has.phone), alpha = 0.75, size = 3, stroke = 1.5, position = "dodge") +
+    scale_shape_manual("", values = c(7, 0), labels = c("No Phones", "Any Phone"), drop = FALSE) +
+    scale_color_discrete("SMS Treatment", drop = FALSE) +
+    ggtitle(sprintf("Cluster %s", paste(cluster.ids, collapse = ", "))) +
+    labs(x = "", y = "") +
+    theme(axis.text = element_blank()) 
+  
+  plot(plot.obj)
+}
+
+hh.census.data %>% 
+  filter(!is.na(cluster.id)) %$% 
+  cluster.id %>% 
+  unique %>% 
+  walk(plot.sampling, hh.census.data)
+```
+
+## Individual Matching and Collisions
+
+We compute the minimum identification "distance" between any two sample individuals using
+
+* Generalized Levenshtein (edit) distance for names (first, second, middle and clan) and the last two digits of a phone number. We use the default unit distance for insertions, deletions and substitutions.
+* A distance of 0.25 for each year of age difference.
+* If the middle name, two phone number digits, clan, or age is unavailable we assign a cost of 0.
+* If an individual does not have a last name we use their middle name in place of the last name
+
+The below analysis shows that using names, phone numbers and age should be suficient to minimize any risk of name collisions.
+
+```{r id-collisions, eval=FALSE}
+get.id.cols <- . %>% 
+  select(name1st, last_name, name_mid, clan, two_digits)  
+
+na.to.zero <- . %>% {
+    .[,] %>% { ifelse(is.na(.), 0, .) }
+  } %>% 
+  bigmemory::as.big.matrix()
+
+min.id.match <- map2(get.id.cols(wave.1.baseline.individuals), 
+                     get.id.cols(anti_join(wave.1.individuals, wave.1.baseline.individuals, "KEY.individ")),
+                     ~ adist(.x, c(.x, .y)) %>% bigmemory::as.big.matrix()) %>% 
+  map(~ `diag<-`(., NA)) %>% 
+  map_at(c("name_mid", "clan", "two_digits"), na.to.zero) 
+
+min.id.match %<>% 
+  reduce(function(left, right) bigmemory::as.big.matrix(left[,] + right[,]))
+
+create.age.diff.mat <- function(baseline.individuals, other.individuals, year.cost = 0.25) {
+  baseline.individuals %>% 
+    matrix(nrow = length(.), ncol = length(other.individuals) + length(.)) %>% {
+      all.ages <- c(baseline.individuals, other.individuals)
+      
+      subtract(., matrix(all.ages, nrow = nrow(.), ncol = length(all.ages), byrow = TRUE))
+    } %>% 
+    abs %>% 
+    multiply_by(year.cost) %>%
+    round %>% 
+    as.big.matrix()
+}
+
+min.age.dist <- create.age.diff.mat(wave.1.baseline.individuals$age,
+                                    anti_join(wave.1.individuals, 
+                                              wave.1.baseline.individuals, 
+                                              "KEY.individ") %$% age) %>% 
+  na.to.zero 
+
+ordered.keys <- c(wave.1.baseline.individuals$KEY.individ,
+                  anti_join(wave.1.individuals,
+                            wave.1.baseline.individuals,
+                            "KEY.individ") %$% KEY.individ)
+
+id.match.data <- tibble(KEY.individ = wave.1.baseline.individuals$KEY.individ,
+                        min.dist = aaply(min.id.match, 1, . %>% min(na.rm = TRUE)),
+                        which.min.dist = aaply(min.id.match, 1, which.min),
+                        type = "names.phone") %>%
+  bind_rows(tibble(KEY.individ = wave.1.baseline.individuals$KEY.individ,
+                   min.dist = aaply(min.id.match[,] + min.age.dist[,], 1, . %>% min(na.rm = TRUE)), 
+                   which.min.dist = aaply(min.id.match[,] + min.age.dist[,], 1, which.min), 
+                   type = "age")) %>% 
+  mutate(which.min.dist.key = ordered.keys[which.min.dist])
+
+write_rds(id.match.data, "takeup_wave1_id_match.rds")
+```
+
+```{r id-match-summary, fig.width=8}
+id.match.data <- read_rds("takeup_wave1_id_match.rds")
+
+id.match.data %>% 
+  ggplot() +
+  geom_bar(aes(min.dist, fill = type), alpha = 0.5, position = "dodge") +
+  scale_x_continuous("Minimum Distance", breaks = seq(0, 25, 2)) +
+  scale_fill_discrete("", labels = c("Names, Clan, Phone and Age", "Names, Clan and Phone"))
+
+id.match.data %>% 
+  filter(type == "age") %$% 
+  min.dist %>% 
+  quantile(c(0.005, 0.01, 0.1, 0.5))
+  
+```
+
+```{r, eval=FALSE}
+xx <- foreach(1:5, .combine = rbind) %dopar% {
+  census.data %>% 
+    sample_frac(0.2) %>% {
+    # sample_n(5) %>% {
+      select(., name1st) %>% #, last_name) %>% 
+        map(adist) %>% 
+        map(~ magrittr::extract(., upper.tri(.))) %>% 
+        reduce(`+`)
+    } %>% 
+    quantile(probs = c(0.01, 0.05))
+}
+```
+
+
+# Baseline Survey 
+
+## Data
+
+```{r baseline-data}
+is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
+  boundary.data %>% 
+    select(lon, lat) %>% 
+    Polygon %>% 
+    list %>% 
+    Polygons(ID = "boundary") %>% 
+    list %>% 
+    SpatialPolygons(proj4string = CRS(wgs.84)) %>% 
+    spTransform(kenya.proj4) %>% 
+    gBuffer(width = 25) %>%
+    spTransform(wgs.84) %>% 
+    {
+      mutate(cluster.hh.data, 
+             within.census.boundary = gWithin(convert.to.sp(cluster.hh.data, ~ lon + lat, wgs.84),
+                                              ., 
+                                              byid = TRUE))
+      
+    }
+}, error = function(err) {
+  mutate(cluster.hh.data, within.census.boundary = NA)
+})
+
+baseline.data <- tu.data.reader("Baseline Survey.csv") %>% 
+  filter(SubmissionDate >= "2016-09-05", !is.na(present), present == 1, !is.na(consent), consent == 1) %>% 
+  select(cluster.id, person, KEY, lon, lat, invalid.coord, present, recruit, consent, starts_with("enumerator"), ends_with("_census")) %>% 
+  left_join(filter(., !invalid.coord) %>% identify.closest.cluster, "KEY") %>% 
+  # group_by(cluster.id) %>% 
+  # do(is.out.of.boundary(., filter(boundaries, boundary.type == "census.convex.hull", cluster.id == .$cluster.id[1]))) %>% 
+  # ungroup %>% 
+  # left_join(select(cluster.strat.data, cluster.id, wave), "cluster.id") 
+  left_join(cluster.wave.county.data, "cluster.id")
+
+baseline.data %>% 
+  count(cluster.id) %>% 
+  arrange(cluster.id)
+```
+
+Data with cluster IDs and the geographically closest cluster mismatched:
+
+```{r}
+baseline.data %>% 
+  filter(cluster.id != closest.cluster) %>% 
+  count(cluster.id, closest.cluster)
+```
+
+```{r suspicious-hhs-dist, include=FALSE, eval=FALSE}
+suspicious.baseline.hhs <- read_csv("suspicious_hhs.csv", col_names = c("hhh.name", "KEY.baseline", "KEY.census"), skip = 1) %>% 
+  filter(!is.na(KEY.baseline) & !is.na(KEY.census)) %>% 
+  left_join(transmute(baseline.data, KEY, baseline.lon = lon, baseline.lat = lat) , c("KEY.baseline" = "KEY")) %>% 
+  left_join(transmute(hh.census.data, KEY, census.lon = lon, census.lat = lat) , c("KEY.census" = "KEY")) %>% 
+  filter(!is.na(census.lon) & !is.na(census.lat)) %>% {
+    baseline.sp <- convert.to.sp(., ~ baseline.lon + baseline.lat, wgs.84) %>% 
+      spTransform(kenya.proj4)
+    
+    census.sp <- convert.to.sp(., ~ census.lon + census.lat, wgs.84) %>% 
+      spTransform(kenya.proj4)
+    
+    mutate(., dist = gDistance(baseline.sp, census.sp, byid = TRUE) %>% diag)
+  } 
+
+suspicious.baseline.hh.dist %>% write_csv("suspicious_hh_dist.csv")
+```
+
+```{r baseline-backcheck-sample, eval=FALSE}
+backcheck.cluster.pool <- baseline.data %>% 
+  find.backcheck.pool
+
+num.enumerators.to.backcheck <- backcheck.cluster.pool %>% 
+  count.num.enum.to.backcheck 
+  
+baseline.backcheck.clusters <- backcheck.cluster.pool %>% 
+  find.backcheck.candidates(num.enumerators.to.backcheck) 
+
+baseline.backchecks <- baseline.data %>% 
+  filter(!is.na(enumerator), enumerator != 99) %>% 
+  semi_join(baseline.backcheck.clusters, "cluster.id") %>% 
+  group_by(enumerator) %>% 
+  sample_n(2) %>% 
+  ungroup
+
+bc.diff <- round(0.1 * nrow(baseline.data)) - nrow(baseline.backchecks)  
+
+if (bc.diff > 0) {
+  baseline.backchecks <- baseline.data %>% 
+    filter(!is.na(enumerator), enumerator != 99) %>% 
+    anti_join(baseline.backchecks, "KEY") %>% 
+    sample_n(bc.diff) %>% 
+    bind_rows(baseline.backchecks)
+}
+```
+
+## Mapping
+
+```{r baseline-mapping, include=FALSE}
+set.hh.prox.type <- function(.data, cluster.ids) {
+  .data %>% 
+    mutate(hh.type = case_when(is.na(.$closest.cluster) ~ "out.of.range",
+                               .$cluster.id == .$closest.cluster ~ "correct", 
+                               .$cluster.id %in% cluster.ids ~ "other",
+                               TRUE ~ "this") %>% 
+             factor(levels = c("correct", "out.of.range", "other", "this"), 
+                    labels = c("Correct cluster", 
+                               "Out of Range",
+                               "Closest to other cluster (Incorrect ID)",
+                               "Closest to this cluster (Incorrect ID)")))
+}
+
+plot.hh <- function(cluster.ids, found.data, sample.data, found.data.fill = NULL,
+                    .zoom = 15, use.google.maps = TRUE) {
+  cluster.boundaries <- boundaries %>% 
+     filter(boundary.type %in% "census.convex.hull") 
+    # filter(cluster.id %in% cluster.ids, boundary.type %in% "census.convex.hull") 
+ 
+  if (!empty(found.data)) {
+    hhs.center <- sample.data %>% 
+      select(lon, lat) %>% 
+      bind_rows(select(found.data, lon, lat)) %>% 
+      make_bbox(lon, lat, data = .) 
+  } else if (!empty(cluster.boundaries)) {
+    hhs.center <- cluster.boundaries %>% 
+      make_bbox(lon, lat, data = .) 
+  } else {
+    return(NULL)
+  }
+
+  if (use.google.maps) {
+    hhs.center %<>%
+      matrix(nrow = 2) %>%
+      rowMeans()
+    
+    plot.obj <- ggmap(get_googlemap(center = hhs.center,
+                                    maptype = "hybrid",
+                                    zoom = .zoom,
+                                    scale = 2,
+                                    style = "element:labels|visibility:off", # Drop all labels from map
+                                    key = config$google_api_key)) 
+  } else {
+    plot.obj <- ggplot() +
+      coord_fixed(xlim = hhs.center[c("left", "right")], ylim = hhs.center[c("bottom", "top")]) +
+      geom_point(aes(lon, lat), fill = "black", shape = 22, alpha = 0.25, size = 7, stroke = 0, 
+                 data = sample.data) 
+  }
+  
+  plot.obj <- plot.obj +
+    ggtitle(sprintf("Cluster %s", paste(cluster.ids, collapse = ", "))) +
+    labs(x = "", y = "") +
+    theme(axis.text = element_blank())
+  
+  if (!is.null(cluster.boundaries) & !empty(cluster.boundaries)) {
+    plot.obj <- plot.obj + 
+      geom_polygon(aes(lon, lat, group = group), 
+                   color = if (use.google.maps) "white" else "black", 
+                   linetype = "dotted", 
+                   size = if (use.google.maps) 2 else 1,
+                   alpha = 0, 
+                   data = cluster.boundaries) 
+  }
+  
+  if (!empty(found.data)) {
+    plot.obj <- plot.obj +
+      geom_point(aes_string("lon", "lat", fill = found.data.fill), shape = 22, size = 3, stroke = 1, position = "dodge", data = found.data) +
+      scale_fill_discrete("", drop = FALSE) 
+  }
+  
+  return(plot.obj)
+}
+
+plot.baseline.hh <- function(cluster.ids, 
+                             .data, sample.data, .suspicious.hhs = NULL, ...) {
+  select.cluster.hhs <- . %>% 
+    filter(cluster.id %in% cluster.ids | closest.cluster %in% cluster.ids,
+           !is.na(lon) & !is.na(lat) & !invalid.coord)
+  
+  .data %<>% select.cluster.hhs 
+  sample.data %<>% select.cluster.hhs
+  
+  if (!is_null(.suspicious.hhs)) {
+    .suspicious.hhs %<>%
+      mutate(pair.id = seq_len(nrow(.)))
+    
+    .data %<>%
+      left_join(mutate(.suspicious.hhs, suspicious = TRUE), by = c("KEY" = "KEY.baseline")) %>% 
+      mutate(suspicious = ifelse(is.na(suspicious), FALSE, suspicious))
+    
+    sample.data %<>% 
+      left_join(mutate(.suspicious.hhs, suspicious = TRUE), by = c("KEY" = "KEY.census")) %>% 
+      mutate(suspicious = ifelse(is.na(suspicious), FALSE, suspicious))
+  }
+  
+  if (!empty(.data)) {
+    .data %<>% 
+      set.hh.prox.type(cluster.ids)
+  }
+
+  plot.obj <- plot.hh(cluster.ids, .data, sample.data, found.data.fill = "hh.type", ...)
+   
+  if (!empty(.data)) {
+    if (!is_null(.suspicious.hhs)) {
+      plot.obj <- plot.obj +
+        geom_segment(aes(x = baseline.lon, y = baseline.lat, xend = census.lon, yend = census.lat), 
+                     lineend = "round", data = .suspicious.hhs) 
+    }
+    
+  }
+  
+  plot(plot.obj)
+}
+```
+
+### Wave 1
+
+```{r baseline-mapping-w1, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
+baseline.data %>% 
+  filter(wave == 1) %>% 
+  with(union(cluster.id, closest.cluster)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.baseline.hh, baseline.data, filter(hh.census.data, !is.na(baseline.sample.wave)), use.google.maps = FALSE)
+  # walk(plot.baseline.hh, baseline.data, filter(hh.census.data, !is.na(baseline.sample.wave)), suspicious.baseline.hhs, use.google.maps = FALSE)
+```
+
+### Wave 2
+
+```{r baseline-mapping-w2, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
+baseline.data %>% 
+  filter(wave == 2) %>% 
+  with(union(cluster.id, closest.cluster)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.baseline.hh, baseline.data, filter(hh.census.data, !is.na(baseline.sample.wave)), use.google.maps = FALSE)
+  # walk(plot.baseline.hh, baseline.data, filter(hh.census.data, !is.na(baseline.sample.wave)), suspicious.baseline.hhs, use.google.maps = FALSE)
+```
+
+# SMS 
+
+## Treatment Recruitment
+
+```{r sms-recruit-data}
+factor.text_type <- . %>% factor(levels = 1:2, labels = c("social.info", "reminder.only"))
+
+all.sms.recruit.data <- read_csv("Takeup Text Messages.csv", 
+                             col_types = list(SubmissionDate = takeup.datetime.type,
+                                              starttime = takeup.datetime.type,
+                                              endtime = takeup.datetime.type)) %>% 
+  rename(cluster.id = cluster_id) %>% 
+  filter(deviceid != "(web)", SubmissionDate >= "2016-09-13") %>% 
+  transmute(SubmissionDate, starttime, endtime, KEY, cluster.id, present, recruit, consent, phone, person, age, 
+            phone_census = ifelse(is.na(phone_census), NA, sprintf("%.2d", phone_census)),
+            sms.treatment = factor.text_type(text_type),
+            name_1st_census = str_extract(name_census, "^\\S+"),
+            name_2nd_census = str_extract(name_census, "\\S+$"),
+            hhh_name_1st_census = str_to_upper(str_extract(hhh_census, "^\\S+")),
+            hhh_name_2nd_census = str_to_upper(str_extract(hhh_census, "\\S+$")),
+            present.recruit = present * recruit,
+            present.recruit.consent = present.recruit * consent,
+            lon = `gps-Longitude`,
+            lat = `gps-Latitude`) %>%
+  left_join(cluster.wave.county.data, "cluster.id") %>% 
+  left_join(identify.closest.cluster(.), "KEY") %>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment), c("wave", "county", "cluster.id"))
+
+all.sms.recruit.data %>% 
+  group_by(cluster.id) %>% 
+  summarize_at(vars(present, present.recruit, present.recruit.consent), funs(mean(., na.rm = TRUE))) %>% 
+  left_join(count(all.sms.recruit.data, cluster.id), "cluster.id") %>% 
+  right_join(select(cluster.strat.data, cluster.id, wave), ., "cluster.id")
+
+manual.sms.match.list <- read_csv("unmatched_sms_wave1.csv", 
+                                  col_names = c("KEY.recruit", "name", "KEY.individ.manual"), skip = 1) %>% 
+  bind_rows(read_csv("unmatched_sms_wave1_2.csv", 
+                     col_names = c("KEY.recruit", "name", "KEY.individ.manual")))
+
+sms.list <- bind_rows(latest = read_csv("sms_list_0929.csv"), 
+                      original = read_csv("sms_list_original.csv"), 
+                      .id = "data.source") %>% 
+  transmute(person_key, KEY.individ, data.source, sms.treatment = factor.text_type(text_type))
+
+match.recruit.with.census <- function(.data, match.by) {
+  bind_rows(filter(.data, !is.na(KEY.individ)),
+            filter(.data, is.na(KEY.individ)) %>% 
+              select(-KEY.individ) %>% 
+              left_join(census.data, 
+                        by = c("cluster.id", match.by),
+                        suffix = c(".temp.recruit", ".census")) %>% 
+              set_names(str_replace(names(.), fixed(".temp.recruit"), "")) %>% 
+              select_(.dots = names(.data)))
+}
+
+all.sms.recruit.data %<>% 
+  left_join(sms.list, c("person" = "person_key"), suffix = c(".recruit", ".input")) %>% 
+  left_join(manual.sms.match.list, c("KEY" = "KEY.recruit")) %>% 
+  mutate(KEY.individ = coalesce(KEY.individ, KEY.individ.manual)) %>% 
+  select(-KEY.individ.manual) %>% 
+  match.recruit.with.census(c("name_1st_census" = "name1st",
+                              "phone_census" = "two_digits",
+                              "hhh_name_1st_census" = "hhh_name1st",
+                              "hhh_name_2nd_census" = "hhh_name2nd")) %>%
+  left_join(select(census.data, KEY.individ, lon, lat), "KEY.individ", suffix = c(".recruit", ".census")) %>% 
+  rename(lon = lon.recruit, lat = lat.recruit)
+
+sms.recruit.data <- all.sms.recruit.data %>% 
+  filter(consent == 1)  
+
+sms.recruit.data %<>%
+  filter(!is.na(lon), !is.na(lat), !is.na(lon.census), !is.na(lat.census)) %>%
+  transmute(KEY, KEY.individ, 
+            dist.to.census = gDistance(convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+                                         spTransform(kenya.proj4),
+                                       convert.to.sp(., ~ lon.census + lat.census, wgs.84) %>% 
+                                         spTransform(kenya.proj4),
+                                       byid = TRUE) %>% diag) %>%
+  group_by(KEY) %>% 
+  filter(min_rank(dist.to.census) == 1) %>% 
+  ungroup %>% 
+  right_join(sms.recruit.data, c("KEY", "KEY.individ")) %>% 
+  distinct(KEY, .keep_all = TRUE) %>% 
+  mutate(far.from.census = dist.to.census > 50)
+```
+
+The full sample selected for SMS treatment (in both waves) that was used in recruitment is in the file "takeup_sms_sample_1.0.csv".
+
+```{r, eval=FALSE}
+all.sms.recruit.data %>% 
+  # filter(county != "Kakamega", !is.na(KEY.individ)) %>% 
+  filter(!is.na(KEY.individ)) %>% 
+  transmute(KEY.individ, phone, age,
+            sms.consent = !is.na(consent) & consent, 
+            sms.treatment = sms.treatment.recruit) %>% 
+  distinct(KEY.individ, sms.treatment, .keep_all = TRUE) %>%
+  # write_rds("takeup_sms_sample_all_5.rds")
+```
+
+```{r plot-sms-recruit-code}
+plot.sms.recruit <- function(cluster.ids, .data, sample.data, ...) {
+  select.cluster.hhs <- . %>% 
+    filter(cluster.id %in% cluster.ids, # | closest.cluster %in% cluster.ids,
+           !is.na(lon) & !is.na(lat))
+  
+  .data %<>% 
+    select.cluster.hhs %>% {
+      if (!empty(.)) set.hh.prox.type(., cluster.ids)
+    }
+  
+  sample.data %<>% select.cluster.hhs
+  
+  plot.obj <- plot.hh(cluster.ids, .data, sample.data, found.data.fill = "hh.type", ...) 
+  
+  if (any(.data$far.from.census, na.rm = TRUE)) {
+    plot.obj <- plot.obj +
+      geom_point(aes(lon, lat), shape = 5, size = 5, stroke = 1, color = "darkred", data = .data %>% filter(far.from.census))
+  }
+  
+  plot(plot.obj)
+}
+```
+
+### Wave 1 Maps
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
+sms.recruit.data %>% 
+  filter(wave == 1) %>% 
+  with(union(cluster.id, NULL)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.sms.recruit, 
+       filter(sms.recruit.data, consent == 1), 
+       filter(hh.census.data, !is.na(sms.treatment)), 
+       use.google.maps = FALSE)
+```
+
+### Wave 2 Maps
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
+sms.recruit.data %>% 
+  filter(wave == 2) %>% 
+  with(union(cluster.id, NULL)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.sms.recruit, 
+       filter(sms.recruit.data, consent == 1), 
+       filter(hh.census.data, !is.na(sms.treatment)), 
+       use.google.maps = FALSE)
+```
+
+```{r, eval=FALSE}
+sms.recruit.data %>% 
+  filter(consent == 1, far.from.census) %>% 
+  select(KEY.recruit, KEY.census, dist.to.census, SubmissionDate.recruit) %>% 
+  arrange(desc(SubmissionDate.recruit), desc(dist.to.census)) %>% 
+  filter(SubmissionDate.recruit == "2016-09-28") %>% 
+  write_csv("takeup_sms_recruit_far_0928.csv")
+```
+
+## Messages Sent
+
+```{r sms-response-data}
+sms.status.data <- c("takeup_bulk_sms_wave1.csv", "takeup_bulk_sms_wave2.csv") %>% 
+  map_df(~ read_csv(.,
+                    skip = 1,
+                    col_names = c("sms.date", "from", "to", "message", "cost", "status"),
+                    col_types = list(sms.date = col_datetime("%T %p %B %d, %Y"),
+                                     to = col_character()))) %>% 
+  mutate(airtime.reward = str_detect(message, "20880"))
+
+sms.status.data %>% 
+  filter(airtime.reward) %>% 
+  count(date(sms.date), status) 
+
+sms.status.data %>% 
+  filter(!airtime.reward) %>% 
+  filter(((date(sms.date) >= "2016-10-02") & (date(sms.date) <= "2016-10-13")) | (date(sms.date) >= "2016-10-23")) %>% 
+  count(date(sms.date), status)
+
+wide.sms.status.data <- sms.status.data %>% 
+  filter(!airtime.reward) %>% 
+  count(to, status) %>%
+  group_by(to) %>% 
+  mutate(total = sum(n)) %>% 
+  ungroup %>% 
+  spread(status, n) %>% 
+  mutate_at(vars(Failed, Sent, Success), funs(coalesce(., as.integer(0))))
+```
+
+```{r update-census-sms-status}
+census.data %<>% 
+  left_join(select(wide.sms.status.data, to, total, Success), c("phone" = "to")) %>% 
+  rename(sms.status.success = Success,
+         sms.status.total = total)
+```
+
+# Sensitization
+
+```{r sensitization-data}
+sense.mon.data <- read_csv("Sensitization Monitoring Form.csv") %>% 
+  rename(cluster.id = cluster_id,
+         hh.grp.key = KEY) %>% 
+  right_join(read_csv("Sensitization Monitoring Form-household.csv"), c("hh.grp.key" = "PARENT_KEY")) %>% 
+  rename(lon = `gps-Longitude`,
+         lat = `gps-Latitude`) %>% 
+  left_join(identify.closest.cluster(.), "KEY") %>% 
+  mutate(cluster.id = ifelse(cluster.id == 213, closest.cluster, cluster.id)) %>% 
+  mutate_at(vars(SubmissionDate, starttime, endtime), funs(parse_datetime(., datetime.format))) %>% 
+  select(-county) %>% 
+  left_join(cluster.wave.county.data, "cluster.id")
+
+sense.mon.data %>% 
+  count(wave, cluster.id)
+
+sense.mon.data %>% 
+  distinct(cluster.id, .keep_all = TRUE) %>% 
+  count(wave)
+```
+
+
+```{r}
+plot.sensitization <- function(cluster.ids, .data, sample.data, use.google.maps = FALSE, ...) {
+  select.cluster.hhs <- . %>% 
+    filter(cluster.id %in% cluster.ids | closest.cluster %in% cluster.ids,
+           !is.na(lon) & !is.na(lat))
+  
+  .data %<>% 
+    select.cluster.hhs %>% 
+    set.hh.prox.type(cluster.ids)
+  
+  sample.data %<>% select.cluster.hhs
+  
+  plot.hh(cluster.ids, .data, sample.data, found.data.fill = "hh.type", use.google.maps = use.google.maps, ...) %>% plot
+}
+```
+
+## Wave 1 Maps
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
+sense.mon.data %>% 
+  filter(wave == 1) %>% 
+  with(union(cluster.id, closest.cluster)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.sensitization, sense.mon.data, hh.census.data, use.google.maps = FALSE)
+```
+
+## Wave 2 Maps
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
+sense.mon.data %>% 
+  filter(wave == 2) %>% 
+  with(union(cluster.id, closest.cluster)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.sensitization, sense.mon.data, hh.census.data)
+```
+
+# Point-of-Treatment
+
+```{r pot-monitoring, eval=FALSE}
+census.data %>% 
+  filter(wave == 1, monitored) %>%  
+  write_csv("takeup_monitor_2.2_wave1.csv")
+
+census.data %>% 
+  filter(wave == 2, monitored) %>%  
+  write_csv("takeup_monitor_1.0_wave2.csv")
+```
+
+## Independent Assessment
+
+```{r}
+ea.pot.monitor.data <- read_csv("takeup_mlis_pot_monitoring.csv")
+```
+
+
+# Take-up
+
+```{r, include=FALSE}
+calc.grp.individ.deviation <- function(.data) {
+  if (.data$missing.coords.grp[1] || any(.data$missing.coords.individ)) {
+    return(.data)
+  } 
+  
+  grp.entry.location <- convert.to.sp(.data[1, ], ~ lon.grp + lat.grp, wgs.84) %>% 
+    spTransform(kenya.proj4)
+ 
+  individ.entry.locations <- convert.to.sp(.data, ~ lon.individ + lat.individ, wgs.84) %>% 
+    spTransform(kenya.proj4)
+
+  .data %>% 
+    mutate(individ.grp.deviation = c(gDistance(individ.entry.locations, grp.entry.location, byid = TRUE)))
+}
+
+calc.pot.deviation <- function(.data, suffix = "", entry.coord.formula = ~ lon + lat) {
+  pot.location <- convert.to.sp(.data[1, ], ~ alt.pot.lon + alt.pot.lat, wgs.84) %>%
+    spTransform(kenya.proj4)
+  
+  verified.pot.location <- tryCatch({
+    convert.to.sp(.data[1, ], ~ lon.verify + lat.verify, wgs.84) %>%
+      spTransform(kenya.proj4) 
+  }, error = function(err) NULL)
+  
+  entry.locations <- convert.to.sp(.data, entry.coord.formula, wgs.84) %>% 
+    spTransform(kenya.proj4)
+  
+  village.center.location <- convert.to.sp(.data[1, ], ~ lon.village.center + lat.village.center, wgs.84) %>%
+    spTransform(kenya.proj4)
+  
+  tibble(pot.deviation = c(gDistance(entry.locations, pot.location, byid = TRUE)),
+         verified.pot.deviation = if (is.null(verified.pot.location)) NA else c(gDistance(entry.locations, verified.pot.location, byid = TRUE)),
+         dist.to.act.pot = c(gDistance(entry.locations, village.center.location, byid = TRUE)),
+         dist.to.act.pot.cat = factor.dist.pot(dist.to.act.pot),
+         max.pot.change = max(gDistance(entry.locations, byid = TRUE))) %>% 
+    set_names(paste0(names(.), suffix)) %>% 
+    bind_cols(.data, .)
+}
+```
+
+
+```{r takeup-data, results="hide"}
+takeup.dict <- c("takeup_survey_dict_wave1.csv") %>%  # Only needed for wave 1
+  map_df(~ read_csv(.) %>% transmute(person_key, KEY.individ, cluster_key)) 
+
+read.individ.takeup.data <- function(file.name) {
+  read_csv(file.name,
+           col_types = list(timestamp_begin = col_datetime("%Y-%b-%d %T"),
+                            timestamp_end = col_datetime("%Y-%b-%d %T"))) %>% 
+    mutate_at(vars(timestamp_begin, timestamp_end), funs(force_tz(., tzone = "Africa/Nairobi"))) %>% 
+    rename(KEY.survey.individ = KEY,
+           lon = `gps_ind-Longitude`,
+           lat = `gps_ind-Latitude`) %>% 
+    mutate_at(vars(lon, lat), as.numeric) %>% 
+    mutate(missing.coords = is.na(lon) | is.na(lat)) %>% { 
+      if (is.numeric(.$person_key)) {
+        left_join(., takeup.dict, c("cluster_key", "person_key")) 
+      } else {
+        mutate(., KEY.individ = person_key)
+      }
+    } %>% 
+    select(-c(person, person_key)) %>% 
+    mutate(KEY.individ = na_if(KEY.individ, "0"),
+           data.file.name = file.name)
+}
+
+takeup.data.individuals <- map_df(c("Wave 1 Point of Treatment Form-ind.csv", "Kakamega Point of Treatment Form-ind.csv"), read.individ.takeup.data) 
+
+read.group.takeup.data <- function(file.name) {
+  read_csv(file.name,
+           col_types = list(
+                            deviceid = col_character(),
+                            timestamp_gps = col_datetime("%Y-%b-%d %T"))) %>% 
+    filter(!str_detect(deviceid, fixed("(web)"))) %>% 
+    mutate_at(vars(timestamp_gps), funs(force_tz(., tzone = "Africa/Nairobi"))) %>%
+    mutate_at(vars(SubmissionDate, starttime, endtime), funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>% format(tz = "Africa/Nairobi") %>% parse_datetime(locale = locale(tz = "Africa/Nairobi")))) %>%
+    # mutate_at(vars(SubmissionDate, starttime, endtime), funs(format(., tz = "Africa/Nairobi", usetz = TRUE))) %>% #, parse_datetime)) %>%
+    rename(cluster.id = cluster_id,
+           KEY.survey.group = KEY,
+           lon = `gps_visible-Longitude`,
+           lat = `gps_visible-Latitude`,
+           lon.hidden = `gps_hidden-Longitude`,
+           lat.hidden = `gps_hidden-Latitude`) %>% 
+    select(-c(county, enumerator)) %>% 
+    left_join(cluster.wave.county.data, "cluster.id") %>% 
+    mutate(data.file.name = file.name)
+}
+
+all.takeup.survey.groups <- bind_rows(read.group.takeup.data("Wave 1 Point of Treatment Form.csv") %>% mutate(data.wave = 1), 
+                                      read.group.takeup.data("Kakamega Point of Treatment Form.csv") %>% mutate(data.wave = 2))
+
+# Manual Corrections
+all.takeup.survey.groups %<>% 
+  mutate(cluster.id = ifelse(KEY.survey.group == "uuid:e6eaab02-9fff-4413-8bea-53f296b517ce", 278, cluster.id)) %>% # DE entered wrong cluster ID
+  mutate_at(vars(timestamp_gps, starttime, endtime), 
+            funs(. + if_else((cluster.id %in% c(98, 431) & !is.na(.) & date(.) <= "2016-10-03") |
+                               (cluster.id == 1247 & !is.na(.) & date(.) == "2016-10-23"), days(1), days(0))))
+
+day1.wave1 <- as_date("2016-10-03")
+day12.wave1 <- day1.wave1 + days(11)
+day1.wave2 <- as_date("2016-10-24")
+
+is.valid.wave.datetime <- . %>% {
+  !is.na(.) &
+    ((date(.) >= day1.wave1 & date(.) <= day12.wave1) | # Wave 1 
+    (date(.) >= day1.wave2)) # Wave 2 
+}
+
+all.takeup.survey.groups %<>%
+  filter(is.valid.wave.datetime(SubmissionDate), 
+         is.valid.wave.datetime(starttime), 
+         is.valid.wave.datetime(endtime),
+         !is.na(cluster.id)) %>% 
+  mutate(deworming.day = as.integer(date(starttime) - ifelse(wave == 1, day1.wave1, day1.wave2) + 1),
+         lon = coalesce(lon, lon.hidden),
+         lat = coalesce(lat, lat.hidden)) %>% 
+  left_join(village.centers, c("wave", "county", "cluster.id"), suffix = c(".act.pot", ".village.center")) %>% 
+  rename(lon = lon.act.pot, lat = lat.act.pot) %>% 
+  left_join(takeup.data.individuals %>% count(PARENT_KEY), c("KEY.survey.group" = "PARENT_KEY")) %>% 
+  rename(grp.num.treated = n) %>% 
+  mutate(grp.num.treated = coalesce(grp.num.treated, as.integer(0)))
+
+all.takeup.survey.groups %<>%
+  mutate(missing.coords = is.na(lon) | is.na(lat),
+         missing.pot.coords = is.na(alt.pot.lon) | is.na(alt.pot.lat)) %>% 
+  ddply(.(cluster.id, missing.coords),
+        function(.data) {
+          if (first(.data$missing.coords) | first(.data$missing.pot.coords)) {
+            return(.data)
+          } else { 
+            calc.pot.deviation(.data, suffix = ".grp")
+          }
+        },
+        .parallel = FALSE) %>%
+  left_join(select(cluster.strat.data, county, cluster.id, dist.pot.group, assigned.treatment), "cluster.id", 
+            suffix = c(".survey", ".randomization")) %>% 
+  rename(county = county.survey) 
+  
+all.takeup.data <- all.takeup.survey.groups %>% 
+  inner_join(takeup.data.individuals, 
+             c("KEY.survey.group" = "PARENT_KEY"),
+             suffix = c(".grp", ".individ")) %>% {
+    mutate_at(., vars(timestamp_begin, timestamp_end), 
+              funs(. + if_else(cluster.id == 98 &  # Date was off by a day
+                                 !is.na(.) &
+                                 date(.) <= "2016-10-03", days(1), days(0))))
+  } 
+
+takeup.data <- all.takeup.data %>% 
+  filter(!is.na(cluster.id), !cluster.id %in% clusters.to.drop, !is.na(wave)) %>%
+  mutate(village = na_if(village, 0)) %>% 
+  left_join(rct.village.codes, "village") %>% 
+  mutate(source.type = case_when(is.na(.$village) ~ "other",
+                                 .$cluster.id != .$village.cluster.id ~ "spillover",
+                                 TRUE ~ "correct"),
+         source.type = if_else(!is.na(targeted.village) & targeted.village, paste0(source.type, ".targeted"), source.type) %>% 
+           factor(levels = c("correct.targeted", "correct", "spillover.targeted", "spillover", "other"))) %>% 
+  ddply(.(KEY.survey.group), calc.grp.individ.deviation, .parallel = TRUE) %>% 
+  ddply(.(cluster.id, missing.coords.individ), function(.data) {
+    if (!first(.data$missing.coords.individ)) {
+      calc.pot.deviation(.data, suffix = ".individ", entry.coord.formula = ~ lon.individ + lat.individ) 
+    } else 
+      return(.data)
+  }, .parallel = TRUE) %>% 
+  clean.names %>% 
+  left_join(identify.closest.cluster(., data.coords.formula = ~ lon.individ + lat.individ, key.variable = "KEY.survey.individ"), "KEY.survey.individ")
+
+validate::check_that(takeup.data, identical(wave, data.wave)) %>% 
+  summary
+```
+
+```{r, include=FALSE}
+takeup.data %<>% 
+  mutate(accepted.far = 
+           KEY.survey.group %in% c("uuid:cc0d7a35-344e-4208-b4f0-f28c5b5c84b6",
+                                   "uuid:d855e8c4-825a-442e-a7a3-365950c25174",
+                                   "uuid:05addc4e-816a-4c7b-961d-05517851d658",
+                                   "uuid:dd71bea1-2053-4d75-8042-e71b5b2afde8") |
+           KEY.survey.individ %in% c("uuid:90a6b35f-322b-4725-a224-aef627fba7de/ind[3]",
+                                     "uuid:b83319c5-9802-4dc7-8d7a-6148f2bdb61d/ind[12]",
+                                     "uuid:b83319c5-9802-4dc7-8d7a-6148f2bdb61d/ind[13]",
+                                     "uuid:b83319c5-9802-4dc7-8d7a-6148f2bdb61d/ind[14]",
+                                     "uuid:b83319c5-9802-4dc7-8d7a-6148f2bdb61d/ind[15]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[1]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[2]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[3]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[4]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[5]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[6]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[7]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[8]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[9]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[11]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[12]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[13]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[14]",
+                                     "uuid:0df2cf0f-f0b2-42b7-9066-5c644e66d66a/ind[15]",
+                                     "uuid:62d468a8-1370-447d-b0a7-68d659f005cf/ind[1]"))
+
+takeup.data %<>% filter(!KEY.survey.group %in% c("uuid:13d5f594-8fa6-4f24-9b6c-c302d0c3deb7"))
+```
+
+```{r take-up-summaries-code}
+takeup.summaries <- function(.data, num.days = 12) {
+  .data %<>%
+    mutate(submission.day = date(SubmissionDate))
+  
+  .data %>%  
+    group_by(county, cluster.id, timestamp.date = date(timestamp_gps)) %>% 
+    summarize(num.individuals = n()) %>% 
+    ungroup %>% 
+    arrange(date(timestamp.date), cluster.id) %T>% 
+    print %>% 
+    (function(time.cluster.info) {
+      count(time.cluster.info, cluster.id, county) %>% 
+        ungroup %>% 
+        filter(n < num.days) %T>% 
+        print %>% 
+        semi_join(time.cluster.info, ., "cluster.id")
+    }) %>% print
+ 
+  .data %>%  
+    distinct(deworming.day, cluster.id) %>% 
+    count(deworming.day) %>% #, submission.day) %>% 
+    rename(n.clusters = n) %>% 
+    # left_join(count(.data, deworming.day, submission.day) %>% rename(n.entries = n), c("deworming.day", "submission.day")) %>% 
+    left_join(count(.data, deworming.day) %>% rename(n.entries = n), c("deworming.day")) %>% 
+    print
+      
+# all.takeup.survey.groups %>% 
+#   filter(cluster.id != enumerator, grp.num.treated > 0) %>% 
+#   distinct(timestamp.date = date(timestamp_gps), cluster.id, enumerator) %>% 
+#   arrange(timestamp.date)
+
+# takeup.data %>% 
+#   distinct(timestamp.date = date(timestamp_gps), cluster.id, enumerator) %>% 
+#   filter(cluster.id != enumerator) %>% 
+#   arrange(timestamp.date)
+
+# takeup.data %>% 
+#   filter(is.na(KEY.individ), person_key != 0) %>% 
+#   transmute(date(timestamp_gps), person_key)
+
+  filter(.data, is.na(KEY.individ), is.na(name1st), is.na(agree) | agree == 1) %>% 
+    count(timestamp.date = date(timestamp_gps), cluster.id, agree) %>% 
+    arrange(timestamp.date, cluster.id) %>% 
+    print
+}
+```
+
+```{r pot-satellite-plot-fun}
+plot.pot.capture <- function(.data, .zoom = 18) {
+  .data %<>% 
+    mutate(ts_date = date(timestamp_gps)) 
+  
+  grp.data <- .data %>% 
+    filter(is.na(lon.individ) | is.na(lat.individ)) %>% 
+    distinct(KEY.survey.group,.keep_all = TRUE)
+    
+  get_googlemap(center = make_bbox(lon.grp, lat.grp, data = .data) %>% 
+                        matrix(nrow = 2) %>% rowMeans,
+                      maptype = "hybrid",
+                      zoom = .zoom,
+                      scale = 2,
+                      # style = "element:labels|visibility:off", # Drop all labels from map
+                      key = config$google_api_key) %>% 
+    ggmap() +
+    geom_point(aes(lon.grp, lat.grp, fill = factor(ts_date)), color = "white", alpha = 0.75, size = 3, shape = 21, position = "dodge", stroke = 1, data = grp.data) + 
+    geom_point(aes(lon.individ, lat.individ, fill = factor(ts_date)), color = "white", alpha = 0.75, size = 3, shape = 24, stroke = 1, position = "dodge", data = .data) + 
+    # geom_label_repel(aes(label = sprintf("%d", grp.num.treated)), segment.color = "white", data = .data) +
+    scale_fill_discrete("")
+    # geom_point(aes(lon, lat), size = 8, shape = 10, stroke = 2, position = position_dodge(width = 2), data = .data %>% mutate(ts_date = date(timestamp_gps))) 
+}
+```
+
+```{r plot-takeup-entry-locations}
+plot.cluster.takeup.locations <- function(.data) {
+  .data %<>% 
+    transmute(cluster.id, KEY.survey.group,
+              grp.coord = is.na(lon.individ) | is.na(lat.individ),
+              lon = if_else(grp.coord, lon.grp, lon.individ),
+              lat = if_else(grp.coord, lat.grp, lat.individ),
+              pot.lon = coalesce(lon.verify, alt.pot.lon), 
+              pot.lat = coalesce(lat.verify, alt.pot.lat),
+              grp.coord = factor(ifelse(grp.coord, 
+                                        "Group", 
+                                        ifelse(!is.na(closest.cluster) & cluster.id == closest.cluster, "Individual", "Misidentified")),
+                                 levels = c("Group", "Individual", "Misidentified"))) %>% 
+    group_by(KEY.survey.group, grp.coord) %>% 
+    do(if (first(.$grp.coord) == "Group") slice(., 1) else .) %>% 
+    ungroup
+    
+    
+  pot.50m <- distinct(.data, cluster.id, .keep_all = TRUE) %>% 
+    # slice(.data, 1) %>%
+    # group_by(cluster.id) %>% 
+    do(convert.to.sp(., ~ pot.lon + pot.lat, wgs.84) %>% 
+         spTransform(kenya.proj4) %>% 
+         gBuffer(width = 50) %>%
+         spTransform(wgs.84) %>% 
+         tidy) %>%
+    # ungroup %>% 
+    rename(lon = long)
+  
+  data.box <- make_bbox(lon, lat, data = bind_rows(.data, pot.50m))
+  
+  ggplot(.data, mapping = aes(lon, lat)) +
+    coord_fixed(xlim = data.box[c("left", "right")], ylim = data.box[c("bottom", "top")]) +
+    geom_point(aes(color = grp.coord), alpha = 0.25) +
+    geom_polygon(aes(group = id), alpha = 0, color = "black", linetype = "dashed", data = pot.50m) +
+    scale_color_discrete("", drop = FALSE) +
+    labs(title = sprintf("Cluster %d", first(.data$cluster.id)), x = "", y = "") +
+    theme(axis.text = element_blank())
+}
+```
+
+```{r plot-takeup-timeline}
+plot.takeup.timeline <- function(.data) {
+  stopifnot(n_distinct(.data$wave) == 1)
+  
+  .data %>% 
+    transmute(wave, cluster.id, deworming.day, KEY.survey.group,
+              submission.time = SubmissionDate - days(deworming.day - 1),
+              group.gps.time = timestamp_gps - days(deworming.day - 1),
+              group.start.time = starttime - days(deworming.day - 1),
+              group.end.time = endtime - days(deworming.day - 1),
+              entry.time = timestamp_begin - days(deworming.day - 1), 
+              identified = !is.na(KEY.individ),
+              deworming.day = factor(deworming.day, levels = 1:12)) %>%
+    filter((first(wave) == 1 & date(entry.time) == day1.wave1) | 
+             (first(wave) == 2 & date(entry.time) == day1.wave2)) %>% {
+      ggplot(data = ., mapping = aes(y = deworming.day)) +
+        geom_point(aes(submission.time, shape = "Submission Time"), 
+                   alpha = 0.75, size = 2, 
+                   data = . %>% distinct(KEY.survey.group, .keep_all = TRUE)) +
+        # geom_point(aes(group.gps.time, shape = "GPS Timestamp"), 
+        #            size = 4,
+        #            data = . %>% distinct(KEY.survey.group, .keep_all = TRUE)) +
+        geom_segment(aes(x = group.start.time, xend = group.end.time, yend = deworming.day), 
+                     alpha = 0.5, arrow = arrow(length = unit(0.075, "inches"), type = "closed", ends = "both"), 
+                     data = . %>% distinct(KEY.survey.group, .keep_all = TRUE)) +
+        geom_jitter(aes(entry.time, color = identified, shape = "Individual Timestamp Begin"), 
+                    height = 0.5, alpha = 0.5) +
+        labs(x = "", y = "Deworming Day", title = sprintf("Cluster %d", first(.data$cluster.id))) +
+        scale_color_discrete("Identified") +
+        scale_shape_manual("", values = c(16, 2)) +
+        scale_x_datetime(labels = scales::date_format("%H:%M", tz = "Africa/Nairobi")) +
+        scale_y_discrete(drop = FALSE)
+    }
+}
+```
+
+## Wave 1
+
+```{r pot-data-summaries-wave1}
+takeup.data %>% 
+  filter(wave == 1) %>% 
+  takeup.summaries
+```
+
+```{r pot-deviation, eval = FALSE}
+all.takeup.survey.groups %>% 
+  filter(!cluster.id %in% clusters.to.drop, grp.num.treated > 0, pot.deviation > 50) %>% 
+  select(timestamp_gps, cluster.id, pot.deviation, verified.pot.deviation, grp.num.treated, KEY.survey.group) %>% 
+  arrange(desc(pot.deviation))
+
+all.takeup.survey.groups %>% 
+  filter(!cluster.id %in% clusters.to.drop, grp.num.treated > 0, dist.pot.group != dist.to.act.pot.cat) %>% 
+  select(timestamp_gps, cluster.id, pot.deviation, dist.pot.group, dist.to.act.pot.cat, grp.num.treated, KEY.survey.group)
+
+all.takeup.survey.groups %>% 
+  # filter(!cluster.id %in% clusters.to.drop, grp.num.treated > 0, dist.pot.group != dist.to.act.pot.cat) %>% 
+  filter(!cluster.id %in% clusters.to.drop, grp.num.treated > 0) %>% 
+  distinct(cluster.id, max.pot.change, .keep_all = TRUE) %>% 
+  arrange(desc(max.pot.change)) %>% 
+  transmute(cluster.id, max.pot.change, date(timestamp_gps))
+```
+
+```{r pot-deviation-individ, eval=FALSE}
+takeup.data %>% 
+  group_by(cluster.id, date(timestamp_gps)) %>% 
+  filter(min_rank(pot.deviation.individ) == n()) %>% 
+  ungroup %>% 
+  filter(!cluster.id %in% clusters.to.drop, pot.deviation.individ > 50) %>% 
+  select(timestamp_gps, cluster.id, pot.deviation.individ, verified.pot.deviation.individ, grp.num.treated, KEY.survey.group) %>% 
+  arrange(desc(pot.deviation.individ))
+
+takeup.data %>% 
+  group_by(cluster.id) %>% 
+  summarize(max.pot.change.individ = max(max.pot.change.individ)) %>% 
+  distinct(cluster.id, max.pot.change) %>% 
+  arrange(desc(max.pot.change))
+```
+
+
+
+### Maps
+
+```{r, eval=FALSE}
+takeup.data %>% 
+  filter(!accepted.far, wave == 1) %>% 
+  group_by(cluster.id) %>%
+  do(plot.obj = plot.cluster.takeup.locations(.)) %$% 
+  plot.obj %>% 
+  walk(plot)
+```
+
+
+```{r cluster-431-pot, eval=FALSE, fig.height=8, fig.width=8}
+cluster.430.pot.coords <- tribble(~ lon,    ~ lat,      ~ label,
+                                  34.37687, 0.06260167, "Cluster Survey",
+                                  34.37693, 0.06248667, "PoT Verification",
+                                  34.38149, 0.0668883,  "10/03 Deworming",
+                                  34.37689, 0.0625000,  "10/04 Deworming")
+
+ggmap(get_googlemap(center = make_bbox(lon, lat, data = cluster.431.pot.coords) %>% 
+                      matrix(nrow = 2) %>% rowMeans,
+                    maptype = "hybrid",
+                    zoom = 17,
+                    scale = 2,
+                    # style = "element:labels|visibility:off", # Drop all labels from map
+                    key = config$google_api_key), 
+      base_layer = ggplot(aes(lon, lat), data = cluster.431.pot.coords)) +
+  geom_point(size = 4, shape = 1, stroke = 1, color = "red") +
+  geom_label_repel(aes(label = label),  force = 2, segment.color = "red", segment.size = 1,
+                   color = "red",
+                   box.padding = unit(1, "lines"))
+```
+
+### Daily Timelines
+
+```{r, fig.width=8}
+takeup.data %>% 
+  filter(wave == 1) %>% 
+  group_by(cluster.id) %>% 
+  do(plot.obj = plot.takeup.timeline(.)) %>% 
+  ungroup %$%
+  plot.obj %>% 
+  walk(plot)
+```
+
+## Wave 2
+
+```{r pot-data-summaries-wave2}
+takeup.data %>% 
+  filter(wave == 2) %>% 
+  takeup.summaries(num.days = 12)
+```
+
+### Maps
+
+```{r}
+takeup.data %>% 
+  filter(!accepted.far, wave == 2) %>% 
+  group_by(cluster.id) %>%
+  do(plot.obj = plot.cluster.takeup.locations(.)) %$% 
+  plot.obj %>% 
+  walk(plot)
+```
+
+```{r, eval=FALSE}
+all.takeup.data %>% 
+  filter(wave == 2 | cluster.id == 737) %>% 
+  transmute(cluster.id, 
+            entry.timediff = timestamp_end - timestamp_begin,
+            cluster.737 = cluster.id == 737) %>% 
+  ggplot(., aes(entry.timediff, group = factor(cluster.id), color = cluster.737, alpha = cluster.737)) +
+  # ggplot(., aes(entry.timediff, color = cluster.737)) +
+  # ggplot(., aes(entry.timediff)) + 
+  geom_density() +
+  scale_alpha_manual(values = c(0.025, 1)) +
+  coord_cartesian(xlim = c(0, 500))
+```
+
+### Daily Timelines
+
+```{r, fig.width=8}
+takeup.data %>% 
+  filter(wave == 2) %>% 
+  group_by(cluster.id) %>% 
+  do(plot.obj = plot.takeup.timeline(.)) %>% 
+  ungroup %$%
+  plot.obj %>% 
+  walk(plot)
+```
+
+## Update PoT Locations
+
+```{r}
+pot.info <- takeup.data %>% 
+  filter(!is.na(pot.deviation.individ) | !is.na(pot.deviation.grp),
+         coalesce(pot.deviation.individ, pot.deviation.grp) < 500,
+         !is.na(lon.individ), !is.na(lat.individ)) %>% 
+  group_by(wave, county, cluster.id) %>% 
+  do({
+    convert.to.sp(., ~ lon.individ + lat.individ, wgs.84) %>% 
+      gCentroid() %>% 
+      as_data_frame %>% 
+      rename(lon.post.rct.update = x, lat.post.rct.update = y)
+  }) %>% 
+  ungroup %>% 
+  right_join(pot.info, c("wave", "county", "cluster.id")) %>% 
+  mutate(lon.post.rct.update = if_else(wave == 2, lon.verify, lon.post.rct.update),
+         lat.post.rct.update = if_else(wave == 2, lat.verify, lat.post.rct.update))
+```
+
+## Name Matching
+
+```{r takeup-name-matching}
+find.name.matches <- function(.takeup.data, max.cost = 1) {
+  find.in.census <- function(.data, age.diff.cost = 0.25, two.digits.cost = 1) {
+    mutate(.data,
+           matched.KEY.individ = adist(.data$name1st, census.data$name1st, ignore.case = TRUE) %>% 
+              add(adist(.data$last_name, census.data$last_name, ignore.case = TRUE)) %>% 
+              add(matrix(.data$age, ncol = nrow(census.data), nrow = nrow(.data)) %>%
+                    subtract(matrix(census.data$age.census, ncol = nrow(census.data), nrow = nrow(.data), byrow = TRUE)) %>%  
+                    multiply_by(age.diff.cost) %>% 
+                    abs %>% 
+                    coalesce(0.0)) %>% 
+              add(adist(.data$two_digits, census.data$two_digits) %>% 
+                    multiply_by(two.digits.cost) %>% 
+                    coalesce(0.0)) %>%
+              alply(1, . %>% { ifelse(. <= max.cost, ., NA) %>% which.min %>% magrittr::extract(census.data$KEY.individ, .) }) %>%
+              map_if(is_empty, ~ NA) %>% 
+              unlist)
+  }
+
+  .takeup.data %>% 
+    filter(is.na(KEY.individ), !is.na(name1st), !is.na(last_name)) %>% 
+    mutate(timestamp_gps.day = date(timestamp_gps)) %>% 
+    ddply(.(timestamp_gps.day, cluster.id), find.in.census, .parallel = TRUE) %>% 
+    bind_rows(filter(takeup.data, !is.na(KEY.individ))) %>% 
+    mutate(any.matched.KEY.individ = ifelse(!is.na(KEY.individ), KEY.individ, matched.KEY.individ)) %>% 
+    left_join(census.data %>% 
+                select(KEY.individ, cluster.id, monitored, assigned.treatment, starts_with("sms"), endline.type, lon, lat),
+              by = c("any.matched.KEY.individ" = "KEY.individ"), 
+              suffix = c(".pot", ".home")) %>% 
+    mutate(cluster.spillover = cluster.id.pot != cluster.id.home,
+           treatment.spillover = assigned.treatment.pot != assigned.treatment.home) %>% 
+    filter(!is.na(any.matched.KEY.individ)) %>% 
+    select(wave, county, deworming.day, starts_with("cluster.id"), starts_with("sms"), starts_with("assigned.treatment"),
+           ends_with("KEY.individ"), monitored, endline.type, ends_with("spillover"), county.randomization, dist.pot.group, lon, lat) %>% 
+    mutate(id.group = case_when(!is.na(.$KEY.individ) ~ "monitored.pot.id",
+                                !is.na(.$matched.KEY.individ) & .$monitored ~ "monitored.name.id",
+                                !is.na(.$matched.KEY.individ) & !.$monitored ~ "unmonitored.name.id",
+                                TRUE ~ "unexpected"))  
+}
+```
+
+```{r name-match-wave1, eval=FALSE}
+matched.tu.data.2.wave1 <- takeup.data %>%
+  filter(wave == 1) %>% 
+  find.name.matches(max.cost = 2) 
+```
+
+```{r name-match-wave2, eval=FALSE}
+matched.tu.data.2 <- takeup.data %>% 
+  filter(wave == 2) %>% 
+  find.name.matches(max.cost = 2) %>% 
+  bind_rows(matched.tu.data.2.wave1) %>% 
+  distinct(any.matched.KEY.individ, cluster.id.pot, .keep_all = TRUE) # Removing duplicates
+```
+
+```{r pot-name-matched-monitored-plot, fig.width=9}
+matched.tu.data.2 %>% 
+  filter(id.group != "unmonitored.name.id") %>% 
+  mutate(id.group = factor(id.group, levels = c("monitored.pot.id", "monitored.name.id", "unmonitored.name.id"), labels = c("Monitored and PoT Identified", "Monitored and Name Matched", "Unmonitored and Name Matched"))) %>% {
+    (ggplot(.) +
+       geom_bar(aes(id.group, fill = cluster.spillover), color = "black", alpha = 0.25) +
+       labs(x = "", title = "All Identified") +
+       scale_y_continuous(breaks = seq(0, 2000, 100)) +
+       scale_fill_discrete("Cluster Spillover") +
+       facet_wrap(~ wave, scales = "free_y") +
+       theme(legend.position = "bottom")) %>% plot
+    
+    filter(., endline.type %in% c("endline", "endline.backup", "reconsent")) %>% {
+      ggplot(.) +
+        geom_bar(aes(id.group, fill = cluster.spillover), color = "black", alpha = 0.25) +
+        labs(x = "", title = "Monitored Only") +
+       scale_y_continuous(breaks = seq(0, 2000, 50)) +
+        scale_fill_discrete("Cluster Spillover") +
+        facet_wrap(~ wave, scales = "free_y") +
+        theme(legend.position = "bottom")
+    } %>% plot
+  }
+```
+
+```{r, fig.width=12}
+matched.tu.data.2 %>% 
+  filter(monitored) %>% 
+  mutate(missed.monitored = id.group == "monitored.name.id" & !cluster.spillover) %>% 
+  ggplot() +
+  geom_bar(aes(factor(cluster.id.pot), fill = missed.monitored), color = "black", alpha = 0.25) +
+  labs(x = "", title = "Cluster Level Monitored Sample Identification") +
+  scale_fill_discrete("Missed Monitored Sample") +
+  scale_y_continuous(breaks = seq(0, 200, 5)) +
+  facet_wrap(~ wave, scales = "free", ncol = 1) +
+  theme(legend.position = "bottom", axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+## Multiple Treatment
+
+```{r}
+takeup.data %>% 
+  filter(!is.na(KEY.individ)) %>% 
+  count(wave, assigned.treatment, KEY.individ, sort = TRUE) %>% 
+  arrange(wave) %>% 
+  select(-KEY.individ) %>% 
+  filter(n > 1) #%>% 
+  # left_join(matched.tu.data, c("KEY.individ" = "any.matched.KEY.individ")) %>% 
+  # select(cluster.id.pot, assigned.treatment.pot)
+  # select(starts_with("cluster.id"), starts_with("assigned.treatment"))
+```
+
+# Endline Survey
+
+```{r endline-data}
+all.endline.data <- read_csv("Endline Survey.csv", col_types = list(#SubmissionDate = takeup.datetime.type,
+                                                                    #starttime = takeup.datetime.type,
+                                                                    #endtime = takeup.datetime.type,
+                                                                    deviceid = col_character())) %>% 
+  
+  mutate_at(vars(SubmissionDate, starttime, endtime), 
+            funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
+                   format(tz = "Africa/Nairobi") %>% 
+                   parse_datetime(locale = locale(tz = "Africa/Nairobi")))) %>%
+  filter(deviceid != "(web)", present == 1, SubmissionDate >= "2016-10-18") %>% 
+  rename(cluster.id = cluster_id,
+         KEY.individ = person,
+         survey.type = survey_type,
+         sms.treatment = sms,
+         endline.type = endline_type,
+         lon = `gps-Longitude`,
+         lat = `gps-Latitude`) %>%  {
+    count(., is.na(lon) | is.na(lat)) %>% 
+      print
+           
+    filter(., !is.na(lon), !is.na(lat))
+  } %>% 
+  select(-county) %>% 
+  left_join(cluster.wave.county.data, "cluster.id") %>% 
+  left_join(identify.closest.cluster(.), "KEY") %>% 
+  left_join(select(census.data, KEY.individ, lon, lat), "KEY.individ", suffix = c(".survey", ".census")) %>% 
+  rename(lon = lon.survey, lat = lat.survey) %>% 
+  mutate(dist.to.census = gDistance(convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+                                      spTransform(kenya.proj4),
+                                    convert.to.sp(., ~ lon.census + lat.census, wgs.84) %>% 
+                                       spTransform(kenya.proj4),
+                                     byid = TRUE) %>% diag,
+         far.from.census = dist.to.census > 50)
+
+
+```
+
+```{r endline-backcheck-sample-wave1, eval=FALSE}
+wave1.endline.bc.data <- all.endline.data %>% 
+  filter(wave == 1, recruit, interview, consent)
+
+wave1.endline.backcheck.cluster.pool <- wave1.endline.bc.data %>% 
+  find.backcheck.pool
+
+wave1.endline.num.enumerators.to.backcheck <- wave1.endline.backcheck.cluster.pool %>% 
+  count.num.enum.to.backcheck 
+  
+wave1.endline.backcheck.clusters <- wave1.endline.backcheck.cluster.pool %>% 
+  find.backcheck.candidates(wave1.endline.num.enumerators.to.backcheck) 
+
+wave1.endline.backchecks <- wave1.endline.bc.data %>% 
+  filter(!is.na(enumerator), enumerator != 99) %>% 
+  semi_join(wave1.endline.backcheck.clusters, "cluster.id") %>% 
+  group_by(enumerator) %>% 
+  do(sample_n(., min(nrow(.), 7))) %>% 
+  ungroup
+
+bc.diff <- round(0.1 * nrow(wave1.endline.bc.data)) - nrow(wave1.endline.backchecks)  
+
+if (bc.diff > 0) {
+  wave1.endline.backchecks <- wave1.endline.bc.data %>% 
+    filter(!is.na(enumerator), enumerator != 99) %>% 
+    anti_join(wave1.endline.backchecks, "KEY") %>% 
+    sample_n(bc.diff) %>% 
+    bind_rows(wave1.endline.backchecks)
+}
+
+# write_rds(wave1.endline.backchecks, "takeup_endline_backchecks_wave1_1.0.rds")
+# 
+# wave1.endline.backchecks %>% 
+#   transmute(cluster.id, KEY.endline = KEY, enumerator) %>% 
+#   write_csv("takeup_endline_backchecks_wave1_1.0.csv")
+```
+
+```{r}
+plot.endline <- plot.sms.recruit
+```
+
+## Maps
+
+### Wave 1 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+all.endline.data %>% 
+  filter(wave == 1) %>% 
+  with(union(cluster.id, closest.cluster)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE)
+```
+
+## Knowledge Tables
+
+```{r know-table-data}
+endline.know.table.data <- bind_rows(table.A = read_csv("Endline Survey-survey-sec_D-tableA.csv") %>% 
+                                       transmute(recognized = recogniseA,
+                                                 dewormed = dewormedA,
+                                                 second.order = order_2ndA,
+                                                 second.order.reason = order_2nd_reason,
+                                                 relationship = relationshipA,
+                                                 relationship.other = relationshipA_other,
+                                                 times.seen = times_seenA,
+                                                 visited = visitedA, 
+                                                 PARENT_KEY, KEY),
+                                     table.B = read_csv("Endline Survey-survey-sec_D-tableB.csv") %>% 
+                                       transmute(recognized = recogniseB,
+                                                 dewormed = dewormedB,
+                                                 dewormed.know.only = dewormedBB,
+                                                 PARENT_KEY, KEY),
+                                     .id = "know.table.type")
+```
+
+```{r, include=FALSE}  
+save(census.data, hh.census.data, cluster.strat.data, cluster.wave.county.data, pot.info, all.villages, file = "takeup_census.RData")
+save(takeup.data, takeup.data.individuals, all.takeup.survey.groups, file = "takeup_at_pot.RData")
+save(matched.tu.data.2, file = "takeup_matched_population.RData")
+```

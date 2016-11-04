@@ -1,0 +1,30 @@
+---
+title: Assessing Delivery Strategies and Cost-effectiveness of STH Transmission Elimination
+  (ADCOSTE)
+output: word_document
+bibliography: ~/Documents/library.bib
+---
+
+# Introduction
+
+Over the last decade, treatment of neglected tropical diseases (NTDs) has emerged from the shadows of public health efforts and made important progress as a result of unprecedented attention by governments, funders and the private sector. Deep challenges remain, however, in mobilizing resources and sustaining efforts against common parasitic diseases like Schistosomiasis and soil-transmitted helminths (STH) that contribute to malnourishment, anemia, impaired physical and mental development, and reduction in long run productive potential. School-based control programs with a substantial evidence base have achieved significant success and important benefits for children, but uncertainty surrounds fundamental questions about the global end goal and path to success for these neglected diseases.
+
+Governments, implementers and funders alike seek clarity on the path from control to elimination for intestinal worms. In the last year, epidemiologists have postulated that it may be scientifically feasible to reach a transmission “breakpoint” for at least some STH without substantial changes in sanitation and hygiene conditions. In Kenya, the government^[The Kenya Medical Research Institute (KEMRI), the Ministry of Health, and the Ministry of Education, Science and Technology] in partnership with the London School of Hygiene and Tropical Medicine (LSHTM), Imperial College London, and Evidence Action, is conducting [The TUMIKIA Project](http://www.thiswormyworld.org/tumikia-project) to evaluting the possibility of combining the existing National School-Based Deworming Programme (NSBDP) with a community-based deworming intervention to eliminate worms. 
+
+While elminating worms represents an enormously exciting prospect for millions of at-risk children and their families, a vital research gap remains: are there scenarios that are both operationally feasible and cost-effective to achieve the coverage that epidemiological models suggest are required for breakpoint? Even if it is scientifically possible to reach breakpoint, the real stumbling blocks could be in operationalizing a strategy to achieve it. 
+
+The TUMIKIA Project will conduct its community-based deworming intervention relying on community health volunteers (CHVs) going door-to-door to provide deworming treatment. This approach is projected to have very high coverage, but is likely to be resource-intensive. The ADCOSTE study aims to evaluate low cost alternative community deworming approaches that while possibly not achieving the high take-up of a door-to-door intervention might still be sufficient to achieve transmission breakpoint. One of ADCOSTE's main goals is to leverage the existing school-based deworming infrastructure---expanding Deworming Day to include all members of the community, drawing them to seek treatment at a centralized location.
+
+# The Challenge 
+
+The primary challenge confronting our MDA is motivating individuals to seek treatment they place little value on, even if fully subsidized. In other words, our challenge is a behavioral one; while there are social gains to the MDA, individuals do not internalize these gains. An overall reduction in infection would contribute to lower transmission and hence reduce everyone’s risk of getting infected (a public good or positive externality). However, infection prevalence is typically low and unobservable without testing, and there are private costs to complying with the MDA, such as negative side-effects or the inconvenience of going to a treatment delivery point [@Kremer2007].
+ 
+@Kremer2007 find a significant reduction in the take-up of deworming among school-age children in response to any non-zero price level. They also find a reduction because of information spillovers: households were less likely to have their children dewormed the more contacts they have with households that had been previously dewormed. This seems to suggest that people tend to overestimate the private returns to deworming before they learn from their social contacts’ experience [@Dupas2011]^[Note that this is in reference to deworming children at school with a zero financial and inconvenience cost. It should thus be a bigger challenge yet to bring community members to centralized treatment points (e.g. schools, clinics, markets)]. 
+
+# The Solutions
+
+# Study Design
+
+# Cost-effectiveness
+
+# References

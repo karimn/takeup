@@ -1,0 +1,206 @@
+---
+title: "`r sprintf('TakeUp RCT Cluster %s Survey', sp.cluster$cluster.id)`"
+header-includes:
+   - \usepackage{enumitem}
+   - \usepackage{multirow}
+   - \usepackage{pdflscape}
+   - \usepackage{tabularx}
+   - \usepackage{fancyhdr}
+   - \usepackage{gensymb}
+   - \pagestyle{fancy}
+   - \fancyhead{}
+   - \fancyfoot[CO,CE]{`r sprintf('TakeUp RCT Cluster %s Survey', sp.cluster$cluster.id)`}
+   - \fancyfoot[LE,RO]{\thepage}
+   - \newlist{checkboxlist}{itemize}{2}
+   - \setlist[checkboxlist]{label=$\square$}
+output:
+  pdf_document:
+    number_sections: true
+    keep_tex: true
+geometry: margin=0.5in 
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(purrr)
+library(sp)
+library(rgeos)
+library(maptools)
+library(broom)
+library(ggplot2)
+library(ggrepel)
+library(ggmap)
+
+config <- yaml::yaml.load_file("local_config.yaml")
+
+knitr::opts_chunk$set(echo = FALSE, dpi = 144, warning = FALSE, message = FALSE, fig.path = intermed.dir, fig.align = "center", fig.width = 8, fig.height = 8, cache = TRUE)
+
+source("takeup_rct_assign_clusters.R")
+```
+
+<!-- # Cluster Information -->
+
+|                     |               |
+|:--------------------|:--------------|
+```{r, results='asis', echo = FALSE}
+printf <- function(...) sprintf(...) %>% cat
+
+printf("|Cluster ID: | **%s**|\n", sp.cluster$cluster.id)
+printf("|County: | **%s**|\n", sp.cluster$county)
+# printf("District: **%s**\n\n", sp.cluster$District)
+# printf("Division: **%s**\n\n", sp.cluster$Divison)
+# printf("Location: **%s**\n\n\n", sp.cluster$Location)
+```
+
+<!-- Enumerator: \fbox{\begin{minipage}{3in}\hfill\vspace{0.2in}\end{minipage}} -->
+<!-- Survey Date: \fbox{\begin{minipage}{2in}\hfill\vspace{0.2in}\end{minipage}} -->
+
+<!-- # Point-of-Treatment (PoT) -->
+
+<!-- * _Locate the below school that we will use as a point-of-treatment and check the appropriate checkboxes below (Maps 1 and 2 should be helpful)_ -->
+<!-- * _Only enter new GPS coordinates if very different from the original coordinates_ -->
+
+```{r}
+tidy.cluster <- sp.cluster %>%  
+  spTransform(wgs.84) %>% 
+  tidy 
+
+target.school.buffer <- target.school %>%
+  buffer.clusters(1000) %>% 
+  spTransform(wgs.84) 
+
+target.school.polygons <- target.school.buffer %>% 
+  tidy
+```
+
+|                     | PoT School    | Anchor School    |
+|:--------------------|:-------------:|:----------------:|
+```{r, results='asis', echo = FALSE}
+if (sp.cluster$cluster.id != target.school$cluster.id) {
+  printf("|Name: | **%s** | **%s** |\n", sp.cluster$school.name, target.school$school.name) #`Name of School`)
+  printf("|Geolocation: | **%s** | **%s** |\n", sp.cluster$Geolocation, target.school$Geolocation)
+  printf("|Constituency: | **%s** |**%s** |\n", sp.cluster$constituency, target.school$constituency)
+  printf("|Ward: | **%s**| **%s** |\n", sp.cluster$ward, target.school$ward)
+} else {
+  printf("|Name: | **%s** | %s |\n", sp.cluster$school.name, "SAME") #`Name of School`)
+  printf("|Geolocation: | **%s** | %s |\n", sp.cluster$Geolocation, "SAME")
+  printf("|Constituency: | **%s** |%s |\n", sp.cluster$constituency, "SAME")
+  printf("|Ward: | **%s**| %s |\n", sp.cluster$ward, "SAME")
+}
+
+convert2degree <- function(...) sub("d", "\\\\degree", dd2dms(...)) %>% sub("\"", "''", .) %>% sprintf("$%s$", .)
+
+target.school.buffer@bbox %>% {
+    printf("| Longitude Bounds: | | %f $\\leftrightarrow$ %f |\n", .[1, "min"], .[1, "max"])
+    printf("| | | (%s $\\leftrightarrow$ %s) |\n", convert2degree(.[1, "min"]), convert2degree(.[1, "max"]))
+    printf("| Latitude Bounds: | | %f $\\leftrightarrow$ %f |\n", .[2, "min"], .[2, "max"])
+    printf("|  | | (%s $\\leftrightarrow$ %s) |\n", convert2degree(.[2, "min"], NS = TRUE), convert2degree(.[2, "max"], NS = TRUE))
+  }
+```
+
+<!-- \begin{checkboxlist} -->
+<!--   \item School Found -->
+<!--   \item School Not Found -->
+<!--   \item School Permanently Closed -->
+<!-- \end{checkboxlist} -->
+
+<!-- ## Alternative PoT -->
+
+<!-- * _Find one alternative or backup location to use as a point-of-treatment and enter its characteristics below_ -->
+<!-- * _Alternative location should not be further than 0.5 km from the above school PoT_ -->
+
+<!-- Name: \fbox{\begin{minipage}{5in}\hfill\vspace{0.25in}\end{minipage}} -->
+<!-- Geolocation Coordinates:  -->
+<!--   \begin{itemize} -->
+<!--     \item Longitude: \fbox{\begin{minipage}{3in}\hfill\vspace{0.25in}\end{minipage}} -->
+<!--     \item Latitude:  \fbox{\begin{minipage}{3in}\hfill\vspace{0.25in}\end{minipage}}  -->
+<!--   \end{itemize} -->
+<!-- Location Type (\emph{check the appropriate location and enter any extra information needed}) -->
+<!--   \begin{checkboxlist} -->
+<!--     \item Clinic -->
+<!--     \item Church -->
+<!--     \item Home -->
+<!--     \item Market -->
+<!--       \begin{itemize} -->
+<!--         \item Market Days: \fbox{\begin{minipage}{3in}\hfill\vspace{0.25in}\end{minipage}} -->
+<!--       \end{itemize} -->
+<!--     \item Other: \fbox{\begin{minipage}{3in}\hfill\vspace{0.25in}\end{minipage}}  -->
+<!--   \end{checkboxlist} -->
+
+<!-- # Anchor School Villages -->
+
+```{r, results='asis', eval=FALSE}
+if (sp.cluster$cluster.id == target.school$cluster.id) {
+  printf("This anchor school is the **SAME** school as the PoT school above.\n\n")
+} else {
+  printf("This anchor school is **DIFFERENT** from the PoT school above.\n\n")
+  printf("* _Locate below anchor school (Maps 2 and 3 should be helpful)_\n")
+}
+printf("* _Find all villages that are mostly within 1 km from the anchor school (the circle shown in Map 3) and record their information below_\n\n")
+```
+
+<!-- | Anchor School       |               | -->
+<!-- |:--------------------|:--------------| -->
+```{r, results='asis', echo = FALSE, eval=FALSE}
+printf("| Name: | **%s** |\n", target.school$school.name)
+printf("| Geolocation: | **%s** |\n", target.school$Geolocation)
+printf("| Constituency: | **%s**|\n", target.school$constituency)
+printf("| Ward: | **%s**|\n", target.school$ward)
+```
+
+<!-- \begin{landscape} -->
+<!-- \begin{table} -->
+<!-- \begin{tabularx}{1.3\textwidth}{X|X|X|X|X} -->
+<!-- \hline -->
+<!-- Village Name & Village Elder & Market Days & Geolocation & Population \\ -->
+<!-- \hline -->
+
+```{r, results='asis', eval=FALSE}
+for (i in 1:5) {
+  printf("\\multirow{4}{*}{} & Name: & Village: & Long: & Homesteads: \\\\\n", i)
+  printf(" & & & \\\\\n")
+  printf(" & & & \\\\\n")
+  printf(" & & & \\\\\n")
+  printf("\\multirow{4}{*}{} & Contact: & Big Market: & Lat: & \\\\\n")
+  printf(" & & & \\\\\n")
+  printf(" & & & \\\\\n")
+  printf(" & & & \\\\\n \\hline")
+}
+```
+
+<!-- \end{tabularx} -->
+<!-- \caption{`r sprintf('TakeUp RCT Cluster %s Villages', sp.cluster$cluster.id)`} -->
+<!-- \end{table} -->
+<!-- \end{landscape} -->
+
+
+```{r subcounty}
+ggmap(get_googlemap(center = c(sp.cluster@data$pot.lon, sp.cluster@data$pot.lat), maptype = "terrain", zoom = 10, scale = 2, key = config$google_api_key)) +
+  geom_point(aes(x = pot.lon, y = pot.lat), shape = 3, size = 4, stroke = 4, color = "red", data = sp.cluster@data) +
+  labs(x = "", y = "") +
+  ggtitle("Map 1: Cluster in Subcounty")
+```
+
+```{r cluster}
+ggmap(get_googlemap(center = c(sp.cluster@data$pot.lon, sp.cluster@data$pot.lat), maptype = "hybrid", zoom = 14, scale = 2, key = config$google_api_key)) +
+  geom_polygon(aes(x = long, y = lat, group = group), linetype = "dotted", alpha = 0, color = "green", size = 1.5, data = target.school.polygons) +
+  geom_point(aes(x = pot.lon, y = pot.lat), shape = 3, color = "red", size = 4, stroke = 2, data = sp.cluster@data) +
+  labs(x = "", y = "") +
+  ggtitle("Map 2: PoT and Anchor School Area") 
+```
+
+```{r target-village-area}
+target.school %>% 
+  spTransform(wgs.84) %>% {
+    ggmap(get_googlemap(center = coordinates(.), zoom = 15, maptype = "hybrid", scale = 2, key = config$google_api_key)) +
+      geom_polygon(aes(x = long, y = lat), linetype = "dotted", alpha = 0, color = "green", size = 1.5, data = target.school.polygons) +
+      geom_point(aes(x = lon, y = lat), shape = 3, color = "green", size = 4, stroke = 2, data = as.data.frame(.)) +
+      geom_hline(aes(yintercept = y), data = target.school.buffer@bbox %>% t %>% tidy) + 
+      geom_label(aes(x = x[1], y = y, label = sprintf("%.5f", y)), nudge_x = -0.0025, size = 5, data = target.school.buffer@bbox %>% t %>% tidy) + 
+      geom_vline(aes(xintercept = x), data = target.school.buffer@bbox %>% t %>% tidy) + 
+      geom_label(aes(x = x, y = y[1], label = sprintf("%.5f", x)), angle = -90, size = 5, nudge_y = -0.003, data = target.school.buffer@bbox %>% t %>% tidy) + 
+      labs(x = "", y = "") +
+      ggtitle("Map 3: Anchor School Area")
+  }
+```
+

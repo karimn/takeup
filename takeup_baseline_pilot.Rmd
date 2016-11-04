@@ -1,0 +1,96 @@
+---
+title: "Baseline Survey Pilot"
+output:
+  html_notebook: default
+---
+
+```{r setup}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(stringr)
+library(tidyr)
+library(purrr)
+
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r load-data}
+baseline.data <- read_csv("Baseline Survey.csv", col_types = list(date = col_date("%b %d, %Y"))) %>% 
+  filter(date >= "2016-08-16")
+```
+
+# Beliefs 
+
+```{r}
+baseline.data %>% 
+  select(dworm_rate, bet_rate) %>% 
+  gather(key, rate) %>% 
+  ggplot +
+  geom_bar(aes(factor(rate), fill = factor(key)), position = "dodge") +
+  xlab("") +
+  scale_fill_discrete("")
+```
+
+# Social Norms
+
+```{r, warning=FALSE}
+plot.reward.fine.yes.no <- function(.data, question) {
+  .data %>%
+    select_(.dots = sprintf("%s_%s", c("reward", "fine"), question)) %>% 
+    gather(key, val) %>% 
+    ggplot() +
+    geom_bar(aes(factor(val, levels = 0:1, labels = c("No", "Yes")), fill = key), position = "dodge") +
+    theme(legend.position = "bottom") +
+    xlab("")
+}
+
+reshape.reward.fine.amount <- function(.data, question) {
+  .data %>%
+    select_(.dots = sprintf("%s_%s_amount", c("reward", "fine"), question)) %>% 
+    gather(key, val) %>% 
+    mutate(val = ifelse(grepl("^fine", key), -val, val))
+}
+
+plot.reward.fine.amount <- function(.data, question) {
+  reshape.reward.fine.amount(.data, question) %>% 
+    ggplot() +
+    geom_histogram(aes(val, fill = key), binwidth = 100, position = "dodge") +
+    theme(legend.position = "bottom") +
+    xlab("")
+}
+
+plot.reward.fine.respond <- function(.data, question) {
+  reshape.reward.fine.amount(.data, question) %>% 
+    ggplot() +
+    geom_bar(aes(is.na(val), fill = key), position = "dodge") +
+    theme(legend.position = "bottom") +
+    xlab("Responded with Amount")
+}
+
+a_ply(c("well", "greet", "vac", "worm", "latrine"), 1, function(question) {
+  baseline.data %>% {
+    plot.reward.fine.yes.no(., question) %>% print
+    plot.reward.fine.respond(., question) %>% print
+    plot.reward.fine.amount(., question) %>% print
+  }
+}) 
+```
+
+```{r, echo=FALSE}
+baseline.data %>%
+  select(starts_with("priority")) %>% 
+  gather(key, val) %>% 
+  ggplot +
+  geom_bar(aes(factor(val, levels = 1:5, labels = c("Well", "Greet", "Vac", "Deworm", "Latrine")), fill = key), position = "dodge") +
+  xlab("") +
+  theme(legend.position = "bottom")
+  
+```
+```{r}
+baseline.data %>% count(is.na(fine_greet), is.na(reward_greet), is.na(fine_greet_amount))
+```
+
+
+

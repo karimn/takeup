@@ -1,0 +1,383 @@
+---
+title: "TakeUp Analysis Notebook"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_notebook:
+    code_folding: hide
+    fig_caption: yes
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+    toc_float:
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+library(plyr)
+library(dplyr)
+library(multidplyr)
+library(tibble)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(readr)
+library(haven)
+library(broom)
+library(ggplot2)
+library(viridis)
+library(ggrepel)
+library(ggmap)
+library(stringr)
+library(knitr)
+library(bigmemory)
+
+source("util.R")
+source("takeup_rct_assign_clusters.R")
+
+knitr::opts_chunk$set(cache = TRUE, fig.width = 8, fig.height = 5)
+
+config <- yaml::yaml.load_file("local_config.yaml")
+
+doParallel::registerDoParallel(cores = config$cores)
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+```
+
+```{r load-data}
+load("takeup_census.RData")
+load("takeup_at_pot.RData")
+load("takeup_matched_population.RData")
+```
+
+```{r calc-hh2pot-dist}
+matched.tu.data.2 %<>%
+  left_join(pot.info %>% 
+              select(cluster.id, lon.post.rct.update, lat.post.rct.update) %>% 
+              set_names(c("cluster.id", "lon", "lat")),
+            c("cluster.id.home" = "cluster.id"),
+            suffix = c(".hh", ".pot.home")) 
+
+matched.tu.data.2 %<>% 
+  # filter(!is.na(treatment.spillover), treatment.spillover) %>% 
+  filter(!is.na(cluster.spillover), cluster.spillover) %>% 
+  left_join(pot.info %>% 
+              select(cluster.id, lon.post.rct.update, lat.post.rct.update) %>% 
+              set_names(c("cluster.id", "lon", "lat")),
+            c("cluster.id.pot" = "cluster.id")) %>%
+  rename(lon.pot.dest = lon, lat.pot.dest = lat) %>% 
+  filter(!is.na(lon.pot.home), !is.na(lon.pot.dest), !is.na(lat.pot.home), !is.na(lat.pot.dest)) %>% 
+  mutate(dist.to.pot.home = gDistance(convert.to.sp(., ~ lon.hh + lat.hh, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      convert.to.sp(., ~ lon.pot.home + lat.pot.home, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      byid = TRUE) %>% diag,
+         dist.to.pot.dest = gDistance(convert.to.sp(., ~ lon.hh + lat.hh, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      convert.to.sp(., ~ lon.pot.dest + lat.pot.dest, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      byid = TRUE) %>% diag,
+         dist.diff = dist.to.pot.dest - dist.to.pot.home) %>% 
+  select(cluster.id.pot, any.matched.KEY.individ, dist.to.pot.home, dist.to.pot.dest, dist.diff, lon.pot.dest, lat.pot.dest) %>% 
+  right_join(matched.tu.data.2, c("any.matched.KEY.individ", "cluster.id.pot"))
+
+all.matched.tu.data.2 <- matched.tu.data.2
+
+matched.tu.data.2 %<>% 
+  filter(is.na(dist.to.pot.dest) | dist.to.pot.dest <= 20000) 
+  # filter((is.na(cluster.spillover) & is.na(treatment.spillover)) | !(cluster.spillover | treatment.spillover) | dist.to.pot.dest <= 20000) 
+```
+
+
+# Take-up
+
+```{r, fig.align="center", fig.align="center", fig.width=8, fig.height=10}
+plot.aggreg.takeup <- function(.data) {
+  ggplot(.data, aes(assigned.treatment)) +
+    # geom_bar(aes(fill = source.type), color = "black", alpha = 0.5) +
+    geom_bar(color = "black", alpha = 0.5) +
+    labs(x = "Destination Treatment", y = "") +
+    # scale_fill_discrete("", labels = c("Targeted Village/Cluster", "Targeted Cluster/Untargeted Village", "Other")) +
+    facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+    theme(legend.position = "bottom")
+}
+
+takeup.data %>% 
+  plot.aggreg.takeup +
+  ggtitle("Aggregate Take-up")
+```
+
+## Monitored Only
+```{r}
+monitored.and.matched.data <- matched.tu.data.2 %>%
+  filter(endline.type %in% c("endline", "endline.backup", "reconsent"))  
+```
+
+```{r , eval=FALSE}
+monitored.and.matched.data %<>%
+  left_join(pot.info %>% 
+              select(cluster.id, lon.post.rct.update, lat.post.rct.update) %>% 
+              set_names(c("cluster.id", "lon", "lat")),
+            c("cluster.id.home" = "cluster.id"),
+            suffix = c(".hh", ".pot.home")) 
+
+monitored.and.matched.data %<>%
+  filter(treatment.spillover) %>% 
+  left_join(pot.info %>% 
+              select(cluster.id, lon.post.rct.update, lat.post.rct.update) %>% 
+              set_names(c("cluster.id", "lon", "lat")),
+            c("cluster.id.pot" = "cluster.id")) %>%
+  rename(lon.pot.dest = lon, lat.pot.dest = lat) %>% 
+  filter(!is.na(lon.pot.home), !is.na(lon.pot.dest), !is.na(lat.pot.home), !is.na(lat.pot.dest)) %>% 
+  mutate(dist.to.pot.home = gDistance(convert.to.sp(., ~ lon.hh + lat.hh, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      convert.to.sp(., ~ lon.pot.home + lat.pot.home, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      byid = TRUE) %>% diag,
+         dist.to.pot.dest = gDistance(convert.to.sp(., ~ lon.hh + lat.hh, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      convert.to.sp(., ~ lon.pot.dest + lat.pot.dest, wgs.84) %>% 
+                                        spTransform(kenya.proj4),
+                                      byid = TRUE) %>% diag,
+         dist.diff = dist.to.pot.dest - dist.to.pot.home) %>% 
+  select(cluster.id.pot, any.matched.KEY.individ, dist.to.pot.home, dist.to.pot.dest, dist.diff, lon.pot.dest, lat.pot.dest) %>% 
+  right_join(monitored.and.matched.data, c("any.matched.KEY.individ", "cluster.id.pot"))
+```
+
+The "Name Matched" proportion is a good indicator of much enumerators at failing to identify monitored individuals.
+
+```{r drop-far-spillovers, eval=TRUE}
+monitored.and.matched.data %<>%
+  # filter(!(cluster.spillover | treatment.spillover) | dist.to.pot.dest <= 10000) %>% 
+  mutate(match.type = case_when(.$treatment.spillover ~ "Treatment Spillover",
+                                .$cluster.spillover ~ "Cluster Spillover",
+                                is.na(.$KEY.individ) ~ "Name Matched",
+                                TRUE ~ "PoT Matched") %>% 
+           factor(levels = c("PoT Matched", "Name Matched", "Cluster Spillover", "Treatment Spillover")))
+```
+
+```{r, echo=FALSE, fig.width=8, fig.height=10}
+monitored.and.matched.data %>% 
+  ggplot() +
+  # geom_bar(aes(assigned.treatment.pot, fill = treatment.spillover), color = "black", alpha = 0.5) +
+  geom_bar(aes(assigned.treatment.pot, fill = match.type), color = "black", alpha = 0.5) +
+  labs(x = "Destination Treatment", y = "") +
+  scale_fill_discrete("Treatment Spillover") +
+  ggtitle("Monitored Sample Only Take-up") +
+  facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+  theme(legend.position = "bottom")
+```
+
+```{r, echo=FALSE, fig.width=8, fig.height=10}
+monitored.and.matched.data %>% 
+  filter(!is.na(assigned.treatment.home)) %>% 
+  ggplot() +
+  # geom_bar(aes(assigned.treatment.home, fill = treatment.spillover), color = "black", alpha = 0.5) +
+  geom_bar(aes(assigned.treatment.home, fill = match.type), color = "black", alpha = 0.5) +
+  labs(x = "Home Treatment", y = "") +
+  scale_fill_discrete("Treatment Spillover") +
+  ggtitle("Monitored Sample Only Take-up") +
+  facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+  theme(legend.position = "bottom")
+```
+
+### Non SMS Group
+
+Only those who did not receive SMS treatment, dropping spillovers.
+
+```{r, echo=FALSE, fig.width=12}
+monitored.and.matched.data %>% 
+  filter(!is.na(assigned.treatment.home), sms.treatment == "sms.control", !treatment.spillover) %>% 
+  mutate(sms.ctrl.subpop = factor(sms.ctrl.subpop, 
+                                  levels = c("phone.owner", "non.phone.owner"), 
+                                  labels = c("Phone Owners", "Non Phone Owners"))) %>% 
+  ggplot() +
+  geom_bar(aes(assigned.treatment.home), color = "black", alpha = 0.5) +
+  labs(x = "Home Treatment", y = "") +
+  ggtitle("Monitored SMS Control Sample Only Take-up") +
+  facet_grid(county.randomization ~ sms.ctrl.subpop + dist.pot.group, scales = "free_y", margins = TRUE) +
+  theme(legend.position = "bottom")
+```
+
+### SMS
+
+```{r, echo=FALSE}
+monitored.and.matched.data %>% 
+  filter(!is.na(assigned.treatment.home), sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  ggplot() +
+  geom_bar(aes(assigned.treatment.home, fill = sms.treatment), position = "dodge", color = "black", alpha = 0.5) +
+  labs(x = "Home Treatment", y = "") +
+  scale_fill_discrete("SMS Treatment") +
+  ggtitle("Monitored Phone Owner Sample Only Take-up") +
+  facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+  theme(legend.position = "bottom")
+```
+
+```{r, echo=FALSE}
+monitored.and.matched.data %>% 
+  filter(!is.na(assigned.treatment.home), sms.treatment == "sms.control") %>% 
+  ggplot() +
+  geom_bar(aes(assigned.treatment.home, fill = sms.ctrl.subpop), position = "dodge", color = "black", alpha = 0.5) +
+  labs(x = "Home Treatment", y = "") +
+  scale_fill_discrete("") +
+  ggtitle("Monitored SMS Control Sample Only Take-up") +
+  facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+  theme(legend.position = "bottom")
+```
+
+### Spillovers
+
+```{r, echo=FALSE, fig.width=8, fig.height=10}
+monitored.and.matched.data %>% {
+    filter(., treatment.spillover) %>% {
+        ggplot(.) +
+          geom_bar(aes(assigned.treatment.pot, fill = assigned.treatment.home), color = "black", alpha = 0.5) +
+          labs(x = "Destination Treatment", y = "", title = "Treatment Spillover Only") +
+          scale_fill_discrete("Home Treatment") +
+          facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+          theme(legend.position = "bottom")
+    } %>% plot
+    
+    filter(., treatment.spillover) %>% {
+        ggplot(.) +
+          geom_bar(aes(assigned.treatment.home, fill = assigned.treatment.pot), color = "black", alpha = 0.5) +
+          labs(x = "Home Treatment", y = "", title = "Treatment Spillover Only") +
+          scale_fill_discrete("Destination Treatment") +
+          facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+          theme(legend.position = "bottom")
+    } %>% plot
+  }
+```
+
+
+```{r, fig.width=10, eval=FALSE}
+spillover.dist.data <- monitored.and.matched.data %>% 
+  filter(treatment.spillover) %>% 
+  distinct(cluster.id.home, cluster.id.pot, .keep_all = TRUE) 
+
+pot.box <- make_bbox(lon.pot.home, lat.pot.home, data = spillover.dist.data)
+    
+ggmap(get_googlemap(center = home.center,
+                                maptype = "terrain",
+                                zoom = 10,
+                                scale = 2,
+                                key = config$google_api_key),
+      base_layer = ggplot(aes(x = lon.pot.home, y = lat.pot.home), data = .data)) +
+# coord_fixed(xlim = pot.box[c("left", "right")], ylim = pot.box[c("bottom", "top")]) +
+  geom_segment(aes(x = lon.pot.home, y = lat.pot.home, xend = lon.pot.dest, yend = lat.pot.dest, color = dist.to.pot.dest/1000), lineend = "round") + #, alpha = 0.25) +
+  geom_point(aes(lon.pot.home, lat.pot.home)) +
+  geom_point(aes(lon.pot.dest, lat.pot.dest)) +
+  scale_color_viridis("Distance to Destination (km)") +
+  labs(x = "", y = "") +
+  theme(legend.position = "bottom")
+# facet_grid(dist.to.pot.dest.quant ~ 1, margins = TRUE)
+```
+
+
+```{r}
+monitored.and.matched.data %>% 
+  filter(treatment.spillover) %>% 
+  mutate(spillover.type = paste(assigned.treatment.home, assigned.treatment.pot, sep = " to ")) %>% {
+    # plot(ggplot(.) +
+    #        geom_density(aes(dist.to.pot.dest)))
+    # 
+    # plot(ggplot(.) +
+    #        geom_density(aes(dist.to.pot.dest, color = spillover.type)) +
+    #        facet_wrap(~ assigned.treatment.home))
+    
+    plot(ggplot(.) +
+           geom_boxplot(aes(assigned.treatment.home, dist.to.pot.dest/1000, color = assigned.treatment.pot)) +
+           labs(x = "Home Treatment", y = "Distance to Destination (km)") +
+           scale_color_discrete("Destination Treatment"))
+           # facet_wrap(~ assigned.treatment.home))
+  }
+```
+
+### Control ICC
+
+Using data for only those who got dewormed in their "home" cluster:
+
+```{r}
+census.data %>% 
+  filter(wave == 1, assigned.treatment == "control", endline.type %in% c("endline", "endline.backup", "reconsent")) %>%
+  filter(endline.type %in% c("endline", "endline.backup", "reconsent")) %>% 
+  left_join(monitored.and.matched.data, # matched.tu.data.2, 
+            c("wave", 
+              "county", 
+              "cluster.id" = "cluster.id.home", 
+              "assigned.treatment" = "assigned.treatment.home", 
+              "endline.type", 
+              "KEY.individ" = "any.matched.KEY.individ")) %>% 
+  mutate(dewormed = 1*(!is.na(id.group))) %>% 
+  lmer(dewormed ~ (1|cluster.id), data = .) %>% 
+  summary
+```
+
+Using data for those who got dewormed anywhere:
+
+```{r}
+census.data %>% 
+  filter(wave == 1, assigned.treatment == "control", endline.type %in% c("endline", "endline.backup", "reconsent")) %>% 
+  left_join(monitored.and.matched.data, # matched.tu.data.2, 
+              c("KEY.individ" = "any.matched.KEY.individ")) %>% 
+  mutate(dewormed = 1*(!is.na(id.group))) %>% 
+  lmer(dewormed ~ (1|cluster.id), data = .) %>% 
+  summary
+```
+
+
+## All Identified
+
+```{r, echo=FALSE, fig.width=8, fig.height=10}
+matched.tu.data.2 %>%
+  filter(!is.na(any.matched.KEY.individ)) %>% {
+    (ggplot(.) +
+      geom_bar(aes(assigned.treatment.pot, fill = treatment.spillover), color = "black", alpha = 0.5) +
+      labs(x = "Destination Treatment", y = "") +
+      ggtitle("All Identified") +
+      scale_fill_discrete("Treatment Spillover") +
+      facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+      theme(legend.position = "bottom")) %>% plot
+    
+    filter(., !is.na(assigned.treatment.home)) %>% {
+      ggplot(.) +
+        geom_bar(aes(assigned.treatment.home, fill = treatment.spillover), color = "black", alpha = 0.5) +
+        labs(x = "Home Treatment", y = "") +
+        ggtitle("All Identified") +
+        scale_fill_discrete("Treatment Spillover") +
+        facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+        theme(legend.position = "bottom") 
+      } %>% plot
+  }
+```
+
+### Spillovers
+
+```{r, echo=FALSE, fig.width=8, fig.height=10}
+matched.tu.data.2 %>%
+  filter(!is.na(any.matched.KEY.individ)) %>% {
+    filter(., treatment.spillover) %>% {
+        ggplot(.) +
+          geom_bar(aes(assigned.treatment.pot, fill = assigned.treatment.home), color = "black", alpha = 0.5) +
+          labs(x = "", y = "", title = "Destination Treatment (Treatment Spillover Only)") +
+          scale_fill_discrete("Home Treatment") +
+          facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+          theme(legend.position = "bottom")
+    } %>% plot
+    
+    filter(., treatment.spillover) %>% {
+        ggplot(.) +
+          geom_bar(aes(assigned.treatment.home, fill = assigned.treatment.pot), color = "black", alpha = 0.5) +
+          labs(x = "Home Treatment", y = "", title = "Treatment Spillover Only") +
+          scale_fill_discrete("Destination Treatment") +
+          facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+          theme(legend.position = "bottom")
+    } %>% plot
+    
+    # filter(., treatment.spillover) %>% {
+    #   ggplot(.) +
+    #     geom_point(aes(assigned.treatment.pot, assigned.treatment.home), position = "jitter", alpha = 0.5)
+    # } %>% plot
+  }
+```
+

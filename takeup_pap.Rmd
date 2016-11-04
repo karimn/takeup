@@ -1,0 +1,181 @@
+---
+title: "TakeUp Pre-Analysis Plan"
+output: 
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+header-includes:
+   - \usepackage{pxfonts}
+---
+
+```{r setup, include=FALSE}
+library(plyr)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(readr)
+library(haven)
+library(broom)
+library(ggplot2)
+library(ggmap)
+library(stringr)
+
+source("takeup_rct_assign_clusters.R")
+
+# rct.schools.data <- read_rds("takeup_rct_schools.rds")
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
+```
+
+# Introduction
+
+# Intervention
+
+# Research Questions
+
+# Experiment Design
+
+This study will adopt a randomized experiment to evalute the impact of social and private incentives on the take-up of deworming treatment among adults. All communities in the experiment will be provided with 
+
+* Deworming treatment at a centralized location 
+* An outreach campaign providing information on the location and duration of treatment, as well as framing the public good aspect of deworming.
+
+(The implementation protocol is documented separately, hence we will not delve into its details here).
+
+## Clustered Design
+
+The experiment will be carried out in 18 subcounties in western Kenya, randomized at the cluster level. A _cluster_ is composed of 
+
+(i) a centralized _point-of-treatment (PoT)_ at an easily identifiable location (e.g. near a ~~primary school~~ church/mosque), and
+(ii) a _targeted village_ where we will conduct an outreach campaign^[Other communities will not be denied treatment, but our analysis will be focused on targeted villages.].
+
+## Experimental Manipulation
+
+In the experiment there will be two levels of randomized treatment assignment.
+
+1. At the cluster level, there will be four groups:
+    (i) a control group
+    (ii) a private incentive group: wall calendars provided as gifts to treatment compliers
+    (iii) a low private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands
+    (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers 
+2. At the individual level, there will be three groups:
+    (i) the control group, composed of a stratified sample of
+        a. phone owners
+        b. non-phone owners
+    (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available
+    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their village.
+
+## Cluster Selection Algorithm
+
+The selection of clusters (PoT and targeted villages) relied on geospatial data of primary schools in the targeted subcounties. While schools did not play a direct role in the study's implementation, they were used as proxies for the location of communities.
+
+Below is the main body of the selection algorithm:
+
+1. Let $\mathcal{C}$ be the set of all potential clusters, defined as 2.5 kilometer radius circle centered on a primary school in the study region. In this study the size of this set is $\#\mathcal{C} = 1,451$.
+2. Let $\mathcal{R} := \emptyset$ be the set of clusters selected for the experiment
+3. While $\mathcal{C} \neq \emptyset$:
+    a) Randomly pick $i \in \mathcal{C}$
+    b) Set $\mathcal{C} := \mathcal{C}\setminus\{i\}$
+    c) If $(ClusterSize(i, \mathcal{R}) < ThresholdClusterSize) \lor (\exists j \in \mathcal{R}, ClusterSize(j, \mathcal{R} \cup \{i\}) < ThresholdClusterSize)$: 
+        i. Repeat Loop
+        
+          Else:
+          
+        i. Set $\mathcal{R} := \mathcal{R} \bigcup \{i\}$
+4. If $\#\mathcal{R} < NumRctClusters$: Goto 1
+
+$ClusterSize(m, \mathcal{M})$ is a function that returns the size of cluster $m$, removing any overlaps with the clusters in $\mathcal{M}$. We defined the size of a cluster to be the number of primary schools available in the non-overlapped 2.5 km circle around the cluster center (as a proxy of the available communities to target). We set the cluster size threshold to be 1 primary school^[To be exact we defined the threshold to be 60% of a 1 km radius circle around a school.].  
+
+While we use a 2.5 km circle to define the boundary of the area we will target communities within for treatment, when considering overlaps we assume points-of-treatment would have larger catchment areas, thus providing buffers between clusters. In order to fit the study's geographic area we randomly split the PoT to have 3 and 4 km catchment areas. Thus a targeted village would always be at least 0.5 km closer to its own assigned point-of-treatment than any other cluster's.
+
+This first step of cluster selection yielded 158 clusters.
+
+```{r, echo = FALSE}
+
+```
+
+
+## Treatment Assignment Mechanism
+
+## Village and Point-of-Treatment Selection
+
+## Power Calculation
+
+# Data Collection and Sample Selection
+
+## Pre-Intervention
+
+### Census
+
+A census of all households in _targeted villages_ will be conducted before the treatment intervention. It will be used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information on all adults, 15 years of age or older:
+
+a) Name
+b) Gender
+c) Age
+d) Household head name
+e) Last two digits of phone number
+f) GPS coordinates of each house
+
+### Baseline Household Survey
+
+## Mid-Intervention
+
+### Treatment Take-up Monitoring
+
+#### Name Matching
+
+### SMS Airtime Reward
+
+## Post-Intervention
+
+### Endline Household Survey
+
+### Social Knowledge
+
+## Data Quality
+
+### Backchecks
+
+### Geographic and Time Monitoring
+
+# Analysis
+
+## Basic Specification
+
+* Comparing Arms
+    * Proportion of take-up using monitored individuals
+    * Absolute take-up
+* Stratification
+* Regression
+* Neyman's repeated sampling approach
+* Fisher's exact p-value
+* Standard errors
+    * Cluster robust variance estimator
+    * Block bootstrap
+    
+## Cross-cut with Reminders and Informational Messages
+
+## Heterogeneity
+
+* Cluster level pre-treatment characteristics
+* Beliefs and attitudes
+* Content of informational messages
+* Distance to point-of-treatment
+* Rainfall (?)
+
+## Temporal Dynamics
+
+## Willingness to Pay for Incentives
+
+## Social Information
+
+## Sample Selection
+
+Talk about stratified sampling of phone and non-phone owners within clusters.
+
+## Inter-cluster Spillover
+
+# References
