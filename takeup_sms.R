@@ -10,16 +10,16 @@ library(httr)
 library(stringr)
 library(jsonlite)
 
-config <- yaml::yaml.load_file("local_config.yaml")
+config <- yaml::yaml.load_file("../local_config.yaml")
 
 # arthur.phone.number <- "+254728401235"
 # carol.phone.number <- "+254707012589"
 
-pot.desciption.wave1 <- read_csv("pot_description_wave1.csv") %>% 
+pot.desciption.wave1 <- read_csv("data/pot_description_wave1.csv") %>% 
   rename(desciption.english = English,
          description.kiswahili = Kiswahili)
 
-pot.desciption.wave2 <- read_csv("pot_description_wave2.csv") %>% 
+pot.desciption.wave2 <- read_csv("data/pot_description_wave2.csv") %>% 
   select(cluster.id, starts_with("description"))
 
 # SMS Script --------------------------------------------------------------
@@ -759,13 +759,13 @@ wave2.batch5.3 <- wave2.sms.subjects %>%
 
 # Find Airtime Reward Recipients --------------------------------------------------
 
-airtime.outbox <- read_csv("takeup_airtime_outbox.csv",
+airtime.outbox <- read_csv("data/takeup_airtime_outbox.csv",
                            skip = 1,
                            col_names = c("airtime.datetime", "transact.id", "recipient", "amount", "discount", "status"),
                            col_types = list(airtime.datetime = col_datetime("%I:%M %p %B %d, %Y"))) %>% 
   mutate(recipient = paste0("+", recipient))
 
-all.airtime.inbox <- read_csv("takeup_airtime_inbox.csv", 
+all.airtime.inbox <- read_csv("data/takeup_airtime_inbox.csv", 
          skip = 1,
          col_names = c("message.datetime", "from", "to", "text"),
          col_types = list(message.datetime = col_datetime("%I:%M %p %B %d, %Y"),

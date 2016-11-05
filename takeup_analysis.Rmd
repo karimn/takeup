@@ -31,12 +31,12 @@ library(stringr)
 library(knitr)
 library(bigmemory)
 
-source("util.R")
+source("../util.R")
 source("takeup_rct_assign_clusters.R")
 
 knitr::opts_chunk$set(cache = TRUE, fig.width = 8, fig.height = 5)
 
-config <- yaml::yaml.load_file("local_config.yaml")
+config <- yaml::yaml.load_file("../local_config.yaml")
 
 doParallel::registerDoParallel(cores = config$cores)
 
@@ -45,9 +45,9 @@ kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 ```
 
 ```{r load-data}
-load("takeup_census.RData")
-load("takeup_at_pot.RData")
-load("takeup_matched_population.RData")
+load("data/takeup_census.RData")
+load("data/takeup_at_pot.RData")
+load("data/takeup_matched_population.RData")
 ```
 
 ```{r calc-hh2pot-dist}
@@ -58,7 +58,7 @@ matched.tu.data.2 %<>%
             c("cluster.id.home" = "cluster.id"),
             suffix = c(".hh", ".pot.home")) 
 
-matched.tu.data.2 %<>% 
+matched.tu.data.2 %<>%
   # filter(!is.na(treatment.spillover), treatment.spillover) %>% 
   filter(!is.na(cluster.spillover), cluster.spillover) %>% 
   left_join(pot.info %>% 
