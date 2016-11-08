@@ -28,13 +28,37 @@ source("takeup_rct_assign_clusters.R")
 # rct.schools.data <- read_rds("takeup_rct_schools.rds")
 
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
+
 ```
+# Abstract
+registry 
 
 # Introduction
+UCB IRB background
+Expand on social signaling 
 
 # Intervention
+registry 
 
 # Research Questions
+Our main research question is: Can social signaling incentivize adults to take up deworming treatment? The experiment contains the following 9 treatments arms:
+
+|                             | Control  | Ink | Bracelet | Calendar |
+|-----------------------------|----------|-----|----------|----------|
+| No SMS                      | 1        | 4   | 6        | 8        |
+| Reminder SMS                | 2        | -   | -        | -        |
+| Reminder  + Social Info SMS | 3        | 5   | 7        | 9        |
+
+
+1) Reminder and social information text message treatment vs. no text messages for control individuals: a random subsample of phone owners within each control (no incentive) cluster is randomized into receiving no text message (1 in above table), receiving a reminder text message about the availability of deworming treatment (2) or receiving a reminder text message that also provided information about other community members deworming treatment take-up. Comparing (1) vs. (2) will allow us to identify the effect reminders have on the probability of deworming treatment take-up. Comparing (1) vs. (3) we estimate the effect that reminders plus information about other people's deworming choice has on individuals' deworming take-up. By differencing the effects of (1 vs. 3 ~ reminder + social info effect) and (1 vs. 3 ~ reminder effect only) we identify the effect social learning has on deworming take-up behavior. The text message treatment (CROSS CUT?) across control clusters allows us to identify whether reminder and/or social learning is relevant in the context of deworming take-up. 
+
+2) Social information text message treatment vs. no text messages for Ink / Bracelet individuals: a random subsample of phone owners within each ink and bracelet cluster is randomized into receiving no text message (4 and 6 in above table) or receiving a reminder text message that also provides information about other community members deworming treatment take-up. Comparing  
+
+
+
+
+Note: you will want to look at effects over time 
+Questions: can i use estimate interchangably with identify
 
 # Experiment Design
 
