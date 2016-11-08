@@ -87,6 +87,8 @@ Our main research question is: Can social signaling incentivize adults to take u
 
 # Experiment Design
 
+## Sampling and Identification Strategy
+
 This study will adopt a cluster randomized experiment to make causal inferences addressing our research questions. We selected subcounties in three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 146 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
 
 All communities in the experiment will be provided with 
@@ -148,12 +150,13 @@ This first step of cluster selection yielded 158 clusters.
 
 ```
 
-
 ## Treatment Assignment Mechanism
 
 ## Village and Point-of-Treatment Selection
 
 ## Power Calculation
+
+Registry
 
 # Data Collection and Sample Selection
 
@@ -176,8 +179,6 @@ f) GPS coordinates of each house
 
 ### Treatment Take-up Monitoring
 
-#### Name Matching
-
 ### SMS Airtime Reward
 
 ## Post-Intervention
@@ -192,7 +193,7 @@ f) GPS coordinates of each house
 
 ### Geographic and Time Monitoring
 
-# Analysis
+# Analy %>% sis
 
 Below is the primary counterfactual framework we will use:
 
