@@ -30,22 +30,58 @@ source("takeup_rct_assign_clusters.R")
 # rct.schools.data <- read_rds("takeup_rct_schools.rds")
 
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
+
 ```
+# Abstract
+registry 
 
 # Abstract
 
 Registry
 
 # Introduction
+UCB IRB background
+Expand on social signaling 
 
 * UC Berkeley background 
 * Expand on social signaling part (B&T)
 
 # Intervention
+registry 
 
 Registy
 
 # Research Questions
+Our main research question is: Can social signaling incentivize adults to take up deworming treatment? The experiment contains the following 9 treatments arms:
+
+|                             | Control  | Ink | Bracelet | Calendar |
+|-----------------------------|----------|-----|----------|----------|
+| No SMS                      | 1        | 4   | 6        | 8        |
+| Reminder SMS                | 2        | -   | -        | -        |
+| Reminder  + Social Info SMS | 3        | 5   | 7        | 9        |
+
+
+1) Reminder and social information text message treatment vs. no text messages for control individuals: a random subsample of phone owners within each control (no incentive) cluster is randomized into receiving no text message (1 in above table), receiving a reminder text message about the availability of deworming treatment (2) or receiving a reminder text message that also provided information about other community members deworming treatment take-up. Comparing (1) vs. (2) will allow us to identify the effect reminders have on the probability of deworming treatment take-up. Comparing (1) vs. (3) we estimate the effect that reminders plus information about other people's deworming choice has on individuals' deworming take-up. By differencing the effects of (1 vs. 3 ~ reminder + social info effect) and (1 vs. 3 ~ reminder effect only) we identify the effect social learning has on deworming take-up behavior. The text message treatment (CROSS CUT?) across control clusters allows us to identify whether reminder and/or social learning is relevant in the context of deworming take-up. 
+
+2) Social information text message treatment vs. no text messages for Ink / Bracelet individuals: a random subsample of phone owners within each ink and bracelet cluster is randomized into receiving no text message (4 and 6 in above table) or receiving a reminder text message that also provides information about other community members deworming treatment take-up. Comparing (4) vs. (5) and (6) vs. (7) we identify the additional reminder and social learning effect of text messages given visibility of deworming take-up choices through ink and bracelets. These treatment show how "satiated" individuals are in terms being reminded and social learning through visibile signals. If we find no significant effect in take-up behavior for these treatments, reminder and social learning are either not relevant or the ink and bracelets have already reminded people or facilitated social learning. To know which is true we look at the control group comparison in 1): if we find no significant effect for text messages within the control group, ink or bracelets had no reminder or social learning effect; if we find a significant effect for text messages within the control group, ink or bracelets had a reminder or social learning effect such that the marginal reminder/social learning effect of text messages is insignificant. 
+
+3) No incentive vs. ink for text message treatment individuals: comparing individuals that received reminder plus social information text messages across clusters where no incentive was given when coming for deworming treatment (3 in above table) vs. clusters where individuals had their thumb marked with ink when coming for deworming treatment (5), we identify the effect of social signaling on individuals' decision to deworm. A comparison only within text message recipients allows to control for the potential reminder effect (when seeing other people with ink on their thumb, people might be reminded of the availability of deworming treatment) and social learning effect (when seeing other people with ink on their thumb, people might update their beliefs of how many people in their community take up deworming and therefore its importance or value) ink has on people's deworming choice. 
+If reminder and social learning effects turn out to be insignificant in 1) we can pool individuals from groups (1), (2) and (3) and compare them to individuals from (4) and (5). Question: could also compare (4) vs. (3) i.e. only applying text treatment for control?
+
+4) Calendar incentive vs. bracelet for text message treatment individuals: comparing individuals that received reminder plus social information text messages across clusters where a calendar incentive was given for deworming (9 in above table) vs. clusters were individuals received a bracelet (7), we identify the effect of social signaling on individuals' decision to deworm. Same as for the control-ink comparison, comparing text message recipients only allows us to control for the potential reminder effect (when seeing other people with a bracelet, people might be reminded of the availability of deworming treatment) and social learning effect (when seeing other people with a bracelet, people might update their beliefs about deworming take-up in their community and therefore its importance or value) bracelets have on people's deworming choice. By comparing the bracelet treatment to the calendar treatment we control for the consumption value of the bracelet and any normative effect a material incentive could have on people's deworming choices. 
+
+Note: we chose to test two different social signaling treatments, ink and bracelets, in this experiment. The experiment is meant to generate cost-effective solutions to increasing deworming take-up. The cost of ink is close to zero and ink has no consumption value i.e. we eliminate that confound, but ink is potentially less visible, wears off over time (after 2 weeks?)
+
+5) Testing of auxiliary assumptions:
+a) private value of bracelets is equivalent to that of calendar. 
+
+Non-experimental test: revealed choice between bracelet and calendar. 
+
+
+Explain why ink and bracelet
+
+
+Justification for why we use ink AND bracelets and not just one of the two - difference in treatment effects due to different characteristics of ink and bracelets. (political), (observability) 
 
 Our main research question is: Can social signaling incentivize adults to take up deworming treatment?
 
