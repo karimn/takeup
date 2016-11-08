@@ -203,7 +203,7 @@ f) GPS coordinates of each house
 
 ### Geographic and Time Monitoring
 
-# Analy %>% sis
+# Analysis
 
 Below is the primary counterfactual framework we will use:
 
