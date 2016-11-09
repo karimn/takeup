@@ -1,6 +1,7 @@
 ---
 title: "The Role of Social Signaling in Community Mass Deworming"
 subtitle: "Evidence from a Field Experiment in Kenya"
+date: "November 2016"
 output: 
   pdf_document:
     number_sections: yes
@@ -32,12 +33,11 @@ source("takeup_rct_assign_clusters.R")
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
 
 ```
-# Abstract
-registry 
 
-# Abstract
+# Summary: 
+This document describes the analysis plan for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new Community Deworming Program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink that adults received upon coming for deworming. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that is comparable in its consumption value to the bracelet but cannot easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet or receive no incentive when coming for deworming. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. This pre-analysis plan outlines the regression specifications, outcome variables, and covariates that will be considered in this analysis. 
 
-Registry
+
 
 # Introduction
 UCB IRB background
@@ -59,6 +59,12 @@ Our main research question is: Can social signaling incentivize adults to take u
 | No SMS                      | 1        | 4   | 6        | 8        |
 | Reminder SMS                | 2        | -   | -        | -        |
 | Reminder  + Social Info SMS | 3        | 5   | 7        | 9        |
+
+Add: 
+The cluster randomization identifies the combined effect of social signaling, learning and reminders. The text messaging treatment allows us to separately identify the extent to which deworming decisions are driven by (i) reminder effects, (ii) social learning or (iii) the desire to signal to others. We further measure the effect of social incentives on individuals' knowledge and beliefs about others' deworming choices. Can social signaling incentivize adults to take up deworming treatment? 
+
+Add:
+
 
 
 1) Reminder and social information text message treatment vs. no text messages for control individuals: a random subsample of phone owners within each control (no incentive) cluster is randomized into receiving no text message (1 in above table), receiving a reminder text message about the availability of deworming treatment (2) or receiving a reminder text message that also provided information about other community members deworming treatment take-up. Comparing (1) vs. (2) will allow us to identify the effect reminders have on the probability of deworming treatment take-up. Comparing (1) vs. (3) we estimate the effect that reminders plus information about other people's deworming choice has on individuals' deworming take-up. By differencing the effects of (1 vs. 3 ~ reminder + social info effect) and (1 vs. 3 ~ reminder effect only) we identify the effect social learning has on deworming take-up behavior. The text message treatment (CROSS CUT?) across control clusters allows us to identify whether reminder and/or social learning is relevant in the context of deworming take-up. CHANGE TO (3) - (2).
