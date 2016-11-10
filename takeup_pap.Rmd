@@ -37,19 +37,37 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
 # Summary: 
 This document describes the analysis plan for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new Community Deworming Program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink that adults received upon coming for deworming. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that is comparable in its consumption value to the bracelet but cannot easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet or receive no incentive when coming for deworming. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. This pre-analysis plan outlines the regression specifications, outcome variables, and covariates that will be considered in this analysis. 
 
-
-
 # Introduction
-UCB IRB background
-Expand on social signaling 
+Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of Soil Transmitted Helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs^[Anderson, Roy, T Deirdre Hollingsworth, James Truscott, and Simon Brooker. 2012. Optimisation of Mass Chemotherapy to Control Soil-Transmitted Helminth Infection. Lancet 379 (9813). Elsevier Ltd: 289-90.].Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
 
-* UC Berkeley background 
-* Expand on social signaling part (B&T)
+This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and social incentives. The evaluation of the incentivized Community Deworming Program relates three separate strands of the literature: compliance with mass drug administration (MDA), incentives and volunatry good contributions. 
+
+Different to previous MDA, this study is focused on deworming treatment at a central location, not through door-to-door visits. Kremer and Glennerster^[Glennerster, R., & Kremer, M. (2011). Small changes, big results: behavioral economics at work in poor countries.Boston Review: A Political and Literary Forum.] observe that for preventive and non-acute care such as deworming, insecticide-treated bednet use and water chlorination there is a dramatic drop in demand at non-zero prices. Since a large number of people have such an abrupt cutoff at the same point, they conclude that they are not likely motivated by a simple cost-benefit analysis, but instead have a strong present bias; future benefits are heavily discounted compared to immediate benefits. One approach that has been widely tested and shown to be successful, is to provide a small reward when coming for treatment to offset any inconvenience costs individuals might face, as well as to address present bias. Kremer and Glennerster^[ibid.] review a wide number of studies on the use for incentives to increase education and health service take-up. They find strong evidence in favor of incentives compared to education only interventions.
+
+One possibility is to incentivize compliance with MDA by focusing the program's message on social returns, emphasizing the benefit of taking treatment to reduce reinfection of community members, especially school-aged children. The Community Deworming Program could therefore be viewed as a voluntary collective action game, where an individual's treatment compliance decision can be modeled as the decision to contribute to a pool shared by all community members. One approach to increase contribution in such a setting is to allow for signaling, thus introducing social approval/disapproval as a reward/punishment^[Bénabou, Roland, and Jean Tirole. 2006. "Incentives and Prosocial Behavior." American Economic Review 96 (5): 1652-78.] ^[Bénabou, Roland, and Jean Tirole. 2011. "Laws and norms." No. w17579. National Bureau of Economic Research.].We are testing how social signaling can be leveraged to increase demand for deworming treatment among adults, by introducing two signals in the form of colourful ink and bracelets. Both allow individuals to show to others that they have taken deworming treatment. 
+
+This pre-analysis plan outlines our strategy to test the theory of social signaling through a randomized field experiment in the context of deworming decisions. The remainder of this document is organized as follows. Section II provides .... Section III..... Finally, Sections IV and V outline the main empirical specifications that will be used in our analysis......
+
+
+
 
 # Intervention
-registry 
+Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties (Busia, Kakamega, Siaya) in Western Kenya. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs were identified as ideal agents to sensitize communities and give out deworming drugs, both because of their experience in providing health services to communities and because of their familiarity and trusted relationship with community members, allowing them to credibly convey new information (e.g. about the externality aspect of deworming) and address concerns (e.g. that deworming drugs might sterilize women). CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Deworming treatment was subsequently offered at central locations for a period of 12 days. 
 
-Registy
+We identified 150 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
+1) CHVs mark adults' fingers with ink; 
+2) CHVs give adults a green wrist bracelet; 
+3) CHVs give adults a one-page calendar for 2017; 
+4) Only deworming treatment is provided and no incentive. 
+
+We mapped communities that fall within a 2.5 catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming starts, on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service is free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: "Free deworming now at [Central Location]. Reply 111 to stop texts. All texts are free." The reminder plus information about deworming take-up messages contained the following content: "Free deworming now at [Central Location]. [No/few/almost half/half/more than half/almost all/all] of your village came, that is [X] in 10 adults. Reply 111 to stop texts. All texts are free." To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of subscribers conditional on texting back and confirming the receipt of the text message. The following reward text was sent to adults on day 2 and 6 of deworming treatment: "Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message 123 to 2080. The text is free." (Day 2 and Day 6)
+
+
+
+We split the treatment into two waves: we first provided deworming treatment to adults in Busia and Siaya 
+
+
+We sent a reminder message to adults that did not take up the reward  "Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message 123 to 2080 to receive the reward. The text is free." (Day 4 and Day 8) (only did that in wave 2 of the treatment i.e. Kakamega)
 
 # Research Questions
 Our main research question is: Can social signaling incentivize adults to take up deworming treatment? The experiment contains the following 9 treatments arms:
@@ -60,12 +78,14 @@ Our main research question is: Can social signaling incentivize adults to take u
 | Reminder SMS                | 2        | -   | -        | -        |
 | Reminder  + Social Info SMS | 3        | 5   | 7        | 9        |
 
-Add: 
-The cluster randomization identifies the combined effect of social signaling, learning and reminders. The text messaging treatment allows us to separately identify the extent to which deworming decisions are driven by (i) reminder effects, (ii) social learning or (iii) the desire to signal to others. We further measure the effect of social incentives on individuals' knowledge and beliefs about others' deworming choices. Can social signaling incentivize adults to take up deworming treatment? 
+
+
 
 Add:
 
+0) Incentive vs. no incentive treatment: the effect of social or private incentives on deworming take-up behavior: 
 
+Note: as you are diving sample into text message treatment and no text message treatment we need to check (a) for balance i.e. are the two samples similar on observables? and (b) for differences in take-up behavior, comparing none phone owners and phone owners (those that were part of the SMS control)
 
 1) Reminder and social information text message treatment vs. no text messages for control individuals: a random subsample of phone owners within each control (no incentive) cluster is randomized into receiving no text message (1 in above table), receiving a reminder text message about the availability of deworming treatment (2) or receiving a reminder text message that also provided information about other community members deworming treatment take-up. Comparing (1) vs. (2) will allow us to identify the effect reminders have on the probability of deworming treatment take-up. Comparing (1) vs. (3) we estimate the effect that reminders plus information about other people's deworming choice has on individuals' deworming take-up. By differencing the effects of (1 vs. 3 ~ reminder + social info effect) and (1 vs. 3 ~ reminder effect only) we identify the effect social learning has on deworming take-up behavior. The text message treatment (CROSS CUT?) across control clusters allows us to identify whether reminder and/or social learning is relevant in the context of deworming take-up. CHANGE TO (3) - (2).
 
@@ -82,14 +102,22 @@ Note: we chose to test two different social signaling treatments, ink and bracel
 5) Estimate value of social signaling: parameters to estimate, structural modeling. WHAT PARAMETERS? Benabou & Tirole. Mean of utility distribution. Distance to price out social signaling. 
 
 
+
+
 6) Testing of auxiliary assumptions:
 a) private value of bracelets vs. calendar: equivalence between two incentives. 
 b) social knowledge: individuals should have more accurate knowledge about other individuals' deworming take-up in ink and bracelet arms, given the visibility in actions that both signals create. 
 c) retention of bracelets and ink:
 d) beliefs: aggregate take-up at community level: 
 e) take up of SMS treatment: did people read SMS? lower bound is SMS reward (subtreatment) 
+f) knowledge about externalities (potentially base- and endline)
+
+
+
 
 Missing experimental variation --> assumptions --> which one? can you test it?
+
+
 
 Specification (in order Karim):
 i) comparison of control vs. ink, control vs. bracelet, control vs. calendar ~ effect of incentives. 
@@ -105,7 +133,7 @@ Our main research question is: Can social signaling incentivize adults to take u
 
 ## Sampling and Identification Strategy
 
-This study will adopt a cluster randomized experiment to make causal inferences addressing our research questions. We selected subcounties in three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 146 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
+This study will adopt a cluster randomized experiment to make causal inferences addressing our research questions. We selected subcounties in three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
 
 All communities in the experiment will be provided with 
 
