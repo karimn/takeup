@@ -34,7 +34,7 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
 
 ```
 
-# Summary: 
+# Summary
 This document describes the analysis plan for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new Community Deworming Program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink that adults received upon coming for deworming. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that is comparable in its consumption value to the bracelet but cannot easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet or receive no incentive when coming for deworming. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. This pre-analysis plan outlines the regression specifications, outcome variables, and covariates that will be considered in this analysis. 
 
 # Introduction
@@ -141,6 +141,22 @@ All communities in the experiment will be provided with
 * An outreach campaign providing information on the location and duration of treatment, as well as framing the public good aspect of deworming.
 
 We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
+
+From each cluster the following samples were selected:
+
+* A baseline sample randomly selected from the entire cluster population
+* A sample of individuals to monitor the treatment of during the intervention
+    - Text messaged individuals picked from the subpopulation of phone owners
+        + Deworming reminders
+        + Information on peer deworming
+    - A stratified sample of phone and non-phone owners:
+        + Phone owners are used as controls for the text messaging treatment
+        + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population 
+
+    We split this sample into two groups 
+      * Endline survey respondents (stratified between text message recipients and non-recipients)
+      * Data use reconsent only individuals
+
 
 ## Clustered Design
 
@@ -290,7 +306,7 @@ at the individual level. This will be done using Neyman's repeated sample approa
 
 ## Sample Selection
 
-Talk about stratified sampling of phone and non-phone owners within clusters.
+
 
 ## Inter-cluster Spillover
 
