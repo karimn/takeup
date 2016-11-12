@@ -1186,7 +1186,7 @@ census.data %>%
 factor.dist.pot <- . %>% { ifelse(. <= 2500/2, "close", "far") %>% factor }
 
 village.centers <- hh.census.data %>% 
-  filter(!is.na(cluster.id)) %>% 
+  filter(!is.na(cluster.id), !is.na(wave)) %>% 
   group_by(wave, county, cluster.id) %>% 
   do(center = convert.to.sp(., ~ lon + lat, wgs.84) %>% 
        gCentroid %>% 
@@ -3158,7 +3158,13 @@ takeup.data %>%
   arrange(desc(max.pot.change))
 ```
 
+Update the census data with take-up status based on PoT monitoring. I'm setting `dewormed` to `NA` for the wave 1 non phone owners because they were not actually monitored at the PoT.
 
+```{r update-census-with-takeup}
+census.data %<>% 
+  mutate(dewormed = KEY.individ %in% takeup.data$KEY.individ,
+         dewormed = ifelse(monitored & (wave == 2 | sms.ctrl.subpop == "phone.owner"), dewormed, NA))
+```
 
 ### Maps
 
@@ -3273,7 +3279,7 @@ pot.info <- takeup.data %>%
 ## Name Matching
 
 ```{r takeup-name-matching}
-find.name.matches <- function(.takeup.data, max.cost = 1) {
+find.name.matches <- function(.takeup.data, max.cost = 1, monitored.only = TRUE) {
   find.in.census <- function(.data, age.diff.cost = 0.25, two.digits.cost = 1) {
     mutate(.data,
            matched.KEY.individ = adist(.data$name1st, census.data$name1st, ignore.case = TRUE) %>% 
@@ -3390,14 +3396,22 @@ all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#Submis
             funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
                    format(tz = "Africa/Nairobi") %>% 
                    parse_datetime(locale = locale(tz = "Africa/Nairobi")))) %>%
-  filter(deviceid != "(web)", present == 1, SubmissionDate >= "2016-10-18") %>% 
+  filter(deviceid != "(web)", 
+         present == 1, 
+         SubmissionDate >= "2016-10-18") %>% 
   rename(cluster.id = cluster_id,
          KEY.individ = person,
          survey.type = survey_type,
          sms.treatment = sms,
          endline.type = endline_type,
+         dewormed.reported = treated,
+         any.sms.reported = receive_text,
+         num.sms.reported = number_text,
+         sms.content.reported = text_content, 
          lon = `gps-Longitude`,
-         lat = `gps-Latitude`) %>%  {
+         lat = `gps-Latitude`) %>% 
+  mutate(monitor.consent = coalesce(consent | reconsent, NA),
+         sms.content.reported = map(sms.content.reported, ~ str_split(., " "))) %>% {
     count(., is.na(lon) | is.na(lat)) %>% 
       print
            
@@ -3405,6 +3419,7 @@ all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#Submis
   } %>% 
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
+  filter(wave == 1 | test == 1) %>% 
   left_join(identify.closest.cluster(.), "KEY") %>% 
   left_join(select(census.data, KEY.individ, lon, lat), "KEY.individ", suffix = c(".survey", ".census")) %>% 
   rename(lon = lon.survey, lat = lat.survey) %>% 
@@ -3471,6 +3486,16 @@ all.endline.data %>%
   walk(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE)
 ```
 
+### Wave 2 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+all.endline.data %>% 
+  filter(wave == 2) %>% 
+  with(union(cluster.id, closest.cluster)) %>% 
+  purrr::discard(is.na) %>% 
+  walk(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE)
+```
+
 ## Knowledge Tables
 
 ```{r know-table-data}
@@ -3501,10 +3526,40 @@ reconsent.data <- read_csv("data/Reconsent.csv") %>%
                    format(tz = "Africa/Nairobi") %>% 
                    parse_datetime(locale = locale(tz = "Africa/Nairobi")))) %>% 
   rename(cluster.id = cluster_id,
-         KEY.individ = person) %>%
+         KEY.individ = person,
+         dewormed.reported = treated,
+         monitor.consent = consent,
+         num.sms.reported = text_number) %>% 
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
   left_join(select(census.data, KEY.individ, sms.treatment, sms.ctrl.subpop, phone), "KEY.individ") 
+```
+
+```{r combine-all-reconsent-dewormed-reports}
+consent.dewormed.reports <- list(endline.survey = all.endline.data, 
+                                 reconsent = reconsent.data) %>% 
+  ldply(.id = "data.source", . %>% select(KEY.individ, monitor.consent, dewormed.reported)) %>% 
+  filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>% 
+  group_by(KEY.individ) %>% 
+  summarize(monitor.consent = any(monitor.consent), 
+            dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% 
+  ungroup
+```
+
+
+```{r update-census-with-reconsent}
+census.data %<>%
+  left_join(select(consent.dewormed.reports, KEY.individ, monitor.consent, dewormed.reported), "KEY.individ") %>% 
+  mutate(monitor.consent = 
+           ifelse(is.na(monitor.consent), # & 
+                    # monitored & 
+                    # (sms.ctrl.subpop == "phone.owner" | wave == 2), 
+                  FALSE, 
+                  monitor.consent)) # %>% 
+  # count(KEY.individ) %>% filter(n > 1)
+  # count(wave, endline.type, monitored, monitor.consent) %>% 
+  # filter(is.na(monitor.consent) & monitored) %>%
+  # count(wave, dewormed)
 ```
 
 ```{r reconsent-backcheck-sample-wave1, eval=FALSE}
@@ -3542,6 +3597,48 @@ if (bc.diff > 0) {
 # wave1.reconsent.backchecks %>%
 #   transmute(county, cluster.id, KEY.reconsent = KEY, phone, enumerator) %>%
 #   write_csv("data/takeup_reconsent_backchecks_wave1_1.0.csv")
+```
+
+# Name Match the Monitored
+
+```{r}
+name.match.monitored <- function(census.cluster.data, 
+                                takeup.cluster.data, 
+                                max.cost = 1) {
+  dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) %>%
+    add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
+  
+  census.cluster.data %>% 
+    mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
+           which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
+                                              aaply(dist.mat, 1, . %>% which.min %>% magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
+                                              NA),
+           dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
+           dewormed.matched.2 = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost + 1)
+            # add(matrix(.data$age, ncol = nrow(census.data), nrow = nrow(.data)) %>%
+            #       subtract(matrix(census.data$age.census, ncol = nrow(census.data), nrow = nrow(.data), byrow = TRUE)) %>%  
+            #       multiply_by(age.diff.cost) %>% 
+            #       abs %>% 
+            #       coalesce(0.0)) %>% 
+            # add(adist(.data$two_digits, census.data$two_digits) %>% 
+            #       multiply_by(two.digits.cost) %>% 
+            #       coalesce(0.0)) %>%
+         #     alply(1, . %>% { ifelse(. <= max.cost, ., NA) %>% which.min %>% magrittr::extract(takeup.cluster.data$KEY.survey.individ, .) }) %>%
+         #    map_if(is_empty, ~ NA) %>% 
+         #    unlist,
+         # dewormed.matched = !is.na(takeup.match))
+}
+
+matched.census.data <- census.data %>% 
+  filter(monitored, is.na(dewormed) | !dewormed) %>% 
+  group_by(cluster.id) %>% 
+  do(name.match.monitored(., filter(takeup.data, 
+                                    cluster.id %in% unique(.$cluster.id)))) %>% 
+  ungroup %>% 
+  select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist"))
+
+census.data %<>% 
+  left_join(matched.census.data, "KEY.individ") 
 ```
 
 
