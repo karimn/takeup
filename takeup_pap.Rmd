@@ -48,9 +48,6 @@ One possibility is to incentivize compliance with MDA by focusing the program's 
 
 This pre-analysis plan outlines our strategy to test the theory of social signaling through a randomized field experiment in the context of deworming decisions. The remainder of this document is organized as follows. Section II provides .... Section III..... Finally, Sections IV and V outline the main empirical specifications that will be used in our analysis......
 
-
-
-
 # Intervention
 Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties (Busia, Kakamega, Siaya) in Western Kenya. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs were identified as ideal agents to sensitize communities and give out deworming drugs, both because of their experience in providing health services to communities and because of their familiarity and trusted relationship with community members, allowing them to credibly convey new information (e.g. about the externality aspect of deworming) and address concerns (e.g. that deworming drugs might sterilize women). CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Deworming treatment was subsequently offered at central locations for a period of 12 days. 
 
@@ -60,14 +57,15 @@ We identified 150 central locations in the 3 selected counties. Central location
 3) CHVs give adults a one-page calendar for 2017; 
 4) Only deworming treatment is provided and no incentive. 
 
-We mapped communities that fall within a 2.5 catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming starts, on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service is free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: "Free deworming now at [Central Location]. Reply 111 to stop texts. All texts are free." The reminder plus information about deworming take-up messages contained the following content: "Free deworming now at [Central Location]. [No/few/almost half/half/more than half/almost all/all] of your village came, that is [X] in 10 adults. Reply 111 to stop texts. All texts are free." To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of subscribers conditional on texting back and confirming the receipt of the text message. The following reward text was sent to adults on day 2 and 6 of deworming treatment: "Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message 123 to 2080. The text is free." (Day 2 and Day 6)
+We mapped communities that fall within a 2.5km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming starts, on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service is free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: "Free deworming now at [Central Location]. Reply 111 to stop texts. All texts are free." The reminder plus information about deworming take-up messages contained the following content: "Free deworming now at [Central Location]. [No/few/almost half/half/more than half/almost all/all] of your village came, that is [X] in 10 adults. Reply 111 to stop texts. All texts are free." 
 
+To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of subscribers conditional on texting back and confirming the receipt of the text message.^[We only implemented the reward scheme during the second wave of deworming treatment. The reason being, we only decided to add the treatment shortly before we started deworming in wave one communities and had to wait for ethical approval for this added component before we could implement it.] The following reward text was sent to adults on day 2 and 6 of deworming treatment: "Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message 123 to 2080. The text is free." We sent a reminder text messsage to adults that had not taken up the reward two days after the original reward text was sent: "Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message 123 to 2080 to receive the reward. The text is free." The reminder messages were sent on day 4 (for reward messages sent on day 2) and on day 8 (for reward messages sent on day 6). 
 
+We split deworming treatment into two waves: wave one of deworming was implemented from October 3rd to 14th in Busia and Siaya counties and wave two was implemented from October 24th to November 4th in Kakamega county. 
 
-We split the treatment into two waves: we first provided deworming treatment to adults in Busia and Siaya 
+Sample reward text: wave two (78 clusters), among people that were successfully reached on day 0 when sent out reminder message - eligible sample. randomization: for each of the 76 retained clusters and for each SMS treatment type we randomly picked 2 people (i.e. for bracelet/ink/calendar chose total of 2 people from social info SMS group to receive reward messsage; for control chose 2 people from reminder SMS and 2 people from social info SMS groups) and then randomly assigned half of sample to day 2 and half to day 6.
 
-
-We sent a reminder message to adults that did not take up the reward  "Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message 123 to 2080 to receive the reward. The text is free." (Day 4 and Day 8) (only did that in wave 2 of the treatment i.e. Kakamega)
+Note: confirm cluster no across waves. 
 
 # Research Questions
 Our main research question is: Can social signaling incentivize adults to take up deworming treatment? The experiment contains the following 9 treatments arms:
@@ -83,7 +81,7 @@ Our main research question is: Can social signaling incentivize adults to take u
 
 Add:
 
-0) Incentive vs. no incentive treatment: the effect of social or private incentives on deworming take-up behavior: 
+0) Incentive vs. no incentive treatment: the effect of social or private incentives on deworming take-up behavior. 
 
 Note: as you are diving sample into text message treatment and no text message treatment we need to check (a) for balance i.e. are the two samples similar on observables? and (b) for differences in take-up behavior, comparing none phone owners and phone owners (those that were part of the SMS control)
 
@@ -109,7 +107,9 @@ a) private value of bracelets vs. calendar: equivalence between two incentives.
 b) social knowledge: individuals should have more accurate knowledge about other individuals' deworming take-up in ink and bracelet arms, given the visibility in actions that both signals create. 
 c) retention of bracelets and ink:
 d) beliefs: aggregate take-up at community level: 
-e) take up of SMS treatment: did people read SMS? lower bound is SMS reward (subtreatment) 
+e) take up of SMS treatment: i) capture through responses to SMS reward treatment and ii) variables text_content, text_content_other, receive_text, number_text to verify through self-reported data. 
+
+did people read SMS? lower bound is SMS reward (subtreatment) We believe that the reward treatment is imperfect in the sense that some people might read the tezt 
 f) knowledge about externalities (potentially base- and endline)
 
 
