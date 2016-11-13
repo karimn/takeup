@@ -328,12 +328,15 @@ f) GPS coordinates of each house
 
 # Analysis
 
+## Framework
+
 Below is the primary counterfactual framework we will use:
 
 * $i$ indexes individuals and $j$ indexes clusters
 * $Z_j \in \mathcal{Z} = \{control, ink, calendar, bracelet\}$ is the cluster level treatment
-* $S_{ij} \in \mathcal{S} = \{none, reminders, socialinfo\}$ is the individual level text message treatment
-* $Y_{ij}(z, s) \in \{0, 1\}$ is an individual deworming outcome in response to treatment $z$ and $s$. * $Y_j(z)$ is cluster $j$'s absolute number of treatment seekers in response to treatment $z$.
+* $M_{ij} \in \mathcal{M} = \{none, reminders, socialinfo\}$ is the individual level text message treatment
+* $Y_{ij}(z, m) \in \{0, 1\}$ is an individual deworming outcome in response to treatment $z$ and $m$.
+* $Y_j(z)$ is cluster $j$'s absolute number of treatment seekers in response to treatment $z$.
 * $X_{ij}$ individual and cluster level pre-treatment characteristics. All analysis below will also be done controling for covariates. 
 
 Inference will be conducted using cluster robust variance estimators as well as using block bootstrapping.
@@ -356,12 +359,14 @@ The first specifications comparing the finite sample impact of various treatment
 ## Cross-cut with Reminders and Informational Messages
 
 To assess the impact reminder and social information text messages we will estimate the finite sample impact
-\[ \frac{\sum_{i=1}^N Y_{ij}(z', s) - Y_{ij}(z, s)}{N} \]
+\[ \frac{\sum_{i=1}^N Y_{ij}(z', m) - Y_{ij}(z, m)}{N} \]
 and
-\[ \frac{\sum_{i=1}^N Y_{ij}(z, s') - Y_{ij}(z, s)}{N} \]
+\[ \frac{\sum_{i=1}^N Y_{ij}(z, m') - Y_{ij}(z, m)}{N} \]
 at the individual level. This will be done using Neyman's repeated sample approach and by regression analysis
 
- \[ Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{l \in \mathcal{S}\setminus \{none\}}\delta_l \cdot \mathbbm{1}\{S_{ij} = l\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, l \in \mathcal{S}} \gamma_{kl}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{S_{ij} = l\} + \nu_{ij} \]
+$$
+Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{m \in \mathcal{M}\setminus \{none\}}\delta_m \cdot \mathbbm{1}\{M_{ij} = m\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, m \in \mathcal{M}} \gamma_{km}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{M_{ij} = m\} + \nu_{ij} 
+$$
 
 ## Heterogeneity
 
@@ -379,8 +384,106 @@ at the individual level. This will be done using Neyman's repeated sample approa
 
 ## Sample Selection
 
-
-
 ## Inter-cluster Spillover
+
+## Structural Model
+
+We modify our causal framework by introducing the following latent variables:
+
+* $V^*_{ij}(z)$, represents the private utility of deworming when $Z_j = z$
+* $S^*_{ij}(z)$, represents the social influence (in utility terms) of treatment $z$ on deworming. This influence could be social learning, reputational returns from social signaling or simply due to a reminder effect. At this point we do not distinguish between these various mechanisms.
+    
+We further modify the deworming counterfactual function to be $Y_{ij}(V^*_{ij}(z), S^*_{ij}(z))$. This is equivalent to the previous counterfactual function such that $Y_{ij}(V^*_{ij}(z), S^*_{ij}(z)) \equiv Y_{ij}(z, m = none) \equiv Y_{ij}(z)$. We will consider the impact of the text messaging treatment, $M_{ij}$, later.
+
+The decision to deworm is determined by 
+$$ 
+Y_{ij}(V^*_{ij}(z), S^*_{ij}(z)) = \mathbbm{1}\{V^*_{ij}(z) + S^*_{ij}(z) > 0\}. 
+$$
+
+We further parameterize the distribution of these latent variables to be
+
+$$ 
+\begin{pmatrix} V^*_{ij}(control) \\ V^*_{ij}(calendar) \\ V^*_{ij}(bracelet) \\ V^*_{ij}(ink) \end{pmatrix} \sim \mathcal{N} \left( \begin{matrix} \mu_0 \\ \mu_c \\ \mu_b \\ \mu_k \end{matrix},
+\begin{matrix} 
+  \sigma^2_0 & 0 & 0 & 0 \\
+  0          & \sigma^2_c & 0 & 0 \\
+  0          & 0 & \sigma^2_b & 0 \\
+  0          & 0 & 0 & \sigma^2_k
+\end{matrix} \right) 
+$$
+
+### Calendar/Bracelet Preference Survey
+   
+During the endline survey, respondents were asked to choose between a calendar or bracelet as a gift for their participation. We will use this to identify the distribution of preference over these two incentives.
+
+First, we define their choice to be 
+$$
+H_{ij} = \mathbbm{1}\{D^*_{ij} > 0\},
+$$ 
+
+where
+$$
+D^*_{ij} = V^*_{ij}(calendar) - V^*_{ij}(bracelet).
+$$
+
+We parameterize the distribution of $D^*_{ij}$ to be
+$$ 
+D^*_{ij} \sim \mathcal{N}(\mu_d, \sigma^2_d), 
+$$
+such that $\mu_d = \mu_c - \mu_b$ and $\sigma^2 = \sigma^2_c + \sigma^2_b$. Without lost of generality we define $\sigma^2_d = 1$. This allows us to estimate the posterior distribution of $\mu_d$
+
+\begin{equation} f(\mu_d|\mathbf{H}) \label{eqn:choice_posterior} \end{equation}
+
+### Estimating the Social Impact of Bracelets
+
+We want to estimate two causal effects of the bracelets treatment (as a social incentive) by comparing  it to the calendar (private incentive) treatment.
+
+1. The social impact in the bracelet treatment arm, $Z_j = bracelet$
+\begin{equation}
+\frac{\sum_i^N Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(bracelet)) - Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(calendar)) }{N} \label{eqn:social_in_b}
+\end{equation}
+
+2. The social impact in the calendar treatment arm, $Z_j = calendar$
+\begin{equation}
+\frac{\sum_i^N Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(bracelet)) - Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(calendar)) }{N} \label{eqn:social_in_c}
+\end{equation}
+
+The challenge in estimating these effects is the need to impute unobservable deworming outcomes, where the treatment assignments to $V^*_{ij}(z)$ and $S^*_{ij}(z')$ are different. Thus, aside from having to impute the missing values
+$$ 
+Y^{mis}_{ij} = \begin{cases} 
+  Y_{ij}(calendar) & \text{if } Z_{j} \ne calendar \\ 
+  Y_{ij}(bracelet) & \text{if } Z_{j} \ne bracelet
+\end{cases} 
+$$
+which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. However, we can use the posterior distribution of $D^*_{ij}$ to impute these outcomes.
+$$ 
+\begin{aligned}
+Y_{ij}^{mis,bc} = Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(calendar)) &= \mathbbm{1}\{V^*_{ij}(bracelet) + S^*_{ij}(calendar) > 0\} \\ 
+&= \mathbbm{1}\{V^*_{ij}(calendar) + S^*_{ij}(calendar) + D^*_{ij}> 0\}
+\end{aligned}
+$$
+and
+$$ 
+\begin{aligned}
+Y_{ij}^{mis,cb} = Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(bracelet)) &= \mathbbm{1}\{V^*_{ij}(calendar) + S^*_{ij}(bracelet) > 0\} \\
+&= \mathbbm{1}\{V^*_{ij}(bracelet) + S^*_{ij}(bracelet) - D^*_{ij} > 0\}
+\end{aligned}
+$$
+
+Therefore, the posterior distribution we need in order to estimate \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c} are
+$$
+f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,bc}|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z}) = \int_{\theta, \mu_d} f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,bc}, \theta, \mu_d|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\cdot f(\theta, \mu_d| \mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\, \mathrm{d}\theta\mathrm{d}\mu_d
+$$
+and 
+$$
+f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,cb}|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z}) = \int_{\theta, \mu_d} f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,cb}, \theta, \mu_d|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\cdot f(\theta, \mu_d| \mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\, \mathrm{d}\theta\mathrm{d}\mu_d
+$$
+respectively. Where $\theta = (\mu_{c,total}, \mu_{b,total}, \sigma^2_{c,total}, \sigma^2_{b,total})$ and 
+$$
+\begin{aligned}
+V^*_{ij}(calendar) + S^*_{ij}(calendar) \sim \mathcal{N}(\mu_{c,total}, \sigma^2_{c,total}) \\
+V^*_{ij}(bracelet) + S^*_{ij}(bracelet) \sim \mathcal{N}(\mu_{b,total}, \sigma^2_{b,total})
+\end{aligned}
+$$
 
 # References
