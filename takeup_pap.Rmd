@@ -2,6 +2,9 @@
 title: "The Role of Social Signaling in Community Mass Deworming"
 subtitle: "Evidence from a Field Experiment in Kenya"
 date: "November 2016"
+author:
+- Anne Karing^[University of California Berkeley]
+- Karim Naguib^[Evidence Action]
 output: 
   pdf_document:
     number_sections: yes
