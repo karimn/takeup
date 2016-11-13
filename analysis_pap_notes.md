@@ -1,4 +1,5 @@
 # Analysis steps and outputs (notes from yesterday)
+Analysis steps and outputs
 
 Note: we submit full questionnaires for census, baseline, SMS recruitment, endline survey.  
 
@@ -24,48 +25,41 @@ ANNE: indicate these estimations for endline data.
 - phone ownership 
 —  specific ones, we added to baseline to ensure balance (likely correlated with outcome)
 - knowledge about deworming and externalities of deworming: know_deworm who_worms who_worms_other effect_worms effect_worms_other how_spread how_spread_other effect_worms effect_worms_other stop_worms stop_worms_other when_treat when_treat_other worms_affect w_affect_how neighbours_worms_affect n_w_affect_how
-- beliefs about other people’s deworming choice: a) control, b) ink 
-- stigma and praise: yes/no, between 0 and 10 - compare deworming stigma/praise to immunization 
+- beliefs about other people’s deworming choice: a) dworm_rate, b) ink_dworm_rate
+- stigma and praise: yes/no, between 0 and 10 - compare deworming stigma/praise to immunization. comparison across different outcomes and show that similar concerns. reasons as well.  
 
+4. SMS treatment: we document the following for this sub-intervention (KEY: intervention was at HH level)
+1. From baseline survey: Show balance table for phone and non-phone owners. Make clear difference between 2 population groups. 
+2. Recruitment: i) percentage of adults that took up reminder SMS, ii) percentage of adults that took up social info SMS —write one sentence on that, no table or so necessary.  
+3. Received SMS: percentage of people for whom i) failed, ii) sent, iii) successful. 
+4. Information take-up: if we find no treatment effect of text messages, we need to know whether it is b/c people didn’t read messages or reminder/social info treatment truly had no effect. 2 measures to capture if people read the messages. i) information rewards: describe treatment, percentage of people responding to message, ii) endline data: sms (indicator sms.control/reminder.only/social.info),  receive_text (yes/no, among those that were part of SMS treatment), number_text, text_content (text_content_other look at that later since needs coding)
+Output: How different/similar were phone owners to non-phone owners? Among phone-owners: what was take up of SMS treatment? how many SMS were we able to deliver successfully? did people read the messages? 
 
-SMS
-balance table for phone and non-phone owners 
-recruitment: reminder, social info check percentage of people that signed up. 
-receipt: failed, sent, successful - sentence 
-information take-up verified through a) reward pick up: percentage of people responding to message and b) endline data check knowledge about text received and content. 
+5. Sensitization on deworming and externalities (Anne: need to pull info on that for presentation) ignore monitoring data from research enumerators. focus on endline data i.e. self-reported answers. 
+Relevant variables to verify: 
+i) were informed about treatment and how: find_out (this was coded but multiple options given)
+ii) people were sensitized by CHV: cv_visit —> test for balance to make sure all had same sensitization
+iii) received info about incentives: flyer 
+iv) informed about dates of deworming: day_treat_begin, day_treat_end,  days_available (knowledge about no of days available), treat_days (sum it — people knew! :))
+v) where treatment was offered (only for wave 2, so do later): where_offered
+vi) treatment for free: pay
+Output: all numbers/narrative. don’t think we need plots or tables for this stuff. 
 
-Sensitization ~ had knowledge about availability of deworming, and incentives:
-- day_treat_begin 
-- day_treat_end
-- 
-- also: treatment free, CHV visited etc. 
+6. PoT treatment take-up data: 
+Specifications to run: 
+0. We are not pulling entire data but I’d like to report # of people we dewormed in total and by arm. 
+1. Is there any effect of incentives on deworming take-up, among all monitored that did NOT get SMS? Output: plot with confidence intervals. —> compare control to incentives. switch to actual research question: can social signaling affect deworming decisions? Compare ink/control and calendar/bracelet in same plot. 
+2. Is there any effect of social incentives on deworming take-up, among phone-owner sample but no SMS? Output: redo plot from 1. but only for phone-owners this time. 1-4-6-8
+3. Social signaling identification: control for reminder and social learning: 3-5-7-9. 
+4. 1vs.2 and 2vs.3 as described further down. 
 
-PoT treatment take-up data: 
-- take-up data PoT: is there any effect at all of incentives on deworming take-up? could be none. we are comparing control to each incentive. we are doing that on the sample of EVERYONE (SMS + non SMS treated), composed of the phone owners and non-phone owners (pure control), adjusting for oversampling.
-—> conditional on sensitizing people, is there any effect of incentives? = sample of monitored (0 or 1, every monitored and know whether came or not)
-output: (1) monitored people, separately for counties, distances and the overall 
-(2) same as above for each of 12 days ~dynamics, we might explore further. assumption: static decision-making. non-SMS people. 
-—> we stratified. b/c is that there might be no difference comparing control and calendar. 
-- distance, counties - total sample. SMS treated, non SMS treated (incl. SMS control - phone owners and non-phone owners). total sample (ignore SMS) split by far and close. 
+Robustness test: test for spillover effects, people switching assignment. 
 
-Graph 1: comparison control, ink, bracelet, calendar
-—> we can a) see impact of incentives overall compared to control
-—> b) we can see the impact of incentives 
+7. Endline data:
+Verify assumptions and important descriptives: 
+1. Calendar is valid control for bracelet/social signaling: private value of calendar > private value of bracelet. Output: explain choice test do with people. report data for all 4 arms i.e. bracelet/calendar choice in control, ink, bracelet and calendar group. (note: bracelet or calendar for free choice) 
 
-—> Calendar is the control for the bracelet: based on “fact” that calendar is as or more liked than bracelet. Data: endline survey we allowed to choose. Data for the ink and control. Calendar has greater private value than the bracelet —> people if offered both should choose on average calendar more. 
-
-Calendar lower take-up than the bracelet —> same private value, but is less visible, i.e. we are giving people something coming for deworming, normative. Visibility. “did you see bracelet/calendar?”
-
-—> Main confounds: (1) reminded of deworming, (2) social learning, people observe others coming for deworming - receiving information about other people’s choices which could have affect their valuation of deworming or beliefs of its importance etc. - sth. that has nothing to do with a desire to display. 
-—> confounds: explain reminder / social info
-
-Descriptive statistics: 
-- Sensitization: Knowledge about deworming and externalities 
-- Externalities - baseline: balance, endline: after the sensitization. 3 questions.
-- Knowledge: who can get storms, deworming pills, experience deworming 
-
-Endline:
-- Outcome: 
+2. Outcomes (in addition to take-up): 
 a) Aggregate belief: compare for every single person - sample, non-text message treatment people (control SMS people - phone, non-phone owners). aggregate beliefs: distribution test.
 b) Individual knowledge: different people ~ could be wrong with all of them:
 over- and underestimating of beliefs.
