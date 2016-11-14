@@ -4,14 +4,20 @@ title: "Analysis steps and outputs"
 
 * [ ] Submit full questionnaires for census, baseline, SMS recruitment, endline survey.  
 * PoT and cluster selection: 
-  - [ ] Describe selection of 150 PoT and selected clusters (criteria used, algorithm). 
+  - [X] Describe selection of 150 PoT and selected clusters (criteria used, algorithm). 
   - Output: 
-        - [ ] Map that shows 3 countries, 150 PoTs, their catchment areas; 
-        - [ ] Actual distance distribution - slightly different since could not work with schools? PoTs were moved? Karim can you please give me a sentence stating why the distance from PoT is random i.e. we overcome traditional selection problem that people far from e.g. a clinic/school are different from those close to a clinic/school?
+        - [X] Map that shows 3 countries, 150 PoTs, their catchment areas; 
+        - [X] Actual distance distribution - slightly different since could not work with schools? PoTs were moved? 
+        - [X] Karim can you please give me a sentence stating why the distance from PoT is random i.e. we overcome traditional selection problem that people far from e.g. a clinic/school are different from those close to a clinic/school?
         - [ ] Explain: people were monitored at PoT came from set of selected villages that have a buffer so that people are further away from the next PoT than from their own. closest villages is 2.5km, median 4.2km, average 4.2km, max 7.6 distance from next PoT. whereas distance from your own PoT median/mean is 1.1km, 44% are below 1.25km, max to your 2.9km, min to other 2.5km. this allows us to limit spillovers i.e. people switching their assignment (SUTVA).
-
+        - [ ] Explain how we avoided areas where the pilot was
+* [X] Explain stratified assignment mechanism
 * Census: 
-  - [ ] Describe random sampling of i) baseline (purely random sample), ii) SMS (phone owners), iii) PoT monitored and endline sample (stratified phone and non-phone owners). collected and will use GPS coordinates for each house.
+  - [ ] Describe random sampling of 
+    + baseline (purely random sample), 
+    + SMS (phone owners), 
+    + PoT monitored and endline sample (stratified phone and non-phone owners). 
+    + collected and will use GPS coordinates for each house.
   - [ ] Output: use GPS data as controls and for heterogeneity analysis?
     + [ ] Model density into take-up specification, create density measure at cluster level i.e. how closely people live. use that as (a) covariate and (b) to explore heterogeneity in take-up (Karim please confirm we will do that?) since density is likely correlated with people’s likelihood of meeting others i.e. the potential of observing the signal and therefore the effectiveness of social signals; 
     + [ ] model density into social knowledge and aggregate beliefs specification, create social proximity measure for each individual link (i.e. respondent A and 10 other individuals given to her in social knowledge table) —> control for social proximity or explicitly estimate heterogeneity (Karim ?) in knowledge and accuracy of beliefs given differential impact of signaling with varying social proximity. B&T model assumes more accurate knowledge about other individuals’ actions, or at least that people believe they have more accurate knowledge. —> look at individuals who are more or less “central” and people that live more or less “far/close” to me.

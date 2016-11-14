@@ -35,14 +35,19 @@ library(rgeos)
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
 
-rct.schools.data <- read_rds("data/takeup_rct_schools.rds")
-rct.cluster.selection <- read_rds("data/rct_cluster_selection_2.0.rds")
-
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap/")
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, message = FALSE, cache.path = "takeup_pap-cache/", fig.path = "takeup_pap-fig/", fig.align = "center")
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 ```
+
+```{r load-data, include=FALSE}
+rct.schools.data <- read_rds("data/takeup_rct_schools.rds")
+rct.cluster.selection <- read_rds("data/rct_cluster_selection_2.0.rds")
+
+load("data/takeup_village_pot_dist.RData")
+```
+
 
 # Introduction
 
@@ -223,15 +228,60 @@ $ClusterSize(m, \mathcal{M})$ is a function that returns the size of cluster $m$
 
 While we use a 2.5 km circle to define the boundary of the area we will target communities within for treatment, when considering overlaps we assume points-of-treatment would have larger catchment areas, thus providing buffers between clusters. In order to fit the study's geographic area we randomly split the PoT to have 3 and 4 km catchment areas. Thus a targeted village would always be at least 0.5 km closer to its own assigned point-of-treatment than any other cluster's.
 
-This first step of cluster selection yielded 158 clusters. Figure \ref{fig:all-clusters-map} shows the geographic location of all clusters. The center of each cluster (the point-of-treatment) is represented by a cross, and the grey regions are the catchment areas of each cluster not within the buffers we placed between clusters.
+This first step of cluster selection yielded 158 clusters. Figure \ref{fig:all-clusters-map} shows the geographic location of all clusters. The center of each cluster (the point-of-treatment) is represented by a cross, and the grey regions are the catchment areas of each cluster not within the buffers we placed between clusters. Targeted villages were chosen within these catchment areas.
 
-```{r all-clusters-map, echo=FALSE, message=FALSE, fig.width=8, fig.height=8, fig.align="center", fig.cap="Map of Initial Cluster Selection"}
+```{r all-clusters-map, fig.width=8, fig.height=8, fig.cap="Map of Initial Cluster Selection"}
 ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner")
 ```
 
-## Treatment Assignment Mechanism
+While the cluster point-of-treatments and targeted villages were initially selected as describd above, their exact locations varied slightly before the intervention started. Figures \ref{fig:dist-to-pot}, and \ref{fig:marginal-dist-to-other-pot} show the actual distribution of (i) the distance between targeted villages and their home points-of-treatment, (ii) the distance between targeted villages and their the closest other point-of-treatment, and (iii) the difference between (i) and (ii).
+
+```{r dist-to-pot, fig.width=6, fig.height=4, fig.cap="Distance to Points-of-Treatment"}
+verify.vill.pot.dist %>% 
+  select(dist.to.own.pot, closest.other) %>% 
+  gather(dist.type, dist) %>% {
+  ggplot(.) +
+    geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black", position = "dodge") + 
+    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) +
+    scale_fill_discrete("Distance", labels = c("To Closest Other Point-of-Treatment", "To Home Point-of-Treatment")) +
+    theme(legend.position = "top")
+}
+```
+
+```{r dist-to-other-pot, fig.width=6, fig.height=4, fig.cap="Distance to Closest Other Point-of-Treatment", eval=FALSE}
+verify.vill.pot.dist %>% { 
+  ggplot(.) +
+    geom_histogram(aes(closest.other), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
+    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) 
+} 
+```
+
+```{r marginal-dist-to-other-pot, fig.cap="Marginal Distance to Closest Other Point-of-Treatment"}
+verify.vill.pot.dist %>% 
+  mutate(marginal.dist = closest.other - dist.to.own.pot,
+         dist.to.own.pot.cat = cut(dist.to.own.pot, 
+                                   breaks = c(0,  2500/2, 10000),
+                                   labels = c("Close", "Far"))) %>% {
+  ggplot(.) +
+    geom_histogram(aes(marginal.dist), alpha = 0.5, color = "black", binwidth = 500, boundary = 0, position = "dodge") +
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
+    scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
+     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.25, .5, 0.75)), 
+                color = "red", linetype = "dashed")
+}
+```
 
 ## Village and Point-of-Treatment Selection
+
+Villages were randomly selected across clusters to give us an equal proportion of _close_ and _far_ village to point-of-treatment distances. Distances were categorized as _close_ if less than 1250 meters and _far_ otherwise. This split is half the upper range of the distance we observed people were generally willing to travel for deworming treatment. As explained above, these distances varied in response to implementation contraints, so after some clusters had to be dropped from the study, we ended up with approximately 46% of targeted villages being _far_ from their point-of-treatment.
+
+This random assignment of each cluster to the _close_ or _far_ group is considered orthogonal to any targeted village characteristics, since each village could have been assigned to either group with equal probability. In other words, we are exogenously varying the distance individuals in a targeted village would have to travel for treatment.
+
+## Treatment Assignment Mechanism
+
+We used a stratified treatment assignment mechanism, whereby we stratified by (i) county and (ii) targeted village to point-of-treatment distance. Thus we had six strata within which we randomly assigned with equal probability one of four incentive treatments (control, indelible voting ink, calendars, and bracelets). For strata not divisible by four, we randomly assign, without replacement, one of the four treatments to the $(\text{stratum size} \mathbin{\%} 4)$ remaining clusters (randomly picked)^[http://blogs.worldbank.org/impactevaluations/tools-of-the-trade-doing-stratified-randomization-with-uneven-numbers-in-some-strata].
 
 ## Power Calculation
 
