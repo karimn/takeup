@@ -94,8 +94,14 @@ The reminder messages were sent on day 4 (for reward messages sent on day 2) and
 We split deworming treatment into two waves: wave one of deworming was implementedOctober 3rd to 14th in Busia and Siaya County, and wave two was implemented October 24th to November 4th in Kakamega County. 
 
 
-# Research questions
-Our main questions are: (i) Can social signaling incentivize adults to take up deworming treatment? That is, are adults more likely to seek deworming treatment if they can show to others that they did so? (ii) Is individual's decision to deworm influenced by other people's deworming choices? That is, are adults more likely to seek deworming treatment if they can observe others come for treatment? The experiment contains 9 treatment arms to separately identify these mechanisms: 
+# Research Questions
+
+Our main questions are: 
+
+  (I) Can social signaling incentivize adults to take up deworming treatment? That is, are adults more likely to seek deworming treatment if they can show to others that they did so? 
+  (II) Are individuals' decision to deworm influenced by other people's deworming choices? That is, are adults more likely to seek deworming treatment if they can observe others come for treatment? 
+  
+The experiment contains 9 treatment arms to separately identify these mechanisms, as shown in the below table. 
 
 |                             | Control  | Ink | Bracelet | Calendar |
 |-----------------------------|:--------:|:---:|:--------:|:--------:|
@@ -103,17 +109,30 @@ Our main questions are: (i) Can social signaling incentivize adults to take up d
 | Reminder SMS                | 2        | --- | ---      | ---      |
 | Reminder  + Peer Info SMS   | 3        | 5   | 7        | 9        |
 
+:Cluster-level Treatment Arms\label{tab:cluster-level-treatment}
 
-1)  Incentive vs. no incentive treatment. 
-The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up (comparing 1 vs. 4, 6 or 8). Second, comparing 1 vs. 4 and  8 vs. 6 identifies the combined effect of social incentives (i) acting as reminders, (ii) making observable others' deworming decision and (iii) allowing people to signal their decision.^[We will first compare take-up for non-incentive vs. incentive clusters for the sample of phone and non-phone owners, excluding SMS treatment individuals. In a second step we will only focus on phone-owners to separate the different social incentive effects.]
+Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the [Analysis] section below.
 
-2) Social vs. no social incentives treatment for text message treatment individuals. Comparing individuals that received reminder plus social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions. Comparing 3 vs. 5 we identify the effect of signaling using ink and comparing 9 vs. 7 the effect of social signaling through bracelets. A comparison only among text message recipients allows us to control for the reminder and social learning effects of ink or bracelets and separately identify signaling. 
+1.  _Incentive vs. no incentive treatment_ 
 
-3) Text message treatment with social information vs. no text messages for social incentive individuals. 
-Comparing 4 vs. 5 and 6 vs. 7 we identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. If we find no significant differences, reminders or information about others' choices play either no role for individual decision-making or the ink and bracelet incentives already acted as strong reminders and ways to observe others' actions. To distinguish the two we look at the effects of text messages among no incentive individuals. 
+    (i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up (comparing 1 vs. 4, 6 or 8). 
+    (ii) Comparing 1 vs. 4 and  8 vs. 6 identifies the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision.^[We will first compare take-up for non-incentive vs. incentive clusters for the sample of phone and non-phone owners, excluding SMS treatment individuals. In a second step we will only focus on phone-owners to separate the different social incentive effects.]
 
-4) Text message reminders and social information treatments vs. no text messages for no incentive individuals.
-Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify whether reminders or social learning are relevant in the context of deworming take-up decisions. 
+2. _Social vs. no social incentives treatment for text message treatment individuals_ 
+
+    Comparing individuals that received reminders and social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
+    (i) Comparing 3 vs. 5 we identify the effect of signaling using ink 
+    (ii) Comparing 9 vs. 7 the effect of social signaling through bracelets 
+    
+    A comparison only among text message recipients allows us to control for the reminder and social learning effects of ink or bracelets and separately identify signaling. 
+
+3. _Text message treatment with social information vs. no text messages for social incentive individuals_ 
+
+    Comparing 4 vs. 5 and 6 vs. 7 we identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. If we find no significant differences, reminders or information about others' choices play either no role for individual decision-making or the ink and bracelet incentives already acted as strong reminders and ways to observe others' actions. To distinguish the two we look at the effects of text messages among no incentive individuals. 
+
+4. _Text message reminders and social information treatments vs. no text messages for no incentive individuals_
+
+    Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify whether reminders or social learning are relevant in the context of deworming take-up decisions. 
 
 We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
 
@@ -175,7 +194,7 @@ The selection of clusters (PoT and targeted villages) relied on geospatial data 
 
 Below is the main body of the selection algorithm:
 
-1. Let $\mathcal{C}$ be the set of all potential clusters, defined as 2.5 kilometer radius circle centered on a primary school in the study region. In this study the size of this set is $\#\mathcal{C} = 1,451$.
+1. Let $\mathcal{C}$ be the set of all potential clusters, defined as 2.5 kilometer radius circle centered on a primary school in the study region. In this study the size of this set is $|\mathcal{C}| = 1,451$.
 2. Let $\mathcal{R} := \emptyset$ be the set of clusters selected for the experiment
 3. While $\mathcal{C} \neq \emptyset$:
     a) Randomly pick $i \in \mathcal{C}$
@@ -186,7 +205,7 @@ Below is the main body of the selection algorithm:
           Else:
           
         i. Set $\mathcal{R} := \mathcal{R} \bigcup \{i\}$
-4. If $\#\mathcal{R} < NumRctClusters$: Goto 1
+4. If $|\mathcal{R}| < NumRctClusters$: Goto 1
 
 $ClusterSize(m, \mathcal{M})$ is a function that returns the size of cluster $m$, removing any overlaps with the clusters in $\mathcal{M}$. We defined the size of a cluster to be the number of primary schools available in the non-overlapped 2.5 km circle around the cluster center (as a proxy of the available communities to target). We set the cluster size threshold to be 1 primary school^[To be exact we defined the threshold to be 60% of a 1 km radius circle around a school.].  
 
@@ -288,45 +307,111 @@ f) GPS coordinates of each house
 
 # Analysis
 
-## Framework
+## Causal Framework
 
-Below is the primary counterfactual framework we will use:
-
-* $i$ indexes individuals and $j$ indexes clusters
+This section describes the potential outcomes causal framework we will use in this study. Below are the exogenous variables of individuals and clusters ($i$ indexes individuals and $j$ indexes clusters):
+ 
 * $Z_j \in \mathcal{Z} = \{control, ink, calendar, bracelet\}$ is the cluster level treatment
 * $M_{ij} \in \mathcal{M} = \{none, reminders, socialinfo\}$ is the individual level text message treatment
-* $Y_{ij}(z, m) \in \{0, 1\}$ is an individual deworming outcome in response to treatment $z$ and $m$.
-* $Y_j(z)$ is cluster $j$'s absolute number of treatment seekers in response to treatment $z$.
-* $X_{ij}$ individual and cluster level pre-treatment characteristics. All analysis below will also be done controling for covariates. 
+* $\mathbf{X}_{ij}$ individual and cluster level pre-treatment characteristics. While we will omit this vector from most of our notation, we will sometimes need to refer to one variable in that vector
+  - $P_{ij} \in \{0, 1\}$, indicating phone ownership.
+  
+We describe the set of sampled and monitored individuals as $\mathcal{W}$ and the set of phone owners as $\mathcal{Q}(q) = \{i: P_{ij} = q\}$.
 
-Inference will be conducted using cluster robust variance estimators as well as using block bootstrapping.
+Below are the latent intermediate outcomes that influence the decision to get dewormed:
 
-## Cluster Level Treatment Specifications
+* $V^*_{ij}(z)$, represents the private utility of deworming in response to $z \in \mathcal{Z}$.
+* $S^*_{ij}(z, m)$, represents the social influence (in utility terms) of treatment $z \in \mathcal{Z}$ and $m \in \mathcal{M}$ on deworming. 
 
-The first specifications comparing the finite sample impact of various treatment arms and text message treatment are
- \[ \frac{\sum_{j=1}^J Y_j(z') - Y_j(z)}{J}, \]
- and
-\[ \frac{\sum_{i=1}^N Y_{ij}(z', none) - Y_{ij}(z, none)}{N} \]
- at the cluster level. 
- 
- We will estimate these models using Neyman's repeated sampling approach or by regression analysis
- \[ Y_j = \alpha_1 + \beta_1 \cdot Z_j + \varepsilon_{j} \]
- and
- \[ Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \nu_{ij} \]
-
-[Include stratification] 
+    This influence combines different mechanisms, thus we can further decompose it into:
+    - $R^*_{ij}(z, m)$, a reminder effect
+    - $L^*_{ij}(z, m)$, a social learning effect: the effect of receiving information on deworming by observing others' deworming choices
+    - $G^*_{ij}(z)$, reputational returns from social signaling
     
-## Cross-cut with Reminders and Informational Messages
+    This should also make clear our assumption that text message treatment does not have an effect on $V^*_{ij}$ and $G^*_{ij}$.
+    
+We represent the binary deworming choice, $Y_{ij} \in \{0, 1\}$, in different ways depending on context
 
-To assess the impact reminder and social information text messages we will estimate the finite sample impact
-\[ \frac{\sum_{i=1}^N Y_{ij}(z', m) - Y_{ij}(z, m)}{N} \]
+$$
+  Y_{ij}(z, m) \equiv Y_{ij}(V^*_{ij}(z), S^*_{ij}(z, m)) \equiv Y_{ij}(V^*_{ij}(z), R^*_{ij}(z, m), L^*_{ij}(z, m), G^*_{ij}(z))
+$$
+
+We also represent the total number of individuals dewormed in cluster $j$ in response to treatment $z$, irrespective of these individuals' origins, as $Y^{tot}_j(z)$.
+
+Whenever we reference any of this potential outcomes using one input, this refers to having $m = none$ (e.g., $S^*_{ij}(z) \equiv S^*_{ij}(z, none)$).
+
+## Main Hypotheses
+
+First we define the finite sample treatment effect estimators
+$$
+\begin{aligned}
+  \tau[(z, m), (z', m')] &= \sum_{i \in \mathcal{W}} \frac{Y_{ij}(z, m) - Y_{ij}(z', m')}{|\mathcal{W}|} \\
+  \tau[(z, m), (z', m'); q] &= \sum_{i \in \mathcal{Q}(q)} \frac{Y_{ij}(z, m) - Y_{ij}(z', m')}{|\mathcal{Q}(q)|}
+\end{aligned}
+$$
+ We can also use the simplified notation $\tau[z,z';q] \equiv \tau[(z, none), (z', none); q]$ and $\tau[z,z'] \equiv \tau[(z, none), (z', none)]$.  
+
+### Incentive vs. no incentive treatment 
+
+(i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. We will conduct a two-sided joint hypothesis test for 
+\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
+(ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision and test
+\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \] 
+and the private value only incentive by testing
+\[ H_0: \tau[calendar, control] = 0 \] 
+
+### Social vs. no social incentives treatment for text message treatment individuals 
+
+Comparing individuals that received reminders and social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
+
+(i) We will estimate the effect of signaling using ink and test 
+\[ H_0: \tau[(ink, socialinfo), (control, socialinfo)] = 0 \]
+(ii) Comparing 9 vs. 7 the effect of social signaling through bracelets 
+\[ H_0: \tau[(bracelets, socialinfo), (calendar, socialinfo)] = 0 \]
+    
+### Text message treatment with social information vs. no text messages for social incentive individuals 
+
+We will estimate the additional reminder and social learning effects of text messages in the presence of social incentives and test jointly 
+\[ H_0: \tau[(ink, socialinfo), (ink, none)] = 0 \land \tau[(bracelet, socialinfo), (bracelet, none)] = 0 \]
+as well as separately
+\[ H_0: \tau[(ink, socialinfo), (ink, none)] = 0 \]
 and
-\[ \frac{\sum_{i=1}^N Y_{ij}(z, m') - Y_{ij}(z, m)}{N} \]
-at the individual level. This will be done using Neyman's repeated sample approach and by regression analysis
+\[ H_0: \tau[(bracelet, socialinfo), (bracelet, none)] = 0 \]
+    
+### Text message reminders and social information treatments vs. no text messages for no incentive individuals
 
-$$
-Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{m \in \mathcal{M}\setminus \{none\}}\delta_m \cdot \mathbbm{1}\{M_{ij} = m\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, m \in \mathcal{M}} \gamma_{km}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{M_{ij} = m\} + \nu_{ij} 
-$$
+We will estimate the effect of reminders and information about others' treatment decisions on deworming take-up, test
+\[ H_0: \tau[(control, reminders), (control, none)] = 0 \]
+to see whether reminders have an effect on deworming take-up, and test
+\[ H_0: \tau[(control, socialinfo), (control, reminders)] = 0 \]
+to see if social information (by text messages) has any additional effect.
+
+<!-- ## Cluster Level Treatment Specifications -->
+
+<!-- The first specifications comparing the finite sample impact of various treatment arms and text message treatment are -->
+<!--  \[ \frac{\sum_{j=1}^J Y_j(z') - Y_j(z)}{J}, \] -->
+<!--  and -->
+<!-- \[ \frac{\sum_{i=1}^N Y_{ij}(z', none) - Y_{ij}(z, none)}{N} \] -->
+<!--  at the cluster level.  -->
+
+<!--  We will estimate these models using Neyman's repeated sampling approach or by regression analysis -->
+<!--  \[ Y_j = \alpha_1 + \beta_1 \cdot Z_j + \varepsilon_{j} \] -->
+<!--  and -->
+<!--  \[ Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \nu_{ij} \] -->
+
+<!-- [Include stratification]  -->
+
+<!-- ## Cross-cut with Reminders and Informational Messages -->
+
+<!-- To assess the impact reminder and social information text messages we will estimate the finite sample impact -->
+<!-- \[ \frac{\sum_{i=1}^N Y_{ij}(z', m) - Y_{ij}(z, m)}{N} \] -->
+<!-- and -->
+<!-- \[ \frac{\sum_{i=1}^N Y_{ij}(z, m') - Y_{ij}(z, m)}{N} \] -->
+<!-- at the individual level. This will be done using Neyman's repeated sample approach and by regression analysis -->
+
+<!-- $$ -->
+<!-- Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{m \in \mathcal{M}\setminus \{none\}}\delta_m \cdot \mathbbm{1}\{M_{ij} = m\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, m \in \mathcal{M}} \gamma_{km}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{M_{ij} = m\} + \nu_{ij}  -->
+<!-- $$ -->
 
 ## Heterogeneity
 
@@ -348,14 +433,7 @@ $$
 
 ## Structural Model
 
-We modify our causal framework by introducing the following latent variables:
-
-* $V^*_{ij}(z)$, represents the private utility of deworming when $Z_j = z$
-* $S^*_{ij}(z)$, represents the social influence (in utility terms) of treatment $z$ on deworming. This influence could be social learning, reputational returns from social signaling or simply due to a reminder effect. At this point we do not distinguish between these various mechanisms.
-    
-We further modify the deworming counterfactual function to be $Y_{ij}(V^*_{ij}(z), S^*_{ij}(z))$. This is equivalent to the previous counterfactual function such that $Y_{ij}(V^*_{ij}(z), S^*_{ij}(z)) \equiv Y_{ij}(z, m = none) \equiv Y_{ij}(z)$. We will consider the impact of the text messaging treatment, $M_{ij}$, later.
-
-The decision to deworm is determined by 
+We model the decision to deworm as
 $$ 
 Y_{ij}(V^*_{ij}(z), S^*_{ij}(z)) = \mathbbm{1}\{V^*_{ij}(z) + S^*_{ij}(z) > 0\}. 
 $$
