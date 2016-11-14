@@ -38,7 +38,7 @@ source("takeup_rct_assign_clusters.R")
 rct.schools.data <- read_rds("data/takeup_rct_schools.rds")
 rct.cluster.selection <- read_rds("data/rct_cluster_selection_2.0.rds")
 
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap")
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_pap/")
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
@@ -223,9 +223,9 @@ $ClusterSize(m, \mathcal{M})$ is a function that returns the size of cluster $m$
 
 While we use a 2.5 km circle to define the boundary of the area we will target communities within for treatment, when considering overlaps we assume points-of-treatment would have larger catchment areas, thus providing buffers between clusters. In order to fit the study's geographic area we randomly split the PoT to have 3 and 4 km catchment areas. Thus a targeted village would always be at least 0.5 km closer to its own assigned point-of-treatment than any other cluster's.
 
-This first step of cluster selection yielded 158 clusters.
+This first step of cluster selection yielded 158 clusters. Figure \ref{fig:all-clusters-map} shows the geographic location of all clusters. The center of each cluster (the point-of-treatment) is represented by a cross, and the grey regions are the catchment areas of each cluster not within the buffers we placed between clusters.
 
-```{r all-clusters-map, echo=FALSE, message=FALSE, fig.width=8, fig.height=8, fig.align="center"}
+```{r all-clusters-map, echo=FALSE, message=FALSE, fig.width=8, fig.height=8, fig.align="center", fig.cap="Map of Initial Cluster Selection"}
 ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner")
 ```
 
