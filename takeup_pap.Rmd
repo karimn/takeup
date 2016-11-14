@@ -115,7 +115,7 @@ Comparing 4 vs. 5 and 6 vs. 7 we identify the additional reminder and social lea
 4) Text message reminders and social information treatments vs. no text messages for no incentive individuals.
 Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify whether reminders or social learning are relevant in the context of deworming take-up decisions. 
 
-We teseted two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
+We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
 
 # Experiment Design
 
@@ -334,7 +334,7 @@ $$
 * Beliefs and attitudes
 * Content of informational messages
 * Distance to point-of-treatment (this should be included in the stratification section)
-* Rainfall (?)
+* Rainfall (optional)
 
 ## Temporal Dynamics
 
