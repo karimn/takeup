@@ -1223,6 +1223,8 @@ vill.pot.dist <- village.centers %>%
 verify.vill.pot.dist <- village.centers %>% 
   filter(cluster.id %in% known.pot.locations$cluster.id, !is.na(lon.verify), !is.na(lat.verify)) %>% 
   get.vill.pot.dist(pot.coords.formula = ~ lon.verify + lat.verify) 
+
+save(vill.pot.dist, verify.vill.pot.dist, file = "data/takeup_village_pot_dist.RData")
 ```
 
 ```{r}
@@ -1234,7 +1236,7 @@ vill.pot.dist %>%
 ```
 
 ```{r, echo=FALSE}
-vill.pot.dist %>% { 
+verify.vill.pot.dist %>% { 
   ggplot(.) +
     geom_histogram(aes(dist.to.own.pot), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
     scale_x_continuous("Distance to Own PoT", breaks = seq(0, 5000, 2500/4)) + 
