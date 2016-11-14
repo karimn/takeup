@@ -312,7 +312,7 @@ rct.schools.data <- sp.ke.schools.data[rowSums(gContains(subcounties.adm.data, s
   # magrittr::extract(.$`Status of School` == "PUBLIC", )
 rct.schools.data@data$cluster.id <- as.character(seq_len(nrow(rct.schools.data)))
 
-write_rds(rct.schools.data, "takeup_rct_schools.rds")
+write_rds(rct.schools.data, "data/takeup_rct_schools.rds")
 
 # Locate schools based on ADM boundary data -------------------------------
 
@@ -432,7 +432,7 @@ zz7 <- foreach(simul.id = 1:10, .errorhandling = "remove") %dopar% {
 
 # RCT Assignment ----------------------------------------------------------
 
-rct.cluster.selection <- read_rds("rct_cluster_selection_2.0.rds")
+rct.cluster.selection <- read_rds("data/rct_cluster_selection_2.0.rds")
 
 rct.targetable.schools <- get.cluster.villages.data(rct.cluster.selection) %>% 
   left_join(distinct(., pot.cluster.id) %>% 
@@ -455,8 +455,8 @@ rct.targetable.schools <- get.cluster.villages.data(rct.cluster.selection) %>%
               mutate(selected.targeted = TRUE)) %>% 
   mutate(selected.targeted = ifelse(!is.na(selected.targeted), selected.targeted, FALSE))
 
-#write_rds(rct.targetable.schools, "rct_targetable_schools_2.0.rds")
-rct.targetable.schools <- read_rds("rct_targetable_schools_2.0.rds")
+#write_rds(rct.targetable.schools, "data/rct_targetable_schools_2.0.rds")
+rct.targetable.schools <- read_rds("data/rct_targetable_schools_2.0.rds")
 
 # rct.cluster.selection@data %<>% left_join(targetable.schools %>% 
 #                                             spTransform(wgs.84) %>% 
