@@ -77,7 +77,7 @@ We mapped communities that fall within a 2.5km catchment radius of the central l
 
 > Free deworming now at [Central Location]. Reply ___ to _____ stop texts. All texts are free.
 
-The reminder and social information about deworming take-up messages contained the following content:
+The reminder and peer information about deworming take-up messages contained the following content:
 
 > Free deworming now at [Central Location]. [No/few/almost half/half/more than half/almost all/all] of your village came, that is _X_ in 10 adults. Reply ___ to _____ stop texts. All texts are free. 
 
@@ -101,7 +101,7 @@ Our main questions are: (i) Can social signaling incentivize adults to take up d
 |-----------------------------|:--------:|:---:|:--------:|:--------:|
 | No SMS                      | 1        | 4   | 6        | 8        |
 | Reminder SMS                | 2        | --- | ---      | ---      |
-| Reminder  + Social Info SMS | 3        | 5   | 7        | 9        |
+| Reminder  + Peer Info SMS   | 3        | 5   | 7        | 9        |
 
 
 1)  Incentive vs. no incentive treatment. 
@@ -115,58 +115,58 @@ Comparing 4 vs. 5 and 6 vs. 7 we identify the additional reminder and social lea
 4) Text message reminders and social information treatments vs. no text messages for no incentive individuals.
 Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify whether reminders or social learning are relevant in the context of deworming take-up decisions. 
 
-We teseted two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has no private value (could therefore provide clean(er) test of social signaling) and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
+We teseted two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
 
 # Experiment Design
 
 ## Sampling and Identification Strategy
 
-This study will adopt a cluster randomized experiment to make causal inferences addressing our research questions. We selected subcounties in three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
+This study adopted a cluster randomized experiment to make causal inferences addressing our research questions. We selected three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
 
-All communities in the experiment will be provided with 
+All communities in the experiment were be provided with:
 
-* Deworming treatment at a point-of-treatment 
+* Deworming treatment at a point-of-treatment/central location;
 * An outreach campaign providing information on the location and duration of treatment, as well as framing the public good aspect of deworming.
 
 We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
 
 From each cluster the following samples were selected:
 
-* A baseline sample randomly selected from the entire cluster population
-* A sample of individuals to monitor the treatment of during the intervention
+* A baseline sample randomly selected from the entire cluster population;
+* A sample of individuals to monitor the treatment of during the intervention including:
     - Text messaged individuals picked from the subpopulation of phone owners
-        + Deworming reminders
-        + Information on peer deworming
-    - A stratified sample of phone and non-phone owners:
+        + Deworming reminders and
+        + Information on peer deworming;
+    - A stratified sample of phone and non-phone owners
         + Phone owners are used as controls for the text messaging treatment
-        + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population 
+        + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population. 
 
-    We split this sample into two groups 
-      * Endline survey respondents (stratified between text message recipients and non-recipients)
-      * Data use reconsent only individuals
+    We split this sample into two groups: 
+      * Endline survey respondents (stratified between text message recipients and non-recipients);
+      * Data use reconsent only individuals.
 
 
 ## Clustered Design
 
-The experiment will be carried out in 18 subcounties in western Kenya, randomized at the cluster level. A _cluster_ is composed of 
+The experiment was carried out in 18 subcounties in Western Kenya, randomized at the cluster level. A _cluster_ was composed of 
 
 (i) a centralized _point-of-treatment (PoT)_ at an easily identifiable location (e.g. near a ~~primary school~~ church/mosque), and
-(ii) a _targeted village_ where we will conduct an outreach campaign^[Other communities will not be denied treatment, but our analysis will be focused on targeted villages.].
+(ii) a _targeted village_ where we conducted an outreach campaign^[Other communities were not denied treatment, but our analysis is focused on targeted villages.].
 
 ## Experimental Manipulation
 
-In the experiment there will be two levels of randomized treatment assignment.
+In the experiment there were two levels of randomized treatment assignment.
 
 1. At the cluster level, there will be four groups:
-    (i) a control group
-    (ii) a private incentive group: wall calendars provided as gifts to treatment compliers
-    (iii) a low private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands
-    (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers 
+    (i) a control group;
+    (ii) a private incentive group: wall calendars provided as gifts to treatment compliers;
+    (iii) a low private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
+    (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers. 
 2. At the individual level, there will be three groups:
     (i) the control group, composed of a stratified sample of
-        a. phone owners
-        b. non-phone owners
-    (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available
+        a. phone owners and
+        b. non-phone owners;
+    (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available;
     (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their village.
 
 ## Cluster Selection Algorithm
@@ -198,7 +198,7 @@ This first step of cluster selection yielded 158 clusters. Figure \ref{fig:all-c
 ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner")
 ```
 
-While the cluster point-of-treatments and targeted villages were initially selected as describd above, their exact locations varied slightly before the intervention started. Figures \ref{fig:dist-to-pot}, and \ref{fig:marginal-dist-to-other-pot} show the actual distribution of (i) the distance between targeted villages and their home points-of-treatment, (ii) the distance between targeted villages and their the closest other point-of-treatment, and (iii) the difference between (i) and (ii).
+While the cluster point-of-treatments and targeted villages were initially selected as described above, their exact locations varied slightly before the intervention started. Figures \ref{fig:dist-to-pot}, and \ref{fig:marginal-dist-to-other-pot} show the actual distribution of (i) the distance between targeted villages and their home points-of-treatment, (ii) the distance between targeted villages and their the closest other point-of-treatment, and (iii) the difference between (i) and (ii).
 
 ```{r dist-to-pot, fig.width=6, fig.height=4, fig.cap="Distance to Points-of-Treatment"}
 verify.vill.pot.dist %>% 
@@ -249,7 +249,7 @@ We used a stratified treatment assignment mechanism, whereby we stratified by (i
 
 ## Power Calculation
 
-Registry
+Given an intracluster correlation (for the random effects logit latent model used in power analysis simulations) of 0.1 we will be able to detect a 10 percentage point difference in deworming take-up between any incentive treatment arm and the control group, and a 8 percentage point change between any two incentive treatment arms. We can further detect a 7 percentage point difference in deworming take-up within treatment arms between adults who received and did not receive a text message reminder/information about deworming take-up in their community, and a 9 percentage point change in demand between any two arms for adults that did receive the text messaging treatment.
 
 # Data Collection and Sample Selection
 
