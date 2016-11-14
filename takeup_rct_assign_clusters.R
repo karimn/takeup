@@ -67,7 +67,7 @@ ggplot.clusters <- function(selected.clusters,
                             proj4 = kenya.proj4, 
                             maptype = "roadmap", 
                             source = "google",
-                            include.cluster.ids = TRUE) {
+                            include.cluster.ids = TRUE, ...) {
   
   all.clusters <- gUnaryUnion(selected.clusters) 
  
@@ -85,7 +85,7 @@ ggplot.clusters <- function(selected.clusters,
   map.obj <- all.clusters %>% 
     tidy %>% 
     make_bbox(long, lat, data = .) %>% {
-      ggmap(get_map(., maptype = maptype, source = source))
+      ggmap(get_map(., maptype = maptype, source = source, ...))
     }
  
   map.obj <- map.obj + (selected.clusters %>% 
@@ -118,7 +118,9 @@ ggplot.clusters <- function(selected.clusters,
   })
   
   map.obj <- map.obj + geom_point(aes(lon, lat), shape = 3, size = 1, data = pilot.locations) +
-    labs(x = "", y = "")
+    labs(x = "", y = "") +
+    scale_color_discrete("County") +
+    theme(legend.position = "bottom")
   
   return(map.obj)
 }
