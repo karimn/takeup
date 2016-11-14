@@ -149,7 +149,7 @@ All communities in the experiment were be provided with:
 
 We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
 
-From each cluster the following samples were selected:
+From each cluster the following samples were selected (more details [below](#data-collection)):
 
 * A baseline sample randomly selected from the entire cluster population;
 * A sample of individuals to monitor the treatment of during the intervention including:
@@ -163,7 +163,6 @@ From each cluster the following samples were selected:
     We split this sample into two groups: 
       * Endline survey respondents (stratified between text message recipients and non-recipients);
       * Data use reconsent only individuals.
-
 
 ## Clustered Design
 
@@ -270,7 +269,7 @@ We used a stratified treatment assignment mechanism, whereby we stratified by (i
 
 Given an intracluster correlation (for the random effects logit latent model used in power analysis simulations) of 0.1 we will be able to detect a 10 percentage point difference in deworming take-up between any incentive treatment arm and the control group, and a 8 percentage point change between any two incentive treatment arms. We can further detect a 7 percentage point difference in deworming take-up within treatment arms between adults who received and did not receive a text message reminder/information about deworming take-up in their community, and a 9 percentage point change in demand between any two arms for adults that did receive the text messaging treatment.
 
-# Data Collection and Sample Selection
+# Data Collection and Sample Selection { #data-collection }
 
 ## Pre-Intervention
 
@@ -286,6 +285,8 @@ e) Last two digits of phone number
 f) GPS coordinates of each house
 
 ### Baseline Household Survey
+
+From each cluster a random sample of 15 censused households were selected and from each household one adult eligible for deworming was randomly picked to respond to a baseline survey (survey instrument attached).
 
 ## Mid-Intervention
 
@@ -314,7 +315,7 @@ This section describes the potential outcomes causal framework we will use in th
 * $Z_j \in \mathcal{Z} = \{control, ink, calendar, bracelet\}$ is the cluster level treatment
 * $M_{ij} \in \mathcal{M} = \{none, reminders, socialinfo\}$ is the individual level text message treatment
 * $\mathbf{X}_{ij}$ individual and cluster level pre-treatment characteristics. While we will omit this vector from most of our notation, we will sometimes need to refer to one variable in that vector
-  - $P_{ij} \in \{0, 1\}$, indicating phone ownership.
+  - $P_{ij} \in \{phone, nophone\}$, indicating phone ownership.
   
 We describe the set of sampled and monitored individuals as $\mathcal{W}$ and the sub-sample based on phone ownerhship as $\mathcal{Q}(q) = \{i: P_{ij} = q\}$.
 
@@ -341,7 +342,7 @@ We also represent the total number of individuals dewormed in cluster $j$ in res
 Whenever we reference any of these potential outcomes using one input, this refers to having $m = none$ (e.g., $S^*_{ij}(z) \equiv S^*_{ij}(z, none)$).
 
 
-## Main Hypotheses
+## Main Hypotheses {#main-hypo}
 
 First we define the finite sample treatment effect estimators
 $$
@@ -364,25 +365,25 @@ $$
 Comparing individuals that received reminders and social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
 
 (i) We will estimate the effect of signaling using ink and test 
-\[ H_0: \tau[(ink, socialinfo), (control, socialinfo)] = 0 \]
+\[ H_0: \tau[(ink, socialinfo), (control, socialinfo); phone] = 0 \]
 (ii) We will estimate the effect of social signaling through bracelets and test
-\[ H_0: \tau[(bracelets, socialinfo), (calendar, socialinfo)] = 0 \]
+\[ H_0: \tau[(bracelets, socialinfo), (calendar, socialinfo); phone] = 0 \]
     
 ### Text message treatment with social information vs. no text messages for social incentive individuals 
 
 We will estimate the additional reminder and social learning effects of text messages in the presence of social incentives and test jointly 
-\[ H_0: \tau[(ink, socialinfo), (ink, none)] = 0 \land \tau[(bracelet, socialinfo), (bracelet, none)] = 0 \]
+\[ H_0: \tau[(ink, socialinfo), (ink, none); phone] = 0 \land \tau[(bracelet, socialinfo), (bracelet, none); phone] = 0 \]
 as well as separately
-\[ H_0: \tau[(ink, socialinfo), (ink, none)] = 0 \]
+\[ H_0: \tau[(ink, socialinfo), (ink, none); phone] = 0 \]
 and
-\[ H_0: \tau[(bracelet, socialinfo), (bracelet, none)] = 0 \]
+\[ H_0: \tau[(bracelet, socialinfo), (bracelet, none); phone] = 0 \]
     
 ### Text message reminders and social information treatments vs. no text messages for no incentive individuals
 
 We will estimate the effect of reminders and information about others' treatment decisions on deworming take-up, test
-\[ H_0: \tau[(control, reminders), (control, none)] = 0 \]
+\[ H_0: \tau[(control, reminders), (control, none); phone] = 0 \]
 to see whether reminders have an effect on deworming take-up, and test
-\[ H_0: \tau[(control, socialinfo), (control, reminders)] = 0 \]
+\[ H_0: \tau[(control, socialinfo), (control, reminders); phone] = 0 \]
 to see if social information (by text messages) has any additional effect.
 
 ### Calendar/Bracelet Preference Survey
@@ -430,15 +431,12 @@ the latent difference in utility between calendars and bracelets. We will estima
 
 ## Heterogeneity
 
-* Cluster level pre-treatment characteristics
-* Beliefs and attitudes
-* Content of informational messages
-* Distance to point-of-treatment (this should be included in the stratification section)
-* Rainfall (optional)
+We will be investigating heterogeneity of impact (as described in the [main hypotheses section above](#main-hypo)) based on the following 
+
+1. The village to point-of-treatment distance binary characteristic (discussed in the [Village and Point-of-Treatment Selection] section above) 
+
 
 ## Temporal Dynamics
-
-## Willingness to Pay for Incentives
 
 ## Social Information
 
@@ -446,48 +444,7 @@ the latent difference in utility between calendars and bracelets. We will estima
 
 ## Inter-cluster Spillover
 
-## Structural Model
-
-We model the decision to deworm as
-$$ 
-Y_{ij}(V^*_{ij}(z), S^*_{ij}(z)) = \mathbbm{1}\{V^*_{ij}(z) + S^*_{ij}(z) > 0\}. 
-$$
-
-We further parameterize the distribution of these latent variables to be
-
-$$ 
-\begin{pmatrix} V^*_{ij}(control) \\ V^*_{ij}(calendar) \\ V^*_{ij}(bracelet) \\ V^*_{ij}(ink) \end{pmatrix} \sim \mathcal{N} \left( \begin{matrix} \mu_0 \\ \mu_c \\ \mu_b \\ \mu_k \end{matrix},
-\begin{matrix} 
-  \sigma^2_0 & 0 & 0 & 0 \\
-  0          & \sigma^2_c & 0 & 0 \\
-  0          & 0 & \sigma^2_b & 0 \\
-  0          & 0 & 0 & \sigma^2_k
-\end{matrix} \right) 
-$$
-
-### Calendar/Bracelet Preference Survey
-   
-During the endline survey, respondents were asked to choose between a calendar or bracelet as a gift for their participation. We will use this to identify the distribution of preference over these two incentives.
-
-First, we define their choice to be 
-$$
-H_{ij} = \mathbbm{1}\{D^*_{ij} > 0\},
-$$ 
-
-where
-$$
-D^*_{ij} = V^*_{ij}(calendar) - V^*_{ij}(bracelet).
-$$
-
-We parameterize the distribution of $D^*_{ij}$ to be
-$$ 
-D^*_{ij} \sim \mathcal{N}(\mu_d, \sigma^2_d), 
-$$
-such that $\mu_d = \mu_c - \mu_b$ and $\sigma^2 = \sigma^2_c + \sigma^2_b$. Without lost of generality we define $\sigma^2_d = 1$. This allows us to estimate the posterior distribution of $\mu_d$
-
-\begin{equation} f(\mu_d|\mathbf{H}) \label{eqn:choice_posterior} \end{equation}
-
-### Estimating the Social Impact of Bracelets
+## Estimating the Social Impact of Bracelets
 
 We want to estimate two causal effects of the bracelets treatment (as a social incentive) by comparing  it to the calendar (private incentive) treatment.
 
@@ -508,35 +465,6 @@ Y^{mis}_{ij} = \begin{cases}
   Y_{ij}(bracelet) & \text{if } Z_{j} \ne bracelet
 \end{cases} 
 $$
-which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. However, we can use the posterior distribution of $D^*_{ij}$ to impute these outcomes.
-$$ 
-\begin{aligned}
-Y_{ij}^{mis,bc} = Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(calendar)) &= \mathbbm{1}\{V^*_{ij}(bracelet) + S^*_{ij}(calendar) > 0\} \\ 
-&= \mathbbm{1}\{V^*_{ij}(calendar) + S^*_{ij}(calendar) + D^*_{ij}> 0\}
-\end{aligned}
-$$
-and
-$$ 
-\begin{aligned}
-Y_{ij}^{mis,cb} = Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(bracelet)) &= \mathbbm{1}\{V^*_{ij}(calendar) + S^*_{ij}(bracelet) > 0\} \\
-&= \mathbbm{1}\{V^*_{ij}(bracelet) + S^*_{ij}(bracelet) - D^*_{ij} > 0\}
-\end{aligned}
-$$
-
-Therefore, the posterior distribution we need in order to estimate \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c} are
-$$
-f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,bc}|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z}) = \int_{\theta, \mu_d} f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,bc}, \theta, \mu_d|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\cdot f(\theta, \mu_d| \mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\, \mathrm{d}\theta\mathrm{d}\mu_d
-$$
-and 
-$$
-f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,cb}|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z}) = \int_{\theta, \mu_d} f(\mathbf{Y}^{mis}, \mathbf{Y}^{mis,cb}, \theta, \mu_d|\mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\cdot f(\theta, \mu_d| \mathbf{Y}^{obs}, \mathbf{H}, \mathbf{Z})\, \mathrm{d}\theta\mathrm{d}\mu_d
-$$
-respectively. Where $\theta = (\mu_{c,total}, \mu_{b,total}, \sigma^2_{c,total}, \sigma^2_{b,total})$ and 
-$$
-\begin{aligned}
-V^*_{ij}(calendar) + S^*_{ij}(calendar) \sim \mathcal{N}(\mu_{c,total}, \sigma^2_{c,total}) \\
-V^*_{ij}(bracelet) + S^*_{ij}(bracelet) \sim \mathcal{N}(\mu_{b,total}, \sigma^2_{b,total})
-\end{aligned}
-$$
+which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. We plan to structurally estimate a model to identify the \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c}.
 
 # References
