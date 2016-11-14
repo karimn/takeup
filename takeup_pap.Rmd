@@ -316,7 +316,7 @@ This section describes the potential outcomes causal framework we will use in th
 * $\mathbf{X}_{ij}$ individual and cluster level pre-treatment characteristics. While we will omit this vector from most of our notation, we will sometimes need to refer to one variable in that vector
   - $P_{ij} \in \{0, 1\}$, indicating phone ownership.
   
-We describe the set of sampled and monitored individuals as $\mathcal{W}$ and the set of phone owners as $\mathcal{Q}(q) = \{i: P_{ij} = q\}$.
+We describe the set of sampled and monitored individuals as $\mathcal{W}$ and the sub-sample based on phone ownerhship as $\mathcal{Q}(q) = \{i: P_{ij} = q\}$.
 
 Below are the latent intermediate outcomes that influence the decision to get dewormed:
 
@@ -338,7 +338,8 @@ $$
 
 We also represent the total number of individuals dewormed in cluster $j$ in response to treatment $z$, irrespective of these individuals' origins, as $Y^{tot}_j(z)$.
 
-Whenever we reference any of this potential outcomes using one input, this refers to having $m = none$ (e.g., $S^*_{ij}(z) \equiv S^*_{ij}(z, none)$).
+Whenever we reference any of these potential outcomes using one input, this refers to having $m = none$ (e.g., $S^*_{ij}(z) \equiv S^*_{ij}(z, none)$).
+
 
 ## Main Hypotheses
 
@@ -356,9 +357,7 @@ $$
 (i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. We will conduct a two-sided joint hypothesis test for 
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
 (ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision and test
-\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \] 
-and the private value only incentive by testing
-\[ H_0: \tau[calendar, control] = 0 \] 
+\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, calendar] = 0 \] 
 
 ### Social vs. no social incentives treatment for text message treatment individuals 
 
@@ -366,7 +365,7 @@ Comparing individuals that received reminders and social information text messag
 
 (i) We will estimate the effect of signaling using ink and test 
 \[ H_0: \tau[(ink, socialinfo), (control, socialinfo)] = 0 \]
-(ii) Comparing 9 vs. 7 the effect of social signaling through bracelets 
+(ii) We will estimate the effect of social signaling through bracelets and test
 \[ H_0: \tau[(bracelets, socialinfo), (calendar, socialinfo)] = 0 \]
     
 ### Text message treatment with social information vs. no text messages for social incentive individuals 
@@ -385,6 +384,21 @@ We will estimate the effect of reminders and information about others' treatment
 to see whether reminders have an effect on deworming take-up, and test
 \[ H_0: \tau[(control, socialinfo), (control, reminders)] = 0 \]
 to see if social information (by text messages) has any additional effect.
+
+### Calendar/Bracelet Preference Survey
+   
+During the endline survey, respondents were asked to choose between a calendar or bracelet as a gift for their participation. We will use this to identify the distribution of preference over these two incentives.
+
+First, we define their choice to be 
+$$
+H_{ij} = \mathbbm{1}\{D^*_{ij} > 0\},
+$$ 
+
+where
+$$
+D^*_{ij} = V^*_{ij}(calendar) - V^*_{ij}(bracelet),
+$$
+the latent difference in utility between calendars and bracelets. We will estimate this difference from the survey observational data.
 
 <!-- ## Cluster Level Treatment Specifications -->
 
@@ -412,6 +426,7 @@ to see if social information (by text messages) has any additional effect.
 <!-- $$ -->
 <!-- Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{m \in \mathcal{M}\setminus \{none\}}\delta_m \cdot \mathbbm{1}\{M_{ij} = m\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, m \in \mathcal{M}} \gamma_{km}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{M_{ij} = m\} + \nu_{ij}  -->
 <!-- $$ -->
+
 
 ## Heterogeneity
 
