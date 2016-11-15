@@ -280,18 +280,11 @@ Given an intracluster correlation (for the random effects logit latent model use
 
 ### Census
 
-A census of all households in _targeted villages_ was conducted before the treatment intervention. It was used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information on all adults, 15 years of age or older:
-
-a) Name
-b) Gender
-c) Age
-d) Household head name
-e) Last two digits of phone number
-f) GPS coordinates of each house
+A census of all households in _targeted villages_ was conducted before the treatment intervention. It was used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information was collected for all adults, 15 years of age or older (see appendices for census survey instrument).
 
 ### Baseline Household Survey
 
-From each cluster a random sample of 15 censused households were selected and from each household one adult eligible for deworming was randomly picked to respond to a baseline survey (survey instrument attached).
+From each cluster a random sample of 15 censused households were selected and from each household one adult eligible for deworming was randomly picked to respond to a baseline survey (see appendices for baseline survey instrument).
 
 ## Mid-Intervention
 
