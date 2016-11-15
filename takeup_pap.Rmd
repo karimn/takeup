@@ -363,7 +363,7 @@ $$
   H_0: \tau(\cdot, \cdot) = 0
 $$
 
-### Incentive vs. no incentive treatment 
+### Incentive vs. no incentive treatment { #incentive-vs-no-incentive-hypo }
 
 The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. We will estimate
   
@@ -388,7 +388,7 @@ Both these estimates would identify the combined effect of social incentives, $S
 We will also conduct the joint hypothesis test 
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
 
-### Social vs. no social incentives treatment for text message treatment individuals 
+### Social vs. no social incentives treatment for text message treatment individuals { #social-incentive-hypo }
 
 Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions. We will estimate
 
@@ -406,22 +406,42 @@ If we assume that $R^*(ink, none) = R^*(control, socialinfo)$ and $L^*(ink, none
   
 If we assume that $R^*(bracelet, none) = R^*(calendar, socialinfo)$, $L^*(bracelet, none) = L^*(calendar, socialinfo)$, and $V^*(calendar) = V^*(bracelet)$ this is an estimate of the impact of $G^*(bracelet) - G^*(calendar)$ on deworming take-up.
     
-### Text message treatment with social information vs. no text messages for social incentive individuals 
+### No text message treatment vs. text message reminders and social information
 
-We will estimate the additional reminder and social learning effects of text messages in the presence of social incentives and test jointly 
-\[ H_0: \tau[(ink, socialinfo), (ink, none); phone] = 0 \land \tau[(bracelet, socialinfo), (bracelet, none); phone] = 0 \]
-as well as separately
-\[ H_0: \tau[(ink, socialinfo), (ink, none); phone] = 0 \]
+Using estimates from \ref{incentive-vs-no-incentive-hypo} where we identified the combined effect of reminders, social learning and social signaling and the comparison from \ref{social-incentive-hypo} where we separately identified social signaling, we can identify the effect of reminders and social learning on deworming take-up. We will estimate
+
+\begin{align}
+  \tau[(ink, none), &(control, socialinfo)] - \tau[(ink, none), (control, none)] \equiv \nonumber \\ &\tau[control, socialinfo), (ink, none)]
+\end{align}
+to identify the combined effect of $R^*(ink)$ and $L^*(ink)$ on deworming take-up; and we will estimate
+\begin{align}
+  \tau[(bracelet, none), &(calendar, socialinfo)] - \tau[(bracelet, none), (calendar, none)] \equiv \nonumber \\ &\tau[(calendar, socialinfo), (calendar, none)]
+\end{align}
+to identify the combined effect of $R^*(bracelet)$ and $L^*(bracelet)$ on deworming take-up.
+
+### Text message reminders and social information treatments vs. no text messages for no incentive individuals ###
+
+We will estimate 
+\begin{equation}
+  \tau[(control, reminders), (control, none)]
+\end{equation}
 and
-\[ H_0: \tau[(bracelet, socialinfo), (bracelet, none); phone] = 0 \]
-    
-### Text message reminders and social information treatments vs. no text messages for no incentive individuals
+\begin{equation}
+  \tau[(control, socialinfo), (control, reminders)]
+\end{equation}
+to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
 
-We will estimate the effect of reminders and information about others' treatment decisions on deworming take-up, test
-\[ H_0: \tau[(control, reminders), (control, none); phone] = 0 \]
-to see whether reminders have an effect on deworming take-up, and test
-\[ H_0: \tau[(control, socialinfo), (control, reminders); phone] = 0 \]
-to see if social information (by text messages) has any additional effect.
+### Text message treatment with social information vs. no text messages for social incentive individuals
+
+We will estimate
+\begin{equation}
+  \tau[(ink, socialinfo), (ink, none)]
+\end{equation}
+and
+\begin{equation}
+  \tau[(bracelet, socialinfo), (bracelet, none)]
+\end{equation}
+to identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
 
 ### Calendar/Bracelet Preference Survey
    
