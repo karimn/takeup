@@ -520,7 +520,11 @@ Deworming treatment was offered over a period of 12 days. We will look at the di
 
 ## Sample Selection
 
+As described in Section \ref{intervention} our sampling will be stratified based on individuals' phone ownership (collected in the census).
+
 ## Inter-cluster Spillover
+
+We test for the possibility of spillovers or contamination due to cluster proximity. As mentioned in Section \ref{cluster-selection-algorithm} clusters were selected such that there is geographic buffer  between them. However, this is not sufficient guarantee that people would travel farther than we anticipated. 
 
 ## Estimating the Social Impact of Bracelets
 
@@ -548,5 +552,3 @@ which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{i
 
 ADD: sentence about how we will test these assumptions about equality of reminders and social learning, by looking at data we collected on beliefs updating, information that people have about availability of treatment, duration etc. 
 
-
-# References
