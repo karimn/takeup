@@ -143,7 +143,7 @@ Below are the hypotheses we will investigate based on the cells in Table \ref{ta
 
 # Experiment Design
 
-## Sampling and Identification Strategy
+## Sampling and Identification Strategy { #sampling-identification }
 
 This study adopted a cluster randomized experiment to make causal inferences addressing our research questions. We selected three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
 
@@ -290,19 +290,34 @@ From each cluster a random sample of 15 censused households were selected and fr
 
 ### Treatment Take-up Monitoring
 
+* The individuals to monitor are described in \ref{sampling-identification}
+* Enumerator's data collection devices pre-loaded with identifying information
+* Identified individuals were tagged as dewormed, for others we collected some personal information to conduct a match with the group to monitor (in case enumerators miss any)
+
 ### SMS Airtime Reward
+
+I think this is described in the [Intervention] section
 
 ## Post-Intervention
 
 ### Endline Household Survey
 
+From each cluster we randomly picked 25 individuals for an endline survey
+
+* For control clusters we randomly picked 15 individuals who did not receive any text messaging treatment, 5 individuals who received reminders and 5 individuals who received reminders and social information text messages.
+* For incentive treatment clusters we randomly picked 20 individuals who did not receive any text messaging treatment and 5 individuals who received reminders and social information text messages.
+
 ### Social Knowledge
+
+Every endline respondent will be either asked about ten of their community members' deworming status, or ten pairs of individuals to allow them to provide information about their community members' deworming without identifying exact individuals' deworming status.
 
 ## Data Quality
 
 ### Backchecks
 
 ### Geographic and Time Monitoring
+
+All data collection was done using electronic devices, providing us with (i) the geolocation and (ii) timestamp of surveys or deworming treatment. That way we were able to make sure enumerators were surveying the correct households based on geolocations collected during the census, and to make sure that all points-of-treatment were active at the correct times and in the expected locations.
 
 # Analysis
 
