@@ -103,7 +103,7 @@ Our main questions are:
   
 The experiment contains 9 treatment arms to separately identify these mechanisms, as shown in the below table. 
 
-|                             | Control  | Ink | Bracelet | Calendar |
+|                             | Control  | Ink | Calendar | Bracelet |
 |-----------------------------|:--------:|:---:|:--------:|:--------:|
 | No SMS                      | 1        | 4   | 6        | 8        |
 | Reminder SMS                | 2        | --- | ---      | ---      |
@@ -115,26 +115,34 @@ Below are the hypotheses we will investigate based on the cells in Table \ref{ta
 
 1.  _Incentive vs. no incentive treatment_ 
 
-    (i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up (comparing 1 vs. 4, 6 or 8). 
-    (ii) Comparing 1 vs. 4 and  8 vs. 6 identifies the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision.^[We will first compare take-up for non-incentive vs. incentive clusters for the sample of phone and non-phone owners, excluding SMS treatment individuals. In a second step we will only focus on phone-owners to separate the different social incentive effects.]
+    (i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. 
+    (ii) Comparing 1 vs. 4 and  6 vs. 8 identifies the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision.^[We will first compare take-up for non-incentive vs. incentive clusters for the sample of phone and non-phone owners, excluding SMS treatment individuals. In a second step we will only focus on phone-owners to separate the different social incentive effects.]
 
-2. _Social vs. no social incentives treatment for text message treatment individuals_ 
+2. _Social incentives vs. no social incentives for text message treatment individuals_ 
 
-    Comparing individuals that received reminders and social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
-    (i) Comparing 3 vs. 5 we identify the effect of signaling using ink 
-    (ii) Comparing 9 vs. 7 the effect of social signaling through bracelets 
+    Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
+    (i) Comparing 3 vs. 4 we identify the effect of signaling using ink; 
+    (ii) Comparing 7 vs. 8 the effect of social signaling through bracelets. 
     
-    A comparison only among text message recipients allows us to control for the reminder and social learning effects of ink or bracelets and separately identify signaling. 
+3. _No text message treatment vs. text message reminders and social information_
 
-3. _Text message treatment with social information vs. no text messages for social incentive individuals_ 
-
-    Comparing 4 vs. 5 and 6 vs. 7 we identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. If we find no significant differences, reminders or information about others' choices play either no role for individual decision-making or the ink and bracelet incentives already acted as strong reminders and ways to observe others' actions. To distinguish the two we look at the effects of text messages among no incentive individuals. 
+    Using the comparison from 1. where we identified the combined effect of reminders, social learning and social signaling and the comparison from 2. where we separately identified social signaling, we can identify the effect of reminders and social learning on deworming take-up:
+    (i) Differencing 7 vs. 8 from 6 vs. 8 we identify reminder and social learning effects for ink;
+    (ii) Differencing 3 vs. 4 from 1 vs. 4 we identify reminder and social learning effects for bracelets.
+    
+  We will test for differences in reminder and social learning effects between (i) and (ii).
 
 4. _Text message reminders and social information treatments vs. no text messages for no incentive individuals_
-
-    Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify whether reminders or social learning are relevant in the context of deworming take-up decisions. 
+    
+    Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
 
 We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
+
+
+5. _Text message treatment with social information vs. no text messages for social incentive individuals_ 
+
+    Comparing 4 vs. 5 and 8 vs. 9 we identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
+
 
 # Experiment Design
 
