@@ -149,8 +149,8 @@ This study adopted a cluster randomized experiment to make causal inferences add
 
 All communities in the experiment were be provided with:
 
-* Deworming treatment at a point-of-treatment/central location;
-* An outreach campaign providing information on the location and duration of treatment, as well as framing the public good aspect of deworming.
+* Deworming treatment at a central location (point-of-treatment);
+* An outreach campaign providing information on the location and duration of treatment, the incentives that would be offered, as well as framing the public good aspect of deworming.
 
 We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
 
@@ -162,7 +162,7 @@ From each cluster the following samples were selected (more details [below](#dat
         + Deworming reminders and
         + Information on peer deworming;
     - A stratified sample of phone and non-phone owners
-        + Phone owners are used as controls for the text messaging treatment
+        + Phone owners are used as controls for the text messaging treatment and 
         + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population. 
 
     We split this sample into two groups: 
@@ -182,15 +182,15 @@ In the experiment there were two levels of randomized treatment assignment.
 
 1. At the cluster level, there will be four groups:
     (i) a control group;
-    (ii) a private incentive group: wall calendars provided as gifts to treatment compliers;
-    (iii) a low private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
+    (ii) a low/no private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
+    (iii) a private incentive group: wall calendars provided as gifts to treatment compliers;
     (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers. 
 2. At the individual level, there will be three groups:
     (i) the control group, composed of a stratified sample of
         a. phone owners and
         b. non-phone owners;
     (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available;
-    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their village.
+    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their community.
 
 ## Cluster Selection Algorithm
 
@@ -280,7 +280,7 @@ Given an intracluster correlation (for the random effects logit latent model use
 
 ### Census
 
-A census of all households in _targeted villages_ will be conducted before the treatment intervention. It will be used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information on all adults, 15 years of age or older:
+A census of all households in _targeted villages_ was conducted before the treatment intervention. It was used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information on all adults, 15 years of age or older:
 
 a) Name
 b) Gender
