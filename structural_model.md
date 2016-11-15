@@ -63,3 +63,28 @@ V^*_{ij}(calendar) + S^*_{ij}(calendar) \sim \mathcal{N}(\mu_{c,total}, \sigma^2
 V^*_{ij}(bracelet) + S^*_{ij}(bracelet) \sim \mathcal{N}(\mu_{b,total}, \sigma^2_{b,total})
 \end{aligned}
 $$
+
+## Estimating the Social Impact of Bracelets
+
+We want to estimate two causal effects of the bracelets treatment (as a social incentive) by comparing  it to the calendar (private incentive) treatment.
+
+1. The social impact in the bracelet treatment arm, $Z_j = bracelet$
+\begin{equation}
+\frac{\sum_i^N Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(bracelet)) - Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(calendar)) }{N} \label{eqn:social_in_b}
+\end{equation}
+
+2. The social impact in the calendar treatment arm, $Z_j = calendar$
+\begin{equation}
+\frac{\sum_i^N Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(bracelet)) - Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(calendar)) }{N} \label{eqn:social_in_c}
+\end{equation}
+
+The challenge in estimating these effects is the need to impute unobservable deworming outcomes, where the treatment assignments to $V^*_{ij}(z)$ and $S^*_{ij}(z')$ are different. Thus, aside from having to impute the missing values
+$$ 
+Y^{mis}_{ij} = \begin{cases} 
+  Y_{ij}(calendar) & \text{if } Z_{j} \ne calendar \\ 
+  Y_{ij}(bracelet) & \text{if } Z_{j} \ne bracelet
+\end{cases} 
+$$
+which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. We plan to structurally estimate a model to identify the \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c}.
+
+ADD: sentence about how we will test these assumptions about equality of reminders and social learning, by looking at data we collected on beliefs updating, information that people have about availability of treatment, duration etc. 

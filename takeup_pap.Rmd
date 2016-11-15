@@ -64,7 +64,7 @@ One possibility is to incentivize compliance with MDA by focusing the program's 
 
 This pre-analysis plan outlines our strategy to test the theory of social signaling through a randomized field experiment in the context of deworming decisions. 
  
-The remainder of this document is organized as follows. Sections II and III describe the intervention and research questions. Section IV discusses the experimental design. Section V describes the different data collected and sample selection. Finally, Section VI outlines the main empirical specifications.
+The remainder of this document is organized as follows. Sections \ref{intervention} and \ref{research-questions} describe the intervention and research questions. Section \ref{experiment-design} discusses the experimental design. Section \ref{data-collection} describes the different data collected and sample selection. Finally, Section \ref{analysis} outlines the main empirical specifications.
 
 # Intervention
 
@@ -114,7 +114,7 @@ The experiment contains 9 treatment arms to separately identify these mechanisms
 
 :Cluster-level Treatment Arms\label{tab:cluster-level-treatment}
 
-Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the [Analysis] Section VI.
+Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the  Section \ref{analysis}.
 
 1.  _Incentive vs. no incentive treatment._ 
 
@@ -167,6 +167,8 @@ From each cluster the following samples were selected (more details [below](#dat
     - A stratified sample of phone and non-phone owners
         + Phone owners are used as controls for the text messaging treatment and 
         + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population. 
+        
+      We used a stratified sample to make sure our text messaging control group has enough people.
 
     We split this sample into two groups: 
       * Endline survey respondents (stratified between text message recipients and non-recipients);
@@ -176,7 +178,7 @@ From each cluster the following samples were selected (more details [below](#dat
 
 The experiment was carried out in 18 subcounties in Western Kenya, randomized at the cluster level. A _cluster_ was composed of 
 
-(i) a centralized _point-of-treatment (PoT)_ at an easily identifiable location (e.g. near a ~~primary school~~ church/mosque), and
+(i) a centralized _point-of-treatment (PoT)_ at an easily identifiable location (e.g. near a church/mosque), and
 (ii) a _targeted village_ where we conducted an outreach campaign^[Other communities were not denied treatment, but our analysis is focused on targeted villages.].
 
 ## Experimental Manipulation
@@ -298,9 +300,10 @@ From each cluster a random sample of 15 censused households were selected and fr
 * Identified individuals were tagged as dewormed, for others we collected some personal information to conduct a match with the group to monitor (in case enumerators miss any)
 
 ### SMS Airtime Reward
-describe how you randomly selected from each cluster, for each SMS treatment, 2 people i.e. for control arm 2 people from reminder and 2 people from reminder + peer info SMS treatment; for incentive arms 2 people from reminder + peer info SMS treatment to receive reward message. One of the 2 people was then randomly assigned to receive the reward message on day 2 of deworming and the other person on day 6 of deworming.
 
 As described in the [Intervention] section, a number of text message treatment recipients will receive a message offering a free one time reward. Two people per cluster were randomly picked for each of the reminders and social information text message groups. Thus in each control cluster four individuals were picked and in each incentive treatment cluster two people were picked. 
+
+Through the SMS airtime reward treatment we get a lower bound for information take-up for our SMS treatment. People may be hesitant to reply to the reward messages, inspite of reading the reminder and peer information text messages. We therefore further interviewed people in the endline about whether or not they received text messages, their knowledge about the content of the text messages and the number of text messages they have received. 
 
 ## Post-Intervention
 
@@ -312,6 +315,20 @@ From each cluster we randomly picked 25 individuals for an endline survey
 * For incentive treatment clusters we randomly picked 20 individuals who did not receive any text messaging treatment and 5 individuals who received reminders and social information text messages.
 
 (see appendices for endline survey instrument).
+
+We will use the endline data to generate descriptive statistics that allow us to verify (a) people's knowledge about the availability of treatment, (b) the proper implementation of treatment, (c) people's understanding and awareness of the incentives. Specifically we will look at:
+
+- people's knowledge about the start and end date and duration of deworming treatment;
+- whether people were visited by a CHV prior to deworming;
+- whether people received a deworming flyer;
+- whether deworming treatment was offered for free;
+
+- whether people had seen the incentive; 
+- conditional on receiving an incentive, whether people retained/wore it; 
+- people's knowledge about the meaning of the incentive;
+- whether other people in the household had also come for deworming/received the incentive. 
+
+We will further use the endline data to try and verify some of the assumptions made in the Section \ref{analysis}. We will compare the accuracy of beliefs about deworming take-up at the community level between social incentives and no social incentives individuals that received text messages. 
 
 ### Social Knowledge
 
@@ -474,33 +491,6 @@ D^*_{ij} = V^*_{ij}(calendar) - V^*_{ij}(bracelet),
 $$
 the latent difference in utility between calendars and bracelets. We will estimate this difference from the survey observational data.
 
-<!-- ## Cluster Level Treatment Specifications -->
-
-<!-- The first specifications comparing the finite sample impact of various treatment arms and text message treatment are -->
-<!--  \[ \frac{\sum_{j=1}^J Y_j(z') - Y_j(z)}{J}, \] -->
-<!--  and -->
-<!-- \[ \frac{\sum_{i=1}^N Y_{ij}(z', none) - Y_{ij}(z, none)}{N} \] -->
-<!--  at the cluster level.  -->
-
-<!--  We will estimate these models using Neyman's repeated sampling approach or by regression analysis -->
-<!--  \[ Y_j = \alpha_1 + \beta_1 \cdot Z_j + \varepsilon_{j} \] -->
-<!--  and -->
-<!--  \[ Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \nu_{ij} \] -->
-
-<!-- [Include stratification]  -->
-
-<!-- ## Cross-cut with Reminders and Informational Messages -->
-
-<!-- To assess the impact reminder and social information text messages we will estimate the finite sample impact -->
-<!-- \[ \frac{\sum_{i=1}^N Y_{ij}(z', m) - Y_{ij}(z, m)}{N} \] -->
-<!-- and -->
-<!-- \[ \frac{\sum_{i=1}^N Y_{ij}(z, m') - Y_{ij}(z, m)}{N} \] -->
-<!-- at the individual level. This will be done using Neyman's repeated sample approach and by regression analysis -->
-
-<!-- $$ -->
-<!-- Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{m \in \mathcal{M}\setminus \{none\}}\delta_m \cdot \mathbbm{1}\{M_{ij} = m\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, m \in \mathcal{M}} \gamma_{km}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{M_{ij} = m\} + \nu_{ij}  -->
-<!-- $$ -->
-
 ## Social Information
 
 As secondary outcome, in addition to deworming take-up, we will look at individuals' beliefs/knowledge about others' deworming decision. Using the information collected in the social knowledge section of the endline survey, we will look at whether people know or do not know about others' deworming take-up, whether they are more/less correct about their decisions, whether they are are more/less correct for yes/no answers and make a comparison between social incentive and control individuals. 
@@ -520,35 +510,12 @@ Deworming treatment was offered over a period of 12 days. We will look at the di
 
 ## Sample Selection
 
-As described in Section \ref{intervention} our sampling will be stratified based on individuals' phone ownership (collected in the census).
+As described in Section \ref{sampling-identification} our sampling will be stratified based on individuals' phone ownership (collected in the census). A random sample of 25 individuals per clusters were selected in the group without text messaging treatment, $M_{ij} = none$: 17 individuals were selected to be phone owners and 8 were selected to be non phone owners. While this distribution is similar to that observed in the population, we will still need to correct our estimation.
 
 ## Inter-cluster Spillover
 
-We test for the possibility of spillovers or contamination due to cluster proximity. As mentioned in Section \ref{cluster-selection-algorithm} clusters were selected such that there is geographic buffer  between them. However, this is not sufficient guarantee that people would travel farther than we anticipated. 
+We will test for the possibility of spillovers or contamination due to cluster proximity. As mentioned in Section \ref{cluster-selection-algorithm} clusters were selected with a geographic buffer between them. However, this is not sufficient guarantee that people would travel farther than we anticipated. Thus we need to test the hypothesis that individuals in our monitored sample have received deworming outside their cluster, and should we fail to reject this hypothesis is sufficient precision we will need to model this spillover in our econometric models.
 
-## Estimating the Social Impact of Bracelets
+## Multiple Hypotheses Testing
 
-We want to estimate two causal effects of the bracelets treatment (as a social incentive) by comparing  it to the calendar (private incentive) treatment.
-
-1. The social impact in the bracelet treatment arm, $Z_j = bracelet$
-\begin{equation}
-\frac{\sum_i^N Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(bracelet)) - Y_{ij}(V^*_{ij}(bracelet), S^*_{ij}(calendar)) }{N} \label{eqn:social_in_b}
-\end{equation}
-
-2. The social impact in the calendar treatment arm, $Z_j = calendar$
-\begin{equation}
-\frac{\sum_i^N Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(bracelet)) - Y_{ij}(V^*_{ij}(calendar), S^*_{ij}(calendar)) }{N} \label{eqn:social_in_c}
-\end{equation}
-
-The challenge in estimating these effects is the need to impute unobservable deworming outcomes, where the treatment assignments to $V^*_{ij}(z)$ and $S^*_{ij}(z')$ are different. Thus, aside from having to impute the missing values
-$$ 
-Y^{mis}_{ij} = \begin{cases} 
-  Y_{ij}(calendar) & \text{if } Z_{j} \ne calendar \\ 
-  Y_{ij}(bracelet) & \text{if } Z_{j} \ne bracelet
-\end{cases} 
-$$
-which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. We plan to structurally estimate a model to identify the \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c}.
-
-
-ADD: sentence about how we will test these assumptions about equality of reminders and social learning, by looking at data we collected on beliefs updating, information that people have about availability of treatment, duration etc. 
-
+While we only have a small set of outcomes that we would be analyzing (mainly deworming take-up), there is significant number of treatments (cluster level and individual) we will use to investigate the various behavioral mechanism driving observed behavior. Therefore, we will we correct our inference to account for this.
