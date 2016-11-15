@@ -2587,11 +2587,12 @@ all.sms.recruit.data %>%
 ```
 
 ```{r plot-sms-recruit-code}
+
 plot.sms.recruit <- function(cluster.ids, .data, sample.data, ...) {
   select.cluster.hhs <- . %>% 
     filter(cluster.id %in% cluster.ids, # | closest.cluster %in% cluster.ids,
            !is.na(lon) & !is.na(lat))
-  
+
   .data %<>% 
     select.cluster.hhs %>% {
       if (!empty(.)) set.hh.prox.type(., cluster.ids)
@@ -2603,10 +2604,10 @@ plot.sms.recruit <- function(cluster.ids, .data, sample.data, ...) {
   
   if (any(.data$far.from.census, na.rm = TRUE)) {
     plot.obj <- plot.obj +
-      geom_point(aes(lon, lat), shape = 5, size = 5, stroke = 1, color = "darkred", data = .data %>% filter(far.from.census))
+      geom_point(aes(lon, lat), shape = 5, size = 5, stroke = 1, color = "blue", data = .data %>% filter(far.from.census))
   }
   
-  plot(plot.obj)
+  return(plot.obj)
 }
 ```
 
@@ -2617,10 +2618,11 @@ sms.recruit.data %>%
   filter(wave == 1) %>% 
   with(union(cluster.id, NULL)) %>% 
   purrr::discard(is.na) %>% 
-  walk(plot.sms.recruit, 
+  map(plot.sms.recruit, 
        filter(sms.recruit.data, consent == 1), 
        filter(hh.census.data, !is.na(sms.treatment)), 
-       use.google.maps = FALSE)
+       use.google.maps = FALSE) %>% 
+  walk(plot)
 ```
 
 ### Wave 2 Maps
@@ -2630,10 +2632,11 @@ sms.recruit.data %>%
   filter(wave == 2) %>% 
   with(union(cluster.id, NULL)) %>% 
   purrr::discard(is.na) %>% 
-  walk(plot.sms.recruit, 
+  map(plot.sms.recruit, 
        filter(sms.recruit.data, consent == 1), 
        filter(hh.census.data, !is.na(sms.treatment)), 
-       use.google.maps = FALSE)
+       use.google.maps = FALSE) %>% 
+  walk(plot)
 ```
 
 ```{r, eval=FALSE}
@@ -3421,7 +3424,9 @@ all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#Submis
   } %>% 
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
-  filter(wave == 1 | test == 1) %>% 
+  filter(cluster.id != 1163 | SubmissionDate >= "2016-11-14") %>% # Data fabricated by enumerators 111
+  # filter(wave == 1 | test == 1 | date(SubmissionDate) == "2016-11-7") %>% 
+  filter(date(SubmissionDate) != "2016-11-7" | test == 1) %>% 
   left_join(identify.closest.cluster(.), "KEY") %>% 
   left_join(select(census.data, KEY.individ, lon, lat), "KEY.individ", suffix = c(".survey", ".census")) %>% 
   rename(lon = lon.survey, lat = lat.survey) %>% 
@@ -3472,8 +3477,20 @@ if (bc.diff > 0) {
 #   write_csv("takeup_endline_backchecks_wave1_1.0.csv")
 ```
 
-```{r}
-plot.endline <- plot.sms.recruit
+```{r plot-endline-code}
+plot.endline <- function(cluster.ids, .data, ...) {
+  select.cluster.hhs <- . %>% 
+    filter(cluster.id %in% cluster.ids, # | closest.cluster %in% cluster.ids,
+           !is.na(lon) & !is.na(lat))
+  
+  .data %<>% 
+    select.cluster.hhs 
+  
+  plot.obj <- plot.sms.recruit(cluster.ids, .data, ...)
+ 
+  plot.obj + 
+    geom_point(aes(lon, lat), shape = 5, size = 5, stroke = 1, color = "darkred", data = .data %>% filter(wave == 2, test != 1))
+}
 ```
 
 ## Maps
@@ -3485,17 +3502,26 @@ all.endline.data %>%
   filter(wave == 1) %>% 
   with(union(cluster.id, closest.cluster)) %>% 
   purrr::discard(is.na) %>% 
-  walk(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE)
+  map(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE) %>% 
+  walk(plot)
 ```
 
 ### Wave 2 
+ 
+```{r, eval=FALSE}
+to.follow.up.on <- c("uuid:ea9ae571-ac44-4820-ab7e-99efda8227d7",
+                     "uuid:48d2f3fa-3dfe-4ac5-a9e5-b5a9eca59763",
+                     "uuid:23647755-bc2f-42ae-9dfd-c9161c5d1460")
+```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
 all.endline.data %>% 
-  filter(wave == 2) %>% 
+  filter(wave == 2,
+         !KEY %in% c("uuid:dbc12f70-9203-4d90-aacb-4c1ac3e1dbd5")) %>%  # Finalized in office
   with(union(cluster.id, closest.cluster)) %>% 
   purrr::discard(is.na) %>% 
-  walk(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE)
+  map(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE) %>% 
+  walk(plot)
 ```
 
 ## Knowledge Tables
