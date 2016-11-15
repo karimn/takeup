@@ -13,8 +13,11 @@ output:
 header-includes:
    - \usepackage{pxfonts}
    - \usepackage{bbm}
+   - \usepackage{setspace}
 abstract: "This document describes the analysis plan for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. This pre-analysis plan outlines the empirical specifications, outcome variables, and covariates that will be considered in this analysis." 
 ---
+
+\doublespacing
 
 ```{r setup, include=FALSE}
 library(magrittr)
@@ -143,7 +146,7 @@ Below are the hypotheses we will investigate based on the cells in Table \ref{ta
 
 # Experiment Design
 
-## Sampling and Identification Strategy
+## Sampling and Identification Strategy { #sampling-identification }
 
 This study adopted a cluster randomized experiment to make causal inferences addressing our research questions. We selected three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
 
@@ -289,17 +292,28 @@ From each cluster a random sample of 15 censused households were selected and fr
 ## Mid-Intervention
 
 ### Treatment Take-up Monitoring
-describe how you monitored PoT actvities?
+
+* The individuals to monitor are described in \ref{sampling-identification}
+* Enumerator's data collection devices pre-loaded with identifying information
+* Identified individuals were tagged as dewormed, for others we collected some personal information to conduct a match with the group to monitor (in case enumerators miss any)
 
 ### SMS Airtime Reward
 describe how you randomly selected from each cluster, for each SMS treatment, 2 people i.e. for control arm 2 people from reminder and 2 people from reminder + peer info SMS treatment; for incentive arms 2 people from reminder + peer info SMS treatment to receive reward message. One of the 2 people was then randomly assigned to receive the reward message on day 2 of deworming and the other person on day 6 of deworming.
 
+<<<<<<< HEAD
 Through the SMS airtime reward treatment we get a lower bound for information take-up for our SMS treatment. People may be hesitant to reply to the reward messages, inspite of reading the reminder and peer information text messages. We therefore further interviewed people in the endline about whether or not they received text messages, their knowledge about the content of the text messages and the number of text messages they have received. 
+=======
+As described in the [Intervention] section, a number of text message treatment recipients will receive a message offering a free one time reward. Two people per cluster were randomly picked for each of the reminders and social information text message groups. Thus in each control cluster four individuals were picked and in each incentive treatment cluster two people were picked. 
+>>>>>>> origin/master
 
 ## Post-Intervention
 
 ### Endline Household Survey
-describe how you selected endline survey people? you already did that before though?
+
+From each cluster we randomly picked 25 individuals for an endline survey
+
+* For control clusters we randomly picked 15 individuals who did not receive any text messaging treatment, 5 individuals who received reminders and 5 individuals who received reminders and social information text messages.
+* For incentive treatment clusters we randomly picked 20 individuals who did not receive any text messaging treatment and 5 individuals who received reminders and social information text messages.
 
 (see appendices for endline survey instrument).
 
@@ -318,15 +332,18 @@ We will use the endline data to generate descriptive statistics that allow us to
 We will further use the endline data to try and verify some of the assumptions made in the [Analysis] Section VI. We will compare the accuracy of beliefs about deworming take-up at the community level between social incentives and no social incentives individuals that received text messages. 
 
 ### Social Knowledge
-As part of the endline survey, we surveyed respondents about their knowledge/beliefs about other people's deworming take-up. describe how endline respondents either received a social knowledge table where they were asked about specific individuals or a social knowledge table where they were asked about pairs of people in their community. state no of individuals, 10? no of pairs each endline person received? state how these people were chosen? 
+
+Every endline respondent will be either asked about ten of their community members' deworming status, or ten pairs of individuals to allow them to provide information about their community members' deworming without identifying exact individuals' deworming status. The individuals respondents will be asked about are from either the endline survey sample or the reconsent-only sample, thus they are individuals whose deworming status will be known to us.
 
 ## Data Quality
 
 ### Backchecks
+
 Following standard procedure, we performed backchecks consisting of 10% of the sample of baseline and endline survey respondents, as well as individuals that were recruited for the SMS treatment. Backcheck surveys focused on non-changing information.
 
 ### Geographic and Time Monitoring
-Describe work you did daily 
+
+All data collection was done using electronic devices, providing us with (i) the geolocation and (ii) timestamp of surveys or deworming treatment. That way we were able to make sure enumerators were surveying the correct households based on geolocations collected during the census, and to make sure that all points-of-treatment were active at the correct times and in the expected locations.
 
 # Analysis
 
@@ -375,38 +392,90 @@ $$
 $$
  We can also use the simplified notation $\tau[z,z';q] \equiv \tau[(z, none), (z', none); q]$ and $\tau[z,z'] \equiv \tau[(z, none), (z', none)]$.  
 
-### Incentive vs. no incentive treatment 
+Unless otherwise stated, all estimates will be tested for significance using two-sided hypothesis tests where the null hypothesis is a zero treatment effect. 
+$$
+  H_0: \tau(\cdot, \cdot) = 0
+$$
 
-(i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. We will conduct a two-sided joint hypothesis test for 
+### Incentive vs. no incentive treatment { #incentive-vs-no-incentive-hypo }
+
+The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. We will estimate
+  
+\begin{equation} 
+  \tau[ink, control] \equiv \tau[(V^*(ink), S^*(ink)), (V^*(control), S^*(control))]
+\end{equation}
+
+If we assume that $V*(control) = V^*(ink)$, this is an estimate of the impact ink's social influence $S^*(ink) - S^*(control)$ on deworming take-up. We will also estimate
+
+\begin{equation}
+\tau[bracelet, calendar] \equiv \tau[(V^*(bracelet), S^*(bracelet)), (V^*(calendar), S^*(calendar))]
+\end{equation}
+
+If we assume that $V^*(calendar) = V^*(bracelet)$, this is an estimate of the impact bracelets' social influence $S^*(bracelet) - S^*(calendar)$ on deworming take-up.
+      
+Both these estimates would identify the combined effect of social incentives, $S^*(\cdot)$: 
+
+(a) Acting as reminders, $R^*(\cdot)$, 
+(b) Making observable others' deworming decision, $L^*(\cdot)$, and 
+(c) Allowing people to signal their decision, $G^*(\cdot)$.
+
+We will also conduct the joint hypothesis test 
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
-(ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) allowing for social learning by making observable others' deworming decision and (c) allowing people to signal their decision and test
-\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, calendar] = 0 \] 
 
-### Social vs. no social incentives treatment for text message treatment individuals 
+### Social vs. no social incentives treatment for text message treatment individuals { #social-incentive-hypo }
 
-Comparing individuals that received reminders and social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
+Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions. We will estimate
 
-(i) We will estimate the effect of signaling using ink and test 
-\[ H_0: \tau[(ink, socialinfo), (control, socialinfo); phone] = 0 \]
-(ii) We will estimate the effect of social signaling through bracelets and test
-\[ H_0: \tau[(bracelets, socialinfo), (calendar, socialinfo); phone] = 0 \]
+\begin{align} 
+  \tau[(ink, none), (control, socialinfo)] \equiv \tau[&(V^*(ink, none), S^*(ink, none)), \\ \nonumber
+  &(V^*(control, socialinfo), S^*(control, socialinfo))]
+\end{align}
+
+If we assume that $R^*(ink, none) = R^*(control, socialinfo)$ and $L^*(ink, none) = L^*(control, socialinfo)$, this is an estimate of the impact of $G^*(ink) - G^*(control)$ on deworming take-up. We will also estimate
+
+\begin{align} 
+  \tau[(bracelet, none), (calendar, socialinfo)] \equiv \tau[&(V^*(bracelet, none), S^*(bracelet, none)), \\ \nonumber
+  &(V^*(calendar, socialinfo), S^*(calendar, socialinfo))]
+\end{align}
+  
+If we assume that $R^*(bracelet, none) = R^*(calendar, socialinfo)$, $L^*(bracelet, none) = L^*(calendar, socialinfo)$, and $V^*(calendar) = V^*(bracelet)$ this is an estimate of the impact of $G^*(bracelet) - G^*(calendar)$ on deworming take-up.
     
-### Text message treatment with social information vs. no text messages for social incentive individuals 
+### No text message treatment vs. text message reminders and social information
 
-We will estimate the additional reminder and social learning effects of text messages in the presence of social incentives and test jointly 
-\[ H_0: \tau[(ink, socialinfo), (ink, none); phone] = 0 \land \tau[(bracelet, socialinfo), (bracelet, none); phone] = 0 \]
-as well as separately
-\[ H_0: \tau[(ink, socialinfo), (ink, none); phone] = 0 \]
+Using estimates from \ref{incentive-vs-no-incentive-hypo} where we identified the combined effect of reminders, social learning and social signaling and the comparison from \ref{social-incentive-hypo} where we separately identified social signaling, we can identify the effect of reminders and social learning on deworming take-up. We will estimate
+
+\begin{align}
+  \tau[(ink, none), &(control, socialinfo)] - \tau[(ink, none), (control, none)] \equiv \nonumber \\ &\tau[control, socialinfo), (ink, none)]
+\end{align}
+to identify the combined effect of $R^*(ink)$ and $L^*(ink)$ on deworming take-up; and we will estimate
+\begin{align}
+  \tau[(bracelet, none), &(calendar, socialinfo)] - \tau[(bracelet, none), (calendar, none)] \equiv \nonumber \\ &\tau[(calendar, socialinfo), (calendar, none)]
+\end{align}
+to identify the combined effect of $R^*(bracelet)$ and $L^*(bracelet)$ on deworming take-up.
+
+### Text message reminders and social information treatments vs. no text messages for no incentive individuals ###
+
+We will estimate 
+\begin{equation}
+  \tau[(control, reminders), (control, none)]
+\end{equation}
 and
-\[ H_0: \tau[(bracelet, socialinfo), (bracelet, none); phone] = 0 \]
-    
-### Text message reminders and social information treatments vs. no text messages for no incentive individuals
+\begin{equation}
+  \tau[(control, socialinfo), (control, reminders)]
+\end{equation}
+to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
 
-We will estimate the effect of reminders and information about others' treatment decisions on deworming take-up, test
-\[ H_0: \tau[(control, reminders), (control, none); phone] = 0 \]
-to see whether reminders have an effect on deworming take-up, and test
-\[ H_0: \tau[(control, socialinfo), (control, reminders); phone] = 0 \]
-to see if social information (by text messages) has any additional effect.
+### Text message treatment with social information vs. no text messages for social incentive individuals
+
+We will estimate
+\begin{equation}
+  \tau[(ink, socialinfo), (ink, none)]
+\end{equation}
+and
+\begin{equation}
+  \tau[(bracelet, socialinfo), (bracelet, none)]
+\end{equation}
+to identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
 
 ### Calendar/Bracelet Preference Survey
    
