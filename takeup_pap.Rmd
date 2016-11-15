@@ -289,20 +289,28 @@ From each cluster a random sample of 15 censused households were selected and fr
 ## Mid-Intervention
 
 ### Treatment Take-up Monitoring
+describe how you monitored PoT actvities?
 
 ### SMS Airtime Reward
+describe how you randomly selected from each cluster, for each SMS treatment, 2 people i.e. for control arm 2 people from reminder and 2 people from reminder + peer info SMS treatment; for incentive arms 2 people from reminder + peer info SMS treatment to receive reward message. One of the 2 people was then randomly assigned to receive the reward message on day 2 of deworming and the other person on day 6 of deworming.
 
 ## Post-Intervention
 
 ### Endline Household Survey
+describe how you selected endline survey people? you already did that before though?
+
+(see appendices for endline survey instrument).
 
 ### Social Knowledge
+As part of the endline survey, we surveyed respondents about their knowledge/beliefs about other people's deworming take-up. describe how endline respondents either received a social knowledge table where they were asked about specific individuals or a social knowledge table where they were asked about pairs of people in their community. state no of individuals, 10? no of pairs each endline person received? state how these people were chosen? 
 
 ## Data Quality
 
 ### Backchecks
+Following standard procedure, we performed backchecks consisting of 10% of the sample of baseline and endline survey respondents, as well as individuals that were recruited for the SMS treatment. Backcheck surveys focused on non-changing information.
 
 ### Geographic and Time Monitoring
+Describe work you did daily 
 
 # Analysis
 
@@ -355,7 +363,7 @@ $$
 
 (i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. We will conduct a two-sided joint hypothesis test for 
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
-(ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision and test
+(ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) allowing for social learning by making observable others' deworming decision and (c) allowing people to signal their decision and test
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, calendar] = 0 \] 
 
 ### Social vs. no social incentives treatment for text message treatment individuals 
@@ -426,17 +434,22 @@ the latent difference in utility between calendars and bracelets. We will estima
 <!-- Y_{ij} = \alpha_2 + \sum_{k \in \mathcal{Z}\setminus \{control\}} \beta_{k} \cdot \mathbbm{1}\{Z_j = k\} + \sum_{m \in \mathcal{M}\setminus \{none\}}\delta_m \cdot \mathbbm{1}\{M_{ij} = m\} + \sum_{k\in \mathcal{Z}\setminus\{control\}, m \in \mathcal{M}} \gamma_{km}\cdot \mathbbm{1}\{Z_j = k\} \times \mathbbm{1}\{M_{ij} = m\} + \nu_{ij}  -->
 <!-- $$ -->
 
+## Social Information
+
+As secondary outcome, in addition to deworming take-up, we will look at individuals' beliefs/knowledge about others' deworming decision. Using the information collected in the social knowledge section of the endline survey, we will look at whether people know or do not know about others' deworming take-up, whether they are more/less correct about their decisions, whether they are are more/less correct for yes/no answers and make a comparison between social incentive and control individuals. 
 
 ## Heterogeneity
 
-We will be investigating heterogeneity of impact (as described in the [main hypotheses section above](#main-hypo)) based on the following 
+We will be investigating heterogeneity of impact on deworming take-up (as described in the [main hypotheses section above](#main-hypo)) based on the following:
 
-1. The village to point-of-treatment distance binary characteristic (discussed in the [Village and Point-of-Treatment Selection] section above) 
+1. The village to point-of-treatment distance binary characteristic (discussed in the [Village and Point-of-Treatment Selection] section above).
 
+2. The household to household distance within clusters, creating a density measure per cluster that allows us to investigate if proximity affects the effectiveness of social incentives. 
+
+We will further investigate heterogeneity of impact on individuals' beliefs and knowledge about others' deworming take-up based on the geographic proximity between the individual and others in her village. 
 
 ## Temporal Dynamics
-
-## Social Information
+Deworming treatment was offered over a period of 12 days. We will look at the distribution of take-up over time comparing social incentive to control clusters. 
 
 ## Sample Selection
 
@@ -464,5 +477,9 @@ Y^{mis}_{ij} = \begin{cases}
 \end{cases} 
 $$
 which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. We plan to structurally estimate a model to identify the \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c}.
+
+
+ADD: sentence about how we will test these assumptions about equality of reminders and social learning, by looking at data we collected on beliefs updating, information that people have about availability of treatment, duration etc. 
+
 
 # References
