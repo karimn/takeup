@@ -73,7 +73,7 @@ We identified 150 central locations in the 3 selected counties. Central location
 3) CHVs give adults a one-page calendar for 2017; 
 4) Only deworming treatment is provided and no incentive. 
 
-We mapped communities that fall within a 2.5km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming started and on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service was free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: 
+We mapped communities that fall within a 2.5 km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming started and on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service was free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: 
 
 > Free deworming now at [Central Location]. Reply ___ to _____ stop texts. All texts are free.
 
@@ -111,7 +111,7 @@ The experiment contains 9 treatment arms to separately identify these mechanisms
 
 :Cluster-level Treatment Arms\label{tab:cluster-level-treatment}
 
-Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the [Analysis] section below.
+Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the [Analysis] Section VI.
 
 1.  _Incentive vs. no incentive treatment_ 
 
@@ -136,7 +136,7 @@ Below are the hypotheses we will investigate based on the cells in Table \ref{ta
     
     Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
 
-We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
+We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has a low or no private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and not associated with voting or other sensitive topics. However, bracelets are more expensive to produce and might be privately valued. Given these advantages and disadvantages we tested both. 
 
 
 5. _Text message treatment with social information vs. no text messages for social incentive individuals_ 
