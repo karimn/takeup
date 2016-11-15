@@ -67,7 +67,7 @@ The remainder of this document is organized as follows. Sections II and III desc
 
 Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties in Western Kenya: Busia, Kakamega and Siaya County. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Deworming treatment was subsequently offered at central locations for a period of 12 days. 
 
-We identified 150 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
+We identified 144 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
 1) CHVs mark adults' fingers with ink; 
 2) CHVs give adults a green wrist bracelet; 
 3) CHVs give adults a one-page calendar for 2017; 
@@ -140,7 +140,6 @@ Below are the hypotheses we will investigate based on the cells in Table \ref{ta
 
     Comparing 4 vs. 5 and 8 vs. 9 we identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
 
-We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has a low or no private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and not associated with voting or other sensitive topics. However, bracelets are more expensive to produce and might be privately valued. Given these advantages and disadvantages we tested both. 
 
 # Experiment Design
 
