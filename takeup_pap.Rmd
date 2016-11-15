@@ -353,9 +353,16 @@ $$
 $$
  We can also use the simplified notation $\tau[z,z';q] \equiv \tau[(z, none), (z', none); q]$ and $\tau[z,z'] \equiv \tau[(z, none), (z', none)]$.  
 
+Unless otherwise stated, all estimates will be tested for significance using two-sided hypothesis tests where the null hypothesis is a zero treatment effect
+$$
+  H_0: \tau(\cdot, \cdot) = 0
+$$
+
 ### Incentive vs. no incentive treatment 
 
-(i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. We will conduct a two-sided joint hypothesis test for 
+(i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. 
+
+    We will conduct a two-sided joint hypothesis test for 
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
 (ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision and test
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, calendar] = 0 \] 
