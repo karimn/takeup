@@ -67,13 +67,13 @@ The remainder of this document is organized as follows. Sections II and III desc
 
 Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties in Western Kenya: Busia, Kakamega and Siaya County. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Deworming treatment was subsequently offered at central locations for a period of 12 days. 
 
-We identified 150 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
+We identified 144 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
 1) CHVs mark adults' fingers with ink; 
 2) CHVs give adults a green wrist bracelet; 
 3) CHVs give adults a one-page calendar for 2017; 
 4) Only deworming treatment is provided and no incentive. 
 
-We mapped communities that fall within a 2.5km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming started and on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service was free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: 
+We mapped communities that fall within a 2.5 km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming started and on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service was free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: 
 
 > Free deworming now at [Central Location]. Reply ___ to _____ stop texts. All texts are free.
 
@@ -111,35 +111,32 @@ The experiment contains 9 treatment arms to separately identify these mechanisms
 
 :Cluster-level Treatment Arms\label{tab:cluster-level-treatment}
 
-Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the [Analysis] section below.
+Below are the hypotheses we will investigate based on the cells in Table \ref{tab:cluster-level-treatment}. A formal description of these hypotheses can be found in the [Analysis] Section VI.
 
-1.  _Incentive vs. no incentive treatment_ 
+1.  _Incentive vs. no incentive treatment._ 
 
     (i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. 
-    (ii) Comparing 1 vs. 4 and  6 vs. 8 identifies the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision.^[We will first compare take-up for non-incentive vs. incentive clusters for the sample of phone and non-phone owners, excluding SMS treatment individuals. In a second step we will only focus on phone-owners to separate the different social incentive effects.]
+    (ii) Comparing 1 vs. 4 and  6 vs. 8 identifies the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and thereby facilitating social learning and (c) allowing people to signal their decision.^[We will first compare take-up for non-incentive vs. incentive clusters for the sample of phone and non-phone owners, excluding SMS treatment individuals. In a second step we will only focus on phone-owners to separate the different social incentive effects.]
 
-2. _Social incentives vs. no social incentives for text message treatment individuals_ 
+2. _Social incentives vs. no social incentives for text message treatment individuals._ 
 
     Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
     (i) Comparing 3 vs. 4 we identify the effect of signaling using ink; 
     (ii) Comparing 7 vs. 8 the effect of social signaling through bracelets. 
     
-3. _No text message treatment vs. text message reminders and social information_
+3. _No text message treatment vs. text message reminders and social information._
 
     Using the comparison from 1. where we identified the combined effect of reminders, social learning and social signaling and the comparison from 2. where we separately identified social signaling, we can identify the effect of reminders and social learning on deworming take-up:
     (i) Differencing 7 vs. 8 from 6 vs. 8 we identify reminder and social learning effects for ink;
     (ii) Differencing 3 vs. 4 from 1 vs. 4 we identify reminder and social learning effects for bracelets.
     
-  We will test for differences in reminder and social learning effects between (i) and (ii).
+  We will test for differences in reminder and social learning effects comparing (i) and (ii).
 
-4. _Text message reminders and social information treatments vs. no text messages for no incentive individuals_
+4. _Text message reminders and social information treatments vs. no text messages for no incentive individuals._
     
     Comparing 1 vs. 2 and 2 vs. 3 allows us to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
 
-We tested two different social signaling treatments, ink and bracelets, in this experiment. This research is meant to give insight into cost-effective methods to increase deworming take-up among adults. Ink has the advantages of its cost being close to zero, it has low oe private value and it is a well-known indicator for voting participation. However, ink is potentially less visible, not as lasting and might cause mistrust when used for non-voting activities. Bracelets on the other hand are highly visible and are not used as a signal in other contexts. However, bracelets are more expensive to produce and might be privately valued. Given these pros and cons we wanted to see the effect of both on deworming take-up.
-
-
-5. _Text message treatment with social information vs. no text messages for social incentive individuals_ 
+5. _Text message treatment with social information vs. no text messages for social incentive individuals._ 
 
     Comparing 4 vs. 5 and 8 vs. 9 we identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
 
@@ -152,8 +149,8 @@ This study adopted a cluster randomized experiment to make causal inferences add
 
 All communities in the experiment were be provided with:
 
-* Deworming treatment at a point-of-treatment/central location;
-* An outreach campaign providing information on the location and duration of treatment, as well as framing the public good aspect of deworming.
+* Deworming treatment at a central location (point-of-treatment);
+* An outreach campaign providing information on the location and duration of treatment, the incentives that would be offered, as well as framing the public good aspect of deworming.
 
 We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
 
@@ -165,7 +162,7 @@ From each cluster the following samples were selected (more details [below](#dat
         + Deworming reminders and
         + Information on peer deworming;
     - A stratified sample of phone and non-phone owners
-        + Phone owners are used as controls for the text messaging treatment
+        + Phone owners are used as controls for the text messaging treatment and 
         + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population. 
 
     We split this sample into two groups: 
@@ -185,15 +182,15 @@ In the experiment there were two levels of randomized treatment assignment.
 
 1. At the cluster level, there will be four groups:
     (i) a control group;
-    (ii) a private incentive group: wall calendars provided as gifts to treatment compliers;
-    (iii) a low private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
+    (ii) a low/no private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
+    (iii) a private incentive group: wall calendars provided as gifts to treatment compliers;
     (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers. 
 2. At the individual level, there will be three groups:
     (i) the control group, composed of a stratified sample of
         a. phone owners and
         b. non-phone owners;
     (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available;
-    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their village.
+    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their community.
 
 ## Cluster Selection Algorithm
 
@@ -283,7 +280,7 @@ Given an intracluster correlation (for the random effects logit latent model use
 
 ### Census
 
-A census of all households in _targeted villages_ will be conducted before the treatment intervention. It will be used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information on all adults, 15 years of age or older:
+A census of all households in _targeted villages_ was conducted before the treatment intervention. It was used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information on all adults, 15 years of age or older:
 
 a) Name
 b) Gender
