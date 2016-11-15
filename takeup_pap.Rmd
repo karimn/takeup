@@ -361,28 +361,53 @@ $$
 $$
  We can also use the simplified notation $\tau[z,z';q] \equiv \tau[(z, none), (z', none); q]$ and $\tau[z,z'] \equiv \tau[(z, none), (z', none)]$.  
 
-Unless otherwise stated, all estimates will be tested for significance using two-sided hypothesis tests where the null hypothesis is a zero treatment effect
+Unless otherwise stated, all estimates will be tested for significance using two-sided hypothesis tests where the null hypothesis is a zero treatment effect. 
 $$
   H_0: \tau(\cdot, \cdot) = 0
 $$
 
 ### Incentive vs. no incentive treatment 
 
-(i) The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up. 
+The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. We will estimate
+  
+\begin{equation} 
+  \tau[ink, control] \equiv \tau[(V^*(ink), S^*(ink)), (V^*(control), S^*(control))]
+\end{equation}
 
-    We will conduct a two-sided joint hypothesis test for 
+If we assume that $V*(control) = V^*(ink)$, this is an estimate of the impact ink's social influence $S^*(ink) - S^*(control)$ on deworming take-up. We will also estimate
+
+\begin{equation}
+\tau[bracelet, calendar] \equiv \tau[(V^*(bracelet), S^*(bracelet)), (V^*(calendar), S^*(calendar))]
+\end{equation}
+
+If we assume that $V^*(calendar) = V^*(bracelet)$, this is an estimate of the impact bracelets' social influence $S^*(bracelet) - S^*(calendar)$ on deworming take-up.
+      
+Both these estimates would identify the combined effect of social incentives, $S^*(\cdot)$: 
+
+(a) Acting as reminders, $R^*(\cdot)$, 
+(b) Making observable others' deworming decision, $L^*(\cdot)$, and 
+(c) Allowing people to signal their decision, $G^*(\cdot)$.
+
+We will also conduct the joint hypothesis test 
 \[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
-(ii) We will estimate the combined effect of social incentives (a) acting as reminders, (b) making observable others' deworming decision and (c) allowing people to signal their decision and test
-\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, calendar] = 0 \] 
 
 ### Social vs. no social incentives treatment for text message treatment individuals 
 
-Comparing individuals that received reminders and social information text messages across clusters with and without social incentives, we identify the effect of social signaling on individuals' deworming decisions: 
+Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions. We will estimate
 
-(i) We will estimate the effect of signaling using ink and test 
-\[ H_0: \tau[(ink, socialinfo), (control, socialinfo); phone] = 0 \]
-(ii) We will estimate the effect of social signaling through bracelets and test
-\[ H_0: \tau[(bracelets, socialinfo), (calendar, socialinfo); phone] = 0 \]
+\begin{align} 
+  \tau[(ink, none), (control, socialinfo)] \equiv \tau[&(V^*(ink, none), S^*(ink, none)), \\ \nonumber
+  &(V^*(control, socialinfo), S^*(control, socialinfo))]
+\end{align}
+
+If we assume that $R^*(ink, none) = R^*(control, socialinfo)$ and $L^*(ink, none) = L^*(control, socialinfo)$, this is an estimate of the impact of $G^*(ink) - G^*(control)$ on deworming take-up. We will also estimate
+
+\begin{align} 
+  \tau[(bracelet, none), (calendar, socialinfo)] \equiv \tau[&(V^*(bracelet, none), S^*(bracelet, none)), \\ \nonumber
+  &(V^*(calendar, socialinfo), S^*(calendar, socialinfo))]
+\end{align}
+  
+If we assume that $R^*(bracelet, none) = R^*(calendar, socialinfo)$, $L^*(bracelet, none) = L^*(calendar, socialinfo)$, and $V^*(calendar) = V^*(bracelet)$ this is an estimate of the impact of $G^*(bracelet) - G^*(calendar)$ on deworming take-up.
     
 ### Text message treatment with social information vs. no text messages for social incentive individuals 
 
