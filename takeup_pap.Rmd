@@ -285,11 +285,11 @@ Given an intracluster correlation (for the random effects logit latent model use
 
 ### Census
 
-A census of all households in _targeted villages_ was conducted before the treatment intervention. It was used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information was collected for all adults, 15 years of age or older (see appendices for census survey instrument).
+A census of all households in _targeted villages_ was conducted before the treatment intervention. It was used to randomly select households for surveying and further individual level interventions, as well as to monitor treatment take-up. Information was collected for all adults, 15 years of age or older (see Docs & Materials for census survey instrument).
 
 ### Baseline Household Survey
 
-From each cluster a random sample of 15 censused households were selected and from each household one adult eligible for deworming was randomly picked to respond to a baseline survey (see appendices for baseline survey instrument).
+From each cluster a random sample of 15 censused households were selected and from each household one adult eligible for deworming was randomly picked to respond to a baseline survey (see Docs & Material for baseline survey instrument).
 
 ## Mid-Intervention
 
@@ -314,7 +314,7 @@ From each cluster we randomly picked 25 individuals for an endline survey
 * For control clusters we randomly picked 15 individuals who did not receive any text messaging treatment, 5 individuals who received reminders and 5 individuals who received reminders and social information text messages.
 * For incentive treatment clusters we randomly picked 20 individuals who did not receive any text messaging treatment and 5 individuals who received reminders and social information text messages.
 
-(see appendices for endline survey instrument).
+(see Docs & Material for endline survey instrument).
 
 We will use the endline data to generate descriptive statistics that allow us to verify (a) people's knowledge about the availability of treatment, (b) the proper implementation of treatment, (c) people's understanding and awareness of the incentives. Specifically we will look at:
 
