@@ -521,7 +521,7 @@ the latent difference in utility between calendars and bracelets. We will estima
 
 ## Social Information
 
-As secondary outcome, in addition to deworming take-up, we will look at individuals' beliefs/knowledge about others' deworming decision. Using the information collected in the social knowledge section of the endline survey, we will look at whether people know or do not know about others' deworming take-up, whether they are more/less correct about their decisions, whether they are are more/less correct for yes/no answers and make a comparison between social incentive and control individuals. 
+As secondary outcome, in addition to deworming take-up, we will look at individuals' beliefs/knowledge about others' deworming decision. Using the information collected in the beliefs section of the endline survey, we will look at whether people know or do not know about others' deworming take-up, whether they are more/less correct about their decisions, whether they are are more/less correct for yes/no answers and make a comparison between social incentive and control individuals. 
 
 ## Heterogeneity
 
