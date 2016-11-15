@@ -294,12 +294,28 @@ describe how you monitored PoT actvities?
 ### SMS Airtime Reward
 describe how you randomly selected from each cluster, for each SMS treatment, 2 people i.e. for control arm 2 people from reminder and 2 people from reminder + peer info SMS treatment; for incentive arms 2 people from reminder + peer info SMS treatment to receive reward message. One of the 2 people was then randomly assigned to receive the reward message on day 2 of deworming and the other person on day 6 of deworming.
 
+Through the SMS airtime reward treatment we get a lower bound for information take-up for our SMS treatment. People may be hesitant to reply to the reward messages, inspite of reading the reminder and peer information text messages. We therefore further interviewed people in the endline about whether or not they received text messages, their knowledge about the content of the text messages and the number of text messages they have received. 
+
 ## Post-Intervention
 
 ### Endline Household Survey
 describe how you selected endline survey people? you already did that before though?
 
 (see appendices for endline survey instrument).
+
+We will use the endline data to generate descriptive statistics that allow us to verify (a) people's knowledge about the availability of treatment, (b) the proper implementation of treatment, (c) people's understanding and awareness of the incentives. Specifically we will look at:
+
+- people's knowledge about the start and end date and duration of deworming treatment;
+- whether people were visited by a CHV prior to deworming;
+- whether people received a deworming flyer;
+- whether deworming treatment was offered for free;
+
+- whether people had seen the incentive; 
+- conditional on receiving an incentive, whether people retained/wore it; 
+- people's knowledge about the meaning of the incentive;
+- whether other people in the household had also come for deworming/received the incentive. 
+
+We will further use the endline data to try and verify some of the assumptions made in the [Analysis] Section VI. We will compare the accuracy of beliefs about deworming take-up at the community level between social incentives and no social incentives individuals that received text messages. 
 
 ### Social Knowledge
 As part of the endline survey, we surveyed respondents about their knowledge/beliefs about other people's deworming take-up. describe how endline respondents either received a social knowledge table where they were asked about specific individuals or a social knowledge table where they were asked about pairs of people in their community. state no of individuals, 10? no of pairs each endline person received? state how these people were chosen? 
@@ -478,8 +494,6 @@ Y^{mis}_{ij} = \begin{cases}
 $$
 which we can do using the posterior distribution of $Y_{ij}(calendar)$ and $Y_{ij}(bracelet)$, but also outcomes that are not in any of the experiment's potential outcomes. We plan to structurally estimate a model to identify the \eqref{eqn:social_in_b} and \eqref{eqn:social_in_c}.
 
-
-ADD: sentence about how we will test these assumptions about equality of reminders and social learning, by looking at data we collected on beliefs updating, information that people have about availability of treatment, duration etc. 
 
 
 # References
