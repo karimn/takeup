@@ -1,6 +1,9 @@
 ---
-title: "The Role of Social Signaling in Community Mass Deworming"
-subtitle: "Evidence from a Field Experiment in Kenya"
+title: |
+    | The Role of Social Signaling in Community Mass Deworming:
+    | Evidence from a Field Experiment in Kenya
+
+subtitle: "Pre-Analysis Plan"
 date: "November 2016"
 author:
 - Anne Karing^[University of California Berkeley]
