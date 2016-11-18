@@ -1,0 +1,365 @@
+---
+title: "TakeUp Analysis Notebook"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_notebook:
+    code_folding: hide
+    fig_caption: yes
+    fig_width: 8
+    number_sections: yes
+    toc: yes
+    toc_float:
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+library(plyr)
+library(dplyr)
+library(multidplyr)
+library(tibble)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(readr)
+library(haven)
+library(broom)
+library(ggplot2)
+library(viridis)
+library(ggrepel)
+library(ggmap)
+library(stringr)
+library(knitr)
+library(bigmemory)
+
+source("../util.R")
+source("takeup_rct_assign_clusters.R")
+
+knitr::opts_chunk$set(cache = TRUE, echo=FALSE, fig.width = 8, fig.height = 5)
+
+config <- yaml::yaml.load_file("../local_config.yaml")
+
+doParallel::registerDoParallel(cores = config$cores)
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+
+options(contrasts=c("contr.Treatment", getOption("contrasts")[2])) 
+```
+
+```{r load-data}
+load("data/takeup_census.RData")
+load("data/takeup_at_pot.RData")
+load("data/takeup_matched_population.RData")
+```
+
+```{r, eval=FALSE, include=FALSE}
+last.stratum = "Siaya.far"
+
+calc.strat.interaction.terms <- function(.data) {
+ bind_cols(select(.data, KEY.individ, last.stratum.size, total.size, stratum.size), 
+           tidy(model.matrix(~ assigned.treatment:stratum - 1, .data))) %>% 
+    select(-matches("control\\.stratum")) %>% 
+    gather(interact.param, interact.coef, -c(KEY.individ, last.stratum.size, total.size, stratum.size)) %>% 
+    separate(interact.param, c("interact.assign", "interact.stratum"), sep = "\\.(?>stratum)") %>% 
+    mutate(interact.coef = interact.coef * if_else(interact.stratum == last.stratum, 1/last.stratum.size, 1)) %>% 
+    group_by(KEY.individ, interact.assign) %>% 
+    do({
+      last.stratum.coef <- filter(., interact.stratum == last.stratum) %$% interact.coef 
+      
+      mutate(., 
+             interact.coef = interact.coef - ifelse(interact.stratum == last.stratum, 0, last.stratum.coef * stratum.size))
+    }) %>% 
+    ungroup %>% 
+    mutate(interact.coef = interact.coef * ifelse(interact.stratum == last.stratum, total.size, 1),  
+           interact.term.key = paste(interact.assign, interact.stratum, sep = "_") %>% str_replace("^assigned\\.treatment", "")) %>% 
+    select(KEY.individ, matches("^interact\\.(term|coef)")) %>% 
+    spread(interact.term.key, interact.coef) 
+}
+
+xx <- census.data %>% 
+  filter(monitored, monitor.consent, is.na(sms.treatment) | sms.treatment == "sms.control") %>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  mutate(stratum = paste(county, dist.pot.group, sep = ".")) %>% 
+  group_by(stratum) %>% 
+  mutate(stratum.size = n(),
+         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(-1))) %>% 
+  ungroup %>%
+  mutate(last.stratum.size = max(.$last.stratum.size),
+         total.size = n()) %>%   
+  left_join(calc.strat.interaction.terms(.), "KEY.individ") 
+  
+  xx %>% {
+    reg.formula <- as.formula(sprintf("dewormed.any ~ stratum - 1 + %s", 
+                                      paste(grep("(calendar|ink|bracelet)_(Busia|Siaya|Kakamega)", names(.), value = TRUE), collapse = " + ")))
+   
+    print(reg.formula) 
+    
+    lm(reg.formula, data = .) 
+  } %>% 
+  summary
+```
+
+```{r, include=FALSE}
+calc.strata.stats <- function(.data, 
+                              .treatment = c("assigned.treatment"), 
+                              .strat.by = c("county", "dist.pot.group"), # This is what we stratified the experiment by
+                              .interact.with = NULL) {
+  
+  calc.strata.ate <- function(.stratum.data) {
+    make.cross.assign.tibble <- function(.col) {
+      matrix(.col, 
+             nrow = length(.col), 
+             ncol = length(.col), 
+             dimnames = list(.stratum.data$treatment.group)) %>% 
+             # dimnames = list(paste0(.prefix, .stratum.data$treatment.group))) %>% 
+        t %>% as_tibble %>% 
+        mutate(lhs.treatment.group = .stratum.data$treatment.group) %>% 
+        gather(rhs.treatment.group, val, -lhs.treatment.group) 
+    }
+   
+    .stratum.data %>% 
+      left_join(inner_join(make.cross.assign.tibble(.$stratum.assign.mean.dewormed), 
+                           make.cross.assign.tibble(.$stratum.assign.size), 
+                           c("lhs.treatment.group", "rhs.treatment.group")),
+                c("treatment.group" = "lhs.treatment.group")) %>%
+      filter(treatment.group != rhs.treatment.group) %>% 
+      rename(stratum.ate = val.x, stratum.size = val.y) %>% 
+      mutate(stratum.ate = stratum.assign.mean.dewormed - stratum.ate,
+             stratum.size = stratum.size + stratum.assign.size)
+      # bind_cols(make.cross.assign.tibble(.$stratum.assign.mean.dewormed, "ate."),
+      #           make.cross.assign.tibble(.$stratum.assign.size, "stratum.size.")) %>% 
+        # mutate_at(vars(starts_with("ate.")), funs(stratum.assign.mean.dewormed - .)) %>% 
+        # mutate_at(vars(starts_with("stratum.size.")), funs(stratum.assign.size + .))
+  }
+  
+  .data %>% 
+    group_by_(.dots = c(.strat.by, .treatment)) %>% 
+    summarize(stratum.assign.size = n(),
+              stratum.assign.mean.dewormed = mean(dewormed.any)) %>%  
+    ungroup %>% 
+    # left_join(filter(., assigned.treatment == "control"), c("county", "dist.pot.group"), suffix = c(".origin", ".control")) %>% 
+    # set_names(str_replace(names(.), "\\.origin", "")) %>% 
+    # left_join(filter(., assigned.treatment == "calendar"), c("county", "dist.pot.group"), suffix = c(".origin", ".calendar")) %>% 
+    # set_names(str_replace(names(.), "\\.origin", "")) %>% 
+    mutate(total.size = sum(stratum.assign.size),
+           treatment.group = do.call(function(...) paste(..., sep = "."), select_(., .dots = .treatment))) %>% 
+    group_by_(.dots = .strat.by) %>% 
+    do(calc.strata.ate(.)) %>% 
+    group_by_(.dots = c("treatment.group", .interact.with)) %>% 
+    do(mutate(., treatment.mean.dewormed = weighted.mean(.$stratum.assign.mean.dewormed, .$stratum.assign.size))) %>% 
+    group_by_(.dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
+    summarize(ate = weighted.mean(stratum.ate, stratum.size),
+              treatment.mean.dewormed = first(treatment.mean.dewormed)) %>% 
+    ungroup
+    # do({
+    #   browser()
+      # mutate(.,
+      #        stratum.ate = stratum.mean.dewormed - stratum.mean.dewormed.control,
+      #        stratum.ate.calendar = stratum.mean.dewormed - stratum.mean.dewormed.calendar,
+      #        stratum.baseline = first(stratum.mean.dewormed.control),
+      #        stratum.size = stratum.assign.size + stratum.assign.size.control,
+      #        stratum.size.calendar = stratum.assign.size + stratum.assign.size.calendar) %>%
+    #     bind_cols(., matrix(.$stratum.mean.dewormed, 
+    #                      nrow = nrow(.), 
+    #                      ncol = nrow(.), 
+    #                      dimnames = list(paste0("ate.", .$treatment.group))) %>% 
+    #                 t %>% as_tibble) %>% 
+    #     mutate_at(starts_with("ate."), funs())
+    # }) %>% 
+    # group_by_(.dots = c(treatment.group, .interact.ate.with)) %>% 
+    # summarize(ate = weighted.mean(stratum.ate, stratum.size), 
+    #           ate.calendar = weighted.mean(stratum.ate.calendar, stratum.size.calendar), 
+    #           baseline = weighted.mean(stratum.baseline, stratum.size),
+    #           treat.grp.dewormed = weighted.mean(stratum.mean.dewormed, stratum.size)) 
+}
+
+analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL) {
+  .data %<>% 
+    left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+    select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) 
+  
+   .data %>% 
+     block.bootstrap(.reps, "cluster.id") %>%
+     do(calc.strata.stats(., .interact.with = .interact.with)) %>% 
+    group_by_(.dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
+    summarize_at(vars(ate, treatment.mean.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>%
+    mutate(ci.lower.treatment.mean.dewormed = treatment.mean.dewormed_mean - 1.64 * treatment.mean.dewormed_sd,
+           ci.upper.treatment.mean.dewormed = treatment.mean.dewormed_mean + 1.64 * treatment.mean.dewormed_sd,
+           ci.lower.ate = ate_mean - 1.64 * ate_sd,
+           ci.upper.ate = ate_mean + 1.64 * ate_sd) %>%
+    left_join(calc.strata.stats(.data, .interact.with = .interact.with), ., c("treatment.group", "rhs.treatment.group", .interact.with))
+
+}
+
+neyman.results <- census.data %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
+  analyze.neyman.blk.bs(10) %>% 
+  mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
+
+neyman.results.dist <- census.data %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
+  analyze.neyman.blk.bs(10,.interact.with = "dist.pot.group") %>% 
+  mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
+
+  # left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  # transmute(#stratum = paste(county, dist.pot.group, sep = "."),
+  #           county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
+  # block.bootstrap(1000, "cluster.id") %>%
+  # do(calc.strata.stats(.)) %>% #, .interact.ate.with = "dist.pot.group")) %>% 
+  # ungroup %>% 
+  # # group_by(assigned.treatment, dist.pot.group) %>% 
+  # group_by(treatment.group, rhs.treatment.group) %>% #, dist.pot.group) %>% 
+  # summarize_at(vars(ate, treatment.mean.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>% 
+  # mutate(ci.treatment.mean.dewormed.lower.dewormed = treatment.mean.dewormed_mean - 1.64 * treatment.mean.dewormed_sd,
+  #        ci.treatment.mean.dewormed.upper.dewormed = treatment.mean.dewormed_mean + 1.64 * treatment.mean.dewormed_sd,
+  #        ci.lower.ate = ate_mean - 1.64 * ate_sd,
+  #        ci.upper.ate = ate_mean + 1.64 * ate_sd)
+```
+
+```{r}
+neyman.results
+neyman.results.dist
+```
+
+
+```{r}
+neyman.results %>% 
+  distinct(treatment.group, .keep_all = TRUE) %>% 
+  ggplot() +
+    geom_col(aes(treatment.group, treatment.mean.dewormed), alpha = 0.5, color = "black") +
+    scale_x_discrete("Treatment") +
+    scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05))
+
+neyman.results.dist %>% 
+  distinct(treatment.group, dist.pot.group, .keep_all = TRUE) %>% 
+  ggplot(.) +
+  geom_col(aes(treatment.group, treatment.mean.dewormed, fill = dist.pot.group), alpha = 0.5, color = "black", position = "dodge") +
+  scale_x_discrete("Treatment") +
+  scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05)) +
+  scale_fill_discrete("Distance to PoT")
+```
+
+```{r}
+census.data %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>%
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
+  group_by(assigned.treatment, dist.pot.group, cluster.id) %>% 
+  summarize(takeup.prop = mean(dewormed.any)) %>% 
+  ggplot(aes(assigned.treatment, takeup.prop)) +
+  # geom_violin()
+  geom_boxplot(aes(color = dist.pot.group)) + 
+  scale_y_continuous("Cluster Proportion Proportion", breaks = seq(0, 0.8, 0.05)) +
+  scale_x_discrete("Treatment") +
+  scale_color_discrete("Distance to PoT")
+```
+
+```{r, include=FALSE, eval=FALSE}
+neyman.results.sms <- census.data %>%
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%
+  transmute(stratum = paste(county, dist.pot.group, sep = "."),
+            county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>%
+  # block.bootstrap(1000, "cluster.id") %>%
+  do(calc.strata.stats(., .treatment = c("assigned.treatment", "sms.treatment"), .interact.ate.with = "dist.pot.group")) #%>%
+  # ungroup %>%
+  # select(-baseline) %>%
+  # group_by(assigned.treatment, dist.pot.group) %>%
+  # summarize_at(vars(starts_with("ate"), treat.grp.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>%
+  # mutate(ci.lower.dewormed = treat.grp.dewormed_mean - 1.64 * treat.grp.dewormed_sd,
+  #        ci.upper.dewormed = treat.grp.dewormed_mean + 1.64 * treat.grp.dewormed_sd,
+  #        ci.lower.ate = ate_mean - 1.64 * ate_sd,
+  #        ci.upper.ate = ate_mean + 1.64 * ate_sd,
+  #        ci.lower.ate.calendar = ate.calendar_mean - 1.64 * ate.calendar_sd,
+  #        ci.upper.ate.calendar = ate.calendar_mean + 1.64 * ate.calendar_sd)
+```
+
+```{r, eval=FALSE}
+census.data %>%
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%
+  transmute(stratum = paste(county, dist.pot.group, sep = "."),
+            county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>%
+  calc.strata.stats(., .treatment = c("assigned.treatment", "sms.treatment"))
+```
+
+# Non SMS treated individuals 
+
+Phone and non-phone owners
+
+## Compared to control
+
+```{r, echo=FALSE}
+neyman.results %>%
+  filter(rhs.treatment.group == "control") %>% 
+  ggplot(aes(treatment.group, ate_mean)) + #, col = dist.pot.group)) +
+  geom_hline(yintercept = 0) +
+  geom_point() +  #, color = "black") +
+  geom_line(aes(group = 1)) + #aes(group = dist.pot.group)) +
+  geom_errorbar(aes(ymin = ci.lower.ate, ymax = ci.upper.ate), width = 0.05) +
+  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) #+
+  # facet_wrap(~ dist.pot.group, scales = "free_y")
+```
+
+```{r, echo=FALSE}
+neyman.results.dist %>%
+  filter(rhs.treatment.group == "control") %>% 
+  ggplot(aes(treatment.group, ate_mean, col = dist.pot.group)) +
+  geom_hline(yintercept = 0) +
+  geom_line(aes(group = dist.pot.group)) +
+  geom_errorbar(aes(ymin = ci.lower.ate, ymax = ci.upper.ate), width = 0.05, position = "dodge") +
+  # geom_point(position = "dodge") +
+  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) #+
+  # facet_wrap(~ dist.pot.group, scales = "free_y")
+```
+
+## Compared to _calendar_ group
+
+```{r}
+neyman.results %>%
+  filter(assigned.treatment != "calendar") %>% 
+  ggplot(aes(assigned.treatment, ate.calendar_mean, col = dist.pot.group)) +
+  geom_hline(yintercept = 0) +
+  geom_point() +  #, color = "black") +
+  geom_line(aes(group = dist.pot.group)) +
+  geom_errorbar(aes(ymin = ci.lower.ate.calendar, ymax = ci.upper.ate.calendar), width = 0.05) +
+  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) +
+  facet_wrap(~ dist.pot.group, scales = "free_y")
+```
+
+
+
+
+# All phone owners
+
+## Compared to control
+
+```{r, echo=FALSE}
+neyman.results.all %>%
+  filter(assigned.treatment != "control") %>% 
+  ggplot(aes(assigned.treatment, ate_mean, col = dist.pot.group)) +
+  geom_hline(yintercept = 0) +
+  geom_point() +  #, color = "black") +
+  geom_line(aes(group = dist.pot.group)) +
+  geom_errorbar(aes(ymin = ci.lower.ate, ymax = ci.upper.ate), width = 0.05) +
+  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) +
+  facet_wrap(~ dist.pot.group, scales = "free_y")
+
+
+```
+
+## Compared to _calendar_ group
+
+```{r}
+neyman.results.all %>%
+  filter(assigned.treatment != "calendar") %>% 
+  ggplot(aes(assigned.treatment, ate.calendar_mean, col = dist.pot.group)) +
+  geom_hline(yintercept = 0) +
+  geom_point() +  #, color = "black") +
+  geom_line(aes(group = dist.pot.group)) +
+  geom_errorbar(aes(ymin = ci.lower.ate.calendar, ymax = ci.upper.ate.calendar), width = 0.05) +
+  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) +
+  facet_wrap(~ dist.pot.group, scales = "free_y")
+```
+
+
