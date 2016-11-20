@@ -54,42 +54,27 @@ title: "Analysis steps and outputs"
   vi) treatment for free: pay
   - Output: all numbers/narrative. don’t think we need plots or tables for this stuff. 
 
-6. PoT treatment take-up data: 
-Specifications to run: 
-0. We are not pulling entire data but I’d like to report # of people we dewormed in total and by arm. 
-1. Is there any effect of incentives on deworming take-up conditional on sensitization, among all monitored that did NOT get SMS? Output: plot with confidence intervals. —> compare control to incentives. switch to actual research question: can social signaling affect deworming decisions? Compare ink/control and calendar/bracelet in same plot. 
-2. Is there any effect of social incentives on deworming take-up, among phone-owner sample but no SMS? Output: redo plot from 1. but only for phone-owners this time. 1-4-6-8
-(Note: can also say sth about difference btw phone and non-phone owners with regards to take-up)
-3. Social signaling identification: control for reminder and social learning: 3-5-7-9. 
-4. 1vs.2 and 2vs.3 as described further down. 
+* PoT treatment take-up data: 
+  Specifications to run: 
+  - We are not pulling entire data but I’d like to report # of people we dewormed in total and by arm. 
+  - Is there any effect of incentives on deworming take-up, among all monitored that did NOT get SMS? Output: plot with confidence intervals. —> compare control to incentives. switch to actual research question: can social signaling affect deworming decisions? Compare ink/control and calendar/bracelet in same plot. 
+  - Is there any effect of social incentives on deworming take-up, among phone-owner sample but no SMS? Output: redo plot from 1. but only for phone-owners this time. 1-4-6-8
+  - Social signaling identification: control for reminder and social learning: 3-5-7-9. 
+  - 1vs.2 and 2vs.3 as described further down. 
 
-Heterogeneity: by distance i.e. “close” vs. “far”. Re-do take-up graph with 8 bars that show for each intervention arm take up for close and far communities. 
+Robustness test: test for spillover effects, people switching assignment. 
 
-Robustness: test for spillover effects, people switching assignment. 
+* Endline data:
+  Verify assumptions and important descriptives: 
+  - Calendar is valid control for bracelet/social signaling: private value of calendar > private value of bracelet. Output: explain choice test do with people. report data for all 4 arms i.e. bracelet/calendar choice in control, ink, bracelet and calendar group. (note: bracelet or calendar for free choice) 
+  - 2. Outcomes (in addition to take-up): 
+    + Aggregate belief: compare for every single person - sample, non-text message treatment people (control SMS people - phone, non-phone owners). aggregate beliefs: distribution test.
+    + Individual knowledge: different people ~ could be wrong with all of them:
+      - over- and underestimating of beliefs.
+      - Don’t knows ~ across four arms. 
+      - social knowledge surveys: too afraid. 
 
-2nd measure of take-up behavior: distribution of take-up over time among people that did not receive SMS treatment. apply Kolmogorov-Smirnov test to check for differences in take-up over time. assumption  (optional)
-
-
-7. Endline data:
-1. Show balance on same characteristics (minus belief, stigma/punishment questions).
-2. Verify assumptions and important descriptives: 
-- Calendar is valid control for bracelet/social signaling: private value of calendar > private value of bracelet. Output: choice test, by treatment (treat_code for control/ink/bracelet/calendar) show demand for calendar/bracelet, split by people that already have a calendar and people who don’t.
-- Comparison of two signals and private incentive:
-i) visibility: seen_bracelet seen_ink seen_cal
-ii) retention: 
-— bracelet: got_bracelet (received when came to PoT), have_bracelet and wear_bracelet, not_wear (reason why not), seen_bracelet (enumerator verifies that seen bracelet), bad_bracelet (complaint by respondent)
-— ink: got_ink, ink_visible (is ink still visible), hh_ink, number_ink, bad_ink (complaints)
-— calendar: got_cal (received when coming for treatment), have_cal, confirm_cal (enumerator checks if has cal), bad_cal (complaint) 
-iii) meaning: bracelet_meaning ink_meaning cal_meaning
-iv) hh demand “complementarities/substitues”: hh_bracelet and number_bracelet, hh_cal and number_cal (who else has cal)
-
-—> Calendar as control for bracelet based on fact: calendar is privately more valued, particularly look among those that did not come for treatment: how many had seen calendar? 
-—> Ink less useful signal: less visible, fewer people seen it. 
-
-3. Outcomes in addition to take-up: 
-i) aggregate beliefs: how accurate were people’s beliefs about take-up at community level? further, show differences in beliefs between base- and endline. 
-ii) individual level knowledge: 2 separate tests - person by person, pairs. check for don’t knows. first, greater certainty about other people’s actions. second, greater accuracy in knowledge about other people’s actions. 
-—> check if people systematically under- or overestimate other’s actions. 
-
-Karim, should we distinguish between SMS social info and everyone else (i.e. SMS control/reminder, non-phone owners) here? 
-Karim, first thing I’d like to show is that people claim to know better i.e. we have a reduction in the DKs. 
+# Descriptives:
+- ink/bracelet/calendar retention
+- seen someone with bracelet/ink/calendar
+- choice between calendar and bracelet
