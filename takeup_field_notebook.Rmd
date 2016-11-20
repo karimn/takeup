@@ -1463,7 +1463,7 @@ cluster.strat.data <- read_rds("data/takeup_cluster_randomization_1.0.rds") %>%
   left_join(cluster.wave.county.data, "cluster.id")  
 
 hh.census.data %<>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment), 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment, dist.pot.group), 
             c("wave", "county", "cluster.id"))
 
 census.data %<>% 
@@ -3508,20 +3508,37 @@ all.endline.data %>%
 
 ### Wave 2 
  
-```{r, eval=FALSE}
+```{r}
 to.follow.up.on <- c("uuid:ea9ae571-ac44-4820-ab7e-99efda8227d7",
                      "uuid:48d2f3fa-3dfe-4ac5-a9e5-b5a9eca59763",
-                     "uuid:23647755-bc2f-42ae-9dfd-c9161c5d1460")
+                     "uuid:23647755-bc2f-42ae-9dfd-c9161c5d1460",
+                     'uuid:debc48b1-ff8f-4314-9d05-93c3afb5a799',
+                     'uuid:0c2f6dae-a717-4713-bea8-1ebecfe6c373',
+                     'uuid:5ba88014-2087-4ebb-9b4d-62efcbb5c42f',
+                     'uuid:d3b3dfc1-c176-4652-ad0e-2996909c6288',
+                     'uuid:6e6350da-de38-463f-85c9-ce3a643e9bdc',
+                     'uuid:516fbe11-df6d-4baa-8db7-a2af56b38bf7',
+                     "uuid:ea9ae571-ac44-4820-ab7e-99efda8227d7")
+
+# all.endline.data %>% 
+#   filter(KEY %in% to.follow.up.on) %>% 
+#   select(date(SubmissionDate))
+```
+
+```{r}
+drop.from.plot <- c("uuid:dbc12f70-9203-4d90-aacb-4c1ac3e1dbd5") # Finalized in office
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
 all.endline.data %>% 
   filter(wave == 2,
-         !KEY %in% c("uuid:dbc12f70-9203-4d90-aacb-4c1ac3e1dbd5")) %>%  # Finalized in office
-  with(union(cluster.id, closest.cluster)) %>% 
-  purrr::discard(is.na) %>% 
-  map(plot.endline, all.endline.data, hh.census.data, use.google.maps = FALSE) %>% 
-  walk(plot)
+         !KEY %in% c(drop.from.plot, to.follow.up.on)) %>% 
+  (function(.filtered.data) {
+    with(.filtered.data, union(cluster.id, closest.cluster)) %>% 
+    purrr::discard(is.na) %>% 
+    map(plot.endline, .filtered.data, hh.census.data, use.google.maps = FALSE) %>% 
+    walk(plot)
+  })
 ```
 
 ## Knowledge Tables
@@ -3666,7 +3683,9 @@ matched.census.data <- census.data %>%
   select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist"))
 
 census.data %<>% 
-  left_join(matched.census.data, "KEY.individ") 
+  left_join(matched.census.data, "KEY.individ") %>% 
+  mutate(monitored = !is.na(wave) & monitored,
+         dewormed.any = (!is.na(dewormed) & dewormed) | (!is.na(dewormed.matched) & dewormed.matched))
 ```
 
 
