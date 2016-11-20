@@ -54,22 +54,25 @@ load("data/takeup_matched_population.RData")
 ```
 
 ```{r regression, eval=FALSE, include=TRUE}
-last.stratum = "Siaya.far"
-
-calc.strat.interaction.terms <- function(.data) {
- bind_cols(select(.data, KEY.individ, last.stratum.size, total.size, stratum.size), 
-           tidy(model.matrix(~ assigned.treatment:stratum - 1, .data))) %>% 
-    select(-matches("control\\.stratum")) %>% 
-    gather(interact.param, interact.coef, -c(KEY.individ, last.stratum.size, total.size, stratum.size)) %>% 
+calc.strat.interaction.terms <- function(.data, .interact.with = NULL, last.stratum = "Siaya.far") {
+  interact.formula <- sprintf("~ %s - 1", paste(c("assigned.treatment", .interact.with, "stratum"), collapse = ":")) %>% 
+    as.formula
+ 
+  bind_cols(select(.data, KEY.individ, last.stratum.size, total.size, stratum), 
+            tidy(model.matrix(interact.formula, .data))) %>% 
+    select(-starts_with("assigned.treatmentcontrol")) %>% # Omit control
+    gather(interact.param, interact.coef, -c(KEY.individ, last.stratum.size, total.size, stratum)) %>% 
     separate(interact.param, c("interact.assign", "interact.stratum"), sep = "\\.(?>stratum)") %>% 
+    left_join(distinct(.data, stratum, stratum.size), c("interact.stratum" = "stratum")) %>% 
     mutate(interact.coef = interact.coef * if_else(interact.stratum == last.stratum, 1/stratum.size, 1),
-           interact.term.key = paste(interact.assign, interact.stratum, sep = "_") %>% str_replace("^assigned\\.treatment", "")) %>% 
+           interact.term.key = paste(interact.assign, interact.stratum, sep = "_") %>% 
+             str_replace_all(c("assigned.treatment" = "", .interact.with %>% paste0(".", .) %>% setNames(rep("_", length(.)), .)))) %>% 
     group_by(KEY.individ, interact.assign) %>% 
     do({
       last.stratum.coef <- filter(., interact.stratum == last.stratum) %$% interact.coef 
       
       mutate(., 
-             interact.coef = interact.coef - ifelse(interact.stratum == last.stratum, 0, last.stratum.coef * stratum.size))
+           interact.coef = interact.coef - ifelse(interact.stratum == last.stratum, 0, last.stratum.coef * stratum.size))
     }) %>% 
     ungroup %>% 
     mutate(interact.coef = interact.coef * ifelse(interact.stratum == last.stratum, total.size, 1)) %>% 
@@ -77,38 +80,44 @@ calc.strat.interaction.terms <- function(.data) {
     spread(interact.term.key, interact.coef) 
 }
 
-xx <- census.data %>% 
-  filter(monitored, monitor.consent, is.na(sms.treatment) | sms.treatment == "sms.control") %>% 
+reg.data <- census.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  mutate(stratum = paste(county, dist.pot.group, sep = ".")) %>% 
+  mutate(stratum = county) %>% 
+  # mutate(stratum = paste(county, dist.pot.group, sep = ".")) %>% 
   group_by(stratum) %>% 
   mutate(stratum.size = n(),
-         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(-1))) %>% 
+         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(0))) %>% 
   ungroup %>%
   mutate(last.stratum.size = max(.$last.stratum.size),
          total.size = n()) %>%   
-  left_join(calc.strat.interaction.terms(.), "KEY.individ") 
+  # left_join(calc.strat.interaction.terms(.), "KEY.individ") 
+  left_join(calc.strat.interaction.terms(., .interact.with = "dist.pot.group", last.stratum = "Siaya"), "KEY.individ") 
 
-lm(dewormed.any ~ county*dist.pot.group + assigned.treatment*dist.pot.group, data = xx) %>% 
-  coeftest(vcov. = vcov.clx(., xx$cluster.id))
-  
-  xx %>% {
-    reg.formula <- as.formula(sprintf("dewormed.any ~ stratum - 1 + %s", 
-                                      paste(grep("(calendar|ink|bracelet)_(Busia|Siaya|Kakamega)", names(.), value = TRUE), collapse = " + ")))
+reg.data %>% {
+    reg.formula <- as.formula(sprintf("dewormed.any ~ stratum + dist.pot.group - 1 + %s", 
+                                      paste(grep("^(calendar|ink|bracelet).*_(Busia|Siaya|Kakamega)$", names(.), value = TRUE), collapse = " + ")))
    
-    print(reg.formula) 
+    # print(reg.formula) 
     
     lm(reg.formula, data = .) 
   } %>% 
-  summary
+    coeftest(vcov. = vcov.clx(., xx$cluster.id))
 ```
 
 ```{r neyman, include=FALSE}
+nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
+  dplyr::select_vars(colnames(data), everything()) %>% 
+    unname %>% 
+    dplyr::setdiff(exclude_nest_cols) %>% 
+    nest_(data, key_col = key_col, nest_cols = .)
+}
+
 calc.strata.stats <- function(.data, 
                               .treatment = c("assigned.treatment"), 
                               .strat.by = c("county", "dist.pot.group"), # This is what we stratified the experiment by
                               .interact.with = NULL) {
-  calc.strata.ate <- function(.stratum.data) {
+  calc.stratum.ate <- function(.stratum.data) {
     make.cross.assign.tibble <- function(.col) {
       matrix(.col, 
              nrow = length(.col), 
@@ -136,8 +145,8 @@ calc.strata.stats <- function(.data,
              stratum.size = stratum.size + stratum.assign.size,
              stratum.sample.var = stratum.sample.var + stratum.assign.sample.var.dewormed)
   }
-  
-  strata.data <- .data %>% 
+ 
+  calc.strata.ate <- . %>% 
     group_by_(.dots = c(.strat.by, .treatment)) %>% 
     summarize(stratum.assign.size = n(),
               stratum.assign.mean.dewormed = mean(dewormed.any),
@@ -146,22 +155,26 @@ calc.strata.stats <- function(.data,
     mutate(total.size = sum(stratum.assign.size),
            treatment.group = do.call(function(...) paste(..., sep = "_"), select_(., .dots = .treatment))) %>% 
     group_by_(.dots = .strat.by) %>% 
-    do(calc.strata.ate(.)) %>% 
+    do(calc.stratum.ate(.)) %>% 
     group_by_(.dots = c("treatment.group", .interact.with)) %>% 
     do(mutate(., treatment.mean.dewormed = weighted.mean(.$stratum.assign.mean.dewormed, .$stratum.assign.size))) %>% 
     ungroup
   
+  
+  strata.data <- .data %>% 
+    calc.strata.ate
+  
   strata.data %>% {
     left_join(distinct_(., .dots = c(.strat.by, "treatment.group", .interact.with), .keep_all = TRUE) %>% 
                 select(-c(assigned.treatment, rhs.treatment.group, stratum.ate, stratum.size, stratum.sample.var)) %>%
-                nest(-treatment.group, .key = strata.data),
+                nest_exclude("strata.data", c("treatment.group", .interact.with)),
               group_by_(., .dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
                 summarize(ate = weighted.mean(stratum.ate, stratum.size),
                           sample.var = sum(stratum.sample.var * ((stratum.size/total.size)^2)),
                           treatment.mean.dewormed = first(treatment.mean.dewormed)) %>% 
                 ungroup %>% 
-                nest(-treatment.group, .key = treatment.data),
-              "treatment.group")
+                nest_exclude("treatment.data", c("treatment.group", .interact.with)),
+              c("treatment.group", .interact.with))
   }
 }
 
@@ -173,12 +186,11 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
      original.stats <- calc.strata.stats(., .interact.with = .interact.with, ...)
      
      if (.reps > 0) {
-       browser()
        bs.analysis <- block.bootstrap(., .reps, "cluster.id") %>%
          do(calc.strata.stats(., .interact.with = .interact.with, ...)) %>% 
          ungroup %>% 
-         select(replicate, treatment.group, treatment.data) %>% 
-         unnest %>% 
+         select_(.dots = c("replicate", "treatment.group", .interact.with, "treatment.data")) %>% 
+         unnest(treatment.data) %>% 
          group_by_(.dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
          summarize_at(vars(ate, treatment.mean.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>%
          mutate(ci.lower.treatment.mean.dewormed = treatment.mean.dewormed_mean - 1.64 * treatment.mean.dewormed_sd,
@@ -186,15 +198,11 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
                 ci.lower.ate = ate_mean - 1.64 * ate_sd,
                 ci.upper.ate = ate_mean + 1.64 * ate_sd) 
        
-       browser()
-       
        original.stats %<>% 
          unnest(treatment.data) %>% 
          left_join(bs.analysis, c("treatment.group", "rhs.treatment.group", .interact.with)) %>% 
-         nest(treatment.group, .key = treatment.data) %>% 
-         left_join(original.stats, ., c("treatment.group", .interact.with))
-       
-      left_join(original.stats, ., c("treatment.group", "rhs.treatment.group", .interact.with)) 
+         nest_exclude("treatment.data", c("treatment.group", .interact.with)) %>% 
+         left_join(original.stats %>% select(-treatment.data), ., c("treatment.group", .interact.with))
      } else {
        return(original.stats)
      }
@@ -213,10 +221,10 @@ neyman.results.dist <- census.data %>%
   analyze.neyman.blk.bs(1000, .interact.with = "dist.pot.group") %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
 
-neyman.results.sms.only <- census.data %>% 
-  filter(monitored, monitor.consent, sms.treatment != "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
-  analyze.neyman.blk.bs(10, .interact.with = "sms.treatment") %>%  #.treatment = c("assigned.treatment", "sms.treatment")) %>% 
-  mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
+# neyman.results.sms.only <- census.data %>% 
+#   filter(monitored, monitor.consent, sms.treatment != "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
+#   analyze.neyman.blk.bs(10, .interact.with = "sms.treatment") %>%  #.treatment = c("assigned.treatment", "sms.treatment")) %>% 
+#   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
 
 # neyman.results.sms.only.dist <- census.data %>% 
 #   filter(monitored, monitor.consent, sms.treatment != "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
@@ -225,13 +233,21 @@ neyman.results.sms.only <- census.data %>%
 ```
 
 ```{r}
-neyman.results
-neyman.results.dist
+neyman.results %>% unnest(treatment.data)
+neyman.results.dist %>% unnest(treatment.data)
+```
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  select(-total.size) %>% 
+  arrange(county, dist.pot.group, treatment.group)
 ```
 
 
 ```{r}
 neyman.results %>% 
+  unnest(treatment.data) %>% 
   distinct(treatment.group, .keep_all = TRUE) %>% 
   ggplot() +
     geom_col(aes(treatment.group, treatment.mean.dewormed), alpha = 0.5, color = "black") +
@@ -239,6 +255,7 @@ neyman.results %>%
     scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05))
 
 neyman.results.dist %>% 
+  unest(treatment.data) %>% 
   distinct(treatment.group, dist.pot.group, .keep_all = TRUE) %>% 
   ggplot(.) +
   geom_col(aes(treatment.group, treatment.mean.dewormed, fill = dist.pot.group), alpha = 0.5, color = "black", position = "dodge") +
@@ -249,6 +266,7 @@ neyman.results.dist %>%
 
 ```{r}
 neyman.results.sms.only %>% 
+  unest(treatment.data) %>% 
   distinct(treatment.group, .keep_all = TRUE) %>% 
   ggplot() +
     geom_col(aes(treatment.group, treatment.mean.dewormed), alpha = 0.5, color = "black") +
@@ -256,6 +274,7 @@ neyman.results.sms.only %>%
     scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05))
 
 neyman.results.sms.only %>% 
+  unest(treatment.data) %>% 
   distinct(treatment.group, sms.treatment, .keep_all = TRUE) %>% 
   ggplot(.) +
   geom_col(aes(treatment.group, treatment.mean.dewormed, fill = sms.treatment), alpha = 0.5, color = "black", position = "dodge") +
