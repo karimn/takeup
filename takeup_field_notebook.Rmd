@@ -3477,6 +3477,43 @@ if (bc.diff > 0) {
 #   write_csv("takeup_endline_backchecks_wave1_1.0.csv")
 ```
 
+```{r endline-backcheck-sample-wave2, eval=FALSE}
+wave2.endline.bc.data <- all.endline.data %>% 
+  filter(wave == 2, recruit, interview, consent)
+
+wave2.endline.backcheck.cluster.pool <- wave2.endline.bc.data %>% 
+  find.backcheck.pool
+
+wave2.endline.num.enumerators.to.backcheck <- wave2.endline.backcheck.cluster.pool %>% 
+  count.num.enum.to.backcheck 
+  
+wave2.endline.backcheck.clusters <- wave2.endline.backcheck.cluster.pool %>% 
+  find.backcheck.candidates(wave2.endline.num.enumerators.to.backcheck) 
+
+wave2.endline.backchecks <- wave2.endline.bc.data %>% 
+  filter(!is.na(enumerator), enumerator != 99) %>% 
+  semi_join(wave2.endline.backcheck.clusters, "cluster.id") %>% 
+  group_by(enumerator) %>% 
+  do(sample_n(., min(nrow(.), 7))) %>% 
+  ungroup
+
+bc.diff <- round(0.1 * nrow(wave2.endline.bc.data)) - nrow(wave2.endline.backchecks)  
+
+if (bc.diff > 0) {
+  wave2.endline.backchecks <- wave2.endline.bc.data %>% 
+    filter(!is.na(enumerator), enumerator != 99) %>% 
+    anti_join(wave2.endline.backchecks, "KEY") %>% 
+    sample_n(bc.diff) %>% 
+    bind_rows(wave2.endline.backchecks)
+}
+
+write_rds(wave2.endline.backchecks, "takeup_endline_backchecks_wave2_1.0.rds")
+
+wave2.endline.backchecks %>%
+  transmute(cluster.id, KEY.endline = KEY, enumerator) %>%
+  write_csv("takeup_endline_backchecks_wave2_1.0.csv")
+```
+
 ```{r plot-endline-code}
 plot.endline <- function(cluster.ids, .data, ...) {
   select.cluster.hhs <- . %>% 
