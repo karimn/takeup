@@ -31,6 +31,7 @@ library(ggrepel)
 library(ggmap)
 library(stringr)
 library(knitr)
+library(printr)
 
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
@@ -44,7 +45,9 @@ doParallel::registerDoParallel(cores = config$cores)
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
-options(contrasts=c("contr.Treatment", getOption("contrasts")[2]), dplyr.show_progress = FALSE) 
+options(contrasts=c("contr.Treatment", getOption("contrasts")[2]), 
+        dplyr.show_progress = FALSE,
+        digits = 4) 
 ```
 
 ```{r load-data}
@@ -143,7 +146,7 @@ census.data %>%
 
 # Neyman Approach
 
-```{r neyman, include=FALSE}
+```{r neyman-code, include=FALSE}
 nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
   dplyr::select_vars(colnames(data), everything()) %>% 
     unname %>% 
@@ -216,6 +219,11 @@ calc.strata.stats <- function(.data,
   }
 }
 
+calc.pvalue <- . %>% 
+  abs %>% 
+  pnorm(lower.tail = FALSE) %>% 
+  multiply_by(2)
+
 analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ...) {
   .data %<>% 
     left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), 
@@ -234,16 +242,19 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
          mutate(ci.lower.treatment.mean.dewormed = treatment.mean.dewormed_mean - 1.64 * treatment.mean.dewormed_sd,
                 ci.upper.treatment.mean.dewormed = treatment.mean.dewormed_mean + 1.64 * treatment.mean.dewormed_sd,
                 ci.lower.ate = ate_mean - 1.64 * ate_sd,
-                ci.upper.ate = ate_mean + 1.64 * ate_sd) 
+                ci.upper.ate = ate_mean + 1.64 * ate_sd,
+                treatment.mean.dewormed_tstat = treatment.mean.dewormed_mean/treatment.mean.dewormed_sd,
+                ate_tstat = ate_mean/ate_sd,
+                ate_pvalue = calc.pvalue(ate_tstat))
        
        original.stats %<>% 
          unnest(treatment.data) %>% 
          left_join(bs.analysis, c("treatment.group", "rhs.treatment.group", .interact.with)) %>% 
          nest_exclude("treatment.data", c("treatment.group", .interact.with)) %>% 
          left_join(original.stats %>% select(-treatment.data), ., c("treatment.group", .interact.with))
-     } else {
-       return(original.stats)
-     }
+     } 
+     
+     return(original.stats)
    }
 }
 ```
@@ -255,9 +266,19 @@ neyman.results <- census.data %>%
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
 
 neyman.results.dist <- census.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   analyze.neyman.blk.bs(1000, .interact.with = "dist.pot.group") %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
+
+neyman.results.sms <- census.data %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  analyze.neyman.blk.bs(1000, .treatment = c("assigned.treatment", "sms.treatment")) %>% 
+  separate(treatment.group, c("assigned.treatment", "sms.treatment"), sep = "_") %>% 
+  mutate(assigned.treatment = factor(assigned.treatment, levels = c("control", "ink", "calendar", "bracelet")))  
+
+# neyman.results.sms.treatment.only <- census.data %>% 
+#   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+#   analyze.neyman.blk.bs(1000, .treatment = "sms.treatment")  
 
 # neyman.results.sms.only <- census.data %>% 
 #   filter(monitored, monitor.consent, sms.treatment != "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
@@ -271,8 +292,31 @@ neyman.results.dist <- census.data %>%
 ```
 
 ```{r}
-neyman.results %>% unnest(treatment.data)
-neyman.results.dist %>% unnest(treatment.data)
+col.to.show <- c("dist.pot.group", "assigned.treatment", "sms.treatment", "treatment.group", "rhs.treatment.group", "ate", "ate_sd", "ate_tstat", "ate_pvalue")
+
+neyman.results %>% unnest(treatment.data) %>% select_(.dots = intersect(names(.), col.to.show))
+neyman.results.dist %>% unnest(treatment.data) %>% select_(.dots = intersect(names(.), col.to.show))
+
+
+```
+
+```{r}
+neyman.results.sms %>% 
+  unnest(treatment.data) %>% 
+  select_(.dots = intersect(names(.), col.to.show)) %>% 
+  separate(rhs.treatment.group, c("rhs.assigned.treatment", "rhs.sms.treatment"), sep = "_") %>% {
+    filter(., assigned.treatment == rhs.assigned.treatment, sms.treatment == "sms.control") %>% 
+      select(-rhs.assigned.treatment) %>% 
+      print
+    
+    filter(., assigned.treatment == "control", rhs.assigned.treatment == "ink") %>% 
+      select(-ends_with("assigned.treatment")) %>% 
+      print
+    
+    filter(., assigned.treatment == "calendar", rhs.assigned.treatment == "bracelet") %>% 
+      select(-ends_with("assigned.treatment")) %>% 
+      print
+  }
 ```
 
 ```{r}
@@ -280,11 +324,11 @@ neyman.results %>%
   unnest(strata.data) %>% 
   select(-total.size) %>% 
   arrange(county, dist.pot.group, treatment.group)
-
-neyman.results.dist %>% 
-  unnest(strata.data) %>% 
-  select(-total.size) %>% 
-  arrange(county, dist.pot.group, treatment.group)
+# 
+# neyman.results.dist %>% 
+#   unnest(strata.data) %>% 
+#   select(-total.size) %>% 
+#   arrange(county, dist.pot.group, treatment.group)
 ```
 
 
