@@ -36,7 +36,7 @@ library(printr)
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
 
-knitr::opts_chunk$set(cache = TRUE, echo=FALSE, fig.width = 8, fig.height = 5)
+knitr::opts_chunk$set(cache = TRUE, echo = FALSE, fig.width = 8, fig.height = 5)
 
 config <- yaml::yaml.load_file("../local_config.yaml")
 
@@ -45,7 +45,7 @@ doParallel::registerDoParallel(cores = config$cores)
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
-options(contrasts=c("contr.Treatment", getOption("contrasts")[2]), 
+options(#contrasts=c("contr.Treatment", getOption("contrasts")[2]), 
         dplyr.show_progress = FALSE,
         digits = 4) 
 ```
@@ -58,127 +58,137 @@ load("data/takeup_matched_population.RData")
 
 # Regression Analysis
 
-$$
-Y_{ij} = \sum_{z = 2}^Z \tau(z) \cdot Z_{ij}(z) \cdot \frac{B_{ij}(K)}{N(K)/N} + \sum_{k = 1}^K \beta_k \cdot B_{ij}(k) + \sum_{z=2}^Z \sum_{k=1}^{K-1} \tau(z, k) \cdot Z_{ij}(z) \cdot \left( B_{ij}(k) - B_{ij}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij}
-$$
-
-* $i$ indexes individuals, $j$ clusters
-* $Z_{ij}(z)$ is an indicator for whether cluster $j$ was assigned treatment $z \in \{1 \ldots Z\}$, where 1 is the control.
-* $B_{ij}(k)$ is an indicator for whether cluster $j$ is in stratum $k \{1 \ldots K\}$.
-* $N(k)$ is the size of startum $k$.
-* $N$ is the total number of observations
-
-The stratification adjusted average treatment effect for each treatment is $\tau(\cdot)$.
 
 ```{r regression-code, eval=TRUE, include=FALSE}
 calc.strat.interaction.terms <- function(.data, 
                                          .treatment = "assigned.treatment", 
                                          .strat.by = c("county", "dist.pot.group"), 
-                                         .interact.with = NULL, 
-                                         last.stratum = "Siaya.far") {
-  interact.formula <- sprintf("~ %s - 1", paste(c(.treatment, .interact.with, "stratum"), collapse = ":")) %>% 
-    as.formula
+                                         .interact.with = NULL) {
+  stopifnot(length(.treatment) == 1)
   
-  bind_cols(select(.data, KEY.individ, last.stratum.size, total.size, stratum), 
-            tidy(model.matrix(interact.formula, .data))) %>% 
-    select(-starts_with("assigned.treatmentcontrol")) %>% # Omit control
+  strata.info <- .data %>% 
+    group_by_(.dots = .strat.by) %>% 
+    summarize(stratum.size = n()) %>% 
+    ungroup %>% 
+    mutate(last.stratum = row_number() == n(),
+           last.stratum.size = last(stratum.size),
+           total.size = sum(stratum.size))
+  
+  strata.info$stratum <- strata.info[, .strat.by] %>% 
+    do.call(function(...) paste(..., sep = "."), .)
+  
+  .data %<>% 
+    left_join(strata.info, .strat.by)
+  
+  .treatment %<>% c(.interact.with)
+  
+  interact.formula <- .treatment %>% # c(.treatment, .interact.with) %>% 
+    paste(collapse = " * ") %>% 
+    sprintf("~ %s * stratum - %s", ., .) %>% 
+    as.formula
+ 
+  .data %>% { 
+    bind_cols(select(., KEY.individ, last.stratum.size, total.size, stratum), 
+              as_tibble(model.matrix(interact.formula, .)) %>% select(dplyr::contains(":stratum"))) 
+  } %>% 
     gather(interact.param, interact.coef, -c(KEY.individ, last.stratum.size, total.size, stratum)) %>% 
-    separate(interact.param, c("interact.assign", "interact.stratum"), sep = "\\.(?>stratum)") %>% 
-    left_join(distinct(.data, stratum, stratum.size), c("interact.stratum" = "stratum")) %>% 
-    mutate(interact.coef = interact.coef * if_else(interact.stratum == last.stratum, 1/stratum.size, 1),
+    separate(interact.param, c("interact.assign", "interact.stratum"), sep = ":stratum") %>% 
+    left_join(select(strata.info, stratum, stratum.size, last.stratum), c("interact.stratum" = "stratum")) %>% 
+    mutate(interact.coef = interact.coef * if_else(last.stratum, 1/stratum.size, 1),
            interact.term.key = paste(interact.assign, interact.stratum, sep = "_") %>% 
-             str_replace_all(c("assigned.treatment" = "", 
-                               if (is.null(.interact.with)) NULL else .interact.with %>% paste0(".", .) %>% setNames(rep("_", length(.)), .)))) %>% 
+             str_replace_all(setNames(rep("", length(.treatment)), .treatment))) %>% 
     group_by(KEY.individ, interact.assign) %>% 
     do({
-      last.stratum.coef <- filter(., interact.stratum == last.stratum) %$% interact.coef 
+      last.stratum.coef <- filter(., last.stratum) %$% interact.coef 
       
       mutate(., 
-           interact.coef = interact.coef - ifelse(interact.stratum == last.stratum, 0, last.stratum.coef * stratum.size))
+           interact.coef = interact.coef - ifelse(last.stratum, 0, last.stratum.coef * stratum.size))
     }) %>% 
     ungroup %>% 
-    mutate(interact.coef = interact.coef * ifelse(interact.stratum == last.stratum, total.size, 1)) %>% 
-    select(KEY.individ, matches("^interact\\.(term|coef)")) %>% 
-    spread(interact.term.key, interact.coef) 
+    mutate(interact.coef = interact.coef * ifelse(last.stratum, total.size, 1)) %>% 
+    select(KEY.individ, matches("^interact\\.(term|coef)"), stratum) %>% 
+    spread(interact.term.key, interact.coef) %>% 
+    left_join(strata.info, "stratum")
 }
 
-
-
 run.strat.reg <- function(.data, 
-                          last.stratum,
                           lhs.var = "dewormed.any",
-                          indicator.regex = "^(calendar|ink|bracelet).*_(Busia|Siaya|Kakamega)",
-                          .interact.with = NULL) {
-  indicator.formula.str <- paste(grep(indicator.regex, names(.data), value = TRUE), collapse = " + ")
-  reg.formula <- as.formula(sprintf("%s ~ stratum - 1 %s + %s", 
+                          indicator.regex = "_(Busia|Siaya|Kakamega)",
+                          .interact.with = NULL,
+                          .covariates = NULL) {
+  .data %<>%
+    set_names(str_replace(names(.), ":", "_")) 
+  
+  indicator.formula.str <- paste(sprintf("%s", grep(indicator.regex, names(.data), value = TRUE)), collapse = " + ")
+  
+  reg.formula <- as.formula(sprintf("%s ~ stratum - 1 + %s %s", 
                                     lhs.var,
-                                    if (is.null(.interact.with)) "" else paste(c("", .interact.with), collapse = " + "),
-                                    indicator.formula.str))
+                                    indicator.formula.str,
+                                    if (is.null(.covariates)) "" else paste(c("", .covariates), collapse = " + ")))
+  
+  last.stratum <- .data %>% filter(last.stratum) %$% stratum %>% unique
+  
+  browser()
   
   .data %>% 
     lm(reg.formula, data = .) %>% 
     coeftest(vcov. = vcov.clx(., .data$cluster.id)) %>% 
     tidy %>% 
-    filter(str_detect(term, sprintf("_%s$", last.stratum))) %>%
-    mutate(term = str_replace(term, "([^_]+)(_([^_]+))?_.+", "\\1 \\3"))
+    filter(str_detect(term, sprintf("_%s$", last.stratum))) %>% 
+    mutate(term = str_replace_all(term, setNames(c(" ", ""), c("_", first(last.stratum))))) # c("_" = " ", first(last.stratum) = ""))
+    # mutate(term = str_replace(term, "(([^_]+)(_([^_]+))?_.+)|(\\[T\\.([^\\]]+)\\]", "\\2 \\4\\6"))
 }
 ```
 
 ## Basic Treatment Effect
 
-```{r}
-last.stratum <- "Siaya.far"
+$$
+Y_{ij} = \sum_{z = 2}^Z \tau(z) \cdot Z_{j}(z) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k = 1}^K \beta_k \cdot B_{j}(k) + \sum_{z=2}^Z \sum_{k=1}^{K-1} \tau_k(z) \cdot Z_{j}(z) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij}
+$$
 
+* $i$ indexes individuals, $j$ clusters
+* $Z_{j}(z)$ is an indicator for whether cluster $j$ was assigned treatment $z \in \{1 \ldots Z\}$, where 1 is the control arm.
+* $B_{j}(k)$ is an indicator for whether cluster $j$ is in stratum $k \{1 \ldots K\}$.
+* $N(k)$ is the size of startum $k$.
+* $N$ is the total number of observations
+
+The stratification adjusted average treatment effect for each treatment is $\tau(\cdot)$.
+
+```{r}
 census.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  mutate(stratum = paste(county, dist.pot.group, sep = ".")) %>% 
-  group_by(stratum) %>% 
-  mutate(stratum.size = n(),
-         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(0))) %>% 
-  ungroup %>%
-  mutate(last.stratum.size = max(.$last.stratum.size),
-         total.size = n()) %>%   
-  left_join(calc.strat.interaction.terms(., last.stratum = last.stratum), "KEY.individ") %>% 
-  run.strat.reg(last.stratum = last.stratum)
+  left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
+  run.strat.reg
 ```
+
+The specification we use to estimate interactions is
+
+$$
+\begin{align}
+Y_{ij} &= \left(\sum_{z = 2}^Z \tau(z) \cdot Z_{j}(z) + \sum_{d=2}^D \delta(d) \cdot D_{ij}(d) + \sum_{z = 2}^Z \sum_{d=2}^D \gamma(z,d) \cdot Z_j(z)\cdot D_{ij}(d) \right) \cdot \frac{B_{ij}(K)}{N(K)/N} + \\ &\sum_{k = 1}^K \beta_k \cdot B_{ij}(k) + \sum_{k=1}^{K-1} \left( B_{ij}(k) - B_{ij}(K)\cdot\frac{N(k)}{N(K)} \right) \cdot \left(\sum_{z=2}^Z \tau_k(z) \cdot Z_{j}(z) + \sum_{d=2}^D \delta_k(d) \cdot D_{ij}(d) + \sum_{z = 2}^Z \sum_{d=2}^D \gamma_k(z,d) \cdot Z_j(z)\cdot D_{ij}(d) \right)  + \varepsilon_{ij}
+\end{align}
+$$
 
 ## Treatment Effect Heterogeneity by Distance to PoT
 
-```{r}
-last.stratum <- "Siaya"
 
+```{r}
 census.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  mutate(stratum = county) %>% 
-  group_by(stratum) %>% 
-  mutate(stratum.size = n(),
-         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(0))) %>% 
-  ungroup %>%
-  mutate(last.stratum.size = max(.$last.stratum.size),
-         total.size = n()) %>%   
-  left_join(calc.strat.interaction.terms(., .interact.with = "dist.pot.group", last.stratum = last.stratum), "KEY.individ") %>% 
-  run.strat.reg(last.stratum = last.stratum, .interact.with = "dist.pot.group")
+  left_join(calc.strat.interaction.terms(., .strat.by = "county", .interact.with = "dist.pot.group"), "KEY.individ") %>% 
+  run.strat.reg(.interact.with = "dist.pot.group")
 ```
 
 ## SMS Treatment
 
 ```{r}
-last.stratum <- "Siaya.far"
-
 census.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  mutate(stratum = paste(county, dist.pot.group, sep = ".")) %>% 
-  group_by(stratum) %>% 
-  mutate(stratum.size = n(),
-         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(0))) %>% 
-  ungroup %>%
-  mutate(last.stratum.size = max(.$last.stratum.size),
-         total.size = n()) %>%   
-  left_join(calc.strat.interaction.terms(., .interact.with = "dist.pot.group", last.stratum = last.stratum), "KEY.individ") %>% 
-  run.strat.reg(last.stratum = last.stratum)
+  left_join(calc.strat.interaction.terms(., .interact.with = "sms.treatment"), "KEY.individ") %>% 
+  run.strat.reg(.interact.with = "sms.treatment")
 ```
 
 
@@ -334,8 +344,6 @@ col.to.show <- c("dist.pot.group", "assigned.treatment", "sms.treatment", "treat
 
 neyman.results %>% unnest(treatment.data) %>% select_(.dots = intersect(names(.), col.to.show))
 neyman.results.dist %>% unnest(treatment.data) %>% select_(.dots = intersect(names(.), col.to.show))
-
-
 ```
 
 ```{r}
@@ -362,11 +370,29 @@ neyman.results %>%
   unnest(strata.data) %>% 
   select(-total.size) %>% 
   arrange(county, dist.pot.group, treatment.group)
+
+
 # 
 # neyman.results.dist %>% 
 #   unnest(strata.data) %>% 
 #   select(-total.size) %>% 
 #   arrange(county, dist.pot.group, treatment.group)
+```
+
+The take-up levels in the control arm (per stratum) are:
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  filter(treatment.group == "control") %>% 
+  arrange(county, dist.pot.group, treatment.group) %>% 
+  transmute(county, dist.pot.group, baseline.takeup = stratum.assign.mean.dewormed)
+```
+
+```{r}
+neyman.results %>% 
+  unnest(treatment.data) %>% 
+  distinct(treatment.group, treatment.mean.dewormed)
 ```
 
 
