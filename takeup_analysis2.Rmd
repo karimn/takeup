@@ -1,6 +1,5 @@
 ---
 title: "TakeUp Analysis Notebook"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
   html_notebook:
     code_folding: hide
@@ -10,6 +9,9 @@ output:
     toc: yes
     toc_float:
       collapsed: no
+header-includes:
+   - \usepackage{bbm}
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 ---
 
 ```{r setup, include=FALSE}
@@ -31,7 +33,6 @@ library(ggrepel)
 library(ggmap)
 library(stringr)
 library(knitr)
-library(printr)
 
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
@@ -46,8 +47,8 @@ wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
 options(#contrasts=c("contr.Treatment", getOption("contrasts")[2]), 
-        dplyr.show_progress = FALSE,
-        digits = 4) 
+        dplyr.show_progress = FALSE)
+#         digits = 4) 
 ```
 
 ```{r load-data}
@@ -56,16 +57,11 @@ load("data/takeup_at_pot.RData")
 load("data/takeup_matched_population.RData")
 ```
 
-# Regression Analysis
-
-
-```{r regression-code, eval=TRUE, include=FALSE}
+```{r regression-code, include=FALSE}
 calc.strat.interaction.terms <- function(.data, 
                                          .treatment = "assigned.treatment", 
-                                         .strat.by = c("county", "dist.pot.group"), 
-                                         .interact.with = NULL) {
-  stopifnot(length(.treatment) == 1)
-  
+                                         .strat.by = setdiff(c("county", "dist.pot.group"), .treatment), 
+                                         interact.formula = as.formula(sprintf("~ %s", paste(.treatment, collapse = "*")))) {
   strata.info <- .data %>% 
     group_by_(.dots = .strat.by) %>% 
     summarize(stratum.size = n()) %>% 
@@ -80,23 +76,24 @@ calc.strat.interaction.terms <- function(.data,
   .data %<>% 
     left_join(strata.info, .strat.by)
   
-  .treatment %<>% c(.interact.with)
+  interact.formula %<>% 
+    update.formula(~ . * stratum - .)
   
-  interact.formula <- .treatment %>% # c(.treatment, .interact.with) %>% 
-    paste(collapse = " * ") %>% 
-    sprintf("~ %s * stratum - %s", ., .) %>% 
-    as.formula
- 
   .data %>% { 
     bind_cols(select(., KEY.individ, last.stratum.size, total.size, stratum), 
-              as_tibble(model.matrix(interact.formula, .)) %>% select(dplyr::contains(":stratum"))) 
+              as_tibble(model.matrix(interact.formula, .)) %>% select(dplyr::matches("^stratum.+:"))) 
   } %>% 
     gather(interact.param, interact.coef, -c(KEY.individ, last.stratum.size, total.size, stratum)) %>% 
-    separate(interact.param, c("interact.assign", "interact.stratum"), sep = ":stratum") %>% 
+    group_by(interact.param) %>% 
+    filter(any(interact.coef > 0)) %>% 
+    ungroup %>% 
+    separate(interact.param, c("interact.stratum", "interact.assign"), 
+             sep = sprintf("(?<=stratum(%s)):", paste(unique(.$stratum), collapse = "|"))) %>% 
+    mutate_at(vars(interact.stratum, interact.assign), 
+              funs(str_replace_all(., c(":" = "_", stratum = "", setNames(rep("", length(.treatment)), .treatment))))) %>% 
     left_join(select(strata.info, stratum, stratum.size, last.stratum), c("interact.stratum" = "stratum")) %>% 
     mutate(interact.coef = interact.coef * if_else(last.stratum, 1/stratum.size, 1),
-           interact.term.key = paste(interact.assign, interact.stratum, sep = "_") %>% 
-             str_replace_all(setNames(rep("", length(.treatment)), .treatment))) %>% 
+           interact.term.key = paste(interact.assign, interact.stratum, sep = "_")) %>% 
     group_by(KEY.individ, interact.assign) %>% 
     do({
       last.stratum.coef <- filter(., last.stratum) %$% interact.coef 
@@ -114,11 +111,8 @@ calc.strat.interaction.terms <- function(.data,
 run.strat.reg <- function(.data, 
                           lhs.var = "dewormed.any",
                           indicator.regex = "_(Busia|Siaya|Kakamega)",
-                          .interact.with = NULL,
-                          .covariates = NULL) {
-  .data %<>%
-    set_names(str_replace(names(.), ":", "_")) 
-  
+                          .covariates = NULL,
+                          .linear.hypo = list()) {
   indicator.formula.str <- paste(sprintf("%s", grep(indicator.regex, names(.data), value = TRUE)), collapse = " + ")
   
   reg.formula <- as.formula(sprintf("%s ~ stratum - 1 + %s %s", 
@@ -128,71 +122,35 @@ run.strat.reg <- function(.data,
   
   last.stratum <- .data %>% filter(last.stratum) %$% stratum %>% unique
   
-  browser()
+  reg.res <- .data %>% 
+    lm(reg.formula, data = .) 
   
-  .data %>% 
-    lm(reg.formula, data = .) %>% 
-    coeftest(vcov. = vcov.clx(., .data$cluster.id)) %>% 
+  robust.vcov <- vcov.clx(reg.res, .data$cluster.id)
+  
+  reg.summary <- reg.res %>% 
+    coeftest(vcov. = robust.vcov) %>% 
     tidy %>% 
     filter(str_detect(term, sprintf("_%s$", last.stratum))) %>% 
-    mutate(term = str_replace_all(term, setNames(c(" ", ""), c("_", first(last.stratum))))) # c("_" = " ", first(last.stratum) = ""))
-    # mutate(term = str_replace(term, "(([^_]+)(_([^_]+))?_.+)|(\\[T\\.([^\\]]+)\\]", "\\2 \\4\\6"))
+    mutate(term = str_replace_all(term, setNames(c(" ", ""), c("_", first(last.stratum))))) 
+  
+  test.linear.hypo <- function(linear.hypo) {
+    paste(linear.hypo, last.stratum, sep = "_") %>% {
+      est <- coef(reg.res)[.] %>% sum
+      
+      paste(., collapse = " + ") %>% 
+        lht(reg.res, ., vcov. = robust.vcov) %>% 
+        tidy %>% 
+        mutate(linear.hypo = paste(linear.hypo, collapse = " + "),
+               estimate = est)
+    }
+  }
+  
+  linear.tests <- map_df(.linear.hypo, test.linear.hypo) %>% 
+    filter(!is.na(statistic))
+  
+  lst(reg.summary = reg.summary, reg.res = reg.res, vcov = robust.vcov, linear.tests = linear.tests)
 }
 ```
-
-## Basic Treatment Effect
-
-$$
-Y_{ij} = \sum_{z = 2}^Z \tau(z) \cdot Z_{j}(z) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k = 1}^K \beta_k \cdot B_{j}(k) + \sum_{z=2}^Z \sum_{k=1}^{K-1} \tau_k(z) \cdot Z_{j}(z) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij}
-$$
-
-* $i$ indexes individuals, $j$ clusters
-* $Z_{j}(z)$ is an indicator for whether cluster $j$ was assigned treatment $z \in \{1 \ldots Z\}$, where 1 is the control arm.
-* $B_{j}(k)$ is an indicator for whether cluster $j$ is in stratum $k \{1 \ldots K\}$.
-* $N(k)$ is the size of startum $k$.
-* $N$ is the total number of observations
-
-The stratification adjusted average treatment effect for each treatment is $\tau(\cdot)$.
-
-```{r}
-census.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
-  run.strat.reg
-```
-
-The specification we use to estimate interactions is
-
-$$
-\begin{align}
-Y_{ij} &= \left(\sum_{z = 2}^Z \tau(z) \cdot Z_{j}(z) + \sum_{d=2}^D \delta(d) \cdot D_{ij}(d) + \sum_{z = 2}^Z \sum_{d=2}^D \gamma(z,d) \cdot Z_j(z)\cdot D_{ij}(d) \right) \cdot \frac{B_{ij}(K)}{N(K)/N} + \\ &\sum_{k = 1}^K \beta_k \cdot B_{ij}(k) + \sum_{k=1}^{K-1} \left( B_{ij}(k) - B_{ij}(K)\cdot\frac{N(k)}{N(K)} \right) \cdot \left(\sum_{z=2}^Z \tau_k(z) \cdot Z_{j}(z) + \sum_{d=2}^D \delta_k(d) \cdot D_{ij}(d) + \sum_{z = 2}^Z \sum_{d=2}^D \gamma_k(z,d) \cdot Z_j(z)\cdot D_{ij}(d) \right)  + \varepsilon_{ij}
-\end{align}
-$$
-
-## Treatment Effect Heterogeneity by Distance to PoT
-
-
-```{r}
-census.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  left_join(calc.strat.interaction.terms(., .strat.by = "county", .interact.with = "dist.pot.group"), "KEY.individ") %>% 
-  run.strat.reg(.interact.with = "dist.pot.group")
-```
-
-## SMS Treatment
-
-```{r}
-census.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  left_join(calc.strat.interaction.terms(., .interact.with = "sms.treatment"), "KEY.individ") %>% 
-  run.strat.reg(.interact.with = "sms.treatment")
-```
-
-
-# Neyman Approach
 
 ```{r neyman-code, include=FALSE}
 nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
@@ -307,22 +265,172 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
 }
 ```
 
-```{r, include=FALSE}
+Below is the main regression specification, where $m(\cdot)$ and $m_1(\cdot)\dots m_{K-1}(\cdot)$ define the causal effects to estimate.
+
+$$
+\begin{equation}
+Y_{ij} = m(Z_j, B_j;\theta) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k = 1}^K \alpha_k \cdot B_{j}(k) + \sum_{k=1}^{K-1} m_k(Z_j, B_j;\theta_k)  \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \mathbf{X} \cdot \beta  + \varepsilon_{ij} 
+\end{equation}
+$$
+
+* $i$ indexes individuals, $j$ clusters
+* $Z_{j}(z) = \mathbf{1}\{Z_j = z\}$ is an indicator for whether cluster $j$ was assigned treatment $z$.
+* $B_{j}(k) = \mathbf{1}\{B_j = k\}$ is an indicator for whether cluster $j$ is in stratum $k$.
+* $N(k)$ is the size of startum $k$.
+* $N$ is the total number of observations
+
+# Basic Treatment Effect
+
+Here we estimate the below models
+
+$$
+\begin{align}
+m(Z_j, B_j; \theta) &= \sum_{z \in \mathcal{Z}\setminus \{control\}} \tau(z) \cdot Z_{j}(z)  \\
+m_k(Z_j, B_j; \theta_k) &= \sum_{z\in \mathcal{Z}\setminus\{control\}} \tau_k(z) \cdot Z_{j}(z)  
+\end{align}
+$$
+where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$.
+
+```{r, echo=TRUE}
+reg.output <- census.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
+  run.strat.reg 
+
+kable(reg.output$reg.summary)
+```
+
+Below is the corresponding estimates using Neyman's approach:
+
+```{r, echo=TRUE}
 neyman.results <- census.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   analyze.neyman.blk.bs(1000) %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
+```
 
+```{r}
+neyman.results %>% 
+  unnest(treatment.data) %>%
+  filter(rhs.treatment.group == "control") %>% 
+  select(treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
+  kable
+```
+
+# Treatment Effect Heterogeneity by Distance to PoT
+
+Here we estimate the below models
+
+$$
+\begin{align}
+m(Z_j, D_j, B_j; \theta) &= \sum_{z \in \mathcal{Z}\setminus \{control\}}\left\{\tau(z) \cdot Z_{j}(z) + \gamma(z) \cdot Z_j(z)\cdot D_j \right\} + \delta \cdot D_j  \\
+m_k(Z_j, D_j, B_j; \theta) &= \sum_{z \in \mathcal{Z}\setminus \{control\}}\left\{\tau_k(z) \cdot Z_{j}(z) + \gamma_k(z) \cdot Z_j(z)\cdot D_j \right\} + \delta_k \cdot D_j 
+\end{align}
+$$
+
+where $D_j$ is an indicator for whether cluster $j$ is in the _far_ group. The average treatment estimated here is
+$$
+E[Y_{ij}(z) - Y_{ij}(control) | D_j = d] = \tau(z) + \gamma(z)\cdot d 
+$$
+
+```{r, echo=TRUE}
+reg.output <- census.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
+  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% map(~ paste0(., c("", "_far"))))
+
+kable(reg.output$reg.summary)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value) %>% 
+  kable
+```
+
+Below is the corresponding estimation using Neyman's approach:
+
+```{r, echo=TRUE}
 neyman.results.dist <- census.data %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   analyze.neyman.blk.bs(1000, .interact.with = "dist.pot.group") %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
+```
 
+```{r}
+neyman.results.dist %>% 
+  unnest(treatment.data) %>% 
+  filter(rhs.treatment.group == "control") %>% 
+  select(treatment.group, dist.pot.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
+  kable
+```
+
+# SMS Treatment
+
+Here we estimate the below models
+
+$$
+\begin{align}
+m(Z_j, M_{ij}, B_j; \theta) &= \sum_{z \in \mathcal{Z}\setminus \{control\}}\left\{\tau(z) \cdot Z_{j}(z) + \sum_{s \in \mathcal{M}\setminus \{none\}} \gamma(z, s) \cdot Z_j(z)\cdot M_{ij}(s) \right\} + \sum_{s\in\mathcal{M}\setminus \{none\}} \delta(s) \cdot M_{ij}(s)  \\
+m_k(Z_j, M_{ij}, B_j; \theta) &= \sum_{z \in \mathcal{Z}\setminus \{control\}}\left\{\tau_k(z) \cdot Z_{j}(z) + \sum_{s \in \mathcal{M}\setminus \{none\}} \gamma_k(z, s) \cdot Z_j(z)\cdot M_{ij}(s) \right\} + \sum_{s\in\mathcal{M}\setminus \{none\}} \delta_k(s) \cdot M_{ij}(s)  
+\end{align}
+$$
+where $M_{ij}(s)$ is an indicator of whether individual $i$ received SMS treatment $s$.
+
+The average treatment estimated here is
+$$
+E[Y_{ij}(z, s) - Y_{ij}(z', s')] = \tau(z) - \tau(z') + \gamma(z, s) - \gamma(z', s') + \delta(s) - \delta(s'),
+$$
+where 
+
+* $\tau(control) = \delta(none) = 0$ 
+* $z = control \lor s = none \implies \gamma(z, s) = 0$
+
+```{r, echo=TRUE}
+reg.output <- census.data %>%  
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment")), "KEY.individ") %>% 
+  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% map(~ c(paste0(., "_social.info"), "social.info")))
+
+reg.output$reg.summary %>% kable
+```
+
+Corresponding Neyman's approach:
+
+```{r, echo=TRUE}
 neyman.results.sms <- census.data %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   analyze.neyman.blk.bs(1000, .treatment = c("assigned.treatment", "sms.treatment")) %>% 
   separate(treatment.group, c("assigned.treatment", "sms.treatment"), sep = "_") %>% 
   mutate(assigned.treatment = factor(assigned.treatment, levels = c("control", "ink", "calendar", "bracelet")))  
+```
+
+```{r}
+neyman.results.sms %>% 
+  unnest(treatment.data) %>% 
+  filter(str_detect(rhs.treatment.group, paste0("^", assigned.treatment)),
+         sms.treatment != "sms.control") %>% 
+  select(assigned.treatment, sms.treatment, rhs.treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
+  kable
+```
+
+<!-- ## Distance and SMS Treatment -->
+
+<!-- ```{r, echo=TRUE} -->
+<!-- census.data %>%   -->
+<!--   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%  -->
+<!--   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>%  -->
+<!--   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%   -->
+<!--   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment", "dist.pot.group")), "KEY.individ") %>%  -->
+<!--   run.strat.reg -->
+<!-- ``` -->
+
+# Neyman Approach
+
+
+```{r, include=FALSE}
 
 # neyman.results.sms.treatment.only <- census.data %>% 
 #   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
