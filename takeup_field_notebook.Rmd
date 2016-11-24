@@ -131,7 +131,7 @@ pot.info %<>%
 pot.info %>% 
   filter(wave == 2) %>% 
   count(cluster.id) %>% 
-  filter(n > 1) %>%  
+  # filter(n > 1) %>%  
   left_join(pot.info, "cluster.id") %>% 
   arrange(cluster.id, SubmissionDate.verify) %>% 
   select(cluster.id, SubmissionDate.verify, verify.dist) #%>% print(n = 40)
@@ -3424,8 +3424,7 @@ all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#Submis
   } %>% 
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
-  filter(cluster.id != 1163 | SubmissionDate >= "2016-11-14") %>% # Data fabricated by enumerators 111
-  # filter(wave == 1 | test == 1 | date(SubmissionDate) == "2016-11-7") %>% 
+  filter(cluster.id != 1163 | SubmissionDate >= "2016-11-14", enumerator != 111) %>% # Data fabricated by enumerators 111
   filter(date(SubmissionDate) != "2016-11-7" | test == 1) %>% 
   left_join(identify.closest.cluster(.), "KEY") %>% 
   left_join(select(census.data, KEY.individ, lon, lat), "KEY.individ", suffix = c(".survey", ".census")) %>% 
@@ -3470,11 +3469,11 @@ if (bc.diff > 0) {
     bind_rows(wave1.endline.backchecks)
 }
 
-# write_rds(wave1.endline.backchecks, "takeup_endline_backchecks_wave1_1.0.rds")
+# write_rds(wave1.endline.backchecks, "data/takeup_endline_backchecks_wave1_1.0.rds")
 # 
 # wave1.endline.backchecks %>% 
 #   transmute(cluster.id, KEY.endline = KEY, enumerator) %>% 
-#   write_csv("takeup_endline_backchecks_wave1_1.0.csv")
+#   write_csv("data/takeup_endline_backchecks_wave1_1.0.csv")
 ```
 
 ```{r endline-backcheck-sample-wave2, eval=FALSE}
@@ -3494,7 +3493,7 @@ wave2.endline.backchecks <- wave2.endline.bc.data %>%
   filter(!is.na(enumerator), enumerator != 99) %>% 
   semi_join(wave2.endline.backcheck.clusters, "cluster.id") %>% 
   group_by(enumerator) %>% 
-  do(sample_n(., min(nrow(.), 7))) %>% 
+  do(sample_n(., min(nrow(.), 5))) %>% 
   ungroup
 
 bc.diff <- round(0.1 * nrow(wave2.endline.bc.data)) - nrow(wave2.endline.backchecks)  
@@ -3507,11 +3506,11 @@ if (bc.diff > 0) {
     bind_rows(wave2.endline.backchecks)
 }
 
-write_rds(wave2.endline.backchecks, "takeup_endline_backchecks_wave2_1.0.rds")
-
-wave2.endline.backchecks %>%
-  transmute(cluster.id, KEY.endline = KEY, enumerator) %>%
-  write_csv("takeup_endline_backchecks_wave2_1.0.csv")
+# write_rds(wave2.endline.backchecks, "data/takeup_endline_backchecks_wave2_1.0.rds")
+# 
+# wave2.endline.backchecks %>%
+#   transmute(cluster.id, KEY.endline = KEY, enumerator) %>%
+#   write_csv("data/takeup_endline_backchecks_wave2_1.0.csv")
 ```
 
 ```{r plot-endline-code}
