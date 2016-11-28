@@ -10,6 +10,8 @@ output:
     toc: yes
     toc_float:
       collapsed: no
+    df_print:
+      max_print: 20
 ---
 
 ```{r setup, include=FALSE}
@@ -52,7 +54,7 @@ load("data/takeup_at_pot.RData")
 load("data/takeup_matched_population.RData")
 ```
 
-```{r calc-hh2pot-dist}
+```{r calc-hh2pot-dist, eval=FALSE}
 matched.tu.data.2 %<>%
   left_join(pot.info %>% 
               select(cluster.id, lon.post.rct.update, lat.post.rct.update) %>% 
@@ -85,6 +87,10 @@ matched.tu.data.2 %<>%
 
 all.matched.tu.data.2 <- matched.tu.data.2
 
+
+```
+
+```{r}
 matched.tu.data.2 %<>% 
   filter(is.na(dist.to.pot.dest) | dist.to.pot.dest <= 20000) 
   # filter((is.na(cluster.spillover) & is.na(treatment.spillover)) | !(cluster.spillover | treatment.spillover) | dist.to.pot.dest <= 20000) 
@@ -92,121 +98,6 @@ matched.tu.data.2 %<>%
 
 
 # Take-up
-
-```{r}
-last.stratum = "Siaya.far"
-
-calc.strat.interaction.terms <- function(.data) {
- bind_cols(select(.data, KEY.individ, last.stratum.size, total.size, stratum.size), 
-           tidy(model.matrix(~ assigned.treatment:stratum - 1, .data))) %>% 
-    select(-matches("control\\.stratum")) %>% 
-    gather(interact.param, interact.coef, -c(KEY.individ, last.stratum.size, total.size, stratum.size)) %>% 
-    separate(interact.param, c("interact.assign", "interact.stratum"), sep = "\\.(?>stratum)") %>% 
-    mutate(interact.coef = interact.coef * if_else(interact.stratum == last.stratum, 1/last.stratum.size, 1)) %>% 
-    group_by(KEY.individ, interact.assign) %>% 
-    do({
-      last.stratum.coef <- filter(., interact.stratum == last.stratum) %$% interact.coef 
-      
-      mutate(., 
-             interact.coef = interact.coef - ifelse(interact.stratum == last.stratum, 0, last.stratum.coef * stratum.size))
-    }) %>% 
-    ungroup %>% 
-    mutate(interact.coef = interact.coef * ifelse(interact.stratum == last.stratum, total.size, 1),  
-           interact.term.key = paste(interact.assign, interact.stratum, sep = "_") %>% str_replace("^assigned\\.treatment", "")) %>% 
-    select(KEY.individ, matches("^interact\\.(term|coef)")) %>% 
-    spread(interact.term.key, interact.coef) 
-}
-
-xx <- census.data %>% 
-  filter(monitored, monitor.consent, is.na(sms.treatment) | sms.treatment == "sms.control") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  mutate(stratum = paste(county, dist.pot.group, sep = ".")) %>% 
-  group_by(stratum) %>% 
-  mutate(stratum.size = n(),
-         last.stratum.size = if_else(first(stratum) == last.stratum, first(stratum.size), as.integer(-1))) %>% 
-  ungroup %>%
-  mutate(last.stratum.size = max(.$last.stratum.size),
-         total.size = n()) %>%   
-  left_join(calc.strat.interaction.terms(.), "KEY.individ") 
-  
-  xx %>% {
-    reg.formula <- as.formula(sprintf("dewormed.any ~ stratum - 1 + %s", 
-                                      paste(grep("(calendar|ink|bracelet)_(Busia|Siaya|Kakamega)", names(.), value = TRUE), collapse = " + ")))
-   
-    print(reg.formula) 
-    
-    lm(reg.formula, data = .) 
-  } %>% 
-  summary
-```
-
-```{r}
-calc.strata.stats <- function(.data, .strat.by = c("county", "dist.pot.group"), .interact.ate.with = NULL) {
-  .data %>% 
-    group_by_(.dots = c(.strat.by, "assigned.treatment")) %>% 
-    summarize(stratum.assign.size = n(),
-              stratum.mean.dewormed = mean(dewormed.any)) %>%  
-    ungroup %>% 
-    left_join(filter(., assigned.treatment == "control"), c("county", "dist.pot.group"), suffix = c(".origin", ".control")) %>% 
-    set_names(str_replace(names(.), "\\.origin", "")) %>% 
-    left_join(filter(., assigned.treatment == "calendar"), c("county", "dist.pot.group"), suffix = c(".origin", ".calendar")) %>% 
-    set_names(str_replace(names(.), "\\.origin", "")) %>% 
-    mutate(total.size = sum(stratum.assign.size)) %>% 
-    group_by_(.dots = .strat.by) %>%
-    mutate(stratum.ate = stratum.mean.dewormed - stratum.mean.dewormed.control,
-           stratum.ate.calendar = stratum.mean.dewormed - stratum.mean.dewormed.calendar,
-           stratum.baseline = first(stratum.mean.dewormed.control),
-           stratum.size = stratum.assign.size + stratum.assign.size.control,
-           stratum.size.calendar = stratum.assign.size + stratum.assign.size.calendar) %>% 
-    group_by_(.dots = c("assigned.treatment", .interact.ate.with)) %>% 
-    summarize(ate = weighted.mean(stratum.ate, stratum.size), 
-              ate.calendar = weighted.mean(stratum.ate.calendar, stratum.size.calendar), 
-              baseline = weighted.mean(stratum.baseline, stratum.size),
-              treat.grp.dewormed = weighted.mean(stratum.mean.dewormed, stratum.size)) 
-}
-
-neeyman.results <- census.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  transmute(stratum = paste(county, dist.pot.group, sep = "."),
-            county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
-  block.bootstrap(1000, "cluster.id") %>%
-  do(calc.strata.stats(., .interact.ate.with = "dist.pot.group")) %>% 
-  ungroup %>% 
-  select(-baseline) %>% 
-  group_by(assigned.treatment, dist.pot.group) %>% 
-  summarize_at(vars(starts_with("ate"), treat.grp.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>% 
-  mutate(ci.lower.dewormed = treat.grp.dewormed_mean - 1.64 * treat.grp.dewormed_sd,
-         ci.upper.dewormed = treat.grp.dewormed_mean + 1.64 * treat.grp.dewormed_sd,
-         ci.lower.ate = ate_mean - 1.64 * ate_sd,
-         ci.upper.ate = ate_mean + 1.64 * ate_sd,
-         ci.lower.ate.calendar = ate.calendar_mean - 1.64 * ate.calendar_sd,
-         ci.upper.ate.calendar = ate.calendar_mean + 1.64 * ate.calendar_sd)
-```
-
-```{r}
-neeyman.results %>%
-  filter(assigned.treatment != "control") %>% 
-  ggplot(aes(assigned.treatment, ate_mean, col = dist.pot.group)) +
-  geom_hline(yintercept = 0) +
-  geom_point() +  #, color = "black") +
-  geom_line(aes(group = dist.pot.group)) +
-  geom_errorbar(aes(ymin = ci.lower.ate, ymax = ci.upper.ate), width = 0.05) +
-  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) +
-  facet_wrap(~ dist.pot.group, scales = "free_y")
-
-neeyman.results %>%
-  filter(assigned.treatment != "calendar") %>% 
-  ggplot(aes(assigned.treatment, ate.calendar_mean, col = dist.pot.group)) +
-  geom_hline(yintercept = 0) +
-  geom_point() +  #, color = "black") +
-  geom_line(aes(group = dist.pot.group)) +
-  geom_errorbar(aes(ymin = ci.lower.ate.calendar, ymax = ci.upper.ate.calendar), width = 0.05) +
-  scale_y_continuous("Average Treatment Effect", breaks = seq(-0.1, 0.3, 0.01)) +
-  facet_wrap(~ dist.pot.group, scales = "free_y")
-```
-
-
 
 ```{r, fig.align="center", fig.align="center", fig.width=8, fig.height=10}
 plot.aggreg.takeup <- function(.data) {
@@ -227,7 +118,7 @@ takeup.data %>%
 ## Monitored Only
 ```{r}
 monitored.and.matched.data <- matched.tu.data.2 %>%
-  filter(endline.type %in% c("endline", "endline.backup", "reconsent"))  
+  filter(endline.type %in% c("endline", "endline.backup", "reconsent", "reconsent.backup"))  
 ```
 
 ```{r , eval=FALSE}
@@ -261,7 +152,7 @@ monitored.and.matched.data %<>%
   right_join(monitored.and.matched.data, c("any.matched.KEY.individ", "cluster.id.pot"))
 ```
 
-The "Name Matched" proportion is a good indicator of much enumerators at failing to identify monitored individuals.
+The "Name Matched" proportion is a good indicator of much enumerators are failing to identify monitored individuals.
 
 ```{r drop-far-spillovers, eval=TRUE}
 monitored.and.matched.data %<>%
@@ -275,6 +166,7 @@ monitored.and.matched.data %<>%
 
 ```{r, echo=FALSE, fig.width=8, fig.height=10}
 monitored.and.matched.data %>% 
+  filter(!cluster.spillover, !treatment.spillover) %>% 
   ggplot() +
   # geom_bar(aes(assigned.treatment.pot, fill = treatment.spillover), color = "black", alpha = 0.5) +
   geom_bar(aes(assigned.treatment.pot, fill = match.type), color = "black", alpha = 0.5) +
@@ -287,7 +179,7 @@ monitored.and.matched.data %>%
 
 ```{r, echo=FALSE, fig.width=8, fig.height=10}
 monitored.and.matched.data %>% 
-  filter(!is.na(assigned.treatment.home)) %>% 
+  filter(!is.na(assigned.treatment.home), !cluster.spillover, !treatment.spillover) %>% 
   ggplot() +
   # geom_bar(aes(assigned.treatment.home, fill = treatment.spillover), color = "black", alpha = 0.5) +
   geom_bar(aes(assigned.treatment.home, fill = match.type), color = "black", alpha = 0.5) +
@@ -301,6 +193,37 @@ monitored.and.matched.data %>%
 ### Non SMS Group
 
 Only those who did not receive SMS treatment, dropping spillovers.
+
+```{r}
+monitored.and.matched.data %>% 
+  filter(!treatment.spillover, !cluster.spillover, sms.treatment == "sms.control") %>% 
+  left_join(census.data %>% select(KEY.individ, monitored, monitor.consent, starts_with("dewormed")),
+            c("any.matched.KEY.individ" = "KEY.individ"),
+            suffix = c(".tu", ".census")) %>% {
+              filter(., !dewormed.any) %>% 
+                count(wave, dewormed.any, monitor.consent, match.type) %>% print
+              
+              count(., wave, assigned.treatment.home) %>% print
+              
+              filter(., !dewormed.any, monitor.consent, match.type == "PoT Matched") %>% select(any.matched.KEY.individ, cluster.id.home) %>% print
+             
+              # filter(., dewormed.any) %>% 
+              #   count(wave, assigned.treatment.home) %>% print
+            }
+```
+
+```{r}
+census.data %>% 
+  filter(monitored, !is.na(endline.type), sms.treatment == "sms.control", dewormed.any) %>% {
+    count(., wave, assigned.treatment) %>% print
+  
+    anti_join(., monitored.and.matched.data, c("KEY.individ" = "any.matched.KEY.individ")) %>% {
+      count(., wave, dewormed, sms.treatment, assigned.treatment) %>% print
+    }
+  }
+```
+
+
 
 ```{r, echo=FALSE, fig.width=12}
 monitored.and.matched.data %>% 
