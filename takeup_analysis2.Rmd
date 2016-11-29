@@ -51,13 +51,72 @@ options(#contrasts=c("contr.Treatment", getOption("contrasts")[2]),
 #         digits = 4) 
 ```
 
-```{r load-data}
-load("data/takeup_census.RData")
-load("data/takeup_at_pot.RData")
-load("data/takeup_matched_population.RData")
+# Data
+
+```{r load-data, include=TRUE}
+# This data was prepared in takeup_field_notebook.Rmd
+census.data <- read_rds("data/takeup_census.rds")
+takeup.data <- read_rds("data/takeup.rds")
+all.endline.data <- read_rds("data/all_endline.rds")
+reconsent.data <- read_rds("data/reconsent.rds")
 ```
 
-```{r regression-code, include=FALSE}
+The _monitored_: baseline and endline survey respondents, as well as a sample of people from whom we will receive reconsent.
+
+```{r}
+census.data %>% 
+  filter(!is.na(wave), monitored) %>% {
+    count(., endline.type) %>% print
+    
+    filter(., is.na(endline.type)) %>% count(baseline.sample.wave)
+  }
+```
+
+```{r name-matching-code, include=FALSE}
+name.match.monitored <- function(census.cluster.data, 
+                                takeup.cluster.data, 
+                                max.cost = 1) {
+  dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) %>%
+    add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
+  
+  census.cluster.data %>% 
+    mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
+           which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
+                                              aaply(dist.mat, 1, . %>% which.min %>% magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
+                                              NA),
+           dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost)
+}
+```
+
+```{r data-preparation}
+consent.dewormed.reports <- list(endline.survey = all.endline.data, 
+                                 reconsent = reconsent.data) %>% 
+  ldply(.id = "data.source", . %>% select(KEY.individ, monitor.consent, dewormed.reported)) %>% # Get reported deworming status and consent info
+  filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>%  
+  group_by(KEY.individ) %>%  
+  summarize(monitor.consent = any(monitor.consent), # Consider as reconsented if at least one acceptance
+            dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% # Multiple contradictory responses
+  ungroup
+
+census.data %<>% 
+  left_join(consent.dewormed.reports, "KEY.individ") %>% 
+  mutate(monitor.consent = !is.na(monitor.consent) & monitor.consent,
+         dewormed = KEY.individ %in% takeup.data$KEY.individ, # TRUE if individual found in take-up data
+         dewormed = ifelse(monitored, dewormed, NA)) # NA if not in the monitored group
+
+census.data %<>% 
+  filter(monitored, !dewormed) %>% # For all those monitored and have FALSE deworming status (based on PoT monitoring)
+  group_by(cluster.id) %>% 
+  do(name.match.monitored(., filter(takeup.data, cluster.id %in% unique(.$cluster.id)))) %>% 
+  ungroup %>% 
+  select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
+  right_join(census.data, "KEY.individ") %>% 
+  mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
+         dewormed.any = dewormed | dewormed.matched)
+```
+
+
+```{r regression-code}
 calc.strat.interaction.terms <- function(.data, 
                                          .treatment = "assigned.treatment", 
                                          .strat.by = setdiff(c("county", "dist.pot.group"), .treatment), 
@@ -152,7 +211,7 @@ run.strat.reg <- function(.data,
 }
 ```
 
-```{r neyman-code, include=FALSE}
+```{r neyman-code}
 nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
   dplyr::select_vars(colnames(data), everything()) %>% 
     unname %>% 
@@ -291,6 +350,8 @@ m_k(Z_j, B_j; \theta_k) &= \sum_{z\in \mathcal{Z}\setminus\{control\}} \tau_k(z)
 $$
 where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$.
 
+Without regressors (using cluster robust standard errors):
+
 ```{r, echo=TRUE}
 reg.output <- census.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
@@ -298,10 +359,10 @@ reg.output <- census.data %>%
   left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
   run.strat.reg 
 
-kable(reg.output$reg.summary)
+kable(reg.output$reg.summary, digits = 4)
 ```
 
-Below is the corresponding estimates using Neyman's approach:
+Below is the corresponding estimates using Neyman's approach (using block bootstrap standard errors):
 
 ```{r, echo=TRUE}
 neyman.results <- census.data %>% 
@@ -310,12 +371,34 @@ neyman.results <- census.data %>%
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
 ```
 
+
 ```{r}
 neyman.results %>% 
   unnest(treatment.data) %>%
   filter(rhs.treatment.group == "control") %>% 
   select(treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
-  kable
+  kable(digits = 4)
+```
+
+Stratum-level deworming probability:
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  select(county, dist.pot.group, treatment.group, stratum.assign.mean.dewormed) %>% 
+  spread(treatment.group, stratum.assign.mean.dewormed) %>% 
+  kable(digits = 4)
+
+```
+
+Strata sizes:
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  select(county, dist.pot.group, treatment.group, stratum.assign.size) %>% 
+  spread(treatment.group, stratum.assign.size) %>% 
+  kable()
 ```
 
 # Treatment Effect Heterogeneity by Distance to PoT
@@ -341,11 +424,11 @@ reg.output <- census.data %>%
   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
   run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% map(~ paste0(., c("", "_far"))))
 
-kable(reg.output$reg.summary)
+kable(reg.output$reg.summary, digits = 4)
 
 reg.output$linear.tests %>% 
   select(linear.hypo, estimate, statistic, p.value) %>% 
-  kable
+  kable(digits = 4)
 ```
 
 Below is the corresponding estimation using Neyman's approach:
@@ -353,7 +436,7 @@ Below is the corresponding estimation using Neyman's approach:
 ```{r, echo=TRUE}
 neyman.results.dist <- census.data %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  analyze.neyman.blk.bs(1000, .interact.with = "dist.pot.group") %>% 
+  analyze.neyman.blk.bs(2000, .interact.with = "dist.pot.group") %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
 ```
 
@@ -362,7 +445,30 @@ neyman.results.dist %>%
   unnest(treatment.data) %>% 
   filter(rhs.treatment.group == "control") %>% 
   select(treatment.group, dist.pot.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
-  kable
+  kable(digits = 4)
+```
+
+Stratum-level deworming probability:
+
+```{r}
+neyman.results.dist %>% 
+  unnest(strata.data) %>% 
+  select(county, dist.pot.group, treatment.group, stratum.assign.mean.dewormed) %>% 
+  unite(incentive_dist, treatment.group, dist.pot.group) %>% 
+  spread(incentive_dist, stratum.assign.mean.dewormed) %>% 
+  kable(digits = 4)
+
+```
+
+Strata sizes:
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  select(county, dist.pot.group, treatment.group, stratum.assign.size) %>% 
+  unite(incentive_dist, treatment.group, dist.pot.group) %>% 
+  spread(incentive_dist, stratum.assign.size) %>% 
+  kable()
 ```
 
 # SMS Treatment
@@ -394,7 +500,11 @@ reg.output <- census.data %>%
   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment")), "KEY.individ") %>% 
   run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% map(~ c(paste0(., "_social.info"), "social.info")))
 
-reg.output$reg.summary %>% kable
+reg.output$reg.summary %>% kable(digits = 4)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value) %>% 
+  kable(digits = 4)
 ```
 
 Corresponding Neyman's approach:
@@ -402,7 +512,7 @@ Corresponding Neyman's approach:
 ```{r, echo=TRUE}
 neyman.results.sms <- census.data %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
-  analyze.neyman.blk.bs(1000, .treatment = c("assigned.treatment", "sms.treatment")) %>% 
+  analyze.neyman.blk.bs(2000, .treatment = c("assigned.treatment", "sms.treatment")) %>% 
   separate(treatment.group, c("assigned.treatment", "sms.treatment"), sep = "_") %>% 
   mutate(assigned.treatment = factor(assigned.treatment, levels = c("control", "ink", "calendar", "bracelet")))  
 ```
@@ -416,6 +526,27 @@ neyman.results.sms %>%
   kable
 ```
 
+Stratum-level deworming probability:
+
+```{r}
+neyman.results.sms %>% 
+  unnest(strata.data) %>% 
+  select(county, dist.pot.group, assigned.treatment, sms.treatment, stratum.assign.mean.dewormed) %>% 
+  unite(incentive_sms, assigned.treatment, sms.treatment) %>% 
+  spread(incentive_sms, stratum.assign.mean.dewormed) %>% 
+  kable(digits = 4)
+```
+
+Strata sizes:
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  select(county, dist.pot.group, treatment.group, stratum.assign.size) %>% 
+  spread(treatment.group, stratum.assign.size) %>% 
+  kable()
+```
+
 <!-- ## Distance and SMS Treatment -->
 
 <!-- ```{r, echo=TRUE} -->
@@ -427,69 +558,11 @@ neyman.results.sms %>%
 <!--   run.strat.reg -->
 <!-- ``` -->
 
-# Neyman Approach
-
-
-```{r, include=FALSE}
-
-# neyman.results.sms.treatment.only <- census.data %>% 
-#   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
-#   analyze.neyman.blk.bs(1000, .treatment = "sms.treatment")  
-
-# neyman.results.sms.only <- census.data %>% 
-#   filter(monitored, monitor.consent, sms.treatment != "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
-#   analyze.neyman.blk.bs(10, .interact.with = "sms.treatment") %>%  #.treatment = c("assigned.treatment", "sms.treatment")) %>% 
-#   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
-
-# neyman.results.sms.only.dist <- census.data %>% 
-#   filter(monitored, monitor.consent, sms.treatment != "sms.control") %>% #, sms.ctrl.subpop == "phone.owner") %>% 
-#   analyze.neyman.blk.bs(10, .interact.with = "dist.pot.group") %>% 
-#   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
-```
-
-```{r}
-col.to.show <- c("dist.pot.group", "assigned.treatment", "sms.treatment", "treatment.group", "rhs.treatment.group", "ate", "ate_sd", "ate_tstat", "ate_pvalue")
-
-neyman.results %>% unnest(treatment.data) %>% select_(.dots = intersect(names(.), col.to.show))
-neyman.results.dist %>% unnest(treatment.data) %>% select_(.dots = intersect(names(.), col.to.show))
-```
-
-```{r}
-neyman.results.sms %>% 
-  unnest(treatment.data) %>% 
-  select_(.dots = intersect(names(.), col.to.show)) %>% 
-  separate(rhs.treatment.group, c("rhs.assigned.treatment", "rhs.sms.treatment"), sep = "_") %>% {
-    filter(., assigned.treatment == rhs.assigned.treatment, sms.treatment == "sms.control") %>% 
-      select(-rhs.assigned.treatment) %>% 
-      print
-    
-    filter(., assigned.treatment == "control", rhs.assigned.treatment == "ink") %>% 
-      select(-ends_with("assigned.treatment")) %>% 
-      print
-    
-    filter(., assigned.treatment == "calendar", rhs.assigned.treatment == "bracelet") %>% 
-      select(-ends_with("assigned.treatment")) %>% 
-      print
-  }
-```
-
-```{r}
-neyman.results %>% 
-  unnest(strata.data) %>% 
-  select(-total.size) %>% 
-  arrange(county, dist.pot.group, treatment.group)
-
-
-# 
-# neyman.results.dist %>% 
-#   unnest(strata.data) %>% 
-#   select(-total.size) %>% 
-#   arrange(county, dist.pot.group, treatment.group)
-```
+# Old 
 
 The take-up levels in the control arm (per stratum) are:
 
-```{r}
+```{r, eval=FALSE}
 neyman.results %>% 
   unnest(strata.data) %>% 
   filter(treatment.group == "control") %>% 
@@ -497,7 +570,7 @@ neyman.results %>%
   transmute(county, dist.pot.group, baseline.takeup = stratum.assign.mean.dewormed)
 ```
 
-```{r}
+```{r, eval=FALSE}
 neyman.results %>% 
   unnest(treatment.data) %>% 
   distinct(treatment.group, treatment.mean.dewormed)
