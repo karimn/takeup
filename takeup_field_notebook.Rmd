@@ -2685,6 +2685,29 @@ census.data %<>%
          sms.status.total = total)
 ```
 
+# Willingness-to-Pay Sample
+
+```{r, eval=FALSE}
+wtp.clusters <- cluster.strat.data %>% 
+  filter(assigned.treatment == "control", !is.na(wave)) %>% 
+  group_by(county) %>% 
+  do(sample_n(., if_else(first(.$county) == "Kakamega", 12, 6))) %>% 
+  ungroup
+
+offer.range <- seq(10, 100, 10)
+
+wtp.sample <- hh.census.data %>% 
+  semi_join(wtp.clusters, "cluster.id") %>% 
+  filter(is.na(endline.type), assigned.treatment == "control") %>% 
+  group_by(cluster.id) %>% 
+  do(sample_n(., min(25, nrow(.))) %>% 
+       mutate(wtp.offer = sample(c(rep(offer.range, n() %/% 10), sample(offer.range, n() %% 10))))) %>% 
+  ungroup %>% 
+  select(county, cluster.id, KEY, wtp.offer)
+
+#write_rds(wtp.sample, "data/takeup_wtp_sample_1.0.rds")
+```
+
 # Sensitization
 
 ```{r sensitization-data}
