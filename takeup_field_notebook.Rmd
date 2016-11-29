@@ -2688,8 +2688,13 @@ census.data %<>%
 # Willingness-to-Pay Sample
 
 ```{r, eval=FALSE}
+wtp.clusters.include <- read_lines("data/wtp_clusters_include.csv") %>% 
+  as.integer
+
 wtp.clusters <- cluster.strat.data %>% 
-  filter(assigned.treatment == "control", !is.na(wave)) %>% 
+  filter(assigned.treatment == "control", 
+         # !is.na(wave),
+         cluster.id %in% wtp.clusters.include) %>% 
   group_by(county) %>% 
   do(sample_n(., if_else(first(.$county) == "Kakamega", 12, 6))) %>% 
   ungroup
@@ -2697,15 +2702,15 @@ wtp.clusters <- cluster.strat.data %>%
 offer.range <- seq(10, 100, 10)
 
 wtp.sample <- hh.census.data %>% 
+  mutate(cluster.id = if_else(is.na(cluster.id), old.cluster.id, as.integer(cluster.id))) %>% 
   semi_join(wtp.clusters, "cluster.id") %>% 
-  filter(is.na(endline.type), assigned.treatment == "control") %>% 
+  filter(is.na(endline.type) | endline.type %in% c("reconsent", "reconsent.backup"), is.na(assigned.treatment) | assigned.treatment == "control") %>% 
   group_by(cluster.id) %>% 
   do(sample_n(., min(25, nrow(.))) %>% 
        mutate(wtp.offer = sample(c(rep(offer.range, n() %/% 10), sample(offer.range, n() %% 10))))) %>% 
-  ungroup %>% 
-  select(county, cluster.id, KEY, wtp.offer)
+  ungroup 
 
-#write_rds(wtp.sample, "data/takeup_wtp_sample_1.0.rds")
+write_rds(wtp.sample, "data/takeup_wtp_sample_2.0.rds")
 ```
 
 # Sensitization
