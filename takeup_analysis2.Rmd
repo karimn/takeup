@@ -7,8 +7,6 @@ output:
     fig_width: 8
     number_sections: yes
     toc: yes
-    toc_float:
-      collapsed: no
 header-includes:
    - \usepackage{bbm}
 date: "`r format(Sys.time(), '%B %d, %Y')`"
@@ -88,7 +86,7 @@ name.match.monitored <- function(census.cluster.data,
 }
 ```
 
-```{r data-preparation}
+```{r data-preparation, echo=TRUE, warning=FALSE}
 consent.dewormed.reports <- list(endline.survey = all.endline.data, 
                                  reconsent = reconsent.data) %>% 
   ldply(.id = "data.source", . %>% select(KEY.individ, monitor.consent, dewormed.reported)) %>% # Get reported deworming status and consent info
@@ -115,6 +113,7 @@ census.data %<>%
          dewormed.any = dewormed | dewormed.matched)
 ```
 
+# Analysis
 
 ```{r regression-code}
 calc.strat.interaction.terms <- function(.data, 
@@ -193,16 +192,30 @@ run.strat.reg <- function(.data,
     mutate(term = str_replace_all(term, setNames(c(" ", ""), c("_", first(last.stratum))))) 
   
   test.linear.hypo <- function(linear.hypo) {
-    paste(linear.hypo, last.stratum, sep = "_") %>% {
-      est <- coef(reg.res)[.] %>% sum
+    str_replace_all(linear.hypo, "([^\\s-+]+)", sprintf("\\1_%s", last.stratum)) %>% {
+      extr <- str_extract_all(., c("[^\\s-+]+", "[-+]")) 
+      extr[[1]] %<>% str_trim %>% magrittr::extract(coef(reg.res), .)
+      extr[[2]] %<>% c("+", .) %>% { if_else(. == "+", 1, -1) }
       
-      paste(., collapse = " + ") %>% 
-        lht(reg.res, ., vcov. = robust.vcov) %>% 
+      est <- sum(extr[[1]] * extr[[2]])
+      
+      lht(reg.res, ., vcov. = robust.vcov) %>% 
         tidy %>% 
-        mutate(linear.hypo = paste(linear.hypo, collapse = " + "),
+        mutate(linear.hypo = linear.hypo,
                estimate = est)
     }
+    
+    # paste(linear.hypo, last.stratum, sep = "_") %>% {
+    #   est <- coef(reg.res)[.] %>% sum
+    #   
+    #   paste(., collapse = " + ") %>% 
+    #     lht(reg.res, ., vcov. = robust.vcov) %>% 
+    #     tidy %>% 
+    #     mutate(linear.hypo = paste(linear.hypo, collapse = " + "),
+    #            estimate = est)
+    # }
   }
+  
   
   linear.tests <- map_df(.linear.hypo, test.linear.hypo) %>% 
     filter(!is.na(statistic))
@@ -252,27 +265,26 @@ calc.strata.stats <- function(.data,
              stratum.sample.var = stratum.sample.var + stratum.assign.sample.var.dewormed)
   }
  
-  calc.strata.ate <- . %>% 
-    group_by_(.dots = c(.strat.by, .treatment)) %>% 
+  calc.strata.ate <- function(.data) .data %>% 
+    unite_("treatment.group", .treatment) %>% 
+    group_by_(.dots = c(.strat.by, "treatment.group")) %>% 
     summarize(stratum.assign.size = n(),
               stratum.assign.mean.dewormed = mean(dewormed.any),
               stratum.assign.sample.var.dewormed = var(dewormed.any)/stratum.assign.size) %>%  
     ungroup %>% 
-    mutate(total.size = sum(stratum.assign.size),
-           treatment.group = do.call(function(...) paste(..., sep = "_"), select_(., .dots = .treatment))) %>% 
+    mutate(total.size = sum(stratum.assign.size)) %>% 
     group_by_(.dots = .strat.by) %>% 
     do(calc.stratum.ate(.)) %>% 
     group_by_(.dots = c("treatment.group", .interact.with)) %>% 
     do(mutate(., treatment.mean.dewormed = weighted.mean(.$stratum.assign.mean.dewormed, .$stratum.assign.size))) %>% 
     ungroup
   
-  
   strata.data <- .data %>% 
     calc.strata.ate
   
   strata.data %>% {
     left_join(distinct_(., .dots = c(.strat.by, "treatment.group", .interact.with), .keep_all = TRUE) %>% 
-                select(-c(assigned.treatment, rhs.treatment.group, stratum.ate, stratum.size, stratum.sample.var)) %>%
+                select(-c(rhs.treatment.group, stratum.ate, stratum.size, stratum.sample.var)) %>%
                 nest_exclude("strata.data", c("treatment.group", .interact.with)),
               group_by_(., .dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
                 summarize(ate = weighted.mean(stratum.ate, stratum.size),
@@ -338,7 +350,7 @@ $$
 * $N(k)$ is the size of startum $k$.
 * $N$ is the total number of observations
 
-# Basic Treatment Effect
+## Basic Treatment Effect
 
 Here we estimate the below models
 
@@ -367,7 +379,7 @@ Below is the corresponding estimates using Neyman's approach (using block bootst
 ```{r, echo=TRUE}
 neyman.results <- census.data %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  analyze.neyman.blk.bs(1000) %>% 
+  analyze.neyman.blk.bs(2000) %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
 ```
 
@@ -401,7 +413,7 @@ neyman.results %>%
   kable()
 ```
 
-# Treatment Effect Heterogeneity by Distance to PoT
+## Treatment Effect Heterogeneity by Distance to PoT
 
 Here we estimate the below models
 
@@ -422,7 +434,9 @@ reg.output <- census.data %>%
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
-  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% map(~ paste0(., c("", "_far"))))
+  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% 
+                  map(~ paste0(., c("", "_far")) %>% 
+                  map(~ paste(., collapse = " + ")))) 
 
 kable(reg.output$reg.summary, digits = 4)
 
@@ -457,7 +471,6 @@ neyman.results.dist %>%
   unite(incentive_dist, treatment.group, dist.pot.group) %>% 
   spread(incentive_dist, stratum.assign.mean.dewormed) %>% 
   kable(digits = 4)
-
 ```
 
 Strata sizes:
@@ -471,7 +484,7 @@ neyman.results %>%
   kable()
 ```
 
-# SMS Treatment
+## SMS Treatment
 
 Here we estimate the below models
 
@@ -498,10 +511,20 @@ reg.output <- census.data %>%
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment")), "KEY.individ") %>% 
-  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% map(~ c(paste0(., "_social.info"), "social.info")))
+  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% 
+                  map(~ c(paste0(., "_social.info"), "social.info")) %>% 
+                  map(~ paste(., collapse = " + ")) %>% 
+                  c("bracelet - calendar",
+                    "ink - social.info", 
+                    "bracelet - calendar - calendar_social.info - social.info",
+                    "ink + ink_social.info", 
+                    "bracelet - calendar + bracelet_social.info - calendar_social.info"))
 
 reg.output$reg.summary %>% kable(digits = 4)
+```
 
+Some linear hypotheses testing:
+```{r}
 reg.output$linear.tests %>% 
   select(linear.hypo, estimate, statistic, p.value) %>% 
   kable(digits = 4)
@@ -520,8 +543,10 @@ neyman.results.sms <- census.data %>%
 ```{r}
 neyman.results.sms %>% 
   unnest(treatment.data) %>% 
-  filter(str_detect(rhs.treatment.group, paste0("^", assigned.treatment)),
-         sms.treatment != "sms.control") %>% 
+  filter(str_detect(rhs.treatment.group, paste0("^", assigned.treatment)) | 
+           (assigned.treatment == "ink" & str_detect(rhs.treatment.group, "^control")) |
+           (assigned.treatment == "bracelet" & str_detect(rhs.treatment.group, "^calendar"))) %>% 
+         # sms.treatment != "sms.control") %>% 
   select(assigned.treatment, sms.treatment, rhs.treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
   kable
 ```
@@ -558,7 +583,7 @@ neyman.results %>%
 <!--   run.strat.reg -->
 <!-- ``` -->
 
-# Old 
+# Old Analysis
 
 The take-up levels in the control arm (per stratum) are:
 
