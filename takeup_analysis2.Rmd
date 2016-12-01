@@ -97,8 +97,10 @@ consent.dewormed.reports <- list(endline.survey = all.endline.data,
   ungroup
 
 analysis.data <- census.data %>% 
+  filter(!cluster.id %in% outlier.clusters, # Remove outliers
+         !is.na(wave)) %>%  # Remove clusters no longer in study
   left_join(consent.dewormed.reports, "KEY.individ") %>% 
-  mutate(monitor.consent = !is.na(monitor.consent) & monitor.consent,
+  mutate(#monitor.consent = !is.na(monitor.consent) & monitor.consent,
          dewormed = KEY.individ %in% takeup.data$KEY.individ, # TRUE if individual found in take-up data
          dewormed = ifelse(monitored, dewormed, NA)) # NA if not in the monitored group
 
@@ -110,7 +112,8 @@ endline.data <- all.endline.data %>%
   ungroup
 
 analysis.data %<>% 
-  filter(monitored, !dewormed) %>% # For all those monitored and have FALSE deworming status (based on PoT monitoring)
+  # filter(monitored, !dewormed) %>% # For all those monitored and have FALSE deworming status (based on PoT monitoring)
+  filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
   group_by(cluster.id) %>% 
   do(name.match.monitored(., filter(takeup.data, cluster.id %in% unique(.$cluster.id)))) %>% 
   ungroup %>% 
@@ -119,23 +122,34 @@ analysis.data %<>%
   mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
          dewormed.any = dewormed | dewormed.matched) %>% 
   left_join(select(endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id"))   
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) 
 ```
 
-```{r}
+```{r, fig.width=12, fig.height=10}
+is.outlier <- . %>% { . < quantile(., 0.25) - 1.5 * IQR(.) | . > quantile(., 0.75) + 1.5 * IQR(.) }
+
 analysis.data %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>%
   select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
   unite(stratum, county, dist.pot.group, sep = " ") %>% 
   group_by(assigned.treatment, stratum, cluster.id) %>% 
   summarize(takeup.prop = mean(dewormed.any)) %>% 
+  group_by(assigned.treatment, stratum) %>% 
+  mutate(outlier = is.outlier(takeup.prop)) %>% 
   ggplot(aes(stratum, takeup.prop)) +
-  # geom_violin()
   geom_boxplot(aes(color = assigned.treatment)) + 
+  geom_text_repel(aes(label = cluster.id), data = . %>% filter(outlier)) +
   scale_y_continuous("Cluster Proportion Proportion", breaks = seq(0, 0.8, 0.05)) +
-  scale_x_discrete("Treatment") +
-  scale_color_discrete("Distance to PoT")
+  scale_x_discrete("Strata") +
+  scale_color_discrete("Treatment") +
+  facet_wrap(~ assigned.treatment, nrow = 2) + 
+  theme(legend.position = "bottom")
 ```
+
+```{r}
+outlier.clusters <- c(249, 141, 343)
+```
+
 
 # Analysis
 
@@ -389,7 +403,7 @@ m_k(Z_j, B_j; \theta_k) &= \sum_{z\in \mathcal{Z}\setminus\{control\}} \tau_k(z)
 $$
 where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$.
 
-Without regressors (using cluster robust standard errors):
+Without controls (using cluster robust standard errors):
 
 ```{r, echo=TRUE}
 reg.output <- analysis.data %>%  
@@ -404,6 +418,19 @@ reg.output$linear.tests %>%
   select(linear.hypo, estimate, statistic, p.value)  
 ```
 
+```{r, eval=FALSE, echo=TRUE}
+reg.output <- analysis.data %>%  
+  filter(is.na(sms.treatment) | sms.treatment == "sms.control",
+         !monitored | monitor.consent) %>% 
+  # mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
+  run.strat.reg(.bstrp.reps = 1000, .linear.hypo = "bracelet - calendar") 
+
+kable(reg.output$reg.summary, digits = 4)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value)  
+```
 
 Below is the corresponding estimates using Neyman's approach (using block bootstrap standard errors):
 
