@@ -44,9 +44,7 @@ doParallel::registerDoParallel(cores = config$cores)
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
-options(#contrasts=c("contr.Treatment", getOption("contrasts")[2]), 
-        dplyr.show_progress = FALSE)
-#         digits = 4) 
+options(dplyr.show_progress = FALSE)
 ```
 
 # Data
@@ -623,6 +621,25 @@ neyman.results.dist.no.phone %>%
   kable(digits = 4)
 ```
 
+### With Controls
+
+```{r, echo=TRUE}
+reg.output <- analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
+  run.strat.reg(.covariates = c("school", "floor", "ethnicity", "sms.ctrl.subpop"),
+                .linear.hypo = c("ink", "calendar", "bracelet") %>% 
+                  map(~ paste0(., c("", "_far")) %>% 
+                  map(~ paste(., collapse = " + ")))) 
+
+kable(reg.output$reg.summary, digits = 4)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value) %>% 
+  kable(digits = 4)
+```
+
 ## SMS Treatment
 
 Here we estimate the below models
@@ -730,15 +747,33 @@ neyman.results %>%
   kable()
 ```
 
-<!-- ## Distance and SMS Treatment -->
+### With Controls
 
-<!-- ```{r, echo=TRUE} -->
-<!-- census.data %>%   -->
-<!--   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%  -->
-<!--   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>%  -->
-<!--   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment", "dist.pot.group")), "KEY.individ") %>%  -->
-<!--   run.strat.reg -->
-<!-- ``` -->
+```{r, echo=TRUE}
+reg.output <- analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment")), "KEY.individ") %>% 
+  run.strat.reg(.covariates = c("school", "floor", "ethnicity"),
+                .linear.hypo = c("ink", "calendar", "bracelet") %>% 
+                  map(~ c(paste0(., "_social.info"), "social.info")) %>% 
+                  map(~ paste(., collapse = " + ")) %>% 
+                  c("bracelet - calendar",
+                    "ink - social.info", 
+                    "bracelet - calendar - calendar_social.info - social.info",
+                    "ink + ink_social.info", 
+                    "bracelet - calendar + bracelet_social.info - calendar_social.info"))
+
+reg.output$reg.summary %>% kable(digits = 4)
+```
+
+Some linear hypotheses testing:
+```{r}
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value) %>% 
+  kable(digits = 4)
+```
 
 # Old Analysis
 
