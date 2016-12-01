@@ -35,7 +35,7 @@ library(knitr)
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
 
-knitr::opts_chunk$set(cache = TRUE, echo = FALSE, fig.width = 8, fig.height = 5)
+knitr::opts_chunk$set(cache = TRUE, echo = FALSE, fig.width = 8, fig.height = 5, fig.align = "center", cache.path = "takeup_analysis2-cache/", fig.path = "takeup_analysis2-fig/")
 
 config <- yaml::yaml.load_file("../local_config.yaml")
 
@@ -70,10 +70,12 @@ census.data %>%
   }
 ```
 
-```{r name-matching-code, include=FALSE}
+```{r name-matching-code, echo=TRUE}
+# Name matching function. Given the census data and take-up from a particular attempt to 
+# find individuals whose names were recorded at the PoT.
 name.match.monitored <- function(census.cluster.data, 
                                 takeup.cluster.data, 
-                                max.cost = 1) {
+                                max.cost = 1) { # This is the maximum number of "edits" or difference allowed between names
   dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) %>%
     add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
   
@@ -96,26 +98,55 @@ consent.dewormed.reports <- list(endline.survey = all.endline.data,
             dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% # Multiple contradictory responses
   ungroup
 
-census.data %<>% 
+analysis.data <- census.data %>% 
   left_join(consent.dewormed.reports, "KEY.individ") %>% 
   mutate(monitor.consent = !is.na(monitor.consent) & monitor.consent,
          dewormed = KEY.individ %in% takeup.data$KEY.individ, # TRUE if individual found in take-up data
          dewormed = ifelse(monitored, dewormed, NA)) # NA if not in the monitored group
 
-census.data %<>% 
+endline.data <- all.endline.data %>% 
+  filter(present, interview, consent) %>% 
+  arrange(KEY.individ, SubmissionDate) %>% 
+  group_by(KEY.individ) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup
+
+analysis.data %<>% 
   filter(monitored, !dewormed) %>% # For all those monitored and have FALSE deworming status (based on PoT monitoring)
   group_by(cluster.id) %>% 
   do(name.match.monitored(., filter(takeup.data, cluster.id %in% unique(.$cluster.id)))) %>% 
   ungroup %>% 
   select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
-  right_join(census.data, "KEY.individ") %>% 
+  right_join(analysis.data, "KEY.individ") %>% 
   mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
-         dewormed.any = dewormed | dewormed.matched)
+         dewormed.any = dewormed | dewormed.matched) %>% 
+  left_join(select(endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
+  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id"))   
+```
+
+```{r}
+analysis.data %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>%
+  select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
+  unite(stratum, county, dist.pot.group, sep = " ") %>% 
+  group_by(assigned.treatment, stratum, cluster.id) %>% 
+  summarize(takeup.prop = mean(dewormed.any)) %>% 
+  ggplot(aes(stratum, takeup.prop)) +
+  # geom_violin()
+  geom_boxplot(aes(color = assigned.treatment)) + 
+  scale_y_continuous("Cluster Proportion Proportion", breaks = seq(0, 0.8, 0.05)) +
+  scale_x_discrete("Treatment") +
+  scale_color_discrete("Distance to PoT")
 ```
 
 # Analysis
 
 ```{r regression-code}
+calc.pvalue <- . %>% 
+  abs %>% 
+  pnorm(lower.tail = FALSE) %>% 
+  multiply_by(2)
+
 calc.strat.interaction.terms <- function(.data, 
                                          .treatment = "assigned.treatment", 
                                          .strat.by = setdiff(c("county", "dist.pot.group"), .treatment), 
@@ -126,10 +157,8 @@ calc.strat.interaction.terms <- function(.data,
     ungroup %>% 
     mutate(last.stratum = row_number() == n(),
            last.stratum.size = last(stratum.size),
-           total.size = sum(stratum.size))
-  
-  strata.info$stratum <- strata.info[, .strat.by] %>% 
-    do.call(function(...) paste(..., sep = "."), .)
+           total.size = sum(stratum.size)) %>% 
+    unite_("stratum", from = .strat.by, sep = ".", remove = FALSE)
   
   .data %<>% 
     left_join(strata.info, .strat.by)
@@ -169,6 +198,7 @@ calc.strat.interaction.terms <- function(.data,
 run.strat.reg <- function(.data, 
                           lhs.var = "dewormed.any",
                           indicator.regex = "_(Busia|Siaya|Kakamega)",
+                          .bstrp.reps = 0,
                           .covariates = NULL,
                           .linear.hypo = list()) {
   indicator.formula.str <- paste(sprintf("%s", grep(indicator.regex, names(.data), value = TRUE)), collapse = " + ")
@@ -185,11 +215,27 @@ run.strat.reg <- function(.data,
   
   robust.vcov <- vcov.clx(reg.res, .data$cluster.id)
   
+  clean.reg.term.names <- . %>% 
+    filter(str_detect(term, sprintf("_%s$", last.stratum))) %>% 
+    mutate(term = str_replace_all(term, setNames(c(" ", ""), c("_", first(last.stratum))))) 
+  
   reg.summary <- reg.res %>% 
     coeftest(vcov. = robust.vcov) %>% 
     tidy %>% 
-    filter(str_detect(term, sprintf("_%s$", last.stratum))) %>% 
-    mutate(term = str_replace_all(term, setNames(c(" ", ""), c("_", first(last.stratum))))) 
+    clean.reg.term.names
+ 
+  if (.bstrp.reps > 0) {
+    reg.summary <- .data %>% 
+      block.bootstrap(.bstrp.reps, "cluster.id") %>% 
+      do(tidy(lm(reg.formula, data = .))) %>% 
+      ungroup %>% 
+      clean.reg.term.names %>% 
+      group_by(term) %>%
+      summarize(std.error.bs = sd(estimate)) %>% 
+      ungroup %>%
+      left_join(reg.summary, ., "term") %>% 
+      mutate(p.value.bs = calc.pvalue(estimate/std.error.bs))
+  }
   
   test.linear.hypo <- function(linear.hypo) {
     str_replace_all(linear.hypo, "([^\\s-+]+)", sprintf("\\1_%s", last.stratum)) %>% {
@@ -204,18 +250,7 @@ run.strat.reg <- function(.data,
         mutate(linear.hypo = linear.hypo,
                estimate = est)
     }
-    
-    # paste(linear.hypo, last.stratum, sep = "_") %>% {
-    #   est <- coef(reg.res)[.] %>% sum
-    #   
-    #   paste(., collapse = " + ") %>% 
-    #     lht(reg.res, ., vcov. = robust.vcov) %>% 
-    #     tidy %>% 
-    #     mutate(linear.hypo = paste(linear.hypo, collapse = " + "),
-    #            estimate = est)
-    # }
   }
-  
   
   linear.tests <- map_df(.linear.hypo, test.linear.hypo) %>% 
     filter(!is.na(statistic))
@@ -296,15 +331,9 @@ calc.strata.stats <- function(.data,
   }
 }
 
-calc.pvalue <- . %>% 
-  abs %>% 
-  pnorm(lower.tail = FALSE) %>% 
-  multiply_by(2)
 
 analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ...) {
   .data %<>% 
-    left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), 
-              c("wave", "county", "cluster.id")) %>%  
     select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% {
      original.stats <- calc.strata.stats(., .interact.with = .interact.with, ...)
      
@@ -365,19 +394,23 @@ where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$.
 Without regressors (using cluster robust standard errors):
 
 ```{r, echo=TRUE}
-reg.output <- census.data %>%  
+reg.output <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
+  # mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
-  run.strat.reg 
+  run.strat.reg(.bstrp.reps = 1000, .linear.hypo = "bracelet - calendar") 
 
 kable(reg.output$reg.summary, digits = 4)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value)  
 ```
+
 
 Below is the corresponding estimates using Neyman's approach (using block bootstrap standard errors):
 
 ```{r, echo=TRUE}
-neyman.results <- census.data %>% 
+neyman.results <- analysis.data %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   analyze.neyman.blk.bs(2000) %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
@@ -387,10 +420,12 @@ neyman.results <- census.data %>%
 ```{r}
 neyman.results %>% 
   unnest(treatment.data) %>%
-  filter(rhs.treatment.group == "control") %>% 
-  select(treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
+  filter(rhs.treatment.group == "control" | (treatment.group == "bracelet" & rhs.treatment.group == "calendar")) %>% 
+  select(treatment.group, rhs.treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
   kable(digits = 4)
 ```
+
+
 
 Stratum-level deworming probability:
 
@@ -403,6 +438,26 @@ neyman.results %>%
 
 ```
 
+```{r}
+neyman.results %>% 
+  unnest(treatment.data) %>% 
+  distinct(treatment.group, .keep_all = TRUE) %>% 
+  ggplot() +
+    geom_col(aes(treatment.group, treatment.mean.dewormed), alpha = 0.5, color = "black") +
+    scale_x_discrete("Treatment") +
+    scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05))
+```
+
+```{r}
+neyman.results %>% 
+  unnest(strata.data) %>% 
+  ggplot(aes(factor(treatment.group))) +
+  geom_col(aes(y = stratum.assign.mean.dewormed), color = "black", alpha = 0.5) +
+  scale_x_discrete("") +
+  scale_y_continuous("Take-up Proportion") +
+  facet_grid(county ~ dist.pot.group)
+```
+
 Strata sizes:
 
 ```{r}
@@ -411,6 +466,48 @@ neyman.results %>%
   select(county, dist.pot.group, treatment.group, stratum.assign.size) %>% 
   spread(treatment.group, stratum.assign.size) %>% 
   kable()
+```
+
+### Non-Phone Owners
+
+```{r, echo=TRUE}
+reg.output <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", sms.ctrl.subpop == "non.phone.owner") %>% 
+  left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
+  run.strat.reg 
+
+kable(reg.output$reg.summary, digits = 4)
+```
+
+```{r, echo=TRUE}
+neyman.results.no.phone <- analysis.data %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", sms.ctrl.subpop == "non.phone.owner") %>% 
+  analyze.neyman.blk.bs(2000) %>% 
+  mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet")))  
+```
+
+```{r}
+neyman.results.no.phone %>% 
+  unnest(treatment.data) %>%
+  filter(rhs.treatment.group == "control") %>% 
+  select(treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
+  kable(digits = 4)
+```
+
+### With Controls
+
+```{r, echo=TRUE}
+reg.output <- analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  left_join(calc.strat.interaction.terms(.), "KEY.individ") %>% 
+  run.strat.reg(.covariates = c("school", "floor", "ethnicity", "sms.ctrl.subpop"), .linear.hypo = "bracelet - calendar")
+
+kable(reg.output$reg.summary, digits = 4)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value) %>% 
+  kable(digits = 4)
 ```
 
 ## Treatment Effect Heterogeneity by Distance to PoT
@@ -430,9 +527,8 @@ E[Y_{ij}(z) - Y_{ij}(control) | D_j = d] = \tau(z) + \gamma(z)\cdot d
 $$
 
 ```{r, echo=TRUE}
-reg.output <- census.data %>%  
+reg.output <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
   run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% 
                   map(~ paste0(., c("", "_far")) %>% 
@@ -448,7 +544,7 @@ reg.output$linear.tests %>%
 Below is the corresponding estimation using Neyman's approach:
 
 ```{r, echo=TRUE}
-neyman.results.dist <- census.data %>% 
+neyman.results.dist <- analysis.data %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   analyze.neyman.blk.bs(2000, .interact.with = "dist.pot.group") %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
@@ -473,6 +569,17 @@ neyman.results.dist %>%
   kable(digits = 4)
 ```
 
+```{r}
+neyman.results.dist %>% 
+  unnest(treatment.data) %>% 
+  distinct(treatment.group, dist.pot.group, .keep_all = TRUE) %>% 
+  ggplot(.) +
+  geom_col(aes(treatment.group, treatment.mean.dewormed, fill = dist.pot.group), alpha = 0.5, color = "black", position = "dodge") +
+  scale_x_discrete("Treatment") +
+  scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05)) +
+  scale_fill_discrete("Distance to PoT")
+```
+
 Strata sizes:
 
 ```{r}
@@ -482,6 +589,38 @@ neyman.results %>%
   unite(incentive_dist, treatment.group, dist.pot.group) %>% 
   spread(incentive_dist, stratum.assign.size) %>% 
   kable()
+```
+
+### Non-Phone Owners
+
+```{r, echo=TRUE}
+reg.output <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", sms.ctrl.subpop == "non.phone.owner") %>% 
+  left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
+  run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% 
+                  map(~ paste0(., c("", "_far")) %>% 
+                  map(~ paste(., collapse = " + ")))) 
+
+kable(reg.output$reg.summary, digits = 4)
+
+reg.output$linear.tests %>% 
+  select(linear.hypo, estimate, statistic, p.value) %>% 
+  kable(digits = 4)
+```
+
+```{r, echo=TRUE}
+neyman.results.dist.no.phone <- analysis.data %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", sms.ctrl.subpop == "non.phone.owner") %>% 
+  analyze.neyman.blk.bs(2000, .interact.with = "dist.pot.group") %>% 
+  mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
+```
+
+```{r}
+neyman.results.dist.no.phone %>% 
+  unnest(treatment.data) %>% 
+  filter(rhs.treatment.group == "control") %>% 
+  select(treatment.group, dist.pot.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
+  kable(digits = 4)
 ```
 
 ## SMS Treatment
@@ -506,10 +645,9 @@ where
 * $z = control \lor s = none \implies \gamma(z, s) = 0$
 
 ```{r, echo=TRUE}
-reg.output <- census.data %>%  
+reg.output <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment")), "KEY.individ") %>% 
   run.strat.reg(.linear.hypo = c("ink", "calendar", "bracelet") %>% 
                   map(~ c(paste0(., "_social.info"), "social.info")) %>% 
@@ -533,7 +671,7 @@ reg.output$linear.tests %>%
 Corresponding Neyman's approach:
 
 ```{r, echo=TRUE}
-neyman.results.sms <- census.data %>% 
+neyman.results.sms <- analysis.data %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   analyze.neyman.blk.bs(2000, .treatment = c("assigned.treatment", "sms.treatment")) %>% 
   separate(treatment.group, c("assigned.treatment", "sms.treatment"), sep = "_") %>% 
@@ -549,6 +687,26 @@ neyman.results.sms %>%
          # sms.treatment != "sms.control") %>% 
   select(assigned.treatment, sms.treatment, rhs.treatment.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
   kable
+```
+
+```{r, echo=FALSE, fig.align="center"}
+neyman.results.sms %>% 
+  unnest(strata.data) %>% 
+  select(assigned.treatment, sms.treatment, county, dist.pot.group, treatment.mean.dewormed) %>% 
+  distinct(assigned.treatment, sms.treatment, .keep_all = TRUE) %>% 
+  mutate(sms.treatment = factor(sms.treatment, 
+                                levels = c("sms.control", "reminder.only", "social.info"),
+                                labels = c("None", "Reminder Only", "Social Information")),
+         assigned.treatment = factor(str_to_title(assigned.treatment))) %>% 
+  ggplot(aes(sms.treatment, treatment.mean.dewormed)) +
+  geom_point(aes(color = assigned.treatment, group = assigned.treatment)) +
+  geom_line(aes(color = assigned.treatment, group = assigned.treatment), linetype = "dashed", 
+            data = . %>% filter(assigned.treatment == "Control")) +
+  geom_line(aes(color = assigned.treatment, group = assigned.treatment), 
+            data = . %>% filter(sms.treatment != "Reminder Only")) +
+  scale_x_discrete("Text Messaging Treatment") +
+  scale_y_continuous("Take-up Proportion", breaks = seq(0, 0.7, 0.025)) +
+  scale_color_discrete("Incentive Treatment")
 ```
 
 Stratum-level deworming probability:
@@ -578,7 +736,6 @@ neyman.results %>%
 <!-- census.data %>%   -->
 <!--   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%  -->
 <!--   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>%  -->
-<!--   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%   -->
 <!--   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "sms.treatment", "dist.pot.group")), "KEY.individ") %>%  -->
 <!--   run.strat.reg -->
 <!-- ``` -->
@@ -602,24 +759,6 @@ neyman.results %>%
 ```
 
 
-```{r}
-neyman.results %>% 
-  unnest(treatment.data) %>% 
-  distinct(treatment.group, .keep_all = TRUE) %>% 
-  ggplot() +
-    geom_col(aes(treatment.group, treatment.mean.dewormed), alpha = 0.5, color = "black") +
-    scale_x_discrete("Treatment") +
-    scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05))
-
-neyman.results.dist %>% 
-  unnest(treatment.data) %>% 
-  distinct(treatment.group, dist.pot.group, .keep_all = TRUE) %>% 
-  ggplot(.) +
-  geom_col(aes(treatment.group, treatment.mean.dewormed, fill = dist.pot.group), alpha = 0.5, color = "black", position = "dodge") +
-  scale_x_discrete("Treatment") +
-  scale_y_continuous("Proportion Dewormed", breaks = seq(0, 0.6, 0.05)) +
-  scale_fill_discrete("Distance to PoT")
-```
 
 ```{r, eval=FALSE}
 neyman.results.sms.only %>% 
@@ -640,25 +779,10 @@ neyman.results.sms.only %>%
   scale_fill_discrete("Distance to PoT")
 ```
 
-```{r}
-census.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>%
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%  
-  select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
-  group_by(assigned.treatment, dist.pot.group, cluster.id) %>% 
-  summarize(takeup.prop = mean(dewormed.any)) %>% 
-  ggplot(aes(assigned.treatment, takeup.prop)) +
-  # geom_violin()
-  geom_boxplot(aes(color = dist.pot.group)) + 
-  scale_y_continuous("Cluster Proportion Proportion", breaks = seq(0, 0.8, 0.05)) +
-  scale_x_discrete("Treatment") +
-  scale_color_discrete("Distance to PoT")
-```
 
 ```{r, include=FALSE, eval=FALSE}
 neyman.results.sms <- census.data %>%
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%
   transmute(stratum = paste(county, dist.pot.group, sep = "."),
             county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>%
   # block.bootstrap(1000, "cluster.id") %>%
@@ -678,7 +802,6 @@ neyman.results.sms <- census.data %>%
 ```{r, eval=FALSE}
 census.data %>%
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>%
-  left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>%
   transmute(stratum = paste(county, dist.pot.group, sep = "."),
             county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>%
   calc.strata.stats(., .treatment = c("assigned.treatment", "sms.treatment"))
