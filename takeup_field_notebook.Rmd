@@ -2236,20 +2236,37 @@ id.match.data %>%
   
 ```
 
+## Willingness-to-Pay Sample
+
 ```{r, eval=FALSE}
-xx <- foreach(1:5, .combine = rbind) %dopar% {
-  census.data %>% 
-    sample_frac(0.2) %>% {
-    # sample_n(5) %>% {
-      select(., name1st) %>% #, last_name) %>% 
-        map(adist) %>% 
-        map(~ magrittr::extract(., upper.tri(.))) %>% 
-        reduce(`+`)
-    } %>% 
-    quantile(probs = c(0.01, 0.05))
-}
+wtp.clusters.include <- read_lines("data/wtp_clusters_include.csv") %>% 
+  as.integer
+
+wtp.clusters <- cluster.strat.data %>% 
+  filter(assigned.treatment == "control", 
+         # !is.na(wave),
+         cluster.id %in% wtp.clusters.include) %>% 
+  group_by(county) %>% 
+  do(sample_n(., if_else(first(.$county) == "Kakamega", 12, 6))) %>% 
+  ungroup
+
+offer.range <- seq(10, 100, 10)
+
+wtp.sample <- hh.census.data %>% 
+  mutate(cluster.id = if_else(is.na(cluster.id), old.cluster.id, as.integer(cluster.id))) %>% 
+  semi_join(wtp.clusters, "cluster.id") %>% 
+  filter(is.na(endline.type) | endline.type %in% c("reconsent", "reconsent.backup"), is.na(assigned.treatment) | assigned.treatment == "control") %>% 
+  group_by(cluster.id) %>% 
+  do(sample_n(., min(25, nrow(.))) %>% 
+       mutate(wtp.offer = sample(c(rep(offer.range, n() %/% 10), sample(offer.range, n() %% 10))))) %>% 
+  ungroup 
+
+write_rds(wtp.sample, "data/takeup_wtp_sample_2.0.rds")
 ```
 
+```{r}
+write_rds(census.data, "data/takeup_census.rds")
+```
 
 # Baseline Survey 
 
@@ -2685,33 +2702,6 @@ census.data %<>%
          sms.status.total = total)
 ```
 
-# Willingness-to-Pay Sample
-
-```{r, eval=FALSE}
-wtp.clusters.include <- read_lines("data/wtp_clusters_include.csv") %>% 
-  as.integer
-
-wtp.clusters <- cluster.strat.data %>% 
-  filter(assigned.treatment == "control", 
-         # !is.na(wave),
-         cluster.id %in% wtp.clusters.include) %>% 
-  group_by(county) %>% 
-  do(sample_n(., if_else(first(.$county) == "Kakamega", 12, 6))) %>% 
-  ungroup
-
-offer.range <- seq(10, 100, 10)
-
-wtp.sample <- hh.census.data %>% 
-  mutate(cluster.id = if_else(is.na(cluster.id), old.cluster.id, as.integer(cluster.id))) %>% 
-  semi_join(wtp.clusters, "cluster.id") %>% 
-  filter(is.na(endline.type) | endline.type %in% c("reconsent", "reconsent.backup"), is.na(assigned.treatment) | assigned.treatment == "control") %>% 
-  group_by(cluster.id) %>% 
-  do(sample_n(., min(25, nrow(.))) %>% 
-       mutate(wtp.offer = sample(c(rep(offer.range, n() %/% 10), sample(offer.range, n() %% 10))))) %>% 
-  ungroup 
-
-write_rds(wtp.sample, "data/takeup_wtp_sample_2.0.rds")
-```
 
 # Sensitization
 
@@ -2863,7 +2853,8 @@ read.individ.takeup.data <- function(file.name) {
            data.file.name = file.name)
 }
 
-takeup.data.individuals <- map_df(c("data/Wave 1 Point of Treatment Form-ind.csv", "data/Kakamega Point of Treatment Form-ind.csv"), read.individ.takeup.data) 
+takeup.data.individuals <- map_df(c("data/Wave 1 Point of Treatment Form-ind.csv", 
+                                    "data/Kakamega Point of Treatment Form-ind.csv"), read.individ.takeup.data) 
 
 read.group.takeup.data <- function(file.name) {
   read_csv(file.name,
@@ -2873,7 +2864,6 @@ read.group.takeup.data <- function(file.name) {
     filter(!str_detect(deviceid, fixed("(web)"))) %>% 
     mutate_at(vars(timestamp_gps), funs(force_tz(., tzone = "Africa/Nairobi"))) %>%
     mutate_at(vars(SubmissionDate, starttime, endtime), funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>% format(tz = "Africa/Nairobi") %>% parse_datetime(locale = locale(tz = "Africa/Nairobi")))) %>%
-    # mutate_at(vars(SubmissionDate, starttime, endtime), funs(format(., tz = "Africa/Nairobi", usetz = TRUE))) %>% #, parse_datetime)) %>%
     rename(cluster.id = cluster_id,
            KEY.survey.group = KEY,
            lon = `gps_visible-Longitude`,
@@ -2997,6 +2987,10 @@ takeup.data %<>%
                                      "uuid:62d468a8-1370-447d-b0a7-68d659f005cf/ind[1]"))
 
 takeup.data %<>% filter(!KEY.survey.group %in% c("uuid:13d5f594-8fa6-4f24-9b6c-c302d0c3deb7"))
+```
+
+```{r}
+write_rds(takeup.data, "data/takeup.rds")
 ```
 
 ```{r take-up-summaries-code}
@@ -3155,8 +3149,6 @@ Update the census data with take-up status based on PoT monitoring. I'm setting 
 census.data %<>% 
   mutate(dewormed = KEY.individ %in% takeup.data$KEY.individ,
          dewormed = ifelse(monitored, dewormed, NA))
-         # dewormed = ifelse(monitored & !dewormed & (wave == 2 | sms.ctrl.subpop == "phone.owner"), dewormed, NA))
-         # dewormed = ifelse(monitored & (!is.na(dewormed) | wave == 2 | sms.ctrl.subpop == "phone.owner"), dewormed, NA))
 ```
 
 ## Wave 1
@@ -3544,6 +3536,10 @@ if (bc.diff > 0) {
 #   write_csv("data/takeup_endline_backchecks_wave2_1.0.csv")
 ```
 
+```{r}
+write_rds(all.endline.data, "data/all_endline.rds")
+```
+
 ```{r plot-endline-code}
 plot.endline <- function(cluster.ids, .data, ...) {
   select.cluster.hhs <- . %>% 
@@ -3645,6 +3641,8 @@ reconsent.data <- read_csv("data/Reconsent.csv") %>%
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
   left_join(select(census.data, KEY.individ, sms.treatment, sms.ctrl.subpop, phone), "KEY.individ") 
+
+write_rds(reconsent.data, "data/reconsent.rds")
 ```
 
 ```{r combine-all-reconsent-dewormed-reports}
@@ -3711,51 +3709,72 @@ if (bc.diff > 0) {
 #   write_csv("data/takeup_reconsent_backchecks_wave1_1.0.csv")
 ```
 
-# Name Match the Monitored
+# Willingness-to-Pay
 
-```{r, include=FALSE}
-name.match.monitored <- function(census.cluster.data, 
-                                takeup.cluster.data, 
-                                max.cost = 1) {
-  dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) %>%
-    add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
-  
-  census.cluster.data %>% 
-    mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
-           which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
-                                              aaply(dist.mat, 1, . %>% which.min %>% magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
-                                              NA),
-           dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
-           dewormed.matched.2 = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost + 1)
-            # add(matrix(.data$age, ncol = nrow(census.data), nrow = nrow(.data)) %>%
-            #       subtract(matrix(census.data$age.census, ncol = nrow(census.data), nrow = nrow(.data), byrow = TRUE)) %>%  
-            #       multiply_by(age.diff.cost) %>% 
-            #       abs %>% 
-            #       coalesce(0.0)) %>% 
-            # add(adist(.data$two_digits, census.data$two_digits) %>% 
-            #       multiply_by(two.digits.cost) %>% 
-            #       coalesce(0.0)) %>%
-         #     alply(1, . %>% { ifelse(. <= max.cost, ., NA) %>% which.min %>% magrittr::extract(takeup.cluster.data$KEY.survey.individ, .) }) %>%
-         #    map_if(is_empty, ~ NA) %>% 
-         #    unlist,
-         # dewormed.matched = !is.na(takeup.match))
-}
+```{r wtp-data}
+wtp.sample <- read_rds("data/takeup_wtp_sample_2.0.rds")
 
-matched.census.data <- census.data %>% 
-  filter(monitored, !dewormed) %>% 
-  group_by(cluster.id) %>% 
-  do(name.match.monitored(., filter(takeup.data, 
-                                    cluster.id %in% unique(.$cluster.id)))) %>% 
+wtp.data <- read_csv("data/Willingness To Pay.csv") %>% 
+  mutate_at(vars(SubmissionDate, starttime, endtime), 
+            funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
+                   format(tz = "Africa/Nairobi") %>% 
+                   parse_datetime(locale = locale(tz = "Africa/Nairobi")))) %>% 
+  rename(cluster.id = cluster_id,
+         KEY.hh = person,
+         lon = `gps-Longitude`,
+         lat = `gps-Latitude`) %T>% {
+           count(., KEY.hh) %>% filter(n > 1) %>% print
+         } %>%
+  group_by(KEY.hh) %>% 
+  mutate(duplicates = n()) %>% 
   ungroup %>% 
-  select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist"))
-
-census.data %<>% 
-  left_join(matched.census.data, "KEY.individ") %>% 
-  mutate(monitored = !is.na(wave) & monitored,
-         dewormed.any = dewormed | dewormed.matched)
-         # dewormed.any = (!is.na(dewormed) & dewormed) | (!is.na(dewormed.matched) & dewormed.matched))
+  left_join(select(wtp.sample, KEY, lon, lat), by = c("KEY.hh" = "KEY"), suffix = c(".wtp", ".census")) %>% 
+  rename(lon = lon.wtp, lat = lat.wtp) %>% 
+  left_join(identify.closest.cluster(., key.variable = "KEY.hh"), "KEY.hh") %>% 
+  mutate(dist.to.census = gDistance(convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+                                      spTransform(kenya.proj4),
+                                    convert.to.sp(., ~ lon.census + lat.census, wgs.84) %>% 
+                                       spTransform(kenya.proj4),
+                                     byid = TRUE) %>% diag,
+         far.from.census = dist.to.census > 50)
 ```
 
+```{r plot-wtp-code}
+plot.wtp <- function(cluster.ids, .data, ...) {
+  select.cluster.hhs <- . %>% 
+    filter(cluster.id %in% cluster.ids, 
+           !is.na(lon) & !is.na(lat))
+  
+  .data %<>% 
+    select.cluster.hhs 
+  
+  plot.obj <- plot.sms.recruit(cluster.ids, .data, ...) 
+  
+  plot.obj + 
+    geom_segment(aes(x = lon, y = lat, xend = lon.census, yend = lat.census), lineend = "round", data = .data) 
+}
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+wtp.data %>% 
+  with(unique(cluster.id)) %>% 
+  purrr::discard(is.na) %>% 
+  map(plot.wtp, wtp.data, hh.census.data, use.google.maps = FALSE) %>% 
+  walk(plot)
+```
+
+```{r plot-wtp-timeline, fig.height=14, fig.width=12}
+wtp.data %>% 
+  mutate_at(vars(cluster.id, enumerator), factor) %>% 
+  ggplot(mapping = aes(y = enumerator)) +
+  geom_curve(aes(x = starttime, xend = endtime, yend = enumerator, color = far.from.census), 
+             arrow = arrow(length = unit(0.075, "inches"), type = "closed", ends = "both")) +
+  labs(x = "", y = "Cluster") +
+  scale_color_discrete("Far From Census (> 50 m)") +
+  scale_x_datetime(labels = scales::date_format("%H:%M", tz = "Africa/Nairobi")) +
+  facet_wrap(~ cluster.id, scales = "free_y", drop = TRUE, ncol = 1, strip.position = "left") +
+  theme(legend.position = "top")
+```
 
 ```{r, include=FALSE}  
 save(census.data, hh.census.data, cluster.strat.data, cluster.wave.county.data, pot.info, all.villages, file = "data/takeup_census.RData")
