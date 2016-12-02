@@ -1345,50 +1345,6 @@ ggplot(cluster.density) +
 
 # Study Randomization and Sampling
 
-```{r backchecking-code}
-find.backcheck.pool <- . %>%
-  semi_join(cluster.strat.data, "cluster.id") %>% 
-  filter(!is.na(cluster.id), !cluster.id %in% clusters.to.drop) 
-
-count.num.enum.to.backcheck <- . %>% 
-  count(enumerator) %>% 
-  ungroup %>% 
-  filter(!is.na(enumerator), enumerator != 99, n > 1) %>% 
-  distinct(enumerator) %>% 
-  nrow
-
-find.backcheck.candidates <- function(rct.clusters, .num.enum) {
-  distinct(rct.clusters, cluster.id) %>% {
-    foreach (search.index = 1:500, .combine = bind_rows) %dopar% {
-      candidate.sample <- sample_frac(., 0.5) %>% 
-        mutate(search.index = search.index)
-      
-      num.enum <- candidate.sample %>% 
-        left_join(rct.clusters, "cluster.id") %>% 
-        count(enumerator) %>% 
-        ungroup %>% 
-        filter(n > 1) %>% 
-        nrow
-      
-      if (num.enum < .num.enum) {
-        return(NULL)
-      }
-      
-      candidate.sample %>% 
-        mutate(cluster.hash = unique(cluster.id) %>%
-                 sort %>% 
-                 paste(collapse = "-"))
-    } %>% 
-    (function(all.candidates) { 
-      distinct(all.candidates, search.index) %>% 
-        slice(1) %>% 
-        left_join(all.candidates) 
-    })
-  }
-}
-```
-
-
 ```{r wave-1-data}
 wave.1.hh.data <- hh.census.data %>% 
   filter(!is.na(cluster.id)) %>% 
@@ -1441,6 +1397,8 @@ arms <- c("control", "ink", "bracelet", "calendar")
 
 
 cluster.strat.data <- hh.census.data %>% 
+
+
   filter(!is.na(cluster.id)) %>% 
   group_by(cluster.id, county) %>% 
   summarize(num.hh = n()) %>% 
@@ -2235,6 +2193,51 @@ id.match.data %>%
   quantile(c(0.005, 0.01, 0.1, 0.5))
   
 ```
+
+```{r backchecking-code}
+find.backcheck.pool <- . %>%
+  semi_join(cluster.strat.data, "cluster.id") %>% 
+  filter(!is.na(cluster.id), !cluster.id %in% clusters.to.drop) 
+
+count.num.enum.to.backcheck <- . %>% 
+  count(enumerator) %>% 
+  ungroup %>% 
+  filter(!is.na(enumerator), enumerator != 99, n > 1) %>% 
+  distinct(enumerator) %>% 
+  nrow
+
+find.backcheck.candidates <- function(rct.clusters, .num.enum) {
+  distinct(rct.clusters, cluster.id) %>% {
+    foreach (search.index = 1:500, .combine = bind_rows) %dopar% {
+      candidate.sample <- sample_frac(., 0.5) %>% 
+        mutate(search.index = search.index)
+      
+      num.enum <- candidate.sample %>% 
+        left_join(rct.clusters, "cluster.id") %>% 
+        count(enumerator) %>% 
+        ungroup %>% 
+        filter(n > 1) %>% 
+        nrow
+      
+      if (num.enum < .num.enum) {
+        return(NULL)
+      }
+      
+      candidate.sample %>% 
+        mutate(cluster.hash = unique(cluster.id) %>%
+                 sort %>% 
+                 paste(collapse = "-"))
+    } %>% 
+    (function(all.candidates) { 
+      distinct(all.candidates, search.index) %>% 
+        slice(1) %>% 
+        left_join(all.candidates) 
+    })
+  }
+}
+```
+
+
 
 ## Willingness-to-Pay Sample
 
