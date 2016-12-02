@@ -1420,6 +1420,8 @@ cluster.strat.data <- read_rds("data/takeup_cluster_randomization_1.0.rds") %>%
   # left_join(distinct(hh.census.data, cluster.id, wave), "cluster.id")  
   left_join(cluster.wave.county.data, "cluster.id")  
 
+write_rds(cluster.strat.data, "data/takeup_processed_cluster_strat.rds")  
+
 hh.census.data %<>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment, dist.pot.group), 
             c("wave", "county", "cluster.id"))
@@ -3364,7 +3366,7 @@ matched.tu.data.2 <- takeup.data %>%
   distinct(any.matched.KEY.individ, cluster.id.pot, .keep_all = TRUE) # Removing duplicates
 ```
 
-```{r pot-name-matched-monitored-plot, fig.width=9}
+```{r pot-name-matched-monitored-plot, fig.width=9, eval=FALSE}
 matched.tu.data.2 %>% 
   filter(id.group != "unmonitored.name.id") %>% 
   mutate(id.group = factor(id.group, levels = c("monitored.pot.id", "monitored.name.id", "unmonitored.name.id"), labels = c("Monitored and PoT Identified", "Monitored and Name Matched", "Unmonitored and Name Matched"))) %>% {
@@ -3388,7 +3390,7 @@ matched.tu.data.2 %>%
   }
 ```
 
-```{r, fig.width=12}
+```{r, fig.width=12, eval=FALSE}
 matched.tu.data.2 %>% 
   filter(monitored) %>% 
   mutate(missed.monitored = id.group == "monitored.name.id" & !cluster.spillover) %>% 
@@ -3461,8 +3463,6 @@ all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#Submis
                                        spTransform(kenya.proj4),
                                      byid = TRUE) %>% diag,
          far.from.census = dist.to.census > 50)
-
-
 ```
 
 ```{r endline-backcheck-sample-wave1, eval=FALSE}
