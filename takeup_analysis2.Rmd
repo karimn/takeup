@@ -55,6 +55,7 @@ census.data <- read_rds("data/takeup_census.rds")
 takeup.data <- read_rds("data/takeup.rds")
 all.endline.data <- read_rds("data/all_endline.rds")
 reconsent.data <- read_rds("data/reconsent.rds")
+cluster.strat.data <- read_rds("data/takeup_processed_cluster_strat.rds")  
 ```
 
 The _monitored_: baseline and endline survey respondents, as well as a sample of people from whom we will receive reconsent.
@@ -97,8 +98,7 @@ consent.dewormed.reports <- list(endline.survey = all.endline.data,
   ungroup
 
 analysis.data <- census.data %>% 
-  filter(!cluster.id %in% outlier.clusters, # Remove outliers
-         !is.na(wave)) %>%  # Remove clusters no longer in study
+         filter(!is.na(wave)) %>%  # Remove clusters no longer in study
   left_join(consent.dewormed.reports, "KEY.individ") %>% 
   mutate(#monitor.consent = !is.na(monitor.consent) & monitor.consent,
          dewormed = KEY.individ %in% takeup.data$KEY.individ, # TRUE if individual found in take-up data
@@ -148,6 +148,8 @@ analysis.data %>%
 
 ```{r}
 outlier.clusters <- c(249, 141, 343)
+
+analysis.data %<>% filter(!cluster.id %in% outlier.clusters) # Remove outliers
 ```
 
 
@@ -550,6 +552,16 @@ where $D_j$ is an indicator for whether cluster $j$ is in the _far_ group. The a
 $$
 E[Y_{ij}(z) - Y_{ij}(control) | D_j = d] = \tau(z) + \gamma(z)\cdot d 
 $$
+
+The following table simplifies thinking about the analysis outlined in the pre-analysis plan:
+
+|                             | Control  | Ink | Calendar | Bracelet |
+|-----------------------------|:--------:|:---:|:--------:|:--------:|
+| No SMS                      | 1        | 4   | 6        | 8        |
+| Reminder SMS                | 2        | --- | ---      | ---      |
+| Reminder  + Peer Info SMS   | 3        | 5   | 7        | 9        |
+
+:Cluster-level Treatment Arms\label{tab:cluster-level-treatment}
 
 ```{r, echo=TRUE}
 reg.output <- analysis.data %>%  
