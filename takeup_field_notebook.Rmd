@@ -2277,7 +2277,7 @@ write_rds(census.data, "data/takeup_census.rds")
 
 ## Data
 
-```{r baseline-data}
+```{r}
 is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
   boundary.data %>% 
     select(lon, lat) %>% 
@@ -2299,17 +2299,24 @@ is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
 }, error = function(err) {
   mutate(cluster.hh.data, within.census.boundary = NA)
 })
+```
 
+
+```{r baseline-data}
 baseline.data <- tu.data.reader("data/Baseline Survey.csv") %>% 
-  filter(SubmissionDate >= "2016-09-05", !is.na(present), present == 1, !is.na(consent), consent == 1) %>% 
-  select(cluster.id, person, KEY, lon, lat, invalid.coord, present, recruit, consent, starts_with("enumerator"), ends_with("_census")) %>% 
+  filter(SubmissionDate >= "2016-09-05", 
+         !is.na(present) & present == 1, 
+         !is.na(consent) & consent == 1) %>% 
+  select(-county) %>% 
   left_join(filter(., !invalid.coord) %>% identify.closest.cluster, "KEY") %>% 
-  # group_by(cluster.id) %>% 
-  # do(is.out.of.boundary(., filter(boundaries, boundary.type == "census.convex.hull", cluster.id == .$cluster.id[1]))) %>% 
-  # ungroup %>% 
-  # left_join(select(cluster.strat.data, cluster.id, wave), "cluster.id") 
   left_join(cluster.wave.county.data, "cluster.id")
+```
 
+```{r}
+write_rds(baseline.data, "data/takeup_baseline_data.rds") # Not sampling data!
+```
+
+```{r}
 baseline.data %>% 
   count(cluster.id) %>% 
   arrange(cluster.id)
@@ -3444,12 +3451,11 @@ all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#Submis
          lon = `gps-Longitude`,
          lat = `gps-Latitude`) %>% 
   mutate(monitor.consent = coalesce(consent | reconsent, NA),
-         sms.content.reported = map(sms.content.reported, ~ str_split(., " "))) %>% {
+         sms.content.reported = map(sms.content.reported, ~ str_split(., " "))) %T>% {
     count(., is.na(lon) | is.na(lat)) %>% 
       print
-           
-    filter(., !is.na(lon), !is.na(lat))
   } %>% 
+  filter(!is.na(lon), !is.na(lat)) %>% 
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
   filter(cluster.id != 1163 | SubmissionDate >= "2016-11-14", enumerator != 111) %>% # Data fabricated by enumerators 111
@@ -3778,6 +3784,58 @@ wtp.data %>%
   facet_wrap(~ cluster.id, scales = "free_y", drop = TRUE, ncol = 1, strip.position = "left") +
   theme(legend.position = "top")
 ```
+
+# Deworming Rate Rewards
+
+```{r, eval=FALSE}
+monitored.takeup <- census.data %>% 
+  filter(!is.na(wave), monitored, is.na(sms.treatment) | sms.treatment == "sms.control") %>% 
+  transmute(cluster.id, KEY.individ, assigned.treatment, county,
+            dewormed = KEY.individ %in% takeup.data$KEY.individ) 
+
+monitored.cluster.takeup <- monitored.takeup %>% 
+  group_by(cluster.id) %>% 
+  summarize(deworm.rate = mean(dewormed, na.rm = TRUE) %>% multiply_by(10) %>% round) %>% 
+  ungroup
+
+monitored.arm.takeup <- monitored.takeup %>% 
+  group_by(county, assigned.treatment) %>% 
+  summarize(deworm.rate = mean(dewormed, na.rm = TRUE) %>% multiply_by(10) %>% round) %>% 
+  ungroup
+
+guess.moe <- 1
+
+baseline.reward.data <- baseline.data %>% 
+  select(cluster.id, county, ink_dworm_rate, dworm_rate, phone) %>% 
+  gather(assigned.treatment, dworm_rate, ink_dworm_rate, dworm_rate) %>% 
+  mutate(assigned.treatment = if_else(assigned.treatment == "ink_dworm_rate", "ink", "control")) %>% 
+  left_join(monitored.arm.takeup, c("county", "assigned.treatment")) %>% 
+  mutate(good.guess = abs(dworm_rate - deworm.rate) <= guess.moe)  
+
+count(baseline.reward.data, assigned.treatment, good.guess)
+
+endline.reward.data <- all.endline.data %>% 
+  filter(present, interview, consent) %>% 
+  group_by(KEY.individ) %>% 
+  sample_n(1) %>% 
+  ungroup %>% 
+  select(cluster.id, dworm_rate, phone_airtime) %>% 
+  left_join(monitored.cluster.takeup, "cluster.id") %>% 
+  mutate(good.guess = abs(dworm_rate - deworm.rate) <= guess.moe) %>% 
+  rename(phone = phone_airtime)
+
+count(endline.reward.data, good.guess)
+
+rewards.data <- list(baseline = baseline.reward.data, endline = endline.reward.data) %>% 
+  map_df(~ select(., cluster.id, phone, good.guess), .id = "data.source") %>% 
+  filter(!is.na(phone), good.guess) %>% 
+  mutate(phone = ifelse(nchar(phone) == 10 & str_sub(phone, 1, 1) == "0", str_sub(phone, 2), phone),
+         phone = paste0("+254", phone),
+         reward.grp = seq(0, n() - 1) %/% 100 + 1)
+
+save(baseline.reward.data, endline.reward.data, rewards.data, file = "data/reward_recipients.RData")
+```
+
 
 ```{r, include=FALSE}  
 save(census.data, hh.census.data, cluster.strat.data, cluster.wave.county.data, pot.info, all.villages, file = "data/takeup_census.RData")

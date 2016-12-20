@@ -789,12 +789,50 @@ airtime.inbox <- all.airtime.inbox %>%
 
 # Send Airtime ------------------------------------------------------------
 
-pilot.airtime.response.1 <- POST("http://api.africastalking.com/version1/airtime/send",
-                 accept_json(),
-                 add_headers(Apikey = config$africastalking_api_key),
-                 body = list(username = "karimn",
-                             recipients = map(airtime.inbox$from, ~ list(phoneNumber = ., amount = "KES 50")) %>% toJSON(auto_unbox = TRUE),
-                             from = "EvidenceAct"),
-                 encode = "form",
-                 verbose())
+# pilot.airtime.response.1 <- POST("http://api.africastalking.com/version1/airtime/send",
+#                  accept_json(),
+#                  add_headers(Apikey = config$africastalking_api_key),
+#                  body = list(username = "karimn",
+#                              recipients = map(airtime.inbox$from, ~ list(phoneNumber = ., amount = "KES 50")) %>% toJSON(auto_unbox = TRUE),
+#                              from = "EvidenceAct"),
+#                  encode = "form",
+#                  verbose())
 
+# Baseline and Endline Rewards --------------------------------------------
+
+load("data/reward_recipients.RData")
+
+# Sending out rewards -----------------------------------------------------
+
+# 1, 6
+
+baseline.reward.response.6 <- POST("http://api.africastalking.com/version1/airtime/send",
+                                   accept_json(),
+                                   add_headers(Apikey = config$africastalking_api_key),
+                                   body = list(username = "karimn",
+                                               recipients = rewards.data %>% 
+                                                 filter(reward.grp == 6) %$% 
+                                                 phone %>% 
+                                                 map(~ list(phoneNumber = ., amount = "KES 100")) %>% 
+                                                 toJSON(auto_unbox = TRUE),
+                                               from = "EvidenceAct"),
+                                   encode = "form",
+                                   verbose())
+
+
+# One by one --------------------------------------------------------------
+
+baseline.reward.response.6.5 <- read_csv("~/Downloads/AirtimeTransactions-karimn (3).csv") %>%
+  mutate(Recipient = paste0("+", Recipient)) %>% 
+  anti_join(rewards.data, ., c("phone" = "Recipient")) %>% 
+# baseline.reward.response.6 <- rewards.data %>%
+  filter(reward.grp == 6) %>% 
+  rowwise %>% 
+  do(response = POST("http://api.africastalking.com/version1/airtime/send",
+                     accept_json(),
+                     add_headers(Apikey = config$africastalking_api_key),
+                     body = list(username = "karimn",
+                                 recipients = list(list(phoneNumber = .$phone, amount = "KES 100")) %>% toJSON(auto_unbox = TRUE),
+                                 from = "EvidenceAct"),
+                     encode = "form",
+                     verbose()))
