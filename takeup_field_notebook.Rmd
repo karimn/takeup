@@ -2714,6 +2714,27 @@ census.data %<>%
          sms.status.total = total)
 ```
 
+```{r sms-content}
+sms.content.data <- list(wave1 = "data/takeup_sms_treatment_status_wave1.csv",
+                         wave2 = "data/takeup_sms_treatment_status_wave2.csv") %>% 
+  map_df(~ read_csv(., col_types = list(To = col_character())), .id = "wave") %>% 
+  set_names(str_to_lower(names(.))) %>% 
+  mutate(wave = str_extract(wave, "[12]$") %>% as.integer,
+         date = parse_datetime(date, "%R %p %B %d, %Y", locale = locale(tz = "Africa/Nairobi")),
+         to = paste0("+", to),
+         incentive.msg = str_detect(message, fixed("ujumbe 123 kwa")),
+         reminder.msg = str_detect(message, fixed("Matibabu ya minyoo ya bure iko")),
+         social.info = str_extract(message, "\\d+(?=\\skwa\\s10\\swatu\\swazima)") %>% as.integer,
+         msg.id = seq(1, n())) %>% 
+  filter(reminder.msg | incentive.msg) %>% 
+  left_join(sms.recruit.data %>% 
+              transmute(KEY.individ, 
+                        phone = ifelse(nchar(phone) == 10 & str_sub(phone, 1, 1) == "0", str_sub(phone, 2), phone),
+                        phone = paste0("+254", phone)),
+            c("to" = "phone"))
+
+write_rds(sms.content.data, "data/takeup_sms_treatment.rds")
+```
 
 # Sensitization
 
