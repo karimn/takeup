@@ -2716,7 +2716,7 @@ census.data %<>%
 
 ```{r sms-content}
 sms.content.data <- list(wave1 = "data/takeup_sms_treatment_status_wave1.csv",
-                         wave2 = "data/takeup_sms_treatment_status_wave2.csv") %>% 
+                         wave2 = "data/takeup_sms_treatment_status_wave2.csv") %>% # This data from Africa's Talking
   map_df(~ read_csv(., col_types = list(To = col_character())), .id = "wave") %>% 
   set_names(str_to_lower(names(.))) %>% 
   mutate(wave = str_extract(wave, "[12]$") %>% as.integer,
