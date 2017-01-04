@@ -293,13 +293,14 @@ Below is the main regression specification, where $m(\cdot)$ and $m_1(\cdot)\dot
 
 $$
 \begin{equation}
-Y_{ij} = \left(m(Z_j, B_j;\theta) + l(B_j;\theta^c)\right) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k=1}^{K-1} \left(m_k(Z_j, B_j;\theta_k) + l_k(B_j;\theta^c_k) \right) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \mathbf{X} \cdot \beta  + \varepsilon_{ij} 
+Y_{ij} = \left(m(Z_j, B_j;\theta) + l(B_j;\theta^c) + X_{ij} \cdot \beta \right) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k=1}^{K-1} \left(m_k(Z_j, B_j;\theta_k) + l_k(B_j;\theta^c_k) + X_{ij} \cdot \beta_k \right) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij} 
 \end{equation}
 $$
 
 * $i$ indexes individuals, $j$ clusters
 * $Z_{j}(z) = \mathbf{1}\{Z_j = z\}$ is an indicator for whether cluster $j$ was assigned treatment $z$.
 * $B_{j}(k) = \mathbf{1}\{B_j = k\}$ is an indicator for whether cluster $j$ is in stratum $k$.
+* $X_{ij}$ is a vector of covariates
 * $N(k)$ is the size of startum $k$.
 * $N$ is the total number of observations
 
@@ -317,7 +318,7 @@ l_k(B_j; \theta^c_k) &= \alpha_k
 $$
 where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$ and $E[Y_{ij}(control)] = \alpha$.
 
-### Without Controls
+### Regression Without Controls
 
 Without controls (using cluster robust standard errors). Also including block bootstrapped standard errors and p-values.
 
@@ -344,37 +345,55 @@ reg.output.sms.ctrl.calendar %>%
   kable(digits = 4)
 ```
 
-```{r, echo=FALSE}
-incentive.treat.barplot <- function(ctrl.ref, calendar.ref) {
-  # list(ctrl.ref = ctrl.ref$reg.summary, 
-  #      calendar.ref = calendar.ref$reg.summary) %>%
-  list(ctrl.ref = ctrl.ref, 
-       calendar.ref = calendar.ref) %>%
-    map_df(tidy, .id = "ref") %>% 
-    group_by(ref) %>% 
-    do({
+```{r incentive-barplot-fun, echo=FALSE}
+prep.ref.group.col <- . %>% {
       intercept.est <- filter(., term == "(intercept)") %$% estimate
-      mutate(., estimate = if_else(term != "(intercept)", estimate + intercept.est, estimate))
-    }) %>% 
-    ungroup %>% 
+      mutate(., 
+             ate = estimate,
+             estimate = if_else(term != "(intercept)", estimate + intercept.est, estimate))
+    } 
+
+incentive.treat.barplot <- function(.data) { 
+  .data %<>% 
     filter(ref == "ctrl.ref" | term == "bracelet") %>% 
     mutate(term = factor(term, levels = c("(intercept)", "ink", "calendar", "bracelet"), 
                          labels = c("Control", "Ink", "Calendar", "Bracelet")),
-           p.val.label = sprintf("p-value = %.3f", p.value)) %>% 
+           p.val.label = sprintf("p-value = %.3f", p.value),
+           ci.lb = estimate - 1.64 * std.error, 
+           ci.ub = estimate + 1.64 * std.error) 
+  
+  .data %>% 
     ggplot(aes(term, estimate)) +
     geom_col(aes(fill = term %in% c("Control", "Ink")), color = "black", alpha = 0.25, data = . %>% filter(ref == "ctrl.ref")) +
-    geom_errorbar(aes(color = ref, ymin = estimate - 1.64*std.error, ymax = estimate + 1.64*std.error), width = 0.1, position = "dodge", data = . %>% filter((term != "Control" & ref == "ctrl.ref") | (ref == "calendar.ref"))) +
-    geom_text(aes(y = 0.6, label = p.val.label, color = ref), data = . %>% filter(term != "Control", ref == "ctrl.ref")) +
-    geom_text(aes(y = 0.55, label = p.val.label, color = ref), data = . %>% filter(term != "Control", ref == "calendar.ref")) +
-    geom_text(aes(y = 0.05, label = sprintf("%.3f", estimate)), data = . %>% filter(ref == "ctrl.ref")) +
-    scale_y_continuous("Proportion of Take-up", breaks = seq(0, 0.7, 0.05)) +
+    geom_errorbar(aes(color = ref, ymin = ci.lb, ymax = ci.ub), 
+                  width = 0.1, position = "dodge", 
+                  data = . %>% filter((term != "Control" & ref == "ctrl.ref") | (ref == "calendar.ref"))) +
+    geom_text(aes(y = max(.data$ci.ub) + 0.055, label = p.val.label, color = ref), 
+              data = . %>% filter(term != "Control", ref == "ctrl.ref")) +
+    geom_text(aes(y = max(.data$ci.ub) + 0.02, label = p.val.label, color = ref), 
+              data = . %>% filter(term != "Control", ref == "calendar.ref")) +
+    geom_text(aes(label = sprintf("%.3f", estimate)), nudge_x = 0.2, nudge_y = -0.02, data = . %>% filter(ref == "ctrl.ref")) +
+    geom_text(aes(y = 0.02, label = sprintf("ATE = %.3f", ate), color = ref), 
+              data = . %>% filter(ref == "calendar.ref", term != "Control")) +
+    geom_text(aes(y = 0.055, label = sprintf("ATE = %.3f", ate), color = ref), 
+              data = . %>% filter(ref == "ctrl.ref", term != "Control")) +
+    scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
     scale_x_discrete("Treatment") +
-    scale_color_manual("Reference", values = c("red", "black"), labels = c("Calendar", "Control")) +
+    scale_color_manual("Reference Arm", values = c("red", "black"), labels = c("Calendar", "Control")) +
     scale_fill_manual("", values = c("red", "black"), labels = c("Calendar vs Bracelet", "Control vs Ink")) +
     theme(legend.position = "bottom")
 }
+```
 
-incentive.treat.barplot(reg.output.sms.ctrl, reg.output.sms.ctrl.calendar)
+```{r}
+lst(ctrl.ref = reg.output.sms.ctrl, calendar.ref = reg.output.sms.ctrl.calendar) %>% 
+  map_df(tidy, .id = "ref") %>% 
+  group_by(ref) %>% 
+  do(prep.ref.group.col(.)) %>% 
+  ungroup %>% {
+    incentive.treat.barplot(.) +
+      labs(title = "Estimated Take-up", subtitle = "Without Controls")
+  }
 ```
 
 
@@ -384,7 +403,7 @@ reg.output.sms.ctrl$linear.tests %>%
   kable(digits = 4)
 ```
 
-Below is the corresponding estimates using Neyman's approach (using block bootstrap standard errors):
+<!-- Below is the corresponding estimates using Neyman's approach (using block bootstrap standard errors): -->
 
 ```{r, echo=FALSE}
 neyman.results <- analysis.data %>% 
@@ -395,7 +414,7 @@ neyman.results <- analysis.data %>%
 ```
 
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, eval=FALSE}
 neyman.results %>% 
   unnest(treatment.data) %>%
   filter(rhs.treatment.group == "control" | (treatment.group == "bracelet" & rhs.treatment.group == "calendar")) %>% 
@@ -411,7 +430,6 @@ neyman.results %>%
   select(county, dist.pot.group, treatment.group, stratum.assign.mean.dewormed) %>% 
   spread(treatment.group, stratum.assign.mean.dewormed) %>% 
   kable(digits = 4)
-
 ```
 
 ```{r, echo=FALSE}
@@ -444,7 +462,7 @@ neyman.results %>%
   kable()
 ```
 
-### With Controls
+### Regression With Controls
 
 ```{r covariates, echo=FALSE}
 reg.covar <- c("school", "floor", "ethnicity", "sms.ctrl.subpop")
@@ -475,7 +493,14 @@ reg.output.sms.ctrl.calendar.covar %>%
 ```
 
 ```{r, echo=FALSE}
-incentive.treat.barplot(reg.output.sms.ctrl.covar, reg.output.sms.ctrl.calendar.covar)
+lst(ctrl.ref = reg.output.sms.ctrl.covar, calendar.ref = reg.output.sms.ctrl.calendar.covar) %>% 
+  map_df(tidy, .id = "ref") %>% 
+  group_by(ref) %>% 
+  do(prep.ref.group.col(.)) %>% 
+  ungroup %>% { 
+    incentive.treat.barplot(.) +
+      labs(title = "Estimated Take-up", subtitle = "With Controls")
+  }
 ```
 
 
@@ -485,7 +510,7 @@ reg.output$linear.tests %>%
   kable(digits = 4)
 ```
 
-### Non-Phone Owners Only
+## Phone Ownership
 
 ```{r, echo=FALSE}
 reg.output.nonphone <- analysis.data %>%  
@@ -493,12 +518,103 @@ reg.output.nonphone <- analysis.data %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"))
 
+reg.output.phone <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"))
+
+reg.output.nonphone.calendar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"))
+
+reg.output.phone.calendar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner"),
+         assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"))
+
 kable(tidy(reg.output.nonphone), digits = 4)
 ```
-```{r}
-c("ink", "calendar", "bracelet") %>% 
-  paste0(":phone.owner") %>% 
-  linear.tester(reg.output.nonphone, ., joint = TRUE)
+```{r, eval=FALSE}
+linear.tester(reg.output.nonphone.covar, c("ink:phone.owner"))
+```
+
+```{r, fig.width=12}
+phone.prep <- . %>% map_df(tidy, .id = "phone") 
+
+lst(ctrl.ref = lst("Phone Owners" = reg.output.phone,
+                   "Non-phone Owners" = reg.output.nonphone) %>% 
+      phone.prep,
+    calendar.ref = lst("Phone Owners" = reg.output.phone.calendar,
+                       "Non-phone Owners" = reg.output.nonphone.calendar) %>% 
+      phone.prep) %>% 
+  bind_rows(.id = "ref") %>% 
+  filter(!str_detect(term, "phone")) %>% 
+  group_by(ref, phone) %>% 
+  do(prep.ref.group.col(.)) %>% 
+  ungroup %>% { 
+    incentive.treat.barplot(.) + 
+      facet_wrap(~ phone) +
+      labs(title = "Estimated Take-up Phone Ownership", subtitle = "Without Controls")
+  }
+```
+
+```{r, echo=FALSE}
+reg.output.nonphone.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"),
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+
+reg.output.phone.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner")) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"),
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+
+reg.output.nonphone.calendar.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"),
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+
+reg.output.phone.calendar.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner"),
+         assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.ctrl.subpop"),
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+
+kable(tidy(reg.output.nonphone.covar), digits = 4)
+```
+
+```{r, fig.width=12}
+lst(ctrl.ref = lst("Phone Owners" = reg.output.phone.covar,
+                   "Non-phone Owners" = reg.output.nonphone.covar) %>% 
+      phone.prep,
+    calendar.ref = lst("Phone Owners" = reg.output.phone.calendar.covar,
+                       "Non-phone Owners" = reg.output.nonphone.calendar.covar) %>% 
+      phone.prep) %>% 
+  bind_rows(.id = "ref") %>% 
+  filter(!str_detect(term, "phone")) %>% 
+  group_by(ref, phone) %>% 
+  do(prep.ref.group.col(.)) %>% 
+  ungroup %>% { 
+    incentive.treat.barplot(.) + 
+      facet_wrap(~ phone) +
+      labs(title = "Estimated Take-up By Phone Ownership", subtitle = "With Controls")
+  }
 ```
 
 ```{r, echo=FALSE, eval=FALSE}
@@ -541,6 +657,25 @@ reg.output.sms.ctrl.dist <- analysis.data %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"))
 
+reg.output.sms.ctrl.dist.calendar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"))
+
+reg.output.sms.ctrl.dist.far <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"))
+
+reg.output.sms.ctrl.dist.calendar.far <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar"),
+         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"))
+
 kable(tidy(reg.output.sms.ctrl.dist), digits = 4)
 ```
 
@@ -557,6 +692,43 @@ c("ink", "calendar", "bracelet") %>%
   map(~ paste(., collapse = " + ")) %>% 
   linear.tester(reg.output.sms.ctrl.dist, .)
 ```
+
+```{r}
+reg.output.sms.ctrl.close <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", dist.pot.group == "close") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.treatment = "assigned.treatment", .strat.by = "county")
+
+reg.output.sms.ctrl.far <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", dist.pot.group == "far") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.treatment = "assigned.treatment", .strat.by = "county")
+
+kable(tidy(reg.output.sms.ctrl.close), digits = 4)
+kable(tidy(reg.output.sms.ctrl.far), digits = 4)
+```
+
+```{r, fig.width=12}
+far.close.prep <- . %>% map_df(tidy, .id = "dist.pot.group") 
+
+lst(ctrl.ref = lst(close = reg.output.sms.ctrl.dist, 
+                   far = reg.output.sms.ctrl.dist.far) %>% 
+      far.close.prep,
+    calendar.ref = lst(close = reg.output.sms.ctrl.dist.calendar, 
+                       far = reg.output.sms.ctrl.dist.calendar.far) %>% 
+      far.close.prep) %>% 
+  bind_rows(.id = "ref") %>% 
+  filter(!str_detect(term, "far|close")) %>% 
+  group_by(ref, dist.pot.group) %>% 
+  do(prep.ref.group.col(.)) %>% 
+  ungroup %>%  
+  mutate(dist.pot.group = factor(dist.pot.group, levels = c("close", "far"), labels = c("Close", "Far"))) %>% {
+    incentive.treat.barplot(.) + 
+      facet_wrap(~ dist.pot.group) +
+      labs(title = "Estimated Take-up By Distance from PoT", subtitle = "Without Controls")
+  }
+```
+
 
 Below is the corresponding estimation using Neyman's approach:
 
@@ -612,21 +784,88 @@ neyman.results %>%
 ### With Controls
 
 ```{r, echo=FALSE}
-reg.output <- analysis.data %>%  
+reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"), .covariates = reg.covar)
+
+kable(tidy(reg.output.sms.ctrl.dist.covar), digits = 4)
+
+reg.output.sms.ctrl.dist.calendar.covar <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
-  run.strat.reg(.covariates = c("school", "floor", "ethnicity", "sms.ctrl.subpop"),
-                .linear.hypo = c("ink", "calendar", "bracelet") %>% 
-                  map(~ paste0(., c("", "_far")) %>% 
-                  map(~ paste(., collapse = " + ")))) 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"), .covariates = reg.covar)
 
-kable(reg.output$reg.summary, digits = 4)
+reg.output.sms.ctrl.dist.far.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  mutate(dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"), .covariates = reg.covar)
 
-reg.output$linear.tests %>% 
-  select(linear.hypo, estimate, statistic, p.value) %>% 
-  kable(digits = 4)
+reg.output.sms.ctrl.dist.calendar.far.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  mutate(assigned.treatment = relevel(assigned.treatment, ref = "calendar"),
+         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group"), .covariates = reg.covar)
+
+# reg.output <- analysis.data %>%  
+#   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+#   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+#   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+#   left_join(calc.strat.interaction.terms(., .treatment = c("assigned.treatment", "dist.pot.group")), "KEY.individ") %>% 
+#   run.strat.reg(.covariates = c("school", "floor", "ethnicity", "sms.ctrl.subpop"),
+#                 .linear.hypo = c("ink", "calendar", "bracelet") %>% 
+#                   map(~ paste0(., c("", "_far")) %>% 
+#                   map(~ paste(., collapse = " + ")))) 
+# 
+# kable(reg.output$reg.summary, digits = 4)
+# 
+# reg.output$linear.tests %>% 
+#   select(linear.hypo, estimate, statistic, p.value) %>% 
+#   kable(digits = 4)
+```
+
+```{r, fig.width=12}
+lst(ctrl.ref = lst(close = reg.output.sms.ctrl.dist.covar, 
+                   far = reg.output.sms.ctrl.dist.far.covar) %>% 
+      far.close.prep,
+    calendar.ref = lst(close = reg.output.sms.ctrl.dist.calendar.covar, 
+                       far = reg.output.sms.ctrl.dist.calendar.far.covar) %>% 
+      far.close.prep) %>% 
+  bind_rows(.id = "ref") %>% 
+  filter(!str_detect(term, ":|far|close")) %>% 
+  group_by(ref, dist.pot.group) %>% 
+  do(prep.ref.group.col(.)) %>% 
+  ungroup %>% 
+  mutate(dist.pot.group = factor(dist.pot.group, levels = c("close", "far"), labels = c("Close", "Far"))) %>% {
+    incentive.treat.barplot(.) + 
+      facet_wrap(~ dist.pot.group) +
+      labs(title = "Estimated Take-up By Distance from PoT", subtitle = "With Controls")
+  }
+```
+
+```{r, echo=FALSE}
+reg.output.sms.ctrl.close.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", dist.pot.group == "close") %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.treatment = "assigned.treatment", .strat.by = "county", .covariates = reg.covar)
+
+kable(tidy(reg.output.sms.ctrl.close.covar), digits = 4)
+
+reg.output.sms.ctrl.far.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", dist.pot.group == "far") %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.treatment = "assigned.treatment", .strat.by = "county", .covariates = reg.covar)
+
+kable(tidy(reg.output.sms.ctrl.far.covar), digits = 4)
 ```
 
 <!-- ### Non-Phone Owners Only -->
@@ -662,7 +901,6 @@ neyman.results.dist.no.phone %>%
   select(treatment.group, dist.pot.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
   kable(digits = 4)
 ```
-
 
 ## SMS Treatment
 
