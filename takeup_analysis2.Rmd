@@ -103,9 +103,12 @@ name.match.monitored <- function(census.cluster.data,
   census.cluster.data %>% 
     mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
            which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
-                                              aaply(dist.mat, 1, . %>% which.min %>% magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
+                                              aaply(dist.mat, 1, . %>% 
+                                                      which.min %>% 
+                                                      magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
                                               NA),
-           dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost)
+           dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
+           which.min.name.match.dist = ifelse(dewormed.matched, which.min.name.match.dist, NA))
 }
 ```
 
@@ -121,11 +124,18 @@ consent.dewormed.reports <- list(endline.survey = all.endline.data,
             dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% # Multiple contradictory responses
   ungroup
 
+dewormed.day.data <- takeup.data %>% 
+  filter(!is.na(KEY.individ)) %>% 
+  group_by(KEY.individ) %>% 
+  summarize(dewormed.day = min(deworming.day)) %>% # If dewormed multiple times, take the first day only
+  ungroup
+
 analysis.data <- census.data %>% 
          filter(!is.na(wave)) %>%  # Remove clusters no longer in study
   left_join(consent.dewormed.reports, "KEY.individ") %>% 
   mutate(dewormed = KEY.individ %in% takeup.data$KEY.individ, # TRUE if individual found in take-up data
-         dewormed = ifelse(monitored, dewormed, NA)) # NA if not in the monitored group
+         dewormed = ifelse(monitored, dewormed, NA)) %>% # NA if not in the monitored group
+  left_join(dewormed.day.data, "KEY.individ")
 
 endline.data <- all.endline.data %>% 
   filter(present, interview, consent) %>% 
@@ -141,8 +151,10 @@ analysis.data %<>%
   ungroup %>% 
   select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
   right_join(analysis.data, "KEY.individ") %>% 
+  left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day), c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
   mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
          dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
+         dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
          baseline.sample = !is.na(baseline.sample.wave)) %>% 
   left_join(select(endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) 
@@ -745,13 +757,6 @@ neyman.results.dist <- analysis.data %>%
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
 ```
 
-```{r}
-# neyman.results.dist %>% 
-#   unnest(treatment.data) %>% 
-#   filter(rhs.treatment.group == "control") %>% 
-#   select(treatment.group, dist.pot.group, ate, ate_sd, ate_tstat, ate_pvalue) %>% 
-#   kable(digits = 4)
-```
 
 Stratum-level deworming probability:
 
@@ -764,7 +769,7 @@ neyman.results.dist %>%
   kable(digits = 4)
 ```
 
-```{r, echo=FALSE}
+```{r}
 neyman.results.dist %>% 
   unnest(treatment.data) %>% 
   distinct(treatment.group, dist.pot.group, .keep_all = TRUE) %>% 
@@ -777,7 +782,7 @@ neyman.results.dist %>%
 
 Strata sizes:
 
-```{r, echo=FALSE}
+```{r}
 neyman.results %>% 
   unnest(strata.data) %>% 
   select(county, dist.pot.group, treatment.group, stratum.assign.size) %>% 
@@ -890,7 +895,7 @@ The following table simplifies thinking about the analysis outlined in the pre-a
 
 ### Without Controls
 
-```{r, echo=TRUE}
+```{r}
 reg.output.sms <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
@@ -914,10 +919,7 @@ c("ink", "calendar", "bracelet") %>%
   kable(digits = 4)
 ```
 
-
-Corresponding Neyman's approach:
-
-```{r, echo=TRUE}
+```{r}
 neyman.results.sms <- analysis.data %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
@@ -1007,6 +1009,51 @@ c("ink", "calendar", "bracelet") %>%
   kable(digits = 4)
 ```
 
+## Over Time
+
+```{r, echo=TRUE}
+after.msg.days <- seq(3, 11, 2)
+
+time.takeup.data <- analysis.data %>%  
+  filter(monitored, monitor.consent) %>% 
+  anti_join(outlier.clusters, "cluster.id") %>% 
+  group_by(assigned.treatment, sms.treatment) %>% 
+  mutate(n.total = n()) %>% 
+  group_by(dewormed.day.any, add = TRUE) %>% 
+  summarize(takeup.prop = sum(dewormed.any) / first(n.total)) %>% 
+  ungroup %>% 
+  arrange(assigned.treatment, dewormed.day.any) %>% 
+  group_by(assigned.treatment, sms.treatment) %>% 
+  mutate(cumul.takeup.prop = cumsum(takeup.prop)) %>% 
+  ungroup 
+
+plot.takeup.dynamics <- function(.data, .aes = aes(dewormed.day.any, takeup.prop, color = assigned.treatment)) .data %>% 
+  ggplot(.aes) +
+  geom_line() + 
+  geom_point(aes(color = assigned.treatment)) + 
+  annotate(geom = "rect", xmin = after.msg.days - 0.5, xmax = after.msg.days + 0.5, ymin = 0, ymax = 1, alpha = 0.2) +
+  annotate(geom = "rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
+  scale_x_continuous("Deworming Day", breaks = 1:12) +
+  scale_y_continuous("Take-up Proportion") +
+  scale_color_discrete("") +
+  coord_cartesian(y = c(0, max(.data$takeup.prop) + 0.0001)) +
+  labs(caption = "Vertical bars mark the days after receiving SMS messages.\nThe red bar marks the first deworming, so subjects would have only received a reminder")
+```
+
+```{r, fig.width=10}
+time.takeup.data %>% 
+  filter(sms.treatment == "sms.control") %>% 
+  plot.takeup.dynamics
+```
+
+```{r, echo=TRUE, fig.width=12, fig.height=10}
+time.takeup.data %>% { 
+  plot.takeup.dynamics(., .aes = aes(dewormed.day.any, takeup.prop, color = assigned.treatment, linetype = sms.treatment)) +
+    scale_linetype_manual("", values = c("dotted", "solid", "dashed")) +
+    facet_wrap(~ assigned.treatment, scales = "free_y")
+}
+```
+
 ## SMS Treatment And Distance to PoT
 
 Here we estimate the below models
@@ -1027,7 +1074,7 @@ E[Y_{ij}(z, s) - Y_{ij}(z', s')|D_j = d] &= \tau(z) - \tau(z') + \left\{\lambda(
 \end{align}
 $$
 
-```{r, echo=TRUE}
+```{r}
 reg.output.sms.dist <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
@@ -1043,7 +1090,7 @@ Test if there is a difference in impact in response to surveying. We do this by 
 
 ```{r}
 reg.output.sms.ctrl.survey.effect <- analysis.data %>%  
-  filter(baseline.sample | (monitored & monitor.consent & sms.treatment == "sms.control")) %>% 
+  filter(monitored, monitor.consent, baseline.sample | (sms.treatment == "sms.control")) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate(baseline.sample = factor(if_else(baseline.sample, "baseline", "not.baseline")) %>% 
            relevel(ref = "not.baseline")) %>% 
@@ -1057,14 +1104,14 @@ reg.output.sms.ctrl.survey.effect %>%
 ```{r}
 linear.tester(reg.output.sms.ctrl.survey.effect, paste0(c("ink", "calendar", "bracelet"), ":baseline"), joint = TRUE) %>% 
   tidy %>% 
-  kable
+  kable 
 ```
 
 *The below requires looking at the take-up rates for individuals not providing consent to use their data*.
 
 ```{r}
 reg.output.sms.ctrl.survey.effect.no.consent <- analysis.data %>%  
-  # filter(baseline.sample | (monitored & monitor.consent & sms.treatment == "sms.control")) %>% 
+  filter(baseline.sample | (monitored & monitor.consent & sms.treatment == "sms.control")) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate(baseline.sample = factor(if_else(baseline.sample, "baseline", "not.baseline")) %>% relevel(ref = "not.baseline")) %>% 
   run.strat.reg(.treatment = c("assigned.treatment", "baseline.sample")) 
@@ -1079,3 +1126,4 @@ linear.tester(reg.output.sms.ctrl.survey.effect.no.consent, paste0(c("ink", "cal
   tidy %>% 
   kable
 ```
+
