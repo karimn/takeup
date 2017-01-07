@@ -294,6 +294,12 @@ county.bbox <- counties.adm.data@bbox
 subcounty.bbox <- subcounties.adm.data@bbox
 ```
 
+```{r rct-wave-dates}
+day1.wave1 <- as_date("2016-10-03")
+day12.wave1 <- day1.wave1 + days(11)
+day1.wave2 <- as_date("2016-10-24")
+day12.wave2 <- day1.wave2 + days(11)
+```
 
 ```{r data, echo=TRUE, message=FALSE}
 validate.coords <- . %>% 
@@ -2721,6 +2727,7 @@ sms.content.data <- list(wave1 = "data/takeup_sms_treatment_status_wave1.csv",
   set_names(str_to_lower(names(.))) %>% 
   mutate(wave = str_extract(wave, "[12]$") %>% as.integer,
          date = parse_datetime(date, "%R %p %B %d, %Y", locale = locale(tz = "Africa/Nairobi")),
+         deworming.day = as.integer(date(date) - if_else(wave == 1, day1.wave1, day1.wave2) + 1),
          to = paste0("+", to),
          incentive.msg = str_detect(message, fixed("ujumbe 123 kwa")),
          reminder.msg = str_detect(message, fixed("Matibabu ya minyoo ya bure iko")),
@@ -2917,10 +2924,6 @@ all.takeup.survey.groups %<>%
   mutate_at(vars(timestamp_gps, starttime, endtime), 
             funs(. + if_else((cluster.id %in% c(98, 431) & !is.na(.) & date(.) <= "2016-10-03") |
                                (cluster.id == 1247 & !is.na(.) & date(.) == "2016-10-23"), days(1), days(0))))
-
-day1.wave1 <- as_date("2016-10-03")
-day12.wave1 <- day1.wave1 + days(11)
-day1.wave2 <- as_date("2016-10-24")
 
 is.valid.wave.datetime <- . %>% {
   !is.na(.) &
