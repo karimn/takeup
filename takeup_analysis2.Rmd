@@ -1027,30 +1027,63 @@ time.takeup.data <- analysis.data %>%
   mutate(cumul.takeup.prop = cumsum(takeup.prop)) %>% 
   ungroup 
 
-plot.takeup.dynamics <- function(.data, .aes = aes(dewormed.day.any, takeup.prop, color = assigned.treatment)) .data %>% 
+plot.takeup.dynamics <- function(.data, .aes = aes(x = dewormed.day.any, y = takeup.prop, color = assigned.treatment)) .data %>% 
   ggplot(.aes) +
   geom_line() + 
   geom_point(aes(color = assigned.treatment)) + 
   annotate(geom = "rect", xmin = after.msg.days - 0.5, xmax = after.msg.days + 0.5, ymin = 0, ymax = 1, alpha = 0.2) +
   annotate(geom = "rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
   scale_x_continuous("Deworming Day", breaks = 1:12) +
-  scale_y_continuous("Take-up Proportion") +
   scale_color_discrete("") +
-  coord_cartesian(y = c(0, max(.data$takeup.prop) + 0.0001)) +
-  labs(caption = "Vertical bars mark the days after receiving SMS messages.\nThe red bar marks the first deworming, so subjects would have only received a reminder")
+  coord_cartesian(y = c(0, max(.data[[deparse(.aes$y)]]) + 0.0001)) +
+  labs(caption = "Grey vertical bars mark the days after SMS messages are received.\nThe red bar marks the first deworming day, so subjects would have only received a reminder message.")
 ```
 
 ```{r, fig.width=10}
 time.takeup.data %>% 
-  filter(sms.treatment == "sms.control") %>% 
-  plot.takeup.dynamics
+  filter(sms.treatment == "sms.control") %>% {
+    plot.takeup.dynamics(.) +
+      labs(y = "Take-up Proportion", title = "Daily Take-up Proportions", subtitle = "No SMS treatment group")
+  }
 ```
 
-```{r, echo=TRUE, fig.width=12, fig.height=10}
+
+```{r, echo=TRUE, fig.width=14}
 time.takeup.data %>% { 
   plot.takeup.dynamics(., .aes = aes(dewormed.day.any, takeup.prop, color = assigned.treatment, linetype = sms.treatment)) +
     scale_linetype_manual("", values = c("dotted", "solid", "dashed")) +
+    labs(y = "Take-up Proportion", title = "Daily Take-up Proportions", subtitle = "Split by SMS treatment assignment") +
     facet_wrap(~ assigned.treatment, scales = "free_y")
+}
+```
+
+```{r, fig.width=10, echo=TRUE}
+social.info.data <- sms.content.data %>% 
+  filter(!is.na(social.info)) %>% 
+  left_join(select(census.data, cluster.id, assigned.treatment, sms.treatment, KEY.individ), "KEY.individ") %>% 
+  filter(!is.na(cluster.id)) %>% 
+  group_by(deworming.day, assigned.treatment) %>% 
+  summarize(cumul = mean(social.info)/10) %>% 
+  ungroup %>% 
+  rename(dewormed.day = deworming.day) 
+
+social.info.data %>% {
+  plot.takeup.dynamics(., .aes = aes(dewormed.day, cumul, color = assigned.treatment, shape = "social.info")) +
+    labs(y = "Reported Take-up", title = "Social Information Reported to Subjects", subtitle = "Split by incentive treatment") +
+    scale_shape_manual(values = 1, guide = "none")
+}
+```
+
+```{r, fig.width=14, echo=TRUE}
+time.takeup.data %>% 
+  transmute(dewormed.day = dewormed.day.any, cumul = cumul.takeup.prop, assigned.treatment, sms.treatment) %>% 
+  bind_rows(takeup = ., social.info = social.info.data, .id = "cumul.type") %>% 
+  mutate(cumul.type.sms = if_else(!is.na(sms.treatment), paste(cumul.type, sms.treatment, sep = "-"), cumul.type)) %>% {
+    plot.takeup.dynamics(., .aes = aes(dewormed.day, cumul, color = assigned.treatment, linetype = cumul.type.sms, shape = cumul.type)) +
+      scale_linetype_manual("", labels = c("Reported Take-up", "Reminders Only", "No SMS", "Social Info SMS"), values = c("dotdash", "dotted", "solid", "dashed")) +
+      scale_shape_manual("", labels = c("Reported Take-up", "Take-up"), values = c(1, 16)) +
+      labs(y = "", title = "Comparing Reported and Observed Take-up", subtitle = "Split by SMS treatment group") +
+      facet_wrap(~ assigned.treatment)
 }
 ```
 
