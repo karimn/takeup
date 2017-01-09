@@ -896,13 +896,13 @@ The following table simplifies thinking about the analysis outlined in the pre-a
 ### Without Controls
 
 ```{r}
-reg.output.sms <- analysis.data %>%  
+reg.output.sms.treat <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment"))
 
-reg.output.sms %>% tidy %>% kable(digits = 4)
+reg.output.sms.treat %>% tidy %>% kable(digits = 4)
 ```
 
 Some linear hypotheses testing:
@@ -915,7 +915,7 @@ c("ink", "calendar", "bracelet") %>%
                     "bracelet - calendar - calendar:social.info - social.info",
                     "ink + ink:social.info", 
                     "bracelet - calendar + bracelet:social.info - calendar:social.info") %>% 
-  linear.tester(reg.output.sms, .) %>% 
+  linear.tester(reg.output.sms.treat, .) %>% 
   kable(digits = 4)
 ```
 
@@ -939,25 +939,67 @@ neyman.results.sms <- analysis.data %>%
 #   kable
 ```
 
+```{r sms-treat-barplot-fun, echo=TRUE}
+plot.sms.treat.takeup <- function(.reg.output) { 
+  incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
+  sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
+  
+  sms.ctrl.linear.restrict <- c("(intercept)", sprintf("(intercept) + %s", incentive.treatment.terms[-1])) 
+  social.info.add.effect.restrict <- c("social.info", sprintf("social.info + %s:social.info", incentive.treatment.terms[-1]))
+  reminder.only.add.effect.restrict <- c("reminder.only - social.info")
+  
+  col.inference <- c(sms.ctrl.linear.restrict, social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
+    linear.tester(.reg.output, .) %>% 
+    mutate(incentive.treatment = incentive.treatment.terms %>% 
+             factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),  
+           sms.treatment = c(rep(c("sms.control", "social.info"), each = 4), "reminder.only") %>% 
+             factor(levels = c("sms.control", "social.info", "reminder.only"), 
+                    labels = c("None", "Social Information", "Reminders Only")),
+           bar.size = estimate + if_else(sms.treatment == "None", 0, c(rep(estimate[1:4], 2), first(estimate) + estimate[5])),
+           ci.lb = bar.size - std.error * 1.64,
+           ci.ub = bar.size + std.error * 1.64) 
+  
+  ggplot(col.inference, aes(x = incentive.treatment)) +
+    geom_col(aes(y = estimate, fill = sms.treatment), 
+             position = position_stack(reverse = TRUE), color = "grey50", alpha = 0.25) +
+    geom_errorbar(aes(ymin = ci.lb, ymax = ci.ub, group = sms.treatment, color = sms.treatment), 
+                  width = 0.075, position = "dodge", 
+                  data = . %>% filter(sms.treatment != "None" | incentive.treatment != "Control")) +
+    geom_text(aes(y = bar.size, label = sprintf("%.2f", bar.size)), nudge_x = 0.2, nudge_y = 0.02) +
+    scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
+    scale_x_discrete("Treatment") +
+    scale_fill_discrete("SMS Treatment") +
+    labs(title = "Estimated Take-up in Response to Incentive and SMS Treatment", 
+         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nRed intervals test the null hypothesis of no difference in take-up from that in the control group (with non SMS treatment).\nGreen and blue intervals test the null hypothesis of no difference from the SMS treatment lower on the same column.") +
+    theme(legend.position = "bottom")
+}
+```
+
+```{r, fig.height=6}
+plot.sms.treat.takeup(reg.output.sms.treat) +
+  labs(subtitle = "Without Controls") 
+```
+
+
 ```{r, echo=FALSE, fig.align="center"}
-neyman.results.sms %>% 
-  unnest(strata.data) %>% 
-  select(assigned.treatment, sms.treatment, county, dist.pot.group, treatment.mean.dewormed) %>% 
-  distinct(assigned.treatment, sms.treatment, .keep_all = TRUE) %>% 
-  mutate(sms.treatment = factor(sms.treatment, 
-                                levels = c("sms.control", "reminder.only", "social.info"),
-                                labels = c("None", "Reminder Only", "Social Information")),
-         assigned.treatment = factor(str_to_title(assigned.treatment))) %>% 
-  ggplot(aes(sms.treatment, treatment.mean.dewormed)) +
-  geom_point(aes(color = assigned.treatment, group = assigned.treatment)) +
-  geom_line(aes(color = assigned.treatment, group = assigned.treatment, linetype = "Including Reminder-Only"), 
-            data = . %>% filter(assigned.treatment == "Control")) +
-  geom_line(aes(color = assigned.treatment, group = assigned.treatment, linetype = "Excluding Reminder-Only"), 
-            data = . %>% filter(sms.treatment != "Reminder Only")) +
-  scale_x_discrete("Text Messaging Treatment") +
-  scale_y_continuous("Take-up Proportion", breaks = seq(0, 0.7, 0.025)) +
-  scale_color_discrete("Incentive Treatment") +
-  scale_linetype_manual("", values = c("solid", "dashed"))
+# neyman.results.sms %>% 
+#   unnest(strata.data) %>% 
+#   select(assigned.treatment, sms.treatment, county, dist.pot.group, treatment.mean.dewormed) %>% 
+#   distinct(assigned.treatment, sms.treatment, .keep_all = TRUE) %>% 
+#   mutate(sms.treatment = factor(sms.treatment, 
+#                                 levels = c("sms.control", "reminder.only", "social.info"),
+#                                 labels = c("None", "Reminder Only", "Social Information")),
+#          assigned.treatment = factor(str_to_title(assigned.treatment))) %>% 
+#   ggplot(aes(sms.treatment, treatment.mean.dewormed)) +
+#   geom_point(aes(color = assigned.treatment, group = assigned.treatment)) +
+#   geom_line(aes(color = assigned.treatment, group = assigned.treatment, linetype = "Including Reminder-Only"), 
+#             data = . %>% filter(assigned.treatment == "Control")) +
+#   geom_line(aes(color = assigned.treatment, group = assigned.treatment, linetype = "Excluding Reminder-Only"), 
+#             data = . %>% filter(sms.treatment != "Reminder Only")) +
+#   scale_x_discrete("Text Messaging Treatment") +
+#   scale_y_continuous("Take-up Proportion", breaks = seq(0, 0.7, 0.025)) +
+#   scale_color_discrete("Incentive Treatment") +
+#   scale_linetype_manual("", values = c("solid", "dashed"))
 ```
 
 Stratum-level deworming probability:
@@ -984,7 +1026,7 @@ neyman.results %>%
 ### With Controls
 
 ```{r, echo=TRUE}
-reg.output.sms.covar <- analysis.data %>%  
+reg.output.sms.treat.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
@@ -992,7 +1034,7 @@ reg.output.sms.covar <- analysis.data %>%
   run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment"),
                 .covariates = c("school", "floor", "ethnicity"))
 
-reg.output.sms.covar %>% tidy %>% kable(digits = 4)
+reg.output.sms.treat.covar %>% tidy %>% kable(digits = 4)
 ```
 
 Some linear hypotheses testing:
@@ -1005,8 +1047,13 @@ c("ink", "calendar", "bracelet") %>%
     "bracelet - calendar - calendar:social.info - social.info",
     "ink + ink:social.info", 
     "bracelet - calendar + bracelet:social.info - calendar:social.info") %>% 
-  linear.tester(reg.output.sms.covar, .) %>% 
+  linear.tester(reg.output.sms.treat.covar, .) %>% 
   kable(digits = 4)
+```
+
+```{r, fig.height=6}
+plot.sms.treat.takeup(reg.output.sms.treat.covar) +
+  labs(subtitle = "With Controls") 
 ```
 
 ## Over Time
