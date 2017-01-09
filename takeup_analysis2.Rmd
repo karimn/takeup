@@ -940,7 +940,7 @@ neyman.results.sms <- analysis.data %>%
 ```
 
 ```{r sms-treat-barplot-fun, echo=TRUE}
-plot.sms.treat.takeup <- function(.reg.output) { 
+prep.sms.treat.plot.data <- function(.reg.output) {
   incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
   sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
   
@@ -948,7 +948,7 @@ plot.sms.treat.takeup <- function(.reg.output) {
   social.info.add.effect.restrict <- c("social.info", sprintf("social.info + %s:social.info", incentive.treatment.terms[-1]))
   reminder.only.add.effect.restrict <- c("reminder.only - social.info")
   
-  col.inference <- c(sms.ctrl.linear.restrict, social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
+  c(sms.ctrl.linear.restrict, social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
     linear.tester(.reg.output, .) %>% 
     mutate(incentive.treatment = incentive.treatment.terms %>% 
              factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),  
@@ -958,17 +958,20 @@ plot.sms.treat.takeup <- function(.reg.output) {
            bar.size = estimate + if_else(sms.treatment == "None", 0, c(rep(estimate[1:4], 2), first(estimate) + estimate[5])),
            ci.lb = bar.size - std.error * 1.64,
            ci.ub = bar.size + std.error * 1.64) 
-  
-  ggplot(col.inference, aes(x = incentive.treatment)) +
+}
+
+plot.sms.treat.takeup <- function(.preped.data) { 
+  ggplot(.preped.data, aes(x = incentive.treatment)) +
     geom_col(aes(y = estimate, fill = sms.treatment), 
              position = position_stack(reverse = TRUE), color = "grey50", alpha = 0.25) +
     geom_errorbar(aes(ymin = ci.lb, ymax = ci.ub, group = sms.treatment, color = sms.treatment), 
                   width = 0.075, position = "dodge", 
                   data = . %>% filter(sms.treatment != "None" | incentive.treatment != "Control")) +
-    geom_text(aes(y = bar.size, label = sprintf("%.2f", bar.size)), nudge_x = 0.2, nudge_y = 0.02) +
+    geom_text_repel(aes(y = bar.size, label = sprintf("%.2f", bar.size)), nudge_x = 0.2, nudge_y = 0.02, segment.colour = "grey50") +
     scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
     scale_x_discrete("Treatment") +
     scale_fill_discrete("SMS Treatment") +
+    scale_color_discrete("SMS Treatment") +
     labs(title = "Estimated Take-up in Response to Incentive and SMS Treatment", 
          caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nRed intervals test the null hypothesis of no difference in take-up from that in the control group (with non SMS treatment).\nGreen and blue intervals test the null hypothesis of no difference from the SMS treatment lower on the same column.") +
     theme(legend.position = "bottom")
@@ -976,8 +979,10 @@ plot.sms.treat.takeup <- function(.reg.output) {
 ```
 
 ```{r, fig.height=6}
-plot.sms.treat.takeup(reg.output.sms.treat) +
-  labs(subtitle = "Without Controls") 
+prep.sms.treat.plot.data(reg.output.sms.treat) %>% { 
+  plot.sms.treat.takeup(.) +
+    labs(subtitle = "Without Controls") 
+}
 ```
 
 
@@ -1032,7 +1037,7 @@ reg.output.sms.treat.covar <- analysis.data %>%
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment"),
-                .covariates = c("school", "floor", "ethnicity"))
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) 
 
 reg.output.sms.treat.covar %>% tidy %>% kable(digits = 4)
 ```
@@ -1052,8 +1057,10 @@ c("ink", "calendar", "bracelet") %>%
 ```
 
 ```{r, fig.height=6}
-plot.sms.treat.takeup(reg.output.sms.treat.covar) +
-  labs(subtitle = "With Controls") 
+prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
+  plot.sms.treat.takeup(.) +
+    labs(subtitle = "With Controls") 
+} 
 ```
 
 ## Over Time
@@ -1154,14 +1161,81 @@ E[Y_{ij}(z, s) - Y_{ij}(z', s')|D_j = d] &= \tau(z) - \tau(z') + \left\{\lambda(
 \end{align}
 $$
 
+### Regression Without Controls
+
 ```{r}
-reg.output.sms.dist <- analysis.data %>%  
+reg.output.sms.treat.dist <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
+         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment", "dist.pot.group")) 
 
-reg.output.sms.dist %>% tidy %>% kable(digits = 4)
+reg.output.sms.treat.dist %>% tidy %>% kable(digits = 4)
+```
+
+```{r}
+prep.sms.treat.dist.plot.data <- function(.reg.output) {
+  interact.with <- "close"
+  
+  incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
+  sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
+  
+  sms.ctrl.linear.restrict <- c("(intercept)", sprintf("(intercept) + %s", incentive.treatment.terms[-1])) 
+  social.info.add.effect.restrict <- c("social.info", sprintf("social.info + %s:social.info", incentive.treatment.terms[-1]))
+  reminder.only.add.effect.restrict <- c("reminder.only - social.info")
+   
+  col.inference <- c(social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
+    c(map(., str_split, "\\s+", simplify = TRUE) %>% 
+        map(~ c(.x, "+", str_replace(.x, "([^-+]+)", sprintf("\\1:%s", interact.with)))) %>% 
+        map(paste, collapse = " ") %>% 
+        map_if(~ !str_detect(.x, "-"), ~ paste(.x, sprintf("+ %s", interact.with))) %>% 
+        unlist) %>% 
+    c(sms.ctrl.linear.restrict %>% 
+        c(str_replace(., "\\(intercept\\)", interact.with)), .) %>% 
+    linear.tester(.reg.output, .) %>% 
+    mutate(dist = rep(rep(c("Far", "Close"), 2), c(4, 4, 5, 5))) %>% 
+    group_by(dist) %>% 
+    mutate(incentive.treatment = incentive.treatment.terms %>% 
+             factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),
+           sms.treatment = c(rep(c("sms.control", "social.info"), each = 4), "reminder.only") %>% 
+             factor(levels = c("sms.control", "social.info", "reminder.only"), 
+                    labels = c("None", "Social Information", "Reminders Only")),
+           bar.size = estimate + if_else(sms.treatment == "None", 0, c(rep(estimate[1:4], 2), first(estimate) + estimate[5]))) %>% 
+    ungroup %>% 
+    mutate(ci.lb = bar.size - std.error * 1.64,
+           ci.ub = bar.size + std.error * 1.64) 
+}
+```
+
+```{r, fig.width=12}
+prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist) %>% {
+  plot.sms.treat.takeup(.) +
+    facet_wrap(~ dist) +
+    labs(subtitle = "Split by distance to PoT, without controls")
+}
+```
+
+### Regression With Controls
+
+```{r}
+reg.output.sms.treat.dist.covar <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  anti_join(outlier.clusters, "cluster.id") %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
+         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment", "dist.pot.group"),
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) 
+
+reg.output.sms.treat.dist.covar %>% tidy %>% kable(digits = 4)
+```
+
+```{r, fig.width=12}
+prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
+  plot.sms.treat.takeup(.) +
+    facet_wrap(~ dist) +
+    labs(subtitle = "Split by distance to PoT, with controls")
+}
 ```
 
 ## Impact of Surveying
