@@ -331,6 +331,11 @@ $$
 * $N(k)$ is the size of startum $k$.
 * $N$ is the total number of observations
 
+To clarify what this stratified regression is doing, we are estimating
+$$
+\tau(z) = E[Y_{ij}(z) - Y_{ij}(control)] = \sum_{k = 1}^{K} \frac{N(k)}{N} E[Y_{ij}(z) - Y_{ij}(control)|B_j = k]
+$$
+
 ## Basic Treatment Effect
 
 Here we estimate the below models
