@@ -1,0 +1,192 @@
+---
+title: "TakeUp Post RCT Short Summary"
+date: "January 10, 2017"
+author:
+- Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`]
+- Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
+output: 
+  pdf_document:
+    fig_caption: yes
+    fig_height: 5
+    fig_width: 8
+header-includes:
+   - \usepackage{pxfonts}
+   - \usepackage{bbm}
+   - \usepackage{float}
+---
+
+```{r setup, include=FALSE}
+library(plyr)
+library(tidyverse)
+library(stringr)
+library(broom)
+library(lmtest)
+library(car)
+library(ggplot2)
+library(ggrepel)
+library(ggmap)
+
+source("../util.R")
+source("analysis_util.R")
+
+config <- yaml::yaml.load_file("../local_config.yaml")
+
+options(dplyr.show_progress = FALSE, digits = 4)
+knitr::opts_chunk$set(echo = FALSE, cache.path = "takeup_one_pager-cache/", fig.path = "takeup_one_pager-fig/", fig.align = "center")
+```
+
+\begin{center}
+\begin{bf}
+This document is for Evidence Action internal review only and should not be shared externally -- analysis has not been finalized.
+\end{bf}
+\end{center}
+
+```{r prepare-data, include=FALSE, cache=TRUE}
+# This data was prepared in takeup_field_notebook.Rmd
+census.data <- read_rds("data/takeup_census.rds")
+baseline.data <- read_rds("data/takeup_baseline_data.rds") 
+takeup.data <- read_rds("data/takeup.rds")
+all.endline.data <- read_rds("data/all_endline.rds")
+reconsent.data <- read_rds("data/reconsent.rds")
+sms.content.data <- read_rds("data/takeup_sms_treatment.rds")
+cluster.strat.data <- read_rds("data/takeup_processed_cluster_strat.rds")  
+
+analysis.data <- prepare.analysis.data(census.data, takeup.data, all.endline.data, reconsent.data, cluster.strat.data)
+cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
+
+outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
+
+after.msg.days <- seq(3, 11, 2)
+incentive.treatments <- c("control", "ink", "calendar", "bracelet")
+
+time.takeup.data <- analysis.data %>%  
+  filter(monitored, monitor.consent) %>% 
+  anti_join(outlier.clusters, "cluster.id") %>% 
+  group_by(assigned.treatment, sms.treatment) %>% 
+  mutate(n.total = n()) %>% 
+  group_by(dewormed.day.any, add = TRUE) %>% 
+  summarize(takeup.prop = sum(dewormed.any) / first(n.total)) %>% 
+  ungroup %>% 
+  arrange(assigned.treatment, dewormed.day.any) %>% 
+  group_by(assigned.treatment, sms.treatment) %>% 
+  mutate(cumul.takeup.prop = cumsum(takeup.prop)) %>% 
+  ungroup %>% 
+  mutate(sms.treatment = factor(sms.treatment, 
+                                levels = c("sms.control", "reminder.only", "social.info"),
+                                labels = c("None", "Reminders Only", "Social Information")),
+         assigned.treatment = factor(assigned.treatment, levels = incentive.treatments, labels = str_to_title(incentive.treatments))) 
+```
+
+# Overview
+
+The purpose of this document is to provide an analysis update on the TakeUp randomized controlled trial implemented between September and November of 2016. Full experiment design details are available in the pre-analysis plan.
+
+As a reminder, the purpose of the study was to test the use of _social incentives_ to stimulate take-up of deworming treatment among adults at a centralized point-of-treatment (PoT). Additionally, we aim to further understand the mechanisms behind individuals' decision making processes -- to go beyond the kind of reduced form analysis presented here.
+
+The study was successfully carried out in 144 clusters (defined as a _point-of-treatment_ and _targeted village_ pair) across three counties in western Kenya.
+
+# Preliminary Findings
+
+## Absolute Deworming Take-up
+
+Figure \ref{fig:absolute-takeup} shows the absolute number of individuals dewormed in the study. This provides a qualitative picture of how take-up differed across treatment arms and experiment strata (counties and distance from PoT). However, we are not conducting any inferential analysis on this data as it is difficult to identify where individuals seeking treatment travelled from. The primary goal of this study is to identify the proportion of individuals in a targeted community that respond to incentives, reminders and social information, thus we restrict our quantitative analysis to the sample of individuals in targeted villages whose take-up we are monitoring.
+
+```{r absolute-takeup, fig.height=8, fig.cap="Absolute Deworming Take-up", fig.pos="H"}
+plot.aggreg.takeup <- function(.data) {
+  ggplot(.data, aes(assigned.treatment)) +
+    geom_bar(color = "black", alpha = 0.25) +
+    labs(x = "Treatment", y = "Number of Individuals Dewormed", caption = "Note: range on Y axis varies between counties.") +
+    facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+    theme(legend.position = "bottom")
+}
+
+takeup.data %>% 
+  mutate(dist.pot.group = factor(dist.pot.group, levels = c("close", "far"), labels = c("Close", "Far")),
+         assigned.treatment = factor(assigned.treatment, levels = incentive.treatments, labels = str_to_title(incentive.treatments))) %>% 
+  plot.aggreg.takeup 
+```
+
+
+## Reduced Form Analysis
+
+All results in this section are based on reduced form stratified regression analysis.
+
+### Impact of Cluster Level Incentive Treatment
+
+Figure \ref{fig:sms-ctrl-takeup} shows the impact of incentives on take-up probability (for the sample of individuals not receiving a cross-cutting SMS treatment). While we observe modest and insignificant impact to the _ink_ and _calendar_ treatments, _bracelets_ result in nearly 13 percentage point increase in deworming, which is 35% increase compare to take-up rates in the control arm. 
+
+The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.]
+
+```{r sms-ctrl-takeup, fig.width=10, fig.cap="Estimating Impact of Incentive Treatment", fig.pos="H"}
+analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.covariates = reg.covar) %>% 
+  prep.sms.ctrl.plot.data %>% {
+  plot.sms.ctrl.takeup(.) +
+    labs(title = "")
+}
+```
+
+#### Difference in Impact Based on Distance from PoT
+
+Figure \ref{fig:sms-ctrl-dist-takeup} splits the analysis by distance from the targeted village to the point-of-treatment. _Close_ villages are those are less than 1.25 km away from the PoT, while _far_ villages are those between 1.25-2.5 km away. Two patterns are seen here: 
+
+  (i) there is a strong decline in take-up in the control when going from _close_ to _far_ villages^[These characteristics were randomly manipulated by the experiment so are considered orthogonal to individuals' unobservable characteristics.]. This change in response to very small changes in cost suggest low private valuation for deworming, and
+  (ii) the effect of incentives appears to diminish (and is no longer statistically significant).  
+
+```{r sms-ctrl-dist-takeup, fig.width=10, fig.height=7, fig.cap="Difference in Impact of Incentive Treatment Based on Distance from PoT", fig.pos="H"}
+analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group")) %>% 
+  prep.sms.ctrl.plot.data(.interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
+  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
+    labs(title = "") 
+  }
+```
+
+### Impact of SMS Treatment Combined with Incentive Treatment 
+
+Figure \ref{fig:sms-treat-takeup} shows the impact of reminder and social information SMS treatment. There are number of remarks on this analysis:
+
+  (i) While the difference between _reminders only_ and _social information_ treatment is not significant, SMS treatment increased take-up across all arms.
+  (ii) The impact of _social information_ appears to be increasing in proportion to the reference take-up level in each arm (the sample not getting SMS treatment). 
+  (iii) While both _calendar_ and _bracelet_ arms have significant impact compared to the control arm, the difference between them is small. This differs from what we see in Figure \ref{fig:sms-ctrl-takeup}, because analyzing SMS treatment is restricted to the subpopulation of individuals with access to mobile phones. The impact of incentives appear to be weaker for phone owners (analysis not shown here). 
+
+```{r sms-treat-takeup, fig.cap="Impact of SMS and Incentive Treatment", fig.pos="H"}
+analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  anti_join(outlier.clusters, "cluster.id") %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment"),
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) %>% 
+prep.sms.treat.plot.data %>% {
+  plot.sms.treat.takeup(.) +
+    labs(title = "")
+} 
+```
+
+While the deworming take-up response to incentives combined with social information is large, it is difficult without further model-based analysis to say more about how social information interacts with a signaling technology (bracelets). A qualitative look at daily take-up rates split by incentive and SMS treatment, as in Figure \ref{fig:daily-takeup}, might be helpful in guiding our investigation. We see some interesting saw-tooth patterns in the plots that might indicate a response to SMS treatment the day following treatment. This is clear in the _reminders only_ treatment in the control arm and to a lesser extent in the _social information_ treatment in the _bracelet_ arm.
+
+```{r daily-takeup, fig.width=10, fig.height=7, warning=FALSE, fig.cap="Daily Take-up Rates", fig.pos="H"}
+time.takeup.data %>% {
+  plot.takeup.dynamics(., .aes = aes(dewormed.day.any, takeup.prop, color = assigned.treatment, linetype = sms.treatment)) +
+    scale_linetype_manual("SMS Treatment", values = c("solid", "dotted", "dashed")) +
+    labs(y = "Take-up Proportion") +
+    theme(legend.position = "bottom") +
+    facet_wrap(~ assigned.treatment, scales = "free_y") 
+}
+```
+
+# Discussion
+
+While the estimated absolute take-up rates in response to incentives are lower than the near universal take-up probably needed to achieve STH infection transmission breakpoint, the estimated average treatment effects are high: upwards of a 25% increase in take-up. Thus, as an incentive for the take-up of a health-related treatment with low private valuation, bracelets are remarkably effective.
+
+We should also note that the absolute take-up rates are based on a monitoring activity more likely to suffer from false negatives than false positives. In other words, we are more likely to miss the treatment of compliers than to incorrectly record the treatment of non-compliers. Therefore, the absolute take-up rates estimates are likely to be a lower bound.
+
+Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up (~80% take-up probability as shown in Figure \ref{fig:sms-treat-takeup}). Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more indepth model-based analysis. Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social inforamation caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
+

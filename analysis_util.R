@@ -1,0 +1,386 @@
+# ---- name.match.monitored
+# Name matching function. Given the census data and take-up from a particular attempt to 
+# find individuals whose names were recorded at the PoT.
+name.match.monitored <- function(census.cluster.data, 
+                                takeup.cluster.data, 
+                                max.cost = 1) { # This is the maximum number of "edits" or difference allowed between names
+  dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) %>%
+    add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
+  
+  census.cluster.data %>% 
+    mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
+           which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
+                                              aaply(dist.mat, 1, . %>% 
+                                                      which.min %>% 
+                                                      magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
+                                              NA),
+           dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
+           which.min.name.match.dist = ifelse(dewormed.matched, which.min.name.match.dist, NA))
+}
+# ---- end
+# Misc Functions and Constants ----
+
+reg.covar <- c("school", "floor", "ethnicity", "sms.ctrl.subpop")
+
+prepare.analysis.data <- function(.census.data, .takeup.data, .all.endline.data, .reconsent.data, .cluster.strat.data) {
+  consent.dewormed.reports <- list(endline.survey = .all.endline.data, 
+                                   reconsent = .reconsent.data) %>% 
+    ldply(.id = "data.source", . %>% select(KEY.individ, monitor.consent, dewormed.reported)) %>% # Get reported deworming status and consent info
+    filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>%  
+    group_by(KEY.individ) %>%  
+    summarize(monitor.consent = any(monitor.consent), # Consider as reconsented if at least one acceptance
+              dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% # Multiple contradictory responses
+    ungroup
+  
+  dewormed.day.data <- .takeup.data %>% 
+    filter(!is.na(KEY.individ)) %>% 
+    group_by(KEY.individ) %>% 
+    summarize(dewormed.day = min(deworming.day)) %>% # If dewormed multiple times, take the first day only
+    ungroup
+  
+  analysis.data <- .census.data %>% 
+           filter(!is.na(wave)) %>%  # Remove clusters no longer in study
+    left_join(consent.dewormed.reports, "KEY.individ") %>% 
+    mutate(dewormed = KEY.individ %in% .takeup.data$KEY.individ, # TRUE if individual found in take-up data
+           dewormed = ifelse(monitored, dewormed, NA)) %>% # NA if not in the monitored group
+    left_join(dewormed.day.data, "KEY.individ")
+  
+  endline.data <- .all.endline.data %>% 
+    filter(present, interview, consent) %>% 
+    arrange(KEY.individ, SubmissionDate) %>% 
+    group_by(KEY.individ) %>% # If more than one entry for an individual, take first one (there are 22 such individuals)
+    filter(row_number() == 1) %>% 
+    ungroup
+  
+  analysis.data %>% 
+    filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
+    group_by(cluster.id) %>% 
+    do(name.match.monitored(., filter(takeup.data, cluster.id %in% unique(.$cluster.id)))) %>% 
+    ungroup %>% 
+    select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
+    right_join(analysis.data, "KEY.individ") %>% 
+    left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day), c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
+    mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
+           dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
+           dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
+           baseline.sample = !is.na(baseline.sample.wave)) %>% 
+    left_join(select(endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
+    left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) 
+}
+
+prepare.cluster.takeup.data <- function(.data) {
+  is.outlier <- function(.values) {
+    .values %>% { . < quantile(., 0.25) - 1.5 * IQR(.) | . > quantile(., 0.75) + 1.5 * IQR(.) }
+  }
+  
+ .data %>% 
+  filter(monitored, monitor.consent) %>% 
+  select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
+  unite(stratum, county, dist.pot.group, sep = " ") %>% 
+  group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
+  summarize(takeup.prop = mean(dewormed.any)) %>% 
+  group_by(assigned.treatment, sms.treatment, stratum) %>% 
+  mutate(outlier = is.outlier(takeup.prop)) %>% 
+  ungroup
+}
+
+bstrp.uniquify <- function(.data) {
+  .data %>% 
+    group_by(KEY.individ) %>% 
+    mutate(KEY.individ.unique = paste(KEY.individ, seq(1, n()), sep = "-")) %>% 
+    ungroup %>% 
+    mutate(KEY.individ = KEY.individ.unique)
+}
+
+nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
+  dplyr::select_vars(colnames(data), everything()) %>% 
+    unname %>% 
+    dplyr::setdiff(exclude_nest_cols) %>% 
+    nest_(data, key_col = key_col, nest_cols = .)
+}
+
+calc.strata.stats <- function(.data, 
+                              .treatment = c("assigned.treatment"), 
+                              .strat.by = c("county", "dist.pot.group"), # This is what we stratified the experiment by
+                              .interact.with = NULL) {
+  calc.stratum.ate <- function(.stratum.data) {
+    make.cross.assign.tibble <- function(.col) {
+      matrix(.col, 
+             nrow = length(.col), 
+             ncol = length(.col), 
+             dimnames = list(.stratum.data$treatment.group)) %>% 
+        t %>% as_tibble %>% 
+        mutate(lhs.treatment.group = .stratum.data$treatment.group) %>% 
+        gather(rhs.treatment.group, val, -lhs.treatment.group) 
+    }
+   
+    .stratum.data %>% {
+      generated.cross.tbl <- select(., 
+                                    stratum.assign.mean.dewormed, 
+                                    stratum.assign.size, 
+                                    stratum.assign.sample.var.dewormed) %>% 
+        map2(paste0("stratum.", c("ate", "size", "sample.var")), 
+             ~ make.cross.assign.tibble(.x) %>% 
+               set_names(str_replace(names(.), fixed("val"), fixed(.y)))) %>% 
+        reduce(function(.left, .right) left_join(.left, .right, c("lhs.treatment.group", "rhs.treatment.group")))
+        
+      left_join(., generated.cross.tbl, c("treatment.group" = "lhs.treatment.group")) 
+    } %>% 
+      filter(treatment.group != rhs.treatment.group) %>% 
+      mutate(stratum.ate = stratum.assign.mean.dewormed - stratum.ate,
+             stratum.size = stratum.size + stratum.assign.size,
+             stratum.sample.var = stratum.sample.var + stratum.assign.sample.var.dewormed)
+  }
+ 
+  calc.strata.ate <- function(.data) .data %>% 
+    unite_("treatment.group", .treatment) %>% 
+    group_by_(.dots = c(.strat.by, "treatment.group")) %>% 
+    summarize(stratum.assign.size = n(),
+              stratum.assign.mean.dewormed = mean(dewormed.any),
+              stratum.assign.sample.var.dewormed = var(dewormed.any)/stratum.assign.size) %>%  
+    ungroup %>% 
+    mutate(total.size = sum(stratum.assign.size)) %>% 
+    group_by_(.dots = .strat.by) %>% 
+    do(calc.stratum.ate(.)) %>% 
+    group_by_(.dots = c("treatment.group", .interact.with)) %>% 
+    do(mutate(., treatment.mean.dewormed = weighted.mean(.$stratum.assign.mean.dewormed, .$stratum.assign.size))) %>% 
+    ungroup
+  
+  strata.data <- .data %>% 
+    calc.strata.ate
+  
+  strata.data %>% {
+    left_join(distinct_(., .dots = c(.strat.by, "treatment.group", .interact.with), .keep_all = TRUE) %>% 
+                select(-c(rhs.treatment.group, stratum.ate, stratum.size, stratum.sample.var)) %>%
+                nest_exclude("strata.data", c("treatment.group", .interact.with)),
+              group_by_(., .dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
+                summarize(ate = weighted.mean(stratum.ate, stratum.size),
+                          sample.var = sum(stratum.sample.var * ((stratum.size/total.size)^2)),
+                          treatment.mean.dewormed = first(treatment.mean.dewormed)) %>% 
+                ungroup %>% 
+                nest_exclude("treatment.data", c("treatment.group", .interact.with)),
+              c("treatment.group", .interact.with))
+  }
+}
+
+
+analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ...) {
+  .data %<>% 
+    select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% {
+     original.stats <- calc.strata.stats(., .interact.with = .interact.with, ...)
+     
+     if (.reps > 0) {
+       bs.analysis <- block.bootstrap(., .reps, "cluster.id") %>%
+         do(calc.strata.stats(., .interact.with = .interact.with, ...)) %>% 
+         ungroup %>% 
+         select_(.dots = c("replicate", "treatment.group", .interact.with, "treatment.data")) %>% 
+         unnest(treatment.data) %>% 
+         group_by_(.dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
+         summarize_at(vars(ate, treatment.mean.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>%
+         mutate(ci.lower.treatment.mean.dewormed = treatment.mean.dewormed_mean - 1.64 * treatment.mean.dewormed_sd,
+                ci.upper.treatment.mean.dewormed = treatment.mean.dewormed_mean + 1.64 * treatment.mean.dewormed_sd,
+                ci.lower.ate = ate_mean - 1.64 * ate_sd,
+                ci.upper.ate = ate_mean + 1.64 * ate_sd,
+                treatment.mean.dewormed_tstat = treatment.mean.dewormed_mean/treatment.mean.dewormed_sd,
+                ate_tstat = ate_mean/ate_sd,
+                ate_pvalue = calc.pvalue(ate_tstat))
+       
+       original.stats %<>% 
+         unnest(treatment.data) %>% 
+         left_join(bs.analysis, c("treatment.group", "rhs.treatment.group", .interact.with)) %>% 
+         nest_exclude("treatment.data", c("treatment.group", .interact.with)) %>% 
+         left_join(original.stats %>% select(-treatment.data), ., c("treatment.group", .interact.with))
+     } 
+     
+     return(original.stats)
+   }
+}
+
+
+# Plotting code -----------------------------------------------------------
+
+prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
+  incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
+  
+  factor.incentive.treatment <- . %>% 
+    factor(., levels = incentive.treatment.terms, labels = str_to_title(incentive.treatment.terms))
+  
+  calendar.ref.terms <- lst(ref.grp = c("(intercept) + calendar", "bracelet - calendar"))
+  
+  update.formula.with.interaction <- function(.formula, .keep.intercept = FALSE, .add.interact.intercept = TRUE) {
+    append.intercept <- .keep.intercept & str_detect(.formula, fixed("(intercept)"))
+    
+    .formula %>% 
+      str_replace(., pattern = "\\(intercept\\)\\s*(\\+\\s*)?", "") %>% 
+      str_split("\\s+", simplify = FALSE) %>% 
+      map_if(~ length(.x) > 1 | nchar(.x[1]) > 0, ~ c(.x, "+", str_replace(.x, "([^-+]+)", sprintf("\\1:%s", .interact.with)))) %>% 
+      map(paste, collapse = " ") %>% 
+      map_if(~ .add.interact.intercept & !str_detect(.x, "-") & nchar(.x) > 0, ~ paste(.x, .interact.with, sep = " + ")) %>% 
+      map_if(~ .add.interact.intercept & nchar(.x) == 0, ~ .interact.with) %>% 
+      map_if(append.intercept, ~ paste("(intercept) +", .x)) %>% 
+      unlist
+  }
+  
+  if (!is.null(.interact.with)) {
+    calendar.ref.terms %<>%
+      update_list(compare.grp = update.formula.with.interaction(.$ref.grp, .keep.intercept = TRUE)) 
+  }
+  
+  
+  calendar.ref.plot.data <- map_df(calendar.ref.terms, . %>% 
+                                     linear.tester(.reg.output, .) %>% 
+                                     magrittr::extract(., c(rep(1, 2), 2), ) %>% 
+                                     mutate(incentive.treatment = c("calendar", rep("bracelet", 2)),
+                                            ref = str_detect(linear.test, "(intercept)"),
+                                            bar.size = estimate + if_else(ref, 0, estimate[1])),
+                                   .id = "grp")
+ 
+  add.interactions <- function(.data) {
+    if (is.null(.interact.with)) {
+      return(.data)
+    } else {
+      .data$term %>%
+        update.formula.with.interaction(.add.interact.intercept = FALSE) %>% 
+        map_if(~ nchar(.x) == 0, ~ sprintf("(intercept) + %s", .interact.with)) %>% 
+        unlist %>% 
+        linear.tester(.reg.output, .) %>% 
+        bind_cols(.data %>% select(incentive.treatment)) %>% 
+        mutate(ref = row_number() <= 4,
+               bar.size = estimate + if_else(ref, 0, estimate[1]),
+               estimate = if_else(estimate < 0, 0, estimate)) %>% 
+        bind_rows(ref.grp = .data, compare.grp = ., .id = "grp")
+    }
+  } 
+  
+  .reg.output %>% 
+    tidy %>% {
+      if (is.null(.interact.with)) return(.) else filter(., !str_detect(.$term, .interact.with))
+    } %>% 
+    bind_rows(magrittr::extract(., rep(1, 3), ), .) %>% 
+    mutate(incentive.treatment = incentive.treatment.terms %>% { c("control", rep(.[-1], 2)) },
+           ref = term == "(intercept)",  
+           bar.size = estimate + if_else(ref, 0, estimate[1]),
+           estimate = if_else(estimate < 0, 0, estimate)) %>% 
+    add.interactions %>% 
+    bind_rows(control = ., calendar = calendar.ref.plot.data, .id = "ref.treatment") %>% 
+    mutate(ci.lb = bar.size - std.error * 1.64,
+           ci.ub = bar.size + std.error * 1.64) %>% 
+    mutate_at(vars(incentive.treatment, ref.treatment), factor.incentive.treatment)  
+}
+
+plot.sms.ctrl.takeup <- function(.preped.data, .facet.formula = . ~ ref.treatment) {
+  ggplot(.preped.data, aes(x = incentive.treatment)) +
+    geom_col(aes(y = estimate, fill = !ref), 
+             position = position_stack(reverse = TRUE), alpha = 0.25, color = "grey50") +
+    geom_text_repel(aes(y = bar.size, label = sprintf("%.2f", bar.size)), 
+                    nudge_x = 0.2, nudge_y = 0.02, segment.colour = "grey50",
+                    data = . %>% filter(!ref | incentive.treatment == ref.treatment)) +
+    geom_point(aes(y = bar.size), data = . %>% filter(!ref | incentive.treatment == ref.treatment)) +
+    # geom_errorbar(aes(ymin = ci.lb, ymax = ci.ub), 
+    #               width = 0.075, position = "dodge", 
+    #               data = . %>% filter(!ref)) +
+    geom_crossbar(aes(y = bar.size, ymin = ci.lb, ymax = ci.ub), 
+                  width = 0.075, fatten = 0, 
+                  data = . %>% filter(!ref)) +
+    scale_fill_discrete("", labels = c("Reference Group", "Comparison Group")) +
+    scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
+    scale_x_discrete("Treatment") +
+    facet_grid(.facet.formula, scales = "free_x", space = "free_x") +
+    labs(title = "Estimated Take-up in Response to Incentive Treatment",
+         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nIntervals test the null hypothesis of no difference in take-up from that in the reference group.") +
+    theme(legend.position = "bottom")
+}
+
+prep.sms.treat.plot.data <- function(.reg.output) {
+  incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
+  sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
+  
+  sms.ctrl.linear.restrict <- c("(intercept)", sprintf("(intercept) + %s", incentive.treatment.terms[-1])) 
+  social.info.add.effect.restrict <- c("social.info", sprintf("social.info + %s:social.info", incentive.treatment.terms[-1]))
+  reminder.only.add.effect.restrict <- c("reminder.only - social.info")
+  
+  c(sms.ctrl.linear.restrict, social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
+    linear.tester(.reg.output, .) %>% 
+    mutate(incentive.treatment = incentive.treatment.terms %>% 
+             factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),  
+           sms.treatment = c(rep(c("sms.control", "social.info"), each = 4), "reminder.only") %>% 
+             factor(levels = c("sms.control", "social.info", "reminder.only"), 
+                    labels = c("None", "Social Information", "Reminders Only")),
+           bar.size = estimate + if_else(sms.treatment == "None", 0, c(rep(estimate[1:4], 2), first(estimate) + estimate[5])),
+           ci.lb = bar.size - std.error * 1.64,
+           ci.ub = bar.size + std.error * 1.64) 
+}
+
+plot.sms.treat.takeup <- function(.preped.data) { 
+  ggplot(.preped.data, aes(x = incentive.treatment)) +
+    geom_col(aes(y = estimate, fill = sms.treatment), 
+             position = position_stack(reverse = TRUE), alpha = 0.25, color = "grey50") +
+    # geom_errorbar(aes(ymin = ci.lb, ymax = ci.ub, group = sms.treatment, color = sms.treatment), 
+    #               width = 0.075, position = "dodge", 
+    #               data = . %>% filter(sms.treatment != "None" | incentive.treatment != "Control")) +
+    geom_crossbar(aes(y = bar.size, ymin = ci.lb, ymax = ci.ub, group = sms.treatment, color = sms.treatment), 
+                  width = 0.075, fatten = 0,
+                  data = . %>% filter(sms.treatment != "None" | incentive.treatment != "Control")) +
+    geom_text_repel(aes(y = bar.size, label = sprintf("%.2f", bar.size)), nudge_x = 0.2, nudge_y = 0.02, segment.colour = "grey50") +
+    geom_point(aes(y = bar.size)) +
+    scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
+    scale_x_discrete("Treatment") +
+    scale_fill_discrete("SMS Treatment") +
+    scale_color_discrete("SMS Treatment") +
+    labs(title = "Estimated Take-up in Response to Incentive and SMS Treatment", 
+         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nRed intervals test the null hypothesis of no difference in take-up from that in the control group (with non SMS treatment).\nGreen and blue intervals test the null hypothesis of no difference from the SMS treatment lower on the same column.") +
+    theme(legend.position = "bottom")
+}
+
+plot.takeup.dynamics <- function(.data, .aes = aes(x = dewormed.day.any, y = takeup.prop, color = assigned.treatment)) {
+  .data %>% 
+    ggplot(.aes) +
+    geom_line() + 
+    geom_point(aes(color = assigned.treatment)) + 
+    annotate(geom = "rect", xmin = after.msg.days - 0.5, xmax = after.msg.days + 0.5, ymin = 0, ymax = 1, alpha = 0.2) +
+    annotate(geom = "rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
+    scale_x_continuous("Deworming Day", breaks = 1:12) +
+    scale_color_discrete("Incentive Treatment") +
+    coord_cartesian(y = c(0, max(.data[[deparse(.aes$y)]]) + 0.0001)) +
+    labs(caption = "Grey vertical bars mark the days after SMS messages are received.\nThe red bar marks the first deworming day, so subjects would have only received a reminder message the day before.")
+}
+
+# Old plotting code -------------------------------------------------------
+
+prep.ref.group.col <- . %>% {
+      intercept.est <- filter(., term == "(intercept)") %$% estimate
+      mutate(., 
+             ate = estimate,
+             estimate = if_else(term != "(intercept)", estimate + intercept.est, estimate))
+    } 
+
+incentive.treat.barplot <- function(.data) { 
+  .data %<>% 
+    filter(ref == "ctrl.ref" | term == "bracelet") %>% 
+    mutate(term = factor(term, levels = c("(intercept)", "ink", "calendar", "bracelet"), 
+                         labels = c("Control", "Ink", "Calendar", "Bracelet")),
+           p.val.label = sprintf("p-value = %.3f", p.value),
+           ci.lb = estimate - 1.64 * std.error, 
+           ci.ub = estimate + 1.64 * std.error) 
+  
+  .data %>% 
+    ggplot(aes(term, estimate)) +
+    geom_col(aes(fill = term %in% c("Control", "Ink")), color = "black", alpha = 0.25, data = . %>% filter(ref == "ctrl.ref")) +
+    geom_errorbar(aes(color = ref, ymin = ci.lb, ymax = ci.ub), 
+                  width = 0.1, position = "dodge", 
+                  data = . %>% filter((term != "Control" & ref == "ctrl.ref") | (ref == "calendar.ref"))) +
+    geom_text(aes(y = max(.data$ci.ub) + 0.055, label = p.val.label, color = ref), 
+              data = . %>% filter(term != "Control", ref == "ctrl.ref")) +
+    geom_text(aes(y = max(.data$ci.ub) + 0.02, label = p.val.label, color = ref), 
+              data = . %>% filter(term != "Control", ref == "calendar.ref")) +
+    geom_text(aes(label = sprintf("%.3f", estimate)), nudge_x = 0.2, nudge_y = -0.02, data = . %>% filter(ref == "ctrl.ref")) +
+    geom_text(aes(y = 0.02, label = sprintf("ATE = %.3f", ate), color = ref), 
+              data = . %>% filter(ref == "calendar.ref", term != "Control")) +
+    geom_text(aes(y = 0.055, label = sprintf("ATE = %.3f", ate), color = ref), 
+              data = . %>% filter(ref == "ctrl.ref", term != "Control")) +
+    scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
+    scale_x_discrete("Treatment") +
+    scale_color_manual("Reference Arm", values = c("red", "black"), labels = c("Calendar", "Control")) +
+    scale_fill_manual("", values = c("red", "black"), labels = c("Calendar vs Bracelet", "Control vs Ink")) +
+    theme(legend.position = "bottom")
+}
