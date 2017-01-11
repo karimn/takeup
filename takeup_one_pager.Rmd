@@ -5,7 +5,7 @@ author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`]
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
 output: 
-  pdf_document:
+  word_document:
     fig_caption: yes
     fig_height: 5
     fig_width: 8
@@ -115,14 +115,14 @@ All results in this section are based on reduced form stratified regression anal
 
 Figure \ref{fig:sms-ctrl-takeup} shows the impact of incentives on take-up probability (for the sample of individuals not receiving a cross-cutting SMS treatment). While we observe modest and insignificant impact to the _ink_ and _calendar_ treatments, _bracelets_ result in nearly 13 percentage point increase in deworming, which is 35% increase compare to take-up rates in the control arm. 
 
-The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.].
+The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.] %>% .
 
 ```{r sms-ctrl-takeup, fig.width=10, fig.cap="Estimating Impact of Incentive Treatment", fig.pos="H"}
 analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  run.strat.reg(.covariates = reg.covar) %>% 
+  run.strat.reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar) %>% 
   prep.sms.ctrl.plot.data %>% {
   plot.sms.ctrl.takeup(.) +
     labs(title = "")
@@ -140,7 +140,7 @@ Figure \ref{fig:sms-ctrl-dist-takeup} splits the analysis by distance from the t
 analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  run.strat.reg(.treatment = c("assigned.treatment", "dist.pot.group")) %>% 
+  run.strat.reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar) %>% 
   prep.sms.ctrl.plot.data(.interact.with = "far") %>% 
   mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
   plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
@@ -162,8 +162,7 @@ analysis.data %>%
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
-  run.strat.reg(.treatment = c("assigned.treatment", "sms.treatment"),
-                .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) %>% 
+  run.strat.reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) %>% 
 prep.sms.treat.plot.data %>% {
   plot.sms.treat.takeup(.) +
     labs(title = "")
