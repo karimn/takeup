@@ -89,7 +89,7 @@ The study was successfully carried out in 144 clusters (defined as a _point-of-t
 
 ## Absolute Deworming Take-up
 
-Figure \ref{fig:absolute-takeup} shows the absolute number of individuals dewormed in the study. This provides a qualitative picture of how take-up differed across treatment arms and experiment strata (counties and distance from PoT). However, we are not conducting any inferential analysis on this data as it is difficult to identify where individuals seeking treatment travelled from. The primary goal of this study is to identify the proportion of individuals in a targeted community that respond to incentives, reminders and social information, thus we restrict our quantitative analysis to the sample of individuals in targeted villages whose take-up we are monitoring.
+Figure \ref{fig:absolute-takeup} shows the absolute number of individuals dewormed in the study. This provides a qualitative picture of how take-up differed across treatment arms and experiment strata (counties and distance from PoT). However, we are not conducting any inferential analysis on this data as it is difficult to identify where individuals seeking treatment traveled from. The primary goal of this study is to identify the proportion of individuals in a targeted community that respond to incentives, reminders and social information, thus we restrict our quantitative analysis to the sample of individuals in targeted villages whose take-up we are monitoring.
 
 ```{r absolute-takeup, fig.height=8, fig.cap="Absolute Deworming Take-up", fig.pos="H"}
 plot.aggreg.takeup <- function(.data) {
@@ -115,7 +115,7 @@ All results in this section are based on reduced form stratified regression anal
 
 Figure \ref{fig:sms-ctrl-takeup} shows the impact of incentives on take-up probability (for the sample of individuals not receiving a cross-cutting SMS treatment). While we observe modest and insignificant impact to the _ink_ and _calendar_ treatments, _bracelets_ result in nearly 13 percentage point increase in deworming, which is 35% increase compare to take-up rates in the control arm. 
 
-The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.]
+The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.].
 
 ```{r sms-ctrl-takeup, fig.width=10, fig.cap="Estimating Impact of Incentive Treatment", fig.pos="H"}
 analysis.data %>%  
@@ -154,7 +154,7 @@ Figure \ref{fig:sms-treat-takeup} shows the impact of reminder and social inform
 
   (i) While the difference between _reminders only_ and _social information_ treatment is not significant, SMS treatment increased take-up across all arms.
   (ii) The impact of _social information_ appears to be increasing in proportion to the reference take-up level in each arm (the sample not getting SMS treatment). 
-  (iii) While both _calendar_ and _bracelet_ arms have significant impact compared to the control arm, the difference between them is small. This differs from what we see in Figure \ref{fig:sms-ctrl-takeup}, because analyzing SMS treatment is restricted to the subpopulation of individuals with access to mobile phones. The impact of incentives appear to be weaker for phone owners (analysis not shown here). 
+  (iii) While both _calendar_ and _bracelet_ arms have significant impact compared to the control arm, the difference between them is small. This differs from what we see in Figure \ref{fig:sms-ctrl-takeup}, because analyzing SMS treatment is restricted to the sub-population of individuals with access to mobile phones. The impact of incentives appear to be weaker for phone owners (analysis not shown here). 
 
 ```{r sms-treat-takeup, fig.cap="Impact of SMS and Incentive Treatment", fig.pos="H"}
 analysis.data %>%  
@@ -188,5 +188,5 @@ While the estimated absolute take-up rates in response to incentives are lower t
 
 We should also note that the absolute take-up rates are based on a monitoring activity more likely to suffer from false negatives than false positives. In other words, we are more likely to miss the treatment of compliers than to incorrectly record the treatment of non-compliers. Therefore, the absolute take-up rates estimates are likely to be a lower bound.
 
-Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up (~80% take-up probability as shown in Figure \ref{fig:sms-treat-takeup}). Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more indepth model-based analysis. Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social inforamation caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
+Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up (~80% take-up probability as shown in Figure \ref{fig:sms-treat-takeup}). Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more in-depth model-based analysis. Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social information caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
 

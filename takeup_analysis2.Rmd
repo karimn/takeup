@@ -93,7 +93,7 @@ census.data %>%
 
 We consider two individuals (in the take-up and census data) to be matched if the sum of edit (Levenshtein) distances of the first and last names is less than or equal to 1.
 
-Below we are linking the consent, census (including take-up status), and endline data to generate the analysis data set. At this stage, we are including everyone in the cenus--the entire cluster populations. For our analysis, we will filter on consent. (Code moved to separate script).
+Below we are linking the consent, census (including take-up status), and endline data to generate the analysis data set. At this stage, we are including everyone in the census--the entire cluster populations. For our analysis, we will filter on consent. (Code moved to separate script).
 
 ```{r data-preparation, echo=TRUE, warning=FALSE}
 analysis.data <- prepare.analysis.data(census.data, takeup.data, all.endline.data, reconsent.data, cluster.strat.data)
@@ -141,7 +141,7 @@ $$
 * $Z_{j}(z) = \mathbf{1}\{Z_j = z\}$ is an indicator for whether cluster $j$ was assigned treatment $z$.
 * $B_{j}(k) = \mathbf{1}\{B_j = k\}$ is an indicator for whether cluster $j$ is in stratum $k$.
 * $X_{ij}$ is a vector of covariates
-* $N(k)$ is the size of startum $k$.
+* $N(k)$ is the size of stratum $k$.
 * $N$ is the total number of observations
 
 To clarify what this stratified regression is doing, we are estimating
