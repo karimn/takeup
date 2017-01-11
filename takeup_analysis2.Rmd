@@ -809,7 +809,7 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
 
 Test if there is a difference in impact in response to surveying. We do this by comparing take-up rates for those receiving a baseline sample and those not. 
 
-```{r}
+```{r, echo=2}
 reg.output.sms.ctrl.survey.effect <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   anti_join(outlier.clusters, c("cluster.id", "sms.treatment")) %>% 
@@ -820,7 +820,9 @@ reg.output.sms.ctrl.survey.effect <- analysis.data %>%
                 .strat.by = c("county", "dist.pot.group"), 
                 .cluster = "cluster.id",
                 .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+```
 
+```{r}
 reg.output.sms.ctrl.survey.effect %>% 
   tidy %>% 
   kable(digits = 4)
@@ -830,6 +832,12 @@ reg.output.sms.ctrl.survey.effect %>%
 linear.tester(reg.output.sms.ctrl.survey.effect,
               paste0("baseline + baseline:", c("ink", "calendar", "bracelet"))) %>% 
   kable 
+```
+```{r}
+linear.tester(reg.output.sms.ctrl.survey.effect,
+              c("baseline", paste0("baseline + baseline:", c("ink", "calendar", "bracelet"))), joint = TRUE) %>% 
+  tidy %>% 
+  kable(digits = 4) 
 ```
 
 <!-- *The below requires looking at the take-up rates for individuals not providing consent to use their data*. -->
