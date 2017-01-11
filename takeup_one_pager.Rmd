@@ -113,14 +113,14 @@ All results in this section are based on reduced form stratified regression anal
 
 ### Impact of Cluster Level Incentive Treatment
 
-Figure \ref{fig:sms-ctrl-takeup} shows the impact of incentives on take-up probability (for the sample of individuals not receiving a cross-cutting SMS treatment). While we observe modest and insignificant impact to the _ink_ and _calendar_ treatments, _bracelets_ result in nearly 13 percentage point increase in deworming, which is 35% increase compare to take-up rates in the control arm. 
+Figure \ref{fig:sms-ctrl-takeup} shows the impact of incentives on take-up probability (for the sample of individuals not receiving a cross-cutting SMS treatment). While we observe modest and insignificant impact to the _ink_ and _calendar_ treatments, _bracelets_ result in nearly 12 percentage point increase in deworming, which is 36% increase compare to take-up rates in the control arm. 
 
-The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.] %>% .
+The right section of the figure compares the _bracelet_ arm to the _calendar_ arm, for the purpose of disentangling the private from the signaling valuation of bracelets. There is nearly a 25% increase in take-up compared to the _calendar_ arm^[Using an endline survey in the control arm (not analyzed here), we observed a strong preference for calendars when individuals were offered the choice between a bracelet and a calendar.].
 
 ```{r sms-ctrl-takeup, fig.width=10, fig.cap="Estimating Impact of Incentive Treatment", fig.pos="H"}
 analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run.strat.reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar) %>% 
   prep.sms.ctrl.plot.data %>% {
@@ -133,12 +133,12 @@ analysis.data %>%
 
 Figure \ref{fig:sms-ctrl-dist-takeup} splits the analysis by distance from the targeted village to the point-of-treatment. _Close_ villages are those are less than 1.25 km away from the PoT, while _far_ villages are those between 1.25-2.5 km away. Two patterns are seen here: 
 
-  (i) there is a strong decline in take-up in the control when going from _close_ to _far_ villages^[These characteristics were randomly manipulated by the experiment so are considered orthogonal to individuals' unobservable characteristics.]. This change in response to very small changes in cost suggest low private valuation for deworming, and
+  (i) there is a strong decline in take-up in the control when going from _close_ to _far_ villages^[These characteristics were randomly manipulated by the experiment so are considered orthogonal to individuals' unobservable characteristics.] (not tested here). This change in response to very small changes in cost suggest low private valuation for deworming, and
   (ii) the effect of incentives appears to diminish (and is no longer statistically significant).  
 
 ```{r sms-ctrl-dist-takeup, fig.width=10, fig.height=7, fig.cap="Difference in Impact of Incentive Treatment Based on Distance from PoT", fig.pos="H"}
 analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run.strat.reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar) %>% 
   prep.sms.ctrl.plot.data(.interact.with = "far") %>% 
@@ -159,7 +159,7 @@ Figure \ref{fig:sms-treat-takeup} shows the impact of reminder and social inform
 ```{r sms-treat-takeup, fig.cap="Impact of SMS and Incentive Treatment", fig.pos="H"}
 analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run.strat.reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) %>% 
@@ -187,5 +187,5 @@ While the estimated absolute take-up rates in response to incentives are lower t
 
 We should also note that the absolute take-up rates are based on a monitoring activity more likely to suffer from false negatives than false positives. In other words, we are more likely to miss the treatment of compliers than to incorrectly record the treatment of non-compliers. Therefore, the absolute take-up rates estimates are likely to be a lower bound.
 
-Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up (~80% take-up probability as shown in Figure \ref{fig:sms-treat-takeup}). Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more in-depth model-based analysis. Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social information caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
+Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up (~75% take-up probability as shown in Figure \ref{fig:sms-treat-takeup}). Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more in-depth model-based analysis. Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social information caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
 
