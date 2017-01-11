@@ -65,8 +65,16 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .all.endline.data,
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
            baseline.sample = !is.na(baseline.sample.wave)) %>% 
     left_join(select(endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
-    left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) 
+    left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
+    `attr<-`("class", c("takeup_df", class(.)))
 }
+
+# run.strat.reg.takeup_df <- function(.data, 
+#                                     .formula = dewormed.any ~ assigned.treatment,
+#                                     .strat.by = c("county", "dist.pot.group"),
+#                                     ...) {
+#   run.strat.reg.default(.data = .data, .formula = .formula, .strat.by = .strat.by, ...)
+# }
 
 prepare.cluster.takeup.data <- function(.data) {
   is.outlier <- function(.values) {
