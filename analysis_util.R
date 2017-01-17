@@ -5,7 +5,7 @@ name.match.monitored <- function(census.cluster.data,
                                 takeup.cluster.data, 
                                 max.cost = 1) { # This is the maximum number of "edits" or difference allowed between names
   dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) %>%
-    add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
+    magrittr::add(adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)) 
   
   census.cluster.data %>% 
     mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
@@ -298,7 +298,7 @@ prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
   
   
   calendar.ref.plot.data <- map_df(calendar.ref.terms, . %>% 
-                                     linear.tester(.reg.output, .) %>% 
+                                     linear_tester(.reg.output, .) %>% 
                                      magrittr::extract(., c(rep(1, 2), 2), ) %>% 
                                      mutate(incentive.treatment = c("calendar", rep("bracelet", 2)),
                                             ref = str_detect(linear.test, "(intercept)"),
@@ -313,7 +313,7 @@ prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
         update.formula.with.interaction(.add.interact.intercept = FALSE) %>% 
         map_if(~ nchar(.x) == 0, ~ sprintf("(intercept) + %s", .interact.with)) %>% 
         unlist %>% 
-        linear.tester(.reg.output, .) %>% 
+        linear_testerer(.reg.output, .) %>% 
         bind_cols(.data %>% select(incentive.treatment)) %>% 
         mutate(ref = row_number() <= 4,
                bar.size = estimate + if_else(ref, 0, estimate[1]),
@@ -370,7 +370,7 @@ prep.sms.treat.plot.data <- function(.reg.output) {
   reminder.only.add.effect.restrict <- c("reminder.only - social.info")
   
   c(sms.ctrl.linear.restrict, social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
-    linear.tester(.reg.output, .) %>% 
+    linear_testerer(.reg.output, .) %>% 
     mutate(incentive.treatment = incentive.treatment.terms %>% 
              factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),  
            sms.treatment = c(rep(c("sms.control", "social.info"), each = 4), "reminder.only") %>% 

@@ -46,7 +46,9 @@ library(ggmap)
 library(stringr)
 library(knitr)
 
-source("../util.R")
+library(econometr)
+
+# source("../util.R")
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
@@ -466,13 +468,13 @@ Without controls (using cluster robust standard errors). ~~Also including block 
 reg.output.sms.ctrl <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  run.strat.reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+  run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
     
 reg.output.sms.ctrl.calendar <- analysis.data %>%
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
-  run.strat.reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+  run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
 
 kable(tidy(reg.output.sms.ctrl), digits = 4)
 ```
