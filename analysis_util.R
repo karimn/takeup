@@ -108,7 +108,7 @@ prepare.baseline.data <- function(.data) {
                                                                                     "prefer not say", "DK"))) %>% 
     mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
     mutate_at(vars(spread_worms, treated, family_treated), yes.no.factor) %>% 
-    mutate_at(vars(few_deworm, many_deworm, matches("(praise|stigma)_(immunize|clothes|deworm)[A-D]")), 
+    mutate_at(vars(few_deworm, many_deworm, matches("(praise|stigma)_(immunize|clothes|deworm|defecate)[A-D]$")), 
               funs(factor(., levels = 0:2, labels = c("no", "yes", "maybe")))) %>% 
     mutate_at(vars(treated_where, where_family_treated), 
               funs(factor(., 

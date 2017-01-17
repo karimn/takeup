@@ -33,6 +33,7 @@ library(tibble)
 library(tidyr)
 library(lubridate)
 library(purrr)
+library(forcats)
 library(readr)
 library(haven)
 library(lmtest)
@@ -98,6 +99,7 @@ Below we are linking the consent, census (including take-up status), and endline
 ```{r data-preparation, warning=FALSE}
 analysis.data <- prepare.analysis.data(census.data, takeup.data, all.endline.data, reconsent.data, cluster.strat.data)
 
+old.baseline.data <- baseline.data
 baseline.data %<>% prepare.baseline.data
 ```
 
@@ -126,6 +128,134 @@ outlier.clusters <- cluster.takeup.data %>% filter(outlier) #c(249, 141, 343)
 outlier.clusters %>% 
   select(cluster.id, sms.treatment) %>% 
   kable
+```
+
+# Knowledge and Beliefs
+
+## Knowledge
+
+```{r}
+baseline.data %>% 
+  transmute(who_worms) %>% 
+  unnest %>% 
+  ggplot(aes(who_worms)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Who's at risk of worm?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  transmute(effect_worms) %>% 
+  unnest %>% 
+  ggplot(aes(effect_worms)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "What are the effects of worms?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  select(spread_worms) %>% 
+  ggplot(aes(spread_worms)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Can a worms infected person spread worms to others?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  transmute(how_spread) %>% 
+  unnest %>% 
+  ggplot(aes(how_spread)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "How are worms spread?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  transmute(stop_worms) %>% 
+  unnest %>% 
+  ggplot(aes(stop_worms)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "How to stop worms?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  transmute(when_treat) %>% 
+  unnest %>% 
+  ggplot(aes(when_treat)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "When should people deworm?", x = "")
+```
+
+
+## Externalities
+
+```{r}
+baseline.data %>% 
+  select(worms_affect) %>% 
+  ggplot(aes(worms_affect)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "If infected, can you affect others' health?", x = "")
+```
+
+
+```{r}
+baseline.data %>% 
+  select(neighbours_worms_affect) %>% 
+  ggplot(aes(neighbours_worms_affect)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Can you spread worms to others?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  select(few_deworm) %>% 
+  ggplot(aes(few_deworm)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Deworm if less than half of others deworm?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  select(many_deworm) %>% 
+  ggplot(aes(many_deworm)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Deworm if more than half of others deworm?", x = "")
+```
+
+
+```{r}
+baseline.data %>% 
+  select(more_less) %>% 
+  ggplot(aes(more_less)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Would you be more likely to deworm if few/many others get dewormed?", x = "")
+```
+## Social Image
+
+```{r}
+baseline.data %>% 
+  select(matches("^(praise|stigma)_[^_]+$")) %>% 
+  gather(key = key, value = response) %>% 
+  separate(key, c("praise.stigma", "topic"), "_") %>% 
+  separate(topic, c("topic", "question.group"), -2) %>% 
+  filter(!is.na(response)) %>% 
+  ggplot(aes(response)) +
+  geom_bar() +
+  coord_flip() +
+  facet_grid(topic ~ praise.stigma) +
+  labs(title = "Praise and Stigma", y = "")
 ```
 
 
