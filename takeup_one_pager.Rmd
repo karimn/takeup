@@ -5,10 +5,14 @@ author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`]
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
 output: 
+  pdf_document:
+      fig_caption: yes
+      fig_height: 5
+      fig_width: 8
   word_document:
-    fig_caption: yes
-    fig_height: 5
-    fig_width: 8
+      fig_caption: yes
+      fig_height: 5
+      fig_width: 8
 header-includes:
    - \usepackage{pxfonts}
    - \usepackage{bbm}
