@@ -95,8 +95,10 @@ We consider two individuals (in the take-up and census data) to be matched if th
 
 Below we are linking the consent, census (including take-up status), and endline data to generate the analysis data set. At this stage, we are including everyone in the census--the entire cluster populations. For our analysis, we will filter on consent. (Code moved to separate script).
 
-```{r data-preparation, echo=TRUE, warning=FALSE}
+```{r data-preparation, warning=FALSE}
 analysis.data <- prepare.analysis.data(census.data, takeup.data, all.endline.data, reconsent.data, cluster.strat.data)
+
+baseline.data %<>% prepare.baseline.data
 ```
 
 Below we want to identify outlier clusters. 
@@ -630,7 +632,9 @@ c("ink", "calendar", "bracelet") %>%
     "ink - social.info", 
     "bracelet - calendar - calendar:social.info - social.info",
     "ink + ink:social.info", 
-    "bracelet - calendar + bracelet:social.info - calendar:social.info") %>% 
+    "bracelet - calendar + bracelet:social.info - calendar:social.info",
+    "calendar:social.info - ink:social.info",
+    "bracelet:social.info - calendar:social.info") %>% 
   linear.tester(reg.output.sms.treat.covar, .) %>% 
   kable(digits = 4)
 ```
