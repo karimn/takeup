@@ -69,12 +69,53 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .all.endline.data,
     `attr<-`("class", c("takeup_df", class(.)))
 }
 
-# run.strat.reg.takeup_df <- function(.data, 
-#                                     .formula = dewormed.any ~ assigned.treatment,
-#                                     .strat.by = c("county", "dist.pot.group"),
-#                                     ...) {
-#   run.strat.reg.default(.data = .data, .formula = .formula, .strat.by = .strat.by, ...)
-# }
+multi.factor <- function(.col, labels, ...) {
+  map(str_split(.col, " "), factor, levels = c(seq_along(labels), 97:99), labels = c(labels, "prefer not say", "DK", "other"), ...)
+}
+
+yes.no.factor <- function(.col, .yes.no = 1:2) .col %>% 
+  factor(levels = c(.yes.no, 97:98), labels = c("yes", "no", "prefer not say", "DK"))
+
+prepare.baseline.data <- function(.data) {
+  .data %>% 
+    mutate(who_worms = multi.factor(who_worms, 
+                                    labels = c("child", "adult", "sick", "healthy", "pregnant", "old", "everyone")), 
+           effect_worms = multi.factor(effect_worms, 
+                                       labels = c("stomachache", "malnourishment", "stop child growing", "tired", "diarrhea", 
+                                                  "stop child school")),
+           how_spread = multi.factor(how_spread, 
+                                     labels = c("drinking dirty water", "open def", "swim/bath dirty water", "no shoes", "no washing hands",
+                                                "sex", "uncooked food")),
+           stop_worms = multi.factor(stop_worms, 
+                                     labels = c("wash hands", "wearing shoes", "using toilets", "drink clean water", "medicine", "clean home")),
+           when_treat = multi.factor(when_treat, 
+                                     labels = c("every week", "every month", "every 2 months", "every 3 months", "every 6 months", 
+                                                "every year", "never", "when symptoms", "hw says")),
+           more_less = factor(more_less, levels = 1:4, labels = c("more", "less", "no diff", "DK")),
+           treated_when = factor(treated_when, 
+                                 levels = c(1:9, 97), 
+                                 labels = c("1-2 mon", "3-5 mon", "6-7 mon", "8-9 mon", "10-11 mon",
+                                            "1 year", "2 year", "3 year", "4 year or more", 
+                                            "prefer no say")),
+           who_treated = factor(who_treated, 
+                                levels = 1:3, 
+                                labels = c("child", "adult", "both")),
+           dworm_proportion = factor(dworm_proportion, 
+                                      levels = c(1:6, 97:98),
+                                      labels = c("few", "nearly half", "half", "more than half", "many", "all", 
+                                                 "prefer not say", "DK")),
+           ink_more_less = factor(ink_more_less, levels = c(1:3, 97:98), labels = c("more", "less", "same", 
+                                                                                    "prefer not say", "DK"))) %>% 
+    mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(spread_worms, treated, family_treated), yes.no.factor) %>% 
+    mutate_at(vars(few_deworm, many_deworm, matches("(praise|stigma)_(immunize|clothes|deworm)[A-D]")), 
+              funs(factor(., levels = 0:2, labels = c("no", "yes", "maybe")))) %>% 
+    mutate_at(vars(treated_where, where_family_treated), 
+              funs(factor(., 
+                          levels = c(1:4, 97:99), 
+                          labels = c("bought", "school MDA", "non-school MDA", "hosp/clinic", 
+                                     "prefer not say", "DK", "other"))))
+}
 
 prepare.cluster.takeup.data <- function(.data) {
   is.outlier <- function(.values) {
