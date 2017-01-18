@@ -97,7 +97,9 @@ We consider two individuals (in the take-up and census data) to be matched if th
 Below we are linking the consent, census (including take-up status), and endline data to generate the analysis data set. At this stage, we are including everyone in the census--the entire cluster populations. For our analysis, we will filter on consent. (Code moved to separate script).
 
 ```{r data-preparation, warning=FALSE}
-analysis.data <- prepare.analysis.data(census.data, takeup.data, all.endline.data, reconsent.data, cluster.strat.data)
+endline.data <- prepare.endline.data(all.endline.data)
+consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
+analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
 
 old.baseline.data <- baseline.data
 baseline.data %<>% prepare.baseline.data
@@ -135,83 +137,62 @@ outlier.clusters %>%
 ## Knowledge
 
 ```{r}
-baseline.data %>% 
-  transmute(who_worms) %>% 
-  unnest %>% 
-  ggplot(aes(who_worms)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "Who's at risk of worm?", x = "")
+know.bel.cat.plot <- function(var, na.rm = FALSE) {
+  list(baseline = baseline.data, endline = endline.data) %>% 
+    map_df(select_, .dots = var, .id = "survey.type") %>% 
+    unnest_(var) %>% { 
+      if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
+    } %>% 
+    count_(c("survey.type", var)) %>% 
+    group_by(survey.type) %>% 
+    mutate(n = n/sum(n)) %>% 
+    ungroup %>% 
+    ggplot(aes_string(x = var, "n", fill = "survey.type")) +
+    geom_col(position = "dodge") +
+    scale_fill_discrete("") +
+    coord_flip() +
+    theme(legend.position = "bottom") +
+    labs(x = "", y = "Proportion")
+}
+
+know.bel.cat.plot("who_worms") + labs(title = "Who is at risk of worms?")
 ```
 
 ```{r}
-baseline.data %>% 
-  transmute(effect_worms) %>% 
-  unnest %>% 
-  ggplot(aes(effect_worms)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "What are the effects of worms?", x = "")
+know.bel.cat.plot("effect_worms") + labs(title = "What are the effects of worms?")
 ```
 
 ```{r}
-baseline.data %>% 
-  select(spread_worms) %>% 
-  ggplot(aes(spread_worms)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "Can a worms infected person spread worms to others?", x = "")
+know.bel.cat.plot("spread_worms") +
+  labs(title = "Can a worms infected person spread worms to others?")
 ```
 
 ```{r}
-baseline.data %>% 
-  transmute(how_spread) %>% 
-  unnest %>% 
-  ggplot(aes(how_spread)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "How are worms spread?", x = "")
+know.bel.cat.plot("how_spread") +
+  labs(title = "How are worms spread?")
 ```
 
 ```{r}
-baseline.data %>% 
-  transmute(stop_worms) %>% 
-  unnest %>% 
-  ggplot(aes(stop_worms)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "How to stop worms?", x = "")
+know.bel.cat.plot("stop_worms") +
+  labs(title = "How to stop worms?")
 ```
 
 ```{r}
-baseline.data %>% 
-  transmute(when_treat) %>% 
-  unnest %>% 
-  ggplot(aes(when_treat)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "When should people deworm?", x = "")
+know.bel.cat.plot("when_treat") +
+  labs(title = "When should people deworm?")
 ```
 
 
 ## Externalities
 
 ```{r}
-baseline.data %>% 
-  select(worms_affect) %>% 
-  ggplot(aes(worms_affect)) +
-  geom_bar() +
-  coord_flip() +
-  labs(title = "If infected, can you affect others' health?", x = "")
+know.bel.cat.plot("worms_affect", na.rm = TRUE) +
+  labs(title = "If infected, can you affect others' health?")
 ```
 
 
 ```{r}
-baseline.data %>% 
-  select(neighbours_worms_affect) %>% 
-  ggplot(aes(neighbours_worms_affect)) +
-  geom_bar() +
-  coord_flip() +
+know.bel.cat.plot("neighbours_worms_affect", na.rm = TRUE) +
   labs(title = "Can you spread worms to others?", x = "")
 ```
 
@@ -322,6 +303,11 @@ baseline.data %>%
   facet_wrap(~ who.treated) +
   labs(title = "Where last get dewormed?", x = "")
 ```
+
+
+## Endline Treatment Questions
+
+
 
 ## Beliefs
 

@@ -22,16 +22,19 @@ name.match.monitored <- function(census.cluster.data,
 
 reg.covar <- c("school", "floor", "ethnicity", "sms.ctrl.subpop")
 
-prepare.analysis.data <- function(.census.data, .takeup.data, .all.endline.data, .reconsent.data, .cluster.strat.data) {
-  consent.dewormed.reports <- list(endline.survey = .all.endline.data, 
-                                   reconsent = .reconsent.data) %>% 
-    ldply(.id = "data.source", . %>% select(KEY.individ, monitor.consent, dewormed.reported)) %>% # Get reported deworming status and consent info
+prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
+  list(endline.survey = .all.endline.data, 
+       reconsent = .reconsent.data) %>% 
+    map_df(. %>% select(KEY.individ, monitor.consent, dewormed.reported), .id = "data.source") %>% 
+    # ldply(.id = "data.source", ) %>% # Get reported deworming status and consent info
     filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>%  
     group_by(KEY.individ) %>%  
     summarize(monitor.consent = any(monitor.consent), # Consider as reconsented if at least one acceptance
               dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% # Multiple contradictory responses
     ungroup
-  
+}
+
+prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .consent.dewormed.reports, .cluster.strat.data) {
   dewormed.day.data <- .takeup.data %>% 
     filter(!is.na(KEY.individ)) %>% 
     group_by(KEY.individ) %>% 
@@ -40,17 +43,10 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .all.endline.data,
   
   analysis.data <- .census.data %>% 
            filter(!is.na(wave)) %>%  # Remove clusters no longer in study
-    left_join(consent.dewormed.reports, "KEY.individ") %>% 
+    left_join(.consent.dewormed.reports, "KEY.individ") %>% 
     mutate(dewormed = KEY.individ %in% .takeup.data$KEY.individ, # TRUE if individual found in take-up data
            dewormed = ifelse(monitored, dewormed, NA)) %>% # NA if not in the monitored group
     left_join(dewormed.day.data, "KEY.individ")
-  
-  endline.data <- .all.endline.data %>% 
-    filter(present, interview, consent) %>% 
-    arrange(KEY.individ, SubmissionDate) %>% 
-    group_by(KEY.individ) %>% # If more than one entry for an individual, take first one (there are 22 such individuals)
-    filter(row_number() == 1) %>% 
-    ungroup
   
   analysis.data %>% 
     filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
@@ -64,7 +60,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .all.endline.data,
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
            baseline.sample = !is.na(baseline.sample.wave)) %>% 
-    left_join(select(endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
+    left_join(select(.endline.data, KEY.individ, school, floor, ethnicity), "KEY.individ") %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.)))
 }
@@ -76,7 +72,7 @@ multi.factor <- function(.col, labels, ...) {
 yes.no.factor <- function(.col, .yes.no = 1:2) .col %>% 
   factor(levels = c(.yes.no, 97:98), labels = c("yes", "no", "prefer not say", "DK"))
 
-prepare.baseline.data <- function(.data) {
+base.prepare.baseline.endline.data <- function(.data) {
   .data %>% 
     mutate(who_worms = multi.factor(who_worms, 
                                     labels = c("child", "adult", "sick", "healthy", "pregnant", "old", "everyone")), 
@@ -90,8 +86,25 @@ prepare.baseline.data <- function(.data) {
                                      labels = c("wash hands", "wearing shoes", "using toilets", "drink clean water", "medicine", "clean home")),
            when_treat = multi.factor(when_treat, 
                                      labels = c("every week", "every month", "every 2 months", "every 3 months", "every 6 months", 
-                                                "every year", "never", "when symptoms", "hw says")),
-           more_less = factor(more_less, levels = 1:4, labels = c("more", "less", "no diff", "DK")),
+                                                "every year", "never", "when symptoms", "hw says"))) %>% 
+    mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(spread_worms), yes.no.factor)  
+}
+
+prepare.endline.data <- function(.data) {
+  .data %>% 
+    filter(present, interview, consent) %>% 
+    arrange(KEY.individ, SubmissionDate) %>% 
+    group_by(KEY.individ) %>% # If more than one entry for an individual, take first one (there are 22 such individuals)
+    filter(row_number() == 1) %>% 
+    ungroup %>% 
+    base.prepare.baseline.endline.data
+}
+
+prepare.baseline.data <- function(.data) {
+  .data %>% 
+    base.prepare.baseline.endline.data %>% 
+    mutate(more_less = factor(more_less, levels = 1:4, labels = c("more", "less", "no diff", "DK")),
            treated_when = factor(treated_when, 
                                  levels = c(1:9, 97), 
                                  labels = c("1-2 mon", "3-5 mon", "6-7 mon", "8-9 mon", "10-11 mon",
@@ -106,8 +119,7 @@ prepare.baseline.data <- function(.data) {
                                                  "prefer not say", "DK")),
            ink_more_less = factor(ink_more_less, levels = c(1:3, 97:98), labels = c("more", "less", "same", 
                                                                                     "prefer not say", "DK"))) %>% 
-    mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
-    mutate_at(vars(spread_worms, treated, family_treated), yes.no.factor) %>% 
+    mutate_at(vars(treated, family_treated), yes.no.factor) %>% 
     mutate_at(vars(few_deworm, many_deworm, matches("(praise|stigma)_(immunize|clothes|deworm|defecate)[A-D]$")), 
               funs(factor(., levels = 0:2, labels = c("no", "yes", "maybe")))) %>% 
     mutate_at(vars(treated_where, where_family_treated), 
