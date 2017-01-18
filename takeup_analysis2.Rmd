@@ -244,6 +244,8 @@ baseline.data %>%
 ```
 ## Social Image
 
+I'm dropping information about the question group: _A-D_.
+
 ```{r}
 baseline.data %>% 
   select(matches("^(praise|stigma)_[^_]+$")) %>% 
@@ -258,6 +260,101 @@ baseline.data %>%
   labs(title = "Praise and Stigma", y = "")
 ```
 
+```{r, fig.width=10}
+baseline.data %>% 
+  select(matches("^(praise|stigma)_[^_]+_scale")) %>% 
+  gather(key = key, value = response) %>% 
+  separate(key, c("praise.stigma", "topic"), "_", extra = "merge") %>% 
+  separate(topic, c("topic", "question.group"), "_scale") %>% 
+  filter(!is.na(response)) %>% 
+  ggplot(aes(response)) +
+  geom_freqpoly(aes(y = ..density.., color = topic), binwidth = 1) +
+  scale_x_continuous("Scale", breaks = 1:10) +
+  scale_color_discrete("") +
+  # facet_grid(topic ~ praise.stigma) +
+  facet_wrap(~ praise.stigma) +
+  labs(title = "Praise and Stigma Scale", y = "Density") +
+  theme(legend.position = "bottom")
+```
+
+## Experience with Deworming
+
+```{r, fig.width=10, fig.height=5}
+baseline.data %>% 
+  select(treated, family_treated) %>% 
+  gather(key = who.treated) %>% 
+  mutate(who.treated = if_else(who.treated == "treated", "self", "family")) %>% 
+  ggplot(aes(value)) +
+  geom_bar() +
+  coord_flip() +
+  facet_wrap(~ who.treated) +
+  labs(title = "Ever been dewormed before?", x = "")
+```
+```{r}
+baseline.data %>% 
+  select(family_treated, who_treated) %>% 
+  filter(family_treated == "yes") %>% 
+  ggplot(aes(who_treated)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "Who in family got dewormed?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  select(treated, treated_when) %>% 
+  filter(treated == "yes") %>% 
+  ggplot(aes(treated_when)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "When did you last get dewormed?", x = "")
+```
+
+```{r, fig.width=10, fig.height=5}
+baseline.data %>% 
+  select(treated, family_treated, treated_where, where_family_treated) %>% 
+  gather(key = who.treated, value = value, -c(treated, family_treated)) %>% 
+  mutate(who.treated = if_else(who.treated == "treated_where", "self", "family")) %>% 
+  filter((who.treated == "self" & treated == "yes") | (who.treated == "family" & family_treated == "yes")) %>% 
+  ggplot(aes(value)) +
+  geom_bar() +
+  coord_flip() +
+  facet_wrap(~ who.treated) +
+  labs(title = "Where last get dewormed?", x = "")
+```
+
+## Beliefs
+
+```{r}
+baseline.data %>% 
+  select(dworm_rate, ink_dworm_rate) %>% 
+  gather(key = incentive) %>% 
+  mutate(incentive = if_else(incentive == "dworm_rate", "none", "ink")) %>% 
+  ggplot(aes(value)) +
+  geom_freqpoly(aes(y = ..density.., color = incentive), binwidth = 1) +
+  scale_x_continuous("Rate", breaks = 1:10) +
+  scale_y_continuous("Density") +
+  scale_color_discrete("") +
+  theme(legend.position = "bottom") +
+  labs(title = "How many out of 10 will come for deworming?")
+```
+
+```{r}
+baseline.data %>% 
+  select(dworm_proportion) %>% 
+  ggplot(aes(dworm_proportion)) +
+  geom_bar() + 
+  labs(title = "How many will come for deworming?", x = "")
+```
+
+```{r}
+baseline.data %>% 
+  select(ink_more_less) %>% 
+  ggplot(aes(ink_more_less)) +
+  geom_bar() +
+  coord_flip() +
+  labs(title = "More/less will come with ink?", x = "")
+```
 
 # Reduced Form Analysis
 
