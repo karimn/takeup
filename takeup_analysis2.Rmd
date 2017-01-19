@@ -77,7 +77,7 @@ sms.content.data <- read_rds("data/takeup_sms_treatment.rds")
 cluster.strat.data <- read_rds("data/takeup_processed_cluster_strat.rds")  
 ```
 
-These are the _monitored_: baseline and endline survey respondents, as well as a sample of people from whom we will receive reconsent without surveying.
+These are the _monitored_: baseline and endline survey respondents, as well as a sample of people from whom we received reconsent without surveying.
 
 ```{r, results='asis'}
 census.data %>% 
