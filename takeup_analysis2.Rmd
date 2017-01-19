@@ -137,22 +137,31 @@ outlier.clusters %>%
 ## Knowledge
 
 ```{r}
-know.bel.cat.plot <- function(var, na.rm = FALSE) {
-  list(baseline = baseline.data, endline = endline.data) %>% 
-    map_df(select_, .dots = var, .id = "survey.type") %>% 
+know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
+  list(baseline = .baseline.data, endline = .endline.data) %>% 
+    compact %>% 
+    map_df(select_, .dots = c(var, "KEY"), .id = "survey.type") %>% 
     unnest_(var) %>% { 
       if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
     } %>% 
-    count_(c("survey.type", var)) %>% 
     group_by(survey.type) %>% 
-    mutate(n = n/sum(n)) %>% 
-    ungroup %>% 
-    ggplot(aes_string(x = var, "n", fill = "survey.type")) +
-    geom_col(position = "dodge") +
-    scale_fill_discrete("") +
-    coord_flip() +
-    theme(legend.position = "bottom") +
-    labs(x = "", y = "Proportion")
+    do({
+      mutate(count_(., c("survey.type", var)), n = n/n_distinct(.$KEY))
+    }) %>% 
+    ungroup %>% {
+      if (n_distinct(.$survey.type) > 1) {
+        ggplot(., aes_string(x = var, "n", fill = "survey.type")) +
+          scale_fill_discrete("") 
+      } else {
+        ggplot(., aes_string(x = var, "n")) 
+      }
+    } %>% {
+      . +
+        geom_col(position = "dodge") +
+        coord_flip() +
+        theme(legend.position = "bottom") +
+        labs(x = "", y = "Proportion")
+    }
 }
 
 know.bel.cat.plot("who_worms") + labs(title = "Who is at risk of worms?")
@@ -177,6 +186,8 @@ know.bel.cat.plot("stop_worms") +
   labs(title = "How to stop worms?")
 ```
 
+Low proportion know drugs are effective.
+
 ```{r}
 know.bel.cat.plot("when_treat") +
   labs(title = "When should people deworm?")
@@ -193,25 +204,27 @@ know.bel.cat.plot("worms_affect", na.rm = TRUE) +
 
 ```{r}
 know.bel.cat.plot("neighbours_worms_affect", na.rm = TRUE) +
-  labs(title = "Can you spread worms to others?", x = "")
+  labs(title = "Can neighbors or relatives worm infection affect your health?", x = "")
 ```
 
-```{r}
+### Baseline Only
+
+```{r, fig.height=3, fig.width=8}
 baseline.data %>% 
   select(few_deworm) %>% 
   ggplot(aes(few_deworm)) +
-  geom_bar() +
+  geom_bar(aes(y = ..count../sum(..count..))) +
   coord_flip() +
-  labs(title = "Deworm if less than half of others deworm?", x = "")
+  labs(title = "Deworm if less than half of others deworm?", x = "", y = "Proportion")
 ```
 
 ```{r}
 baseline.data %>% 
   select(many_deworm) %>% 
   ggplot(aes(many_deworm)) +
-  geom_bar() +
+  geom_bar(aes(y = ..count../sum(..count..))) +
   coord_flip() +
-  labs(title = "Deworm if more than half of others deworm?", x = "")
+  labs(title = "Deworm if more than half of others deworm?", x = "", y = "Proportion")
 ```
 
 
@@ -219,11 +232,11 @@ baseline.data %>%
 baseline.data %>% 
   select(more_less) %>% 
   ggplot(aes(more_less)) +
-  geom_bar() +
+  geom_bar(aes(y = ..count../sum(..count..))) +
   coord_flip() +
-  labs(title = "Would you be more likely to deworm if few/many others get dewormed?", x = "")
+  labs(title = "Would you be more likely to deworm if few/many others get dewormed?", x = "", y = "Proportion")
 ```
-## Social Image
+## Baseline Social Image Questions
 
 I'm dropping information about the question group: _A-D_.
 
@@ -234,8 +247,12 @@ baseline.data %>%
   separate(key, c("praise.stigma", "topic"), "_") %>% 
   separate(topic, c("topic", "question.group"), -2) %>% 
   filter(!is.na(response)) %>% 
+  count(praise.stigma, topic, response) %>% 
+  group_by(praise.stigma, topic) %>% 
+  mutate(n = n/sum(n)) %>% 
+  ungroup %>% 
   ggplot(aes(response)) +
-  geom_bar() +
+  geom_col(aes(y = n)) +
   coord_flip() +
   facet_grid(topic ~ praise.stigma) +
   labs(title = "Praise and Stigma", y = "")
@@ -258,27 +275,31 @@ baseline.data %>%
   theme(legend.position = "bottom")
 ```
 
-## Experience with Deworming
+## Baseline Pre-RCT Experience with Deworming Questions
 
 ```{r, fig.width=10, fig.height=5}
 baseline.data %>% 
   select(treated, family_treated) %>% 
   gather(key = who.treated) %>% 
   mutate(who.treated = if_else(who.treated == "treated", "self", "family")) %>% 
+  count(who.treated, value) %>% 
+  group_by(who.treated) %>% 
+  mutate(n = n/sum(n)) %>%
+  ungroup %>% 
   ggplot(aes(value)) +
-  geom_bar() +
+  geom_col(aes(y = n)) +
   coord_flip() +
   facet_wrap(~ who.treated) +
-  labs(title = "Ever been dewormed before?", x = "")
+  labs(title = "Ever been dewormed before?", x = "", y = "Proportion")
 ```
 ```{r}
 baseline.data %>% 
   select(family_treated, who_treated) %>% 
   filter(family_treated == "yes") %>% 
   ggplot(aes(who_treated)) +
-  geom_bar() +
+  geom_bar(aes(y = ..count../sum(..count..))) +
   coord_flip() +
-  labs(title = "Who in family got dewormed?", x = "")
+  labs(title = "Who in family got dewormed?", x = "", y = "Proportion")
 ```
 
 ```{r}
@@ -286,9 +307,9 @@ baseline.data %>%
   select(treated, treated_when) %>% 
   filter(treated == "yes") %>% 
   ggplot(aes(treated_when)) +
-  geom_bar() +
+  geom_bar(aes(y = ..count../sum(..count..))) +
   coord_flip() +
-  labs(title = "When did you last get dewormed?", x = "")
+  labs(title = "When did you last get dewormed?", x = "", y = "Proportion")
 ```
 
 ```{r, fig.width=10, fig.height=5}
@@ -297,30 +318,89 @@ baseline.data %>%
   gather(key = who.treated, value = value, -c(treated, family_treated)) %>% 
   mutate(who.treated = if_else(who.treated == "treated_where", "self", "family")) %>% 
   filter((who.treated == "self" & treated == "yes") | (who.treated == "family" & family_treated == "yes")) %>% 
+  count(who.treated, value) %>% 
+  group_by(who.treated) %>% 
+  mutate(n = n/sum(n)) %>% 
+  ungroup %>% 
   ggplot(aes(value)) +
-  geom_bar() +
+  geom_col(aes(y = n)) +
   coord_flip() +
   facet_wrap(~ who.treated) +
-  labs(title = "Where last get dewormed?", x = "")
+  labs(title = "Where last get dewormed?", x = "", y = "Proportion")
 ```
 
 
 ## Endline Treatment Questions
 
+```{r}
+endline.data %>% 
+  select(know_deworm) %>% 
+  ggplot(aes(know_deworm)) +
+  geom_bar(aes(y = ..count../sum(..count..))) +
+  coord_flip() +
+  labs(x = "", y = "Proportion", title = "Know of community-based MDA?")
+```
 
+```{r}
+endline.data %>% 
+  select(treat_begin, treat_end, days_available) %>% 
+  gather %>%
+  mutate(key = case_when(.$key == "treat_begin" ~ "begin date", .$key == "treat_end" ~ "end date", TRUE ~ "days available")) %>% 
+  count(key, value) %>% 
+  group_by(key) %>% 
+  mutate(n = n/sum(n)) %>% 
+  ungroup %>% 
+  ggplot(aes(value)) +
+  geom_col(aes(y = n)) +
+  # geom_bar(aes(y = ..count../sum(..count..), group = key)) +
+  coord_flip() +
+  facet_wrap(~ key, ncol = 1) +
+  labs(x = "", y = "Proportion", title = "Know ...?")
+```
 
+```{r, fig.width=10, fig.height=6}
+endline.data %>% 
+  select(wave, treat_begin, treat_end, treat_begin_date, treat_end_date) %>% 
+  gather(key = begin.end, value = day, -c(treat_begin, treat_end, wave)) %>% 
+  mutate(begin.end = if_else(begin.end == "treat_begin_date", "begin", "end")) %>% 
+  filter((treat_begin == "knows" & begin.end == "begin") | (treat_end == "knows" & begin.end == "end")) %>% 
+  ggplot(aes(day)) +
+  geom_histogram(aes(fill = begin.end), alpha = 0.75,  binwidth = 2, position = "identity") +
+  scale_x_date(date_breaks = "4 weeks", date_minor_breaks = "1 week", limits = c(as_date("2016-09-05"), as_date("2016-11-28"))) +
+  facet_wrap(~ wave, scales = "free_x") +
+  labs(title = "When does MDA begin?", x = "") +
+  theme(legend.position = "bottom")
+```
+```{r}
+endline.data %>% 
+  select(treat_days) %>% 
+  ggplot(aes(treat_days)) +
+  geom_bar(aes(y = ..count../sum(..count..))) +
+  scale_x_continuous(breaks = seq(0, 40, 2)) +
+  labs(x = "", y = "Proportion", title = "How many deworming days?")
+```
+
+```{r}
+know.bel.cat.plot("find_out", .baseline.data = NULL) + labs(title = "From whom did you hear about MDA?")
+```
+
+```{r}
+know.bel.cat.plot("chv_visit", .baseline.data = NULL) + labs(title = "Did a CHV visit you to tell you about MDA?")
+```
 ## Beliefs
 
 ```{r}
-baseline.data %>% 
-  select(dworm_rate, ink_dworm_rate) %>% 
-  gather(key = incentive) %>% 
+list(baseline = baseline.data, endline = endline.data) %>% 
+  compact %>% 
+  map_df(select, one_of("dworm_rate", "ink_dworm_rate"), .id = "survey.type") %>% 
+  gather(key = incentive, value = value, -survey.type) %>% 
   mutate(incentive = if_else(incentive == "dworm_rate", "none", "ink")) %>% 
   ggplot(aes(value)) +
-  geom_freqpoly(aes(y = ..density.., color = incentive), binwidth = 1) +
+  geom_freqpoly(aes(y = ..density.., color = survey.type, linetype = incentive), binwidth = 1) +
   scale_x_continuous("Rate", breaks = 1:10) +
   scale_y_continuous("Density") +
   scale_color_discrete("") +
+  scale_linetype_manual("", values = c("dashed", "solid")) +
   theme(legend.position = "bottom") +
   labs(title = "How many out of 10 will come for deworming?")
 ```
@@ -1021,6 +1101,8 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
     labs(subtitle = "Split by distance to PoT, with controls")
 }
 ```
+
+# Robustness Checks
 
 ## Impact of Surveying
 

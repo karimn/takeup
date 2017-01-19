@@ -26,7 +26,6 @@ prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
   list(endline.survey = .all.endline.data, 
        reconsent = .reconsent.data) %>% 
     map_df(. %>% select(KEY.individ, monitor.consent, dewormed.reported), .id = "data.source") %>% 
-    # ldply(.id = "data.source", ) %>% # Get reported deworming status and consent info
     filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>%  
     group_by(KEY.individ) %>%  
     summarize(monitor.consent = any(monitor.consent), # Consider as reconsented if at least one acceptance
@@ -98,7 +97,17 @@ prepare.endline.data <- function(.data) {
     group_by(KEY.individ) %>% # If more than one entry for an individual, take first one (there are 22 such individuals)
     filter(row_number() == 1) %>% 
     ungroup %>% 
-    base.prepare.baseline.endline.data
+    base.prepare.baseline.endline.data %>% 
+    mutate_at(vars(know_deworm, chv_visit, flyer), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(treat_begin, days_available, treat_end), funs(factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
+    mutate(treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
+           treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
+           #where_offered = labelled(where_offered, c("somewhere else" = 0, "home" = 3, "DK" = 98)) %>% as_factor)
+           find_out = factor(find_out, 
+                             levels = c(1:9, 99), 
+                             labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
+                                        "other")))#,
+           # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
 }
 
 prepare.baseline.data <- function(.data) {
