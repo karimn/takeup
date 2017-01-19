@@ -313,7 +313,7 @@ prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
         update.formula.with.interaction(.add.interact.intercept = FALSE) %>% 
         map_if(~ nchar(.x) == 0, ~ sprintf("(intercept) + %s", .interact.with)) %>% 
         unlist %>% 
-        linear_testerer(.reg.output, .) %>% 
+        linear_tester(.reg.output, .) %>% 
         bind_cols(.data %>% select(incentive.treatment)) %>% 
         mutate(ref = row_number() <= 4,
                bar.size = estimate + if_else(ref, 0, estimate[1]),
@@ -370,7 +370,7 @@ prep.sms.treat.plot.data <- function(.reg.output) {
   reminder.only.add.effect.restrict <- c("reminder.only - social.info")
   
   c(sms.ctrl.linear.restrict, social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
-    linear_testerer(.reg.output, .) %>% 
+    linear_tester(.reg.output, .) %>% 
     mutate(incentive.treatment = incentive.treatment.terms %>% 
              factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),  
            sms.treatment = c(rep(c("sms.control", "social.info"), each = 4), "reminder.only") %>% 

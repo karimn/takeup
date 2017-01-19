@@ -23,12 +23,15 @@ header-includes:
 library(plyr)
 library(tidyverse)
 library(stringr)
+library(lubridate)
 library(broom)
 library(lmtest)
 library(car)
 library(ggplot2)
 library(ggrepel)
 library(ggmap)
+
+library(econometr)
 
 source("../util.R")
 source("analysis_util.R")
@@ -55,7 +58,14 @@ reconsent.data <- read_rds("data/reconsent.rds")
 sms.content.data <- read_rds("data/takeup_sms_treatment.rds")
 cluster.strat.data <- read_rds("data/takeup_processed_cluster_strat.rds")  
 
-analysis.data <- prepare.analysis.data(census.data, takeup.data, all.endline.data, reconsent.data, cluster.strat.data)
+
+endline.data <- prepare.endline.data(all.endline.data)
+consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
+analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
+
+old.baseline.data <- baseline.data
+baseline.data %<>% prepare.baseline.data
+
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
 
 outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
@@ -126,7 +136,7 @@ analysis.data %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  run.strat.reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar) %>% 
   prep.sms.ctrl.plot.data %>% {
   plot.sms.ctrl.takeup(.) +
     labs(title = "")
@@ -144,7 +154,7 @@ Figure \ref{fig:sms-ctrl-dist-takeup} splits the analysis by distance from the t
 analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  run.strat.reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar) %>% 
   prep.sms.ctrl.plot.data(.interact.with = "far") %>% 
   mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
   plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
@@ -166,7 +176,7 @@ analysis.data %>%
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
-  run.strat.reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop")) %>% 
 prep.sms.treat.plot.data %>% {
   plot.sms.treat.takeup(.) +
     labs(title = "")
