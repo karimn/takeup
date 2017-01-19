@@ -64,8 +64,13 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     `attr<-`("class", c("takeup_df", class(.)))
 }
 
-multi.factor <- function(.col, labels, ...) {
-  map(str_split(.col, " "), factor, levels = c(seq_along(labels), 97:99), labels = c(labels, "prefer not say", "DK", "other"), ...)
+multi.factor <- function(.col, labels, levels, ...) {
+  if (missing(levels)) {
+    levels <- c(seq_along(labels), 97:99)
+    labels %<>% c("prefer not say", "DK", "other")
+  } 
+  
+  map(str_split(.col, " "), factor, levels = levels, labels = labels, ...)
 }
 
 yes.no.factor <- function(.col, .yes.no = 1:2) .col %>% 
@@ -103,10 +108,10 @@ prepare.endline.data <- function(.data) {
     mutate(treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
            treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
            #where_offered = labelled(where_offered, c("somewhere else" = 0, "home" = 3, "DK" = 98)) %>% as_factor)
-           find_out = factor(find_out, 
-                             levels = c(1:9, 99), 
-                             labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
-                                        "other")))#,
+           find_out = multi.factor(find_out, 
+                                   levels = c(1:9, 99), 
+                                   labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
+                                              "other")))
            # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
 }
 
@@ -268,6 +273,34 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
 
 
 # Plotting code -----------------------------------------------------------
+
+know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
+  list(baseline = .baseline.data, endline = .endline.data) %>% 
+    compact %>% 
+    map_df(select_, .dots = c(var, "KEY"), .id = "survey.type") %>% 
+    unnest_(var) %>% { 
+      if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
+    } %>% 
+    group_by(survey.type) %>% 
+    do({
+      mutate(count_(., c("survey.type", var)), n = n/n_distinct(.$KEY))
+    }) %>% 
+    ungroup %>% {
+      if (n_distinct(.$survey.type) > 1) {
+        ggplot(., aes_string(x = var, "n", fill = "survey.type")) +
+          scale_fill_discrete("") 
+      } else {
+        ggplot(., aes_string(x = var, "n")) 
+      }
+    } %>% {
+      . +
+        geom_col(position = "dodge") +
+        coord_flip() +
+        theme(legend.position = "bottom") +
+        labs(x = "", y = "Proportion")
+    }
+}
+
 
 prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
   incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")

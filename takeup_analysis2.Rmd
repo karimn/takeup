@@ -49,7 +49,6 @@ library(knitr)
 
 library(econometr)
 
-# source("../util.R")
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
@@ -140,33 +139,6 @@ outlier.clusters %>%
 ## Knowledge
 
 ```{r}
-know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
-  list(baseline = .baseline.data, endline = .endline.data) %>% 
-    compact %>% 
-    map_df(select_, .dots = c(var, "KEY"), .id = "survey.type") %>% 
-    unnest_(var) %>% { 
-      if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
-    } %>% 
-    group_by(survey.type) %>% 
-    do({
-      mutate(count_(., c("survey.type", var)), n = n/n_distinct(.$KEY))
-    }) %>% 
-    ungroup %>% {
-      if (n_distinct(.$survey.type) > 1) {
-        ggplot(., aes_string(x = var, "n", fill = "survey.type")) +
-          scale_fill_discrete("") 
-      } else {
-        ggplot(., aes_string(x = var, "n")) 
-      }
-    } %>% {
-      . +
-        geom_col(position = "dodge") +
-        coord_flip() +
-        theme(legend.position = "bottom") +
-        labs(x = "", y = "Proportion")
-    }
-}
-
 know.bel.cat.plot("who_worms") + labs(title = "Who is at risk of worms?")
 ```
 
