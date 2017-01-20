@@ -556,6 +556,13 @@ reg.output.sms.ctrl.calendar.covar %>%
   kable(digits = 4)
 ```
 
+Some linear hypotheses testing:
+```{r}
+c("bracelet - calendar - ink") %>% 
+  linear_tester(reg.output.sms.ctrl.covar, .) %>% 
+  kable(digits = 4)
+```
+
 ```{r, fig.width=10}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
   plot.sms.ctrl.takeup(.) +
@@ -897,7 +904,8 @@ c("ink", "calendar", "bracelet") %>%
   map(~ c(paste0(., ":social.info"), "social.info")) %>% 
   map(~ paste(., collapse = " + ")) %>% 
   c("bracelet - calendar",
-    "ink - social.info", 
+    "ink - social.info", # What's this?
+    "reminder.only - social.info",
     "bracelet - calendar - calendar:social.info - social.info",
     "ink + ink:social.info", 
     "bracelet - calendar + bracelet:social.info - calendar:social.info",
