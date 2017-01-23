@@ -574,9 +574,9 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
 
 ### Regression Without Controls
 
-```{r, echo=FALSE}
+```{r, echo=2:3}
 reg.output.nonphone <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
 
@@ -1066,7 +1066,7 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist) %>% {
 
 ### Regression With Controls
 
-```{r}
+```{r, echo=2}
 reg.output.sms.treat.dist.covar <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
