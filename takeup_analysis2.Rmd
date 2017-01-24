@@ -69,14 +69,12 @@ options(dplyr.show_progress = FALSE, digits = 4)
 # Data
 
 ```{r load-data, include=FALSE}
-# This data was prepared in takeup_field_notebook.Rmd
-census.data <- read_rds("data/takeup_census.rds")
-baseline.data <- read_rds("data/takeup_baseline_data.rds") 
-takeup.data <- read_rds("data/takeup.rds")
-all.endline.data <- read_rds("data/all_endline.rds")
-reconsent.data <- read_rds("data/reconsent.rds")
-sms.content.data <- read_rds("data/takeup_sms_treatment.rds")
-cluster.strat.data <- read_rds("data/takeup_processed_cluster_strat.rds")  
+census.data <- read_rds(file.path("data", "takeup_census.rds"))
+all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
+reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
+takeup.data <- read_rds(file.path("data", "takeup.rds"))
+
+load(file.path("data", "analysis.RData"))
 ```
 
 These are the _monitored_: baseline and endline survey respondents, as well as a sample of people from whom we received reconsent without surveying.
@@ -98,20 +96,7 @@ We consider two individuals (in the take-up and census data) to be matched if th
 
 Below we are linking the consent, census (including take-up status), and endline data to generate the analysis data set. At this stage, we are including everyone in the census--the entire cluster populations. For our analysis, we will filter on consent. (Code moved to separate script).
 
-```{r data-preparation, warning=FALSE}
-endline.data <- prepare.endline.data(all.endline.data)
-consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
-analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
-
-old.baseline.data <- baseline.data
-baseline.data %<>% prepare.baseline.data
-```
-
 Below we want to identify outlier clusters. 
-
-```{r outliers, echo=FALSE}
-cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
-```
 
 ```{r, echo=FALSE, fig.width=12, fig.height=10}
 cluster.takeup.data %>% 

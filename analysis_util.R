@@ -149,14 +149,14 @@ prepare.cluster.takeup.data <- function(.data) {
   }
   
  .data %>% 
-  filter(monitored, monitor.consent) %>% 
-  select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
-  unite(stratum, county, dist.pot.group, sep = " ") %>% 
-  group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
-  summarize(takeup.prop = mean(dewormed.any)) %>% 
-  group_by(assigned.treatment, sms.treatment, stratum) %>% 
-  mutate(outlier = is.outlier(takeup.prop)) %>% 
-  ungroup
+   filter(monitored, monitor.consent) %>% 
+   select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
+   unite(stratum, county, dist.pot.group, sep = " ") %>% 
+   group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
+   summarize(takeup.prop = mean(dewormed.any)) %>% 
+   group_by(assigned.treatment, sms.treatment, stratum) %>% 
+   mutate(outlier = is.outlier(takeup.prop)) %>% 
+   ungroup
 }
 
 bstrp.uniquify <- function(.data) {

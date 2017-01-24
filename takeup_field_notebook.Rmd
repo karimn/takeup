@@ -67,7 +67,7 @@ cluster.info.to.drop <- c("uuid:3a491628-a0e8-4be0-9afc-c2cca08fc450", # Bad ent
                           "uuid:00fe16c6-5de1-4ff8-a9c8-92101ef4bd01",
                           "uuid:e3a47c54-f7f2-4af0-bd5b-0de12d997cb0")
 
-cluster.info <- read_csv("data/Cluster Survey V3 July 04.csv",
+cluster.info <- read_csv("raw-data/Cluster Survey V3 July 04.csv",
                          col_types = list(SubmissionDate = takeup.date.type)) %>% 
   bind_rows(v3 = ., v1 = read_dta("data/Cluster Survey V1.dta") %>%
                    transmute(cluster.id = clusterid,
@@ -99,7 +99,7 @@ cluster.info <- read_csv("data/Cluster Survey V3 July 04.csv",
 pot.info <- cluster.info %>%
   select(enumerator, enumerator_other, wave, county, cluster.id, alt.pot.lon, alt.pot.lat, alt_name, location_type, comments, SubmissionDate, data.source)
 
-pot.verify.data <- read_csv("data/POT verification.csv", 
+pot.verify.data <- read_csv("raw-data/POT verification.csv", 
                             col_types = list(SubmissionDate = takeup.datetime.type)) %>%
   rename(cluster.id = cluster_id,
          lon.verify = `gps-Longitude`,
@@ -307,10 +307,13 @@ validate.coords <- . %>%
            (!is.na(lon) & (lon > county.bbox["x", "max"] | lon < county.bbox["x", "min"])) |
            (!is.na(lat) & (lat > county.bbox["y", "max"] | lat < county.bbox["y", "min"])))
 
-tu.data.reader <- function(file.name, submit.datetime.type = NULL) { # =  "%b %d, %Y %I:%M:%S %p") {
-  read_csv(file.name, col_types = list(SubmissionDate = if (is.null(submit.datetime.type)) takeup.datetime.type else submit.datetime.type,
+tu.data.reader <- function(file.name, submit.datetime.type = NULL, .other.types = NULL) { # =  "%b %d, %Y %I:%M:%S %p") {
+  col.types <- list(SubmissionDate = if (is.null(submit.datetime.type)) takeup.datetime.type else submit.datetime.type,
                                        manual_long = col_number(),
-                                       manual_lat = col_number())) %>% 
+                                       manual_lat = col_number()) %>% 
+    c(.other.types)
+  
+  read_csv(file.name, col_types = col.types) %>% 
     mutate(isValidated = isValidated == "true") %>% 
     rename(lat = `gps-Latitude`,
            lon = `gps-Longitude`,
@@ -329,7 +332,12 @@ hh.census.data.pre24th <- tu.data.reader("data/census_gps_util23.csv",
 factor.have.phone <- . %>% factor(levels = 0:2, labels = c("No", "Yes", "Don't know number"))
 
    
-hh.census.data <- tu.data.reader("data/Census.csv") %>% 
+hh.census.data <- tu.data.reader("raw-data/Census.csv", 
+                                 .other.types = list(`gps-Latitude` = col_double(),
+                                                     `gps-Longitude` = col_double(),
+                                                     `gps-Altitude` = col_double(),
+                                                     `gps-Accuracy` = col_double(),
+                                                     gps_work = col_integer())) %>% 
   filter(SubmissionDate >= "2016-08-25") %>% 
   bind_rows(hh.census.data.pre24th) %>% 
   select(-c(RI, matches("^IC\\d{1,2}$"))) %>% 
@@ -409,7 +417,7 @@ clean.names <- . %>%
          name_mid = ifelse(is.na(name2nd) & !is.na(name_mid), NA, name_mid)) 
 
 census.data <- hh.census.data %>% {
-  individ.data <- read_csv("data/Census-survey-individual.csv")
+  individ.data <- read_csv("raw-data/Census-survey-individual.csv")
   anti_join(., individ.data, c("KEY" = "PARENT_KEY")) %>% 
     count(SubmissionDate) %>% 
     rename(num.hhs.without.individuals = n) %>% 
@@ -2309,7 +2317,7 @@ is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
 
 
 ```{r baseline-data}
-baseline.data <- tu.data.reader("data/Baseline Survey.csv") %>% 
+baseline.data <- tu.data.reader("raw-data/Baseline Survey.csv") %>% 
   filter(SubmissionDate >= "2016-09-05", 
          !is.na(present) & present == 1, 
          !is.na(consent) & consent == 1) %>% 
@@ -2529,7 +2537,7 @@ baseline.data %>%
 ```{r sms-recruit-data}
 factor.text_type <- . %>% factor(levels = 1:2, labels = c("social.info", "reminder.only"))
 
-all.sms.recruit.data <- read_csv("data/Takeup Text Messages.csv", 
+all.sms.recruit.data <- read_csv("raw-data/Takeup Text Messages.csv", 
                              col_types = list(SubmissionDate = takeup.datetime.type,
                                               starttime = takeup.datetime.type,
                                               endtime = takeup.datetime.type)) %>% 
@@ -2746,10 +2754,10 @@ write_rds(sms.content.data, "data/takeup_sms_treatment.rds")
 # Sensitization
 
 ```{r sensitization-data}
-sense.mon.data <- read_csv("data/Sensitization Monitoring Form.csv") %>% 
+sense.mon.data <- read_csv("raw-data/Sensitization Monitoring Form.csv") %>% 
   rename(cluster.id = cluster_id,
          hh.grp.key = KEY) %>% 
-  right_join(read_csv("data/Sensitization Monitoring Form-household.csv"), c("hh.grp.key" = "PARENT_KEY")) %>% 
+  right_join(read_csv("raw-data/Sensitization Monitoring Form-household.csv"), c("hh.grp.key" = "PARENT_KEY")) %>% 
   rename(lon = `gps-Longitude`,
          lat = `gps-Latitude`) %>% 
   left_join(identify.closest.cluster(.), "KEY") %>% 
@@ -2893,8 +2901,8 @@ read.individ.takeup.data <- function(file.name) {
            data.file.name = file.name)
 }
 
-takeup.data.individuals <- map_df(c("data/Wave 1 Point of Treatment Form-ind.csv", 
-                                    "data/Kakamega Point of Treatment Form-ind.csv"), read.individ.takeup.data) 
+takeup.data.individuals <- map_df(c("raw-data/Wave 1 Point of Treatment Form-ind.csv", 
+                                    "raw-data/Kakamega Point of Treatment Form-ind.csv"), read.individ.takeup.data) 
 
 read.group.takeup.data <- function(file.name) {
   read_csv(file.name,
@@ -2915,8 +2923,8 @@ read.group.takeup.data <- function(file.name) {
     mutate(data.file.name = file.name)
 }
 
-all.takeup.survey.groups <- bind_rows(read.group.takeup.data("data/Wave 1 Point of Treatment Form.csv") %>% mutate(data.wave = 1), 
-                                      read.group.takeup.data("data/Kakamega Point of Treatment Form.csv") %>% mutate(data.wave = 2))
+all.takeup.survey.groups <- bind_rows(read.group.takeup.data("raw-data/Wave 1 Point of Treatment Form.csv") %>% mutate(data.wave = 1), 
+                                      read.group.takeup.data("raw-data/Kakamega Point of Treatment Form.csv") %>% mutate(data.wave = 2))
 
 # Manual Corrections
 all.takeup.survey.groups %<>% 
@@ -3451,7 +3459,7 @@ takeup.data %>%
 # Endline Survey
 
 ```{r endline-data}
-all.endline.data <- read_csv("data/Endline Survey.csv", col_types = list(#SubmissionDate = takeup.datetime.type,
+all.endline.data <- read_csv("raw-data/Endline Survey.csv", col_types = list(#SubmissionDate = takeup.datetime.type,
                                                                     #starttime = takeup.datetime.type,
                                                                     #endtime = takeup.datetime.type,
                                                                     deviceid = col_character())) %>% 
@@ -3640,7 +3648,7 @@ all.endline.data %>%
 ## Knowledge Tables
 
 ```{r know-table-data}
-endline.know.table.data <- bind_rows(table.A = read_csv("data/Endline Survey-survey-sec_D-tableA.csv") %>% 
+endline.know.table.data <- bind_rows(table.A = read_csv("raw-data/Endline Survey-survey-sec_D-tableA.csv") %>% 
                                        transmute(recognized = recogniseA,
                                                  dewormed = dewormedA,
                                                  second.order = order_2ndA,
@@ -3650,7 +3658,7 @@ endline.know.table.data <- bind_rows(table.A = read_csv("data/Endline Survey-sur
                                                  times.seen = times_seenA,
                                                  visited = visitedA, 
                                                  PARENT_KEY, KEY),
-                                     table.B = read_csv("data/Endline Survey-survey-sec_D-tableB.csv") %>% 
+                                     table.B = read_csv("raw-data/Endline Survey-survey-sec_D-tableB.csv") %>% 
                                        transmute(recognized = recogniseB,
                                                  dewormed = dewormedB,
                                                  dewormed.know.only = dewormedBB,
@@ -3661,7 +3669,7 @@ endline.know.table.data <- bind_rows(table.A = read_csv("data/Endline Survey-sur
 # Reconsents
 
 ```{r reconsent-data}
-reconsent.data <- read_csv("data/Reconsent.csv") %>% 
+reconsent.data <- read_csv("raw-data/Reconsent.csv") %>% 
   mutate_at(vars(SubmissionDate, starttime, endtime), 
             funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
                    format(tz = "Africa/Nairobi") %>% 
@@ -3747,7 +3755,7 @@ if (bc.diff > 0) {
 ```{r wtp-data}
 wtp.sample <- read_rds("data/takeup_wtp_sample_2.0.rds")
 
-wtp.data <- read_csv("data/Willingness To Pay.csv") %>% 
+wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>% 
   mutate_at(vars(SubmissionDate, starttime, endtime), 
             funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
                    format(tz = "Africa/Nairobi") %>% 
