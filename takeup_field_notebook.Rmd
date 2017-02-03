@@ -3343,9 +3343,12 @@ pot.info <- takeup.data %>%
       rename(lon.post.rct.update = x, lat.post.rct.update = y)
   }) %>% 
   ungroup %>% 
-  right_join(pot.info, c("wave", "county", "cluster.id")) %>% 
-  mutate(lon.post.rct.update = if_else(wave == 2, lon.verify, lon.post.rct.update),
-         lat.post.rct.update = if_else(wave == 2, lat.verify, lat.post.rct.update))
+  right_join(pot.info, c("wave", "county", "cluster.id")) 
+# %>% 
+#   mutate(lon.post.rct.update = if_else(wave == 2, lon.verify, lon.post.rct.update),
+#          lat.post.rct.update = if_else(wave == 2, lat.verify, lat.post.rct.update))
+
+write_rds(pot.info, file.path("data", "pot_info.rds"))
 ```
 
 ## Name Matching
