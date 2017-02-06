@@ -104,10 +104,10 @@ cluster.takeup.data %>%
   geom_boxplot() + #aes(color = assigned.treatment)) + 
   geom_text_repel(aes(label = cluster.id), data = . %>% filter(outlier)) +
   xlab("Strata") +
-  scale_y_continuous("Cluster Proportion Proportion", breaks = seq(0, 0.8, 0.05)) +
+  scale_y_continuous("Cluster Proportion Proportion", breaks = seq(0, 1, 0.1)) +
   # scale_color_discrete("Treatment") +
   facet_grid(sms.treatment ~ assigned.treatment) +
-  theme(legend.position = "bottom", axis.text.x = element_blank(), axis.text.y = element_blank())
+  theme(legend.position = "bottom", axis.text.x = element_blank())
 ```
 
 The outlier clusters are:
@@ -945,19 +945,12 @@ time.takeup.data %>% {
 ```
 
 ```{r, fig.width=10, echo=TRUE}
-social.info.data <- sms.content.data %>% 
-  filter(!is.na(social.info)) %>% 
-  left_join(select(census.data, cluster.id, assigned.treatment, sms.treatment, KEY.individ), "KEY.individ") %>% 
-  filter(!is.na(cluster.id)) %>% 
-  group_by(deworming.day, assigned.treatment) %>% 
-  summarize(cumul = mean(social.info)/10) %>% 
-  ungroup %>% 
-  rename(dewormed.day = deworming.day) 
-
 social.info.data %>% {
-  plot.takeup.dynamics(., .aes = aes(dewormed.day, cumul, color = assigned.treatment, shape = "social.info")) +
+  plot.takeup.dynamics(., .aes = aes(dewormed.day, cumul, color = assigned.treatment, linetype = dist.pot.group, shape = "social.info")) +
+    # geom_ribbon(aes(ymin = qant.25, ymax = qant.75, fill = assigned.treatment, color = NULL), alpha = 0.15) +
     labs(y = "Reported Take-up", title = "Social Information Reported to Subjects", subtitle = "Split by incentive treatment") +
-    scale_shape_manual(values = 1, guide = "none")
+    scale_shape_manual(values = 1, guide = "none") +
+    scale_linetype_discrete("Distance from PoT", labels = c("Close", "Far"))
 }
 ```
 

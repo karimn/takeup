@@ -27,6 +27,23 @@ baseline.data %<>% prepare.baseline.data
 
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
 
+social.info.data <- sms.content.data %>% 
+  filter(!is.na(social.info)) %>% 
+  left_join(select(census.data, cluster.id, village, assigned.treatment, sms.treatment, KEY.individ), "KEY.individ") %>% 
+  filter(!is.na(cluster.id)) %>% 
+  left_join(select(cluster.strat.data, cluster.id, dist.pot.group), "cluster.id") %>% 
+  group_by(deworming.day, assigned.treatment, dist.pot.group) %>% 
+  do({
+    interq.info <- quantile(.$social.info/10, c(0.25, 0.75))
+    
+    summarize(., 
+              cumul = mean(social.info)/10,
+              qant.25 = interq.info[1],
+              qant.75 = interq.info[2]) 
+  }) %>% 
+  ungroup %>% 
+  rename(dewormed.day = deworming.day) 
+
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
-     census.data, reconsent.data, takeup.data, sms.content.data,
+     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data,
      file = file.path("data", "analysis.RData"))
