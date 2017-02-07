@@ -418,9 +418,6 @@ plot.sms.treat.takeup <- function(.preped.data) {
   ggplot(.preped.data, aes(x = incentive.treatment)) +
     geom_col(aes(y = estimate, fill = sms.treatment), 
              position = position_stack(reverse = TRUE), alpha = 0.25, color = "grey50") +
-    # geom_errorbar(aes(ymin = ci.lb, ymax = ci.ub, group = sms.treatment, color = sms.treatment), 
-    #               width = 0.075, position = "dodge", 
-    #               data = . %>% filter(sms.treatment != "None" | incentive.treatment != "Control")) +
     geom_crossbar(aes(y = bar.size, ymin = ci.lb, ymax = ci.ub, group = sms.treatment, color = sms.treatment), 
                   width = 0.075, fatten = 0,
                   data = . %>% filter(sms.treatment != "None" | incentive.treatment != "Control")) +
@@ -446,6 +443,40 @@ plot.takeup.dynamics <- function(.data, .aes = aes(x = dewormed.day.any, y = tak
     scale_color_discrete("Incentive Treatment") +
     coord_cartesian(y = c(0, max(.data[[deparse(.aes$y)]]) + 0.0001)) +
     labs(caption = "Grey vertical bars mark the days after SMS messages are received.\nThe red bar marks the first deworming day, so subjects would have only received a reminder message the day before.")
+}
+
+prep.sms.treat.dist.plot.data <- function(.reg.output) {
+  interact.with <- "close"
+  
+  incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
+  sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
+  
+  sms.ctrl.linear.restrict <- c("(intercept)", sprintf("(intercept) + %s", incentive.treatment.terms[-1])) 
+  social.info.add.effect.restrict <- c("social.info", sprintf("social.info + %s:social.info", incentive.treatment.terms[-1]))
+  reminder.only.add.effect.restrict <- c("reminder.only - social.info")
+  
+  col.inference <- c(social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
+    c(map(., str_split, "\\s+", simplify = TRUE) %>% 
+        map(~ c(.x, "+", str_replace(.x, "([^-+]+)", sprintf("\\1:%s", interact.with)))) %>% 
+        map(paste, collapse = " ") %>% 
+        # map_if(~ !str_detect(.x, "-"), ~ paste(.x, sprintf("+ %s", interact.with))) %>% 
+        unlist) %>% 
+    c(sms.ctrl.linear.restrict %>% 
+        c(paste(., interact.with, sep = " + ") %>% 
+            paste(c("", sprintf("%s:%s", incentive.treatment.terms[-1], interact.with)), sep = " + "))) %>% 
+    linear_tester(.reg.output, .) %>% 
+    mutate(dist = rep(rep(c("Far", "Close"), 2), c(5, 5, 4, 4)),
+           incentive.treatment = incentive.treatment.terms %>% 
+             factor(c(rep(c(., "control"), 2), rep(., 2)), levels = ., labels = str_to_title(.))) %>% 
+    group_by(dist) %>% 
+    mutate(sms.treatment = c(rep("social.info", 4), "reminder.only", rep("sms.control", 4)) %>% 
+             factor(levels = c("sms.control", "social.info", "reminder.only"), 
+                    labels = c("None", "Social Information", "Reminders Only")),
+           bar.size = estimate + if_else(sms.treatment == "None", 0, c(rep(estimate[6:9], 2), 0)),
+           bar.size = bar.size + if_else(sms.treatment == "Reminders Only", estimate[1], 0)) %>% 
+    ungroup %>% 
+    mutate(ci.lb = bar.size - std.error * 1.64,
+           ci.ub = bar.size + std.error * 1.64) 
 }
 
 # Old plotting code -------------------------------------------------------

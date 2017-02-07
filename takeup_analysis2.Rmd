@@ -39,6 +39,7 @@ library(readr)
 library(haven)
 library(lmtest)
 library(car)
+library(mlogit)
 library(broom)
 library(ggplot2)
 library(viridis)
@@ -380,6 +381,25 @@ baseline.data %>%
   geom_bar() +
   coord_flip() +
   labs(title = "More/less will come with ink?", x = "")
+```
+
+# Balance
+
+```{r, echo=TRUE}
+balance.data <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  select_(.dots = c("assigned.treatment", reg.covar)) %>% 
+  mlogit.data(choice = "assigned.treatment") 
+
+unrestricted.reg <- balance.data %>% 
+  mlogit::mlogit(as.formula(sprintf("assigned.treatment ~ 0 | %s", paste(reg.covar, collapse = " + "))), data = .) 
+
+restricted.reg <- balance.data %>% 
+  na.omit %>% 
+  mlogit::mlogit(assigned.treatment ~ 0 | 1, data = .) 
+
+waldtest(unrestricted.reg, restricted.reg) 
 ```
 
 # Reduced Form Analysis
@@ -1000,40 +1020,6 @@ reg.output.sms.treat.dist <- analysis.data %>%
 reg.output.sms.treat.dist %>% tidy %>% kable(digits = 4)
 ```
 
-```{r}
-prep.sms.treat.dist.plot.data <- function(.reg.output) {
-  interact.with <- "close"
-  
-  incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
-  sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
-  
-  sms.ctrl.linear.restrict <- c("(intercept)", sprintf("(intercept) + %s", incentive.treatment.terms[-1])) 
-  social.info.add.effect.restrict <- c("social.info", sprintf("social.info + %s:social.info", incentive.treatment.terms[-1]))
-  reminder.only.add.effect.restrict <- c("reminder.only - social.info")
-   
-  col.inference <- c(social.info.add.effect.restrict, reminder.only.add.effect.restrict) %>% 
-    c(map(., str_split, "\\s+", simplify = TRUE) %>% 
-        map(~ c(.x, "+", str_replace(.x, "([^-+]+)", sprintf("\\1:%s", interact.with)))) %>% 
-        map(paste, collapse = " ") %>% 
-        map_if(~ !str_detect(.x, "-"), ~ paste(.x, sprintf("+ %s", interact.with))) %>% 
-        unlist) %>% 
-    c(sms.ctrl.linear.restrict %>% 
-        c(str_replace(., "\\(intercept\\)", interact.with)), .) %>% 
-    linear_tester(.reg.output, .) %>% 
-    mutate(dist = rep(rep(c("Far", "Close"), 2), c(4, 4, 5, 5))) %>% 
-    group_by(dist) %>% 
-    mutate(incentive.treatment = incentive.treatment.terms %>% 
-             factor(c(rep(., 2), "control"), levels = ., labels = str_to_title(.)),
-           sms.treatment = c(rep(c("sms.control", "social.info"), each = 4), "reminder.only") %>% 
-             factor(levels = c("sms.control", "social.info", "reminder.only"), 
-                    labels = c("None", "Social Information", "Reminders Only")),
-           bar.size = estimate + if_else(sms.treatment == "None", 0, c(rep(estimate[1:4], 2), first(estimate) + estimate[5]))) %>% 
-    ungroup %>% 
-    mutate(ci.lb = bar.size - std.error * 1.64,
-           ci.ub = bar.size + std.error * 1.64) 
-}
-```
-
 ```{r, fig.width=12}
 prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist) %>% {
   plot.sms.treat.takeup(.) +
@@ -1061,6 +1047,16 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
     facet_wrap(~ dist) +
     labs(subtitle = "Split by distance to PoT, with controls")
 }
+```
+
+Some linear hypotheses testing:
+```{r}
+  linear_tester(reg.output.sms.treat.dist.covar, 
+                c("(intercept) + bracelet + close + bracelet:close",
+                  "(intercept) + bracelet",
+                  "(intercept) + bracelet + close + bracelet:close + social.info + bracelet:social.info + bracelet:social.info:close + social.info:close",
+                  "(intercept) + bracelet + bracelet:social.info + social.info")) %>% 
+  kable(digits = 4)
 ```
 
 # Robustness Checks
