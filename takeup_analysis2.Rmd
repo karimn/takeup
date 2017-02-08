@@ -388,6 +388,13 @@ endline.data %>%
   scale_color_discrete("") +
   theme(legend.position = "bottom") 
 ```
+```{r}
+endline.data %>% 
+  mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control")) %>% 
+  group_by(sms.treated, assigned.treatment, dist.pot.group) %>% 
+  summarize(mm = mean(dworm_rate)) %>% 
+  kable
+```
 
 ```{r}
 baseline.data %>% 
