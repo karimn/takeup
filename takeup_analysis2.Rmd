@@ -347,6 +347,7 @@ know.bel.cat.plot("find_out", .baseline.data = NULL) + labs(title = "From whom d
 ```{r}
 know.bel.cat.plot("chv_visit", .baseline.data = NULL) + labs(title = "Did a CHV visit you to tell you about MDA?")
 ```
+
 ## Beliefs
 
 ```{r}
@@ -367,6 +368,7 @@ list(baseline = baseline.data, endline = endline.data) %>%
 
 ```{r, fig.width=10}
 endline.data %>% 
+  filter(sms.treatment == "sms.control") %>% 
   ggplot(aes(x = dworm_rate)) + 
   geom_freqpoly(aes(y = ..density.., color = dist.pot.group), binwidth = 1) +
   scale_x_continuous("Rate", breaks = 1:10) +
@@ -375,6 +377,15 @@ endline.data %>%
   facet_wrap(~ assigned.treatment) +
   theme(legend.position = "bottom") +
   labs(title = "How many out of 10 will come for deworming?")
+```
+
+```{r, fig.width=10}
+endline.data %>% 
+  filter(sms.treatment == "sms.control") %>% 
+  ggplot(aes(x = assigned.treatment)) + 
+  geom_boxplot(aes(y = dworm_rate, color = dist.pot.group)) +
+  scale_color_discrete("") +
+  theme(legend.position = "bottom") 
 ```
 
 ```{r}
