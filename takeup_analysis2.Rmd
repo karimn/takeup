@@ -368,7 +368,7 @@ list(baseline = baseline.data, endline = endline.data) %>%
 
 ```{r, fig.width=10}
 endline.data %>% 
-  filter(sms.treatment == "sms.control") %>% 
+  filter(sms.treatment == "sms.control", sms.ctrl.subpop == "non.phone.owner") %>% 
   ggplot(aes(x = dworm_rate)) + 
   geom_freqpoly(aes(y = ..density.., color = dist.pot.group), binwidth = 1) +
   scale_x_continuous("Rate", breaks = 1:10) +
@@ -381,6 +381,7 @@ endline.data %>%
 
 ```{r, fig.width=10}
 endline.data %>% 
+  filter(sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control")) %>% 
   ggplot(aes(x = assigned.treatment)) + 
   geom_boxplot(aes(y = dworm_rate, color = dist.pot.group)) +
@@ -388,12 +389,23 @@ endline.data %>%
   scale_color_discrete("") +
   theme(legend.position = "bottom") 
 ```
+
 ```{r}
-endline.data %>% 
+reg.endline.beliefs <- endline.data %>% 
+  filter(sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control")) %>% 
   group_by(sms.treated, assigned.treatment, dist.pot.group) %>% 
-  summarize(mm = mean(dworm_rate)) %>% 
+  do(filter(., !is.outlier(.$dworm_rate))) %>% 
+  ungroup %>% 
+  run_strat_reg(dworm_rate ~ assigned.treatment * dist.pot.group * sms.treatment, .strat.by = c("county"), .cluster = "cluster.id", .covariates = c("school", "floor", "ethnicity"))
+
+reg.endline.beliefs %>% 
+  tidy %>% 
   kable
+
+linear_tester(reg.endline.beliefs, 
+              c("bracelet:far + bracelet:far:sms.control + far",
+                "bracelet:far +far"))
 ```
 
 ```{r}

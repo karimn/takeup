@@ -95,7 +95,7 @@ base.prepare.baseline.endline.data <- function(.data) {
     mutate_at(vars(spread_worms), yes.no.factor)  
 }
 
-prepare.endline.data <- function(.data, .cluster.strat.data) {
+prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
   .data %>% 
     filter(present, interview, consent) %>% 
     arrange(KEY.individ, SubmissionDate) %>% 
@@ -113,7 +113,8 @@ prepare.endline.data <- function(.data, .cluster.strat.data) {
                                    labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
                                               "other"))) %>% 
            # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
-    left_join(select(.cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), c("cluster.id"))  
+    left_join(select(.cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), c("cluster.id")) %>% 
+    left_join(select(.census.data, KEY.individ, sms.ctrl.subpop), "KEY.individ")  
 }
 
 prepare.baseline.data <- function(.data) {
@@ -144,11 +145,11 @@ prepare.baseline.data <- function(.data) {
                                      "prefer not say", "DK", "other"))))
 }
 
+is.outlier <- function(.values) {
+  .values %>% { . < quantile(., 0.25) - 1.5 * IQR(.) | . > quantile(., 0.75) + 1.5 * IQR(.) }
+}
+
 prepare.cluster.takeup.data <- function(.data) {
-  is.outlier <- function(.values) {
-    .values %>% { . < quantile(., 0.25) - 1.5 * IQR(.) | . > quantile(., 0.75) + 1.5 * IQR(.) }
-  }
-  
  .data %>% 
    filter(monitored, monitor.consent) %>% 
    select(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment, dewormed.any) %>% 
