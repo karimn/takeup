@@ -366,6 +366,18 @@ list(baseline = baseline.data, endline = endline.data) %>%
   labs(title = "How many out of 10 will come for deworming?")
 ```
 
+```{r, fig.width=10}
+endline.data %>% 
+  ggplot(aes(x = dworm_rate)) + 
+  geom_freqpoly(aes(y = ..density.., color = dist.pot.group), binwidth = 1) +
+  scale_x_continuous("Rate", breaks = 1:10) +
+  scale_y_continuous("Density") +
+  scale_color_discrete("") +
+  facet_wrap(~ assigned.treatment) +
+  theme(legend.position = "bottom") +
+  labs(title = "How many out of 10 will come for deworming?")
+```
+
 ```{r}
 baseline.data %>% 
   select(dworm_proportion) %>% 
