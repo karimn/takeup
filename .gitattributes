@@ -1,0 +1,11 @@
+*.dta filter=lfs diff=lfs merge=lfs -text
+data/census.dta filter=lfs diff=lfs merge=lfs -text
+data/Census[[:space:]]Pilot[[:space:]]05.08.2016.dta filter=lfs diff=lfs merge=lfs -text
+data/Cluster[[:space:]]Survey[[:space:]]26.07.2016.dta filter=lfs diff=lfs merge=lfs -text
+data/Cluster[[:space:]]Survey[[:space:]]27.07.2016.dta filter=lfs diff=lfs merge=lfs -text
+data/cluster_survey_v1.dta filter=lfs diff=lfs merge=lfs -text
+data/Cluster[[:space:]]Survey[[:space:]]V1.dta filter=lfs diff=lfs merge=lfs -text
+data/Missing[[:space:]]GPS[[:space:]]data.dta filter=lfs diff=lfs merge=lfs -text
+data/takeup_gps_255_306_360.dta filter=lfs diff=lfs merge=lfs -text
+data/takeup_senitization_mon_0926.dta filter=lfs diff=lfs merge=lfs -text
+data/takeup_processed_cluster_strat.rds filter=lfs diff=lfs merge=lfs -text
