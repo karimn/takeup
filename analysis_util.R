@@ -95,7 +95,7 @@ base.prepare.baseline.endline.data <- function(.data) {
     mutate_at(vars(spread_worms), yes.no.factor)  
 }
 
-prepare.endline.data <- function(.data) {
+prepare.endline.data <- function(.data, .cluster.strat.data) {
   .data %>% 
     filter(present, interview, consent) %>% 
     arrange(KEY.individ, SubmissionDate) %>% 
@@ -111,8 +111,9 @@ prepare.endline.data <- function(.data) {
            find_out = multi.factor(find_out, 
                                    levels = c(1:9, 99), 
                                    labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
-                                              "other")))
+                                              "other"))) %>% 
            # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
+    left_join(select(.cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), c("cluster.id"))  
 }
 
 prepare.baseline.data <- function(.data) {

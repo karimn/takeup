@@ -18,7 +18,7 @@ reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
 cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
 sms.content.data <- read_rds(file.path("data", "takeup_sms_treatment.rds"))
 
-endline.data <- prepare.endline.data(all.endline.data)
+endline.data <- prepare.endline.data(all.endline.data, cluster.strat.data)
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
 analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
 
