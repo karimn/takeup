@@ -382,7 +382,7 @@ endline.data %>%
 ```{r, fig.width=10}
 endline.data %>% 
   mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control")) %>% 
-  ggplot(aes(x = assigned.treatment)) + 
+  ggplot(aes(x = assigned.treatment)) +
   geom_boxplot(aes(y = dworm_rate, color = dist.pot.group)) +
   facet_wrap(~ sms.treated) +
   scale_color_discrete("") +
