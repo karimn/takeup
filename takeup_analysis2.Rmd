@@ -392,8 +392,9 @@ endline.data %>%
 
 ```{r}
 reg.endline.beliefs <- endline.data %>% 
-  filter(sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
-  mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control")) %>% 
+  filter(sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", sms.treatment != "reminder.only") %>% 
+  mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control"),
+         sms.treatment = factor(sms.treatment) %>% relevel(ref = "social.info")) %>% 
   group_by(sms.treated, assigned.treatment, dist.pot.group) %>% 
   do(filter(., !is.outlier(.$dworm_rate))) %>% 
   ungroup %>% 
@@ -403,9 +404,42 @@ reg.endline.beliefs %>%
   tidy %>% 
   kable
 
+
+```
+
+```{r}
 linear_tester(reg.endline.beliefs, 
-              c("bracelet:far + bracelet:far:sms.control + far",
-                "bracelet:far +far"))
+              # Effect of incentive
+              c("far",
+                "far + far:sms.control",
+                "ink",
+                "ink + ink:sms.control",
+                "ink + ink:far",
+                "ink + ink:far + ink:far:sms.control + ink:sms.control",
+                "calendar",
+                "calendar + calendar:sms.control",
+                "calendar + calendar:far",
+                "calendar + calendar:far + calendar:far:sms.control + calendar:sms.control",
+                "bracelet",
+                "bracelet + bracelet:sms.control",
+                "bracelet + bracelet:far",
+                "bracelet + bracelet:far + bracelet:far:sms.control + bracelet:sms.control",
+                # Effect of distance
+                "calendar:far + calendar:far:sms.control + far:sms.control + far",
+                "calendar:far + far",
+                "bracelet:far + bracelet:far:sms.control + far:sms.control + far",
+                "bracelet:far + far",
+                # Effect of SMS
+                "- sms.control",
+                "- sms.control - far:sms.control",
+                "- ink:sms.control - ink:far:sms.control - far:sms.control - sms.control",
+                "- ink:sms.control - sms.control",
+                "- ink:sms.control - ink:far:sms.control - far:sms.control - sms.control",
+                "- calendar:sms.control - sms.control",
+                "- calendar:sms.control - calendar:far:sms.control - far:sms.control - sms.control",
+                "- bracelet:sms.control - sms.control",
+                "- bracelet:sms.control - bracelet:far:sms.control - far:sms.control - sms.control")) %>% 
+  kable(digits = 4)
 ```
 
 ```{r}
@@ -593,7 +627,7 @@ reg.output.sms.ctrl.calendar.covar <- analysis.data %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar)
 
-kable(tidy(reg.output.sms.ctrl.covar), digits = 4)
+kable(tidy(reg.output.sms.ctrl.covar, .include_covar = TRUE), digits = 4)
 ```
 
 ```{r, echo=FALSE}
@@ -654,7 +688,7 @@ reg.output.nonphone.covar <- analysis.data %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-kable(tidy(reg.output.nonphone.covar), digits = 4)
+kable(tidy(reg.output.nonphone.covar, .include_covar = TRUE), digits = 4)
 ```
 
 Testing the joint hypothesis of difference in impact between phone and non-phone owners:
@@ -794,7 +828,7 @@ reg.output.sms.ctrl.dist.covar <- analysis.data %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
 
-kable(tidy(reg.output.sms.ctrl.dist.covar), digits = 4)
+kable(tidy(reg.output.sms.ctrl.dist.covar, .include_covar = TRUE), digits = 4)
 ```
 
 ```{r, fig.width=12}
@@ -942,7 +976,7 @@ reg.output.sms.treat.covar <- analysis.data %>%
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.covar %>% tidy %>% kable(digits = 4)
+reg.output.sms.treat.covar %>% tidy(.include_covar = TRUE) %>% kable(digits = 4)
 ```
 
 Some linear hypotheses testing:
@@ -1080,7 +1114,7 @@ reg.output.sms.treat.dist.covar <- analysis.data %>%
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.dist.covar %>% tidy %>% kable(digits = 4)
+reg.output.sms.treat.dist.covar %>% tidy(.include_covar = TRUE) %>% kable(digits = 4)
 ```
 
 ```{r, fig.width=12}
@@ -1137,6 +1171,28 @@ linear_tester(reg.output.sms.ctrl.survey.effect,
   tidy %>% 
   kable(digits = 4) 
 ```
+
+## SMS Recruitment Effect
+
+```{r}
+sms.recruit.reg.res <- analysis.data %>% 
+  filter(!is.na(any.sms.reported), sms.treatment %in% c("social.info")) %>% 
+  anti_join(outlier.clusters, c("cluster.id", "sms.treatment")) %>% 
+  run_strat_reg(dewormed.any ~ any.sms.reported * assigned.treatment, 
+                .strat.by = c("county", "dist.pot.group"), 
+                .cluster = "cluster.id",
+                .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+
+sms.recruit.reg.res %>% 
+  tidy %>% 
+  kable(digits = 4)
+```
+
+```{r}
+linear_tester(sms.recruit.reg.res,
+              c("no + no:bracelet"))
+```
+
 
 <!-- *The below requires looking at the take-up rates for individuals not providing consent to use their data*. -->
 
