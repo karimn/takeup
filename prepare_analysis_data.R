@@ -6,8 +6,17 @@ library(purrr)
 library(readr)
 library(stringr)
 library(lubridate)
+library(sp)
+library(rgeos)
+
+library(econometr)
 
 source("analysis_util.R")
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+
+# Load the  data ----------------------------------------------------------
 
 # This data was prepared in takeup_field_notebook.Rmd
 census.data <- read_rds(file.path("data", "takeup_census.rds"))
@@ -17,13 +26,43 @@ all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
 reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
 cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
 sms.content.data <- read_rds(file.path("data", "takeup_sms_treatment.rds"))
+pot.info <- read_rds(file.path("data", "pot_info.rds"))
+
+# HH distance to PoT ------------------------------------------------------
+
+census.data %<>% 
+  left_join(pot.info %>% 
+              filter(!is.na(wave)) %>% 
+              transmute(cluster.id, 
+                        pot.lon = lon.post.rct.update,
+                        pot.lat = lat.post.rct.update),
+            "cluster.id") %>% 
+  group_by(cluster.id) %>% 
+  do({
+    if (is.na(first(.$cluster.id))) {
+      individ.dist.to.pot <- NA
+    } else {
+      cluster.pot.location <- convert.to.sp(slice(., 1), ~ pot.lon + pot.lat, wgs.84) %>% 
+        spTransform(kenya.proj4)
+      
+      individ.locations <- convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+        spTransform(kenya.proj4)
+      
+      individ.dist.to.pot <- c(gDistance(individ.locations, cluster.pot.location, byid = TRUE))
+    }
+  
+    mutate(., dist.to.pot = individ.dist.to.pot)
+  }) %>% 
+  ungroup
+
+# Other prep --------------------------------------------------------------
 
 endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.strat.data)
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
 analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
 
 old.baseline.data <- baseline.data
-baseline.data %<>% prepare.baseline.data
+baseline.data %<>% prepare.baseline.data 
 
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
 

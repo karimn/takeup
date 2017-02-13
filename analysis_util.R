@@ -76,7 +76,7 @@ multi.factor <- function(.col, labels, levels, ...) {
 yes.no.factor <- function(.col, .yes.no = 1:2) .col %>% 
   factor(levels = c(.yes.no, 97:98), labels = c("yes", "no", "prefer not say", "DK"))
 
-base.prepare.baseline.endline.data <- function(.data) {
+base.prepare.baseline.endline.data <- function(.data) { #, .census.data, .cluster.strat.data) {
   .data %>% 
     mutate(who_worms = multi.factor(who_worms, 
                                     labels = c("child", "adult", "sick", "healthy", "pregnant", "old", "everyone")), 
@@ -92,7 +92,7 @@ base.prepare.baseline.endline.data <- function(.data) {
                                      labels = c("every week", "every month", "every 2 months", "every 3 months", "every 6 months", 
                                                 "every year", "never", "when symptoms", "hw says"))) %>% 
     mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
-    mutate_at(vars(spread_worms), yes.no.factor)  
+    mutate_at(vars(spread_worms), yes.no.factor) 
 }
 
 prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
@@ -111,10 +111,10 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
            find_out = multi.factor(find_out, 
                                    levels = c(1:9, 99), 
                                    labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
-                                              "other"))) %>% 
-           # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
+                                              "other"))) %>%
     left_join(select(.cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), c("cluster.id")) %>% 
-    left_join(select(.census.data, KEY.individ, sms.ctrl.subpop), "KEY.individ")  
+    left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop), "KEY.individ")  
+           # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
 }
 
 prepare.baseline.data <- function(.data) {
