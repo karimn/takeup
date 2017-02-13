@@ -2317,7 +2317,7 @@ is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
 
 
 ```{r baseline-data}
-baseline.data <- tu.data.reader("raw-data/Baseline Survey.csv") %>% 
+baseline.data <- tu.data.reader(file.path("raw-data", "Baseline Survey.csv")) %>% 
   filter(SubmissionDate >= "2016-09-05", 
          !is.na(present) & present == 1, 
          !is.na(consent) & consent == 1) %>% 
@@ -2537,7 +2537,7 @@ baseline.data %>%
 ```{r sms-recruit-data}
 factor.text_type <- . %>% factor(levels = 1:2, labels = c("social.info", "reminder.only"))
 
-all.sms.recruit.data <- read_csv("raw-data/Takeup Text Messages.csv", 
+all.sms.recruit.data <- read_csv(file.path("raw-data", "Takeup Text Messages.csv"), 
                              col_types = list(SubmissionDate = takeup.datetime.type,
                                               starttime = takeup.datetime.type,
                                               endtime = takeup.datetime.type)) %>% 
@@ -2564,13 +2564,13 @@ all.sms.recruit.data %>%
   left_join(count(all.sms.recruit.data, cluster.id), "cluster.id") %>% 
   right_join(select(cluster.strat.data, cluster.id, wave), ., "cluster.id")
 
-manual.sms.match.list <- read_csv("data/unmatched_sms_wave1.csv", 
+manual.sms.match.list <- read_csv(file.path("data", "unmatched_sms_wave1.csv"), 
                                   col_names = c("KEY.recruit", "name", "KEY.individ.manual"), skip = 1) %>% 
-  bind_rows(read_csv("data/unmatched_sms_wave1_2.csv", 
+  bind_rows(read_csv(file.path("data", "unmatched_sms_wave1_2.csv"), 
                      col_names = c("KEY.recruit", "name", "KEY.individ.manual")))
 
-sms.list <- bind_rows(latest = read_csv("data/sms_list_0929.csv"), 
-                      original = read_csv("data/sms_list_original.csv"), 
+sms.list <- bind_rows(latest = read_csv(file.path("data", "sms_list_0929.csv")), 
+                      original = read_csv(file.path("data", "sms_list_original.csv")), 
                       .id = "data.source") %>% 
   transmute(person_key, KEY.individ, data.source, sms.treatment = factor.text_type(text_type))
 
