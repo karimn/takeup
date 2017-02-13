@@ -407,7 +407,7 @@ reg.endline.beliefs %>%
 
 ```
 
-```{r}
+```{r, echo=TRUE}
 linear_tester(reg.endline.beliefs, 
               # Effect of incentive
               c("far",
@@ -627,7 +627,7 @@ reg.output.sms.ctrl.calendar.covar <- analysis.data %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar)
 
-kable(tidy(reg.output.sms.ctrl.covar, .include_covar = TRUE), digits = 4)
+kable(tidy(reg.output.sms.ctrl.covar, .include_covar = FALSE), digits = 4)
 ```
 
 ```{r, echo=FALSE}
@@ -688,7 +688,7 @@ reg.output.nonphone.covar <- analysis.data %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-kable(tidy(reg.output.nonphone.covar, .include_covar = TRUE), digits = 4)
+kable(tidy(reg.output.nonphone.covar, .include_covar = FALSE), digits = 4)
 ```
 
 Testing the joint hypothesis of difference in impact between phone and non-phone owners:
@@ -828,7 +828,7 @@ reg.output.sms.ctrl.dist.covar <- analysis.data %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
 
-kable(tidy(reg.output.sms.ctrl.dist.covar, .include_covar = TRUE), digits = 4)
+kable(tidy(reg.output.sms.ctrl.dist.covar, .include_covar = FALSE), digits = 4)
 ```
 
 ```{r, fig.width=12}
@@ -976,7 +976,7 @@ reg.output.sms.treat.covar <- analysis.data %>%
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.covar %>% tidy(.include_covar = TRUE) %>% kable(digits = 4)
+reg.output.sms.treat.covar %>% tidy(.include_covar = FALSE) %>% kable(digits = 4)
 ```
 
 Some linear hypotheses testing:
@@ -1114,7 +1114,7 @@ reg.output.sms.treat.dist.covar <- analysis.data %>%
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.dist.covar %>% tidy(.include_covar = TRUE) %>% kable(digits = 4)
+reg.output.sms.treat.dist.covar %>% tidy(.include_covar = FALSE) %>% kable(digits = 4)
 ```
 
 ```{r, fig.width=12}
