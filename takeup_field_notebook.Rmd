@@ -32,6 +32,8 @@ library(stringr)
 library(knitr)
 library(bigmemory)
 
+library(econometr)
+
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
 

@@ -396,15 +396,13 @@ reg.endline.beliefs <- endline.data %>%
   mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control"),
          sms.treatment = factor(sms.treatment) %>% relevel(ref = "social.info")) %>% 
   group_by(sms.treated, assigned.treatment, dist.pot.group) %>% 
-  do(filter(., !is.outlier(.$dworm_rate))) %>% 
+  do(filter(., !is_outlier(.$dworm_rate))) %>% 
   ungroup %>% 
   run_strat_reg(dworm_rate ~ assigned.treatment * dist.pot.group * sms.treatment, .strat.by = c("county"), .cluster = "cluster.id", .covariates = c("school", "floor", "ethnicity"))
 
 reg.endline.beliefs %>% 
   tidy %>% 
-  kable
-
-
+  kable(digits = 4)
 ```
 
 ```{r, echo=TRUE}
@@ -459,7 +457,9 @@ baseline.data %>%
   labs(title = "More/less will come with ink?", x = "")
 ```
 
-# Balance
+# Treatment Assignment
+
+## Balance
 
 ```{r, echo=TRUE}
 balance.data <- analysis.data %>%  
@@ -476,6 +476,20 @@ restricted.reg <- balance.data %>%
   mlogit::mlogit(assigned.treatment ~ 0 | 1, data = .) 
 
 waldtest(unrestricted.reg, restricted.reg) 
+```
+
+## Distance Assignment
+
+```{r}
+analysis.data %>%  
+  filter(monitored, monitor.consent, !baseline.sample) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  ggplot(aes(dist.to.pot)) +
+  geom_density(aes(color = dist.pot.group)) +
+  geom_vline(xintercept = c(1250), linetype = "dashed") +
+  labs(x = "HH Distance to PoT (meters)", y = "Density") +
+  scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
+  theme(legend.position = "bottom")
 ```
 
 # Reduced Form Analysis
@@ -518,6 +532,19 @@ where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$ and $E[Y_{ij}(control)] = \alph
 
 Without controls (using cluster robust standard errors). ~~Also including block bootstrapped standard errors and p-values.~~
 
+```{r}
+# analysis.data %>%
+#   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
+#   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
+#   unite(stratum, county, dist.pot.group, sep = ".") %>%
+#   select(dewormed.any, assigned.treatment, stratum, cluster.id) %>%
+#   na.omit %>%
+#   group_by(stratum) %>%
+#   mutate(stratum.weight = n()) %>%
+#   ungroup %>%
+#   lm(dewormed.any ~ assigned.treatment, data = ., weights = stratum.weight)
+```
+
 ```{r, warning=FALSE}
 reg.output.sms.ctrl <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
@@ -551,7 +578,7 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl) %>% {
 
 ```{r}
 neyman.results <- analysis.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   analyze.neyman.blk.bs(0) %>% 
   # analyze.neyman.blk.bs(2000) %>% 
@@ -837,6 +864,15 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
   plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
     labs(subtitle = "With controls") 
 }
+```
+
+```{r}
+reg.output.sms.ctrl.cont.dist <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * dist.to.pot, .strat.by = "county", .cluster = "cluster.id")
+
+kable(tidy(reg.output.sms.ctrl.cont.dist), digits = 4)
 ```
 
 ## SMS Treatment
