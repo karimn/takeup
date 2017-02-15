@@ -145,9 +145,6 @@ prepare.baseline.data <- function(.data) {
                                      "prefer not say", "DK", "other"))))
 }
 
-is.outlier <- function(.values) {
-  .values %>% { . < quantile(., 0.25) - 1.5 * IQR(.) | . > quantile(., 0.75) + 1.5 * IQR(.) }
-}
 
 prepare.cluster.takeup.data <- function(.data) {
  .data %>% 
@@ -157,7 +154,7 @@ prepare.cluster.takeup.data <- function(.data) {
    group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
    summarize(takeup.prop = mean(dewormed.any)) %>% 
    group_by(assigned.treatment, sms.treatment, stratum) %>% 
-   mutate(outlier = is.outlier(takeup.prop)) %>% 
+   mutate(outlier = is_outlier(takeup.prop)) %>% 
    ungroup
 }
 
