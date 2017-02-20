@@ -466,11 +466,11 @@ baseline.data %>%
 balance.data <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  select_(.dots = c("assigned.treatment", reg.covar)) %>% 
+  select_(.dots = c("assigned.treatment", reg.covar, "dist.pot.group")) %>% 
   mlogit.data(choice = "assigned.treatment") 
 
 unrestricted.reg <- balance.data %>% 
-  mlogit::mlogit(as.formula(sprintf("assigned.treatment ~ 0 | %s", paste(reg.covar, collapse = " + "))), data = .) 
+  mlogit::mlogit(as.formula(sprintf("assigned.treatment ~ 0 | %s", paste(c(reg.covar, "dist.pot.group"), collapse = " + "))), data = .) 
 
 restricted.reg <- balance.data %>% 
   na.omit %>% 
@@ -493,7 +493,8 @@ analysis.data %>%
        caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
   scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
   scale_linetype_discrete("Distance From") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom") +
+  facet_wrap(~ assigned.treatment)
 ```
 
 # Reduced Form Analysis
