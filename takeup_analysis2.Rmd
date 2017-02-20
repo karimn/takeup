@@ -69,6 +69,7 @@ options(dplyr.show_progress = FALSE, digits = 4)
 # Data
 
 ```{r load-data, include=FALSE}
+
 census.data <- read_rds(file.path("data", "takeup_census.rds"))
 all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
 reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
@@ -485,10 +486,13 @@ analysis.data %>%
   filter(monitored, monitor.consent, !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   ggplot(aes(dist.to.pot)) +
-  geom_density(aes(color = dist.pot.group)) +
+  geom_density(aes(color = dist.pot.group, linetype = "Household")) +
+  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"), data = village.centers) +
   geom_vline(xintercept = c(1250), linetype = "dashed") +
-  labs(x = "HH Distance to PoT (meters)", y = "Density") +
+  labs(x = "Distance to PoT (meters)", y = "Density", 
+       caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
   scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
+  scale_linetype_discrete("Distance From") +
   theme(legend.position = "bottom")
 ```
 
@@ -751,6 +755,8 @@ prep.sms.ctrl.plot.data(reg.output.nonphone.covar, .interact.with = "phone.owner
 
 ## Treatment Effect Heterogeneity by Distance to PoT
 
+### Discrete Distance Categories
+
 Here we estimate the below models
 
 $$
@@ -765,7 +771,7 @@ $$
 E[Y_{ij}(z) - Y_{ij}(control) | D_j = d] = \tau(z) + \lambda(z)\cdot d 
 $$
 
-### Regression Without Controls
+#### Regression Without Controls
 
 ```{r}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
@@ -846,7 +852,7 @@ neyman.results %>%
   kable()
 ```
 
-### Regression With Controls
+#### Regression With Controls
 
 ```{r}
 reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
@@ -866,13 +872,33 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 }
 ```
 
+### Continuous Distance Measure
+
 ```{r}
 reg.output.sms.ctrl.cont.dist <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
+         dist.to.pot.2 = dist.to.pot^2) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  run_strat_reg(dewormed.any ~ assigned.treatment * dist.to.pot, .strat.by = "county", .cluster = "cluster.id")
+  run_strat_reg(dewormed.any ~ assigned.treatment * (dist.to.pot + dist.to.pot.2), .strat.by = "county", .cluster = "cluster.id")
 
 kable(tidy(reg.output.sms.ctrl.cont.dist), digits = 4)
+```
+
+```{r}
+reg.output.sms.ctrl.cont.dist %>% 
+  # linear_tester(c("ink:dist.to.pot + ink",
+  #                 "calendar:dist.to.pot + calendar",
+  #                 "bracelet:dist.to.pot + bracelet",
+  #                 "bracelet - ink",
+  #                 "bracelet:dist.to.pot + bracelet - ink:dist.to.pot - ink",
+  #                 "1.5 * bracelet:dist.to.pot + bracelet - 1.5 * ink:dist.to.pot - ink",
+  #                 "2 * bracelet:dist.to.pot + bracelet - 2 * ink:dist.to.pot - ink",
+  #                 "2.5 * bracelet:dist.to.pot + bracelet - 2.5 * ink:dist.to.pot - ink")) %>% 
+  linear_tester(c("bracelet:dist.to.pot + bracelet:dist.to.pot.2 + bracelet - ink:dist.to.pot - ink:dist.to.pot.2 - ink",
+                  "2 * bracelet:dist.to.pot + 4 * bracelet:dist.to.pot.2 + bracelet - 2 * ink:dist.to.pot - 4 * ink:dist.to.pot.2 - ink",
+                  "2.5 * bracelet:dist.to.pot + 6.25 * bracelet:dist.to.pot.2 + bracelet - 2.5 * ink:dist.to.pot - 6.25 * ink:dist.to.pot.2 - ink")) %>% 
+  kable(digits = 4)
 ```
 
 ## SMS Treatment

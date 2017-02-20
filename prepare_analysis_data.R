@@ -18,7 +18,8 @@ source("analysis_util.R")
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
-# Load the  data ----------------------------------------------------------
+# Load the data ----------------------------------------------------------
+load(file.path("data", "takeup_village_pot_dist.RData"))
 
 # This data was prepared in takeup_field_notebook.Rmd
 census.data <- read_rds(file.path("data", "takeup_census.rds"))
@@ -57,6 +58,26 @@ census.data %<>%
   }) %>% 
   ungroup
 
+# Village center distance to PoT ------------------------------------------
+
+village.centers %<>% 
+  select(cluster.id, lon, lat) %>% 
+  left_join(pot.info %>% 
+              filter(!is.na(wave)) %>% 
+              transmute(cluster.id, 
+                        pot.lon = lon.post.rct.update,
+                        pot.lat = lat.post.rct.update),
+            "cluster.id") %>% {
+    cluster.pot.locations <- convert.to.sp(., ~ pot.lon + pot.lat, wgs.84) %>% 
+      spTransform(kenya.proj4)
+    
+    cluster.center.locations <- convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+      spTransform(kenya.proj4)
+    
+    mutate(., dist.to.pot = diag(gDistance(cluster.center.locations, cluster.pot.locations, byid = TRUE)))
+  } %>% 
+  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id")
+
 # Other prep --------------------------------------------------------------
 
 endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.strat.data)
@@ -86,5 +107,5 @@ social.info.data <- sms.content.data %>%
   rename(dewormed.day = deworming.day) 
 
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
-     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data,
+     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers,
      file = file.path("data", "analysis.RData"))
