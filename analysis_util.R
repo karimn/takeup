@@ -20,7 +20,7 @@ name.match.monitored <- function(census.cluster.data,
 # ---- end
 # Misc Functions and Constants ----
 
-reg.covar <- c("school", "floor", "ethnicity", "sms.ctrl.subpop")
+reg.covar <- c("school", "floor", "ethnicity", "sms.ctrl.subpop", "age", "gender")
 
 prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
   list(endline.survey = .all.endline.data, 
@@ -58,8 +58,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
-           baseline.sample = !is.na(baseline.sample.wave)) %>% 
-    left_join(select(.endline.data, KEY.individ, school, floor, ethnicity, any.sms.reported), "KEY.individ") %>% 
+           baseline.sample = !is.na(baseline.sample.wave),
+           gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
+    left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, any.sms.reported), "KEY.individ") %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.)))
 }
