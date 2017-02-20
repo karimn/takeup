@@ -100,9 +100,12 @@ social.info.data <- sms.content.data %>%
     
     summarize(., 
               cumul = mean(social.info)/10,
+              num.obs = n(),
               qant.25 = interq.info[1],
               qant.75 = interq.info[2]) 
-  }) %>% 
+  }) %>%
+  group_by(deworming.day, assigned.treatment) %>% 
+  mutate(all.dist.cumul = weighted.mean(cumul, num.obs)) %>% 
   ungroup %>% 
   rename(dewormed.day = deworming.day) 
 

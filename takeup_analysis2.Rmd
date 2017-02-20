@@ -1065,7 +1065,7 @@ prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
 } 
 ```
 
-## Over Time
+## Take-Up and SMS Treatment Over Time
 
 ```{r, echo=TRUE}
 after.msg.days <- seq(3, 11, 2)
@@ -1114,8 +1114,14 @@ social.info.data %>% {
 
 ```{r, fig.width=14, echo=TRUE}
 time.takeup.data %>% 
-  transmute(dewormed.day = dewormed.day.any, cumul = cumul.takeup.prop, assigned.treatment, sms.treatment) %>% 
-  bind_rows(takeup = ., social.info = social.info.data, .id = "cumul.type") %>% 
+  transmute(dewormed.day = dewormed.day.any, 
+            cumul = cumul.takeup.prop, 
+            assigned.treatment, 
+            sms.treatment) %>% 
+  bind_rows(takeup = ., 
+            social.info = distinct(social.info.data, dewormed.day, assigned.treatment, .keep_all = TRUE) %>% 
+              rename(cumul = all.dist.cumul), 
+            .id = "cumul.type") %>% 
   mutate(cumul.type.sms = if_else(!is.na(sms.treatment), paste(cumul.type, sms.treatment, sep = "-"), cumul.type)) %>% {
     plot.takeup.dynamics(., .aes = aes(dewormed.day, cumul, color = assigned.treatment, linetype = cumul.type.sms, shape = cumul.type)) +
       scale_linetype_manual("", labels = c("Reported Take-up", "Reminders Only", "No SMS", "Social Info SMS"), values = c("dotdash", "dotted", "solid", "dashed")) +
