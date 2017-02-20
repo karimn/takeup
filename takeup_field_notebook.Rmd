@@ -1240,7 +1240,7 @@ verify.vill.pot.dist <- village.centers %>%
   filter(cluster.id %in% known.pot.locations$cluster.id, !is.na(lon.verify), !is.na(lat.verify)) %>% 
   get.vill.pot.dist(pot.coords.formula = ~ lon.verify + lat.verify) 
 
-save(vill.pot.dist, verify.vill.pot.dist, file = "data/takeup_village_pot_dist.RData")
+save(vill.pot.dist, verify.vill.pot.dist, village.centers, file = file.path("data", "takeup_village_pot_dist.RData"))
 ```
 
 ```{r}
