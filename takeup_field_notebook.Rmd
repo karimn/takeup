@@ -3606,7 +3606,7 @@ plot.endline <- function(cluster.ids, .data, ...) {
 
 ### Wave 1 
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
 all.endline.data %>% 
   filter(wave == 1) %>% 
   with(union(cluster.id, closest.cluster)) %>% 
@@ -3638,7 +3638,7 @@ to.follow.up.on <- c("uuid:ea9ae571-ac44-4820-ab7e-99efda8227d7",
 drop.from.plot <- c("uuid:dbc12f70-9203-4d90-aacb-4c1ac3e1dbd5") # Finalized in office
 ```
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
 all.endline.data %>% 
   filter(wave == 2,
          !KEY %in% c(drop.from.plot, to.follow.up.on)) %>% 
@@ -3774,7 +3774,8 @@ wtp.data <- read_csv(file.path("raw-data", "Willingness To Pay.csv")) %>%
   group_by(KEY.hh) %>% 
   mutate(duplicates = n()) %>% 
   ungroup %>% 
-  left_join(select(wtp.sample, KEY, lon, lat), by = c("KEY.hh" = "KEY"), suffix = c(".wtp", ".census")) %>% 
+  left_join(transmute(wtp.sample, KEY, lon, lat, sampling.cluster.id = cluster.id), 
+            by = c("KEY.hh" = "KEY"), suffix = c(".wtp", ".census")) %>% 
   rename(lon = lon.wtp, lat = lat.wtp) %>% 
   left_join(identify.closest.cluster(., key.variable = "KEY.hh"), "KEY.hh") %>% 
   mutate(dist.to.census = gDistance(convert.to.sp(., ~ lon + lat, wgs.84) %>% 
@@ -3783,6 +3784,9 @@ wtp.data <- read_csv(file.path("raw-data", "Willingness To Pay.csv")) %>%
                                        spTransform(kenya.proj4),
                                      byid = TRUE) %>% diag,
          far.from.census = dist.to.census > 50)
+
+validate::check_that(wtp.data, identical(cluster.id, sampling.cluster.id)) %>% 
+  summary
 
 write_rds(wtp.data, file.path("data", "takeup_wtp.rds"))
 ```
