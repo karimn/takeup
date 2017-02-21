@@ -30,6 +30,7 @@ reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
 cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
 sms.content.data <- read_rds(file.path("data", "takeup_sms_treatment.rds"))
 pot.info <- read_rds(file.path("data", "pot_info.rds"))
+wtp.data <- read_rds(file.path("data", "takeup_wtp.rds"))
 
 # HH distance to PoT ------------------------------------------------------
 
@@ -78,7 +79,7 @@ village.centers %<>%
   } %>% 
   left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id")
 
-# Other prep --------------------------------------------------------------
+# Core data prep --------------------------------------------------------------
 
 endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.strat.data)
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
@@ -88,6 +89,18 @@ old.baseline.data <- baseline.data
 baseline.data %<>% prepare.baseline.data 
 
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
+
+# WTP prep ----------------------------------------------------------------
+
+wtp.data %<>% 
+  # mutate_at(vars(cal_plus_ksh, bra_plus_ksh), funs(factor(., levels = 1:2, labels = c("switch", "keep")))) %>% 
+  mutate(first_choice = factor(first_choice, levels = 1:2, labels = c("bracelet", "calendar")),
+         second_choice = if_else(first_choice == "bracelet", cal_plus_ksh, bra_plus_ksh) %>% 
+           factor(levels = 1:2, labels = c("switch", "keep"))) %>% 
+  select(-county) %>% # I want to use the more reliable one in cluster.strat.data 
+  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group, county), "cluster.id")
+
+# Social info report in SMS -----------------------------------------------
 
 social.info.data <- sms.content.data %>% 
   filter(!is.na(social.info)) %>% 
@@ -109,6 +122,8 @@ social.info.data <- sms.content.data %>%
   ungroup %>% 
   rename(dewormed.day = deworming.day) 
 
+# Save data ---------------------------------------------------------------
+
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
-     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers,
+     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data,
      file = file.path("data", "analysis.RData"))

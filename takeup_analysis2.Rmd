@@ -499,6 +499,8 @@ analysis.data %>%
 
 # Incentive Preferences
 
+## Self-reported Preferences (Endline)
+
 ```{r}
 endline.data %>% 
   ggplot(aes(gift_choice)) +
@@ -591,6 +593,38 @@ analysis.data %>%
   facet_grid(dewormed.any ~ cal_value)
 ```
 
+## Willing-to-Pay Survey
+
+```{r, fig.height=4}
+wtp.data %>% 
+  filter(!is.na(first_choice)) %>% 
+  ggplot() +
+  geom_bar(aes(first_choice, y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  labs(x = "First Choice", y = "Proportion", title = "First Choice When Offered Calendars or Bracelets", 
+       caption = "This data is for the control arm only.") +
+  coord_flip()
+```
+
+```{r}
+wtp.data %>% 
+  ggplot() +
+  geom_bar(aes(factor(price), y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  labs(x = "Offered Price (KSh)", y = "Proportion", title = "Prices Offered to Switch Gift Choice")
+```
+
+```{r}
+wtp.data %>% 
+  filter(!is.na(first_choice)) %>% 
+  group_by(first_choice, price) %>% 
+  summarize(prop.switch = sum(second_choice == "switch")/n()) %>% 
+  ungroup %>% 
+  ggplot(aes(factor(price), prop.switch, group = first_choice)) +
+  geom_point(aes(color = first_choice)) +
+  geom_line(aes(color = first_choice)) +
+  scale_color_discrete("First Choice") +
+  labs(x = "Offered Price (KSh)", y = "Proportion", title = "Proportion Switching From First Choice of Gift When Offered Cash",
+       caption = "This data is for the control arm only.") 
+```
 
 # Reduced Form Analysis
 
