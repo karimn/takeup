@@ -3669,6 +3669,8 @@ endline.know.table.data <- bind_rows(table.A = read_csv("raw-data/Endline Survey
                                                  dewormed.know.only = dewormedBB,
                                                  PARENT_KEY, KEY),
                                      .id = "know.table.type")
+
+write_rds(endline.know.table.data, file.path("data", "know_tables.rds"))
 ```
 
 # Reconsents
