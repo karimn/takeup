@@ -3758,9 +3758,9 @@ if (bc.diff > 0) {
 # Willingness-to-Pay
 
 ```{r wtp-data}
-wtp.sample <- read_rds("data/takeup_wtp_sample_2.0.rds")
+wtp.sample <- read_rds(file.path("data", "takeup_wtp_sample_2.0.rds"))
 
-wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>% 
+wtp.data <- read_csv(file.path("raw-data", "Willingness To Pay.csv")) %>% 
   mutate_at(vars(SubmissionDate, starttime, endtime), 
             funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
                    format(tz = "Africa/Nairobi") %>% 
@@ -3769,8 +3769,8 @@ wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>%
          KEY.hh = person,
          lon = `gps-Longitude`,
          lat = `gps-Latitude`) %T>% {
-           count(., KEY.hh) %>% filter(n > 1) %>% print
-         } %>%
+    count(., KEY.hh) %>% filter(n > 1) %>% print
+  } %>%
   group_by(KEY.hh) %>% 
   mutate(duplicates = n()) %>% 
   ungroup %>% 
@@ -3783,6 +3783,8 @@ wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>%
                                        spTransform(kenya.proj4),
                                      byid = TRUE) %>% diag,
          far.from.census = dist.to.census > 50)
+
+write_rds(wtp.data, file.path("data", "takeup_wtp.rds"))
 ```
 
 ```{r plot-wtp-code}
