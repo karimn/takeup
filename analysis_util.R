@@ -60,7 +60,8 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
            baseline.sample = !is.na(baseline.sample.wave),
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
-    left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, any.sms.reported), "KEY.individ") %>% 
+    left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, any.sms.reported, gift_choice,
+                     hh_cal, cal_value), "KEY.individ") %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.)))
 }
@@ -104,7 +105,7 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
     filter(row_number() == 1) %>% 
     ungroup %>% 
     base.prepare.baseline.endline.data %>% 
-    mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported, hh_cal, cal_value), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
     mutate_at(vars(treat_begin, days_available, treat_end), funs(factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
     mutate(treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
            treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
@@ -112,7 +113,8 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
            find_out = multi.factor(find_out, 
                                    levels = c(1:9, 99), 
                                    labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
-                                              "other"))) %>%
+                                              "other")),
+           gift_choice = factor(gift_choice, levels = 1:3, labels = c("bracelet", "calendar", "neither"))) %>%
     left_join(select(.cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), c("cluster.id")) %>% 
     left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop), "KEY.individ")  
            # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))

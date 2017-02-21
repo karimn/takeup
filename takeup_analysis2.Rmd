@@ -497,6 +497,101 @@ analysis.data %>%
   facet_wrap(~ assigned.treatment)
 ```
 
+# Incentive Preferences
+
+```{r}
+endline.data %>% 
+  ggplot(aes(gift_choice)) +
+  geom_bar(aes(y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", subtitle = "Pooling all arms") +
+  coord_flip() 
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent) %>% 
+  group_by(assigned.treatment) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n()/first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", subtitle = "Split by incentive arm") +
+  facet_wrap(~ assigned.treatment, nrow = 1)
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent) %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed")) %>% 
+  group_by(assigned.treatment, dewormed.any) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by incentive arm and deworming take-up") +
+  facet_grid(dewormed.any ~ assigned.treatment)
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent, !is.na(hh_cal), assigned.treatment == "calendar") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         hh_cal = fct_recode(hh_cal, "Other in household got calendar" = "yes", "No one else got calendar" = "no")) %>%
+  group_by(dewormed.any, hh_cal) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by whether household has other calendar(s) and deworming take-up", caption = "This is only for the calendar arm of the experiment") +
+  facet_grid(dewormed.any ~ hh_cal)
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(monitored, consent, !is.na(cal_value), assigned.treatment == "calendar") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         cal_value = fct_recode(cal_value, "Would still want a calendar" = "yes", "Would not want another calendar" = "no")) %>% 
+  group_by(dewormed.any) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(cal_value, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(cal_value, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "", y = "Proportion", title = "Would Still Value a Calendar When Household Already Has One", 
+       subtitle = "Split by deworming take-up", 
+       caption = "This is only for the calendar arm of the experiment and limited to those who reported other calendar(s) in their household") +
+  facet_wrap(~ dewormed.any, ncol = 1) + 
+  coord_flip()
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(monitored, consent, !is.na(cal_value), !is.na(gift_choice), assigned.treatment == "calendar") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         cal_value = fct_recode(cal_value, "Would still want a calendar" = "yes", "Would not want another calendar" = "no")) %>% 
+  group_by(dewormed.any, cal_value) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by stated desire for another calendar if household already has one and deworming take-up", 
+       caption = "This is only for the calendar arm of the experiment and limited to those who reported other calendar(s) in their household") +
+  facet_grid(dewormed.any ~ cal_value)
+```
+
+
 # Reduced Form Analysis
 
 Below is the main regression specification, where $m(\cdot)$ and $m_1(\cdot)\dots m_{K-1}(\cdot)$ define the causal effects to estimate. $l(\cdot)$ and $l_1(\cdot)\dots l_{K-1}(\cdot)$ define the regression intercepts.
@@ -1031,7 +1126,7 @@ neyman.results %>%
 
 ### Regression With Controls
 
-```{r, echo=TRUE}
+```{r}
 reg.output.sms.treat.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
@@ -1039,7 +1134,9 @@ reg.output.sms.treat.covar <- analysis.data %>%
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.covar %>% tidy(.include_covar = FALSE) %>% kable(digits = 4)
+reg.output.sms.treat.covar %>% 
+  tidy(.include_covar = FALSE) %>% 
+  kable(digits = 4)
 ```
 
 Some linear hypotheses testing:
