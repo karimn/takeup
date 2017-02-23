@@ -32,6 +32,8 @@ library(stringr)
 library(knitr)
 library(bigmemory)
 
+library(econometr)
+
 source("../util.R")
 source("takeup_rct_assign_clusters.R")
 
@@ -1238,7 +1240,7 @@ verify.vill.pot.dist <- village.centers %>%
   filter(cluster.id %in% known.pot.locations$cluster.id, !is.na(lon.verify), !is.na(lat.verify)) %>% 
   get.vill.pot.dist(pot.coords.formula = ~ lon.verify + lat.verify) 
 
-save(vill.pot.dist, verify.vill.pot.dist, file = "data/takeup_village_pot_dist.RData")
+save(vill.pot.dist, verify.vill.pot.dist, village.centers, file = file.path("data", "takeup_village_pot_dist.RData"))
 ```
 
 ```{r}
@@ -2317,7 +2319,7 @@ is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
 
 
 ```{r baseline-data}
-baseline.data <- tu.data.reader("raw-data/Baseline Survey.csv") %>% 
+baseline.data <- tu.data.reader(file.path("raw-data", "Baseline Survey.csv")) %>% 
   filter(SubmissionDate >= "2016-09-05", 
          !is.na(present) & present == 1, 
          !is.na(consent) & consent == 1) %>% 
@@ -2537,7 +2539,7 @@ baseline.data %>%
 ```{r sms-recruit-data}
 factor.text_type <- . %>% factor(levels = 1:2, labels = c("social.info", "reminder.only"))
 
-all.sms.recruit.data <- read_csv("raw-data/Takeup Text Messages.csv", 
+all.sms.recruit.data <- read_csv(file.path("raw-data", "Takeup Text Messages.csv"), 
                              col_types = list(SubmissionDate = takeup.datetime.type,
                                               starttime = takeup.datetime.type,
                                               endtime = takeup.datetime.type)) %>% 
@@ -2564,13 +2566,13 @@ all.sms.recruit.data %>%
   left_join(count(all.sms.recruit.data, cluster.id), "cluster.id") %>% 
   right_join(select(cluster.strat.data, cluster.id, wave), ., "cluster.id")
 
-manual.sms.match.list <- read_csv("data/unmatched_sms_wave1.csv", 
+manual.sms.match.list <- read_csv(file.path("data", "unmatched_sms_wave1.csv"), 
                                   col_names = c("KEY.recruit", "name", "KEY.individ.manual"), skip = 1) %>% 
-  bind_rows(read_csv("data/unmatched_sms_wave1_2.csv", 
+  bind_rows(read_csv(file.path("data", "unmatched_sms_wave1_2.csv"), 
                      col_names = c("KEY.recruit", "name", "KEY.individ.manual")))
 
-sms.list <- bind_rows(latest = read_csv("data/sms_list_0929.csv"), 
-                      original = read_csv("data/sms_list_original.csv"), 
+sms.list <- bind_rows(latest = read_csv(file.path("data", "sms_list_0929.csv")), 
+                      original = read_csv(file.path("data", "sms_list_original.csv")), 
                       .id = "data.source") %>% 
   transmute(person_key, KEY.individ, data.source, sms.treatment = factor.text_type(text_type))
 
@@ -3604,7 +3606,7 @@ plot.endline <- function(cluster.ids, .data, ...) {
 
 ### Wave 1 
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
 all.endline.data %>% 
   filter(wave == 1) %>% 
   with(union(cluster.id, closest.cluster)) %>% 
@@ -3636,7 +3638,7 @@ to.follow.up.on <- c("uuid:ea9ae571-ac44-4820-ab7e-99efda8227d7",
 drop.from.plot <- c("uuid:dbc12f70-9203-4d90-aacb-4c1ac3e1dbd5") # Finalized in office
 ```
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center"}
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.align="center", eval=FALSE}
 all.endline.data %>% 
   filter(wave == 2,
          !KEY %in% c(drop.from.plot, to.follow.up.on)) %>% 
@@ -3667,6 +3669,8 @@ endline.know.table.data <- bind_rows(table.A = read_csv("raw-data/Endline Survey
                                                  dewormed.know.only = dewormedBB,
                                                  PARENT_KEY, KEY),
                                      .id = "know.table.type")
+
+write_rds(endline.know.table.data, file.path("data", "know_tables.rds"))
 ```
 
 # Reconsents
@@ -3756,9 +3760,9 @@ if (bc.diff > 0) {
 # Willingness-to-Pay
 
 ```{r wtp-data}
-wtp.sample <- read_rds("data/takeup_wtp_sample_2.0.rds")
+wtp.sample <- read_rds(file.path("data", "takeup_wtp_sample_2.0.rds"))
 
-wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>% 
+wtp.data <- read_csv(file.path("raw-data", "Willingness To Pay.csv")) %>% 
   mutate_at(vars(SubmissionDate, starttime, endtime), 
             funs(parse_datetime(., datetime.format, locale = locale(tz = "America/New_York")) %>%
                    format(tz = "Africa/Nairobi") %>% 
@@ -3767,12 +3771,13 @@ wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>%
          KEY.hh = person,
          lon = `gps-Longitude`,
          lat = `gps-Latitude`) %T>% {
-           count(., KEY.hh) %>% filter(n > 1) %>% print
-         } %>%
+    count(., KEY.hh) %>% filter(n > 1) %>% print
+  } %>%
   group_by(KEY.hh) %>% 
   mutate(duplicates = n()) %>% 
   ungroup %>% 
-  left_join(select(wtp.sample, KEY, lon, lat), by = c("KEY.hh" = "KEY"), suffix = c(".wtp", ".census")) %>% 
+  left_join(transmute(wtp.sample, KEY, lon, lat, sampling.cluster.id = cluster.id), 
+            by = c("KEY.hh" = "KEY"), suffix = c(".wtp", ".census")) %>% 
   rename(lon = lon.wtp, lat = lat.wtp) %>% 
   left_join(identify.closest.cluster(., key.variable = "KEY.hh"), "KEY.hh") %>% 
   mutate(dist.to.census = gDistance(convert.to.sp(., ~ lon + lat, wgs.84) %>% 
@@ -3781,6 +3786,11 @@ wtp.data <- read_csv("raw-data/Willingness To Pay.csv") %>%
                                        spTransform(kenya.proj4),
                                      byid = TRUE) %>% diag,
          far.from.census = dist.to.census > 50)
+
+validate::check_that(wtp.data, identical(cluster.id, sampling.cluster.id)) %>% 
+  summary
+
+write_rds(wtp.data, file.path("data", "takeup_wtp.rds"))
 ```
 
 ```{r plot-wtp-code}

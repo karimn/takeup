@@ -69,6 +69,7 @@ options(dplyr.show_progress = FALSE, digits = 4)
 write.dta(analysis.data, "~/Desktop/takeup.data.dta")# Data
 
 ```{r load-data, include=FALSE}
+
 census.data <- read_rds(file.path("data", "takeup_census.rds"))
 all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
 reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
@@ -396,18 +397,16 @@ reg.endline.beliefs <- endline.data %>%
   mutate(sms.treated = if_else(sms.treatment != "sms.control", "treated", "control"),
          sms.treatment = factor(sms.treatment) %>% relevel(ref = "social.info")) %>% 
   group_by(sms.treated, assigned.treatment, dist.pot.group) %>% 
-  do(filter(., !is.outlier(.$dworm_rate))) %>% 
+  do(filter(., !is_outlier(.$dworm_rate))) %>% 
   ungroup %>% 
   run_strat_reg(dworm_rate ~ assigned.treatment * dist.pot.group * sms.treatment, .strat.by = c("county"), .cluster = "cluster.id", .covariates = c("school", "floor", "ethnicity"))
 
 reg.endline.beliefs %>% 
   tidy %>% 
-  kable
-
-
+  kable(digits = 4)
 ```
 
-```{r}
+```{r, echo=TRUE}
 linear_tester(reg.endline.beliefs, 
               # Effect of incentive
               c("far",
@@ -459,23 +458,172 @@ baseline.data %>%
   labs(title = "More/less will come with ink?", x = "")
 ```
 
-# Balance
+# Treatment Assignment
+
+## Balance
 
 ```{r, echo=TRUE}
 balance.data <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  select_(.dots = c("assigned.treatment", reg.covar)) %>% 
+  select_(.dots = c("assigned.treatment", reg.covar, "dist.pot.group")) %>% 
   mlogit.data(choice = "assigned.treatment") 
 
 unrestricted.reg <- balance.data %>% 
-  mlogit::mlogit(as.formula(sprintf("assigned.treatment ~ 0 | %s", paste(reg.covar, collapse = " + "))), data = .) 
+  mlogit::mlogit(as.formula(sprintf("assigned.treatment ~ 0 | %s", paste(c(reg.covar, "dist.pot.group"), collapse = " + "))), data = .) 
 
 restricted.reg <- balance.data %>% 
   na.omit %>% 
   mlogit::mlogit(assigned.treatment ~ 0 | 1, data = .) 
 
 waldtest(unrestricted.reg, restricted.reg) 
+```
+
+## Distance Assignment
+
+```{r}
+analysis.data %>%  
+  filter(monitored, monitor.consent, !baseline.sample) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  ggplot(aes(dist.to.pot)) +
+  geom_density(aes(color = dist.pot.group, linetype = "Household")) +
+  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"), data = village.centers) +
+  geom_vline(xintercept = c(1250), linetype = "dashed") +
+  labs(x = "Distance to PoT (meters)", y = "Density", 
+       caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
+  scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
+  scale_linetype_discrete("Distance From") +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ assigned.treatment)
+```
+
+# Incentive Preferences
+
+## Self-reported Preferences (Endline)
+
+```{r}
+endline.data %>% 
+  ggplot(aes(gift_choice)) +
+  geom_bar(aes(y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", subtitle = "Pooling all arms") +
+  coord_flip() 
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent) %>% 
+  group_by(assigned.treatment) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n()/first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", subtitle = "Split by incentive arm") +
+  facet_wrap(~ assigned.treatment, nrow = 1)
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent) %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed")) %>% 
+  group_by(assigned.treatment, dewormed.any) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by incentive arm and deworming take-up") +
+  facet_grid(dewormed.any ~ assigned.treatment)
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent, !is.na(hh_cal), assigned.treatment == "calendar") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         hh_cal = fct_recode(hh_cal, "Other in household got calendar" = "yes", "No one else got calendar" = "no")) %>%
+  group_by(dewormed.any, hh_cal) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by whether household has other calendar(s) and deworming take-up", caption = "This is only for the calendar arm of the experiment") +
+  facet_grid(dewormed.any ~ hh_cal)
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(monitored, consent, !is.na(cal_value), assigned.treatment == "calendar") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         cal_value = fct_recode(cal_value, "Would still want a calendar" = "yes", "Would not want another calendar" = "no")) %>% 
+  group_by(dewormed.any) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(cal_value, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(cal_value, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "", y = "Proportion", title = "Would Still Value a Calendar When Household Already Has One", 
+       subtitle = "Split by deworming take-up", 
+       caption = "This is only for the calendar arm of the experiment and limited to those who reported other calendar(s) in their household") +
+  facet_wrap(~ dewormed.any, ncol = 1) + 
+  coord_flip()
+```
+
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(monitored, consent, !is.na(cal_value), !is.na(gift_choice), assigned.treatment == "calendar") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         cal_value = fct_recode(cal_value, "Would still want a calendar" = "yes", "Would not want another calendar" = "no")) %>% 
+  group_by(dewormed.any, cal_value) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by stated desire for another calendar if household already has one and deworming take-up", 
+       caption = "This is only for the calendar arm of the experiment and limited to those who reported other calendar(s) in their household") +
+  facet_grid(dewormed.any ~ cal_value)
+```
+
+## Willing-to-Pay Survey
+
+```{r, fig.height=4}
+wtp.data %>% 
+  filter(!is.na(first_choice)) %>% 
+  ggplot() +
+  geom_bar(aes(first_choice, y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  labs(x = "First Choice", y = "Proportion", title = "First Choice When Offered Calendars or Bracelets", 
+       caption = "This data is for the control arm only.") +
+  coord_flip()
+```
+
+```{r}
+wtp.data %>% 
+  ggplot() +
+  geom_bar(aes(factor(price), y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  labs(x = "Offered Price (KSh)", y = "Proportion", title = "Prices Offered to Switch Gift Choice")
+```
+
+```{r}
+wtp.data %>% 
+  filter(!is.na(first_choice)) %>% 
+  group_by(first_choice, price) %>% 
+  summarize(prop.switch = sum(second_choice == "switch")/n()) %>% 
+  ungroup %>% 
+  ggplot(aes(factor(price), prop.switch, group = first_choice)) +
+  geom_point(aes(color = first_choice)) +
+  geom_line(aes(color = first_choice)) +
+  scale_color_discrete("First Choice") +
+  labs(x = "Offered Price (KSh)", y = "Proportion", title = "Proportion Switching From First Choice of Gift When Offered Cash",
+       caption = "This data is for the control arm only.") 
 ```
 
 # Reduced Form Analysis
@@ -518,6 +666,19 @@ where $E[Y_{ij}(z) - Y_{ij}(control)] = \tau(z)$ and $E[Y_{ij}(control)] = \alph
 
 Without controls (using cluster robust standard errors). ~~Also including block bootstrapped standard errors and p-values.~~
 
+```{r}
+# analysis.data %>%
+#   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
+#   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
+#   unite(stratum, county, dist.pot.group, sep = ".") %>%
+#   select(dewormed.any, assigned.treatment, stratum, cluster.id) %>%
+#   na.omit %>%
+#   group_by(stratum) %>%
+#   mutate(stratum.weight = n()) %>%
+#   ungroup %>%
+#   lm(dewormed.any ~ assigned.treatment, data = ., weights = stratum.weight)
+```
+
 ```{r, warning=FALSE}
 reg.output.sms.ctrl <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
@@ -551,7 +712,7 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl) %>% {
 
 ```{r}
 neyman.results <- analysis.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   analyze.neyman.blk.bs(0) %>% 
   # analyze.neyman.blk.bs(2000) %>% 
@@ -627,7 +788,7 @@ reg.output.sms.ctrl.calendar.covar <- analysis.data %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar)
 
-kable(tidy(reg.output.sms.ctrl.covar, .include_covar = TRUE), digits = 4)
+kable(tidy(reg.output.sms.ctrl.covar, .include_covar = FALSE), digits = 4)
 ```
 
 ```{r, echo=FALSE}
@@ -688,7 +849,7 @@ reg.output.nonphone.covar <- analysis.data %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-kable(tidy(reg.output.nonphone.covar, .include_covar = TRUE), digits = 4)
+kable(tidy(reg.output.nonphone.covar, .include_covar = FALSE), digits = 4)
 ```
 
 Testing the joint hypothesis of difference in impact between phone and non-phone owners:
@@ -724,6 +885,8 @@ prep.sms.ctrl.plot.data(reg.output.nonphone.covar, .interact.with = "phone.owner
 
 ## Treatment Effect Heterogeneity by Distance to PoT
 
+### Discrete Distance Categories
+
 Here we estimate the below models
 
 $$
@@ -738,7 +901,7 @@ $$
 E[Y_{ij}(z) - Y_{ij}(control) | D_j = d] = \tau(z) + \lambda(z)\cdot d 
 $$
 
-### Regression Without Controls
+#### Regression Without Controls
 
 ```{r}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
@@ -819,7 +982,7 @@ neyman.results %>%
   kable()
 ```
 
-### Regression With Controls
+#### Regression With Controls
 
 ```{r}
 reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
@@ -828,7 +991,7 @@ reg.output.sms.ctrl.dist.covar <- analysis.data %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
 
-kable(tidy(reg.output.sms.ctrl.dist.covar, .include_covar = TRUE), digits = 4)
+kable(tidy(reg.output.sms.ctrl.dist.covar, .include_covar = FALSE), digits = 4)
 ```
 
 ```{r, fig.width=12}
@@ -837,6 +1000,35 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
   plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
     labs(subtitle = "With controls") 
 }
+```
+
+### Continuous Distance Measure
+
+```{r}
+reg.output.sms.ctrl.cont.dist <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
+         dist.to.pot.2 = dist.to.pot^2) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * (dist.to.pot + dist.to.pot.2), .strat.by = "county", .cluster = "cluster.id")
+
+kable(tidy(reg.output.sms.ctrl.cont.dist), digits = 4)
+```
+
+```{r}
+reg.output.sms.ctrl.cont.dist %>% 
+  # linear_tester(c("ink:dist.to.pot + ink",
+  #                 "calendar:dist.to.pot + calendar",
+  #                 "bracelet:dist.to.pot + bracelet",
+  #                 "bracelet - ink",
+  #                 "bracelet:dist.to.pot + bracelet - ink:dist.to.pot - ink",
+  #                 "1.5 * bracelet:dist.to.pot + bracelet - 1.5 * ink:dist.to.pot - ink",
+  #                 "2 * bracelet:dist.to.pot + bracelet - 2 * ink:dist.to.pot - ink",
+  #                 "2.5 * bracelet:dist.to.pot + bracelet - 2.5 * ink:dist.to.pot - ink")) %>% 
+  linear_tester(c("bracelet:dist.to.pot + bracelet:dist.to.pot.2 + bracelet - ink:dist.to.pot - ink:dist.to.pot.2 - ink",
+                  "2 * bracelet:dist.to.pot + 4 * bracelet:dist.to.pot.2 + bracelet - 2 * ink:dist.to.pot - 4 * ink:dist.to.pot.2 - ink",
+                  "2.5 * bracelet:dist.to.pot + 6.25 * bracelet:dist.to.pot.2 + bracelet - 2.5 * ink:dist.to.pot - 6.25 * ink:dist.to.pot.2 - ink")) %>% 
+  kable(digits = 4)
 ```
 
 ## SMS Treatment
@@ -968,7 +1160,7 @@ neyman.results %>%
 
 ### Regression With Controls
 
-```{r, echo=TRUE}
+```{r}
 reg.output.sms.treat.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
@@ -976,7 +1168,9 @@ reg.output.sms.treat.covar <- analysis.data %>%
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.covar %>% tidy(.include_covar = TRUE) %>% kable(digits = 4)
+reg.output.sms.treat.covar %>% 
+  tidy(.include_covar = FALSE) %>% 
+  kable(digits = 4)
 ```
 
 Some linear hypotheses testing:
@@ -1003,7 +1197,7 @@ prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
 } 
 ```
 
-## Over Time
+## Take-Up and SMS Treatment Over Time
 
 ```{r, echo=TRUE}
 after.msg.days <- seq(3, 11, 2)
@@ -1052,8 +1246,14 @@ social.info.data %>% {
 
 ```{r, fig.width=14, echo=TRUE}
 time.takeup.data %>% 
-  transmute(dewormed.day = dewormed.day.any, cumul = cumul.takeup.prop, assigned.treatment, sms.treatment) %>% 
-  bind_rows(takeup = ., social.info = social.info.data, .id = "cumul.type") %>% 
+  transmute(dewormed.day = dewormed.day.any, 
+            cumul = cumul.takeup.prop, 
+            assigned.treatment, 
+            sms.treatment) %>% 
+  bind_rows(takeup = ., 
+            social.info = distinct(social.info.data, dewormed.day, assigned.treatment, .keep_all = TRUE) %>% 
+              rename(cumul = all.dist.cumul), 
+            .id = "cumul.type") %>% 
   mutate(cumul.type.sms = if_else(!is.na(sms.treatment), paste(cumul.type, sms.treatment, sep = "-"), cumul.type)) %>% {
     plot.takeup.dynamics(., .aes = aes(dewormed.day, cumul, color = assigned.treatment, linetype = cumul.type.sms, shape = cumul.type)) +
       scale_linetype_manual("", labels = c("Reported Take-up", "Reminders Only", "No SMS", "Social Info SMS"), values = c("dotdash", "dotted", "solid", "dashed")) +
@@ -1114,7 +1314,7 @@ reg.output.sms.treat.dist.covar <- analysis.data %>%
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
-reg.output.sms.treat.dist.covar %>% tidy(.include_covar = TRUE) %>% kable(digits = 4)
+reg.output.sms.treat.dist.covar %>% tidy(.include_covar = FALSE) %>% kable(digits = 4)
 ```
 
 ```{r, fig.width=12}

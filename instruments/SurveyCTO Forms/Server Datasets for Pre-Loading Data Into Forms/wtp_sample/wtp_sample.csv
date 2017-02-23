@@ -1,0 +1,601 @@
+person_key,name_census,hhh_census,nickname_census,two_digits,county_name,county_key,constituency_name,constituency_key,ward_name,ward_key,cluster_key,phone,directions,price
+uuid:15130084-7ed8-413b-b832-c077976620a7,,Jerimy Onyango,,,Siaya,103,Gem,116,Central Gem,164,26,,Owila village on right side of the road ask for Jerimy onyango home,20
+uuid:a55f87e1-fb5f-4513-9e6f-bb74d64e2f0a,,Jacob Otieno,,,Siaya,103,Gem,116,Central Gem,164,26,,From owalo dispensary towards siaya there is a signpost indicated manga on the left is the house,40
+uuid:fa3f813b-34a8-4223-9e34-983c1bdb1e0a,,Gordon Poka,,,Siaya,103,Gem,116,Central Gem,164,26,,Top most part of sidula hills,90
+uuid:b415d3c5-3222-4de7-98c2-15d20d0fa1d2,,Jane Anyango,,,Siaya,103,Gem,116,Central Gem,164,26,,Next to olengo stage. On your right on your way to kisumu about 50m from the stage,30
+uuid:f06d0160-6c93-4224-b7bb-a1aa9d3a43e7,,Loyce Ng'ongo,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,50
+uuid:40d1a358-b2b4-4768-9635-36f9409425c2,,Erick Ochieng,,,Siaya,103,Gem,116,Central Gem,164,26,,On siaya-lwanda road towards lwanda 2km past owila dispensary turn left follow the rough road up-to the permanent house with coloured black gate,50
+uuid:ca53edcf-33db-4a1e-910d-1c89573378cc,,Wellingtone Awiti,,,Siaya,103,Gem,116,Central Gem,164,26,,At mawe nyeupe on the left house with blue painting,90
+uuid:eb5c0892-1fbd-423d-8fbd-5e1a6845e9db,,Doreen Ofula,,,Siaya,103,Gem,116,Central Gem,164,26,,Permanent house adjacent to the road 1 kilometer from owila  dispensary.,10
+uuid:20feeb8d-35ea-4e17-851c-3f53a2fcb4e0,,Anastasia Achola,,,Siaya,103,Gem,116,Central Gem,164,26,,A semi permanent house next to the gate in a homestead with seven houses. It's about 200m from olengo stage on your left when traveling from Luanda,70
+uuid:c54dd374-2eb6-4e26-a4db-bc85e746ad72,,David Agik,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,10
+uuid:29bea248-2932-4625-ba81-908a92eee373,,Rosa Sijeni,,,Siaya,103,Gem,116,Central Gem,164,26,,About 200m right of olengo stage on your way to kisumu,80
+uuid:b4a75c84-af23-49a9-a935-e57ee8f73d44,,Monica Aduda,,,Siaya,103,Gem,116,Central Gem,164,26,,50m on your right from the olengo stage,40
+uuid:384f49b4-3d83-4a2c-93e3-983f0bf84b6f,,Moses Oyoo,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,90
+uuid:1d617481-f167-4ba0-adcb-d5a5d417dd89,,James Nyamutha,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,30
+uuid:4ba04358-118d-420d-8a1a-caeeec1479e2,,Patrick Aluoch,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,10
+uuid:e6f2a9da-a1e4-4151-ab3b-8ab80a363c93,,George Warambo,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,40
+uuid:8887a9e1-e9b7-4da3-8533-e1388b48e7e8,,Jane Anyango,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,30
+uuid:a3f1f95a-ba1a-4a4b-a814-33db6f00eaea,,Joash Wesonga,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,60
+uuid:e29a6099-18c0-46a9-96fc-7906edf378b8,,Joyce Odongo,,,Siaya,103,Gem,116,Central Gem,164,26,,"At owila  dispensary head directly south approximately 3 kilometres, ask for mama-irene. House is semipermant in a large compound.",80
+uuid:5ea056a5-3472-4b81-8e08-2abc8c340e1d,,Barack Omondi,,,Siaya,103,Gem,116,Central Gem,164,26,,On the right of olengo stage on your way to kisumu about 200m,80
+uuid:96a63941-bdd3-4a54-8a72-5fe7c08787db,,George Otieno,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,100
+uuid:70a2a9bb-c553-4d20-aee9-bc8da799f033,,Maria Odongo,,,Siaya,103,Gem,116,Central Gem,164,26,,On sidula hills south of owila stage. Semi permanent house surrounded by natural trees.,70
+uuid:c642580f-fd1b-4a61-ace2-60b2ab6ce834,,Michael Aduol,,,Siaya,103,Gem,116,Central Gem,164,26,,On siaya-lwanda 200m from owila dispensary towards siaya turn left ask for aduol home,20
+uuid:518f06ef-0b02-44da-8fea-bf4a6d79f9e4,,Leonard Omenya,,,Siaya,103,Gem,116,Central Gem,164,26,,On the sidula hills,100
+uuid:5c2e6348-f74e-4abb-b2ed-3081433c03bc,,Benerd Okwiri,,,Siaya,103,Gem,116,Central Gem,164,26,,NA,60
+uuid:9f10e610-5daa-4964-b5d5-08a93b70700a,,Fredrick Kesa,,,Busia,101,Butula,101,Marachi North,105,54,,siribo primary school  close to kokoyo shop,70
+uuid:aa028298-f5f0-4c5f-85c7-1743140815cd,,Simon Simon,,,Busia,101,Butula,101,Marachi North,105,54,,Turn right after alighting at Faith of Fire church then move southwards behind the church,20
+uuid:b07edfa1-d233-45e4-97f6-2c45b51a13e6,,David Otieno,,,Busia,101,Butula,101,Marachi North,105,54,,Close to siribo primary school,80
+uuid:cb2a0d3d-90a3-44e1-aa9d-2f840249f9f8,,Luka Ochuna,,,Busia,101,Butula,101,Marachi North,105,54,,"The house is along siribo road  headed to mosque its in a small centre ,the house has a small shop called Okoyo shop",20
+uuid:2fc73eef-b90f-45f3-97c9-ba41d3224a1a,,Sabastian Obuya,,,Busia,101,Butula,101,Marachi North,105,54,,From the mosque its around 300mtres and it is a permanent house with a Red gate,70
+uuid:f2929a78-88a3-4c96-95dc-480f1ec4366a,,Amos Masoni,,,Busia,101,Butula,101,Marachi North,105,54,,Next  to mitume  Church,10
+uuid:d8a5826b-6d73-41cc-809b-4f46df0c3452,,Fredrick Ochanda,,,Busia,101,Butula,101,Marachi North,105,54,,Same direction with Ochanda home,10
+uuid:76df6a04-e703-427b-83e1-bef6babbfe85,,Wilfrida Wilfrida,,,Busia,101,Butula,101,Marachi North,105,54,,Off the Ogalo-Lugulu road near the Faith of Fire Pentecostal church,30
+uuid:6b337b31-309b-46e0-9c34-c5750c79b084,,Geofry Kweyu,,,Busia,101,Butula,101,Marachi North,105,54,,From  Busia to luganyiro then ask  for lonah kweyi's home next to mauko  primary.,50
+uuid:25e75c9b-cb49-417d-acb6-36a26dd93751,,Vincas Acholla,,,Busia,101,Butula,101,Marachi North,105,54,,Opposite Marko primary turn right first homestead to the left,50
+uuid:458fcdc7-8316-4dcc-baf2-f9f1b2f13422,,Charles Oujo,,,Busia,101,Butula,101,Marachi North,105,54,,Take lugulu road from nambale to siribo primary school then ask for opanga home.,100
+uuid:995add68-e615-40b4-85c9-7b0a50f5c438,,Rose Obare,,,Busia,101,Butula,101,Marachi North,105,54,,Along osiribo road,100
+uuid:079f42bc-1587-412d-8920-c780a2666149,,Cornel Omondi,,,Busia,101,Butula,101,Marachi North,105,54,,"Turn immediate right after the mosque, first homestead on the left",80
+uuid:9971c16b-c3bb-4c63-9cfd-82d6e34749f3,,Joseph Opondo,,,Busia,101,Butula,101,Marachi North,105,54,,The house is next to the mosque along siribo road then you ask for mwalimu juma's house,30
+uuid:3b239d9f-4909-4127-9527-617441924fa0,,Chrispinos Chrispinos,,,Busia,101,Butula,101,Marachi North,105,54,,Same direction with Ochanda home,100
+uuid:ae6f77ea-aa11-4727-b352-c1bcbddf3a9d,,Ignatius Ombalo,,,Busia,101,Butula,101,Marachi North,105,54,,Close to siribo primary school,60
+uuid:c5e59066-8d0b-4c42-b9d4-dd4dcc407c7f,,Steven Otsieno,,,Busia,101,Butula,101,Marachi North,105,54,,From the center its a half a kilometre and near a big mvule tree,60
+uuid:8729abc7-7dac-4584-bf11-e09ae2b37ef8,,Hellen Atieno,,,Busia,101,Butula,101,Marachi North,105,54,,From the Mosque its more than half a metre northwards it is a permanent house printed maroon,90
+uuid:e305af44-479c-42d1-abdd-499b039f841a,,Rafael Obunde,,,Busia,101,Butula,101,Marachi North,105,54,,From the mosque its slightly more than half a kilometre it is semiparmenent and near maroon paintend parmanent house,90
+uuid:a3da8698-fbfe-4bd5-a9ff-940830f52e63,,James Opondo,,,Busia,101,Butula,101,Marachi North,105,54,,From lugulu you connect to siribo road next to siribo primary you ask for Onyango's home the house is a long cemented building looking a bit old,60
+uuid:3ec47f61-9fb7-42d0-ba92-036e5ba3f5ba,,Charles Okuku,,,Busia,101,Butula,101,Marachi North,105,54,,Behind the shops and hotel... Near a church,40
+uuid:87522178-8062-44d5-9e96-4d42f82dd7c6,,Christopher Were,,,Busia,101,Butula,101,Marachi North,105,54,,Ask  for  Were  opiyo  in Mauko  primary.,50
+uuid:2ee481f0-d223-4582-9f36-49e3822a909f,,Francis Okoth,,,Busia,101,Butula,101,Marachi North,105,54,,Take a right turn immediately before the mosque.... The last homestead to the left,40
+uuid:af129109-7c7d-4636-bdc6-4c8e8f146fe3,,Phoustine Juma,,,Busia,101,Butula,101,Marachi North,105,54,,turn right before the mosque the fourth homestead to the left,90
+uuid:921b3fea-e35a-44da-a906-4bad3dcdd7fc,,Willis Achola,,,Busia,101,Butula,101,Marachi North,105,54,,Close to siribo primary school and the mosque,70
+uuid:d55c7772-eb09-4271-9c4e-023bc92e3eb5,,Francis Olamo,,,Busia,101,Butula,101,Elugulu,101,64,,Behind Malanga dispensary,80
+uuid:d83341ff-4c43-455a-956a-e7ff82a6cea2,,Jared Maroko,,,Busia,101,Butula,101,Elugulu,101,64,,150m from main road,30
+uuid:10268427-b3a6-4b28-8671-5e2e92312c49,,Joseph Ndubi,,,Busia,101,Butula,101,Elugulu,101,64,,120m from main road before  church,30
+uuid:f471c6a4-4d91-48e9-ab0b-4d77ca27dc1a,,Smile Nduvi,,,Busia,101,Butula,101,Elugulu,101,64,,100m right from main road before market center,70
+uuid:17b5d6be-3a20-4758-9433-9af5974a8a8a,,Benard Nyangeso,,,Busia,101,Butula,101,Elugulu,101,64,,Next to the chlorine dispenser near river muyala ask for Nyangweso's homestead,40
+uuid:0a070ff6-5177-4343-be46-ecc69d48610a,,Jofrey Wesonga,,,Busia,101,Butula,101,Elugulu,101,64,,From st Mary ACK church mabanga move 50m ask for okello homestead,10
+uuid:d02fea69-51e8-43fd-9f47-6d4a0186e8a0,,Amos Onyango,,,Busia,101,Butula,101,Elugulu,101,64,,Next to river muyala ask for Amos' residence,20
+uuid:9fa9c822-a625-4761-b244-75a9e572e658,,Teresina Olamu,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu dispensary then ask  for  Teresina's Home. (Namulundu),60
+uuid:ec39b966-4982-4147-94c7-8ebea6a2e70f,,Albart Barasa,,,Busia,101,Butula,101,Elugulu,101,64,,120m away from road,40
+uuid:e474b215-a866-4496-b8e5-135722223bdf,,Beatrice Adhiambo,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu-Mteremko then ask for Ogutu's Home.,20
+uuid:52595db5-bd0e-4203-a619-df5bf479406f,,Jackson Okoth,,,Busia,101,Butula,101,Elugulu,101,64,,Next to river muyala ask for Buluma's residence,40
+uuid:90f95e02-fa13-4e53-a060-bcaf37d43a2d,,Fredrick Sikuku,,,Busia,101,Butula,101,Elugulu,101,64,,Next to river Mwiyala as for Njomo's residence,80
+uuid:fa9da2a8-f2df-4ad9-9f0d-69612daf393f,,Franci Ogwero,,,Busia,101,Butula,101,Elugulu,101,64,,From st Mary ACK church ask for ogwero homestead,20
+uuid:77e17a27-9dfd-4328-a474-20156ae49a8a,,Robert Wesonga,,,Busia,101,Butula,101,Elugulu,101,64,,From at Mary ACK church move 500m ask for wesonga homestead,10
+uuid:a029ee81-9a07-40fd-b1cc-41d6389ee16a,,Chrispinus Wewa,,,Busia,101,Butula,101,Elugulu,101,64,,Same homestate,50
+uuid:421605e5-a640-41ef-99d5-b2dbc8d12a9f,,Stephen Ndubi,,,Busia,101,Butula,101,Elugulu,101,64,,130m from main road behind church,70
+uuid:590bad2a-816b-42ab-862d-2761c99e8383,,Henrika Auma,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu-Mteremko then behind Mteremko aso for Auma's home,80
+uuid:a268a6e1-20c9-4d65-a86f-a48ffd9a93fb,,Joseph Odhiambo,,,Busia,101,Butula,101,Elugulu,101,64,,Next to the chlorine dispenser near river muyala ask for Koroboi's residence,10
+uuid:db9df464-028c-40fd-b8b3-0e737b8a8c69,,Margaret Nabwire,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu dispensary then ask for Jomo's Home.,100
+uuid:39590bb3-3d03-4e6c-9958-806076633c1d,,Agneta Atieno,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu-Mteremko then ask for Francis Olele Okubi's home,100
+uuid:e51dda79-004b-4188-8e89-0e9fbe778844,,Hillary Owino,,,Busia,101,Butula,101,Elugulu,101,64,,From St Mary ACK church move 100m the house is semipermant with blue iron sheets,60
+uuid:23d83afa-a860-45f8-a01f-f0b73094ba30,,Roslyne Achieng,,,Busia,101,Butula,101,Elugulu,101,64,,Next to river muyala ask for mama Cynthia's residence,90
+uuid:82846804-6608-4697-9134-15b52a0bccdc,,Janestella Omondi,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu dispensary then ask for Tobias home,50
+uuid:59b3da9e-f633-485e-8c70-5f4e30efd3b2,,Martin Barasa,,,Busia,101,Butula,101,Elugulu,101,64,,Few meters from Malaga despensery,30
+uuid:b1bd0b5f-bddb-464c-8467-6075b2407ae5,,Peter Olele,,,Busia,101,Butula,101,Elugulu,101,64,,Busia-Nambale-Lugulu-Mteremko then  aso for Gungu's home,90
+uuid:8b0b17f9-4a6e-455f-867c-5a882ae886af,,Steve Nyawade,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is 150metres from Ugunja Catholic Church. It is along Ugunja Ndere road.,60
+uuid:5f8d530c-c99c-4f09-b910-d90553c5c14a,,Ruth Owano,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Near nyamasare school,20
+uuid:b125fafa-9b08-4112-a9bb-afc2fe8622ca,,Cornel Owiny,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Ask for cornel ochogo/japolo's homestead next to nyamasare primary school,70
+uuid:2683efd9-7a55-4957-86a8-eed04f1f6328,,Anastasia Omondi,,,Siaya,103,Ugunja,118,Ugunja,176,70,,A few metres before the Nyamasare Apostolic church take a left turn and ask around for Anastasia Omondi's home,40
+uuid:0df83438-1c79-4f33-9d6d-33220f730c15,,Veronica Omondi,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is located on the east of Mundindi ACK Church. Ask for Vero.,40
+uuid:8d3e6519-a948-433d-972b-e24f64a75bd8,,Paul Opondo,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Next to Methodist hospital,20
+uuid:f3ae0b95-0b8d-444d-8fb6-1e33ee14e033,,Joseph Ooko,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Ask for kooko kogada homestead behind nyamasare primary school,70
+uuid:e90f7a7f-396e-4685-b03b-0db6d7ac48cb,,Rhoda Yahuma,,,Siaya,103,Ugunja,118,Ugunja,176,70,,The household located at the junction to nyamasare primary school ugunja ndere road. The home is locally known as KOBOK.,60
+uuid:bc5f10c7-6f03-4aab-8287-275e27894787,,Kevin Rapudo,,,Siaya,103,Ugunja,118,Ugunja,176,70,,From ugunja to nyamasare primary school make a stop at the first transformer and turn right to the household located adjacent to it. The household is in a home known as KA RAPUDO,20
+uuid:880fd8b3-a415-46d0-b21f-d3d8021d1d4a,,Alice Adimba,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Ask for Maria dimba's homestead next to nyamasare primary school,50
+uuid:bc63446b-4a40-46d6-b959-5578d9dbf85f,,Rodgers Otieno,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is 5metres from Nyamasare Primary. It is along Ugunja Ndere road. Ask for mama Liz.,10
+uuid:c076061b-8530-40f4-b8ae-37c8c9d9b63a,,Ismael Akwiri,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Just before the Nyamasare Apostolic church take a  left turn and ask around for Akwiri's home.,80
+uuid:ce1d6f64-3b40-4c01-bb81-aa6400f1bafc,,Chrisphine Olwanda,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Near the Methodist Church,80
+uuid:54430a8c-a9e7-4168-a7c8-c4412514a07e,,Sylvester Oketch,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Near Methodist hospital,50
+uuid:25f6d198-f813-4fd1-bfa5-4a80e1bd2a12,,Ayub Odhiambo,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is located 500metres from Nyamasare Primary School. Ask for Deborah's homestead.,30
+uuid:930966ef-f8e9-4c31-a58a-4e2252146077,,Wilfrida Oile,,,Siaya,103,Ugunja,118,Ugunja,176,70,,"It is located on the north of Mundindi ACK Church, along Ugunja Ndere road.",70
+uuid:65846bd4-abf2-4778-abe8-21effe6b4601,,Rose Odhiambo,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is near Nyasamare Primary School about 150metres.  Ask for Nyar Ogwal's homestead.,10
+uuid:0a385ee8-b804-4d58-873a-2d81a8bd38f8,,George Ndunyi,,,Siaya,103,Ugunja,118,Ugunja,176,70,,From Sharom Academy ask for Kabuki home,100
+uuid:51838825-cebf-407f-9800-226f8861bbc9,,Josephine Owino,,,Siaya,103,Ugunja,118,Ugunja,176,70,,"At nyamasare health centre get to the household located opposite the health center known as Owino rahembe home, household direct to the gate",90
+uuid:8b519cab-9c91-44f0-9c7a-723d6fdc16e4,,Richard Onyango,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is 600metres from Nyamasare Primary School. Ask for Nyaloka's homestead.,60
+uuid:e497983e-9ada-481e-88e6-ee0e792062a4,,Birgita Adhoch,,,Siaya,103,Ugunja,118,Ugunja,176,70,,"Ask for  onyango obok's homestead about 500metres from nyamasare primary school,on your right",30
+uuid:debadd15-7c5f-4a57-a6bf-d9ddb023d5a6,,Margaret Obonyo,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Ask for kobonyo Kameda's homestead about 700metres from Nyamasare Apostolic church,90
+uuid:535f5909-71b1-4cbd-8a26-adc69511b375,,Joseph Okuto,,,Siaya,103,Ugunja,118,Ugunja,176,70,,From sharon star academy walk for 100m and ask for Okuto's house its billy with mud and grass thatch roof,100
+uuid:beec3025-4c11-4d21-98d9-23b3275ef348,,Richard Ndere,,,Siaya,103,Ugunja,118,Ugunja,176,70,,Ask for kowiro kandere's  homestead about 800metres from nyamasare primary school,40
+uuid:1ed0173e-8b05-4cff-90c1-3f53b913cd86,,Michael Oloo,,,Siaya,103,Ugunja,118,Ugunja,176,70,,It is on the east of Nyamasare ACK Church.,50
+uuid:2e9d343d-b553-43a8-82c0-c34dcd425462,,Karilus Ndugu,,,Siaya,103,Gem,116,South Gem,167,149,,House located in kamsao lower down wards from Dienya center,80
+uuid:fcdc37ae-8dc1-4f11-9bcb-d88715f7c953,,David Owiti,,,Siaya,103,Gem,116,West Gem,168,149,,"Kachari area ,Kamsau lower village. 2km from koto primary school. Well known as achamu household.",100
+uuid:43f53434-7b6a-41b4-b1b0-1cb6183021e8,,Francis Otieno,,,Siaya,103,Gem,116,West Gem,168,149,,Near ober primary,30
+uuid:a55e8d62-6189-4bed-8b1b-341dbf5052c3,,Wilfred Ochieng',,,Siaya,103,Gem,116,West Gem,168,149,,1km from koto primary school. Big mango tree Outside the household.,70
+uuid:b49811cd-1fa3-42ab-81bf-2227b90aae84,,Ruth Oloo,,,Siaya,103,Gem,116,West Gem,168,149,,300m from the main road that join wagai to kapuoch market. Neighbour to Mr. Walter onyango household.,90
+uuid:73a33bde-f30f-4072-a0a4-15180284fafd,,Alice Onyango,,,Siaya,103,Gem,116,West Gem,168,149,,Near dienya primary,70
+uuid:3a2ab040-01af-4009-b625-42eaea3e8fa3,,Evans Onyango,,,Siaya,103,Gem,116,South Gem,167,149,,Down side frm dienya,30
+uuid:a3ecde7d-c920-4355-bb48-ce5b97c94668,,Leonard Majiwa,,,Siaya,103,Gem,116,West Gem,168,149,,South west of dienya primary,40
+uuid:4f54a9a2-6202-4308-a07e-8f11666bbe33,,Clarys Awiti,,,Siaya,103,Gem,116,West Gem,168,149,,Near kumuk market,50
+uuid:6f383335-2d49-4de7-a6f6-9cd174fca754,,Gabriel Onyango,,,Siaya,103,Gem,116,South Gem,167,149,,"House located in kamsau lower village,next to Mbandes home.",100
+uuid:3da6f18c-719f-4ad5-9449-9a5291a95ced,,Gabriel Alayi,,,Siaya,103,Gem,116,West Gem,168,149,,Near ober primary,90
+uuid:3d8024e5-5518-42cf-ab04-9eaf2ba77664,,Mariko Oti,,,Siaya,103,Gem,116,West Gem,168,149,,North east of ober primary school,20
+uuid:8c2a2523-2aa5-4820-ada3-beb9da8f37d8,,Patrick Bande,,,Siaya,103,Gem,116,South Gem,167,149,,Homestead Located 500mtrs from Mbandes compound.,60
+uuid:4f258aa6-bef1-49fd-b065-5197bafe8074,,James Oudo,,,Siaya,103,Gem,116,West Gem,168,149,,South west of dieya primary,80
+uuid:3d0e5abd-abab-4c3e-9379-ab142b81620d,,Jane Atito,,,Siaya,103,Gem,116,West Gem,168,149,,Near kumuk market,50
+uuid:e2179aa0-8d81-4972-a99e-a27fa2842083,,George Ayir,,,Siaya,103,Gem,116,West Gem,168,149,,South west dienya primary school,50
+uuid:a4df4f32-e956-4381-afa4-86b64375e9fb,,Kevin Ouma,,,Siaya,103,Gem,116,South Gem,167,149,,1km from Dienya primary,60
+uuid:1ac9b232-c601-4cf2-82f9-1057f873aad0,,Consolata Okulu,,,Siaya,103,Gem,116,West Gem,168,149,,"Kachari area, 1.6km form main road,wagai to kapuoche market.well known as nyalego household.",20
+uuid:db8fd2ab-ee21-46e2-8e92-c726a3922aaf,,Joseph Owino,,,Siaya,103,Gem,116,West Gem,168,149,,North west of dienya primary,40
+uuid:36a93ea6-52d7-45b2-96b1-8619ac009408,,William Mbuya,,,Siaya,103,Gem,116,West Gem,168,149,,100m from the village elder 'S household. Kamsau lower village.,10
+uuid:e074537e-ee48-4980-a06c-0e82479baa13,,Tobias Owiti,,,Siaya,103,Gem,116,West Gem,168,149,,South of ober primary,30
+uuid:e99de98b-e314-412f-8a62-685512195648,,Vitalis Owor,,,Siaya,103,Gem,116,South Gem,167,149,,"2kms from Dienya Primary school,large compound.",10
+uuid:532f80a5-406f-41c1-8f67-cde0b37d8cc0,,Kelvin Omulo,,,Siaya,103,Gem,116,South Gem,167,149,,Large compound right side from Dienya Primary.,60
+uuid:aca1b0a5-5c52-476f-aa2c-790ac066cdbe,,John Odhiambo,,,Siaya,103,Gem,116,West Gem,168,149,,Opposite kumuk market,20
+uuid:ee9dbaa1-ca92-40b9-a9e1-4eba360e1f1b,,Walter Onacho,,,Siaya,103,Gem,116,West Gem,168,149,,Mr. Walter onyango household. 200m from the main road. Kamsau lower village. Along wags to kapuoche road.,10
+uuid:3a7e9f32-596b-4bd4-84e1-19804771d39a,,George Barasa,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Madibo primary school -st Clare academy ask were ongaria,70
+uuid:fa01fe46-8af1-498d-9db8-0fa15f0d1ba6,,Dickson Makokha,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From Madibo primary school ask for Dickson's home,40
+uuid:95b1aa37-82dc-4435-950a-5e924550875d,,Fred Muchele,,,Busia,101,Nambale,102,Bukhayo East,107,169,,House on the junction shops from Madibo secondary,20
+uuid:1ba8b490-e40d-4e0d-a392-f022b46764da,,Peter Otuba,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Go behind ACK church. Past 3 homes behind.,70
+uuid:f0b175e6-8aef-4c8c-98b2-068995ad47d5,,Steven Barasa,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Madibo primary school -Mitume church -st Clare academy ask were ongaria home,40
+uuid:c278cb61-051e-4c6a-9655-baf005d99d15,,Prisca Nakasala,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From Madibo primary school ask for Prisca Nakasala's home,80
+uuid:78788469-2896-4a76-983c-9cbd480ebcb1,,Johnstone Juma,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From Madibo primary school ask for Nakasala Juma's home,100
+uuid:7d1d4a89-ac50-4b1c-8d98-eda8ba1a161a,,Justus Khaemba,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Madibo primary school -mitume church (apostolic church) -divayi church ask sidialo home,30
+uuid:49d6dbae-b32d-4220-9fd2-93fba01302cc,,Wycliffe Mukhongo,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Madibo primary school -st Clare academy ask majimbo home,70
+uuid:9f72fcfc-0201-4a52-9f6b-f164c8f9fa90,,Vincent Otangara,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From apostolic church ask for Vincent otangara home,50
+uuid:91728f18-e6ff-433f-96ab-a37689c711cf,,Ali Wakhungu,,,Busia,101,Nambale,102,Bukhayo East,107,169,,At wahungu junction,100
+uuid:515732bc-957a-4727-95f5-fb6b53f87d83,,Paul Obande,,,Busia,101,Nambale,102,Bukhayo East,107,169,,The homestead is on the road near the junction with African devine church.  House has  a blue steel door.  Nearest landmark is madibo secondary school,60
+uuid:3c360581-069c-4c02-bd29-39d91a5417c5,,Michael Mdondo,,,Busia,101,Nambale,102,Bukhayo East,107,169,,It About 1km from grace Community church madibo  village,80
+uuid:64dd1bc6-a35f-4776-8ffa-0c6b3addf519,,Benjamin Ososo,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From Madibo primary school ask for Benjamin Ososo 's home,50
+uuid:6b880895-6a2c-4741-bb29-59c64cf89e11,,David Makanda,,,Busia,101,Nambale,102,Bukhayo East,107,169,,House is near the road just opposite to madibo/khelera junction.  Nearest landmark is madibo secondary school,90
+uuid:b4ebc774-d015-437c-95c0-37980b1ead93,,Alfred Makokha,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From madibo primary ask for kamales home,60
+uuid:3e966284-5b91-40dd-ac30-9b7aa150362f,,Daniel Wafula,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Just around grace Community church in madibo market,90
+uuid:4764b59a-4f9f-4e17-95fb-f57ae9faa223,,Protus Opari,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Homestead is on the roas. It has 2houses. It has  wooden door on the main house. Nearest landmark is madibo primary school,60
+uuid:b1ad8ee2-b9bc-434a-b15d-6b5bdc7af2a8,,Rehema Abdalla,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Among last homes bordering nangeni A village,20
+uuid:c2fe69f8-990e-4ee2-9a70-807d6b38c53f,,Fred Watangala,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From apostolic church ask for Fred watangala home,30
+uuid:25f8c2a2-f6ff-4073-8afb-b7358affadf8,,Adam Barasa,,,Busia,101,Nambale,102,Bukhayo East,107,169,,From Matibo Secondary school ask for Riziki 's home,20
+uuid:d5648d5b-9462-47f4-8a36-70885f0b14c5,,Calistus Khaemba,,,Busia,101,Nambale,102,Bukhayo East,107,169,,"House is just after nangina shopping centre.  From shopping centre,after junction, first homestead on your left. It has 1house and green wooden door",90
+uuid:f61c0e0d-a963-4d5a-83d3-0536d49c47ec,,Conjesta Mbuku,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Homestead with on the road with a banana plantation at the gate.  It has 3houses.  Conjesta 'S house is the first and has a grey door. Nearest landmark is madibo secondary school,80
+uuid:7e0d3b1d-6c49-4b01-90db-8283cd128c9f,,Margaret Wafula,,,Busia,101,Nambale,102,Bukhayo East,107,169,,Homestead at orientation junction behind some banana plantations.  Just opposite African devine church,10
+uuid:1dcc085e-b2d0-4926-b6d2-cd045a2a80b0,,Martin Wekesa,,,Busia,101,Nambale,102,Bukhayo East,107,169,,"Homestead is next to nangeni stream,  it has two houses.  Main house has iron sheets roofing and a  cream rusted iron sheets door.  Nearest landmark is madibo primary school",10
+uuid:4bfdd9fc-4239-4ccd-8ab0-73f1c42e4b72,,Moses Aluku,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,100
+uuid:58129aff-c6e3-433d-b6d5-3fd4a913f51c,,Lamek Omusiro,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,20
+uuid:022d7921-548a-4980-abec-13079ea3065b,,Okiru Iraru,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,60
+uuid:08b553d1-0a5b-4d85-b19b-8751d4953230,,Rose Akello,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,80
+uuid:606f0630-ab44-4b8e-8991-1bb8a3e36026,,Julias Ebu,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,The compound is located near  CHV's home.,90
+uuid:f64ee424-f5bf-4ba8-9ecc-d10d6441885a,,Felix Simeo,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,10
+uuid:04e0939e-6100-4e68-9286-8a3bd19701da,,John Etiang,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,80
+uuid:861ab051-f21c-48d7-8264-6c6bab8de1ab,,Wycliffe Makio,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,60
+uuid:d73989af-cfb9-4043-8a19-cad314f8a2cf,,Domian Okitoi,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,70
+uuid:489094b2-62bd-42cc-9726-77b459e17303,,Consolata Toto,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,The household is located near the railway.,50
+uuid:8c500941-db28-4f8f-b459-1fa212b85525,,Martin Barasa,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,50
+uuid:648db545-dc24-4d98-bf85-92ae75f505c6,,Fransicah Akwii,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,70
+uuid:144fc381-aa14-41e3-9c4c-021c00c855dc,,Deogracious Idewa,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,30
+uuid:0cbc3e9e-02ec-4cf0-a83f-df12be8b10df,,Dancan Emojong,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,90
+uuid:250b20c0-f3af-4150-b4f9-ae028a61f931,,Cleophas Ete,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,50
+uuid:f79b396c-ba7f-45bb-9fa3-746ea1de6872,,Geoffrey Marago,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,The household is located near the village elders home next to railway.,100
+uuid:1bfbd25a-ae92-4344-8511-c5cb007398ac,,James Ekwen,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,40
+uuid:9f67e033-a515-48ff-8f40-2874058ae55f,,Christine Omuna,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,The household is located near the village Elder home next to railway line.,80
+uuid:ec8784bb-fe33-47ea-8785-129a71d5a0df,,Abeli Iraru,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,10
+uuid:53523dd5-35be-44e6-acc1-fff68b39ab04,,George Omuna,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,40
+uuid:10ad89aa-1de5-41d6-b9d7-c9bc1498b1d2,,Sabasitano Ojuma,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,90
+uuid:445d3948-688b-4933-a172-2ca08b9c06a4,,Rose Atiang,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,20
+uuid:6f6ceaab-0922-4674-97cd-eea158d4f129,,Daniel Nyongesa,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,30
+uuid:2c8259fe-0413-4448-a4f3-e1ab28f4a2d2,,Goefrey Otwane,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,60
+uuid:8c76c8bb-bf0b-4266-9caa-beb49236d795,,Kennedy Ibworo,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,186,,NA,10
+uuid:1fe37667-a3b7-4128-9fdb-d5bc74e79a72,,Topista Okumu,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,While at Musokoto primary School ask for Auma Kambwere she is well known.,60
+uuid:c77e27f8-9a85-4927-b0e9-e32c0dac0fc8,,Miliana Mutoka,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From repentance and holiness Church ask for Namenya Mutoka's compound,80
+uuid:a818963f-52c3-48d5-b30c-6430603ac328,,John Obiero,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,Next to benga market,70
+uuid:f5732f14-32ac-470a-acb8-87de720079b5,,Christopher Anjala,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From the road on your left musokoto market Centre,80
+uuid:116cee80-720c-47a3-8885-17094e9a3285,,Julia Adun蓷o,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From makutano junction. Turn left just at the market center. Ask to be shown the home,50
+uuid:e27edf8f-6d9e-4e01-a2f5-795e6f44e848,,Quinto Oteba,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,Home located to the right of musokoto primary school. The road next to the village shops to the left. It's the third home to the left,20
+uuid:64780dd8-8455-4a5a-b581-9250388cb594,,Method Makokha,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,"From Benga go to Musokoto Primary School, take the road to the right right before the school. Home is to the far right before the first home at the right.",60
+uuid:b88c40d3-6aeb-4a90-94f0-c7e04d543851,,Lucy Juma,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,"Homestead has two houses with the main door painted blue and made of steel.  It is commonly known as a drinking den during the day.  Nearest landmark is Benga shopping centre ,200metres behind ACK msokoto Church",50
+uuid:ffeb46fe-99e1-47ac-b375-98a5cb52d774,,Moses Okoth,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From benga market  take the route opposite the poshomill and ask for Philip Okoths compound,20
+uuid:43586d73-4611-4219-9f6d-816d36280209,,David Namasaka,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From ma茩utano junction turn right. Proceed straight ahead. Turn left and ask for the home.,90
+uuid:4f1b47bc-c771-430a-9efc-d879b57e897b,,Thomas Namenge,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,Around 100m from mzee jangwas home and the Household head is commonly known as paramount,40
+uuid:a4ae59d4-3bf0-4789-8221-8559b736ccc9,,Jackson Ongango,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From benga market ask for Rhoda's home,50
+uuid:c713e3b6-bf36-4df4-b193-d3e06cfb19f1,,Richard Ouma,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,The household is located west of Benga market about 300m from the market.,30
+uuid:3548bad5-7a8f-4936-a1fa-132fe84ba7ad,,Raphael Machuu,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,From makutano junction. Turn right. Proceed straight ahea蓷 for a few meters. Turn left and ask for the home of omede,100
+uuid:3c09fb3b-ff5c-4439-a868-a4efbb3d1a18,,Eunice Ongoma,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,Near  otiiri  primary School in makutano village,80
+uuid:f42cc944-7139-4a6b-b333-72985d3f74d9,,Nation Pampa,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,"On your way to Benga  market centre, ask for mama Bentas  home",100
+uuid:79f325a5-073e-415f-87bc-3fdd3b5f3225,,Livingstone Barasa,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,Opposite benga market,40
+uuid:bb20e97f-f895-4d89-a3af-e45c804a8848,,Moses Oteba,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,The household is next to retired  village elder,10
+uuid:11053bdd-26a3-4938-ba70-9fdef9da3116,,Franci's Okoyo,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,The household is located 300m on the west of Benga market.,30
+uuid:7a9bb122-1dcf-47bc-beb1-8c8da90a9e11,,Daniel Opama,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,While at Musokoto primary School ask for Bahati Okaro is well known in the area,70
+uuid:e791df71-44fa-476f-bcb9-a1daeea444a4,,William Okwara,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,The household is commonly known as kwa retired village elder,10
+uuid:ffe15e1f-5014-4d56-81e4-72e65bb28cd1,,Fanice Okello,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,Opposite benga Market,100
+uuid:a5ed9ecf-1d4d-47e0-8334-ec1b3bbc6fe3,,Erick Kulundu,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,"From Benga market, ask for Richards oruma homestead",90
+uuid:55f6e53f-8e57-4cda-833f-61f3669b73b1,,Timothy Omoding,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,"Home is located on the road to musokoto primary school. On a road to the right, after the former Legio Maria church. First homestead to the left",60
+uuid:1d3f335b-18ad-4daf-bc75-a872fdf285c8,,Gabriel Oluoch,,,Busia,101,Nambale,102,Bukhayo North/Waltsi,108,234,,About 100m from mzee jangwas home in commonly reffered to as paramounts home,40
+uuid:16800b53-6fa0-4f2c-884f-2d858fee924b,,Caleb Owuor,,,Siaya,103,Gem,116,West Gem,168,431,,From the main highway kisumu-siaya road turn right through holycoptic  church turn right and come straight to kamatindo B village near malunga primary school. The  house is 200 metres to the primary school.,10
+uuid:1d1bf123-d03f-4cab-8bf2-1e38f0d770a5,,Leonard Otieno,,,Siaya,103,Gem,116,West Gem,168,431,,From  malunga  primary Your walk for like 200meters,40
+uuid:61f53289-1cf1-4770-9f90-ae8ebca418b8,,John Owiro,,,Siaya,103,Gem,116,West Gem,168,431,,Behind malunga primary. Ask for ogwedh,20
+uuid:36e17f15-5fbb-4a2d-8099-7c6ea1e85172,,Consolate Odande,,,Siaya,103,Gem,116,West Gem,168,431,,Kisumu siaya Road at coptic Stage turn left to malunga primary at kamatindo village.,80
+uuid:a35f4522-5bd7-4559-88da-a40af9a30e06,,Lilian Okoth,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school mulunga just opposite you will find a household,100
+uuid:6323e409-4fa6-49af-b38f-fc4e4fbde857,,Michael Otieno,,,Siaya,103,Gem,116,West Gem,168,431,,From sirimbi to kamuluo rough road. You branch and cover about 50m to the compound.,100
+uuid:ceaae4a8-1950-4af7-a150-fc0e766f4ab0,,Joseph Orengo,,,Siaya,103,Gem,116,West Gem,168,431,,From malunga primary then find a poshomill next from primary school then ask for orengos house.,70
+uuid:87e77e04-5995-4e1e-a19e-4075bb2cebc7,,Rose Omondi,,,Siaya,103,Gem,116,West Gem,168,431,,Is on the boundary between magari and kawiri,10
+uuid:1c1cbfe9-312c-47c6-896c-bff2394eb03b,,Peter Inuka,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at koputigo then turn right where you will take boda boda and move a distance of 3km then you will get malunga primary school just opposite you will find a household,50
+uuid:427adef3-d206-4518-8a8a-41a7b4c329e3,,Patrishia Ochola,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga primary school and turn right you will find a household,70
+uuid:788c7d15-5f4d-4da7-996b-351521e2c3d2,,Pamela Ochola,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga primary school and turn right you will get a fenced house there you will get a household,50
+uuid:6eeca8c0-8112-45ef-95a1-ef49753f0e2f,,David Njura,,,Siaya,103,Gem,116,West Gem,168,431,,Same compound with Teresa agutu njura. Both are not the natives. They have recently settled,90
+uuid:07668846-5002-4ae3-a2a4-5fc3ef02d564,,Mary Ochola,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga primary school and turn left on the way just some few miles you will find household,30
+uuid:4367f40c-085d-4573-b552-cbd5c1666595,,Ann Anyango,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga primary school and turn left on the way just some few miles you will find a household on your left hand side of the blue gate,50
+uuid:60bdc43d-7560-4047-bfe0-58fafcf16b3d,,James Ouma,,,Siaya,103,Gem,116,West Gem,168,431,,The homestead of the famous odera,40
+uuid:172dd4d2-f89e-45ea-b9a6-0744d2cdc253,,James Osoma,,,Siaya,103,Gem,116,West Gem,168,431,,Next to Kodeyo spring before  reaching a poshomill on maram Coptic-malunga road,20
+uuid:a62b89ec-b617-491b-bf3b-3c98f6c03be6,,Lusia Awimbo,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga primary school and turn left on the way just some few miles you will find a household,60
+uuid:e44b0eda-7ab8-46a8-8586-b6b4cfa4ad40,,Charles Nyaim,,,Siaya,103,Gem,116,West Gem,168,431,,The house faces the kochola stream with alot of banana trees and sugarcane. Eucalyptus tree are too planted in the compound.,30
+uuid:3dc07b55-1f7f-47d6-8e78-89b73d787a7b,,Otieno Onyango,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga then turn right where you will a household,90
+uuid:80af1e14-6fc7-4d28-b750-45793456c3a8,,George Omolle,,,Siaya,103,Gem,116,West Gem,168,431,,In kamatindo B village turn left near peace church the house is a neighbour to the church.,20
+uuid:091ec613-35c9-4e01-a9ce-687f6a2209e9,,Patricia Ayongo,,,Siaya,103,Gem,116,West Gem,168,431,,The Home behind Catholic,60
+uuid:2c21260d-5de2-4684-aa65-0a5a5eff52dd,,Margret Nyanguka,,,Siaya,103,Gem,116,West Gem,168,431,,The house faces gotkawili. The owner is called nyayone,80
+uuid:eb6228cf-2e97-419e-9467-4d97cf276d0b,,Richard Nyaruoth,,,Siaya,103,Gem,116,West Gem,168,431,,Alight from holy coptic church stage along siaya-luanda village take a moto bike to malunga primary school. The house is about 300m from the school.,100
+uuid:f2ba3eb3-ccbb-4713-95f6-c82e227ce6aa,,Alice Auma,,,Siaya,103,Gem,116,West Gem,168,431,,Siaya kisumu road then stop at the koritupa then take boda where you will take you to school called malunga primary school and turn right on the way just some few miles you will find stones opposed there is a household,10
+uuid:48213f65-2a9a-4517-a867-e57791dd25d3,,Demtila Achieng,,,Siaya,103,Gem,116,West Gem,168,431,,It was e,90
+uuid:afd6527e-bf67-4648-937f-4630ae8c27f2,,Vitalis Onyango,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is 100metres from Umer Primary School. It is along Bumula Bungoma road.,10
+uuid:1885fd23-5c48-47fe-97c2-f2c8b8907a95,,Sylvester Kachero,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is on the south west of Umer Primary School. It is 200metres from the school. It is along the Bumula Bungoma road.  Ask for Nyaruoth's homestead.,80
+uuid:718b59b2-f596-43cf-a582-0a210d37eb4f,,Peter Ogutu,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is along Bumula Bungoma road. It is 200metres from Under Primary School. Ask for Otoyo's home.,20
+uuid:97e0a795-5455-4c32-866f-44351ce0f27a,,Seline Obanda,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,From Umer primary take a left turn and walk for about 5mins then ask for Lucas Pando's home then ask for Seline's house,100
+uuid:8cd1e83a-945c-4b86-bef4-a27e50bb8037,,Jackline Omondi,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is 100metres from Umer Primary School. Ask for mama Wimbi's home.,50
+uuid:a4129add-670f-4c8f-8449-228d43ee8e00,,Moris Ouma,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is 250metres from Umer Primary School. It is on the south of the school.  It is along Bumula Bungoma road.,60
+uuid:6a8b23b0-899e-49d1-bf64-0d5e59c02340,,Maria Oduor,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,"From umer dispensary, walk to togo river and move to kuch oduor, the household is adjacent to kuch oduor",30
+uuid:46afdb66-91ef-44df-9cdd-6097731e5ec7,,Agatha Ouma,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,"From Umer primary school ,turn right and go straight past Odipo's home to the next home and ask for Agatha",100
+uuid:e296f384-ac88-4cfc-a767-0fa3ada9ea24,,Elvis Owuor,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is on the left of Bumula Bungoma road.  It is 500metres from Umer Primary School.,20
+uuid:61533792-d74c-4a9d-b385-3f41b35c45fa,,Vincent Owuor,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,From Umer primary school turn left and head straight past a church and ask for Mr. Owuor's home,70
+uuid:9909c7ba-b056-410a-a3be-1f2f3de26a94,,Anastacia Osita,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,Ask for Charles opondo's homestead next  to umer Catholic Church,40
+uuid:f7abec36-70e4-486f-910a-4448f275d16a,,John Okong'o,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,From Umer primary school turn left and head straight to a path that will lead you to the home of John Okong'o,50
+uuid:691cf41c-37ec-4465-8ebf-f0f58eb127ec,,Anthony Ooko,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,From Umer primary school turn left and head straight to the path that will lead you to Anthony Ooko's home and ask for Eunice,10
+uuid:4523f61f-3249-4159-9c29-1f0078340321,,Paul Onyango,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,"From Umer primary school,keep walking straight towards the end of the road and ask for Otieno Apid's home",60
+uuid:b9cd5481-21d0-4ef5-a7cd-9cc444a1bb57,,Micheal Osuru,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,From Umer primary school turn left and head straight for 8 mins then ask for Osuru's home,90
+uuid:57c19e16-514d-4fb5-9ad7-6267878e8f6a,,Edwin Otieno,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,Otieno Oiye's home is behind Umer primary school. It's a small house standing aloof from the rest,40
+uuid:eec2821b-ec4f-4651-ac58-29ef53fb60e9,,Gabriel Owino,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,Ask for kowino Gabriel next to umer poshomill,100
+uuid:dbffe056-a986-4975-bebe-62f2a52d94dc,,Samson Oduor,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,From Umer primary school turn left and walk for about 10minutes then ask for Robert Ooko Arima's home,70
+uuid:cbf7669b-86ca-4891-b1b6-28e347dcc89a,,Conslata Ongenga,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,Ask for kopuk zakayo's homestead about 500metres from urem Catholic Church,90
+uuid:41c21d4d-05d2-4371-97b0-10828c0814fd,,Mary Ochieng,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,"From Umer primary school, go straight towards the end of the road, and ask for Mary's home.",80
+uuid:f56bdc9b-aa5f-4c4e-8ac4-60bd828838f5,,Michael Owino,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is 400metres from Umer Catholic Church. Ask for mama Angeli's homestead.,70
+uuid:de36033a-e0d5-4b52-a8b4-6bdde04a4d45,,Joyce Ochieng,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,"At umer dispensary take the route going towards the stream then turn right after about 200 metres walk, ask for mama Sande homestead.",30
+uuid:21a4d5da-a592-44e3-ae88-c84bfe7da7d8,,George Ochieng,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is 20metres from Umer Primary School. It is along Bumula Bungoma road. Ask for mama Atieno.,20
+uuid:f76c8585-5da1-4bce-a6b3-06da996b8294,,Joanes Ochieng,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,Ask for kochieng wasonga opposite umer primary school,10
+uuid:2561a5bf-0d90-423e-af41-60b36aeb69ee,,Moris Okech,,,Siaya,103,Ugenya,117,East Ugenya,170,433,,It is on the south of the Umer Primary School. They are neighbors to the school.,50
+uuid:c9803b5f-f0ac-40a9-9e71-0613115f8684,,George Ochieng,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From ugunja take the route to musanda then motorbike to wang otong market then walk towards the nyangera tap ask kwa mzee ochieng.,10
+uuid:d56f6ee2-99c2-409b-a6e7-57a1711137b0,,Cosmas Atong,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From sidindi to sikalame -nyagero road to Wang'otong' junction to church of Christ. Ask for Colo muguokes home.,90
+uuid:3612d86c-b5bb-4982-ad1f-1ac862a3dbe8,,Joel Otieno,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja market take a matatu to Sidindi market,take a motorbike to Wang'tong market and ask for The retired teacher Joel Otieno,its the second home on your right,along Musanda murram road",100
+uuid:eff068b9-2dfe-4b8e-8c16-9d7f0c0fe258,,Odemba Osodo,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja to Sidindi  take the left route  to Ruwe,go to Nyangera village ,my home is next to Wang 'otong market, ask for Odemba  Osodo 'S home",20
+uuid:ce8c6c1d-669a-41ef-8489-f61ab8a1e4e6,,Paul Arila,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja to Sidindi, take route to Ruwe from Sidindi  till Nambakondele junction, find out Nyangera village then ask for the village Elder  Paul 'S home",50
+uuid:7bb32e41-82de-4801-a3bb-58ede2e2f21e,,Benta Okina,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja to Sidindi, from there take route to Ruwe, proceed to Nambakondele junction, turn lower side or left side 20m ahead is CCA church  Kodenyo, from there ask for Musamba 'S home, it is near that church.",90
+uuid:8a4942d8-82c0-49ed-af48-0a684b61c290,,Isaya Odhiambo,,,Siaya,103,Ugunja,118,Sidindi,174,447,,NA,30
+uuid:421c1e3e-cecc-434b-96d7-9e089e839376,,Peter Odemba,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From nyausera bridge go for about 200meters to wanguton primary school sign post then ask for kwa mzee odembas compound,80
+uuid:2bd0cfc4-c0b9-4ce9-9f7b-3c7f4db4d04d,,James Onyango,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Uganda to Sidindi, branch left, the route to Ruwe go to Nambakondele  junction, my home is 1km from that junction, ask for Oningo 'S home.",40
+uuid:160bcf2b-6bf8-470d-ba73-714dad2bb0fe,,Alfred Handa,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From sidindi to sikalame nyagera road to wang'otong' junction. Ask for church  Of Christ. Ask for Samuel ohanos home, ask in the home for mzee ookos home.",60
+uuid:093c190d-869b-48dd-843a-60c679d08f43,,Samuel Oyoya,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From sidindi to sikalame nyangera road. Up-to wang'otong' junction. Ask for Samuel okwiris Home,30
+uuid:2fa330e8-4553-404c-be13-56f025cb2aed,,Phanice Obonyo,,,Siaya,103,Ugunja,118,Sidindi,174,447,,NA,60
+uuid:64a39b50-142d-4897-b864-78212bc8c286,,Stephen Ogutu,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From Ugunja go to musanda then takeva motorbike to wang otung market then ask kwa kina okumu home he lives near the market,80
+uuid:6a521f8b-80de-4393-8657-d563eea69e13,,Richard Ochieng Ohana,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja take a matatu to Musanda market then take a motorbike to Wang'tong' market,ask for Ochieng Ohanas home and you will be shown the home,its next to Woroya river",10
+uuid:92b84695-b71e-476f-8fab-e77353faaa13,,Samuel Musamba,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From nyausera bridge head to wanguton junction and ask for kwa musamba compound,100
+uuid:1a5c71e4-5a65-4cd9-a829-8ac60a84782d,,Vitalis Omondi,,,Siaya,103,Ugunja,118,Sidindi,174,447,,At wangosong market the household is behind putus oketch building the first house on the right.,100
+uuid:cf58d522-0ab5-45f9-b50b-7a2815380bd9,,George Ojayi,,,Siaya,103,Ugunja,118,Sidindi,174,447,,NA,40
+uuid:fc7a8f43-fa79-4075-97c2-2eadc862b07c,,Shadrack Odemba,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From muthiero head to nyausera bridge and go for about 200meters and ask for kwa abednego,50
+uuid:878dadfe-ed81-4acf-9fb6-81d825399749,,Shem Onyango,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From nyausera bridge head to wanguton primary school sign post then ask for kwa Shem onyango,10
+uuid:f28feda9-cb48-4f64-89a6-a130827b1edc,,Dorin Ochieng,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Uganda to Sidindi branch left the route to Rise, proceed to Nambakondele junction ,my home is near that junction, ask for Dorina 'S home",20
+uuid:8db02a1a-efaa-4ab1-ae61-ad0387aba4ec,,Thomas Odemba,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja to Sidindi, branch on your left or the route to Ruwe, go to Nyangera village, ask where Kamila church is, then from there ask for Odemba 'S home.",60
+uuid:557d0dbd-e82e-4712-a7ec-a36b4250bcf8,,Joseph Ohana,,,Siaya,103,Ugunja,118,Sidindi,174,447,,NA,30
+uuid:92d9cb91-ed3f-4820-8077-92e1b26105a0,,Jared Osodo,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From nyausera bridge go for about 200meters you will see a sign post written wanguton primary school at the sign post ask for kwa Jared odemba compound,70
+uuid:fb92739a-9e64-44dc-94b8-31602b447014,,Joshua Ochieng ojai,,,Siaya,103,Ugunja,118,Sidindi,174,447,,"From Ugunja take a matatu to musanda market ,from musanda take a motorbike to Ruwe Wang'tong market,just ask for Joshua Ochieng Ojai,his home is behind the market immediate neighbour of      Gabriel Ogutu on the right",70
+uuid:690d93bf-2366-4576-a331-86aea48f8b7a,,Josephine Sewe,,,Siaya,103,Ugunja,118,Sidindi,174,447,,From nyausera bridge head to wanguton junction turn right go for about a 150meters then ask for kwa Josephine sewe,40
+uuid:79ee5a88-a61e-4e12-a481-47140d8d85eb,,Saferio Omorut,,,Busia,101,Teso South,104,Chakol South,119,476,,From otimong primary school ask for saferio's home,100
+uuid:53a091c3-7987-49b2-bfa6-f4c01ed731a6,,Edward Nandwa,,,Busia,101,Teso South,104,Chakol South,119,476,,Home behind Baptist Church. Popularly known as Club ya Lucy,30
+uuid:521ffc55-7abb-4791-87a5-528ff7778c84,,Paul Wandera,,,Busia,101,Teso South,104,Chakol South,119,476,,Along the road near shops next to otimong primary school.,60
+uuid:e6fe2322-2fc5-4c45-b134-861a7ceff8f0,,Benard Ndetta,,,Busia,101,Teso South,104,Chakol South,119,476,,A long the road,90
+uuid:59850f1e-8f22-4853-9a0b-8d76add937a4,,Christine Nekesa,,,Busia,101,Teso South,104,Chakol South,119,476,,Behind shops along the road near Otimong primary school.,50
+uuid:b3ef8366-2b25-4c91-9089-366a655e6440,,Robert Obwire,,,Busia,101,Teso South,104,Chakol South,119,476,,Otimong shopping center ask for tailor josephene bamia,40
+uuid:4d25b65a-31f1-4ae8-9895-87a88117baee,,Morris Kapoloni,,,Busia,101,Teso South,104,Chakol South,119,476,,While at Kemodo ask for Morris Teba,50
+uuid:dabcd051-ae53-47af-ae85-340bc39b56e6,,Francis Ounoi,,,Busia,101,Teso South,104,Chakol South,119,476,,"From otimong  primary school on your way to Angorom ask for public home,it has a permanent house with  black ironsheets",10
+uuid:a9ec7086-fc75-484e-9446-154b242b56cf,,Emiliana Obwino,,,Busia,101,Teso South,104,Chakol South,119,476,,"Opposite Otimong Primary School, 100m from main road. It's to the left of road to Ojamong. Known commonly as Etiang's home",40
+uuid:0c94f59b-d107-427e-bc63-7d3da81f14a3,,Esther Omido,,,Busia,101,Teso South,104,Chakol South,119,476,,The household is opposite grace harvest church,10
+uuid:1c367329-dff5-40db-a0d6-11d980590268,,Titus Emsala,,,Busia,101,Teso South,104,Chakol South,119,476,,Home opposite Otimong Primary School to the right . After Hollines repentance Church.,20
+uuid:92ba95f0-dab8-4b22-bbab-683297693d86,,Miriam Barasa,,,Busia,101,Teso South,104,Chakol South,119,476,,From otimong primary school ask for Chananga home,60
+uuid:e07cf8ff-022d-4aad-bc76-e67b1d3d6e06,,Albert Omorut,,,Busia,101,Teso South,104,Chakol South,119,476,,Within the village ask for Albert Omurut's compound,90
+uuid:6dfd65b3-cf22-4920-b7f2-defce2742185,,Christopher Okitemer,,,Busia,101,Teso South,104,Chakol South,119,476,,The household is directly opposite grace harvest church,70
+uuid:0892bee7-45e5-4457-8c9a-e913537d8f1c,,Kamilus Ojuma,,,Busia,101,Teso South,104,Chakol South,119,476,,The household is located near the termac road next to PAG church.,20
+uuid:b2842be1-703c-4a0d-be0d-1037b594bc2c,,Muhamed Sunday,,,Busia,101,Teso South,104,Chakol South,119,476,,Near the borehole.,60
+uuid:9c8c2109-c13a-4a45-a9a4-ad06e40a923e,,Samson Masinde,,,Busia,101,Teso South,104,Chakol South,119,476,,While at kemondo centre ask for  Samson Kilemba,30
+uuid:cc646ed0-84dd-4f7f-b536-f9ef9f6af002,,Paul Ogaya,,,Busia,101,Teso South,104,Chakol South,119,476,,"Home at Kemodo, opposite Western Comfort Bar and Restaurant. First home to the right behind motor cycle spare parts",70
+uuid:20c9a259-21e0-429a-b457-c71d25e87067,,Charles Oyala,,,Busia,101,Teso South,104,Chakol South,119,476,,The household is located next to tarmac road opposite the sign post written 50km per hour.,70
+uuid:1ca43d9b-0d34-4ec8-b5c2-bae6069504bf,,Justus Obwino,,,Busia,101,Teso South,104,Chakol South,119,476,,Home opposite a red bricked house with red door. Behind Otimong Primary School. To the right of road to Ojamong  Approximately 100 meters,20
+uuid:246e6ce6-df83-45a9-ad09-04bb687ca55c,,Raymond Edolore,,,Busia,101,Teso South,104,Chakol South,119,476,,While at Kemodo centre ask for Pamela Nakhayo wife of Raymondo,100
+uuid:9422e3d5-0a22-4785-9e10-9ff1be6c590f,,Antony Emasa,,,Busia,101,Teso South,104,Chakol South,119,476,,Within the village ask for Antony Emase's compound,80
+uuid:18f53949-b4d9-4140-81cf-8f12fc9c37a8,,Alexander Ikoida,,,Busia,101,Teso South,104,Chakol South,119,476,,The household is located near Otimong Catholic Church and Otimong Secondary school.,30
+uuid:96c84901-66a9-4380-a0a4-dc75a6ec0857,,Erick Otwane,,,Busia,101,Teso South,104,Chakol South,119,476,,From otimong primary school ask for Erick Otwane home,80
+uuid:887e8a88-8415-40b4-b27a-dda881a0e4f7,,Denis Etyang,,,Busia,101,Teso South,104,Chakol South,119,476,,From otimong primary school the household is behind Etyang Fundi  shop,40
+uuid:ba1fd231-b019-4860-bf75-1c2c454ac69d,,Asthman Manya,,,Kakamega,102,Butere,105,Marama West,123,587,,"Branch from the sabatia bukura road to your right from sabatia at shitoyi primary school and move approximately 1km, ask for the assistant chiefs home,",20
+uuid:319e826a-b881-4eb7-9122-80fa534687a9,,Erick Werimo,,,Kakamega,102,Butere,105,Marama West,123,587,,The household belongs to Erick Waswa,50
+uuid:35605fcf-c94b-4c2f-966b-87944edb51fd,,Margret Shiliebo,,,Kakamega,102,Butere,105,Marama West,123,587,,From eshitoyi mosque like approximately 300m walk.,50
+uuid:0ebc5e7a-ac4a-464a-a41d-4ee5b388db45,,Martin Isutsa,,,Kakamega,102,Butere,105,Marama West,123,587,,From lunza ask for Peter isustsa,80
+uuid:91575292-c96a-4bbe-9675-638329e1b53d,,Agneta Anyembe,,,Kakamega,102,Butere,105,Marama West,123,587,,"From mosque move down the river muyanza, the home owner is know as Agneta anyembe like 300m from Saint Theresa ashikango ACK .",40
+uuid:2c2970b5-2bce-4e98-893b-5b57246cbf5d,,Winifred Waswa,,,Kakamega,102,Butere,105,Marama West,123,587,,From the church of god ask for the home of Winifred the wife of the late pastor,100
+uuid:4f0e970c-b303-41e0-b6f6-09eebf7ae033,,Linah Amboye,,,Kakamega,102,Butere,105,Marama West,123,587,,From kakamega to bukura take butere route alight at kwamanya Mosque ask for Namiru,60
+uuid:0bca9a68-639d-4f6e-af3d-aa480851a46b,,Charlice Maina,,,Kakamega,102,Butere,105,Marama West,123,587,,From Eshiyoyi towards river then ask for David Sakwa. Or Charlice maina.,90
+uuid:86d53dae-6a93-40bd-abc0-aa7dc08c6dd4,,Emman Aura,,,Kakamega,102,Butere,105,Marama West,123,587,,Down the church of the shiomnane,60
+uuid:3685cc10-f171-491b-a7a4-dfe96ed54aab,,Fredrick Okiya,,,Kakamega,102,Butere,105,Marama West,123,587,,"Branch from the sabatia bukura road to your Right at shitoyi primary school and move approximately 1km along the road to bulanda health centre turn to your right and ask for the Kenya holy Christ church, ask for Fredrick Ingangas house",30
+uuid:26bc5292-9065-4e7b-88c5-c7c46e008135,,Benson Shisia,,,Kakamega,102,Butere,105,Marama West,123,587,,From the ACK church walk towards the mtoni and ask for the home of Isaac,100
+uuid:09e7c669-842c-4643-b162-94a64803a411,,Silvester Okiya,,,Kakamega,102,Butere,105,Marama West,123,587,,Near shiomnane church ask for daddy,70
+uuid:efbe09a1-2758-47c7-9de2-52ef0d294811,,Javan Soka,,,Kakamega,102,Butere,105,Marama West,123,587,,The house is behind lunza market,40
+uuid:f8526187-53a1-4d5a-8a57-e2b7dfa54e27,,David Mamboleo,,,Kakamega,102,Butere,105,Marama West,123,587,,From Eshitoyi Mosque take a left turn like approximately 30m walk then ask for David Omulandia.,10
+uuid:f4541dcb-4b01-4225-8076-f6fbf8223b25,,Charles Okong'o,,,Kakamega,102,Butere,105,Marama West,123,587,,"Branch from the sabatia bukura road to your right from sabatia at shitoyi primary school and move approximately 1km along the road to bulanda health centre turn to your right ,move to the Kenya Christ mission church, ask for the house of Charle",90
+uuid:cc56b3ee-4a35-44de-9fcd-1989bc497a34,,Wycliffe Musungu,,,Kakamega,102,Butere,105,Marama West,123,587,,Near shiomnane church ask for Mr musungu,30
+uuid:86bcacc5-89d6-49e4-9bfb-93da99de125a,,Ibrahim Manya,,,Kakamega,102,Butere,105,Marama West,123,587,,"Branch from the sabatia bukura road to your right from sabatia at shitoyi primary school, follow the road heading to bulanda health centre, ask for Manya's home after about 500m, then ask for Ibrahim's house, on the right",20
+uuid:4a4150dc-b631-4c05-9ff1-f83f7fe71f4d,,Wycliffe Anekeya,,,Kakamega,102,Butere,105,Marama West,123,587,,From kakmega to bukura towards buyers alight past kwamanya mosque  ask for wiki teacher for deaf,30
+uuid:2943bbf4-f984-40b6-90cc-25b00285e0f0,,Richard Owiti,,,Kakamega,102,Butere,105,Marama West,123,587,,From kakamega to bukura go towards butere alight at kwa Manya mosque turn left past shitoyi primary ask for Mukolwe,80
+uuid:cfabd307-7b10-4d7f-91a1-3203bd7ee5ca,,Henry Shiliebo,,,Kakamega,102,Butere,105,Marama West,123,587,,From Eshitoyi Mosque the ask for Namwiru or Maggy shiliebo.,40
+uuid:4bd0aeac-e235-4c43-83c8-54f07eb0f83a,,Salim Manya,,,Kakamega,102,Butere,105,Marama West,123,587,,Branch from the sabatia bukura road to your right from sabatia at shitoyi primary school and move approximately 650m along the road to bulanda health centre turn to your right and ask the house of Salim and amida,50
+uuid:60ef3865-172b-4834-9818-24cd2a6082b7,,Samwel Aura,,,Kakamega,102,Butere,105,Marama West,123,587,,The household belongs to  the son of Hannington Aura,70
+uuid:6fd52a44-b412-4b5c-afe7-13e1d80c76ab,,Peter Ndunde,,,Kakamega,102,Butere,105,Marama West,123,587,,From kakamega to bukura take butere route stop at shitoyi turn left go for about 80mtrs ask for  jerida inganga,10
+uuid:e3380f2b-4379-42c1-b197-17010940921d,,Emily Mulupi,,,Kakamega,102,Butere,105,Marama West,123,587,,From the mosque turn right and proceed awhile then ask for Wilson Omulupi,60
+uuid:226658cb-7ded-4604-936f-50a14e1b04d8,,Brian Adaga,,,Kakamega,102,Butere,105,Marama West,123,587,,From lunza to mosque turn right to shitoyi primary school turn right walk 300 and you will see apermanent house and that's the household,20
+uuid:413d53c9-ade7-401b-9334-23ce3b83ed87,,Bonface Alingura,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school,40
+uuid:7f607c4a-0ed3-4079-a40f-50b3b8fe53ae,,Ayubu yapesa,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school near emahugu junction,30
+uuid:746162d9-5c99-49d0-9fd0-47c3a0578943,,Victor Ombayo,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Opposite emahugu primary school,60
+uuid:a7d1be9f-8e3a-4155-88a1-4c0b3c24d788,,Levi Atiti,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Emahungu primary school,ask for Levi Atitis house.",100
+uuid:d7617c46-8768-40b5-8379-767463f032e8,,Josephine Lipuku,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Emakhungu primary school,ask for Josephine Achungus house.",40
+uuid:bed0ddf1-3d16-432d-8cfd-6a7ccb2d4bd2,,Wilbafoce Otuoma,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school,20
+uuid:bf6c215f-339b-4c17-99c5-2be89af158bf,,Charles Esrom,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school near emahugu junction,40
+uuid:d1842beb-6afa-4a24-a26b-6f4c261627d3,,Vincent Muteti,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,From the center ask for musundis home,30
+uuid:eb661b08-8886-4b47-9795-f08e9e365a48,,Felistus Alimila,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"Ask for kasheres home at emahunha center, 100 m",70
+uuid:aaf8c958-5875-4b53-93c0-504930c09770,,Charles Matetie,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school near emahugu junction,20
+uuid:eba22931-ffe4-415b-ad3f-20634a454ae7,,Peter Omungu,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"around 200mtrs from road,ask for Peter Musotsi Compound.",50
+uuid:29498fd3-2d6c-4a81-9686-69e31a31d553,,Emily Omonja,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school near emahugu centre,10
+uuid:ef1fcbe1-24c4-4434-bfc2-42678b077c9f,,Floise Musungu,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"Ask for Mrs Musungus home ,50mtrs,left hand from road.",80
+uuid:2194f5c1-392b-475f-b3fb-ae61cd36eb7a,,Bonface Muhambi,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Emahungu primary school,ask for Bonface Muhambis family.",90
+uuid:19f89b5b-1ae5-46cb-b9bf-4306dbbbc2d6,,Patrick Omulama,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,From Emaungu primary school ask for Patrick Omulamas house.,60
+uuid:3d08e341-53a2-4824-8e13-fc0bd2a72a1b,,David Amunabi,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,From emakhungu center ask for amunabis home,70
+uuid:e8f3bb3a-d691-4423-9bdf-4f7ea32ce89d,,Evans Kiverengi,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Emakhungu primary school,ask for Evans Kiverengis house.",100
+uuid:5d3aee0a-8551-454e-938c-5402cfa16201,,Michael Amakove,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Emahungu primary school,ask for Michael Amakoves family.",80
+uuid:2f086acb-eb02-448b-a4fa-f7654a0ce6c3,,Emmanuel Mudavadi,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,From the market of emahungu ask for nandwas house,50
+uuid:f4691e31-619b-4bc6-9938-00022d5eda49,,Simon Aneha,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school near emahugu junction,50
+uuid:b731ba5f-ef18-4bb7-b91a-8c676dbf946e,,Milka Mwanzi,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"Ask for Mama Mwanzia home,200.right hand from road.",90
+uuid:052542c2-4626-4cad-ac3a-3bfc9979333a,,Stella Chasio,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"Emahungu village,mrs Chasia homestead.",10
+uuid:e4c58f48-8b8c-40f3-a1f6-92f5d87c5a26,,Ronald Mwalili,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,Next to emahugu primary school near emahugu junction,100
+uuid:7500b545-501a-4895-83c7-4c8a2319923a,,Selina Keya,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Emahungu primary school,ask for Selina Keyas family.",90
+uuid:2ebcc516-90e1-495f-abdf-637b5c29675f,,Vinnie Keverenga,,,Kakamega,102,Lurambi,109,Butsotso Central,134,657,,"From Maungu primary school, ask for Vinnie Keverengas house.",80
+uuid:b12be894-8867-47fe-9d17-630ffe13baad,,Peter Chimeli,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From khayega market head to chirobani market then ask for atc church at the church ask for kwa Peter chimeli,100
+uuid:bd0814e1-313b-4b6d-8e5f-88deac3fa196,,Benedict Ikilo,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,"Home of invests, house of ikilo",60
+uuid:59e90a1b-2320-4a16-bebf-3b18cd4c6691,,Nichols Luseno,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From shinyalu head to Chirobani market walk towards friends church Chirobani turn left the household is at Nickolas homestead,10
+uuid:752a2b7c-4461-40e3-b7f2-1b4b9e7dbcf2,,Kizito Muhanji,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,"From chirobani market,walk 500metres to the friends church ,turn left and walk 500metres down to the home  Kizito Muhanji",80
+uuid:a4ba4998-b124-48c9-bc09-2070911b45f3,,Shem Alisiola,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From khayega head to shinyalu then proceed to chirobani market then ask for kwa tupa Shem alisiola,90
+uuid:d7ed44e3-a73f-4eb3-9510-b61775331fb3,,Philip Isai,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Home  of isai,60
+uuid:f79d3f5a-0433-4505-8eb2-8cc626988109,,Steven Shirisia,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From shinyalu head to Chirobani market walk towards friends church Chirobani the household is just next to Chirobani primary school at Steven homestead,20
+uuid:baec74d9-f21f-4b00-ab9c-eb34eb634d52,,Patrick Angote,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Ask for Angote's home,30
+uuid:ff718a7d-25a1-4813-9c0c-4431ba78192c,,Silvester Murwa,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Home  of pastor  Silvester murwa,60
+uuid:a4d8d5e1-0a96-4743-979d-8ba057aae076,,Alfred Mutenje,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,"From Chirobani market,take a motorbike to the friends church ,then turn right to the home of Laurence Vikatsi,its 200 metres from the church",50
+uuid:809f15d4-d241-4236-ab38-de1fa8187696,,Zedrick Ingao,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From khayega head To chirobani market then ask for kwa Richard mitalo,50
+uuid:3f7de5c9-708d-47b2-893b-eaa9aca27615,,Joash Divisi,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From Chirobani friends church get to the opposite side and move for about 300m and ask for Joash Shalimba's home.,70
+uuid:dee1a5c1-2f4e-45aa-8ab3-c695ea8e5794,,Edwin Ikala,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Home  of Lucas,100
+uuid:638b5609-a870-4942-b7fc-13c94f4c956a,,Felista Mbooni,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Home  of luebo,90
+uuid:9e534b20-4b7f-40c1-9ab5-affe0d3140a8,,Yohana Shikokolo,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,"From Kakamega to Khayega,take the route to Shinyalu,proceed to Chirobani center,from there ask for the late Musyayi,behind the center.",40
+uuid:5b4a9866-f001-4c24-9ca4-bd536f94570c,,Ronica Charles,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Neat friends church ask fot Ronica Mululi charles,10
+uuid:9d52adf6-e862-4140-b8d6-6c950104df64,,Juliana Alusiola,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,"From Kakamega to Khayega,take the route to Shinyalu ,proceed to Chilobani center,find where PEFA church is ,from there ask for the home of Chibini Thomas.",70
+uuid:35e29734-044b-4475-a21f-199e1399a14a,,Josephat Alusa,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Ask for Alusa's  home behind Chirobani center,70
+uuid:ff806d9d-31e6-43e6-82f1-d0385e9d211f,,Mary Khatenje,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Ask for Mary's home,50
+uuid:28fb09d9-43d2-4fb7-8475-0e50b306ab44,,Silas Khalista,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From shinyalu head to Chirobani market walk towards friends church Chirobani turn left the household is at amiani homestead,100
+uuid:95221286-461f-4817-b2e3-9d37dd8e101a,,Nelson Chirao,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,At Chirobani center ask for Sharon's shop.,20
+uuid:d5b4441e-957d-4755-a168-09ef5ddb64ca,,Alfred Muchesia,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Ask for Alfred Indango near friends church,30
+uuid:a3f383b7-f900-4d04-889f-78c426562662,,Jacob Muteshi,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,From khayega market head to chirobani market then ask for kwa Jacob mbwavis compound,30
+uuid:99def0e7-90ce-4bbd-8a46-e8a619a6d142,,Patrick Mwanje,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Chibrono market. Ask for Pati,40
+uuid:55c7ad9c-c5e7-4782-81f7-df4bd2f66e06,,James Mukeya,,,Kakamega,102,Shinyalu,115,Isukha East,160,715,,Ask for Mukeya's home,80
+uuid:90aa8dff-6278-496a-b5ff-c91d9c6c90ce,,Josephat Ambeyi,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At josephat ambeyi mtushi,100
+uuid:b7b274a2-0c99-49eb-b64e-e6c70bc1ed27,,Saul Pabu,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Saul Pabus House.",60
+uuid:d0e7123c-69e3-4d09-9776-a334a20dd707,,Samuel Itanyukhu,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At aburakas itanyukhu,20
+uuid:86e638c9-c592-4261-a64c-2db12a9b77b4,,Peris Kaguka,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Peri's Kagukas family.",30
+uuid:f7f26a70-c95b-4daf-a3ca-93e2d48f2750,,Shadrack Inyanza,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At lukusi market ask for shadrack lumala inyanza,60
+uuid:0ff0b870-86db-4f7e-b2fe-23ca751b9f0e,,Fred Shikomere,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At solomon isindi,50
+uuid:3a17679f-2ace-4584-b191-594f24a9bc87,,Caleb Musundi,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Caleb Musundis family.",80
+uuid:21d294f7-a9fe-4b52-a93b-358bb081d9aa,,Elphas Uhuru,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Elphas Katambis family.",40
+uuid:df251452-fcd3-4160-b9b8-fadd029324b4,,Emily Lugushi,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From kambi ya mwanza head to kambiri then lukusi the household is just at sanagili village at Ito homestead,50
+uuid:e91d5605-67e1-4ef5-aedb-f3515d3b24bc,,Ernest Avuraka,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From kambi ya mwanza head to kambiri then lukusi the household is at Sangali village at Gwatemba homestead,10
+uuid:f51ce8ea-1471-476a-86e1-92b6a2467ef2,,Meshack Bushuru,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At meshack bushuru,60
+uuid:3abae677-d44b-4fd1-b5c8-fa9224264ab1,,Joseph Vikazi,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At joseph vikazi,70
+uuid:0aef00a4-4743-48b1-b849-5218c94ab135,,Jacob Shivachi,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At lukusi market ask for Jacob Shivachi,30
+uuid:43d58513-0dd1-4045-b7a3-eec973700328,,Moris Otunga,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Moris Otungas family.",50
+uuid:f466d8c4-9b30-460f-8521-3e89f015602f,,Mathew Amwai,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From Lukusi primary school ask Matthew Amwais family.,90
+uuid:ad47257f-eddb-4e80-9a15-98aa81dcac1c,,Enoch Nakhweya,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Enoch Nakhweya.",100
+uuid:70acd0bf-c64c-4ddd-ba45-e5c69c6db9e6,,Bernard Malongo,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From Lukusi primary school ask for Bernard Malongos house.,10
+uuid:a52dcd51-9559-49a9-b112-33b4083b1c20,,Tebla Libolochi,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From kambi ya mwanza head to kambiri then lukusi the household is at Sangali village at Libolochi homestead,20
+uuid:09b63358-7720-402f-bdca-d4aed4453cf6,,Edwin Karani,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From kambi ya mwanza head to kambiri then lukusi the household is at Sangali village at Edwin homestead,80
+uuid:b2f78182-a47b-4c9c-887b-eeae565506c9,,Cedrick Mumanya,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Cedrick Mumanyas family.",20
+uuid:7778a046-9eef-415b-86d6-53757608ee38,,Victor Liluma,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Victor Kolyma's family.",100
+uuid:f66afcc7-16ae-47d6-9927-4c9e804686b4,,Charles Musambaya,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,"From Lukusi primary school,ask for Charles Musambayas family.",70
+uuid:ebec6155-0028-4ee7-a9d4-8d0e60c6d67c,,Nuhu Avuraka,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From kambi ya mwanza head to kambiri then lukusi the household is at Sangali village at Nuhu Ongaya homestead,80
+uuid:3e286e5d-6b00-4ef7-81aa-484054f383dc,,Rose Munandulu,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,From Lukusi primary school ask for Rose Munandulus family.,40
+uuid:0b506c2a-8eec-42c4-a159-5f9d7b364965,,Joshua Ambete,,,Kakamega,102,Shinyalu,115,Isukha East,160,735,,At joshua Ambetes,90
+uuid:60cddacc-caf1-475a-988a-ed13666a326e,,Gilbert Boke,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,"From kakamega to khayega to Shinyalu proceed to Vihiga A  center follow the route to Kambiri,move 1km away from the center then ask for the home of Boke.",80
+uuid:2b622ec1-3ff2-4977-8bd0-0ae292bc5c80,,James Kutai,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega head to chirobani market then proceed to lunyu primary school then ask for kwa anyole compound,50
+uuid:7e513064-253f-4605-9d0f-39a87f0befd3,,Bruno Inakhalwa,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,"From kakamega to khayega take the route to Shinyalu,proceed to vihiga A center,locate Lunyu primary from there ask for the home of Ken wa Mung'aho",40
+uuid:69f8a4d7-6c68-4017-b714-31c24e0c3e78,,Justus Mushila,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,"From kakamega to khayega to shinyalu ,proceed to Vihiga A locate the bee factory,my home is opposite the factory,ask for for the home of Mushira.",10
+uuid:e2d60eb5-4742-4303-9dad-0c41cde7079f,,Grace Khayesi,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega head to chirobani market then proceed to lunyu primary school then ask for kwa Celestine ikhuva compound.,50
+uuid:0aa5c73d-d6a0-4f3d-a4c6-2184426ac642,,Masika Wasilwa,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From Lunyu primary school ask for Masika Wasilwas house.,100
+uuid:839db2e9-a317-4ace-91c5-a1ba25def858,,Clement Mwangale,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,The household neighbors the Mukuyu Primary school,60
+uuid:827dd6cd-a405-4a14-b86b-5085ed2780e0,,Amos Murende,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,Right at the shopping center of vihiga. A the third shop on your right,30
+uuid:d57e1ce9-0d9a-4a5f-b4f8-fdaf6cb3ec44,,Dorcas Luseka,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From kakamega to khayega take route to shinyalu till vihiga A from there ask for michendas's home,30
+uuid:34541f7a-c190-4ce4-9e0c-fb21170450fb,,Jomo Alukwe,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,Ask for  jomo alukwe near the  lunch Baptist  school,90
+uuid:bad4e376-379e-43f0-92f2-b2571f41ef5b,,Chrispiners Mutola,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,The head stays away,80
+uuid:a639aaec-42fb-41fb-aaf4-128ad825f5c1,,Francis Milimu,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega head to chirobani market then proceed to lunyu primary school then ask for kwa Francis milimu,90
+uuid:82e889e3-4689-4a1c-ab79-e7f213e86d73,,Linus Lwenya,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,"From kakamega to khayega take route to Shinyalu,proceed to Vihiga A center take route that goes to Lunyu primary from the  school ask for the home of Linus Muluri.",70
+uuid:996eaa5f-37b2-4d96-bce3-727f81527efb,,Phester Mukhwana,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega head to chirobani market then proceed to lunyu primary school then ask for kwa phesto compound near kwa anyole,70
+uuid:1932a17b-f14f-4764-9ee8-23ee1e24085a,,Hestine Mairura,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,At mary shinandas,60
+uuid:1a7f7902-8b0a-4a6d-a3a5-c38cd17d41f1,,Silas Shikuku,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,At mucheywas,70
+uuid:93c30f3d-1f0f-47ca-a0ac-225d088ca87b,,Stephen Mugodo,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega head to chirobani market then proceed to lunyu then head towards sokomoko until you reach the posho mill and then ask for mugodo shemasi,60
+uuid:09bd9bac-8729-434a-a5f0-daef6069f961,,Thomas Poge,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,"From kakamega to khayega tp shinyalu proceed to Vihiga A center ,follow the route to Kambiri few meters away ask for the home of Poge.",20
+uuid:b179b9c6-9067-407c-8c6d-318b34b2736a,,Alfred Mbalia,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega head to chirobani market then proceed to lunyu primary school then ask for kwa petty,30
+uuid:13df1d64-e226-4407-b1c1-72f0ed4903ab,,Henry Luwoyero,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,At the shopping center of vihiga. A,100
+uuid:eaf16252-9a54-4069-8168-541bd4da6f45,,Rose Anyire,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,Opposite the cattle dip,50
+uuid:02df3fcf-edf7-44a1-861a-8c3691ef9d67,,Benard Shikhemi,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega market head To chirobani market then proceed to lunyu primary school then ask for kwa benard shikhemi,20
+uuid:483ec0cf-5c4b-47da-9fd0-5334f2ff35c3,,Clement Mieso,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,"From kakamega to khayegatake route to Shinyalu proceed to Vihiga A center locate Lunyu primary,from there ask for the home of Clement Mieso",40
+uuid:de1fe79d-e35a-406b-8ff9-b39b631ddbcd,,Diana Mmboga,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,Behind the shopping center of vihiga. A where the tenants stay,20
+uuid:8da130f0-4ca2-464b-9ea5-26f817c80ff3,,Rosa Indeche,,,Kakamega,102,Shinyalu,115,Isukha East,160,737,,From khayega market head to chirobani market then proceed to lunyu primary school then ask for kwa Rosa indeches compound,10
+uuid:b6a7ad19-86ed-4ea3-aaba-2c0034aafba2,,Patrick Vutamba,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From pentecoastal assemblies of God you cross the road and walk for 15m to the house. It is a shop too,40
+uuid:7164a341-236b-46ee-88ea-4cd497157f64,,Isaya Misiku,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Ask for mucheha's homestead behind ivuyi primary school,90
+uuid:a9b97ad0-7615-404a-969a-858d87947158,,Thomas Miziko,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Behind,40
+uuid:47a263a2-7e95-410a-872f-262a694d3501,,Evans Mutoko,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From Shihuli turn left and take a motorbike to Ivuyi market. It is 5km from Shihuli. It is directly opposite to Ivuyi market.,20
+uuid:6212c157-3339-4f00-8b44-8724c0072911,,George Amotsa,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,The household is located near lutololi stream/river,80
+uuid:f5a4c254-140b-4ed6-a210-0d6b647d4d74,,Regina Endasi,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Household located adjacent to African divine church,80
+uuid:d6ff20f2-7fb9-43be-ac33-183c361c871f,,Raymond Musine,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From PAG church its 20m walk then cross the road to the right. The homestead is beside the road near a posho mill,50
+uuid:bf674360-eb40-441b-9684-53c0e429e531,,Patrick Musonye,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Household located approximately 200metres from divine church. It's known as Musonye home.,90
+uuid:8df1f769-15d1-4c4a-bd33-d710a7fad2f7,,Kefah Chibole,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From african divine church you walk for 40m to homestead,30
+uuid:f2f9920d-aba2-4d55-b5b0-109431b50ff8,,Musala Mukhumu,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Household located behind ivuyi shopping centre near the river,60
+uuid:ba312c73-5473-422f-b984-258ed9ea3a35,,Meshack Amalemba,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From pentecoastal assemblies of God church is 10m to the household. Opposite a poshomill,100
+uuid:d326e6a6-127a-471e-9d6a-7abceafefb80,,Edwin Irechi,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Ask for Paul cheraks homestead behind ivunyi primary school,60
+uuid:1a6c8547-a337-4eeb-aebb-22a5a800cad7,,Isnas Mwabali,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From shinyalu to ivuyi shopping center. Near river Mkhubitsu.Ask for the home of Isnus mmboga .,70
+uuid:a9458149-82fe-44c7-94af-b69febe8fd2f,,Alexander Kalani,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From shinyalu to ivuyi shopping center. Near African Divine church ask for the home of Bushuru imboto,90
+uuid:e884ce81-4c15-4807-af68-9dad115de3e6,,Vincent Murumbi,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From PAG church you turn left and walk for 20m to the homestead opposite a shop,100
+uuid:fa18da44-5da4-4364-829a-4aec812074cf,,Silvester Luseno,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From kakamega  take route to ivuyi  primary then ask kwa mzalendo original,10
+uuid:81f1d234-e8d4-498b-b439-fe916ff3f2e6,,Harizon Misiku,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Ask for ooko's homestead next to ivuyi primary school,70
+uuid:01845299-0514-4027-9aaf-a5e82661e559,,George Terwa,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Ask for George Imbayi's homestead opposite ivuyi primary school,30
+uuid:ee9c8918-4c02-43ed-82e8-c6755c71b270,,Benard Fulula,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,"Household located approximately 100metres from African divine church, in the opposite side of the church",50
+uuid:cad8b13b-fdea-4818-88f2-f372ee395485,,Zakayo Munene,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From kakamega  take route to khayega then take shinyalu road then turn right at shihuli then road to kwireni primary he lives near the school,10
+uuid:28b56493-32a2-4ac0-b447-309024c0992c,,Rosemary Akamala,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Ask for Muchiga Paul's homestead next to ivuyi primary school,50
+uuid:e7d7de36-0681-4b89-a750-18923b4a2697,,Ernest Andalo,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From  khayega take route to shinyalu then branch at shihale then at ivuyi primary adk kwa andalo,80
+uuid:6b38cbc0-e61b-4f0f-9f4d-aa6b3385bf6e,,Vinicent Shihemi,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,From khayega take route  shinyalu branch at shihale then reach ivuyi prim ask kwa chivaka,70
+uuid:22522c56-e1c7-4e81-ab72-b5483d494ce3,,Samuel Misiko,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,"From pentecoastal assemblies of God church, cross the road and walk for 15m to the house",60
+uuid:40292db3-55c1-48d4-ab06-7da2309a7e24,,Sylvester Avetsa,,,Kakamega,102,Shinyalu,115,Isukha South,162,779,,Ask for imbayi's homestead next to ivuyi poshomill,20
+uuid:2a4b8919-289a-417f-8633-4ed9f4956f31,,Philis Isachi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary down to the river 100m ask Philis isache's house.,10
+uuid:13a5ba8c-37fd-427c-84d1-e26275d55423,,John Vigadzi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Isindu,30
+uuid:f97a33c9-86a7-413e-a842-3694c24bab50,,Jackeline Uteshi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,The last house to lwamboko river jackeline shitakwa home,60
+uuid:a5d74127-6ab8-4f0d-9e7d-d2d941335550,,Lucia Anyanda,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From museno primary school ask for Anyandas home,50
+uuid:1a2afa2b-019e-4d4b-873b-59f7c062cbb5,,John Mukanzi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Macadamia tree in the compound,60
+uuid:ec3ddb25-8ca0-4abe-973c-639c11bfd2f2,,Benerd Amukitza,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Behind museno primary 20metres ask emilly amukitza,70
+uuid:fddb1750-502a-4ff1-9f3a-c1a6e12b612d,,Norbert Ugalia,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary school ask for Vigazis home,50
+uuid:f0241030-36b8-4728-975e-0eea3868c04a,,Charles Shimenga,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Just At Museno primary school  ask Charles Shimengas home,40
+uuid:43ed34be-b693-47dd-8862-1d0c24e21891,,Slyvanous Mwanji,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Young eucalyptus trees in court,20
+uuid:302cf20e-ede4-4b42-ab3b-6b7601a08561,,Laurence Mangala,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary school ask for Mangalas home,50
+uuid:c4d42f2c-ab16-468b-a84d-6574dd899bb0,,Peter Amwai,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From amwai matasyo ask for peter amwai.asemi permanent house,100
+uuid:921c1be0-b97e-4d57-82e2-64f6fd95a63e,,Paul Chimwani,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From museno primary school ask for shiachis home,30
+uuid:794a5243-d6e8-4da9-9964-2766f203e07f,,Andrew Matasyo,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary move to assistant chief office then ask  for Andrew amwai matasyo.asemi permanent house at the compound are tall mango trees.,80
+uuid:48a48c1c-de3c-4903-9eff-91b7e0482bd9,,Benedict Mkatsi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Behind museno primary ask bendicto house,60
+uuid:7022eb4b-7108-4c30-8677-58241ff5816e,,Merry Melisa,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Merry,90
+uuid:06aa91e4-59ef-47df-bb2f-c3cefa70128c,,Magret Mulei,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,The house before irobo primary its a semi permanent house,40
+uuid:cdc9c334-d6c8-492b-92f4-190f72f630f6,,Anastanzia Musabi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary school ask for late Lilombe home just next to the road,90
+uuid:9fd8dcb5-8429-42af-9610-d85954c0113a,,Thomas Shibachi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary school ask for Somojas home,80
+uuid:f9f2f3c7-5552-4e7b-a403-0afd79992633,,Everlyne Makanga,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From museno primary school ask for machangas home. It's just near museno primary school,80
+uuid:d8637497-78f8-461f-929b-e38b4a7ae5ac,,Anjelina Muranditsi,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Turn left from museno primary ask angelina munditsi home,90
+uuid:34b9609d-95d6-4398-aac9-fe1adf49f848,,Joachim Kabaka,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary school ask for Kabakas home,100
+uuid:21cde6bd-19c3-418c-88bc-bde52238409a,,Tifna Mbone,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Ask for isowe,30
+uuid:1ca928c1-3b5a-4ea4-94df-e4beaff128b6,,Andrew Alela,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,Next to the stream with banana plants behind the house,20
+uuid:46b03763-54bb-45dc-8c3f-acc988bd048e,,Christine Indeche,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,From irobo primary school ask for Lilomba Amukhubi home. It's just next to the road,70
+uuid:b55f8a97-779d-4785-a759-c5cbdd29dd69,,George Lichina,,,Kakamega,102,Shinyalu,115,Isukha South,162,807,,At museno primary school ask for George Lichinas home. Its just next to the tarmac road,10
+uuid:9c22c344-fc1a-436a-a5af-575b564ed5af,,Pauline Mwanza,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,From kholera water pump ask John onyachi's home,100
+uuid:c75575c8-d1bf-4c11-991b-ea78f6dd1252,,Fredrick Wesonga,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,"From busia office go to Matungu.  Proceed to Kholera village.  Ask for Fred Kwoba,  he neighbors Teresa Kwoba",40
+uuid:841980bc-d631-442f-841a-14230e1dddfb,,Editah Nekesa,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,At editah nekesa taabus,10
+uuid:708190f7-9558-4b77-a819-4bd0f5ba81bf,,Daniel Wamukoya,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Ask for kabuti before kholera sec,60
+uuid:f5217e03-a76c-4a8b-ab9e-f7691e70f782,,Protus Mang'eni,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,"Home has well, commonly known as Titako Ng'ono's home. To the right of road from Kholera Primary school",70
+uuid:c87acb8d-083c-42ee-b8ea-c7e6b0c2a8fc,,Zephyrinus Mapesa,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,"Last home next to stream,  after fishponds.",90
+uuid:35049789-346c-4996-af25-bbde87e5234e,,Evans Ng'ono,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Homestead known as Alfred Ng'ono home. After Kholrea primary School,80
+uuid:62bdab00-8207-4f89-8366-a5aca7fd564a,,William Matiro,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,"From kholera water pump, first home on the right",90
+uuid:37d06bef-1ee3-4ff9-b2f1-4a62cb578d06,,Fredric Mulama,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,The household is behind kholera primary,60
+uuid:3958b350-68cc-4ec9-9363-28bcb7fc4c88,,Fredrick Wamukoya,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Kholera boys turn right few meters ask for Fredrick okumu,20
+uuid:d99cd8f7-5076-4845-af0b-f122e91c753f,,Florah Mleshe,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,From kholera water pump ask for Rafael Muleshe's home,30
+uuid:a570cd6e-cdfa-4ce0-8fb2-eb530820a812,,Julias Wamaya,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Matungu-Kholera primary then Kholera river and ask for Julias Wamaya's home,70
+uuid:2e693d17-5aa6-4015-af7c-b7a4d259bc77,,Micheal Juma,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,At micheal juma,40
+uuid:6dc7973f-ea19-44bb-8263-955d6ed71e8a,,Andronise Musotsi,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Ask for Andronise kwoba musotsi from the school,50
+uuid:a63b9015-7932-4d53-a1ba-0062f135e28f,,Vincent Mapesa,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Ask for Mwalimu near kholera water pump,30
+uuid:fc07a92b-a275-4d6f-8439-9d30671231ff,,Ignatius Maebo,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Ask for mwalimu Maebo's home at Kholera Primary School. It's after kholera primary School,40
+uuid:42eb637b-dd47-4abc-8a06-07f4fb04f427,,Zephyrinus Mapesa,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,"Zephyrinus mapesas home , aapproximately 1km from school. On road from Pentecostal church",80
+uuid:a852f962-3d95-4ca6-80e8-443f54af3f4e,,Paul Were,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Behind the kholera primary ask for Paulo home,100
+uuid:3a6d08ce-702f-497a-9fa5-c6157da95136,,William Omondi,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,The household is commonly known as kwa omondi,50
+uuid:440398f5-d3cb-490f-90fa-a60d1505b28a,,Tobias Maembo,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Matungu-Kholera primary then roll for about 300m then ask for Tobias Mayebo's home.,10
+uuid:3503e0c8-7939-4ddd-911c-4abbc4430bc0,,Vivian Mkanda,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Ask for wilbroda home,20
+uuid:d481e077-54c4-4ae2-b0b0-d1bd2fd6379e,,Moses Werimo,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,Behind kholera primary look for a chemistry shop,10
+uuid:97eb2e14-f7b0-475d-b2d7-bb627c126705,,Zachaus Oloo,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,The household is commonly known as kwa Salome mapesa when you reach the school ask,20
+uuid:2871aea7-8ded-48ee-bd39-dbd9bf02a55c,,Josephine Hamisi,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,At hamisi namajanja,90
+uuid:5c2b4245-4a7f-4359-a100-0fd077dc0d51,,Flora Masinde,,,Kakamega,102,Matungu,111,Mayoni,146,1242,,At flora muleshe masinde,60
+uuid:9e130518-6582-4b70-995a-e3f8ef53a830,,Charlies Mutimba,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of Charles mutimba in the village of wefwira near musamba market about 100 meters,90
+uuid:e97d1110-135e-4509-9fa8-44549d9d8141,,Dickson Lumumba,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"500m from alpha academy, ask lumumba's home",80
+uuid:c747cae5-19b0-42a5-b7e1-b19acf25c45b,,Philip Okech,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of Philip okech within the village of wefwira,40
+uuid:87c05830-b5d5-4a72-93b4-32998c1f2cbe,,Benson Matangwe,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"200m from miracle church, ask for ngochi",20
+uuid:46c8425c-3abe-43d8-953c-3f4e616c64cf,,Jerald Omanya,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"The home of wepe wamalwa, near miracle centre nursery school",10
+uuid:b6fb156c-0c9f-411c-af72-d59c5bc54d9e,,Tina Lusambu,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Mama Tina lusambus home, approximately 250m west of mavolo primary school",70
+uuid:541f6c53-d076-46a4-93a5-8f2dd1438e9d,,Robert Khaoya,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Robert sifuna khaoyas house, near the road to bulondo",20
+uuid:8991fb8a-0034-441b-b769-c24c9695bb0b,,Timothy Ambusi,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Ofindos house, on a rented building belonging to Francis, opposite KAG church musamba",70
+uuid:a66cf2f3-e712-4dbd-b239-a1f8060c3a06,,Julius Wechuli,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of Julius wechuli karani opposite divine church,50
+uuid:7dcd5d30-0f6c-4e5a-b048-88bbe6b96c5a,,Michael Mutimba,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of Michael malokha mutimba within the village of wefwira not far from the road,90
+uuid:222c7262-a9b5-41fe-a28c-487b0f177df7,,Amini Makokha,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Amini makokhas house, near mavolo primary school",60
+uuid:d9e110e7-20e0-47e9-895a-ed032c671a4d,,Martin Lutere,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,Ask for Martin kariokis home wefwira village,40
+uuid:f0cfcc3c-be1b-4096-a6f8-5bf147719f25,,Shadrack Wekesa,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,From harambe head to musamba market then ask for kwa wecheche family and then proceed to shadracks cpmpound,30
+uuid:e4e2c812-a9ac-4da6-8158-f62ff8baf326,,Godfrey Wesonga,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Godfrey lusambu wesongas home, near mavolo primary school",50
+uuid:0924481d-64b7-4adc-879c-da921a16362e,,Bernard Makokha,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of Bernard chuma makokha within the village of wefwira,100
+uuid:44c932f0-d48a-425e-95a7-96077215605f,,Josephine Wamukoya,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,Ask for Josephine juma wamukoya in wefwira village,10
+uuid:25bb06c7-2fe9-4986-9438-b15b13d37274,,Makokha Echesa,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,From harambe head to musamba then proceed to musamba Catholic Church then ask for kwa makokha echesa,20
+uuid:3b8010ce-031d-4768-9137-2fe9d88712f4,,Sakina Bakari,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,Within the village of wefwira ask for sakina baraza down the road the house is made of matofali,40
+uuid:07374864-57c8-4688-9a0c-f03eb0ea4362,,Tobias Ochieng,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Tobias Okumu Ochiengs home,right hand sloping down the road.",100
+uuid:c21152b5-ea62-4437-8a90-e0c7bc6353d4,,Maurice Lusambu,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of the first Wife to Maurice lusambu near mavolo primary school,60
+uuid:63dcd9fb-c9e6-4c9f-8e39-d3625de1a71d,,Fred Wekesa,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,Fred juma wekesas home is next to the mosque and on the road,80
+uuid:6b156a8f-e23e-4ebd-b865-c71defb94d15,,Fanuel Kupwoni,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,200m from alpha academy,90
+uuid:3128589f-bc89-4855-9c92-1a0d94fa4d14,,Moses Wafula,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,"Moses wanzala Wafula home, along the road to bulondo",80
+uuid:39f7df00-0951-4d28-8c66-51d023199977,,Albert Wechuli,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The family of wechuli in wefwira village on the road that goes to makokhwe,100
+uuid:16a02b16-597a-4f94-abe2-4e0f1264927f,,Jeremiah Makokha,,,Kakamega,102,Matungu,111,Khalaba,143,1261,,The home of Jeremiah rasto makokha just next to the road in the village of wefwira,30
+uuid:b3f3c9f2-b411-4238-8583-39e9ebcf6b75,,Walter Watako,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From lubinu primary school turn left go up-to where you will find many house past few metres ask for the home of watako musungu,70
+uuid:e52e5233-4eb7-4917-aab0-25a15e40d554,,Angeline Akwambi,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Just opposite st paul lubinu secondary school house with red ironsheets,50
+uuid:6c55a852-7221-43d5-84ae-5eb0b10e3bef,,Richard Sakwa,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for  Sakwa home close to sugar plantations,30
+uuid:ba8db393-519b-4099-a650-ef9e3b768ff1,,Peter Sumba,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From lubinu primary school turn left go up-to where you will find many house past few metres ask for the home of sumba Peter cooker at lubinu secondary,40
+uuid:21ab4582-5799-447d-839c-c0fc448cc30c,,Alice Anzetse,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for Alice Nabaleka's homestead,90
+uuid:862e6186-2f74-4207-983e-2fb53c92c4b8,,Adelaide Chuma,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From lubinu primary school turn left go up-to where you will find many house ask for the home of chuma Adelaide,100
+uuid:d3412949-04a4-4740-86e6-d002cffb147d,,Casimo Esau,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Behind village elder compound in musoma it was return but i did it in his place of work,50
+uuid:ba6c41ea-3018-4075-986d-f84be37bb21b,,Janepher Akumu,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for ibrahim malala compound in musoma village,20
+uuid:9fbc631a-a514-4754-bfaa-48f5ad2d3b81,,Lindstrom Weche,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From lubinu primary school turn left go up-to where you will find many house ask for the house of amunga,10
+uuid:f815e46f-3162-4560-bcdb-40f024038045,,Rashid Were,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for rashid malala compound in musoma village,30
+uuid:5a0f9a5d-1034-4a36-8b57-fec3481b7f0e,,Hamisi Esau,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,"Getrude Esaus home,next to village elders house.",100
+uuid:eeecb44c-39b4-4ab8-87fb-209dd2981cb4,,James Musungu,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for Musungu's homestead next to liondwe stream,10
+uuid:11032aa5-b06a-48b4-ad2f-b014a43f10ec,,Zainabu Omumia,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Near sheban posh meal in musoma village,20
+uuid:d9b8d796-6c97-4d35-afb1-287963cd2471,,Shaban Hussein,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for Shaban's homestead . The gate next to the posho mill,90
+uuid:0e0c608e-ae2b-4f9b-8b69-7e591ea4a227,,Gladys Bwakali,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for Eshitemi's homestead,40
+uuid:3588346e-6c3b-4445-a981-8f4f7ffaa3c0,,Bonface Were,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for bonface were compound in musoma village,80
+uuid:d5dbf295-1994-44ef-8de4-c1938cd29d23,,Bernard Juma,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for bernard omuyula in musoma village,60
+uuid:dc5511bb-1abc-4119-9bf2-34290f63ca87,,Josephat Juma,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From St Paul's lubinu secondary school ask for reverend josephat,80
+uuid:dbc9fb14-5817-4f16-90cd-43184655b5ba,,Idi Wamambia,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,"Ask for Idi Wamambias,house hold.",100
+uuid:3693c695-51e7-464d-8c52-5391f547b7d2,,Samson Nanzala,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for Oseni Samson's homestead,10
+uuid:53252918-7b21-48ff-b3f8-d9d9a729df87,,Bakari Kusimba,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Bakari Kusimba.share compound with village elder,60
+uuid:291bab6f-0927-459f-a8fe-668075092eaa,,Hamisi Wamambi,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for vilage elder elder ife compound,20
+uuid:c165c621-02f7-485a-8407-1e136c6328be,,George Abala,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From st Paul's lubinu secondary school ask for abale    in reverend josephats homestead,80
+uuid:fb7a21de-928a-4f79-a6c3-b506682db8eb,,Jared Watako,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,From lubinu primary school turn left go up-to where you will find many house past few metres ask for the home of chebi watako,70
+uuid:daf5be72-f730-4c6f-a94a-d7d7591eaa1d,,Jane Ongale,,,Kakamega,102,Mumias East,112,Lusheya/Lubinu,149,1304,,Ask for osani compound in musoma village,60
+uuid:66fd35f2-407a-4d5b-aac7-8f5cd9a5bf8d,,Joseph Osundwa,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From iyabo primary ask for shiundus home near the poshomill,90
+uuid:5a7cea39-7bea-4cde-9801-b101ae2d510d,,Wilfred Afande,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Near konambaya centre ask for Abdul,40
+uuid:f028879c-c521-4a9b-ac1f-ce79b6dbda4d,,Daniel Munyanga,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Home to the left of road to Otiato Center. Few meters from  mukhwaso River. Home commonly known as Oyuweri's,10
+uuid:057351da-bc3a-4ce4-a221-e3a7e6071b31,,Laima Kuta,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,At konambaya centre ask for Rose wa chips,80
+uuid:8ec4ebc4-d1d1-409e-b26a-df9420a01c52,,Abel Ongoma,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,"At kona mbaya market, ask for Abel mulama homestead.  House has a brown wooden door",100
+uuid:e73b93d3-7c25-44a7-b6f8-7f0da195cfac,,Erick Afande,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Near konambaya centre ask for Alice wa  Abdul,70
+uuid:4b7b1b24-d1a6-46ed-b2fd-c4d30b41fac3,,Fred Barnabas,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Home approximately 50m from corner market. It's behind the center. Household head commonly known as Barnabas,100
+uuid:7941f2f7-f9b7-48bc-ad29-6ccbe478d4ce,,Fred Barnabas,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,"Home behind corner centre, household head commonly known as Barnabas. Approximately 50m from main road",90
+uuid:d663f0b5-2d48-440a-acad-708f3c34e529,,Risper Okutoi,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From kona mbaya market go straight 100m and ask for bonzo's mum homestead.  The homestead has two mango trees and a house with rusted iron sheets roofing and a wooden door,20
+uuid:b2da7d0b-5749-466b-b376-cf4d8a67f89e,,Priscah Makokha,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From Pefa church ask for prisca Makokhas house.,70
+uuid:7aef41f6-ee9d-4a31-af08-ed817cb0aee5,,Christopher Mayunga,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From Iyabo primary schol ask for mayunga then ask for christopher,50
+uuid:53e7ef65-c337-4285-ba15-d357499856d0,,Stephen Akhaya,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,"Home immediately after corner market, besides market building that's red in colour. Home to oronda",60
+uuid:0f1629bb-bdcd-4fce-98b4-2a55079dd542,,Dismas Okoth,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,House is next to masinjira road. Nearest landmark is kona mbaya market and ACK church,80
+uuid:515ddaa0-06e1-4764-8303-6555194e4905,,Joseph Asingo,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,At konambaya centre ask for afisa,20
+uuid:cb898f7f-8383-4500-b5ec-af9b8e0e9588,,Luka Onyango,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Opposite Otiato shopping centre turn left then go down about 40m. Ask for Jane's home,30
+uuid:a7cdb6d7-ce7a-42cc-a7c0-befcfa438369,,Sella Okelo,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From mukhweso academy  ask for Sella okelo,60
+uuid:a613d5ef-4f49-4b48-880d-694df98d774d,,Peter Otieno,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From otiato market ask for peter otienos home,10
+uuid:b521c1c2-9ea7-43e3-b9f0-dd0a832ac5cb,,Samson Otieno,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From corner mkt ask for samson otienos home,10
+uuid:a2efa6fd-13bf-49ba-a2c9-5270fe8f3582,,Ali Makokha,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,"At kona mbaya market, ask for ali's compound.  House has brown and white paint on it",30
+uuid:5416a1d3-3efa-4ceb-a87f-c8825470ce67,,Ramadhan Mayende,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From Otiato market roll down past corner mbaya then go towards the river and ask for Rama's home,80
+uuid:c2b213ae-1f3f-4c9c-afc0-a0f07a56dbd1,,Doricah Onyango,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Home commonly known as Onyango's. To the right of road to corner centre. Approximately 10m to road,40
+uuid:ea247c4f-8461-403b-9776-81cce61cb5ed,,Amstrone Pino,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,At corner market ask for wangares mpesa,100
+uuid:6bd20d8d-cd90-4578-acb6-437b66f6bc6a,,Ramadhan Wesonga,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From iyabo primary school ask for Ramba then ask for major. The house is within mzee Rambas homestead,60
+uuid:89b0093e-a193-4d6e-bcb8-4287d940f18c,,Godfrey Okello,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,Home to the right of road to Otiato center. Near Mukweso river,50
+uuid:f0c99614-330f-43e4-b0b1-19f8422bcef6,,Margret Odhiambo,,,Kakamega,102,Mumias West,113,Etenje,151,1347,,From Kona Mbaya centre ask for Margaret Odhiambos house.,20
+uuid:a43da7aa-26d8-4070-8352-df0ee6c2cf2b,,Harison Misiko,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for matalanga,50
+uuid:f250a3ca-f229-4bf4-909b-a9e464c6b86c,,Humphrey Akwavi,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Near eshihaka pri,60
+uuid:b827e45b-2bf8-4746-8918-611c33d6e04c,,Javan Ambani,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Near eshihaka pri,10
+uuid:4bc2a42b-fd5e-4d13-b86b-e2dff3e5212f,,Stephen Aseka,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,At borabora shopping centre ask for stephen misiko aseka,20
+uuid:9dd4aba9-c228-46b0-81dd-a806eb529da4,,Patrick Makokha,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,From shaka market ask for patrick makokhas home,100
+uuid:ff0cab06-75a7-4d6b-a2c9-0644985c8c2a,,Sheila Omito,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,At borabora shopping centre ask for samuel omito,100
+uuid:54e463aa-b926-4e65-9104-e67c5d913e2c,,Charles Kalama,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Next to st stephen pri,50
+uuid:7a3d15e7-6f46-4423-932a-96f5c6fcac7e,,Charles Osundu,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,From shaka primary ask for charles osundwa wesongas home,70
+uuid:eb90aa43-9690-4f85-b020-2f94f628289a,,Pius Makwata,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,"From Ahonyinjo primary school,ask for Pius Makwatas family.",50
+uuid:c4c1cc71-56e1-44d1-b3b9-fc32125bc8b4,,Judith Obanda,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for Judith's home before Borabora center,80
+uuid:1c3c93b6-abe0-4272-be8b-51af5e24f1b2,,Rajab Otanda,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for Mzee Achola's home before Borabora center,30
+uuid:2723dd4e-b2c2-400f-8278-abcdb50f0762,,Zakayo Makonjio,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for Zakayo Makonjio's house,30
+uuid:44d791db-433b-4bcd-8534-4d63b411018f,,Ibrahim Omondi,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for Juma Osovolo's house just before Borabora center.,100
+uuid:85026028-0176-48c0-889b-a90df15d0222,,Richard Khayongo,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Near st stephen pri,10
+uuid:1bcd66c6-79c8-431d-8400-6d6dcf97f939,,Daniel Misiko,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,From the ack church ask for daniel misikos hime,90
+uuid:128b1ee8-f921-49ac-8b3c-c2081ce8386f,,Alice Waswa,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,From St. Stephen Primary School ask for Alice Waswas house.,20
+uuid:4f2a8a2d-5aff-4848-8fc7-a33c7e975f32,,Bonventure Ombunya,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,At borabora shopping centre ask for Bonventure Obanda,40
+uuid:d1fe248b-1a43-448b-afc0-3c28065dee51,,Elda Mavombola,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,At borabora shopping centre ask for elda mavombola,80
+uuid:746b9ef7-c676-4823-91d7-f66b72a6b048,,Charles Opiyo,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,At borabora shopping centre ask for mutuli opiyo,60
+uuid:0811dc60-bb11-4154-ab40-d0714cfba6f1,,George Elias,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for Jack's house just before reaching Borabora,70
+uuid:6f8bab05-2c1e-461b-8dd2-f049ede35b9f,,Beatrice Misiko,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for Beatrice's house in Njiri's homestead.,40
+uuid:5fca24a8-3e80-4551-848d-d1fc380a1989,,Absolom Andati,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,Ask for James Ndiri's house on your right on the road to Shiaka primary school.,20
+uuid:b167428a-6a73-428c-b824-ae8ce9efa09f,,Sarah Wetende,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,From St.Stephen primary school ask for Sarah Wetendes  house.,70
+uuid:5e2eb853-1ce1-421f-acf6-763bf36f170f,,Alice Makokha,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,"From Onyinjo primary school,ask for Alice Masakhu Makokhas house.",90
+uuid:b5705735-44aa-458a-8119-df8b69c71de4,,Stephen Waswa,,,Kakamega,102,Mumias West,113,Musanda,153,1370,,From shaka primary ask forstephen naphtali waswa,80
