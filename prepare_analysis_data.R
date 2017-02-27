@@ -31,6 +31,7 @@ cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat
 sms.content.data <- read_rds(file.path("data", "takeup_sms_treatment.rds"))
 pot.info <- read_rds(file.path("data", "pot_info.rds"))
 wtp.data <- read_rds(file.path("data", "takeup_wtp.rds"))
+endline.know.table.data <- read_rds(file.path("data", "know_tables.rds"))
 
 # HH distance to PoT ------------------------------------------------------
 
@@ -122,8 +123,29 @@ social.info.data <- sms.content.data %>%
   ungroup %>% 
   rename(dewormed.day = deworming.day) 
 
+# Knowledge tables prep ---------------------------------------------------
+
+survey.know.list <- file.path("instruments", "SurveyCTO Forms", "Endline Survey", "Deployed Form Version", 
+                              c("knowledge_list.csv", "kak_knowledge_list.csv")) %>% 
+  map_df(read_csv, .id = "wave") %>% 
+  mutate(wave = as.integer(wave))
+
+endline.know.table.data %<>% 
+  inner_join(select(endline.data, KEY.individ, cluster.id, KEY), c("PARENT_KEY" = "KEY")) %>% 
+  inner_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other),
+             c("KEY.individ" = "person_key", "know.other.index")) %>% 
+  left_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other), # Get the second person (table B)
+            c("KEY.individ" = "person_key", "know.other.index.2" = "know.other.index"),
+            suffix = c(".1", ".2")) %>% 
+  mutate_at(vars(recognized, dewormed, dewormed.know.only), 
+            funs(factor(., levels = c(0:1, 98), labels = c("no", "yes", "don't know")))) %>% 
+  mutate_at(vars(second.order), 
+            funs(factor(., levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know")))) %>% 
+  mutate_at(vars(relationship), 
+            funs(factor(., levels = c(1:5, 99), labels = c("hh member", "extended family", "friend", "neighbor", "church", "other"))))  
+
 # Save data ---------------------------------------------------------------
 
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
-     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data,
+     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
