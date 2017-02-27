@@ -626,6 +626,104 @@ wtp.data %>%
        caption = "This data is for the control arm only.") 
 ```
 
+# Social Knowledge
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.A") %>% 
+  mutate(relationship = fct_infreq(relationship)) %>% {
+    ggplot(.) +
+      geom_bar(aes(relationship, y = ..count../sum(..count..)), alpha = 0.5, color = "black") + 
+      labs(x = "Relationship", y = "Proportion", title = "Reported Relationships", subtitle = "Table A only", caption = sprintf("Number of knowledge queries: %d", nrow(.))) +
+      scale_y_continuous(breaks = seq(0, 1, 0.1))
+  }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.A", recognized == "yes") %>% 
+  mutate(relationship = fct_infreq(relationship)) %>% 
+  group_by(relationship) %>% 
+  mutate(rel.size = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop = n()/first(rel.size)) %>% 
+  ungroup %>% {
+    ggplot(., aes(x = relationship, group = dewormed)) +
+      geom_col(aes(y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+      labs(x = "Relationship", y = "Proportion", title = "Reported Others' Deworming", subtitle = "Table A only",
+           caption = "Proportions are relative to relationship group.") +
+      scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+      scale_fill_discrete("Other Dewormed")
+  }
+```
+
+```{r, fig.height=6}
+# endline.know.table.data %>% 
+#   filter(know.table.type == "table.A", recognized == "yes") %>% 
+#   # group_by(respondent.dewormed.any, assigned.treatment, actual.other.dewormed.any.either) %>% 
+#   group_by(assigned.treatment, actual.other.dewormed.any.either) %>% 
+#   mutate(rel.size = n()) %>% 
+#   group_by(dewormed, add = TRUE) %>% 
+#   summarize(prop = n()/first(rel.size)) %>% 
+#   ungroup %>% {
+#     ggplot(., aes(x = actual.other.dewormed.any.either, group = dewormed)) +
+#       geom_col(aes(y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+#       labs(x = "Actual Deworming Status", y = "Proportion", title = "Reported and Actual Others' Deworming", subtitle = "Table A only",
+#            caption = "Proportions are relative to deworming status group.") +
+#       scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+#       scale_fill_discrete("Reported Others' Dewormed") +
+#       facet_wrap(~ assigned.treatment, nrow = 1) +
+#       # facet_grid(respondent.dewormed.any ~ assigned.treatment) + #, nrow = 1) +
+#       theme(legend.position = "bottom")
+#   }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.B") %>% { 
+    ggplot(.) +
+      geom_bar(aes(num.recognized, y = ..count../sum(..count..)), alpha = 0.5, color = "black") + 
+      labs(x = "Number of Individuals Recognized", y = "Proportion", title = "Recognized in Pairs", subtitle = "Table B only", caption = sprintf("Number of knowledge queries: %d", nrow(.))) 
+  }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.B", num.recognized > 0) %>%
+  group_by(num.recognized) %>% 
+  mutate(num.rec.size = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop = n() / first(num.rec.size)) %>% 
+  ungroup %>% { 
+    ggplot(.) +
+      geom_col(aes(factor(num.recognized), y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+      labs(x = "Number of Individuals Recognized", y = "Proportion", title = "Reported Others' Deworming (In Pairs)", subtitle = "Table B only", caption = "Proportions are relative to relationship group.") +
+      scale_fill_discrete("Dewormed") +
+      scale_y_continuous(breaks = seq(0, 1, 0.1))
+  }
+```
+
+```{r, fig.height=6}
+endline.know.table.data %>% 
+  # filter(know.table.type == "table.B", num.recognized > 0) %>%
+  filter(num.recognized > 0) %>%
+  mutate(know.table.type = fct_recode(know.table.type, "Table A" = "table.A", "Table B" = "table.B")) %>% 
+  group_by(assigned.treatment, know.table.type, actual.other.dewormed.any.either) %>% 
+  mutate(num.rec.size = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop = n() / first(num.rec.size)) %>% 
+  ungroup %>% { 
+    ggplot(.) +
+      geom_col(aes(factor(actual.other.dewormed.any.either), y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+      labs(x = "Others' Actual Deworming Status", y = "Proportion", title = "Reported and Actual Others' Deworming", caption = "Proportions are relative to facet and actual deworming status groups.") +
+      scale_fill_discrete("Others' Reported Deworming Status") +
+      scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+      facet_grid(know.table.type ~ assigned.treatment) +
+      theme(legend.position = "bottom")
+      # facet_wrap(~ assigned.treatment, nrow = 1)
+  }
+```
+
 # Reduced Form Analysis
 
 Below is the main regression specification, where $m(\cdot)$ and $m_1(\cdot)\dots m_{K-1}(\cdot)$ define the causal effects to estimate. $l(\cdot)$ and $l_1(\cdot)\dots l_{K-1}(\cdot)$ define the regression intercepts.
