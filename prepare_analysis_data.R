@@ -122,8 +122,45 @@ social.info.data <- sms.content.data %>%
   ungroup %>% 
   rename(dewormed.day = deworming.day) 
 
+# Knowledge tables prep ---------------------------------------------------
+
+endline.know.table.data <- read_rds(file.path("data", "know_tables.rds"))
+
+survey.know.list <- file.path("instruments", "SurveyCTO Forms", "Endline Survey", "Deployed Form Version", 
+                              c("knowledge_list.csv", "kak_knowledge_list.csv")) %>% 
+  map_df(read_csv, .id = "wave") %>% 
+  mutate(wave = as.integer(wave)) %>% 
+  filter(wave == 1 | !is.na(survey.type))
+
+endline.know.table.data %<>% 
+  inner_join(select(endline.data, KEY.individ, wave, cluster.id, KEY), c("PARENT_KEY" = "KEY")) %>% 
+  inner_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other),
+             c("KEY.individ" = "person_key", "know.other.index")) %>% 
+  left_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other), # Get the second person (table B)
+            c("KEY.individ" = "person_key", "know.other.index.2" = "know.other.index"),
+            suffix = c(".1", ".2")) %>% 
+  mutate_at(vars(recognized, dewormed, dewormed.know.only), 
+            funs(factor(., levels = c(0:1, 98), labels = c("no", "yes", "don't know")))) %>% 
+  mutate_at(vars(second.order), 
+            funs(factor(., levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know")))) %>% 
+  mutate_at(vars(relationship), 
+            funs(factor(., 
+                        levels = c(1:5, 99), 
+                        labels = c("hh member", "extended family", "friend", "neighbor", "church", "other")))) %>%
+  mutate(relationship = if_else(relationship == "other" & str_to_lower(relationship.other) %in% c("village member", "village mate", "same village", "village elder", "village mates", "villager"),
+                                "village member", as.character(relationship)) %>% factor,
+         dewormed = if_else(know.table.type == "table.B" & is.na(dewormed), dewormed.know.only, dewormed)) %>% 
+  left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, respondent.dewormed.any = dewormed.any),
+            "KEY.individ") %>% 
+  left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, actual.other.dewormed.any.1 = dewormed.any),
+            c("KEY.individ.other.1" = "KEY.individ")) %>% 
+  left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, actual.other.dewormed.any.2 = dewormed.any),
+            c("KEY.individ.other.2" = "KEY.individ")) %>% 
+  mutate(actual.other.dewormed.any.either = actual.other.dewormed.any.1 | (know.table.type == "table.B" & actual.other.dewormed.any.2)) %>% 
+  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id")  
+
 # Save data ---------------------------------------------------------------
 
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
-     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data,
+     census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
