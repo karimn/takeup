@@ -556,6 +556,8 @@ analysis.data %>%
   facet_grid(dewormed.any ~ hh_cal)
 ```
 
+The above graph seems to show that conditional on someone in my household having a calendar my desire for a calendar is the same regardless of whether I already have a calendar (i.e. dewormed) or do not have a calendar (i.e. not dewormed). Meaning one of my household members obtaining a calendar is the same as me having a calendar? Private valuation drops massively, which means we cannot think of the calendar as an individual level incentive. I tried to create the same graph for bracelets to see if there is a similar substitution effect or (hopefully not) a complementarity. I could not find the $hh_bra$ variable in the analysis data set and so far been unable to merge it in from the endline data.  
+
 ```{r, fig.width=8}
 analysis.data %>% 
   filter(monitored, consent, !is.na(cal_value), assigned.treatment == "calendar") %>% 
@@ -623,8 +625,35 @@ wtp.data %>%
   geom_line(aes(color = first_choice)) +
   scale_color_discrete("First Choice") +
   labs(x = "Offered Price (KSh)", y = "Proportion", title = "Proportion Switching From First Choice of Gift When Offered Cash",
-       caption = "This data is for the control arm only.") 
+       caption = "This data is for the control arm only.")
 ```
+
+## Estimate utility difference Calendar Bracelet 
+```{r}
+wtp.cdf <- wtp.data %>%
+  select(first_choice,second_choice,price) %>%
+  filter(is.na(first_choice) == FALSE) 
+
+table(wtp.cdf$first_choice)
+n_bra <- sum(wtp.cdf$first_choice == "bracelet") 
+n_cal <- sum(wtp.cdf$first_choice == "calendar") 
+N <- nrow(wtp.cdf)
+bra_share <- n_bra/N
+cal_share <- n_cal/N  
+
+wtp.cdf$price[wtp.cdf$first_choice == "bracelet"] <-  - wtp.cdf$price[wtp.cdf$first_choice == "bracelet"]
+
+wtp.cdf <- wtp.cdf %>% 
+  group_by(price) %>% 
+  summarise(N = n(), Pr = sum(second_choice == "switch")/N)
+wtp.cdf$tot_pr <- NA
+wtp.cdf$tot_pr[wtp.cdf$price >0] <- bra_share + cal_share*wtp.cdf$Pr[wtp.cdf$price >0]
+wtp.cdf$tot_pr[wtp.cdf$price <0] <- bra_share - bra_share*wtp.cdf$Pr[wtp.cdf$price <0]
+
+ggplot(wtp.cdf, aes(x=price,y=tot_pr)) + theme_bw() + geom_point() + geom_line()
+```
+
+Note: -60 KSH is a problem of small sample in bracelet choice group. should not observe 100 percent switching. Median u diff approx. KSH 40. Next step: fit CDF through LPM incl. possibly interaction terms. 
 
 # Social Knowledge
 

@@ -164,3 +164,7 @@ endline.know.table.data %<>%
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
      census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
+
+analysis.data %>% 
+  set_names(str_replace_all(names(.), "\\.|-", "_")) %>% 
+  write_dta(file.path("data", "analysis_data.dta"))
