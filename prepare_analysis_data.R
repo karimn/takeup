@@ -13,13 +13,13 @@ library(rgeos)
 
 library(econometr)
 
-source("takeup/analysis_util.R")
+source("analysis_util.R")
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
 # Load the data ----------------------------------------------------------
-load("/Users/annekaring/socialsignalingworms/takeup/data/takeup_village_pot_dist.RData")
+load(file.path("data", "takeup_village_pot_dist.RData"))
 
 # This data was prepared in takeup_field_notebook.Rmd
 census.data <- read_rds(file.path("data", "takeup_census.rds"))
