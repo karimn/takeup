@@ -105,7 +105,8 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
     filter(row_number() == 1) %>% 
     ungroup %>% 
     base.prepare.baseline.endline.data %>% 
-    mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported, hh_cal, cal_value), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported, hh_bracelet, hh_cal, cal_value), 
+              funs(yes.no.factor(., .yes.no = 1:0))) %>% 
     mutate_at(vars(treat_begin, days_available, treat_end), funs(factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
     mutate(treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
            treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
