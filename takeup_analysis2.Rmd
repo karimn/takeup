@@ -70,10 +70,10 @@ options(dplyr.show_progress = FALSE, digits = 4)
 
 ```{r load-data, include=FALSE}
 
-census.data <- read_rds(file.path("data", "takeup_census.rds"))
-all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
-reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
-takeup.data <- read_rds(file.path("data", "takeup.rds"))
+#census.data <- read_rds(file.path("data", "takeup_census.rds"))
+#all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
+#reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
+#takeup.data <- read_rds(file.path("data", "takeup.rds"))
 
 load(file.path("data", "analysis.RData"))
 ```
@@ -555,8 +555,26 @@ analysis.data %>%
        subtitle = "Split by whether household has other calendar(s) and deworming take-up", caption = "This is only for the calendar arm of the experiment") +
   facet_grid(dewormed.any ~ hh_cal)
 ```
+The above graph seems to show that conditional on someone in my household having a calendar my desire for a calendar is the same regardless of whether I already have a calendar (i.e. dewormed) or do not have a calendar (i.e. not dewormed). Meaning one of my household members obtaining a calendar is the same as me having a calendar. However, given that overall the calendar is still prefered to the bracelet (see graph before that combines households) since for most households (70$\%$ in data) no one came for deworming, I think we are fine. Ideally, we find a way to control for these negatively correlated preferences in calendars but not sure how exactly.
 
-The above graph seems to show that conditional on someone in my household having a calendar my desire for a calendar is the same regardless of whether I already have a calendar (i.e. dewormed) or do not have a calendar (i.e. not dewormed). Meaning one of my household members obtaining a calendar is the same as me having a calendar? Private valuation drops massively, which means we cannot think of the calendar as an individual level incentive. I tried to create the same graph for bracelets to see if there is a similar substitution effect or (hopefully not) a complementarity. I could not find the $hh_bra$ variable in the analysis data set and so far been unable to merge it in from the endline data.  
+```{r, fig.width=8}
+analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, consent, !is.na(hh_bracelet), assigned.treatment == "bracelet") %>% 
+  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
+         hh_bracelet = fct_recode(hh_bracelet, "Other in household got bracelet" = "yes", "No one else got bracelet" = "no")) %>%
+  group_by(dewormed.any, hh_bracelet) %>% 
+  mutate(arm.size = n()) %>% 
+  group_by(gift_choice, add = TRUE) %>%
+  summarize(pref.prop = n() / first(arm.size)) %>% 
+  ungroup %>% 
+  ggplot(aes(gift_choice, pref.prop)) +
+  geom_col(alpha = 0.5, color = "black") +
+  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
+       subtitle = "Split by whether household has other bracelet(s) and deworming take-up", caption = "This is only for the bracelet arm of the experiment") +
+  facet_grid(dewormed.any ~ hh_bracelet)
+```
+
+Irrespective of whether you have come for deworming or not, or whether someone else has come for deworming in your households and received a bracelet, you still prefer the calendar. People just did not really like the bracelets! If you did not come for deworming you value a bracelet the same regardless of whether no one else in your household has a bracelet or someone else has a bracelet. There is no evidence for a complementarity or substitution here. 
 
 ```{r, fig.width=8}
 analysis.data %>% 
@@ -808,6 +826,7 @@ Without controls (using cluster robust standard errors). ~~Also including block 
 
 ```{r, warning=FALSE}
 reg.output.sms.ctrl <- analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -836,6 +855,38 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl) %>% {
     labs(subtitle = "Without control")
 }
 ```
+```{r, warning=FALSE}
+reg.output.sms.ctrl.lim <- analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor != "NA") %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+    
+reg.output.sms.ctrl.calendar.lim <- analysis.data %>%
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor != "NA") %>%
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
+  mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
+  run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+
+kable(tidy(reg.output.sms.ctrl.lim), digits = 4)
+```
+
+With _calendar_ as the omitted category for the limited sample, to estimate $E[Y_{ij}(bracelet) - Y_{ij}(calendar)] = \tau(bracelet) - \tau(calendar)$:
+
+```{r}
+reg.output.sms.ctrl.calendar.lim %>% 
+  tidy %>% 
+  filter(term %in% c("(intercept)", "bracelet")) %>% 
+  kable(digits = 4)
+```
+```{r, fig.width=10}
+prep.sms.ctrl.plot.data(reg.output.sms.ctrl.lim) %>% {
+  plot.sms.ctrl.takeup(.) +
+    labs(subtitle = "Without control restricted sample")
+}
+```
+
+We can see that changes in coefficients e.g. for ink are not due to controlling for covariates but due to the fact that we are restricting the sample to only those individuals for whom we observe covariates. Let's talk about this and make a decision on how to best move forward. Commonly from presentations I remember people working with one sample - without controls - and then showing same sample with controls to show "show" that coefficient estimates do not change and increase precision.
 
 ```{r}
 neyman.results <- analysis.data %>% 
@@ -1032,7 +1083,8 @@ $$
 
 ```{r}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample)%>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
 
@@ -1064,6 +1116,24 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist, .interact.with = "far") %>%
     labs(subtitle = "Without controls") 
 }
 ```
+
+```{r}
+reg.output.sms.ctrl.dist.lim <- analysis.data %>%  
+  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor!= "NA")%>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
+
+kable(tidy(reg.output.sms.ctrl.dist), digits = 4)
+```
+```{r, fig.width=12}
+prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.lim, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
+  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
+    labs(subtitle = "Without controls restricted sample") 
+}
+```
+We can see that most of the changes that we observe between the regression without and with control are due to change in sample.
 
 <!-- Below is the corresponding estimation using Neyman's approach: -->
 
@@ -1113,7 +1183,7 @@ neyman.results %>%
 
 ```{r}
 reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
@@ -1156,6 +1226,16 @@ reg.output.sms.ctrl.cont.dist %>%
                   "2 * bracelet:dist.to.pot + 4 * bracelet:dist.to.pot.2 + bracelet - 2 * ink:dist.to.pot - 4 * ink:dist.to.pot.2 - ink",
                   "2.5 * bracelet:dist.to.pot + 6.25 * bracelet:dist.to.pot.2 + bracelet - 2.5 * ink:dist.to.pot - 6.25 * ink:dist.to.pot.2 - ink")) %>% 
   kable(digits = 4)
+```
+```{r}
+reg.output.sms.ctrl.cont.dist.lim <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor!="NA") %>% 
+  mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
+         dist.to.pot.2 = dist.to.pot^2) %>% 
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * (dist.to.pot + dist.to.pot.2), .strat.by = "county", .cluster = "cluster.id")
+
+kable(tidy(reg.output.sms.ctrl.cont.dist), digits = 4)
 ```
 
 ## SMS Treatment
@@ -1214,6 +1294,30 @@ c("ink", "calendar", "bracelet") %>%
   linear_tester(reg.output.sms.treat, .) %>% 
   kable(digits = 4)
 ```
+```{r}
+reg.output.sms.treat.lim <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, floor!="NA") %>% 
+  anti_join(outlier.clusters, "cluster.id") %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+
+reg.output.sms.treat %>% tidy %>% kable(digits = 4)
+```
+
+Some linear hypotheses testing:
+```{r}
+c("ink", "calendar", "bracelet") %>% 
+                  map(~ c(paste0(., ":social.info"), "social.info")) %>% 
+                  map(~ paste(., collapse = " + ")) %>% 
+                  c("bracelet - calendar",
+                    "ink - social.info", 
+                    "bracelet - calendar - calendar:social.info - social.info",
+                    "ink + ink:social.info", 
+                    "bracelet - calendar + bracelet:social.info - calendar:social.info") %>% 
+  linear_tester(reg.output.sms.treat.lim, .) %>% 
+  kable(digits = 4)
+```
+
 
 ```{r}
 neyman.results.sms <- analysis.data %>% 
@@ -1239,6 +1343,12 @@ neyman.results.sms <- analysis.data %>%
 prep.sms.treat.plot.data(reg.output.sms.treat) %>% { 
   plot.sms.treat.takeup(.) +
     labs(subtitle = "Without Controls") 
+}
+```
+```{r, fig.height=6}
+prep.sms.treat.plot.data(reg.output.sms.treat.lim) %>% { 
+  plot.sms.treat.takeup(.) +
+    labs(subtitle = "Without Controls restricted sample") 
 }
 ```
 
@@ -1428,6 +1538,23 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist) %>% {
   plot.sms.treat.takeup(.) +
     facet_wrap(~ dist) +
     labs(subtitle = "Split by distance to PoT, without controls")
+}
+```
+```{r}
+reg.output.sms.treat.dist.lim <- analysis.data %>%  
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, floor!="NA") %>% 
+  anti_join(outlier.clusters, "cluster.id") %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
+         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
+
+reg.output.sms.treat.dist %>% tidy %>% kable(digits = 4)
+```
+```{r, fig.width=12}
+prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
+  plot.sms.treat.takeup(.) +
+    facet_wrap(~ dist) +
+    labs(subtitle = "Split by distance to PoT, without controls restricted sample")
 }
 ```
 
