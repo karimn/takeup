@@ -1228,9 +1228,9 @@ reg.output.sms.ctrl.cont.dist %>%
   #                 "1.5 * bracelet:dist.to.pot + bracelet - 1.5 * ink:dist.to.pot - ink",
   #                 "2 * bracelet:dist.to.pot + bracelet - 2 * ink:dist.to.pot - ink",
   #                 "2.5 * bracelet:dist.to.pot + bracelet - 2.5 * ink:dist.to.pot - ink")) %>% 
-  linear_tester(c("bracelet:dist.to.pot + bracelet:dist.to.pot.2 + bracelet - ink:dist.to.pot - ink:dist.to.pot.2 - ink",
-                  "2 * bracelet:dist.to.pot + 4 * bracelet:dist.to.pot.2 + bracelet - 2 * ink:dist.to.pot - 4 * ink:dist.to.pot.2 - ink",
-                  "2.5 * bracelet:dist.to.pot + 6.25 * bracelet:dist.to.pot.2 + bracelet - 2.5 * ink:dist.to.pot - 6.25 * ink:dist.to.pot.2 - ink")) %>% 
+  linear_tester(c("bracelet:dist.to.pot + bracelet:dist.to.pot.2 + bracelet - calendar:dist.to.pot - calendar:dist.to.pot.2 - calendar",
+                  "2 * bracelet:dist.to.pot + 4 * bracelet:dist.to.pot.2 + bracelet - 2 * calendar:dist.to.pot - 4 * calendar:dist.to.pot.2 - calendar",
+                  "2.5 * bracelet:dist.to.pot + 6.25 * bracelet:dist.to.pot.2 + bracelet - 2.5 * calendar:dist.to.pot - 6.25 * calendar:dist.to.pot.2 - calendar")) %>% 
   kable(digits = 4)
 ```
 ```{r}
