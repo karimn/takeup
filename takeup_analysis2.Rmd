@@ -70,10 +70,10 @@ options(dplyr.show_progress = FALSE, digits = 4)
 
 ```{r load-data, include=FALSE}
 
-#census.data <- read_rds(file.path("data", "takeup_census.rds"))
-#all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
-#reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
-#takeup.data <- read_rds(file.path("data", "takeup.rds"))
+census.data <- read_rds(file.path("data", "takeup_census.rds"))
+all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
+reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
+takeup.data <- read_rds(file.path("data", "takeup.rds"))
 
 load(file.path("data", "analysis.RData"))
 ```
@@ -826,7 +826,6 @@ Without controls (using cluster robust standard errors). ~~Also including block 
 
 ```{r, warning=FALSE}
 reg.output.sms.ctrl <- analysis.data %>%  
-  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -855,15 +854,19 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl) %>% {
     labs(subtitle = "Without control")
 }
 ```
+
+Running regression without controls with the same sample as in the with controls regression:
+
 ```{r, warning=FALSE}
 reg.output.sms.ctrl.lim <- analysis.data %>%  
-  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor != "NA") %>% 
+  mutate_at(vars(floor), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
     
 reg.output.sms.ctrl.calendar.lim <- analysis.data %>%
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor != "NA") %>%
+  mutate_at(vars(floor), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, !is.na(floor)) %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -879,6 +882,7 @@ reg.output.sms.ctrl.calendar.lim %>%
   filter(term %in% c("(intercept)", "bracelet")) %>% 
   kable(digits = 4)
 ```
+
 ```{r, fig.width=10}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.lim) %>% {
   plot.sms.ctrl.takeup(.) +
@@ -1083,8 +1087,7 @@ $$
 
 ```{r}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
-  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample)%>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
 
@@ -1117,15 +1120,18 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist, .interact.with = "far") %>%
 }
 ```
 
+Running regression without controls with the same sample as in the with controls regression:
+
 ```{r}
 reg.output.sms.ctrl.dist.lim <- analysis.data %>%  
-  mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor!= "NA")%>% 
+  mutate_at(vars(floor), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
 
 kable(tidy(reg.output.sms.ctrl.dist), digits = 4)
 ```
+
 ```{r, fig.width=12}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.lim, .interact.with = "far") %>% 
   mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
@@ -1294,9 +1300,12 @@ c("ink", "calendar", "bracelet") %>%
   linear_tester(reg.output.sms.treat, .) %>% 
   kable(digits = 4)
 ```
+
+Running regression without controls with the same sample as in the with controls regression:
+
 ```{r}
 reg.output.sms.treat.lim <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, floor!="NA") %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -1540,9 +1549,12 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist) %>% {
     labs(subtitle = "Split by distance to PoT, without controls")
 }
 ```
+
+Running regression without controls with the same sample as in the with controls regression:
+
 ```{r}
 reg.output.sms.treat.dist.lim <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, floor!="NA") %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
