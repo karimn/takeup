@@ -86,7 +86,7 @@ census.data %>%
          monitored) %>% {
     count(., endline.type) %>% kable %>% print
     
-    filter(., is.na(endline.type)) %>% count(baseline.sample.wave)
+    filter(., is.na(endline.type)) %>% count(hh.baseline.sample)
   } %>% 
   kable
 ```
@@ -464,7 +464,7 @@ baseline.data %>%
 
 ```{r, echo=TRUE}
 balance.data <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   select_(.dots = c("assigned.treatment", reg.covar, "dist.pot.group")) %>% 
   mlogit.data(choice = "assigned.treatment") 
@@ -483,7 +483,7 @@ waldtest(unrestricted.reg, restricted.reg)
 
 ```{r}
 analysis.data %>%  
-  filter(monitored, monitor.consent, !baseline.sample) %>% 
+  filter(monitored, monitor.consent, !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   ggplot(aes(dist.to.pot)) +
   geom_density(aes(color = dist.pot.group, linetype = "Household")) +
@@ -813,7 +813,7 @@ Without controls (using cluster robust standard errors). ~~Also including block 
 
 ```{r}
 # analysis.data %>%
-#   filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
+#   filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>%
 #   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
 #   unite(stratum, county, dist.pot.group, sep = ".") %>%
 #   select(dewormed.any, assigned.treatment, stratum, cluster.id) %>%
@@ -826,12 +826,12 @@ Without controls (using cluster robust standard errors). ~~Also including block 
 
 ```{r, warning=FALSE}
 reg.output.sms.ctrl <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
     
 reg.output.sms.ctrl.calendar <- analysis.data %>%
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -860,13 +860,13 @@ Running regression without controls with the same sample as in the with controls
 ```{r, warning=FALSE}
 reg.output.sms.ctrl.lim <- analysis.data %>%  
   mutate_at(vars(floor), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, !is.na(floor)) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
     
 reg.output.sms.ctrl.calendar.lim <- analysis.data %>%
   mutate_at(vars(floor), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, !is.na(floor)) %>%
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample, !is.na(floor)) %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>%
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -894,7 +894,7 @@ We can see that changes in coefficients e.g. for ink are not due to controlling 
 
 ```{r}
 neyman.results <- analysis.data %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   analyze.neyman.blk.bs(0) %>% 
   # analyze.neyman.blk.bs(2000) %>% 
@@ -959,13 +959,13 @@ reg.covar
 ```{r}
 reg.output.sms.ctrl.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar)
 
 reg.output.sms.ctrl.calendar.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar)
@@ -1000,7 +1000,7 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
 
 ```{r, echo=2:3}
 reg.output.nonphone <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
 
@@ -1026,7 +1026,7 @@ prep.sms.ctrl.plot.data(reg.output.nonphone, .interact.with = "phone.owner") %>%
 
 ```{r}
 reg.output.nonphone.covar <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
@@ -1087,7 +1087,7 @@ $$
 
 ```{r}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
 
@@ -1125,7 +1125,7 @@ Running regression without controls with the same sample as in the with controls
 ```{r}
 reg.output.sms.ctrl.dist.lim <- analysis.data %>%  
   mutate_at(vars(floor), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, !is.na(floor)) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
 
@@ -1189,7 +1189,7 @@ neyman.results %>%
 
 ```{r}
 reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>%
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
@@ -1209,7 +1209,7 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 
 ```{r}
 reg.output.sms.ctrl.cont.dist <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
          dist.to.pot.2 = dist.to.pot^2) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
@@ -1235,7 +1235,7 @@ reg.output.sms.ctrl.cont.dist %>%
 ```
 ```{r}
 reg.output.sms.ctrl.cont.dist.lim <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment == "sms.control", !baseline.sample, floor!="NA") %>% 
+  filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample, floor!="NA") %>% 
   mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
          dist.to.pot.2 = dist.to.pot^2) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
@@ -1279,7 +1279,7 @@ The following table simplifies thinking about the analysis outlined in the pre-a
 
 ```{r}
 reg.output.sms.treat <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -1305,7 +1305,7 @@ Running regression without controls with the same sample as in the with controls
 
 ```{r}
 reg.output.sms.treat.lim <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, !is.na(floor)) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
@@ -1409,7 +1409,7 @@ neyman.results %>%
 ```{r}
 reg.output.sms.treat.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
@@ -1449,7 +1449,7 @@ prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
 after.msg.days <- seq(3, 11, 2)
 
 time.takeup.data <- analysis.data %>%  
-  filter(monitored, monitor.consent, !baseline.sample) %>% 
+  filter(monitored, monitor.consent, !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   group_by(assigned.treatment, sms.treatment) %>% 
   mutate(n.total = n()) %>% 
@@ -1533,7 +1533,7 @@ $$
 
 ```{r}
 reg.output.sms.treat.dist <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
@@ -1554,7 +1554,7 @@ Running regression without controls with the same sample as in the with controls
 
 ```{r}
 reg.output.sms.treat.dist.lim <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample, !is.na(floor)) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
@@ -1574,7 +1574,7 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
 
 ```{r, echo=2}
 reg.output.sms.treat.dist.covar <- analysis.data %>%  
-  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !baseline.sample) %>% 
+  filter(monitored, monitor.consent, sms.treatment != "sms.control" | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
@@ -1611,10 +1611,9 @@ Test if there is a difference in impact in response to surveying. We do this by 
 reg.output.sms.ctrl.survey.effect <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control") %>% 
   anti_join(outlier.clusters, c("cluster.id", "sms.treatment")) %>% 
-  mutate(baseline.sample = factor(if_else(baseline.sample, "baseline", "not.baseline")) %>% 
-           relevel(ref = "not.baseline"),
-         sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner")) %>% 
-  run_strat_reg(dewormed.any ~ baseline.sample * assigned.treatment, 
+  mutate_at(vars(hh.baseline.sample, individ.baseline.sample), funs(factor(if_else(., "baseline", "not.baseline")) %>% relevel(ref = "not.baseline"))) %>% 
+  mutate(sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner")) %>% 
+  run_strat_reg(dewormed.any ~ hh.baseline.sample * assigned.treatment, 
                 .strat.by = c("county", "dist.pot.group"), 
                 .cluster = "cluster.id",
                 .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))

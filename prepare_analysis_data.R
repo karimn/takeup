@@ -167,4 +167,4 @@ save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, ba
 
 analysis.data %>% 
   set_names(str_replace_all(names(.), "\\.|-", "_")) %>% 
-  write_dta(file.path("data", "analysis_data.dta"))
+  haven::write_dta(file.path("data", "analysis_data.dta"))
