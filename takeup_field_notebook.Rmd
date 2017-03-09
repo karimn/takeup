@@ -1562,7 +1562,9 @@ census.data <- list(wave.1.baseline.individuals,
   bind_rows %>%
   filter(individual.sample.order <= 2) %>% 
   right_join(census.data, "KEY.individ") %>% 
-  left_join(select(hh.census.data, KEY, baseline.sample.wave), "KEY")  
+  left_join(select(hh.census.data, KEY, baseline.sample.wave), "KEY") %>% 
+  mutate(individ.baseline.sample = !is.na(individual.sample.order),
+         hh.baseline.sample = !is.na(baseline.sample.wave))
 ```
 
 
