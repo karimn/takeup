@@ -1,0 +1,475 @@
+---
+title: |
+    | The Role of Social Signaling in Community Mass Deworming:
+    | Evidence from a Field Experiment in Kenya
+
+subtitle: "Preliminary Findings -- Do Not Distribute"
+date: "March 2017"
+author:
+- Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`]
+- Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
+output: 
+  pdf_document:
+    number_sections: yes
+header-includes:
+   - \usepackage{pxfonts}
+   - \usepackage{bbm}
+   - \usepackage{setspace}
+   
+abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. TODO conclude" 
+
+bibliography: ~/Documents/library.bib
+---
+
+<!-- \doublespacing -->
+
+```{r prelim-report-setup, include=FALSE}
+library(rgeos)
+library(knitr)
+library(sp)
+
+read_chunk(purl("takeup_analysis2.Rmd"))
+
+opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "takeup_prelim-fig/", fig.align = "center", cache = TRUE)
+```
+
+```{r analysis-setup, include=FALSE, ref.label="setup"}
+```
+
+```{r load-analysis-data, ref.label="load-data"}
+```
+
+```{r load-experiment-design-data}
+rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
+rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.rds"))
+
+load(file.path("data", "takeup_village_pot_dist.RData"))
+```
+
+# Introduction
+
+Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of Soil Transmitted Helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs [@Anderson2012]. Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
+
+This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and incentives. The evaluation of the incentivized community deworming program relates three separate strands of the literature: compliance with mass drug administration (MDA), incentives and volunatry good contributions. 
+
+Different to previous MDA, this study is focused on deworming treatment at a central location, not through door-to-door visits. @Kremer2011a observe that for preventive and non-acute care such as deworming, insecticide-treated bednet use and water chlorination there is a dramatic drop in demand at non-zero prices. Since a large number of people have such an abrupt cutoff at the same point, they conclude that they are not likely motivated by a simple cost-benefit analysis, but instead have a strong present bias; future benefits are heavily discounted compared to immediate benefits. One approach that has been widely tested and shown to be successful, is to provide a small reward when coming for treatment to offset any inconvenience costs individuals might face, as well as to address present bias. @Kremer2011a review a wide number of studies on the use for incentives to increase education and health service take-up. They find strong evidence in favor of incentives compared to education only interventions.
+
+In this study we focus the program's message on social returns, emphasizing the benefit of taking treatment to reduce reinfection of community members, especially school-aged children. The community deworming program could therefore be viewed as a voluntary collective action game, where an individual's treatment compliance decision can be modeled as the decision to contribute to a pool shared by all community members. One approach to increase contribution in such a setting is to allow for signaling, thus introducing social approval/disapproval as a reward/punishment [@Benabou2006; @Benabou2012a]. Our aim is to test how social signaling can be leveraged to increase demand for deworming treatment among adults, by introducing two signals in the form of colorful ink (similar to that used for voting) and bracelets. Both allow individuals to show to others that they have taken deworming treatment. 
+
+To test the effectiveness of social signals and to investigate the behavioral and social mechanisms driving their influence on deworming take-up, we conducted a cluster randomized trial in western Kenya, stratified over three counties. Our main experimental manipulation was the provision of private incentives (simple wall calendars) and social incentives/signals (voting ink or bracelets).  In addition, we manipulated the distance community members would have to travel to receive deworming treatment; and provided reminders or social information (on peer deworming take-up) using text messaging, randomly assigned to a subset of individuals in each community.
+
+```{r, ref.label="basic-reg-covar"}
+```
+
+```{r, ref.label="sms-reg-covar"}
+```
+
+```{r basic-ate}
+tidy.reg.res <- tidy(reg.output.sms.ctrl.covar) %>% mutate(estimate = estimate * 100)
+tidy.reg.res.calendar <- tidy(reg.output.sms.ctrl.calendar.covar) %>% mutate(estimate = estimate * 100)
+
+basic.control.takeup <- tidy.reg.res %>% 
+  filter(term == "(intercept)") %$% 
+  estimate
+
+basic.calendar.takeup <- tidy.reg.res.calendar %>% 
+  filter(term == "(intercept)") %$% 
+  estimate
+
+basic.bracelet.takeup <- tidy.reg.res %>% 
+  filter(term %in% c("(intercept)", "bracelet")) %$% 
+  sum(estimate)
+
+bracelet.vs.control.ate <- tidy.reg.res %>% 
+  filter(term == "bracelet") %$% 
+  estimate
+
+bracelet.vs.calendar.ate <- tidy.reg.res.calendar %>% 
+  filter(term == "bracelet") %$% 
+  estimate
+
+bracelet.vs.control.pval <- tidy.reg.res %>% 
+  filter(term == "bracelet") %$% 
+  p.value
+
+bracelet.vs.calendar.pval <- tidy.reg.res.calendar %>% 
+  filter(term == "bracelet") %$% 
+  p.value
+```
+
+```{r sms-ate}
+bracelet.sms.res <- linear_tester(reg.output.sms.treat.covar, 
+                                  c("social.info + bracelet:social.info + bracelet",
+                                    "(intercept) + social.info + bracelet:social.info + bracelet")) %>% 
+  mutate(estimate = estimate * 100)
+
+bracelet.sms.vs.control.ate <- bracelet.sms.res[1, "estimate"]
+bracelet.sms.vs.control.pval <- bracelet.sms.res[1, "p.value"]
+
+bracelet.sms.takeup <- bracelet.sms.res[2, "estimate"]
+
+phone.owner.control.takeup <- tidy(reg.output.sms.treat.covar) %>% 
+  filter(term == "(intercept)") %$% 
+  estimate %>% 
+  multiply_by(100)
+```
+
+Of the three incentive we found the bracelets to be the most effective, with a `r sprintf("%.2f", bracelet.vs.control.ate)` percentage point increase in deworming take-up, compared to the control arm (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.control.takeup, bracelet.vs.control.pval)`), a `r sprintf("%.2f", bracelet.vs.control.ate/basic.control.takeup * 100)`% change. When compared to the calendar incentive arm, to control for the private valuation bracelets might have, we found that bracelets increased deworming take-up by `r sprintf("%.2f", bracelet.vs.calendar.ate)` percentage point (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.calendar.takeup, bracelet.vs.calendar.pval)`), a `r sprintf("%.2f", bracelet.vs.calendar.ate/basic.calendar.takeup * 100)`% change. Other incentives did not have a statistically significant impact on take-up.
+
+Text messages reporting peer take-up were also found to have a strong impact on deworming take-up, in particular when combined with the bracelet incentives. Take-up in response to bracelet and text messaging treatment increased take-up by `r sprintf("%.2f", bracelet.sms.vs.control.ate)` percentage points when compared to the control arm without text messaging treatment (`r sprintf("%.2f%% vs %.2f%%, $P < %.2e$", bracelet.sms.takeup, phone.owner.control.takeup, bracelet.sms.vs.control.pval)`), a `r sprintf("%.2f", bracelet.sms.vs.control.ate/phone.owner.control.takeup * 100)`% increase.
+
+Based on our preliminary reduced form analysis, we conclude that the use of bracelets as social incentives is a promising instrument to motivate the take-up of health-related behavior of low private value and high social value, such as adult deworming treatment. This is especially true when combined with an informational intervention such as text messages. While this report delves further in how distance affects take-up and how it interacts with the other experimental treatments, and what private value the study's population places on the incentives we are testing, we are not as of yet able to identify the different potential mechanisms influencing take-up. For example, while evidence points to social mechanisms, broadly speaking, as being the main influence, we are not able to distinguish between social learning (receiving information from others), social signaling (broadcasting information to other), or even if our treatments simply function as reminders or "nudges". We will consider these issues elsewhere. 
+
+The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; and finally, in section \ref{conclusion} we discuss our findings and present our conclusions.
+
+# The Intervention
+
+Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties in western Kenya: Busia, Kakamega and Siaya County. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Deworming treatment was subsequently offered at central locations, from 8am to 5pm, for a period of 12 days. For logistical reasons, we split deworming treatment into two waves: the first deworming wave was from October 3 to 14 in Busia and Siaya County, and the second wave was from October 24 to November 4 in Kakamega County.  
+
+Central locations were picked to be easy locatable by targeted community members, either in their own villages or in neighboring villages. We initially selected treatment locations to be adjacent to primary schools because of their prominence and ubiquity. However, the Ministry of Education did not permit us to operate in such close proximity to schools, so we decided to use alternative locations (such as churches) that are not too far from the originally selected schools^[During a treatment location scoping phase, we had collected information on such backup locations.].
+
+
+
+# Experiment Design
+
+We identified 144 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
+1) CHVs mark adults' fingers with ink; 
+2) CHVs give adults a green wrist bracelet; 
+3) CHVs give adults a one-page calendar for 2017; 
+4) Only deworming treatment is provided and no incentive. 
+
+We mapped communities that fall within a 2.5 km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming started and on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service was free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: 
+
+> Free deworming now at [Central Location]. Reply ___ to _____ stop texts. All texts are free.
+
+The reminder and peer information about deworming take-up messages contained the following content:
+
+> Free deworming now at [Central Location]. [No/few/almost half/half/more than half/almost all/all] of your village came, that is _X_ in 10 adults. Reply ___ to _____ stop texts. All texts are free. 
+
+To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of subscribers conditional on texting back and confirming the receipt of the text message.^[We only implemented the reward scheme during the second wave of deworming treatment. The reason being, we only decided to add the treatment shortly before we started deworming in wave one communities and had to wait for ethical approval for this added component before we could implement it.] The following reward text message was sent to adults on day 2 and 6 of deworming treatment: 
+
+> Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message ___ to _____. The text is free. 
+
+We sent a reminder text messsage to adults that had not taken up the reward two days after the original reward text was sent: 
+
+> Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message ___ to _____ to receive the reward. The text is free.
+
+The reminder messages were sent on day 4 (for reward messages sent on day 2) and on day 8 (for reward messages sent on day 6). 
+
+## Sampling and Identification Strategy { #sampling-identification }
+
+This study adopted a cluster randomized experiment to make causal inferences addressing our research questions. We selected three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
+
+All communities in the experiment were be provided with:
+
+* Deworming treatment at a central location (point-of-treatment);
+* An outreach campaign providing information on the location and duration of treatment, the incentives that would be offered, as well as framing the public good aspect of deworming.
+
+We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
+
+From each cluster the following samples were selected (more details [below](#data-collection)):
+
+* A baseline sample randomly selected from the entire cluster population;
+* A sample of individuals to monitor the treatment of during the intervention including:
+    - Text messaged individuals picked from the subpopulation of phone owners
+        + Deworming reminders and
+        + Information on peer deworming;
+    - A stratified sample of phone and non-phone owners
+        + Phone owners are used as controls for the text messaging treatment and 
+        + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population. 
+        
+      We used a stratified sample to make sure our text messaging control group has enough people.
+
+    We split this sample into two groups: 
+      * Endline survey respondents (stratified between text message recipients and non-recipients);
+      * Data use reconsent only individuals.
+
+## Clustered Design
+
+The experiment was carried out in 18 subcounties in Western Kenya, randomized at the cluster level. A _cluster_ was composed of 
+
+(i) a centralized _point-of-treatment (PoT)_ at an easily identifiable location (e.g. near a church/mosque), and
+(ii) a _targeted village_ where we conducted an outreach campaign^[Other communities were not denied treatment, but our analysis is focused on targeted villages.].
+
+## Experimental Manipulation
+
+In the experiment there were two levels of randomized treatment assignment.
+
+1. At the cluster level, there will be four groups:
+    (i) a control group;
+    (ii) a low/no private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
+    (iii) a private incentive group: wall calendars provided as gifts to treatment compliers;
+    (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers. 
+2. At the individual level, there will be three groups:
+    (i) the control group, composed of a stratified sample of
+        a. phone owners and
+        b. non-phone owners;
+    (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available;
+    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their community.
+
+## Cluster Selection Algorithm
+
+The selection of clusters (PoT and targeted villages) relied on geospatial data of primary schools in the targeted subcounties. While schools did not play a direct role in the study's implementation, they were used as proxies for the location of communities.
+
+Below is the main body of the selection algorithm:
+
+1. Let $\mathcal{C}$ be the set of all potential clusters, defined as 2.5 kilometer radius circle centered on a primary school in the study region. In this study the size of this set is $|\mathcal{C}| = 1,451$.
+2. Let $\mathcal{R} := \emptyset$ be the set of clusters selected for the experiment
+3. While $\mathcal{C} \neq \emptyset$:
+    a) Randomly pick $i \in \mathcal{C}$
+    b) Set $\mathcal{C} := \mathcal{C}\setminus\{i\}$
+    c) If $(ClusterSize(i, \mathcal{R}) < ThresholdClusterSize) \lor (\exists j \in \mathcal{R}, ClusterSize(j, \mathcal{R} \cup \{i\}) < ThresholdClusterSize)$: 
+        i. Repeat Loop
+        
+          Else:
+          
+        i. Set $\mathcal{R} := \mathcal{R} \bigcup \{i\}$
+4. If $|\mathcal{R}| < NumRctClusters$: Goto 1
+
+$ClusterSize(m, \mathcal{M})$ is a function that returns the size of cluster $m$, removing any overlaps with the clusters in $\mathcal{M}$. We defined the size of a cluster to be the number of primary schools available in the non-overlapped 2.5 km circle around the cluster center (as a proxy of the available communities to target). We set the cluster size threshold to be 1 primary school^[To be exact we defined the threshold to be 60% of a 1 km radius circle around a school.].  
+
+While we use a 2.5 km circle to define the boundary of the area we will target communities within for treatment, when considering overlaps we assume points-of-treatment would have larger catchment areas, thus providing buffers between clusters. In order to fit the study's geographic area we randomly split the PoT to have 3 and 4 km catchment areas. Thus a targeted village would always be at least 0.5 km closer to its own assigned point-of-treatment than any other cluster's.
+
+This first step of cluster selection yielded 158 clusters. Figure \ref{fig:all-clusters-map} shows the geographic location of all clusters. The center of each cluster (the point-of-treatment) is represented by a cross, and the grey regions are the catchment areas of each cluster not within the buffers we placed between clusters. Targeted villages were chosen within these catchment areas.
+
+```{r all-clusters-map, fig.width=8, fig.height=8, fig.cap="Map of Initial Cluster Selection"}
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner")
+```
+
+While the cluster point-of-treatments and targeted villages were initially selected as described above, their exact locations varied slightly before the intervention started. Figures \ref{fig:dist-to-pot}, and \ref{fig:marginal-dist-to-other-pot} show the actual distribution of (i) the distance between targeted villages and their home points-of-treatment, (ii) the distance between targeted villages and their the closest other point-of-treatment, and (iii) the difference between (i) and (ii).
+
+```{r dist-to-pot, fig.width=6, fig.height=4, fig.cap="Distance to Points-of-Treatment"}
+verify.vill.pot.dist %>% 
+  select(dist.to.own.pot, closest.other) %>% 
+  gather(dist.type, dist) %>% {
+  ggplot(.) +
+    geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black", position = "dodge") + 
+    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) +
+    scale_fill_discrete("Distance", labels = c("To Closest Other Point-of-Treatment", "To Home Point-of-Treatment")) +
+    theme(legend.position = "top")
+}
+```
+
+```{r dist-to-other-pot, fig.width=6, fig.height=4, fig.cap="Distance to Closest Other Point-of-Treatment", eval=FALSE}
+verify.vill.pot.dist %>% { 
+  ggplot(.) +
+    geom_histogram(aes(closest.other), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
+    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) 
+} 
+```
+
+```{r marginal-dist-to-other-pot, fig.cap="Marginal Distance to Closest Other Point-of-Treatment"}
+verify.vill.pot.dist %>% 
+  mutate(marginal.dist = closest.other - dist.to.own.pot,
+         dist.to.own.pot.cat = cut(dist.to.own.pot, 
+                                   breaks = c(0,  2500/2, 10000),
+                                   labels = c("Close", "Far"))) %>% {
+  ggplot(.) +
+    geom_histogram(aes(marginal.dist), alpha = 0.5, color = "black", binwidth = 500, boundary = 0, position = "dodge") +
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
+    scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
+     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.25, .5, 0.75)), 
+                color = "red", linetype = "dashed")
+}
+```
+
+## Village and Point-of-Treatment Selection
+
+Villages were randomly selected across clusters to give us an equal proportion of _close_ and _far_ village to point-of-treatment distances. Distances were categorized as _close_ if less than 1250 meters and _far_ otherwise. This split is half the upper range of the distance we observed people were generally willing to travel for deworming treatment. As explained above, these distances varied in response to implementation contraints, so after some clusters had to be dropped from the study, we ended up with approximately 46% of targeted villages being _far_ from their point-of-treatment.
+
+This random assignment of each cluster to the _close_ or _far_ group is considered orthogonal to any targeted village characteristics, since each village could have been assigned to either group with equal probability. In other words, we are exogenously varying the distance individuals in a targeted village would have to travel for treatment.
+
+## Treatment Assignment Mechanism
+
+We used a stratified treatment assignment mechanism, whereby we stratified by (i) county and (ii) targeted village to point-of-treatment distance. Thus we had six strata within which we randomly assigned with equal probability one of four incentive treatments (control, indelible voting ink, calendars, and bracelets). For strata not divisible by four, we randomly assign, without replacement, one of the four treatments to the $(\text{stratum size} \mathbin{\%} 4)$ remaining clusters (randomly picked)^[http://blogs.worldbank.org/impactevaluations/tools-of-the-trade-doing-stratified-randomization-with-uneven-numbers-in-some-strata].
+
+## Power Calculation
+
+Given an intracluster correlation (for the random effects logit latent model used in power analysis simulations) of 0.1 we will be able to detect a 10 percentage point difference in deworming take-up between any incentive treatment arm and the control group, and a 8 percentage point change between any two incentive treatment arms. We can further detect a 7 percentage point difference in deworming take-up within treatment arms between adults who received and did not receive a text message reminder/information about deworming take-up in their community, and a 9 percentage point change in demand between any two arms for adults that did receive the text messaging treatment.
+
+
+
+# Descriptive Statistics 
+
+# Analysis
+
+## Causal Framework
+
+This section describes the potential outcomes causal framework we will use in this study. Below are the exogenous variables of individuals and clusters ($i$ indexes individuals and $j$ indexes clusters):
+ 
+* $Z_j \in \mathcal{Z} = \{control, ink, calendar, bracelet\}$ is the cluster level treatment
+* $M_{ij} \in \mathcal{M} = \{none, reminders, socialinfo\}$ is the individual level text message treatment
+* $\mathbf{X}_{ij}$ individual and cluster level pre-treatment characteristics. While we will omit this vector from most of our notation, we will sometimes need to refer to one variable in that vector
+  - $P_{ij} \in \{phone, nophone\}$, indicating phone ownership.
+  
+We describe the set of sampled and monitored individuals as $\mathcal{W}$ and the sub-sample based on phone ownerhship as $\mathcal{Q}(q) = \{i: P_{ij} = q\}$.
+
+Below are the latent intermediate outcomes that influence the decision to get dewormed:
+
+* $V^*_{ij}(z)$, represents the private utility of deworming in response to $z \in \mathcal{Z}$.
+* $S^*_{ij}(z, m)$, represents the social influence (in utility terms) of treatment $z \in \mathcal{Z}$ and $m \in \mathcal{M}$ on deworming. 
+
+    This influence combines different mechanisms, thus we can further decompose it into:
+    - $R^*_{ij}(z, m)$, a reminder effect
+    - $L^*_{ij}(z, m)$, a social learning effect: the effect of receiving information on deworming by observing others' deworming choices
+    - $G^*_{ij}(z)$, reputational returns from social signaling
+    
+    This should also make clear our assumption that text message treatment does not have an effect on $V^*_{ij}$ and $G^*_{ij}$.
+    
+We represent the binary deworming choice, $Y_{ij} \in \{0, 1\}$, in different ways depending on context
+
+$$
+  Y_{ij}(z, m) \equiv Y_{ij}(V^*_{ij}(z), S^*_{ij}(z, m)) \equiv Y_{ij}(V^*_{ij}(z), R^*_{ij}(z, m), L^*_{ij}(z, m), G^*_{ij}(z))
+$$
+
+We also represent the total number of individuals dewormed in cluster $j$ in response to treatment $z$, irrespective of these individuals' origins, as $Y^{tot}_j(z)$.
+
+Whenever we reference any of these potential outcomes using one input, this refers to having $m = none$ (e.g., $S^*_{ij}(z) \equiv S^*_{ij}(z, none)$).
+
+
+## Main Hypotheses {#main-hypo}
+
+First we define the finite sample treatment effect estimators
+$$
+\begin{aligned}
+  \tau[(z, m), (z', m')] &= \sum_{i \in \mathcal{W}} \frac{Y_{ij}(z, m) - Y_{ij}(z', m')}{|\mathcal{W}|} \\
+  \tau[(z, m), (z', m'); q] &= \sum_{i \in \mathcal{Q}(q)} \frac{Y_{ij}(z, m) - Y_{ij}(z', m')}{|\mathcal{Q}(q)|}
+\end{aligned}
+$$
+ We can also use the simplified notation $\tau[z,z';q] \equiv \tau[(z, none), (z', none); q]$ and $\tau[z,z'] \equiv \tau[(z, none), (z', none)]$.  
+
+Unless otherwise stated, all estimates will be tested for significance using two-sided hypothesis tests where the null hypothesis is a zero treatment effect. 
+$$
+  H_0: \tau(\cdot, \cdot) = 0
+$$
+
+### Incentive vs. no incentive treatment { #incentive-vs-no-incentive-hypo }
+
+The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. We will estimate
+  
+\begin{equation} 
+  \tau[ink, control] \equiv \tau[(V^*(ink), S^*(ink)), (V^*(control), S^*(control))]
+\end{equation}
+
+If we assume that $V*(control) = V^*(ink)$, this is an estimate of the impact ink's social influence $S^*(ink) - S^*(control)$ on deworming take-up. We will also estimate
+
+\begin{equation}
+\tau[bracelet, calendar] \equiv \tau[(V^*(bracelet), S^*(bracelet)), (V^*(calendar), S^*(calendar))]
+\end{equation}
+
+If we assume that $V^*(calendar) = V^*(bracelet)$, this is an estimate of the impact bracelets' social influence $S^*(bracelet) - S^*(calendar)$ on deworming take-up.
+      
+Both these estimates would identify the combined effect of social incentives, $S^*(\cdot)$: 
+
+(a) Acting as reminders, $R^*(\cdot)$, 
+(b) Making observable others' deworming decision, $L^*(\cdot)$, and 
+(c) Allowing people to signal their decision, $G^*(\cdot)$.
+
+We will also conduct the joint hypothesis test 
+\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
+
+### Social vs. no social incentives treatment for text message treatment individuals { #social-incentive-hypo }
+
+Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions. We will estimate
+
+\begin{align} 
+  \tau[(ink, none), (control, socialinfo)] \equiv \tau[&(V^*(ink, none), S^*(ink, none)), \\ \nonumber
+  &(V^*(control, socialinfo), S^*(control, socialinfo))]
+\end{align}
+
+If we assume that $R^*(ink, none) = R^*(control, socialinfo)$ and $L^*(ink, none) = L^*(control, socialinfo)$, this is an estimate of the impact of $G^*(ink) - G^*(control)$ on deworming take-up. We will also estimate
+
+\begin{align} 
+  \tau[(bracelet, none), (calendar, socialinfo)] \equiv \tau[&(V^*(bracelet, none), S^*(bracelet, none)), \\ \nonumber
+  &(V^*(calendar, socialinfo), S^*(calendar, socialinfo))]
+\end{align}
+  
+If we assume that $R^*(bracelet, none) = R^*(calendar, socialinfo)$, $L^*(bracelet, none) = L^*(calendar, socialinfo)$, and $V^*(calendar) = V^*(bracelet)$ this is an estimate of the impact of $G^*(bracelet) - G^*(calendar)$ on deworming take-up.
+    
+### No text message treatment vs. text message reminders and social information
+
+Using estimates from \ref{incentive-vs-no-incentive-hypo} where we identified the combined effect of reminders, social learning and social signaling and the comparison from \ref{social-incentive-hypo} where we separately identified social signaling, we can identify the effect of reminders and social learning on deworming take-up. We will estimate
+
+\begin{align}
+  \tau[(ink, none), &(control, socialinfo)] - \tau[(ink, none), (control, none)] \equiv \nonumber \\ &\tau[control, socialinfo), (control, none)]
+\end{align}
+to identify the combined effect of $R^*(ink)$ and $L^*(ink)$ on deworming take-up; and we will estimate
+\begin{align}
+  \tau[(bracelet, none), &(calendar, socialinfo)] - \tau[(bracelet, none), (calendar, none)] \equiv \nonumber \\ &\tau[(calendar, socialinfo), (calendar, none)]
+\end{align}
+to identify the combined effect of $R^*(bracelet)$ and $L^*(bracelet)$ on deworming take-up.
+
+### Text message reminder plus social information treatment vs. no text messages for no incentive individuals ###
+
+We will estimate 
+\begin{equation}
+  \tau[(control, reminders), (control, none)]
+\end{equation}
+and
+\begin{equation}
+  \tau[(control, socialinfo), (control, reminders)]
+\end{equation}
+to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
+
+### Text message treatment with social information vs. no text messages for social incentive individuals
+
+We will estimate
+\begin{equation}
+  \tau[(ink, socialinfo), (ink, none)]
+\end{equation}
+and
+\begin{equation}
+  \tau[(bracelet, socialinfo), (bracelet, none)]
+\end{equation}
+to identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
+
+### Calendar/Bracelet Preference Survey
+   
+During the endline survey, respondents were asked to choose between a calendar or bracelet as a gift for their participation. We will use this to identify the distribution of preference over these two incentives.
+
+First, we define their choice to be 
+$$
+H_{ij} = \mathbbm{1}\{D^*_{ij} > 0\},
+$$ 
+
+where
+$$
+D^*_{ij} = V^*_{ij}(calendar) - V^*_{ij}(bracelet),
+$$
+the latent difference in utility between calendars and bracelets. We will estimate this difference from the survey observational data.
+
+## Social Information
+
+As secondary outcome, in addition to deworming take-up, we will look at individuals' beliefs/knowledge about others' deworming decision. Using the information collected in the beliefs section of the endline survey, we will look at whether people know or do not know about others' deworming take-up, whether they are more/less correct about their decisions, whether they are are more/less correct for yes/no answers and make a comparison between social incentive and control individuals. 
+
+## Heterogeneity
+
+We will be investigating heterogeneity of impact on deworming take-up (as described in the [main hypotheses section above](#main-hypo)) based on the following:
+
+1. The village to point-of-treatment distance binary characteristic (discussed in the [Village and Point-of-Treatment Selection] section above).
+
+2. The household to household distance within clusters, creating a density measure per cluster that allows us to investigate if proximity affects the effectiveness of social incentives. 
+
+We will further investigate heterogeneity of impact on individuals' beliefs and knowledge about others' deworming take-up based on the geographic proximity between the individual and others in her village. 
+
+## Temporal Dynamics
+Deworming treatment was offered over a period of 12 days. We will look at the distribution of take-up over time comparing social incentive to control clusters. 
+
+## Sample Selection
+
+As described in Section \ref{sampling-identification} our sampling will be stratified based on individuals' phone ownership (collected in the census). A random sample of 25 individuals per clusters were selected in the group without text messaging treatment, $M_{ij} = none$: 17 individuals were selected to be phone owners and 8 were selected to be non phone owners. While this distribution is similar to that observed in the population, we will still need to correct our estimation.
+
+## Inter-cluster Spillover
+
+We will test for the possibility of spillovers or contamination due to cluster proximity. As mentioned in Section \ref{cluster-selection-algorithm} clusters were selected with a geographic buffer between them. However, this is not sufficient guarantee that people would travel farther than we anticipated. Thus we need to test the hypothesis that individuals in our monitored sample have received deworming outside their cluster, and should we fail to reject this hypothesis is sufficient precision we will need to model this spillover in our econometric models.
+
+## Multiple Hypotheses Testing
+
+While we only have a small set of outcomes that we would be analyzing (mainly deworming take-up), there is significant number of treatments (cluster level and individual) we will use to investigate the various behavioral mechanism driving observed behavior. Therefore, we will we correct our inference to account for this.
+
+
+# Conclusion
+
+# References

@@ -116,6 +116,7 @@ The outlier clusters are:
 ```{r}
 outlier.clusters %>% 
   select(cluster.id, sms.treatment) %>% 
+  arrange(sms.treatment) %>% 
   kable
 ```
 
@@ -954,7 +955,7 @@ These are the regressors we are controlling for:
 reg.covar 
 ```
 
-```{r}
+```{r basic-reg-covar}
 reg.output.sms.ctrl.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
@@ -967,7 +968,9 @@ reg.output.sms.ctrl.calendar.covar <- analysis.data %>%
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = reg.covar)
+```
 
+```{r}
 kable(tidy(reg.output.sms.ctrl.covar, .include_covar = FALSE), digits = 4)
 ```
 
@@ -1404,14 +1407,16 @@ neyman.results %>%
 
 ### Regression With Controls
 
-```{r}
+```{r sms-reg-covar}
 reg.output.sms.treat.covar <- analysis.data %>%  
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   filter(monitored, monitor.consent, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+```
 
+```{r}
 reg.output.sms.treat.covar %>% 
   tidy(.include_covar = FALSE) %>% 
   kable(digits = 4)
