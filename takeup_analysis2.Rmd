@@ -112,9 +112,8 @@ cluster.takeup.data %>%
 ```
 
 The outlier clusters are:
-```{r, echo=FALSE}
-outlier.clusters <- cluster.takeup.data %>% filter(outlier) #c(249, 141, 343)
 
+```{r}
 outlier.clusters %>% 
   select(cluster.id, sms.treatment) %>% 
   kable

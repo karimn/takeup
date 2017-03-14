@@ -94,6 +94,8 @@ baseline.data %<>% prepare.baseline.data
 
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
 
+outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
+
 # WTP prep ----------------------------------------------------------------
 
 wtp.data %<>% 
@@ -165,7 +167,7 @@ endline.know.table.data %<>%
 
 # Save data ---------------------------------------------------------------
 
-save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, 
+save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, outlier.clusters,
      census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
 
