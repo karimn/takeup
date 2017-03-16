@@ -1,0 +1,125 @@
+county_name,county_key,constituency_name,constituency_key,ward_name,ward_key,cluster_key,village_name,village_code,treat,person_id,person_key,name,nickname,age,first_name,middle_name,last_name,hhh_name,two_digits,clan,hhh_two_digits
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Magret None Wandera /  / Edwin Opiyo,1,Magret None Wandera,Maggy ,42,Magret,None,Wandera,Edwin Opiyo,35,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Maurine  None Ajambo /  / Fredrick Wanyama,2,Maurine  None Ajambo,Adeti,23,Maurine ,None,Ajambo,Fredrick Wanyama,64,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Margaret Adkinyi Were /  / Margaret Were,3,Margaret Adkinyi Were,Nadongo,67,Margaret,Adkinyi,Were,Margaret Were,61,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Nicholas Bwire Naliali /  / Sylvia Wanyama,4,Nicholas Bwire Naliali,Nasota,27,Nicholas,Bwire,Naliali,Sylvia Wanyama,81,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Sara Agutu Kilo /  / Patrick Kilo,5,Sara Agutu Kilo,No,18,Sara,Agutu,Kilo,Patrick Kilo,22,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Gabriel Okello Ogola /  / Gabriel Ogola,6,Gabriel Okello Ogola,Okello,67,Gabriel,Okello,Ogola,Gabriel Ogola,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Joseph Onalo Makhulo /  / Joseph Makhulo,7,Joseph Onalo Makhulo,None,45,Joseph,Onalo,Makhulo,Joseph Makhulo,22,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Zeba None Halonyere /  / Zeba Halonyere,8,Zeba None Halonyere,None,82,Zeba,None,Halonyere,Zeba Halonyere,11,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Janepher Nanyanga Wandera /  / Janepher Wandera,9,Janepher Nanyanga Wandera,Dada,64,Janepher,Nanyanga,Wandera,Janepher Wandera,3,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Nelson Nyongesa Oduori /  / Stanley Opiyo,10,Nelson Nyongesa Oduori,Bratheh,35,Nelson,Nyongesa,Oduori,Stanley Opiyo,6,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Beatrice Josephine Oundo /  / Godfrey Ouma,11,Beatrice Josephine Oundo,Mama Aden,33,Beatrice,Josephine,Oundo,Godfrey Ouma,66,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Jane None Auma /  / Cecilia Auma,12,Jane None Auma,Jenny,26,Jane,None,Auma,Cecilia Auma,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Roseline None Magoro /  / Augustino Magoro,13,Roseline None Magoro,Rosy,75,Roseline,None,Magoro,Augustino Magoro,93,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Dorotia Nerima Obilo /  / Dorotia Obilo,14,Dorotia Nerima Obilo,None,58,Dorotia,Nerima,Obilo,Dorotia Obilo,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Pamela None Malo /  / Kevin Malo,15,Pamela None Malo,None,28,Pamela,None,Malo,Kevin Malo,27,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Meshack None Oduori /  / Patrick Musumba,16,Meshack None Oduori,None,19,Meshack,None,Oduori,Patrick Musumba,49,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Ivine Ajiambo None /  / Fabian Ochieng,17,Ivine Ajiambo None,Nakhayo,25,Ivine,Ajiambo,None,Fabian Ochieng,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Christine Ouma None /  / Christine None,18,Christine Ouma None,Yvonne,34,Christine,Ouma,None,Christine None,75,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Ellina None Nyanya /  / John Buwa,19,Ellina None Nyanya,Nyanya,19,Ellina,None,Nyanya,John Buwa,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Synthia Nabwire Opondo /  / Celestin Khalonyere,20,Synthia Nabwire Opondo,Dont  have,19,Synthia,Nabwire,Opondo,Celestin Khalonyere,31,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Rhodah None Malo /  / Simon Were,21,Rhodah None Malo,None,29,Rhodah,None,Malo,Simon Were,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Paulo Hadera Ogola /  / Paulo Ogola,22,Paulo Hadera Ogola,None,46,Paulo,Hadera,Ogola,Paulo Ogola,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Margaret Nabwire Ochara /  / Winslaus Ochara,23,Margaret Nabwire Ochara,None,19,Margaret,Nabwire,Ochara,Winslaus Ochara,61,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Lilian  None Auma /  / John Mallo,24,Lilian  None Auma,Lily,23,Lilian ,None,Auma,John Mallo,32,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Edgar Lubonga Edgar /  / Ngome Edgar,25,Edgar Lubonga Edgar,"",30,Edgar,Lubonga,Edgar,Ngome Edgar,0,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Henry Oundo Owino /  / John Juma,26,Henry Oundo Owino,"",25,Henry,Oundo,Owino,John Juma,65,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Sally Ras Kijo /  / Jamila Paul,27,Sally Ras Kijo,"",21,Sally,Ras,Kijo,Jamila Paul,52,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Fidel Castro Buyu /  / Fidel Buyu,28,Fidel Castro Buyu,"",32,Fidel,Castro,Buyu,Fidel Buyu,60,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Nelly Nekesa None /  / Arnold Wafula,29,Nelly Nekesa None,"",20,Nelly,Nekesa,None,Arnold Wafula,17,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Jane None Ouma /  / Isaiah Mbingi,30,Jane None Ouma,"",26,Jane,None,Ouma,Isaiah Mbingi,95,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Susan Movin Otieno /  / Irene Obel,31,Susan Movin Otieno,"",26,Susan,Movin,Otieno,Irene Obel,86,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Belden Wafula Temba /  / Mary Molenje,32,Belden Wafula Temba,"",30,Belden,Wafula,Temba,Mary Molenje,97,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Nafula Hindwiii Wanyonyi /  / Mary Wasike,33,Nafula Hindwiii Wanyonyi,"",21,Nafula,Hindwiii,Wanyonyi,Mary Wasike,44,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Erick None Ouma /  / Erick Ouma,34,Erick None Ouma,"",25,Erick,None,Ouma,Erick Ouma,14,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Mercy None Atieno /  / Mercy Atieno,35,Mercy None Atieno,"",24,Mercy,None,Atieno,Mercy Atieno,81,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Eric Ben Ouma /  / Eric Ouma,36,Eric Ben Ouma,"",30,Eric,Ben,Ouma,Eric Ouma,2,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Nancy  None  Ajilit /  / Nancy Ajilit,37,Nancy  None  Ajilit,"",42,Nancy ,None ,Ajilit,Nancy Ajilit,79,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Erick None Ouma /  / Erick Ouma,38,Erick None Ouma,"",25,Erick,None,Ouma,Erick Ouma,7,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Chrispin None Onyango /  / Mercy Atieno,39,Chrispin None Onyango,"",20,Chrispin,None,Onyango,Mercy Atieno,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Peter Barasa Etiang /  / Nancy Ajilit,40,Peter Barasa Etiang,"",20,Peter,Barasa,Etiang,Nancy Ajilit,22,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Moureen None Akinyi /  / Mercy Atieno,41,Moureen None Akinyi,"",27,Moureen,None,Akinyi,Mercy Atieno,23,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Lilian Ajiambo Were /  / Mildred Were,42,Lilian Ajiambo Were,"",20,Lilian,Ajiambo,Were,Mildred Were,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Jane None Ouma /  / Eric Ouma,43,Jane None Ouma,"",28,Jane,None,Ouma,Eric Ouma,11,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Ngome Lubonga Edgar /  / Ngome Edgar,44,Ngome Lubonga Edgar,"",30,Ngome,Lubonga,Edgar,Ngome Edgar,0,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Jane None Ochieng /  / Victor Ochieng,45,Jane None Ochieng,"",21,Jane,None,Ochieng,Victor Ochieng,85,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Macmillan  Wafula Were /  / Mildred Were,46,Macmillan  Wafula Were,"",19,Macmillan ,Wafula,Were,Mildred Were,30,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Rose Nahuja Wenu /  / John Wanjala,47,Rose Nahuja Wenu,"",32,Rose,Nahuja,Wenu,John Wanjala,22,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Samuel None Lusweti /  / Ngome Edgar,48,Samuel None Lusweti,"",21,Samuel,None,Lusweti,Ngome Edgar,8,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Carren None Achieng /  / Victor Ochieng,49,Carren None Achieng,"",19,Carren,None,Achieng,Victor Ochieng,25,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Paul Nyabola Omondi /  / Paul Nyabola,50,Paul Nyabola Omondi,"",45,Paul,Nyabola,Omondi,Paul Nyabola,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Eunice Ouma Omondi /  / Paul Nyabola,51,Eunice Ouma Omondi,"",42,Eunice,Ouma,Omondi,Paul Nyabola,77,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,James Juma Omondi /  / Paul Nyabola,52,James Juma Omondi,"",20,James,Juma,Omondi,Paul Nyabola,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Stephene Onyango Wamalwa /  / Risper Onyango,53,Stephene Onyango Wamalwa,"",34,Stephene,Onyango,Wamalwa,Risper Onyango,24,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Oscar Lubonga Lusweti /  / Samwel Lusweti,54,Oscar Lubonga Lusweti,"",50,Oscar,Lubonga,Lusweti,Samwel Lusweti,0,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Bonventure None Ojiambo /  / Paul  Nabango,55,Bonventure None Ojiambo,"",18,Bonventure,None,Ojiambo,Paul  Nabango,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Calvin None  Lubonga /  / Samwel Lusweti,56,Calvin None  Lubonga,"",28,Calvin,None ,Lubonga,Samwel Lusweti,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Richard  Agutu Nyabola /  / Richard  Nyabola,57,Richard  Agutu Nyabola,"",62,Richard ,Agutu,Nyabola,Richard  Nyabola,15,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Emmanuel  Owen Sanya /  / Richard  Nyabola,58,Emmanuel  Owen Sanya,"",19,Emmanuel ,Owen,Sanya,Richard  Nyabola,42,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Paul  Owichi Nabango /  / Paul  Nabango,59,Paul  Owichi Nabango,"",75,Paul ,Owichi,Nabango,Paul  Nabango,70,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Jackline Anyango Agutu /  / Richard  Nyabola,60,Jackline Anyango Agutu,"",33,Jackline,Anyango,Agutu,Richard  Nyabola,37,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Jentrix Janet  Achieno /  / Richard  Nyabola,61,Jentrix Janet  Achieno,"",18,Jentrix,Janet ,Achieno,Richard  Nyabola,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Hillary  Barasa Tabu /  / Hillary  Tabu,62,Hillary  Barasa Tabu,"",33,Hillary ,Barasa,Tabu,Hillary  Tabu,78,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Rosemary  Nabwire Okello /  / Hillary  Tabu,63,Rosemary  Nabwire Okello,"",31,Rosemary ,Nabwire,Okello,Hillary  Tabu,19,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Milton Oduor Eseki /  / Sylvester  Eseki,64,Milton Oduor Eseki,"",25,Milton,Oduor,Eseki,Sylvester  Eseki,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Moses  Jacob Oduor /  / Moses Oduor,65,Moses  Jacob Oduor,"",38,Moses ,Jacob,Oduor,Moses Oduor,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Susan Peris Kakai /  / John Kakai,66,Susan Peris Kakai,"",21,Susan,Peris,Kakai,John Kakai,77,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Milly Achieng Odhiambo /  / Helida Odhiambo,67,Milly Achieng Odhiambo,"",28,Milly,Achieng,Odhiambo,Helida Odhiambo,73,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Emily  Nabwire Jacob /  / Moses Oduor,68,Emily  Nabwire Jacob,"",32,Emily ,Nabwire,Jacob,Moses Oduor,22,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Sabatia Onyango Odhiambo /  / Helida Odhiambo,69,Sabatia Onyango Odhiambo,"",30,Sabatia,Onyango,Odhiambo,Helida Odhiambo,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Joseph Ochieno None /  / Joseph None,70,Joseph Ochieno None,"",35,Joseph,Ochieno,None,Joseph None,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Janet Auma None /  / Joseph None,71,Janet Auma None,"",27,Janet,Auma,None,Joseph None,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Jenipher Atieno Juma /  / Jenipher Juma,72,Jenipher Atieno Juma,"",70,Jenipher,Atieno,Juma,Jenipher Juma,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Philip  Onyango Okinyo /  / Philip Okinyo,73,Philip  Onyango Okinyo,"",67,Philip ,Onyango,Okinyo,Philip Okinyo,92,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Alan Onyango Mugola /  / Jenipher Juma,74,Alan Onyango Mugola,"",18,Alan,Onyango,Mugola,Jenipher Juma,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Susan  Nafula Okinyo /  / Philip Okinyo,75,Susan  Nafula Okinyo,"",53,Susan ,Nafula,Okinyo,Philip Okinyo,85,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Justus Wanjiri Prada /  / Justus Prada,76,Justus Wanjiri Prada,"",43,Justus,Wanjiri,Prada,Justus Prada,25,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Judith  Apondi Okinyo /  / Philip Okinyo,77,Judith  Apondi Okinyo,"",31,Judith ,Apondi,Okinyo,Philip Okinyo,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Fh Fh Gf /  / Arthur G,78,Fh Fh Gf,"",28,Fh,Fh,Gf,Arthur G,58,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Mike None Ekirapa /  / Mike Ekirapa,79,Mike None Ekirapa,"",26,Mike,None,Ekirapa,Mike Ekirapa,95,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Alice Mary Etyang /  / ERICK Omuse,80,Alice Mary Etyang,"",26,Alice,Mary,Etyang,ERICK Omuse,4,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Atieno None Were /  / Atieno Were,81,Atieno None Were,"",26,Atieno,None,Were,Atieno Were,23,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Vincent Barasa Makaa /  / Nicholas Ang'ate,82,Vincent Barasa Makaa,"",47,Vincent,Barasa,Makaa,Nicholas Ang'ate,22,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Mwalimu Protus Karegi /  / Justus Prada,83,Mwalimu Protus Karegi,"",47,Mwalimu,Protus,Karegi,Justus Prada,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Willy's  Wanjala Majoni /  / Willy's Majoni,84,Willy's  Wanjala Majoni,"",20,Willy's ,Wanjala,Majoni,Willy's Majoni,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Amo Mami Ouna /  / ERICK Omuse,85,Amo Mami Ouna,"",30,Amo,Mami,Ouna,ERICK Omuse,2,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Gladys  Wanjala None /  / Willy's Majoni,86,Gladys  Wanjala None,"",19,Gladys ,Wanjala,None,Willy's Majoni,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Rapheal None Oduory /  / Rapheal Oduory,87,Rapheal None Oduory,"",52,Rapheal,None,Oduory,Rapheal Oduory,62,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Joyce None Mutambi /  / Joyce Mutambi,88,Joyce None Mutambi,"",40,Joyce,None,Mutambi,Joyce Mutambi,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Clinton  Wanjala Dinna /  / Willy's Majoni,89,Clinton  Wanjala Dinna,"",19,Clinton ,Wanjala,Dinna,Willy's Majoni,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Everline None Nabweri /  / Rapheal Oduory,90,Everline None Nabweri,"",35,Everline,None,Nabweri,Rapheal Oduory,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Charles  Oduory Okinyo /  / Charles Okinyo,91,Charles  Oduory Okinyo,"",41,Charles ,Oduory,Okinyo,Charles Okinyo,49,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Stella Akinyi Okello /  / Charles Okinyo,92,Stella Akinyi Okello,"",35,Stella,Akinyi,Okello,Charles Okinyo,56,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Moses  Ocheno Oduor /  / Moses  Oduor,93,Moses  Ocheno Oduor,"",29,Moses ,Ocheno,Oduor,Moses  Oduor,0,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,William Shiavu Anyula /  / Nora Luka,94,William Shiavu Anyula,"",42,William,Shiavu,Anyula,Nora Luka,94,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Eric  None Ouma /  / Eric Ouma,95,Eric  None Ouma,"",25,Eric ,None,Ouma,Eric Ouma,14,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Fridah Ajambo Ocheno /  / Moses  Oduor,96,Fridah Ajambo Ocheno,"",29,Fridah,Ajambo,Ocheno,Moses  Oduor,0,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Eric  None Ouma /  / Eric Ouma,97,Eric  None Ouma,"",25,Eric ,None,Ouma,Eric Ouma,7,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Erick Ben Ouma /  / Erick Ouma,98,Erick Ben Ouma,"",30,Erick,Ben,Ouma,Erick Ouma,2,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Victor  Juma Odongo /  / Victor Odongo,99,Victor  Juma Odongo,"",25,Victor ,Juma,Odongo,Victor Odongo,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Leonard  Ochieng Nakhama /  / Leonard Ochieng,100,Leonard  Ochieng Nakhama,"",40,Leonard ,Ochieng,Nakhama,Leonard Ochieng,91,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Jane Na Ouma /  / Erick Ouma,101,Jane Na Ouma,"",28,Jane,Na,Ouma,Erick Ouma,11,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Caroline Akinyi Ochieng /  / Leonard Ochieng,102,Caroline Akinyi Ochieng,"",38,Caroline,Akinyi,Ochieng,Leonard Ochieng,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Julie None Kulo /  / Mary Kutoi,103,Julie None Kulo,"",18,Julie,None,Kulo,Mary Kutoi,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Judith  Akinyi Juma /  / Victor Odongo,104,Judith  Akinyi Juma,"",23,Judith ,Akinyi,Juma,Victor Odongo,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Roseline Najavi Otoro /  / Patrick Bwire,105,Roseline Najavi Otoro,"",38,Roseline,Najavi,Otoro,Patrick Bwire,96,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Naomi Mbingi None /  / Christopher  None,106,Naomi Mbingi None,"",36,Naomi,Mbingi,None,Christopher  None,12,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Winfred None Sakwa /  / Winfred Sakwa,107,Winfred None Sakwa,"",25,Winfred,None,Sakwa,Winfred Sakwa,80,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Lawrence Ouma Ochieng /  / Leonard Ochieng,108,Lawrence Ouma Ochieng,"",18,Lawrence,Ouma,Ochieng,Leonard Ochieng,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Rosebella Anyango Okinyo /  / Rosebella Okinyo,109,Rosebella Anyango Okinyo,"",80,Rosebella,Anyango,Okinyo,Rosebella Okinyo,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Brydon Charles Sakwa /  / Winfred Sakwa,110,Brydon Charles Sakwa,"",46,Brydon,Charles,Sakwa,Winfred Sakwa,72,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Veronica None Mbingi /  / Christopher  None,111,Veronica None Mbingi,"",18,Veronica,None,Mbingi,Christopher  None,15,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Jamila None Salim /  / Riziki Salim,112,Jamila None Salim,"",52,Jamila,None,Salim,Riziki Salim,44,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Eunice Anyango Haro /  / Paul Okumu,113,Eunice Anyango Haro,"",45,Eunice,Anyango,Haro,Paul Okumu,6,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Hassan None Namwete /  / Riziki Salim,114,Hassan None Namwete,"",30,Hassan,None,Namwete,Riziki Salim,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Sophy Joan Owiti /  / John Otieno,115,Sophy Joan Owiti,"",30,Sophy,Joan,Owiti,John Otieno,0,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Regina Okida None /  / Austin Sikuku,116,Regina Okida None,"",71,Regina,Okida,None,Austin Sikuku,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Jane Awino Wanyama /  / Paul Okumu,117,Jane Awino Wanyama,"",30,Jane,Awino,Wanyama,Paul Okumu,6,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Collins None Oduor /  / Ahenda Oduor,118,Collins None Oduor,"",24,Collins,None,Oduor,Ahenda Oduor,69,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Monica Takah Obevo /  / Ambrose Obevo,119,Monica Takah Obevo,"",84,Monica,Takah,Obevo,Ambrose Obevo,99,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Crispas Odhiambo Wandera /  / Crispas Wandera,120,Crispas Odhiambo Wandera,"",47,Crispas,Odhiambo,Wandera,Crispas Wandera,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,1,Hendry Oduor Ahenda /  / Ahenda Oduor,121,Hendry Oduor Ahenda,"",26,Hendry,Oduor,Ahenda,Ahenda Oduor,38,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,2,Micheal  Omondi Ouma /  / Micheal Ouma,122,Micheal  Omondi Ouma,"",28,Micheal ,Omondi,Ouma,Micheal Ouma,"",No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,3,Emmanuel Omondi Doesn't /  / Selina Omondi,123,Emmanuel Omondi Doesn't,"",59,Emmanuel,Omondi,Doesn't,Selina Omondi,98,No data,0
+Busia,101,Samia,888,Ageng'a/Nanguba,888,888,Rumbiye,888,4,Violet None Awino /  / Micheal Ouma,124,Violet None Awino,"",22,Violet,None,Awino,Micheal Ouma,"",No data,0
