@@ -118,78 +118,78 @@ Of the three incentive we found the bracelets to be the most effective, with a `
 
 Text messages reporting peer take-up were also found to have a strong impact on deworming take-up, in particular when combined with the bracelet incentives. Take-up in response to bracelet and text messaging treatment increased take-up by `r sprintf("%.2f", bracelet.sms.vs.control.ate)` percentage points when compared to the control arm without text messaging treatment (`r sprintf("%.2f%% vs %.2f%%, $P < %.2e$", bracelet.sms.takeup, phone.owner.control.takeup, bracelet.sms.vs.control.pval)`), a `r sprintf("%.2f", bracelet.sms.vs.control.ate/phone.owner.control.takeup * 100)`% increase.
 
-Based on our preliminary reduced form analysis, we conclude that the use of bracelets as social incentives is a promising instrument to motivate the take-up of health-related behavior of low private value and high social value, such as adult deworming treatment. This is especially true when combined with an informational intervention such as text messages. While this report delves further in how distance affects take-up and how it interacts with the other experimental treatments, and what private value the study's population places on the incentives we are testing, we are not as of yet able to identify the different potential mechanisms influencing take-up. For example, while evidence points to social mechanisms, broadly speaking, as being the main influence, we are not able to distinguish between social learning (receiving information from others), social signaling (broadcasting information to other), or even if our treatments simply function as reminders or "nudges". We will consider these issues elsewhere. 
+Based on our preliminary reduced form analysis, we conclude that the use of bracelets as social incentives is a promising instrument to motivate the take-up of health-related behaviors of low private value--but with some social value--such as adult deworming treatment. This is especially true when combined with an informational intervention such as text messages. While this report delves further in how distance affects take-up and how it interacts with the other experimental treatments, and what private value the study's population places on the incentives we are testing, we are not as of yet able to identify the different potential mechanisms influencing take-up. For example, while evidence points to social mechanisms, broadly speaking, as being the main influence, we are not able to distinguish between social learning (receiving information from others), social signaling (broadcasting information to other), or even if our treatments simply function as reminders or "nudges". We will consider these issues elsewhere. 
 
 The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; and finally, in section \ref{conclusion} we discuss our findings and present our conclusions.
 
 # The Intervention
 
-Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties in western Kenya: Busia, Kakamega and Siaya County. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Deworming treatment was subsequently offered at central locations, from 8am to 5pm, for a period of 12 days. For logistical reasons, we split deworming treatment into two waves: the first deworming wave was from October 3 to 14 in Busia and Siaya County, and the second wave was from October 24 to November 4 in Kakamega County.  
+Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties in western Kenya: Busia, Kakamega and Siaya County. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Pamphlets were handed out to community members and posters were placed in prominent locations. 
 
-Central locations were picked to be easy locatable by targeted community members, either in their own villages or in neighboring villages. We initially selected treatment locations to be adjacent to primary schools because of their prominence and ubiquity. However, the Ministry of Education did not permit us to operate in such close proximity to schools, so we decided to use alternative locations (such as churches) that are not too far from the originally selected schools^[During a treatment location scoping phase, we had collected information on such backup locations.].
+Deworming treatment was subsequently offered at central locations, from 8am to 5pm, for a period of 12 days. For logistical reasons, we split deworming treatment into two waves: the first deworming wave was from October 3 to 14 in Busia and Siaya County, and the second wave was from October 24 to November 4 in Kakamega County. Depending on the a cluster's assigned treatment, individuals who came for deworming were either only dewormed or were dewormed and either 
 
+(i) required to receive a mark on their hand using indelible ink as is normally done when voting, 
+(ii) given a simple one page wall calendars, with a design unrelated to deworming, as a gift, or
+(iii) given a silicon bracelet as a bracelet.
 
+All adults who came to a treatment location were provided with deworming (and applicable incentives/signals) irrespective of where they live; we did not provide treatment only to the communities targeted by the informational campaign^[This was particularly important since nearly half of all clusters' targeted villages were assigned a treatment location in another village.] or require individuals to receive treatment in their home cluster. After treatment, all individuals were asked brief questions by research enumerators.
+
+Central locations were picked to be easy locatable by targeted community members, either in their own villages or in neighboring villages. We initially selected treatment locations to be adjacent to primary schools because of their prominence and ubiquity (more on this below). However, the Ministry of Education did not permit us to operate in such close proximity to schools, so we decided to use alternative locations (such as churches) that are not too far from the originally selected schools^[The Ministry of Education prohibited any social activities within or near primary schools to prevent cheating in exams. During the treatment location survey, we had collected information on backup locations.].
+
+During the informational campaign conducted by CHVs prior to the MDA, we also recruited a random sample of individuals from different households to receive informational text messages about the MDA (see the [Experiment Design](#experiment-design) section). Messages were sent to all recruited subjects a day before the MDA with information on where to find their treatment locations. After that, messages were sent every other day (on the second, fourth, sixth, eight and tenth deworming day). 
+
+CHVs were trained by their supervising Community Health Extension Workers (CHEWs), who also handled the distribution and recovery of deworming drugs. Thus our study was focused on the social aspects of the intervention, e.g., the framing of deworming as a public good and the use of private or social incentives to encourage take-up. We were not involved with the medical aspects of deworming, for which we coordinated with national and local health officials. 
 
 # Experiment Design
 
-We identified 144 central locations in the 3 selected counties. Central locations and their catchment areas were randomly assigned, in equal numbers, into one of four intervention arms: 
-1) CHVs mark adults' fingers with ink; 
-2) CHVs give adults a green wrist bracelet; 
-3) CHVs give adults a one-page calendar for 2017; 
-4) Only deworming treatment is provided and no incentive. 
+We randomly selected 158 clusters in the three study counties, of which 144 were used in the study^[We only intended to use 150 clusters, and only included eight extra clusters as fallback clusters. For various practical reasons, implementation was only possible in 144 clusters.]. We relied on the high geographic density of primary schools in the study counties to select both treatment locations and targeted villages^[Geographic coordinates for primary schools were retrieved from the Kenya Open Data Portal (<http://www.opendata.go.ke/>).]. Each cluster is defined as a treatment location and targeted village pair. We used the location of primary schools as proxies for communities, so that we can identify acceptable locations (i) to set up our treatment locations and (ii) to find villages to target with our informational campaign and data collection.
 
-We mapped communities that fall within a 2.5 km catchment radius of the central location and randomly selected one community per catchment area. We conducted a census of all adults in those 150 communities and randomly selected 15 individuals in each control arm community to receive reminder text messages, and 15 (for control arm) or 25 (for ink/bracelet/calendar arms) individuals to receive reminder text messages that also contain information about deworming take-up in their community. Adults that signed up for the free text message service received a text message on the day before deworming started and on the 2nd, 4th, 6th, 8th and 10th day of deworming treatment. The text message service was free and individuals could unsubscribe at any time at no cost. The reminder messages contained the following content: 
+To pick our clusters from the pool of all primary schools in our study area (a total of 1,451 schools), we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius _catchment circle_ and 3-4 kilometer radius _buffer circle_ (buffer sizes were randomly assigned). A cluster was considered acceptable if its _buffer circle_ did not leave any of the already selected clusters' nonoverlapped _catchment circles_ smaller than an a pre-specified size (with about one primary school nonoverlapped).
 
-> Free deworming now at [Central Location]. Reply ___ to _____ stop texts. All texts are free.
+After all clusters were selected, we randomly assigned (stratified within counties) each cluster to be either a "close" or "far" cluster: whether its targeted village would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its nonoverlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted village. Clusters were then randomly assigned, stratified over counties and distance treatment, an incentive/signal treatment: (i) _control_, (ii) _ink_, (iii) _calendar_, or (iv) _bracelet_.
 
-The reminder and peer information about deworming take-up messages contained the following content:
+To finalize the cluster selection process, we surveyed the treatment location and target village anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified an alternative treatment locations, not far from the selected schools, as backups. For the anchor schools, we identified all the villages near them. From each cluster's candidate villages we randomly selected a village to target (in some cases because the initial village was too small, we added a second village).
 
-> Free deworming now at [Central Location]. [No/few/almost half/half/more than half/almost all/all] of your village came, that is _X_ in 10 adults. Reply ___ to _____ stop texts. All texts are free. 
+For each village selected for targeting we then conducted a census of all adult community members (18 years of age or older). Enumerators visited all the households in selected villages, captured their geographic coordinates, and filled a roster of all household members, enought to identify them if sampled in later stages and to stratify over relevant characteristics (e.g., phone ownership, relevant for text message treatment).
 
-To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of subscribers conditional on texting back and confirming the receipt of the text message.^[We only implemented the reward scheme during the second wave of deworming treatment. The reason being, we only decided to add the treatment shortly before we started deworming in wave one communities and had to wait for ethical approval for this added component before we could implement it.] The following reward text message was sent to adults on day 2 and 6 of deworming treatment: 
+Using the census lists we drew a number of samples for data collection. All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment. This is the group for whom we estimate the probability of take-up in our analysis. Except for those in the baseline survey sample, all individuals were not informed about their participation in a study (incomplete disclosure), and therefore we needed to get their reconsent after the study was completed.
 
-> Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message ___ to _____. The text is free. 
+### Baseline survey sample {-}
 
-We sent a reminder text messsage to adults that had not taken up the reward two days after the original reward text was sent: 
+Before the intervention started, we aimed to conduct baseline surveys with 15 individuals (from unique households) per cluster^[The actual number of individuals that were located varied for all the samples.]. The survey questionnaire covered topics such as:
 
-> Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message ___ to _____ to receive the reward. The text is free.
+a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of
+b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others
+c) Beliefs about one's own and others' deworming decisions in response to an MDA, and how that decision is affected by others' choices
+d) Beliefs about one's own and others' reputation if infected and treated
+e) Past experience with deworming treatment
 
-The reminder messages were sent on day 4 (for reward messages sent on day 2) and on day 8 (for reward messages sent on day 6). 
+### Text message sample {-}
 
-## Sampling and Identification Strategy { #sampling-identification }
+As described above, in the [Intervention](#the-intervention) section, we recruited individuals to receive informational text messages. We aimed to recruit 30 individiuals per cluster in the control arm and 25 individuals per cluster in the treated arms. In the control arm, we broke the sample into two groups of 15, one received reminder messages only, and the other got reminders and social information -- they were told about the take-up of their community members up to the day of the message^[Peer take-up was described both as "few", "almost half", "almost everyone", etc., and as a "$n$ in 10" proportion.]. In the treated arms, all individuals received social information messages. All text messages recipients were reminded about where the treatment location is.
 
-This study adopted a cluster randomized experiment to make causal inferences addressing our research questions. We selected three counties in western Kenya where soil transmitted helminths are endemic: Busia, Siaya and Kakamega. We then identified 158 clusters (communities) dispersed across the selected region. After various surveys identifying clusters where implementation would be infeasible, the study was reduced to 144 clusters. In each cluster, we conducted a census of all households and eligible adults (18 years or older). 
+Naturally, this sample was drawn from the population of phone owners, from which we also drew a comparator "control" sample, not receiving any text messages, and included in the _monitored_ group. We also drew a sample of text message "control" individuals from the non phone owners population. In other words, the sampling of monitored individuals not receiving any text messages was stratified over phone ownership.
 
-All communities in the experiment were be provided with:
+### Endline survey sample {-}
 
-* Deworming treatment at a central location (point-of-treatment);
-* An outreach campaign providing information on the location and duration of treatment, the incentives that would be offered, as well as framing the public good aspect of deworming.
+After the intervention was concluded, we aimed to conduct endline surveys with the 25 individuals per cluster, selected according to the following schedule:
 
-We then randomly assigned treatment over cluster, stratified over counties and distance to the point-of-treatment.
+* From the sample of those not receiving text messages:
+    - 15 individuals per cluster in the control arm
+    - 20 individuals per cluster in the treated arms
+* From the sample of those receiving reminder messages only:
+    - 5 individuals per cluster 
+* From the sample of those receiving social information messages:
+    - 5 individuals per cluster 
+    
+All individuals who responded to the endline survey were also asked to reconsent to having their observed take-up status used in our study. The study was explained to them, as well as the reason for not informing about the participation in it prior to the endline survey.
 
-From each cluster the following samples were selected (more details [below](#data-collection)):
+### Reconsent only sample {-}
 
-* A baseline sample randomly selected from the entire cluster population;
-* A sample of individuals to monitor the treatment of during the intervention including:
-    - Text messaged individuals picked from the subpopulation of phone owners
-        + Deworming reminders and
-        + Information on peer deworming;
-    - A stratified sample of phone and non-phone owners
-        + Phone owners are used as controls for the text messaging treatment and 
-        + Non-phone owners selected to allow us to estimate impact of incentive treatment over the whole population. 
-        
-      We used a stratified sample to make sure our text messaging control group has enough people.
+All remaining individuals in the text message sample (recipients and non-recipients of messages) and who are not in the endline survey sample were visited to to ask for reconsent in the same manner as the endline survey sample. The baseline survey sample was reconsented if they overlapped with any of the other sample. Thus, we were table to observe deworming take-up for a mix of individuals who did and did not respond to a baseline survey.
 
-    We split this sample into two groups: 
-      * Endline survey respondents (stratified between text message recipients and non-recipients);
-      * Data use reconsent only individuals.
+### Willingness-to-pay survey sample {-}
 
-## Clustered Design
-
-The experiment was carried out in 18 subcounties in Western Kenya, randomized at the cluster level. A _cluster_ was composed of 
-
-(i) a centralized _point-of-treatment (PoT)_ at an easily identifiable location (e.g. near a church/mosque), and
-(ii) a _targeted village_ where we conducted an outreach campaign^[Other communities were not denied treatment, but our analysis is focused on targeted villages.].
 
 ## Experimental Manipulation
 
