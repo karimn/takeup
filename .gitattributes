@@ -9,3 +9,4 @@ data/Missing[[:space:]]GPS[[:space:]]data.dta filter=lfs diff=lfs merge=lfs -tex
 data/takeup_gps_255_306_360.dta filter=lfs diff=lfs merge=lfs -text
 data/takeup_senitization_mon_0926.dta filter=lfs diff=lfs merge=lfs -text
 data/takeup_processed_cluster_strat.rds filter=lfs diff=lfs merge=lfs -text
+box_archive.zip filter=lfs diff=lfs merge=lfs -text
