@@ -67,7 +67,9 @@ ggplot.clusters <- function(selected.clusters,
                             proj4 = kenya.proj4, 
                             maptype = "roadmap", 
                             source = "google",
-                            include.cluster.ids = TRUE, ...) {
+                            include.cluster.ids = TRUE, 
+                            caption = NULL,
+                            ...) {
   
   all.clusters <- gUnaryUnion(selected.clusters) 
  
@@ -119,7 +121,7 @@ ggplot.clusters <- function(selected.clusters,
     # return(map.obj)
   
   map.obj <- map.obj + geom_point(aes(lon, lat), shape = 3, size = 1, data = pilot.locations) +
-    labs(x = "", y = "") +
+    labs(x = "", y = "", caption = caption) +
     scale_color_discrete("County") +
     theme(legend.position = "bottom")
   
