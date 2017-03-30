@@ -33,7 +33,7 @@ read_chunk(purl("takeup_analysis2.Rmd"))
 opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "takeup_prelim-fig/", fig.align = "center", cache = TRUE)
 ```
 
-```{r analysis-setup, include=FALSE, ref.label="setup"}
+```{r analysis-setup, include=FALSE, ref.label="setup", cache=FALSE}
 ```
 
 ```{r load-analysis-data, ref.label="load-data"}
@@ -42,6 +42,7 @@ opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "ta
 ```{r load-experiment-design-data}
 rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
 rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.rds"))
+cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
 
 load(file.path("data", "takeup_village_pot_dist.RData"))
 ```
@@ -146,7 +147,18 @@ We randomly selected 158 clusters in the three study counties, of which 144 were
 
 To pick our clusters from the pool of all primary schools in our study area (a total of 1,451 schools), we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius _catchment circle_ and 3-4 kilometer radius _buffer circle_ (buffer sizes were randomly assigned). A cluster was considered acceptable if its _buffer circle_ did not leave any of the already selected clusters' nonoverlapped _catchment circles_ smaller than an a pre-specified size (with about one primary school nonoverlapped).
 
-After all clusters were selected, we randomly assigned (stratified within counties) each cluster to be either a "close" or "far" cluster: whether its targeted village would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its nonoverlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted village. Clusters were then randomly assigned, stratified over counties and distance treatment, an incentive/signal treatment: (i) _control_, (ii) _ink_, (iii) _calendar_, or (iv) _bracelet_.
+```{r all-clusters-map, message=FALSE, fig.width=6, fig.height=6, fig.cap="Map of Initial Cluster Selection. Black crosses (+) indicate the selected treatment locations, while the grey regions indicate the nonoverlapped catchment circles from which we selected village(s) to target."}
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner") 
+```
+
+After all clusters were selected, we randomly assigned (stratified within counties) each cluster to be either a "close" or "far" cluster: whether its targeted village would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its nonoverlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted village^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan [@Karing2016].]. Figures \ref{fig:dist-to-pot} and \ref{fig:marginal-dist-to-other-pot} show the distribution of cluster distance to treatment locations and to other clusters. 
+
+Clusters were then randomly assigned, stratified over counties and distance treatment, an incentive/signal treatment: 
+
+(i) Control: no incentives or public signals
+(ii) Indelible ink: a mandatory signal of treatment
+(iii) Calendar: a private low-value gift 
+(iv) Bracelet: a low-value gift and public signal 
 
 To finalize the cluster selection process, we surveyed the treatment location and target village anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified an alternative treatment locations, not far from the selected schools, as backups. For the anchor schools, we identified all the villages near them. From each cluster's candidate villages we randomly selected a village to target (in some cases because the initial village was too small, we added a second village).
 
@@ -156,7 +168,7 @@ Using the census lists we drew a number of samples for data collection. All indi
 
 ### Baseline survey sample {-}
 
-Before the intervention started, we aimed to conduct baseline surveys with 15 individuals (from unique households) per cluster^[The actual number of individuals that were located varied for all the samples.]. The survey questionnaire covered topics such as:
+Before the intervention started, we aimed to conduct baseline surveys with 15 individuals (from unique households) per cluster^[The actual number of individuals that were located varied for all the samples.]. The baseline survey questionnaire covered topics such as:
 
 a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of
 b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others
@@ -181,6 +193,15 @@ After the intervention was concluded, we aimed to conduct endline surveys with t
     - 5 individuals per cluster 
 * From the sample of those receiving social information messages:
     - 5 individuals per cluster 
+   
+Since not all individuals responding to the endline survey also responded to the baseline survey, some questions overlapped between the two questionnaires. The endline survey questionnaire covered topics such as:
+
+a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of
+b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others
+c) Knowledge of the MDA intervention: location, start date, and duration of treatment; where respondent got dewormed; how did respondent learn about the MDA; and if they were contacted about a CHV or text messaging
+d) Questions testing knowledge of peer deworming: 
+    i. Respondents were incentivized to estimate how many of their community members got dewormed.
+    ii. Respondents were explicitly asked about their relationship with and their knowledge of deworming status of ten other individuals or pairs of individuals in their community^[We randomly asked respondents about individuals or pairs of individuals, in an effort to overcome potential aversion to disclosing negative information about peers.].
     
 All individuals who responded to the endline survey were also asked to reconsent to having their observed take-up status used in our study. The study was explained to them, as well as the reason for not informing about the participation in it prior to the endline survey.
 
@@ -190,64 +211,20 @@ All remaining individuals in the text message sample (recipients and non-recipie
 
 ### Willingness-to-pay survey sample {-}
 
+In order to assess individuals' private valuation of the calendar and bracelet incentives, we conducted willingness-to-pay surveys with a sample of subjects in the control arm who have neither responded to any endline survey nor have they received any text messaging treatment. We randomly selected 25 individuals from each of 24 randomly selected control communities. Respondents were asked to choose one of the two incentives as a gift, revealing their preference. Subsequently, they were offered a random cash amount for them to switch the other incentive, allowing us to estimate the difference in the incentives' price value. 
 
-## Experimental Manipulation
+# Descriptive Statistics 
 
-In the experiment there were two levels of randomized treatment assignment.
-
-1. At the cluster level, there will be four groups:
-    (i) a control group;
-    (ii) a low/no private value, low visibility social incentive group: indelible ink mark on treatment compliers' hands;
-    (iii) a private incentive group: wall calendars provided as gifts to treatment compliers;
-    (iv) a high private value, high visibility social incentive group: colorful silicon bracelets will be provided as gifts to treatment compliers. 
-2. At the individual level, there will be three groups:
-    (i) the control group, composed of a stratified sample of
-        a. phone owners and
-        b. non-phone owners;
-    (ii) the text message reminder group: participants will receive regular messages on where and when treatment will be available;
-    (iii) the text message and peer take-up information group: participants will receive regular messages on where and when treatment will be available, as well as the proportion of treatment take-up among others in their community.
-
-## Cluster Selection Algorithm
-
-The selection of clusters (PoT and targeted villages) relied on geospatial data of primary schools in the targeted subcounties. While schools did not play a direct role in the study's implementation, they were used as proxies for the location of communities.
-
-Below is the main body of the selection algorithm:
-
-1. Let $\mathcal{C}$ be the set of all potential clusters, defined as 2.5 kilometer radius circle centered on a primary school in the study region. In this study the size of this set is $|\mathcal{C}| = 1,451$.
-2. Let $\mathcal{R} := \emptyset$ be the set of clusters selected for the experiment
-3. While $\mathcal{C} \neq \emptyset$:
-    a) Randomly pick $i \in \mathcal{C}$
-    b) Set $\mathcal{C} := \mathcal{C}\setminus\{i\}$
-    c) If $(ClusterSize(i, \mathcal{R}) < ThresholdClusterSize) \lor (\exists j \in \mathcal{R}, ClusterSize(j, \mathcal{R} \cup \{i\}) < ThresholdClusterSize)$: 
-        i. Repeat Loop
-        
-          Else:
-          
-        i. Set $\mathcal{R} := \mathcal{R} \bigcup \{i\}$
-4. If $|\mathcal{R}| < NumRctClusters$: Goto 1
-
-$ClusterSize(m, \mathcal{M})$ is a function that returns the size of cluster $m$, removing any overlaps with the clusters in $\mathcal{M}$. We defined the size of a cluster to be the number of primary schools available in the non-overlapped 2.5 km circle around the cluster center (as a proxy of the available communities to target). We set the cluster size threshold to be 1 primary school^[To be exact we defined the threshold to be 60% of a 1 km radius circle around a school.].  
-
-While we use a 2.5 km circle to define the boundary of the area we will target communities within for treatment, when considering overlaps we assume points-of-treatment would have larger catchment areas, thus providing buffers between clusters. In order to fit the study's geographic area we randomly split the PoT to have 3 and 4 km catchment areas. Thus a targeted village would always be at least 0.5 km closer to its own assigned point-of-treatment than any other cluster's.
-
-This first step of cluster selection yielded 158 clusters. Figure \ref{fig:all-clusters-map} shows the geographic location of all clusters. The center of each cluster (the point-of-treatment) is represented by a cross, and the grey regions are the catchment areas of each cluster not within the buffers we placed between clusters. Targeted villages were chosen within these catchment areas.
-
-```{r all-clusters-map, fig.width=8, fig.height=8, fig.cap="Map of Initial Cluster Selection"}
-ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner")
-```
-
-While the cluster point-of-treatments and targeted villages were initially selected as described above, their exact locations varied slightly before the intervention started. Figures \ref{fig:dist-to-pot}, and \ref{fig:marginal-dist-to-other-pot} show the actual distribution of (i) the distance between targeted villages and their home points-of-treatment, (ii) the distance between targeted villages and their the closest other point-of-treatment, and (iii) the difference between (i) and (ii).
-
-```{r dist-to-pot, fig.width=6, fig.height=4, fig.cap="Distance to Points-of-Treatment"}
+```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Distance to Treatment Locations"}
 verify.vill.pot.dist %>% 
   select(dist.to.own.pot, closest.other) %>% 
   gather(dist.type, dist) %>% {
   ggplot(.) +
     geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black", position = "dodge") + 
     scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
-    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) +
-    scale_fill_discrete("Distance", labels = c("To Closest Other Point-of-Treatment", "To Home Point-of-Treatment")) +
-    theme(legend.position = "top")
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 5)) +
+    scale_fill_discrete("Distance", labels = c("To Closest Other Treatment Location", "To Assigned Treatment Location")) +
+    theme(legend.position = "bottom")
 }
 ```
 
@@ -260,7 +237,7 @@ verify.vill.pot.dist %>% {
 } 
 ```
 
-```{r marginal-dist-to-other-pot, fig.cap="Marginal Distance to Closest Other Point-of-Treatment"}
+```{r marginal-dist-to-other-pot, fig.height=4, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
 verify.vill.pot.dist %>% 
   mutate(marginal.dist = closest.other - dist.to.own.pot,
          dist.to.own.pot.cat = cut(dist.to.own.pot, 
@@ -270,28 +247,43 @@ verify.vill.pot.dist %>%
     geom_histogram(aes(marginal.dist), alpha = 0.5, color = "black", binwidth = 500, boundary = 0, position = "dodge") +
     scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
     scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
-     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.25, .5, 0.75)), 
-                color = "red", linetype = "dashed")
+     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed")
 }
 ```
 
-## Village and Point-of-Treatment Selection
+In this section we will present some descriptive statistics and plots, using data collected from the various study surveys. 
 
-Villages were randomly selected across clusters to give us an equal proportion of _close_ and _far_ village to point-of-treatment distances. Distances were categorized as _close_ if less than 1250 meters and _far_ otherwise. This split is half the upper range of the distance we observed people were generally willing to travel for deworming treatment. As explained above, these distances varied in response to implementation contraints, so after some clusters had to be dropped from the study, we ended up with approximately 46% of targeted villages being _far_ from their point-of-treatment.
+```{r xyz}
+census.data %>%
+  filter(!is.na(cluster.id)) %>% 
+  left_join(select(cluster.strat.data, cluster.id, dist.pot.group), "cluster.id") %>% 
+  distinct(assigned.treatment, cluster.id, .keep_all = TRUE) %>% 
+  count(assigned.treatment, dist.pot.group, county) %>% 
+  spread(county, n) %>% 
+  ungroup %>% {
+    totals <- rowSums(select(., Busia, Kakamega, Siaya))
+    mutate(., Total = totals)
+  }
+```
 
-This random assignment of each cluster to the _close_ or _far_ group is considered orthogonal to any targeted village characteristics, since each village could have been assigned to either group with equal probability. In other words, we are exogenously varying the distance individuals in a targeted village would have to travel for treatment.
+In the study, we recorded the deworming of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal argument based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
 
-## Treatment Assignment Mechanism
+Based on the community censuses 
 
-We used a stratified treatment assignment mechanism, whereby we stratified by (i) county and (ii) targeted village to point-of-treatment distance. Thus we had six strata within which we randomly assigned with equal probability one of four incentive treatments (control, indelible voting ink, calendars, and bracelets). For strata not divisible by four, we randomly assign, without replacement, one of the four treatments to the $(\text{stratum size} \mathbin{\%} 4)$ remaining clusters (randomly picked)^[http://blogs.worldbank.org/impactevaluations/tools-of-the-trade-doing-stratified-randomization-with-uneven-numbers-in-some-strata].
+```{r absolute-takeup, fig.height=6, fig.cap="Absolute Deworming Take-up"}
+plot.aggreg.takeup <- function(.data) {
+  ggplot(.data, aes(assigned.treatment)) +
+    geom_bar(color = "black", alpha = 0.25) +
+    labs(x = "Treatment", y = "Number of Individuals Dewormed (x 100)", caption = "Note: range on Y axis varies between counties.") +
+    facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(labels = . %>% divide_by(100))
+}
 
-## Power Calculation
-
-Given an intracluster correlation (for the random effects logit latent model used in power analysis simulations) of 0.1 we will be able to detect a 10 percentage point difference in deworming take-up between any incentive treatment arm and the control group, and a 8 percentage point change between any two incentive treatment arms. We can further detect a 7 percentage point difference in deworming take-up within treatment arms between adults who received and did not receive a text message reminder/information about deworming take-up in their community, and a 9 percentage point change in demand between any two arms for adults that did receive the text messaging treatment.
-
-
-
-# Descriptive Statistics 
+takeup.data %>% 
+  mutate_at(vars(dist.pot.group, assigned.treatment), funs(factor(.) %>% fct_relabel(str_to_title))) %>% 
+  plot.aggreg.takeup 
+```
 
 # Analysis
 
