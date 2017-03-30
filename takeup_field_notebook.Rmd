@@ -190,6 +190,8 @@ pot.info %>%
 
 ## Villages
 
+`village.cluster.id` is not be trusted. Geographic analysis (below) of the closest cluster shows that `cluster.id` is more reliable. 
+
 ```{r villages-data}
 rct.village.codes <- read_csv("data/village_codes_2.csv", skip = 1, col_names = c("village.cluster.id", "village_name", "village")) %>% 
   mutate(village.cluster.id = as.integer(village.cluster.id))
@@ -2269,12 +2271,11 @@ find.backcheck.candidates <- function(rct.clusters, .num.enum) {
 ## Willingness-to-Pay Sample
 
 ```{r, eval=FALSE}
-wtp.clusters.include <- read_lines("data/wtp_clusters_include.csv") %>% 
+wtp.clusters.include <- read_lines(file.path("data", "wtp_clusters_include.csv")) %>% 
   as.integer
 
 wtp.clusters <- cluster.strat.data %>% 
   filter(assigned.treatment == "control", 
-         # !is.na(wave),
          cluster.id %in% wtp.clusters.include) %>% 
   group_by(county) %>% 
   do(sample_n(., if_else(first(.$county) == "Kakamega", 12, 6))) %>% 
@@ -2285,17 +2286,18 @@ offer.range <- seq(10, 100, 10)
 wtp.sample <- hh.census.data %>% 
   mutate(cluster.id = if_else(is.na(cluster.id), old.cluster.id, as.integer(cluster.id))) %>% 
   semi_join(wtp.clusters, "cluster.id") %>% 
-  filter(is.na(endline.type) | endline.type %in% c("reconsent", "reconsent.backup"), is.na(assigned.treatment) | assigned.treatment == "control") %>% 
+  filter(is.na(endline.type) | endline.type %in% c("reconsent", "reconsent.backup"), 
+         is.na(assigned.treatment) | assigned.treatment == "control") %>% 
   group_by(cluster.id) %>% 
   do(sample_n(., min(25, nrow(.))) %>% 
        mutate(wtp.offer = sample(c(rep(offer.range, n() %/% 10), sample(offer.range, n() %% 10))))) %>% 
   ungroup 
 
-write_rds(wtp.sample, "data/takeup_wtp_sample_2.0.rds")
+write_rds(wtp.sample, file.path("data", "takeup_wtp_sample_2.0.rds"))
 ```
 
 ```{r}
-write_rds(census.data, "data/takeup_census.rds")
+write_rds(census.data, file.path("data", "takeup_census.rds"))
 ```
 
 # Baseline Survey 
