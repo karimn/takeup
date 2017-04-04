@@ -69,12 +69,6 @@ options(dplyr.show_progress = FALSE, digits = 4)
 # Data
 
 ```{r load-data, include=FALSE}
-
-census.data <- read_rds(file.path("data", "takeup_census.rds"))
-all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
-reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
-takeup.data <- read_rds(file.path("data", "takeup.rds"))
-
 load(file.path("data", "analysis.RData"))
 ```
 
@@ -201,7 +195,7 @@ baseline.data %>%
 
 I'm dropping information about the question group: _A-D_.
 
-```{r}
+```{r praise-stigma}
 baseline.data %>% 
   select(matches("^(praise|stigma)_[^_]+$")) %>% 
   gather(key = key, value = response) %>% 
@@ -211,12 +205,23 @@ baseline.data %>%
   count(praise.stigma, topic, response) %>% 
   group_by(praise.stigma, topic) %>% 
   mutate(n = n/sum(n)) %>% 
-  ungroup %>% 
+  ungroup %>%
+  mutate_at(vars(praise.stigma, response), funs(fct_relabel(factor(.), str_to_title))) %>% 
+  mutate(topic = fct_recode(factor(topic), 
+                            "Wearing/not wearing nice clothes to church" = "clothes",
+                            "Use Latrine/open defecation" = "defecate",
+                            "Deworming/not deworming during MDA" = "deworm",
+                            "Immunize/not immunize children" = "immunize")) %>% 
   ggplot(aes(response)) +
-  geom_col(aes(y = n)) +
+  geom_col(aes(y = n), alpha = 0.5) +
   coord_flip() +
-  facet_grid(topic ~ praise.stigma) +
-  labs(title = "Praise and Stigma", y = "")
+  facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20)) +
+  labs(y = "Proportion", x = "") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+      strip.text.y = element_text(angle = 0), 
+      strip.background = element_rect(colour = NA), 
+      panel.border = element_blank()) 
 ```
 
 ```{r, fig.width=10}
@@ -306,7 +311,9 @@ endline.data %>%
 endline.data %>% 
   select(treat_begin, treat_end, days_available) %>% 
   gather %>%
-  mutate(key = case_when(.$key == "treat_begin" ~ "begin date", .$key == "treat_end" ~ "end date", TRUE ~ "days available")) %>% 
+  mutate(key = case_when(.$key == "treat_begin" ~ "begin date", 
+                         .$key == "treat_end" ~ "end date", 
+                         TRUE ~ "days available")) %>% 
   count(key, value) %>% 
   group_by(key) %>% 
   mutate(n = n/sum(n)) %>% 
@@ -351,18 +358,18 @@ know.bel.cat.plot("chv_visit", .baseline.data = NULL) + labs(title = "Did a CHV 
 
 ## Beliefs
 
-```{r}
-list(baseline = baseline.data, endline = endline.data) %>% 
+```{r survey-of-10-beliefs}
+list(Baseline = baseline.data, Endline = endline.data) %>% 
   compact %>% 
   map_df(select, one_of("dworm_rate", "ink_dworm_rate"), .id = "survey.type") %>% 
   gather(key = incentive, value = value, -survey.type) %>% 
-  mutate(incentive = if_else(incentive == "dworm_rate", "none", "ink")) %>% 
+  mutate(incentive = if_else(incentive == "dworm_rate", "None", "Ink")) %>% 
   ggplot(aes(value)) +
   geom_freqpoly(aes(y = ..density.., color = survey.type, linetype = incentive), binwidth = 1) +
-  scale_x_continuous("Rate", breaks = 1:10) +
+  scale_x_continuous("Reported Rate", breaks = 1:10) +
   scale_y_continuous("Density") +
   scale_color_discrete("") +
-  scale_linetype_manual("", values = c("dashed", "solid")) +
+  scale_linetype_manual("Hypothetical Signal Used in MDA", values = c("dashed", "solid")) +
   theme(legend.position = "bottom") +
   labs(title = "How many out of 10 will come for deworming?")
 ```
@@ -481,15 +488,18 @@ waldtest(unrestricted.reg, restricted.reg)
 
 ## Distance Assignment
 
-```{r}
+```{r actual-distance-distribution}
 analysis.data %>%  
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
   ggplot(aes(dist.to.pot)) +
   geom_density(aes(color = dist.pot.group, linetype = "Household")) +
-  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"), data = village.centers) +
+  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"), 
+               data = mutate(village.centers, assigned.treatment = fct_relabel(assigned.treatment, str_to_title))) +
   geom_vline(xintercept = c(1250), linetype = "dashed") +
-  labs(x = "Distance to PoT (meters)", y = "Density", 
+  labs(y = "Density", 
        caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
+  scale_x_continuous("Distance to Treatment Location (meters)", breaks = seq(0, 10000, 2500/4)) +
   scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
   scale_linetype_discrete("Distance From") +
   theme(legend.position = "bottom") +
@@ -500,41 +510,16 @@ analysis.data %>%
 
 ## Self-reported Preferences (Endline)
 
-```{r}
-endline.data %>% 
-  ggplot(aes(gift_choice)) +
-  geom_bar(aes(y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
-  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", subtitle = "Pooling all arms") +
-  coord_flip() 
+```{r reported-gift-pref, fig.width=8}
+analysis.data %>% 
+  plot.pref.unfaceted() +
+  facet_wrap(~ assigned.treatment, nrow = 1) 
 ```
 
-```{r, fig.width=8}
+```{r reported-gift-pref-deworm, fig.width=8}
 analysis.data %>% 
-  filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(sms.treatment)) %>% 
-  group_by(assigned.treatment) %>% 
-  mutate(arm.size = n()) %>% 
-  group_by(gift_choice, add = TRUE) %>%
-  summarize(pref.prop = n()/first(arm.size)) %>% 
-  ungroup %>% 
-  ggplot(aes(gift_choice, pref.prop)) +
-  geom_col(alpha = 0.5, color = "black") +
-  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", subtitle = "Split by incentive arm") +
-  facet_wrap(~ assigned.treatment, nrow = 1)
-```
-
-```{r, fig.width=8}
-analysis.data %>% 
-  filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(sms.treatment)) %>% 
   mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed")) %>% 
-  group_by(assigned.treatment, dewormed.any) %>% 
-  mutate(arm.size = n()) %>% 
-  group_by(gift_choice, add = TRUE) %>%
-  summarize(pref.prop = n() / first(arm.size)) %>% 
-  ungroup %>% 
-  ggplot(aes(gift_choice, pref.prop)) +
-  geom_col(alpha = 0.5, color = "black") +
-  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
-       subtitle = "Split by incentive arm and deworming take-up") +
+  plot.pref.unfaceted("dewormed.any") +
   facet_grid(dewormed.any ~ assigned.treatment)
 ```
 

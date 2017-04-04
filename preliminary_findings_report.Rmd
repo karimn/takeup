@@ -25,6 +25,7 @@ bibliography: ~/Documents/library.bib
 <!-- \doublespacing -->
 
 ```{r prelim-report-setup, include=FALSE}
+library(gridExtra)
 library(rgeos)
 library(knitr)
 library(sp)
@@ -302,11 +303,15 @@ By the end of the intervention, we had recorded the deworming treatment of appro
 ```{r absolute-takeup, fig.height=6, fig.cap="Absolute Deworming Take-up"}
 plot.aggreg.takeup <- function(.data) {
   ggplot(.data, aes(assigned.treatment)) +
-    geom_bar(color = "black", alpha = 0.25) +
+    geom_bar(alpha = 0.5, color = alpha("black", 0.5)) +
     labs(x = "Treatment", y = "Number of Individuals Dewormed (x 100)", caption = "Note: range on Y axis varies between counties.") +
     facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
-    theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1)) +
-    scale_y_continuous(labels = . %>% divide_by(100))
+    scale_y_continuous(labels = . %>% divide_by(100)) +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          strip.background = element_rect(colour = NA), 
+          panel.border = element_blank()) 
 }
 
 takeup.data %>% 
@@ -321,14 +326,121 @@ As descibed in the [Experiment Design](#experiment-design) section, clusters wer
 
 Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the undestanding of who is at risk of worm infection. As shown in Figure \ref{fig:who-at-risk-sth}, there does appear to be an improvement in understanding that all community members are at risk of infection. However, from Figure \ref{fig:infected-infect-others}, it still appears that the predominate belief is that infected individuals cannot infect others.
 
-```{r know-believe-categorical-responses, fig.width=8}
+```{r know-believe-categorical-responses, warning=FALSE, fig.width=8, fig.height=10, fig.cap="Knowledge and beliefs baseline and endline survey responses."}
 tribble(~ col.name,      ~ label,
         "who_worms",     "Who is at risk of worms?",
-        "spread_worms",  "Can an infected person spread worms to other?") %>% 
+        "effect_worms",  "What are the effects of worms?",
+        "spread_worms",  "Can an infected person spread worms to other?",
+        "how_spread",    "How are worms spread?",
+        "stop_worms",    "How to stop worms?",
+        "when_treat",    "When should people get dewormed?",
+        "worms_affect",  "If infected, can you affect others' health?",
+        "neighbours_worms_affect", "Can neighbors or relatives worm infection affect your health?") %>% 
   multi.know.bel.cat.plot() +
-  scale_y_continuous(breaks = seq(0, 1, 0.1))
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
 ```
 
+```{r response-other-deworm, warning=FALSE, fig.width=8, fig.height=2.5, fig.cap="Reported response to others' deworming choices."}
+tribble(~ col.name,      ~ label,
+        "few_deworm",     "Deworm if less than half of others deworm?",
+        "many_deworm",    "Deworm if more than half of others deworm?",
+        "more_less",      "Would you be more likely to deworm if few/many others get dewormed?") %>% 
+  multi.know.bel.cat.plot(.endline.data = NULL) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
+```
+
+```{r praise-stigma, ref.label="praise-stigma", fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
+```
+
+```{r dewormed-history, fig.width=8, fig.height=8, fig.cap="Deworming history."}
+ever.dewormed.plot <- baseline.data %>% 
+  select(treated, family_treated) %>% 
+  gather(key = who.treated) %>% 
+  mutate(who.treated = if_else(who.treated == "treated", "Self", "Family")) %>% 
+  count(who.treated, value) %>% 
+  group_by(who.treated) %>% 
+  mutate(n = n/sum(n)) %>%
+  mutate(value = fct_recode(value, "Don't Know" = "DK") %>% 
+             fct_relabel(str_to_title) %>% 
+             fct_reorder(n)) %>%
+  ungroup %>%
+  ggplot(aes(value)) +
+  geom_col(aes(y = n), alpha = 0.5) +
+  coord_flip() +
+  facet_grid(who.treated ~ .) +
+  labs(title = "Ever been dewormed before?", x = "", y = "Proportion") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+      strip.text.y = element_text(angle = 0), 
+      strip.background = element_rect(colour = NA), 
+      panel.border = element_blank()) 
+
+who.was.dewormed.plot <- baseline.data %>% 
+  select(family_treated, who_treated) %>% 
+  filter(family_treated == "yes") %>% 
+  mutate(who_treated = fct_relabel(factor(who_treated), str_to_title)) %>% 
+  ggplot(aes(who_treated)) +
+  geom_bar(aes(y = ..count../sum(..count..)), alpha = 0.5) +
+  coord_flip() +
+  labs(title = "Who in family got dewormed?", x = "", y = "Proportion") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+      strip.text.y = element_text(angle = 0), 
+      strip.background = element_rect(colour = NA), 
+      panel.border = element_blank()) 
+
+where.treated.plot <- baseline.data %>% 
+  select(treated, family_treated, treated_where, where_family_treated) %>% 
+  gather(key = who.treated, value = value, -c(treated, family_treated)) %>% 
+  mutate(who.treated = if_else(who.treated == "treated_where", "Self", "Family")) %>% 
+  filter((who.treated == "Self" & treated == "yes") | (who.treated == "Family" & family_treated == "yes")) %>% 
+  count(who.treated, value) %>% 
+  group_by(who.treated) %>% 
+  mutate(n = n/sum(n)) %>% 
+  ungroup %>% 
+  mutate(value = fct_recode(value, "Don't Know" = "DK") %>% 
+           fct_relabel(str_to_title) %>% 
+           fct_relabel(function(.label) str_replace_all(.label, "Mda", "MDA")) %>% 
+           fct_reorder(n)) %>%
+  ggplot(aes(value)) +
+  geom_col(aes(y = n), alpha = 0.5) +
+  coord_flip() +
+  facet_grid(who.treated ~ .) +
+  labs(title = "Where did you last get dewormed?", x = "", y = "Proportion") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+      strip.text.y = element_text(angle = 0), 
+      strip.background = element_rect(colour = NA), 
+      panel.border = element_blank()) 
+
+grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, where.treated.plot)
+```
+
+```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=4, fig.cap="Knowledge of RCT intervention."}
+tribble(~ col.name,      ~ label,
+        "know_deworm",    "Know about community-based MDA?",
+        "treat_begin",    "Know when MDA starts?",
+        "treat_end",      "Know when MDA ends?",
+        "days_available", "Know length of MDA?",
+        "find_out",       "From whom or how did you learn about the MDA?",
+        "chv_visit",      "Did a CHV visit you to tell you about MDA?") %>% 
+  multi.know.bel.cat.plot(.baseline.data = NULL) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
+```
+
+```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs", fig.cap="Reported baseline and endline beliefs about others' deworming rate (out of 10)."}
+```
+
+```{r baseline-deworming-beliefs, warning=FALSE, fig.width=8, fig.height=4, fig.cap="Baseline Beliefs of others' deworming."}
+tribble(~ col.name,      ~ label,
+        "dworm_proportion",      "How many people will come to get dewormed?",
+        "ink_more_less",         "Will the ink signal increase/decrease deworming take-up?") %>% 
+  multi.know.bel.cat.plot(.endline.data = NULL) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
+```
+
+```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm", fig.cap="Reported Calendar/Bracelet Preferences, split by experiment arm and respondents' deworming take-up."}
+```
 
 # Analysis
 

@@ -326,6 +326,7 @@ multi.know.bel.cat.plot <- function(question.info, .baseline.data = baseline.dat
     mutate(question = factor(question, levels = question.info$col.name, labels = question.info$label),
            response = fct_recode(response, "Don't Know" = "DK") %>% 
              fct_relabel(str_to_title) %>% 
+             fct_relabel(function(.label) str_replace(.label, "Chv", "CHV")) %>% 
              fct_reorder(n)) %>% { 
       if (n_distinct(.$survey.type) > 1) {
         ggplot(., aes(x = response, n, fill = survey.type)) +
@@ -340,15 +341,46 @@ multi.know.bel.cat.plot <- function(question.info, .baseline.data = baseline.dat
         theme(legend.position = "bottom") +
         labs(x = "", y = "Proportion") 
     } %>% {
-      if (nrow(question.info) > 1) {
-        . +
-          facet_grid(question ~ ., scales = "free", space = "free", labeller = label_wrap_gen()) +
-          theme(strip.text.y = element_text(angle = 0))
-      } else {
-        return(.)
-      }
+      . +
+        facet_grid(question ~ ., scales = "free", space = "free", labeller = label_wrap_gen()) +
+        theme_bw() +
+        theme(legend.position = "bottom",
+              strip.text.y = element_text(angle = 0), 
+              strip.background = element_rect(colour = NA), 
+              panel.border = element_blank()) 
     } 
 }
+
+plot.pref.unfaceted <- function(.data, .second.group.by = NULL) {
+  .data %>% 
+# analysis.data %>% 
+    filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(sms.treatment)) %>% 
+    group_by_(.dots = c("assigned.treatment", .second.group.by)) %>% 
+    mutate(arm.size = n()) %>% 
+    group_by(gift_choice, add = TRUE) %>%
+    summarize(pref.prop = n()/first(arm.size), arm.size = first(arm.size)) %>% 
+    ungroup %>% 
+    mutate(assigned.treatment = paste(assigned.treatment, "arm")) %>% {
+      bind_rows(., 
+                group_by_(., .dots = c("gift_choice", .second.group.by)) %>%
+                  summarize(assigned.treatment = "(All Arms)", 
+                            pref.prop = (pref.prop %*% arm.size)/sum(arm.size)) %>% 
+                  ungroup)
+    } %>%
+    mutate_at(vars(gift_choice, assigned.treatment), funs(fct_relabel(factor(.), str_to_title))) %>% 
+    mutate(assigned.treatment = fct_relevel(assigned.treatment, 
+                                            "(All Arms)", "Control Arm", "Ink Arm", "Calendar Arm", "Bracelet Arm")) %>% 
+    ggplot(aes(gift_choice, pref.prop)) +
+    geom_col(alpha = 0.5, color = alpha("black", 0.5)) +
+    labs(x = "Preferred Gift", y = "Proportion") +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          strip.background = element_rect(colour = NA), 
+          panel.border = element_blank()) 
+    
+}
+
 
 prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
   incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
