@@ -15,6 +15,7 @@ header-includes:
    - \usepackage{pxfonts}
    - \usepackage{bbm}
    - \usepackage{setspace}
+   - \usepackage{booktabs}
    
 abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. TODO conclude" 
 
@@ -28,7 +29,7 @@ library(rgeos)
 library(knitr)
 library(sp)
 
-read_chunk(purl("takeup_analysis2.Rmd"))
+read_chunk(purl("takeup_analysis2.Rmd")) #, labels = c("setup", "load-data", "basic-reg-covar", "sms-reg-covar"))
 
 opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "takeup_prelim-fig/", fig.align = "center", cache = TRUE)
 ```
@@ -253,22 +254,50 @@ verify.vill.pot.dist %>%
 
 In this section we will present some descriptive statistics and plots, using data collected from the various study surveys. 
 
-```{r xyz}
-census.data %>%
-  filter(!is.na(cluster.id)) %>% 
+```{r cluster-stats}
+cluster.stats <- census.data %>%
+  filter(!is.na(cluster.id)) %>%
   left_join(select(cluster.strat.data, cluster.id, dist.pot.group), "cluster.id") %>% 
-  distinct(assigned.treatment, cluster.id, .keep_all = TRUE) %>% 
-  count(assigned.treatment, dist.pot.group, county) %>% 
-  spread(county, n) %>% 
-  ungroup %>% {
-    totals <- rowSums(select(., Busia, Kakamega, Siaya))
-    mutate(., Total = totals)
+  arrange(county) 
+
+calc.cluster.stats <- . %>% 
+  count(county, assigned.treatment) %>% 
+  ungroup %>% 
+  spread(assigned.treatment, n) %>% { 
+    total <- select(., -county) %>% mutate_all(as.numeric) %>% rowSums
+    mutate(., all = total) 
   }
+
+# cluster.stats %>% 
+#   distinct(cluster.id, .keep_all = TRUE) %>% 
+#   calc.cluster.stats %>%
+#   list %>% 
+#   kable()
+# 
+# cluster.stats %>% 
+#   list(distinct(., cluster.id, .keep_all = TRUE), .) %>% 
+#   map(calc.cluster.stats) %>% 
+#   kable(booktabs = TRUE)
 ```
 
-In the study, we recorded the deworming of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal argument based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
+```{r clust-stat-clust, eval=TRUE}
+cluster.stats %>% 
+  distinct(cluster.id, .keep_all = TRUE) %>% 
+  calc.cluster.stats %>%
+  set_names(str_to_title(names(.))) %>% 
+  list %>% 
+  kable(booktabs = TRUE, caption = "Number of clusters by county and treatment arm")
+```
 
-Based on the community censuses 
+```{r clust-stat-individ, eval=TRUE}
+cluster.stats %>% 
+  calc.cluster.stats %>% 
+  set_names(str_to_title(names(.))) %>% 
+  list %>% 
+  kable(format = "pandoc", booktabs = TRUE, caption = "Number of adults in targeted communities by county and treatment arm", format.args = list(big.mark = ","))
+```
+
+By the end of the intervention, we had recorded the deworming treatment of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal argument based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
 
 ```{r absolute-takeup, fig.height=6, fig.cap="Absolute Deworming Take-up"}
 plot.aggreg.takeup <- function(.data) {
@@ -284,6 +313,22 @@ takeup.data %>%
   mutate_at(vars(dist.pot.group, assigned.treatment), funs(factor(.) %>% fct_relabel(str_to_title))) %>% 
   plot.aggreg.takeup 
 ```
+
+As descibed in the [Experiment Design](#experiment-design) section, clusters were randomly assigned to be either _close_ or _far_ from the treatment location. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances the had the spread seen in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap or non-compliance with assigned treatment, this should not affect the intention-to-treat analysis carried in this report.
+
+```{r actual-distance, fig.width=8, ref.label="actual-distance-distribution", fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
+```
+
+Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the undestanding of who is at risk of worm infection. As shown in Figure \ref{fig:who-at-risk-sth}, there does appear to be an improvement in understanding that all community members are at risk of infection. However, from Figure \ref{fig:infected-infect-others}, it still appears that the predominate belief is that infected individuals cannot infect others.
+
+```{r know-believe-categorical-responses, fig.width=8}
+tribble(~ col.name,      ~ label,
+        "who_worms",     "Who is at risk of worms?",
+        "spread_worms",  "Can an infected person spread worms to other?") %>% 
+  multi.know.bel.cat.plot() +
+  scale_y_continuous(breaks = seq(0, 1, 0.1))
+```
+
 
 # Analysis
 

@@ -278,7 +278,7 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
 # Plotting code -----------------------------------------------------------
 
 know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
-  list(baseline = .baseline.data, endline = .endline.data) %>% 
+  list(Baseline = .baseline.data, Endline = .endline.data) %>% 
     compact %>% 
     map_df(select_, .dots = c(var, "KEY"), .id = "survey.type") %>% 
     unnest_(var) %>% { 
@@ -297,13 +297,58 @@ know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data
       }
     } %>% {
       . +
-        geom_col(position = "dodge") +
+        geom_col(position = "dodge", alpha = 0.5) +
         coord_flip() +
         theme(legend.position = "bottom") +
         labs(x = "", y = "Proportion")
     }
 }
 
+multi.know.bel.cat.plot <- function(question.info, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
+  stopifnot(is.data.frame(question.info))
+  
+  list(Baseline = .baseline.data, Endline = .endline.data) %>% 
+    compact %>% 
+    map_df(select_, .dots = c(question.info$col.name, "KEY"), .id = "survey.type") %>% 
+    map_df(question.info$col.name, 
+           function(.col.name, .data) {
+             .data %>% 
+               unnest_(.col.name) %>% { 
+                 if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
+               } %>% 
+               group_by(survey.type) %>% 
+               do(mutate(count_(., c("survey.type", .col.name)), n = n/n_distinct(.$KEY))) %>% 
+               ungroup %>% 
+               rename_(response = .col.name) %>% 
+               mutate(question = .col.name)
+           },
+           .data = .) %>% 
+    mutate(question = factor(question, levels = question.info$col.name, labels = question.info$label),
+           response = fct_recode(response, "Don't Know" = "DK") %>% 
+             fct_relabel(str_to_title) %>% 
+             fct_reorder(n)) %>% { 
+      if (n_distinct(.$survey.type) > 1) {
+        ggplot(., aes(x = response, n, fill = survey.type)) +
+          scale_fill_discrete("") 
+      } else {
+        ggplot(., aes(x = response, n)) 
+      }
+    } %>% {
+      . +
+        geom_col(position = "dodge", alpha = 0.5) +
+        coord_flip() +
+        theme(legend.position = "bottom") +
+        labs(x = "", y = "Proportion") 
+    } %>% {
+      if (nrow(question.info) > 1) {
+        . +
+          facet_grid(question ~ ., scales = "free", space = "free", labeller = label_wrap_gen()) +
+          theme(strip.text.y = element_text(angle = 0))
+      } else {
+        return(.)
+      }
+    } 
+}
 
 prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
   incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
