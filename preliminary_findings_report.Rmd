@@ -35,11 +35,19 @@ read_chunk(purl("takeup_analysis2.Rmd")) #, labels = c("setup", "load-data", "ba
 opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "takeup_prelim-fig/", fig.align = "center", cache = TRUE)
 ```
 
+
 ```{r analysis-setup, include=FALSE, ref.label="setup", cache=FALSE}
 ```
 
-```{r load-analysis-data, ref.label="load-data"}
+```{r ggplot-theme, cache=FALSE}
+# theme_set(theme_bw() +
+#             theme(legend.position = "bottom",
+#                   strip.background = element_rect(colour = NA), 
+#                   panel.border = element_blank())) 
+theme_set(theme_minimal() +
+            theme(legend.position = "bottom"))
 ```
+
 
 ```{r load-experiment-design-data}
 rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
@@ -47,6 +55,9 @@ rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.r
 cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
 
 load(file.path("data", "takeup_village_pot_dist.RData"))
+```
+
+```{r load-analysis-data, ref.label="load-data"}
 ```
 
 # Introduction
@@ -225,8 +236,7 @@ verify.vill.pot.dist %>%
     geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black", position = "dodge") + 
     scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
     scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 5)) +
-    scale_fill_discrete("Distance", labels = c("To Closest Other Treatment Location", "To Assigned Treatment Location")) +
-    theme(legend.position = "bottom")
+    scale_fill_discrete("Distance", labels = c("To Closest Other Treatment Location", "To Assigned Treatment Location")) 
 }
 ```
 
@@ -306,12 +316,8 @@ plot.aggreg.takeup <- function(.data) {
     geom_bar(alpha = 0.5, color = alpha("black", 0.5)) +
     labs(x = "Treatment", y = "Number of Individuals Dewormed (x 100)", caption = "Note: range on Y axis varies between counties.") +
     facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
-    scale_y_continuous(labels = . %>% divide_by(100)) +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          axis.text.x = element_text(angle = 45, hjust = 1),
-          strip.background = element_rect(colour = NA), 
-          panel.border = element_blank()) 
+    scale_y_continuous(labels = . %>% divide_by(100)) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
 takeup.data %>% 
@@ -321,7 +327,21 @@ takeup.data %>%
 
 As descibed in the [Experiment Design](#experiment-design) section, clusters were randomly assigned to be either _close_ or _far_ from the treatment location. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances the had the spread seen in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap or non-compliance with assigned treatment, this should not affect the intention-to-treat analysis carried in this report.
 
-```{r actual-distance, fig.width=8, ref.label="actual-distance-distribution", fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
+```{r actual-distance, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
+analysis.data %>%  
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
+  ggplot(aes(dist.to.pot)) +
+  geom_density(aes(color = dist.pot.group, linetype = "Household")) +
+  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"),
+               data = mutate(village.centers, assigned.treatment = fct_relabel(assigned.treatment, str_to_title))) +
+  geom_vline(xintercept = c(1250), linetype = "dashed") +
+  labs(y = "Density", 
+       caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
+  scale_x_continuous("Distance to Treatment Location (meters)", breaks = seq(0, 10000, 2500/4)) +
+  scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
+  scale_linetype_discrete("Distance From") +
+  facet_wrap(~ assigned.treatment)
 ```
 
 Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the undestanding of who is at risk of worm infection. As shown in Figure \ref{fig:who-at-risk-sth}, there does appear to be an improvement in understanding that all community members are at risk of infection. However, from Figure \ref{fig:infected-infect-others}, it still appears that the predominate belief is that infected individuals cannot infect others.
@@ -369,11 +389,7 @@ ever.dewormed.plot <- baseline.data %>%
   coord_flip() +
   facet_grid(who.treated ~ .) +
   labs(title = "Ever been dewormed before?", x = "", y = "Proportion") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-      strip.text.y = element_text(angle = 0), 
-      strip.background = element_rect(colour = NA), 
-      panel.border = element_blank()) 
+  theme(strip.text.y = element_text(angle = 0)) 
 
 who.was.dewormed.plot <- baseline.data %>% 
   select(family_treated, who_treated) %>% 
@@ -383,11 +399,7 @@ who.was.dewormed.plot <- baseline.data %>%
   geom_bar(aes(y = ..count../sum(..count..)), alpha = 0.5) +
   coord_flip() +
   labs(title = "Who in family got dewormed?", x = "", y = "Proportion") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-      strip.text.y = element_text(angle = 0), 
-      strip.background = element_rect(colour = NA), 
-      panel.border = element_blank()) 
+  theme(strip.text.y = element_text(angle = 0)) 
 
 where.treated.plot <- baseline.data %>% 
   select(treated, family_treated, treated_where, where_family_treated) %>% 
@@ -407,13 +419,10 @@ where.treated.plot <- baseline.data %>%
   coord_flip() +
   facet_grid(who.treated ~ .) +
   labs(title = "Where did you last get dewormed?", x = "", y = "Proportion") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-      strip.text.y = element_text(angle = 0), 
-      strip.background = element_rect(colour = NA), 
-      panel.border = element_blank()) 
+  theme(strip.text.y = element_text(angle = 0)) 
 
 grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, where.treated.plot)
+# ever.dewormed.plot %>% plot
 ```
 
 ```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=4, fig.cap="Knowledge of RCT intervention."}
@@ -442,7 +451,53 @@ tribble(~ col.name,      ~ label,
 ```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm", fig.cap="Reported Calendar/Bracelet Preferences, split by experiment arm and respondents' deworming take-up."}
 ```
 
+```{r first-choice-wtp, ref.label="first-choice-wtp", fig.height=1.5, fig.cap="First choice of incentive in willingness-to-pay survey."}
+```
+
+```{r switch-price-wtp, ref.label="switch-price-wtp"}
+```
+
+
 # Analysis
+
+```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive/signal treatments."}
+prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
+  plot.sms.ctrl.takeup(.) +
+    labs(subtitle = "With control")
+}
+
+```
+
+```{r dist-reg-covar, ref.label="dist-reg-covar"}
+```
+
+```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive/signal treatments with distance from treatment location interactions."}
+prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
+  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
+    labs(subtitle = "With controls") 
+  }
+
+```
+
+```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
+prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
+  plot.sms.treat.takeup(.) +
+    labs(subtitle = "With Controls") 
+} 
+```
+
+```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar"}
+```
+
+
+```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions."}
+prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
+  plot.sms.treat.takeup(.) +
+    facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
+    labs(subtitle = "Split by distance to treatment location, with controls")
+}
+```
 
 ## Causal Framework
 

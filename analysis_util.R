@@ -299,7 +299,6 @@ know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data
       . +
         geom_col(position = "dodge", alpha = 0.5) +
         coord_flip() +
-        theme(legend.position = "bottom") +
         labs(x = "", y = "Proportion")
     }
 }
@@ -338,16 +337,11 @@ multi.know.bel.cat.plot <- function(question.info, .baseline.data = baseline.dat
       . +
         geom_col(position = "dodge", alpha = 0.5) +
         coord_flip() +
-        theme(legend.position = "bottom") +
         labs(x = "", y = "Proportion") 
     } %>% {
       . +
         facet_grid(question ~ ., scales = "free", space = "free", labeller = label_wrap_gen()) +
-        theme_bw() +
-        theme(legend.position = "bottom",
-              strip.text.y = element_text(angle = 0), 
-              strip.background = element_rect(colour = NA), 
-              panel.border = element_blank()) 
+        theme(strip.text.y = element_text(angle = 0)) 
     } 
 }
 
@@ -373,12 +367,7 @@ plot.pref.unfaceted <- function(.data, .second.group.by = NULL) {
     ggplot(aes(gift_choice, pref.prop)) +
     geom_col(alpha = 0.5, color = alpha("black", 0.5)) +
     labs(x = "Preferred Gift", y = "Proportion") +
-    theme_bw() +
-    theme(legend.position = "bottom",
-          axis.text.x = element_text(angle = 45, hjust = 1),
-          strip.background = element_rect(colour = NA), 
-          panel.border = element_blank()) 
-    
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
 
@@ -468,10 +457,11 @@ plot.sms.ctrl.takeup <- function(.preped.data, .facet.formula = . ~ ref.treatmen
     scale_fill_discrete("", labels = c("Reference Group", "Comparison Group")) +
     scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
     scale_x_discrete("Treatment") +
-    facet_grid(.facet.formula, scales = "free_x", space = "free_x") +
+    facet_grid(.facet.formula, scales = "free_x", space = "free_x", 
+               labeller = labeller(.cols = as_labeller(. %>% paste0("Reference Group: ", .)),
+                                   .rows = as_labeller(. %>% paste0("Distance: ", .)))) +
     labs(title = "Estimated Take-up in Response to Incentive Treatment",
-         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nIntervals test the null hypothesis of no difference in take-up from that in the reference group.") +
-    theme(legend.position = "bottom")
+         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nConfidence intervals test the null hypothesis of no difference in take-up from the reference group.") 
 }
 
 prep.sms.treat.plot.data <- function(.reg.output) {
@@ -508,8 +498,7 @@ plot.sms.treat.takeup <- function(.preped.data) {
     scale_fill_discrete("SMS Treatment") +
     scale_color_discrete("SMS Treatment") +
     labs(title = "Estimated Take-up in Response to Incentive and SMS Treatment", 
-         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nRed intervals test the null hypothesis of no difference in take-up from that in the control group (with non SMS treatment).\nGreen and blue intervals test the null hypothesis of no difference from the SMS treatment lower on the same column.") +
-    theme(legend.position = "bottom")
+         caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nRed intervals test the null hypothesis of no difference in take-up from that in the control group (with non SMS treatment).\nGreen and blue intervals test the null hypothesis of no difference from the SMS treatment lower on the same column.") 
 }
 
 plot.takeup.dynamics <- function(.data, .aes = aes(x = dewormed.day.any, y = takeup.prop, color = assigned.treatment)) {
@@ -595,6 +584,5 @@ incentive.treat.barplot <- function(.data) {
     scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
     scale_x_discrete("Treatment") +
     scale_color_manual("Reference Arm", values = c("red", "black"), labels = c("Calendar", "Control")) +
-    scale_fill_manual("", values = c("red", "black"), labels = c("Calendar vs Bracelet", "Control vs Ink")) +
-    theme(legend.position = "bottom")
+    scale_fill_manual("", values = c("red", "black"), labels = c("Calendar vs Bracelet", "Control vs Ink")) 
 }

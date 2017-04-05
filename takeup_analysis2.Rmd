@@ -599,11 +599,11 @@ analysis.data %>%
 
 ## Willing-to-Pay Survey
 
-```{r, fig.height=4}
+```{r first-choice-wtp, fig.height=4}
 wtp.data %>% 
   filter(!is.na(first_choice)) %>% 
   ggplot() +
-  geom_bar(aes(first_choice, y = ..count../sum(..count..)), alpha = 0.5, color = "black") +
+  geom_bar(aes(fct_relabel(first_choice, str_to_title), y = ..count../sum(..count..)), alpha = 0.5) +
   labs(x = "First Choice", y = "Proportion", title = "First Choice When Offered Calendars or Bracelets", 
        caption = "This data is for the control arm only.") +
   coord_flip()
@@ -616,9 +616,10 @@ wtp.data %>%
   labs(x = "Offered Price (KSh)", y = "Proportion", title = "Prices Offered to Switch Gift Choice")
 ```
 
-```{r}
+```{r switch-price-wtp}
 wtp.data %>% 
-  filter(!is.na(first_choice)) %>% 
+  filter(!is.na(first_choice)) %>%
+  mutate(first_choice = fct_relabel(first_choice, str_to_title)) %>% 
   group_by(first_choice, price) %>% 
   summarize(prop.switch = sum(second_choice == "switch")/n()) %>% 
   ungroup %>% 
@@ -1076,7 +1077,9 @@ reg.output.sms.ctrl.dist <- analysis.data %>%
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
+```
 
+```{r}
 kable(tidy(reg.output.sms.ctrl.dist), digits = 4)
 ```
 
@@ -1173,13 +1176,15 @@ neyman.results %>%
 
 #### Regression With Controls
 
-```{r}
+```{r dist-reg-covar}
 reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>%
   mutate_at(vars(school, floor, ethnicity), funs(factor(ifelse(. >= 97, NA, .)))) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
+```
 
+```{r}
 kable(tidy(reg.output.sms.ctrl.dist.covar, .include_covar = FALSE), digits = 4)
 ```
 
@@ -1560,14 +1565,16 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
 
 ### Regression With Controls
 
-```{r, echo=2}
+```{r sms-dist-reg-covar, echo=2}
 reg.output.sms.treat.dist.covar <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
          dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
+```
 
+```{r}
 reg.output.sms.treat.dist.covar %>% tidy(.include_covar = FALSE) %>% kable(digits = 4)
 ```
 
