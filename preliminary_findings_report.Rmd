@@ -1,8 +1,7 @@
 ---
 title: |
-    | The Role of Social Signaling in Community Mass Deworming:
     | Evidence from a Field Experiment in Kenya
-
+    | The Role of Social Signaling in Community Mass Deworming:
 subtitle: "Preliminary Findings -- Do Not Distribute"
 date: "March 2017"
 author:
@@ -10,6 +9,7 @@ author:
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
 output: 
   pdf_document:
+    keep_tex: yes
     number_sections: yes
 header-includes:
    - \usepackage{pxfonts}
@@ -17,9 +17,7 @@ header-includes:
    - \usepackage{setspace}
    - \usepackage{booktabs}
    - \usepackage[table]{xcolor}
-   
 abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. TODO conclude" 
-
 bibliography: ~/Documents/library.bib
 ---
 
@@ -477,6 +475,9 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
 ```{r basic-reg, ref.label="basic-reg"}
 ```
 
+```{r dist-reg, ref.label="dist-reg"}
+```
+
 ```{r dist-reg-covar, ref.label="dist-reg-covar"}
 ```
 
@@ -517,6 +518,41 @@ reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl,
              adj.r.squared = r_squared(reg.res))
     
   }, .id = "spec") 
+ 
+dist.reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl.dist,
+                            "Endline, No SMS" = reg.output.sms.ctrl.dist.covar) %>% 
+  map_df(function(reg.res) {
+    joint.tests.res <- list("Any Treatment" = c("ink", "calendar", "bracelet", "ink:far", "calendar:far", "bracelet:far"),
+                            "Signaling Treatment" = c("ink", "bracelet", "ink:far", "bracelet:far")) %>% 
+      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
+      select(-starts_with("linear.test")) %>% 
+      mutate(joint.test.type = forcats::as_factor(joint.test.type))
+    
+    tidy(reg.res) %>% 
+      bind_rows(control = .,
+                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar")) %>% 
+                  mutate(term = c("calendar", "bracelet")),
+                # far = linear_tester(reg.res, paste0("(intercept) + far", 
+                #                                     c("", " + ink + ink:far", " + calendar + calendar:far", " + bracelet + bracelet:far"))) %>% 
+                far = linear_tester(reg.res, c("(intercept) + far",
+                                               "ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far")) %>% 
+                  mutate(term = c("far", "ink:far", "calendar:far", "bracelet:far")),
+                "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", "bracelet + bracelet:far - calendar - calendar:far")) %>% 
+                  mutate(term = c("calendar:far", "bracelet:far")),
+                .id = "ref.type") %>% 
+      mutate(term = fct_recode(factor(term), control = "(intercept)"),
+             ref.pt = term == ref.type) %>% 
+      list %>% 
+      tibble(pt.est = .,
+             num.col = n_distinct(.[[1]]$ref.type),
+             joint.tests.res = list(joint.tests.res),
+             num.obs = length(reg.res$fitted.values),
+             num.clusters = length(unique(reg.res$cluster)),
+             average.cluster.num.obs = mean(table(reg.res$cluster)),
+             r.squared = r_squared(reg.res, adjusted = FALSE),
+             adj.r.squared = r_squared(reg.res))
+    
+  }, .id = "spec") 
 ```
 
 ```{r basic-reg-table, results="asis"}
@@ -528,15 +564,21 @@ print.reg.table <- function(.reg.table.data) {
     select(spec, num.col, pt.est) %>% 
     mutate(spec = forcats::as_factor(spec)) %>% 
     unnest(pt.est) %>%
+    mutate(term = fct_relevel(term, 
+                              "bracelet", "calendar", "ink", "control",
+                              "bracelet:far", "calendar:far", "ink:far", "far"),
+           ref.type =  fct_relevel(forcats::as_factor(ref.type),
+                                   "control", "ink", "calendar", "bracelet",
+                                   "far", "ink:far", "calendar:far", "bracelet:far")) %>% 
     mutate_at(vars(term, ref.type), 
-              funs(fct_relevel(forcats::as_factor(.), "bracelet", "calendar", "ink", "control") %>% 
-                     fct_relabel(str_to_title))) %>% 
-    mutate(ref.type = fct_rev(ref.type)) %>% 
+              funs(fct_relabel(., function(.label) str_replace_all(.label, ":", " ") %>% 
+                                 str_to_title %>% 
+                                 str_replace_all("\\s+", " $\\\\times$ ")))) %>% 
     right_join(modelr::data_grid(., spec, ref.type, term)) 
   
   total.num.cols <- sum(.reg.table.data$num.col)
  
-  cmidrules <- accumulate(reg.table.data$num.col, ~ last(.x) + c(1, .y), .init = 1) %>% 
+  cmidrules <- accumulate(.reg.table.data$num.col, ~ last(.x) + c(1, .y), .init = 1) %>% 
     magrittr::extract(-1) %>% 
     map(~ sprintf(" \\cmidrule(r){%d-%d}", .x[1], .x[2])) %>% 
     str_c(collapse = " ") %>% 
@@ -607,7 +649,7 @@ print.reg.table <- function(.reg.table.data) {
               str_c(collapse = " "),
             "\\\\\n", collapse = " "))
   
-  cat(paste("Mean Obs/Cluster",  
+  cat(paste("Number of Clusters",  
             .reg.table.data %$% 
               map2(num.clusters, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
               str_c(collapse = " "),
@@ -627,7 +669,8 @@ print.reg.table <- function(.reg.table.data) {
   
   cat(cmidrules)
  
-  cat(sprintf("\\emph{Joint Hypotheses Tests ($P$-values)} & \\\\\n", total.num.cols)) 
+  cat("\\emph{Joint Hypotheses Tests} & \\\\\n") 
+  cat("\\emph{($P$-values)} & \\\\\n") 
  
   linear.tests <- .reg.table.data %>%
     select(spec, num.col, joint.tests.res) %>%
@@ -645,7 +688,12 @@ print.reg.table <- function(.reg.table.data) {
   cat("\\end{table}\n")
 }
 
+```
+
+```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis"}
 print.reg.table(reg.table.data)
+
+print.reg.table(dist.reg.table.data)
 ```
 
 ```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}

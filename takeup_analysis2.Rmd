@@ -1078,7 +1078,7 @@ $$
 
 #### Regression Without Controls
 
-```{r}
+```{r dist-reg}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
