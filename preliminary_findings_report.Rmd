@@ -16,6 +16,7 @@ header-includes:
    - \usepackage{bbm}
    - \usepackage{setspace}
    - \usepackage{booktabs}
+   - \usepackage[table]{xcolor}
    
 abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. TODO conclude" 
 
@@ -92,6 +93,10 @@ basic.calendar.takeup <- tidy.reg.res.calendar %>%
 
 basic.bracelet.takeup <- tidy.reg.res %>% 
   filter(term %in% c("(intercept)", "bracelet")) %$% 
+  sum(estimate)
+
+basic.ink.takeup <- tidy.reg.res %>% 
+  filter(term %in% c("(intercept)", "ink")) %$% 
   sum(estimate)
 
 bracelet.vs.control.ate <- tidy.reg.res %>% 
@@ -460,12 +465,16 @@ tribble(~ col.name,      ~ label,
 
 # Analysis
 
+
 ```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive/signal treatments."}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
   plot.sms.ctrl.takeup(.) +
     labs(subtitle = "With control")
 }
 
+```
+
+```{r basic-reg, ref.label="basic-reg"}
 ```
 
 ```{r dist-reg-covar, ref.label="dist-reg-covar"}
@@ -478,6 +487,165 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
     labs(subtitle = "With controls") 
   }
 
+```
+
+```{r reg-tab-data}
+reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl, 
+                       "Endline, No SMS" = reg.output.sms.ctrl.covar) %>% 
+  map_df(function(reg.res) {
+    joint.tests.res <- list("Any Treatment" = c("ink", "calendar", "bracelet"),
+                            "Signaling Treatment" = c("ink", "bracelet")) %>% 
+      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
+      select(-starts_with("linear.test")) %>% 
+      mutate(joint.test.type = forcats::as_factor(joint.test.type))
+    
+    tidy(reg.res) %>% 
+      bind_rows(control = .,
+                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar")) %>% 
+                  mutate(term = c("calendar", "bracelet")),
+                .id = "ref.type") %>% 
+      mutate(term = fct_recode(factor(term), control = "(intercept)"),
+             ref.pt = term == ref.type) %>% 
+      list %>% 
+      tibble(pt.est = .,
+             num.col = n_distinct(.[[1]]$ref.type),
+             joint.tests.res = list(joint.tests.res),
+             num.obs = length(reg.res$fitted.values),
+             num.clusters = length(unique(reg.res$cluster)),
+             average.cluster.num.obs = mean(table(reg.res$cluster)),
+             r.squared = r_squared(reg.res, adjusted = FALSE),
+             adj.r.squared = r_squared(reg.res))
+    
+  }, .id = "spec") 
+```
+
+```{r basic-reg-table, results="asis"}
+pval.stars <- . %>% 
+  symnum(cutpoints = c(0, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ""))
+
+print.reg.table <- function(.reg.table.data) {
+  all.pt.est <- .reg.table.data %>% 
+    select(spec, num.col, pt.est) %>% 
+    mutate(spec = forcats::as_factor(spec)) %>% 
+    unnest(pt.est) %>%
+    mutate_at(vars(term, ref.type), 
+              funs(fct_relevel(forcats::as_factor(.), "bracelet", "calendar", "ink", "control") %>% 
+                     fct_relabel(str_to_title))) %>% 
+    mutate(ref.type = fct_rev(ref.type)) %>% 
+    right_join(modelr::data_grid(., spec, ref.type, term)) 
+  
+  total.num.cols <- sum(.reg.table.data$num.col)
+ 
+  cmidrules <- accumulate(reg.table.data$num.col, ~ last(.x) + c(1, .y), .init = 1) %>% 
+    magrittr::extract(-1) %>% 
+    map(~ sprintf(" \\cmidrule(r){%d-%d}", .x[1], .x[2])) %>% 
+    str_c(collapse = " ") %>% 
+    str_c("\\\\\n", collapse = " ") 
+  
+  cat("\\begin{table}\\centering\n") 
+  cat(sprintf("\\begin{tabular}{l*{%d}{c}}\n", total.num.cols))
+  cat("\\toprule\n")
+  cat(paste(paste(map2(.reg.table.data$pt.est, 
+                       seq_len(nrow(.reg.table.data)),
+                       ~ sprintf(" & \\multicolumn{%d}{c}{(%d)}", n_distinct(.x$ref.type), .y)), collapse = " "), 
+            "\\\\\n", collapse = " "))
+  
+  cat(paste(.reg.table.data %$% 
+              map2(spec, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%s}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(cmidrules)
+  
+  d_ply(all.pt.est, .(term), function(term.rows) {
+    term.rows %>% 
+      select(ref.pt, estimate, p.value) %>% 
+      pmap(function(ref.pt, estimate, p.value) {
+        if (is.na(estimate)) {
+          return("&")
+        } else if (ref.pt) {
+          sprintf("& {\\bf %.4f}", estimate)
+        } else {
+          sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))
+        }
+      }) %>% 
+      str_c(collapse = " ") %>% 
+      str_c(term.rows$term[1], ., "\\\\\n", collapse = " ") %>% 
+      cat
+    
+    term.rows %$%
+      map2(ref.pt, std.error, function(ref.pt, .se) {
+        if (is.na(.se) || ref.pt) {
+          return("&")
+        } else {
+          sprintf("& (%.4f)", .se)
+        }
+      }) %>%
+      str_c(collapse = " ") %>% {
+        if (!all(coalesce(term.rows$ref.pt, TRUE))) {
+          str_c(., "\\\\\n", collapse = " ") 
+        } else {
+          str_c(., "\n", collapse = " ") 
+        } 
+      } %>% 
+      cat
+    
+    cat("\\\\\n")
+  })
+  
+  cat(cmidrules)
+  
+  cat(paste("Observations",  
+            .reg.table.data %$% 
+              map2(num.obs, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("Mean Obs/Cluster",  
+            .reg.table.data %$% 
+              map2(average.cluster.num.obs, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.2f}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("Mean Obs/Cluster",  
+            .reg.table.data %$% 
+              map2(num.clusters, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("$R^2$",  
+            .reg.table.data %$% 
+              map2(r.squared, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("$\\text{Adjusted }R^2$",  
+            .reg.table.data %$% 
+              map2(adj.r.squared, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(cmidrules)
+ 
+  cat(sprintf("\\emph{Joint Hypotheses Tests ($P$-values)} & \\\\\n", total.num.cols)) 
+ 
+  linear.tests <- .reg.table.data %>%
+    select(spec, num.col, joint.tests.res) %>%
+    unnest(joint.tests.res) %>%
+    d_ply(.(joint.test.type), 
+          . %$% 
+            str_c(first(joint.test.type), 
+                  str_c(map2(p.value, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)), collapse = " "),
+                  "\\\\\n",
+                  collapse = " ") %>% 
+            cat)
+  
+  cat("\\bottomrule\n")
+  cat("\\end{tabular}\n")
+  cat("\\end{table}\n")
+}
+
+print.reg.table(reg.table.data)
 ```
 
 ```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
@@ -673,6 +841,21 @@ We will test for the possibility of spillovers or contamination due to cluster p
 
 While we only have a small set of outcomes that we would be analyzing (mainly deworming take-up), there is significant number of treatments (cluster level and individual) we will use to investigate the various behavioral mechanism driving observed behavior. Therefore, we will we correct our inference to account for this.
 
+# Cost-effectiveness
+
+```{r abs-takeup-by-arm}
+left_join(takeup.data %>% count(assigned.treatment) %>% rename(abs.takeup = n),
+          census.data %>% count(assigned.treatment) %>% rename(census.total = n), "assigned.treatment") %>% 
+  mutate(coef = if_else(assigned.treatment == "control", "", levels(assigned.treatment)[assigned.treatment]),
+         basic.linear.test = paste("(intercept)", if_else(assigned.treatment == "control", "", sprintf("+ %s", coef))),
+         sms.linear.test = paste("(intercept) + social.info", if_else(assigned.treatment == "control", "", sprintf("+ %s + %s:social.info", coef, coef)))) %>% 
+  left_join(linear_tester(reg.output.sms.ctrl.covar, .$basic.linear.test), c("basic.linear.test" = "linear.test")) %>% 
+  left_join(linear_tester(reg.output.sms.treat.covar, .$sms.linear.test), c("sms.linear.test" = "linear.test"), suffix = c(".non.sms", ".sms")) %>% 
+  transmute(assigned.treatment = fct_relabel(assigned.treatment, str_to_title), 
+            abs.takeup, census.total, estimate.non.sms, estimate.sms) %>% 
+  kable(col.names = c("Arm", "Total Take-up", "Census Population", "Non-SMS-Treated Take-up", "SMS-Treated Take-up"), 
+        format.args = list(big.mark = ","), )
+```
 
 # Conclusion
 
