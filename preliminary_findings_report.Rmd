@@ -17,6 +17,8 @@ header-includes:
    - \usepackage{setspace}
    - \usepackage{booktabs}
    - \usepackage[table]{xcolor}
+   - \usepackage{pdflscape}
+   - \usepackage{threeparttable}
 abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. TODO conclude" 
 bibliography: ~/Documents/library.bib
 ---
@@ -236,7 +238,7 @@ verify.vill.pot.dist %>%
   select(dist.to.own.pot, closest.other) %>% 
   gather(dist.type, dist) %>% {
   ggplot(.) +
-    geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black", position = "dodge") + 
+    geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = alpha("black", 0.5), position = "dodge") + 
     scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
     scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 5)) +
     scale_fill_discrete("Distance", labels = c("To Closest Other Treatment Location", "To Assigned Treatment Location")) 
@@ -252,17 +254,17 @@ verify.vill.pot.dist %>% {
 } 
 ```
 
-```{r marginal-dist-to-other-pot, fig.height=4, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
+```{r marginal-dist-to-other-pot, fig.height=3, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
 verify.vill.pot.dist %>% 
   mutate(marginal.dist = closest.other - dist.to.own.pot,
          dist.to.own.pot.cat = cut(dist.to.own.pot, 
                                    breaks = c(0,  2500/2, 10000),
                                    labels = c("Close", "Far"))) %>% {
   ggplot(.) +
-    geom_histogram(aes(marginal.dist), alpha = 0.5, color = "black", binwidth = 500, boundary = 0, position = "dodge") +
+    geom_histogram(aes(marginal.dist), alpha = 0.5, color = alpha("black", 0.5), binwidth = 500, boundary = 0, position = "dodge") +
     scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
     scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
-     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed")
+     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed", alpha = 0.5)
 }
 ```
 
@@ -490,6 +492,15 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 
 ```
 
+```{r sms-reg, ref.label="sms-reg"}
+```
+
+```{r dist-sms-reg, ref.label="dist-sms-reg"}
+```
+
+```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar"}
+```
+
 ```{r reg-tab-data}
 reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl, 
                        "Endline, No SMS" = reg.output.sms.ctrl.covar) %>% 
@@ -529,16 +540,153 @@ dist.reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl.dist,
       mutate(joint.test.type = forcats::as_factor(joint.test.type))
     
     tidy(reg.res) %>% 
+      filter(!str_detect(term, ":")) %>%
+      bind_rows(linear_tester(reg.res, c("ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far")) %>% 
+                  mutate(term = c("ink:far", "calendar:far", "bracelet:far"))) %>% 
       bind_rows(control = .,
                 calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar")) %>% 
                   mutate(term = c("calendar", "bracelet")),
-                # far = linear_tester(reg.res, paste0("(intercept) + far", 
-                #                                     c("", " + ink + ink:far", " + calendar + calendar:far", " + bracelet + bracelet:far"))) %>% 
                 far = linear_tester(reg.res, c("(intercept) + far",
-                                               "ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far")) %>% 
+                                               "ink + ink:far", "calendar + calendar:far", 
+                                               "bracelet + bracelet:far")) %>% 
                   mutate(term = c("far", "ink:far", "calendar:far", "bracelet:far")),
-                "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", "bracelet + bracelet:far - calendar - calendar:far")) %>% 
+                "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", 
+                                                          "bracelet + bracelet:far - calendar - calendar:far")) %>% 
                   mutate(term = c("calendar:far", "bracelet:far")),
+                .id = "ref.type") %>% 
+      mutate(term = fct_recode(factor(term), control = "(intercept)"),
+             ref.pt = term == ref.type) %>% 
+      list %>% 
+      tibble(pt.est = .,
+             num.col = n_distinct(.[[1]]$ref.type),
+             joint.tests.res = list(joint.tests.res),
+             num.obs = length(reg.res$fitted.values),
+             num.clusters = length(unique(reg.res$cluster)),
+             average.cluster.num.obs = mean(table(reg.res$cluster)),
+             r.squared = r_squared(reg.res, adjusted = FALSE),
+             adj.r.squared = r_squared(reg.res))
+    
+  }, .id = "spec") 
+
+sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
+                           "Endline, SMS" = reg.output.sms.treat.covar) %>% 
+  map_df(function(reg.res) {
+    joint.tests.res <- list("Any Incentive Treatment" = c("ink", "calendar", "bracelet", 
+                                                          "ink:social.info", "calendar:social.info", "bracelet:social.info"),
+                            "Any SMS Treatment" = c("reminder.only", "social.info",
+                                                    "ink:social.info", "calendar:social.info", "bracelet:social.info"),
+                            "Signaling Treatment" = c("ink", "bracelet", "ink:social.info", "bracelet:social.info")) %>% 
+      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
+      select(-starts_with("linear.test")) %>% 
+      mutate(joint.test.type = forcats::as_factor(joint.test.type))
+    
+    tidy(reg.res) %>% 
+      filter(!str_detect(term, ":")) %>% 
+      bind_rows(linear_tester(reg.res, c("ink", "calendar", "bracelet") %>% paste(., paste0(., ":social.info"), sep = " + ")) %>% 
+                  mutate(term = paste0(c("ink", "calendar", "bracelet"), ":social.info"))) %>% 
+      bind_rows(control = .,
+                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar", "social.info + calendar:social.info")) %>% 
+                  mutate(term = c("calendar", "bracelet", "calendar:social.info")),
+                reminder.only = linear_tester(reg.res, c("(intercept) + reminder.only", "social.info - reminder.only")) %>% 
+                  mutate(term = c("reminder.only", "social.info")),
+                ink = linear_tester(reg.res, c("(intercept) + ink", "social.info + ink:social.info")) %>% 
+                  mutate(term = c("ink", "ink:social.info")),
+                bracelet = linear_tester(reg.res, c("(intercept) + bracelet", "social.info + bracelet:social.info")) %>% 
+                  mutate(term = c("bracelet", "bracelet:social.info")),
+                social.info = linear_tester(reg.res, c("(intercept) + social.info", "ink:social.info")) %>% 
+                  mutate(term = c("social.info", "ink:social.info")),
+                "calendar:social.info" = linear_tester(reg.res, c("(intercept) + social.info + calendar:social.info", "bracelet:social.info - calendar:social.info")) %>% 
+                  mutate(term = c("calendar:social.info", "bracelet:social.info")),
+                .id = "ref.type") %>% 
+      mutate(term = fct_recode(factor(term), control = "(intercept)"),
+             ref.pt = term == ref.type) %>% 
+      list %>% 
+      tibble(pt.est = .,
+             num.col = n_distinct(.[[1]]$ref.type),
+             joint.tests.res = list(joint.tests.res),
+             num.obs = length(reg.res$fitted.values),
+             num.clusters = length(unique(reg.res$cluster)),
+             average.cluster.num.obs = mean(table(reg.res$cluster)),
+             r.squared = r_squared(reg.res, adjusted = FALSE),
+             adj.r.squared = r_squared(reg.res))
+    
+  }, .id = "spec") 
+
+dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
+                           "Endline, SMS" = reg.output.sms.treat.dist.covar) %>% 
+  map_df(function(reg.res) {
+    joint.tests.res <- list("Any Incentive Treatment" = c("ink", "calendar", "bracelet", 
+                                                          "ink:far", "calendar:far", "bracelet:far",
+                                                          "ink:social.info", "calendar:social.info", "bracelet:social.info",
+                                                          "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far"),
+                            "Any SMS Treatment" = c("reminder.only", "social.info",
+                                                    "reminder.only:far", "social.info:far",
+                                                    "ink:social.info", "calendar:social.info", "bracelet:social.info",
+                                                    "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far"),
+                            "Signaling Treatment" = c("ink", "bracelet", 
+                                                      "ink:far", "bracelet:far", 
+                                                      "ink:social.info", "bracelet:social.info",
+                                                      "ink:social.info:far", "bracelet:social.info:far")) %>% 
+      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
+      select(-starts_with("linear.test")) %>% 
+      mutate(joint.test.type = forcats::as_factor(joint.test.type))
+    
+    tidy(reg.res) %>% 
+      filter(!str_detect(term, ":")) %>%
+      bind_rows(linear_tester(reg.res, c("ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far")) %>% 
+                  mutate(term = c("ink:far", "calendar:far", "bracelet:far"))) %>% 
+      bind_rows(linear_tester(reg.res, c("ink", "calendar", "bracelet") %>% paste(., paste0(., ":social.info"), sep = " + ")) %>% 
+                  mutate(term = paste0(c("ink", "calendar", "bracelet"), ":social.info"))) %>% 
+      bind_rows(linear_tester(reg.res, c("ink", "calendar", "bracelet") %>% 
+                                paste(., paste0(., ":social.info"), paste0(., ":far"), sep = " + ") %>% 
+                                paste("social.info", sep = " + ") %>% 
+                                paste("far", sep = " + ") %>% c("reminder.only:far + far", "social.info:far + far")) %>% 
+                  mutate(term = c("ink", "calendar", "bracelet") %>% sprintf("%s:social.info:far", .) %>%  
+                           c("reminder.only:far", "social.info:far"))) %>% 
+      bind_rows(control = .,
+                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar", "social.info + calendar:social.info")) %>% 
+                  mutate(term = c("calendar", "bracelet", "calendar:social.info")),
+                far = linear_tester(reg.res, c("(intercept) + far", 
+                                               "reminder.only + reminder.only:far",
+                                               "social.info + social.info:far",
+                                               "ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far",
+                                               "ink + ink:far + social.info + ink:social.info + ink:social.info:far", 
+                                               "calendar + calendar:far + social.info + calendar:social.info + calendar:social.info:far",
+                                               "bracelet + bracelet:far + social.info + bracelet:social.info + bracelet:social.info:far")) %>% 
+                  mutate(term = c("far", "reminder.only:far", "social.info:far", 
+                                  "ink:far", "calendar:far", "bracelet:far",
+                                  "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far")),
+                "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", 
+                                                          "bracelet + bracelet:far - calendar - calendar:far")) %>% 
+                  mutate(term = c("calendar:far", "bracelet:far")),
+                reminder.only = linear_tester(reg.res, c("(intercept) + reminder.only", "social.info - reminder.only")) %>% 
+                  mutate(term = c("reminder.only", "social.info")),
+                ink = linear_tester(reg.res, c("(intercept) + ink", 
+                                               "social.info + ink:social.info")) %>% 
+                  mutate(term = c("ink", "ink:social.info")),
+                bracelet = linear_tester(reg.res, c("(intercept) + bracelet", 
+                                                    "social.info + bracelet:social.info")) %>% 
+                  mutate(term = c("bracelet", "bracelet:social.info")),
+                social.info = linear_tester(reg.res, c("(intercept) + social.info", 
+                                                       "ink:social.info")) %>% 
+                  mutate(term = c("social.info", "ink:social.info")),
+                
+                "calendar:social.info" = linear_tester(reg.res, c("(intercept) + calendar + social.info + calendar:social.info", 
+                                                                  "bracelet:social.info + bracelet - calendar:social.info + calendar")) %>% 
+                  mutate(term = c("calendar:social.info", "bracelet:social.info")),
+                
+                "ink:far" = linear_tester(reg.res, c("(intercept) + ink + far + ink:far", 
+                                                     "social.info + ink:social.info + social.info:far + ink:social.info:far")) %>% 
+                  mutate(term = c("ink:far", "ink:social.info:far")),
+                
+                "bracelet:far" = linear_tester(reg.res, c("(intercept) + bracelet + far + bracelet:far", 
+                                                          "social.info + bracelet:social.info + social.info:far + bracelet:social.info:far")) %>% 
+                  mutate(term = c("bracelet:far", "bracelet:social.info:far")),
+                
+                "calendar:social.info:far" = linear_tester(reg.res, 
+                                                           c("(intercept) + calendar + social.info + calendar:social.info + far + social.info:far + calendar:social.info:far", 
+                                                             "bracelet + bracelet:social.info + bracelet:social.info:far - calendar - calendar:social.info - calendar:social.info:far")) %>% 
+                  mutate(term = c("calendar:social.info:far", "bracelet:social.info:far")),
                 .id = "ref.type") %>% 
       mutate(term = fct_recode(factor(term), control = "(intercept)"),
              ref.pt = term == ref.type) %>% 
@@ -555,145 +703,20 @@ dist.reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl.dist,
   }, .id = "spec") 
 ```
 
-```{r basic-reg-table, results="asis"}
-pval.stars <- . %>% 
-  symnum(cutpoints = c(0, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ""))
+```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis", cache=FALSE}
+print.reg.table(reg.table.data, caption = "Incentive/signal treatment effects, without SMS treatment.")
 
-print.reg.table <- function(.reg.table.data) {
-  all.pt.est <- .reg.table.data %>% 
-    select(spec, num.col, pt.est) %>% 
-    mutate(spec = forcats::as_factor(spec)) %>% 
-    unnest(pt.est) %>%
-    mutate(term = fct_relevel(term, 
-                              "bracelet", "calendar", "ink", "control",
-                              "bracelet:far", "calendar:far", "ink:far", "far"),
-           ref.type =  fct_relevel(forcats::as_factor(ref.type),
-                                   "control", "ink", "calendar", "bracelet",
-                                   "far", "ink:far", "calendar:far", "bracelet:far")) %>% 
-    mutate_at(vars(term, ref.type), 
-              funs(fct_relabel(., function(.label) str_replace_all(.label, ":", " ") %>% 
-                                 str_to_title %>% 
-                                 str_replace_all("\\s+", " $\\\\times$ ")))) %>% 
-    right_join(modelr::data_grid(., spec, ref.type, term)) 
-  
-  total.num.cols <- sum(.reg.table.data$num.col)
- 
-  cmidrules <- accumulate(.reg.table.data$num.col, ~ last(.x) + c(1, .y), .init = 1) %>% 
-    magrittr::extract(-1) %>% 
-    map(~ sprintf(" \\cmidrule(r){%d-%d}", .x[1], .x[2])) %>% 
-    str_c(collapse = " ") %>% 
-    str_c("\\\\\n", collapse = " ") 
-  
-  cat("\\begin{table}\\centering\n") 
-  cat(sprintf("\\begin{tabular}{l*{%d}{c}}\n", total.num.cols))
-  cat("\\toprule\n")
-  cat(paste(paste(map2(.reg.table.data$pt.est, 
-                       seq_len(nrow(.reg.table.data)),
-                       ~ sprintf(" & \\multicolumn{%d}{c}{(%d)}", n_distinct(.x$ref.type), .y)), collapse = " "), 
-            "\\\\\n", collapse = " "))
-  
-  cat(paste(.reg.table.data %$% 
-              map2(spec, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%s}", .y, .x)) %>% 
-              str_c(collapse = " "),
-            "\\\\\n", collapse = " "))
-  
-  cat(cmidrules)
-  
-  d_ply(all.pt.est, .(term), function(term.rows) {
-    term.rows %>% 
-      select(ref.pt, estimate, p.value) %>% 
-      pmap(function(ref.pt, estimate, p.value) {
-        if (is.na(estimate)) {
-          return("&")
-        } else if (ref.pt) {
-          sprintf("& {\\bf %.4f}", estimate)
-        } else {
-          sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))
-        }
-      }) %>% 
-      str_c(collapse = " ") %>% 
-      str_c(term.rows$term[1], ., "\\\\\n", collapse = " ") %>% 
-      cat
-    
-    term.rows %$%
-      map2(ref.pt, std.error, function(ref.pt, .se) {
-        if (is.na(.se) || ref.pt) {
-          return("&")
-        } else {
-          sprintf("& (%.4f)", .se)
-        }
-      }) %>%
-      str_c(collapse = " ") %>% {
-        if (!all(coalesce(term.rows$ref.pt, TRUE))) {
-          str_c(., "\\\\\n", collapse = " ") 
-        } else {
-          str_c(., "\n", collapse = " ") 
-        } 
-      } %>% 
-      cat
-    
-    cat("\\\\\n")
-  })
-  
-  cat(cmidrules)
-  
-  cat(paste("Observations",  
-            .reg.table.data %$% 
-              map2(num.obs, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
-              str_c(collapse = " "),
-            "\\\\\n", collapse = " "))
-  
-  cat(paste("Mean Obs/Cluster",  
-            .reg.table.data %$% 
-              map2(average.cluster.num.obs, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.2f}", .y, .x)) %>% 
-              str_c(collapse = " "),
-            "\\\\\n", collapse = " "))
-  
-  cat(paste("Number of Clusters",  
-            .reg.table.data %$% 
-              map2(num.clusters, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
-              str_c(collapse = " "),
-            "\\\\\n", collapse = " "))
-  
-  cat(paste("$R^2$",  
-            .reg.table.data %$% 
-              map2(r.squared, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)) %>% 
-              str_c(collapse = " "),
-            "\\\\\n", collapse = " "))
-  
-  cat(paste("$\\text{Adjusted }R^2$",  
-            .reg.table.data %$% 
-              map2(adj.r.squared, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)) %>% 
-              str_c(collapse = " "),
-            "\\\\\n", collapse = " "))
-  
-  cat(cmidrules)
- 
-  cat("\\emph{Joint Hypotheses Tests} & \\\\\n") 
-  cat("\\emph{($P$-values)} & \\\\\n") 
- 
-  linear.tests <- .reg.table.data %>%
-    select(spec, num.col, joint.tests.res) %>%
-    unnest(joint.tests.res) %>%
-    d_ply(.(joint.test.type), 
-          . %$% 
-            str_c(first(joint.test.type), 
-                  str_c(map2(p.value, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)), collapse = " "),
-                  "\\\\\n",
-                  collapse = " ") %>% 
-            cat)
-  
-  cat("\\bottomrule\n")
-  cat("\\end{tabular}\n")
-  cat("\\end{table}\n")
-}
+print.reg.table(dist.reg.table.data, 
+                caption = "Incentive/signal treatment effects, split by assigned distance to treatment location, without SMS treatment.")
 
-```
+print.reg.table(sms.reg.table.data, 
+                caption = "Incentive/signal treatment and SMS treatment effects.", 
+                font.size = "footnotesize", estimate.buffer = FALSE, landscape = TRUE)
 
-```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis"}
-print.reg.table(reg.table.data)
-
-print.reg.table(dist.reg.table.data)
+dist.sms.reg.table.data %>% 
+  a_ply(1, print.reg.table, 
+        caption = "Incentive/signal treatment and SMS treatment effects, split by assigned distance to treatment location.",
+        estimate.buffer = FALSE, landscape = TRUE)
 ```
 
 ```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
@@ -701,9 +724,6 @@ prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
   plot.sms.treat.takeup(.) +
     labs(subtitle = "With Controls") 
 } 
-```
-
-```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar"}
 ```
 
 
@@ -714,180 +734,6 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
     labs(subtitle = "Split by distance to treatment location, with controls")
 }
 ```
-
-## Causal Framework
-
-This section describes the potential outcomes causal framework we will use in this study. Below are the exogenous variables of individuals and clusters ($i$ indexes individuals and $j$ indexes clusters):
- 
-* $Z_j \in \mathcal{Z} = \{control, ink, calendar, bracelet\}$ is the cluster level treatment
-* $M_{ij} \in \mathcal{M} = \{none, reminders, socialinfo\}$ is the individual level text message treatment
-* $\mathbf{X}_{ij}$ individual and cluster level pre-treatment characteristics. While we will omit this vector from most of our notation, we will sometimes need to refer to one variable in that vector
-  - $P_{ij} \in \{phone, nophone\}$, indicating phone ownership.
-  
-We describe the set of sampled and monitored individuals as $\mathcal{W}$ and the sub-sample based on phone ownerhship as $\mathcal{Q}(q) = \{i: P_{ij} = q\}$.
-
-Below are the latent intermediate outcomes that influence the decision to get dewormed:
-
-* $V^*_{ij}(z)$, represents the private utility of deworming in response to $z \in \mathcal{Z}$.
-* $S^*_{ij}(z, m)$, represents the social influence (in utility terms) of treatment $z \in \mathcal{Z}$ and $m \in \mathcal{M}$ on deworming. 
-
-    This influence combines different mechanisms, thus we can further decompose it into:
-    - $R^*_{ij}(z, m)$, a reminder effect
-    - $L^*_{ij}(z, m)$, a social learning effect: the effect of receiving information on deworming by observing others' deworming choices
-    - $G^*_{ij}(z)$, reputational returns from social signaling
-    
-    This should also make clear our assumption that text message treatment does not have an effect on $V^*_{ij}$ and $G^*_{ij}$.
-    
-We represent the binary deworming choice, $Y_{ij} \in \{0, 1\}$, in different ways depending on context
-
-$$
-  Y_{ij}(z, m) \equiv Y_{ij}(V^*_{ij}(z), S^*_{ij}(z, m)) \equiv Y_{ij}(V^*_{ij}(z), R^*_{ij}(z, m), L^*_{ij}(z, m), G^*_{ij}(z))
-$$
-
-We also represent the total number of individuals dewormed in cluster $j$ in response to treatment $z$, irrespective of these individuals' origins, as $Y^{tot}_j(z)$.
-
-Whenever we reference any of these potential outcomes using one input, this refers to having $m = none$ (e.g., $S^*_{ij}(z) \equiv S^*_{ij}(z, none)$).
-
-
-## Main Hypotheses {#main-hypo}
-
-First we define the finite sample treatment effect estimators
-$$
-\begin{aligned}
-  \tau[(z, m), (z', m')] &= \sum_{i \in \mathcal{W}} \frac{Y_{ij}(z, m) - Y_{ij}(z', m')}{|\mathcal{W}|} \\
-  \tau[(z, m), (z', m'); q] &= \sum_{i \in \mathcal{Q}(q)} \frac{Y_{ij}(z, m) - Y_{ij}(z', m')}{|\mathcal{Q}(q)|}
-\end{aligned}
-$$
- We can also use the simplified notation $\tau[z,z';q] \equiv \tau[(z, none), (z', none); q]$ and $\tau[z,z'] \equiv \tau[(z, none), (z', none)]$.  
-
-Unless otherwise stated, all estimates will be tested for significance using two-sided hypothesis tests where the null hypothesis is a zero treatment effect. 
-$$
-  H_0: \tau(\cdot, \cdot) = 0
-$$
-
-### Incentive vs. no incentive treatment { #incentive-vs-no-incentive-hypo }
-
-The cluster randomization into different incentive arms allows us to identify the effect that social or private incentives have on deworming take-up, comparing 1 vs. 4, 6 or 8. We will estimate
-  
-\begin{equation} 
-  \tau[ink, control] \equiv \tau[(V^*(ink), S^*(ink)), (V^*(control), S^*(control))]
-\end{equation}
-
-If we assume that $V*(control) = V^*(ink)$, this is an estimate of the impact ink's social influence $S^*(ink) - S^*(control)$ on deworming take-up. We will also estimate
-
-\begin{equation}
-\tau[bracelet, calendar] \equiv \tau[(V^*(bracelet), S^*(bracelet)), (V^*(calendar), S^*(calendar))]
-\end{equation}
-
-If we assume that $V^*(calendar) = V^*(bracelet)$, this is an estimate of the impact bracelets' social influence $S^*(bracelet) - S^*(calendar)$ on deworming take-up.
-      
-Both these estimates would identify the combined effect of social incentives, $S^*(\cdot)$: 
-
-(a) Acting as reminders, $R^*(\cdot)$, 
-(b) Making observable others' deworming decision, $L^*(\cdot)$, and 
-(c) Allowing people to signal their decision, $G^*(\cdot)$.
-
-We will also conduct the joint hypothesis test 
-\[ H_0: \tau[ink, control] = 0 \land \tau[bracelet, control] = 0 \land \tau[calendar, control] = 0 \] 
-
-### Social vs. no social incentives treatment for text message treatment individuals { #social-incentive-hypo }
-
-Comparing individuals that received reminders and social information text messages in clusters without social incentives to individuals in clusters with social incentives, we identify the effect of social signaling on individuals' deworming decisions. We will estimate
-
-\begin{align} 
-  \tau[(ink, none), (control, socialinfo)] \equiv \tau[&(V^*(ink, none), S^*(ink, none)), \\ \nonumber
-  &(V^*(control, socialinfo), S^*(control, socialinfo))]
-\end{align}
-
-If we assume that $R^*(ink, none) = R^*(control, socialinfo)$ and $L^*(ink, none) = L^*(control, socialinfo)$, this is an estimate of the impact of $G^*(ink) - G^*(control)$ on deworming take-up. We will also estimate
-
-\begin{align} 
-  \tau[(bracelet, none), (calendar, socialinfo)] \equiv \tau[&(V^*(bracelet, none), S^*(bracelet, none)), \\ \nonumber
-  &(V^*(calendar, socialinfo), S^*(calendar, socialinfo))]
-\end{align}
-  
-If we assume that $R^*(bracelet, none) = R^*(calendar, socialinfo)$, $L^*(bracelet, none) = L^*(calendar, socialinfo)$, and $V^*(calendar) = V^*(bracelet)$ this is an estimate of the impact of $G^*(bracelet) - G^*(calendar)$ on deworming take-up.
-    
-### No text message treatment vs. text message reminders and social information
-
-Using estimates from \ref{incentive-vs-no-incentive-hypo} where we identified the combined effect of reminders, social learning and social signaling and the comparison from \ref{social-incentive-hypo} where we separately identified social signaling, we can identify the effect of reminders and social learning on deworming take-up. We will estimate
-
-\begin{align}
-  \tau[(ink, none), &(control, socialinfo)] - \tau[(ink, none), (control, none)] \equiv \nonumber \\ &\tau[control, socialinfo), (control, none)]
-\end{align}
-to identify the combined effect of $R^*(ink)$ and $L^*(ink)$ on deworming take-up; and we will estimate
-\begin{align}
-  \tau[(bracelet, none), &(calendar, socialinfo)] - \tau[(bracelet, none), (calendar, none)] \equiv \nonumber \\ &\tau[(calendar, socialinfo), (calendar, none)]
-\end{align}
-to identify the combined effect of $R^*(bracelet)$ and $L^*(bracelet)$ on deworming take-up.
-
-### Text message reminder plus social information treatment vs. no text messages for no incentive individuals ###
-
-We will estimate 
-\begin{equation}
-  \tau[(control, reminders), (control, none)]
-\end{equation}
-and
-\begin{equation}
-  \tau[(control, socialinfo), (control, reminders)]
-\end{equation}
-to identify the effect of reminders and information about others' treatment decisions on deworming take-up. The text message treatments within no incentive clusters allow us to identify the extent to which reminders or social learning are relevant for deworming take-up. 
-
-### Text message treatment with social information vs. no text messages for social incentive individuals
-
-We will estimate
-\begin{equation}
-  \tau[(ink, socialinfo), (ink, none)]
-\end{equation}
-and
-\begin{equation}
-  \tau[(bracelet, socialinfo), (bracelet, none)]
-\end{equation}
-to identify the additional reminder and social learning effects of text messages in the presence of social incentives. The cross-treatments identify how "satiated" individuals are in terms of being reminded or informed about other people's decision through signals. 
-
-### Calendar/Bracelet Preference Survey
-   
-During the endline survey, respondents were asked to choose between a calendar or bracelet as a gift for their participation. We will use this to identify the distribution of preference over these two incentives.
-
-First, we define their choice to be 
-$$
-H_{ij} = \mathbbm{1}\{D^*_{ij} > 0\},
-$$ 
-
-where
-$$
-D^*_{ij} = V^*_{ij}(calendar) - V^*_{ij}(bracelet),
-$$
-the latent difference in utility between calendars and bracelets. We will estimate this difference from the survey observational data.
-
-## Social Information
-
-As secondary outcome, in addition to deworming take-up, we will look at individuals' beliefs/knowledge about others' deworming decision. Using the information collected in the beliefs section of the endline survey, we will look at whether people know or do not know about others' deworming take-up, whether they are more/less correct about their decisions, whether they are are more/less correct for yes/no answers and make a comparison between social incentive and control individuals. 
-
-## Heterogeneity
-
-We will be investigating heterogeneity of impact on deworming take-up (as described in the [main hypotheses section above](#main-hypo)) based on the following:
-
-1. The village to point-of-treatment distance binary characteristic (discussed in the [Village and Point-of-Treatment Selection] section above).
-
-2. The household to household distance within clusters, creating a density measure per cluster that allows us to investigate if proximity affects the effectiveness of social incentives. 
-
-We will further investigate heterogeneity of impact on individuals' beliefs and knowledge about others' deworming take-up based on the geographic proximity between the individual and others in her village. 
-
-## Temporal Dynamics
-Deworming treatment was offered over a period of 12 days. We will look at the distribution of take-up over time comparing social incentive to control clusters. 
-
-## Sample Selection
-
-As described in Section \ref{sampling-identification} our sampling will be stratified based on individuals' phone ownership (collected in the census). A random sample of 25 individuals per clusters were selected in the group without text messaging treatment, $M_{ij} = none$: 17 individuals were selected to be phone owners and 8 were selected to be non phone owners. While this distribution is similar to that observed in the population, we will still need to correct our estimation.
-
-## Inter-cluster Spillover
-
-We will test for the possibility of spillovers or contamination due to cluster proximity. As mentioned in Section \ref{cluster-selection-algorithm} clusters were selected with a geographic buffer between them. However, this is not sufficient guarantee that people would travel farther than we anticipated. Thus we need to test the hypothesis that individuals in our monitored sample have received deworming outside their cluster, and should we fail to reject this hypothesis is sufficient precision we will need to model this spillover in our econometric models.
-
-## Multiple Hypotheses Testing
-
-While we only have a small set of outcomes that we would be analyzing (mainly deworming take-up), there is significant number of treatments (cluster level and individual) we will use to investigate the various behavioral mechanism driving observed behavior. Therefore, we will we correct our inference to account for this.
 
 # Cost-effectiveness
 
