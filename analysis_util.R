@@ -515,7 +515,7 @@ plot.takeup.dynamics <- function(.data, .aes = aes(x = dewormed.day.any, y = tak
 }
 
 prep.sms.treat.dist.plot.data <- function(.reg.output) {
-  interact.with <- "close"
+  interact.with <- "far"
   
   incentive.treatment.terms <- c("control", "ink", "calendar", "bracelet")
   sms.treatment.interact.terms <- sprintf("%s:social.info", incentive.treatment.terms[-1])
@@ -534,7 +534,7 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
         c(paste(., interact.with, sep = " + ") %>% 
             paste(c("", sprintf("%s:%s", incentive.treatment.terms[-1], interact.with)), sep = " + "))) %>% 
     linear_tester(.reg.output, .) %>% 
-    mutate(dist = rep(rep(c("Far", "Close"), 2), c(5, 5, 4, 4)),
+    mutate(dist = rep(rep(c("Close", "Far"), 2), c(5, 5, 4, 4)),
            incentive.treatment = incentive.treatment.terms %>% 
              factor(c(rep(c(., "control"), 2), rep(., 2)), levels = ., labels = str_to_title(.))) %>% 
     group_by(dist) %>% 
@@ -586,3 +586,151 @@ incentive.treat.barplot <- function(.data) {
     scale_color_manual("Reference Arm", values = c("red", "black"), labels = c("Calendar", "Control")) +
     scale_fill_manual("", values = c("red", "black"), labels = c("Calendar vs Bracelet", "Control vs Ink")) 
 }
+
+# Table Generators --------------------------------------------------------
+
+print.reg.table <- function(.reg.table.data, caption = "", font.size = "footnotesize", estimate.buffer = TRUE, landscape = FALSE) {
+  pval.stars <- . %>% 
+    symnum(cutpoints = c(0, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ""))
+  
+  all.pt.est <- .reg.table.data %>% 
+    select(spec, num.col, pt.est) %>% 
+    mutate(spec = forcats::as_factor(spec)) %>% 
+    unnest(pt.est) %>%
+    mutate(term = fct_relevel(term, 
+                              "bracelet", "calendar", "ink", "reminder.only", "social.info", "control",
+                              "bracelet:far", "calendar:far", "ink:far", "far",
+                              "bracelet:social.info", "calendar:social.info", "ink:social.info"),
+           ref.type =  fct_relevel(forcats::as_factor(ref.type),
+                                   "control", "ink", "calendar", "bracelet", "reminder.only", "social.info",
+                                   "far", "ink:far", "calendar:far", "bracelet:far",
+                                   "ink:social.info", "calendar:social.info", "bracelet:social.info")) %>% 
+    mutate_at(vars(term, ref.type), 
+              funs(fct_relabel(., function(.label) str_replace_all(.label, c(":" = " [x] ", "\\." = " ")) %>% 
+                                 str_to_title %>% 
+                                 str_replace_all(fixed("[X]"), "$\\times$")))) %>% 
+    right_join(modelr::data_grid(., spec, ref.type, term)) 
+  
+  total.num.cols <- sum(.reg.table.data$num.col)
+ 
+  cmidrules <- accumulate(.reg.table.data$num.col, ~ last(.x) + c(1, .y), .init = 1) %>% 
+    magrittr::extract(-1) %>% 
+    map(~ sprintf("\\cmidrule(r){%d-%d}", .x[1], .x[2])) %>% 
+    str_c(collapse = " ") %>% 
+    str_c(if_else(estimate.buffer, "\\\\\n", "\n"), collapse = " ")
+  
+  cat(sprintf("%s\\begin{table}\\centering\\%s%s\n", 
+              if_else(landscape, "\\begin{landscape}", ""), 
+              font.size,
+              if_else(nchar(caption) > 0, sprintf("\\caption{%s}", caption), "")))
+  cat("\\begin{threeparttable}\n")
+  cat(sprintf("\\begin{tabular}{l*{%d}{c}}\n", total.num.cols))
+  cat("\\toprule\n")
+  cat(paste(sprintf("& (%d)", seq_len(total.num.cols)), collapse = " "))
+  cat("\\\\\n")
+  
+  cat(paste(.reg.table.data %$% 
+              map2(spec, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%s}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(cmidrules)
+  
+  d_ply(all.pt.est, .(term), function(term.rows) {
+    term.rows %>% 
+      select(ref.pt, estimate, p.value) %>% 
+      pmap(function(ref.pt, estimate, p.value) {
+        if (is.na(estimate)) {
+          return("&")
+        } else if (ref.pt) {
+          sprintf("& \\cellcolor[gray]{0.9}{\\bf %.4f}", estimate)
+        } else {
+          sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))
+        }
+      }) %>% 
+      str_c(collapse = " ") %>% 
+      str_c(term.rows$term[1], ., "\\\\\n", collapse = " ") %>% 
+      cat
+    
+    term.rows %$%
+      map2(ref.pt, std.error, function(ref.pt, .se) {
+        if (is.na(.se) || ref.pt) {
+          return("&")
+        } else {
+          sprintf("& (%.4f)", .se)
+        }
+      }) %>%
+      str_c(collapse = " ") %>% {
+        if (!all(coalesce(term.rows$ref.pt, TRUE)) || !estimate.buffer) {
+          str_c(., "\\\\\n", collapse = " ") 
+        } else {
+          str_c(., "\n", collapse = " ") 
+        } 
+      } %>% 
+      cat
+    
+    if (estimate.buffer) cat("\\\\\n")
+  })
+  
+  cat(cmidrules)
+  
+  cat(paste("Observations",  
+            .reg.table.data %$% 
+              map2(num.obs, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("Mean Obs/Cluster",  
+            .reg.table.data %$% 
+              map2(average.cluster.num.obs, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.2f}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("Number of Clusters",  
+            .reg.table.data %$% 
+              map2(num.clusters, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%d}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("$R^2$",  
+            .reg.table.data %$% 
+              map2(r.squared, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(paste("$\\text{Adjusted }R^2$",  
+            .reg.table.data %$% 
+              map2(adj.r.squared, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)) %>% 
+              str_c(collapse = " "),
+            "\\\\\n", collapse = " "))
+  
+  cat(cmidrules)
+ 
+  cat("\\emph{Joint Tests ($P$-values)} & \\\\\n") 
+  # cat("\\emph{($P$-values)} & \\\\\n") 
+ 
+  linear.tests <- .reg.table.data %>%
+    select(spec, num.col, joint.tests.res) %>%
+    unnest(joint.tests.res) %>%
+    d_ply(.(joint.test.type), 
+          . %$% 
+            str_c(first(joint.test.type), 
+                  str_c(map2(p.value, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)), collapse = " "),
+                  "\\\\\n",
+                  collapse = " ") %>% 
+            cat)
+  
+  cat("\\bottomrule\n")
+  cat("\\end{tabular}\n")
+  cat("\\begin{tablenotes}\\footnotesize\n")
+ 
+  c("Reported analysis is from a stratified linear probability model regression. Highlighted cells identify the reference take-up level against which average treatment effects are reported. Standard errors computed using cluster robust Huber-White estimators are reported in parentheses under estimates.",
+    "Endline survey samples control for ethnicity, gender, age, schooling, material of household floor, and mobile phone ownership.",
+    "${}^{***}: P < 0.01, {}^{**}: P < 0.05, {}^*: P < 0.1$") %>% 
+    walk(~ cat(sprintf("\\item %s\n", .)))
+  
+  cat("\\end{tablenotes}\n")
+  cat("\\end{threeparttable}\n")
+  cat(sprintf("\\end{table}%s\n", if_else(landscape, "\\end{landscape}", "")))
+}
+

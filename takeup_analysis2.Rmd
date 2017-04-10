@@ -366,7 +366,7 @@ list(Baseline = baseline.data, Endline = endline.data) %>%
   mutate(incentive = if_else(incentive == "dworm_rate", "None", "Ink")) %>% 
   ggplot(aes(value)) +
   geom_freqpoly(aes(y = ..density.., color = survey.type, linetype = incentive), binwidth = 1) +
-  scale_x_continuous("Reported Rate", breaks = 1:10) +
+  scale_x_continuous("Reported Rate", breaks = 0:10) +
   scale_y_continuous("Density") +
   scale_color_discrete("") +
   scale_linetype_manual("Hypothetical Signal Used in MDA", values = c("dashed", "solid")) +
@@ -1274,13 +1274,15 @@ The following table simplifies thinking about the analysis outlined in the pre-a
 
 ### Regression Without Controls
 
-```{r}
+```{r sms-reg}
 reg.output.sms.treat <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
   mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+```
 
+```{r}
 reg.output.sms.treat %>% tidy %>% kable(digits = 4)
 ```
 
@@ -1530,14 +1532,16 @@ $$
 
 ### Regression Without Controls
 
-```{r}
+```{r dist-sms-reg}
 reg.output.sms.treat.dist <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
-         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+         # dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
+```
 
+```{r}
 reg.output.sms.treat.dist %>% tidy %>% kable(digits = 4)
 ```
 
@@ -1555,11 +1559,11 @@ Running regression without controls with the same sample as in the with controls
 reg.output.sms.treat.dist.lim <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
-         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+         # dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
 
-reg.output.sms.treat.dist %>% tidy %>% kable(digits = 4)
+reg.output.sms.treat.dist.lim %>% tidy %>% kable(digits = 4)
 ```
 ```{r, fig.width=12}
 prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
@@ -1575,8 +1579,8 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
 reg.output.sms.treat.dist.covar <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")),
-         dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
+  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+         # dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 ```
 
@@ -1595,10 +1599,10 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
 Some linear hypotheses testing:
 ```{r}
   linear_tester(reg.output.sms.treat.dist.covar, 
-                c("(intercept) + bracelet + close + bracelet:close",
-                  "(intercept) + bracelet",
-                  "(intercept) + bracelet + close + bracelet:close + social.info + bracelet:social.info + bracelet:social.info:close + social.info:close",
-                  "(intercept) + bracelet + bracelet:social.info + social.info")) %>% 
+                c("(intercept) + bracelet",
+                  "(intercept) + bracelet + far + bracelet:far",
+                  "(intercept) + bracelet +  social.info + bracelet:social.info",
+                  "(intercept) + bracelet + far + bracelet:far + bracelet:social.info + social.info + bracelet:social.info:far + social.info:far")) %>% 
   kable(digits = 4)
 ```
 
