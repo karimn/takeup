@@ -171,6 +171,41 @@ ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "st
 
 After all clusters were selected, we randomly assigned (stratified within counties) each cluster to be either a "close" or "far" cluster: whether its targeted village would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its nonoverlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted village^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan [@Karing2016].]. Figures \ref{fig:dist-to-pot} and \ref{fig:marginal-dist-to-other-pot} show the distribution of cluster distance to treatment locations and to other clusters. 
 
+```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Distance to Treatment Locations"}
+verify.vill.pot.dist %>% 
+  select(dist.to.own.pot, closest.other) %>% 
+  gather(dist.type, dist) %>% {
+  ggplot(.) +
+    geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = alpha("black", 0.5), position = "dodge") + 
+    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 5)) +
+    scale_fill_discrete("Distance", labels = c("To Closest Other Treatment Location", "To Assigned Treatment Location")) 
+}
+```
+
+```{r dist-to-other-pot, fig.width=6, fig.height=4, fig.cap="Distance to Closest Other Point-of-Treatment", eval=FALSE}
+verify.vill.pot.dist %>% { 
+  ggplot(.) +
+    geom_histogram(aes(closest.other), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
+    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) 
+} 
+```
+
+```{r marginal-dist-to-other-pot, fig.height=3, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
+verify.vill.pot.dist %>% 
+  mutate(marginal.dist = closest.other - dist.to.own.pot,
+         dist.to.own.pot.cat = cut(dist.to.own.pot, 
+                                   breaks = c(0,  2500/2, 10000),
+                                   labels = c("Close", "Far"))) %>% {
+  ggplot(.) +
+    geom_histogram(aes(marginal.dist), alpha = 0.5, color = alpha("black", 0.5), binwidth = 500, boundary = 0, position = "dodge") +
+    scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
+    scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
+     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed", alpha = 0.5)
+}
+```
+
 Clusters were then randomly assigned, stratified over counties and distance treatment, an incentive/signal treatment: 
 
 (i) Control: no incentives or public signals
@@ -233,41 +268,6 @@ In order to assess individuals' private valuation of the calendar and bracelet i
 
 # Descriptive Statistics 
 
-```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Distance to Treatment Locations"}
-verify.vill.pot.dist %>% 
-  select(dist.to.own.pot, closest.other) %>% 
-  gather(dist.type, dist) %>% {
-  ggplot(.) +
-    geom_histogram(aes(dist, fill = dist.type), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = alpha("black", 0.5), position = "dodge") + 
-    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
-    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 5)) +
-    scale_fill_discrete("Distance", labels = c("To Closest Other Treatment Location", "To Assigned Treatment Location")) 
-}
-```
-
-```{r dist-to-other-pot, fig.width=6, fig.height=4, fig.cap="Distance to Closest Other Point-of-Treatment", eval=FALSE}
-verify.vill.pot.dist %>% { 
-  ggplot(.) +
-    geom_histogram(aes(closest.other), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
-    scale_x_continuous("", breaks = seq(0, 10000, 2500/4)) + 
-    scale_y_continuous("Number of Clusters", breaks = seq(0, 100, 2)) 
-} 
-```
-
-```{r marginal-dist-to-other-pot, fig.height=3, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
-verify.vill.pot.dist %>% 
-  mutate(marginal.dist = closest.other - dist.to.own.pot,
-         dist.to.own.pot.cat = cut(dist.to.own.pot, 
-                                   breaks = c(0,  2500/2, 10000),
-                                   labels = c("Close", "Far"))) %>% {
-  ggplot(.) +
-    geom_histogram(aes(marginal.dist), alpha = 0.5, color = alpha("black", 0.5), binwidth = 500, boundary = 0, position = "dodge") +
-    scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
-    scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
-     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed", alpha = 0.5)
-}
-```
-
 In this section we will present some descriptive statistics and plots, using data collected from the various study surveys. 
 
 ```{r cluster-stats}
@@ -280,40 +280,43 @@ calc.cluster.stats <- . %>%
   count(county, assigned.treatment) %>% 
   ungroup %>% 
   spread(assigned.treatment, n) %>% { 
-    total <- select(., -county) %>% mutate_all(as.numeric) %>% rowSums
+    total <- select(., -county) %>% mutate_all(as.integer) %>% rowSums 
     mutate(., all = total) 
   }
 
-# cluster.stats %>% 
-#   distinct(cluster.id, .keep_all = TRUE) %>% 
-#   calc.cluster.stats %>%
-#   list %>% 
-#   kable()
-# 
-# cluster.stats %>% 
-#   list(distinct(., cluster.id, .keep_all = TRUE), .) %>% 
-#   map(calc.cluster.stats) %>% 
-#   kable(booktabs = TRUE)
-```
-
-```{r clust-stat-clust, eval=TRUE}
-cluster.stats %>% 
+clusters.stats <- cluster.stats %>% 
   distinct(cluster.id, .keep_all = TRUE) %>% 
   calc.cluster.stats %>%
-  set_names(str_to_title(names(.))) %>% 
-  list %>% 
-  kable(booktabs = TRUE, caption = "Number of clusters by county and treatment arm")
-```
+  set_names(str_to_title(names(.))) 
 
-```{r clust-stat-individ, eval=TRUE}
-cluster.stats %>% 
+individ.stats <- cluster.stats %>% 
   calc.cluster.stats %>% 
-  set_names(str_to_title(names(.))) %>% 
-  list %>% 
-  kable(format = "pandoc", booktabs = TRUE, caption = "Number of adults in targeted communities by county and treatment arm", format.args = list(big.mark = ","))
+  set_names(str_to_title(names(.))) 
 ```
 
-By the end of the intervention, we had recorded the deworming treatment of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal argument based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
+\begin{table}
+\centering
+\caption{Number of clusters and individuals in targeted communities, by county and treatment arm.}
+\begin{tabular}{l*{10}{c}}
+\toprule
+       & \multicolumn{5}{c}{Clusters} & \multicolumn{5}{c}{Individuals} \\ \\
+County & Control & Ink & Calendar & Bracelet & All & Control & Ink & Calendar & Bracelet & All \\
+\cmidrule(r){2-6} \cmidrule(r){7-11}
+
+```{r test-tab, results="asis"}
+clusters.stats %>%
+  left_join(individ.stats, "County", suffix = c(".clusters", ".individuals")) %>% 
+  a_ply(1, function(row) sprintf("%s %s \\\\\n", 
+                                 row$County,
+                                 paste(sprintf(" & %s", prettyNum(as.integer(row[, -1]), big.mark = ",")), collapse = "")) %>% 
+          cat)
+  
+```
+\bottomrule
+\end{tabular}
+\end{table}
+
+By the end of the intervention, we had recorded the deworming treatment of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal interpretations based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
 
 ```{r absolute-takeup, fig.height=6, fig.cap="Absolute Deworming Take-up"}
 plot.aggreg.takeup <- function(.data) {
@@ -349,7 +352,7 @@ analysis.data %>%
   facet_wrap(~ assigned.treatment)
 ```
 
-Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the undestanding of who is at risk of worm infection. As shown in Figure \ref{fig:who-at-risk-sth}, there does appear to be an improvement in understanding that all community members are at risk of infection. However, from Figure \ref{fig:infected-infect-others}, it still appears that the predominate belief is that infected individuals cannot infect others.
+Figure \ref{fig:know-believe-categorical-responses} presents individuals' responses to some of the baseline and endline survey questions. Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the understanding of who is at risk of worm infection. More people are reporting after the intervention the belief that everyone is at risk of worm infection, compared to before. Surprisingly, there seems to be a decrease in the understanding that individuals can infection one another.
 
 ```{r know-believe-categorical-responses, warning=FALSE, fig.width=8, fig.height=10, fig.cap="Knowledge and beliefs baseline and endline survey responses."}
 tribble(~ col.name,      ~ label,
@@ -365,19 +368,9 @@ tribble(~ col.name,      ~ label,
   scale_y_continuous(breaks = seq(0, 1, 0.1)) 
 ```
 
-```{r response-other-deworm, warning=FALSE, fig.width=8, fig.height=2.5, fig.cap="Reported response to others' deworming choices."}
-tribble(~ col.name,      ~ label,
-        "few_deworm",     "Deworm if less than half of others deworm?",
-        "many_deworm",    "Deworm if more than half of others deworm?",
-        "more_less",      "Would you be more likely to deworm if few/many others get dewormed?") %>% 
-  multi.know.bel.cat.plot(.endline.data = NULL) +
-  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
-```
+Figure \ref{fig:dewormed-history} presents individuals' reported deworming history, prior to the intervention. Unsurprisingly, the majority of respondents said that children in their families have been previously dewormed, and the most common location for treatment for their family members had been during the annual school-based MDA. We also see that almost two of adults had been previously dewormed. However, more than half of those reporting prior treatment, were treated over two years ago. Furthermore, most adults reported getting dewormed at a hospital/clinic or purchased medication.
 
-```{r praise-stigma, ref.label="praise-stigma", fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
-```
-
-```{r dewormed-history, fig.width=8, fig.height=8, fig.cap="Deworming history."}
+```{r dewormed-history, fig.width=8, fig.height=9, fig.cap="Deworming history."}
 ever.dewormed.plot <- baseline.data %>% 
   select(treated, family_treated) %>% 
   gather(key = who.treated) %>% 
@@ -385,10 +378,10 @@ ever.dewormed.plot <- baseline.data %>%
   count(who.treated, value) %>% 
   group_by(who.treated) %>% 
   mutate(n = n/sum(n)) %>%
-  mutate(value = fct_recode(value, "Don't Know" = "DK") %>% 
+  ungroup %>%
+  mutate(value = fct_recode(factor(value), "Don't Know" = "DK") %>% 
              fct_relabel(str_to_title) %>% 
              fct_reorder(n)) %>%
-  ungroup %>%
   ggplot(aes(value)) +
   geom_col(aes(y = n), alpha = 0.5) +
   coord_flip() +
@@ -405,6 +398,15 @@ who.was.dewormed.plot <- baseline.data %>%
   coord_flip() +
   labs(title = "Who in family got dewormed?", x = "", y = "Proportion") +
   theme(strip.text.y = element_text(angle = 0)) 
+
+when.dewormed.plot <- baseline.data %>% 
+  transmute(treated, 
+            treated_when = fct_relabel(factor(treated_when), str_to_title)) %>% 
+  filter(treated == "yes") %>%
+  ggplot(aes(treated_when)) +
+  geom_bar(aes(y = ..count../sum(..count..)), alpha = 0.5) +
+  coord_flip() +
+  labs(title = "When did you last get dewormed?", x = "", y = "Proportion")
 
 where.treated.plot <- baseline.data %>% 
   select(treated, family_treated, treated_where, where_family_treated) %>% 
@@ -426,8 +428,51 @@ where.treated.plot <- baseline.data %>%
   labs(title = "Where did you last get dewormed?", x = "", y = "Proportion") +
   theme(strip.text.y = element_text(angle = 0)) 
 
-grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, where.treated.plot)
-# ever.dewormed.plot %>% plot
+grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, when.dewormed.plot, where.treated.plot, 
+             layout_matrix = as.matrix(c(1, 1, 2, 3, 3, 4, 4)))
+```
+
+Since the study's main research questions focus on the social impact of signals, incentives and information, we included a number of questions in our surveys to get a clearer picture of how individuals perceive and predict others' deworming choices. Figure \ref{fig:response-other-deworm} shows individuals reporting that their own deworming decisions would not be influenced by others' decisions, as well as having a strong _intention_ to getting dewormed. In addition, as shown in Figure \ref{fig:baseline-deworming-beliefs}, people predicted similar deworming among peers. As we will see below, most people overestimated their own and others' deworming take-up. Finally, when individuals were asked about how others would respond to the use of indelible ink as a signal of deworming treatment, they predicted a positive effect, contrary to what we actually observed. 
+
+```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs"}
+```
+
+```{r survey-of-10-beliefs-boxplot, ref.label="survey-of-10-beliefs-boxplot"}
+```
+
+```{r praise-stigma, ref.label="praise-stigma"}
+```
+
+```{r response-other-deworm, warning=FALSE, fig.width=8, fig.height=2.5, fig.cap="Reported response to others' deworming choices."}
+tribble(~ col.name,      ~ label,
+        "few_deworm",     "Deworm if less than half of others deworm?",
+        "many_deworm",    "Deworm if more than half of others deworm?",
+        "more_less",      "Would you be more likely to deworm if few/many others get dewormed?") %>% 
+  multi.know.bel.cat.plot(.endline.data = NULL) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
+```
+
+```{r baseline-deworming-beliefs, warning=FALSE, fig.width=8, fig.height=5, fig.cap="Baseline beliefs/predictions about others' deworming choices."}
+other.predict.deworm.plot <- tribble(~ col.name,              ~ label,
+                                     "dworm_proportion",      "How many people will come to get dewormed?",
+                                     "ink_more_less",         "Will the ink signal increase/decrease deworming take-up?") %>% 
+  multi.know.bel.cat.plot(.endline.data = NULL,
+                          preprocess.fun = . %>% 
+                            mutate(response = fct_relevel(response,
+                                                          "Few", "Nearly Half", "Half", "More Than Half", "Many", "All", "Less", "Same", "More", "Prefer Not Say", "Don't Know"))) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+  labs(title = "Peer deworming predictions")
+
+survey.takeup.beliefs.10.boxplot <- survey.takeup.beliefs.10.boxplot + theme(legend.position = "none")
+survey.takeup.beliefs.10 <- survey.takeup.beliefs.10 + theme(legend.position = "right")
+
+grid.arrange(other.predict.deworm.plot, survey.takeup.beliefs.10, survey.takeup.beliefs.10.boxplot, 
+             layout_matrix = rbind(c(1, 1, 1, 1), c(2, 2, 3, 3)))
+
+```
+
+```{r praise-stigma-plot, fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
+plot(praise.stigma.plot)
 ```
 
 ```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=4, fig.cap="Knowledge of RCT intervention."}
@@ -442,16 +487,8 @@ tribble(~ col.name,      ~ label,
   scale_y_continuous(breaks = seq(0, 1, 0.1)) 
 ```
 
-```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs", fig.cap="Reported baseline and endline beliefs about others' deworming rate (out of 10)."}
-```
 
-```{r baseline-deworming-beliefs, warning=FALSE, fig.width=8, fig.height=4, fig.cap="Baseline Beliefs of others' deworming."}
-tribble(~ col.name,      ~ label,
-        "dworm_proportion",      "How many people will come to get dewormed?",
-        "ink_more_less",         "Will the ink signal increase/decrease deworming take-up?") %>% 
-  multi.know.bel.cat.plot(.endline.data = NULL) +
-  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
-```
+## Revealed Preferences for Incentives
 
 ```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm", fig.cap="Reported Calendar/Bracelet Preferences, split by experiment arm and respondents' deworming take-up."}
 ```
@@ -459,19 +496,16 @@ tribble(~ col.name,      ~ label,
 ```{r first-choice-wtp, ref.label="first-choice-wtp", fig.height=1.5, fig.cap="First choice of incentive in willingness-to-pay survey."}
 ```
 
-```{r switch-price-wtp, ref.label="switch-price-wtp"}
+```{r switch-price-wtp, ref.label="switch-price-wtp", fig.cap="Price at which individuals are willing to switch gift choice."}
 ```
 
-
 # Analysis
-
 
 ```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive/signal treatments."}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
   plot.sms.ctrl.takeup(.) +
     labs(subtitle = "With control")
 }
-
 ```
 
 ```{r basic-reg, ref.label="basic-reg"}
@@ -489,7 +523,6 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
   plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
     labs(subtitle = "With controls") 
   }
-
 ```
 
 ```{r sms-reg, ref.label="sms-reg"}
