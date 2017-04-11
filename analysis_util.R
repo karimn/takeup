@@ -303,7 +303,11 @@ know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data
     }
 }
 
-multi.know.bel.cat.plot <- function(question.info, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
+multi.know.bel.cat.plot <- function(question.info, 
+                                    .baseline.data = baseline.data, 
+                                    .endline.data = endline.data, 
+                                    na.rm = FALSE, 
+                                    preprocess.fun = function(.data) .data) {
   stopifnot(is.data.frame(question.info))
   
   list(Baseline = .baseline.data, Endline = .endline.data) %>% 
@@ -326,7 +330,8 @@ multi.know.bel.cat.plot <- function(question.info, .baseline.data = baseline.dat
            response = fct_recode(response, "Don't Know" = "DK") %>% 
              fct_relabel(str_to_title) %>% 
              fct_relabel(function(.label) str_replace(.label, "Chv", "CHV")) %>% 
-             fct_reorder(n)) %>% { 
+             fct_reorder(n)) %>%
+    preprocess.fun %>% { 
       if (n_distinct(.$survey.type) > 1) {
         ggplot(., aes(x = response, n, fill = survey.type)) +
           scale_fill_discrete("") 
