@@ -196,7 +196,7 @@ baseline.data %>%
 I'm dropping information about the question group: _A-D_.
 
 ```{r praise-stigma}
-baseline.data %>% 
+praise.stigma.plot <- baseline.data %>% 
   select(matches("^(praise|stigma)_[^_]+$")) %>% 
   gather(key = key, value = response) %>% 
   separate(key, c("praise.stigma", "topic"), "_") %>% 
@@ -222,6 +222,10 @@ baseline.data %>%
       strip.text.y = element_text(angle = 0), 
       strip.background = element_rect(colour = NA), 
       panel.border = element_blank()) 
+```
+
+```{r}
+plot(praise.stigma.plot)
 ```
 
 ```{r, fig.width=10}
@@ -358,8 +362,8 @@ know.bel.cat.plot("chv_visit", .baseline.data = NULL) + labs(title = "Did a CHV 
 
 ## Beliefs
 
-```{r survey-of-10-beliefs}
-list(Baseline = baseline.data, Endline = endline.data) %>% 
+```{r survey-of-10-beliefs, warning=FALSE}
+survey.takeup.beliefs.10 <- list(Baseline = baseline.data, Endline = endline.data) %>% 
   compact %>% 
   map_df(select, one_of("dworm_rate", "ink_dworm_rate"), .id = "survey.type") %>% 
   gather(key = incentive, value = value, -survey.type) %>% 
@@ -369,9 +373,33 @@ list(Baseline = baseline.data, Endline = endline.data) %>%
   scale_x_continuous("Reported Rate", breaks = 0:10) +
   scale_y_continuous("Density") +
   scale_color_discrete("") +
-  scale_linetype_manual("Hypothetical Signal Used in MDA", values = c("dashed", "solid")) +
+  scale_linetype_manual("Signal", values = c("dashed", "solid")) +
   theme(legend.position = "bottom") +
   labs(title = "How many out of 10 will come for deworming?")
+```
+
+```{r}
+plot(survey.takeup.beliefs.10)
+```
+
+```{r survey-of-10-beliefs-boxplot, warning=FALSE}
+survey.takeup.beliefs.10.boxplot <- list(Baseline = baseline.data, Endline = endline.data) %>% 
+  compact %>% 
+  map_df(select, one_of("dworm_rate", "ink_dworm_rate"), .id = "survey.type") %>% 
+  gather(key = incentive, value = value, -survey.type) %>% 
+  mutate(incentive = if_else(incentive == "dworm_rate", "None", "Ink")) %>% 
+  ggplot(aes(survey.type)) +
+  geom_boxplot(aes(y = value, color = survey.type, linetype = incentive), position = position_dodge(width = 1.1)) +
+  scale_y_continuous("Reported Rate", breaks = 0:10) +
+  scale_color_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() +
+  scale_linetype_manual("Signal", values = c("dotdash", "solid")) +
+  theme(legend.position = "bottom", axis.text.y = element_blank(), axis.ticks.y = element_blank()) 
+```
+
+```{r}
+plot(survey.takeup.beliefs.10.boxplot)
 ```
 
 ```{r, fig.width=10}
