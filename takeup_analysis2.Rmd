@@ -214,9 +214,10 @@ praise.stigma.plot <- baseline.data %>%
                             "Immunize/not immunize children" = "immunize")) %>% 
   ggplot(aes(response)) +
   geom_col(aes(y = n), alpha = 0.5) +
+  labs(y = "Proportion", x = "") +
+  scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
   coord_flip() +
   facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20)) +
-  labs(y = "Proportion", x = "") +
   theme_bw() +
   theme(legend.position = "bottom",
       strip.text.y = element_text(angle = 0), 
@@ -330,19 +331,39 @@ endline.data %>%
   labs(x = "", y = "Proportion", title = "Know ...?")
 ```
 
-```{r, fig.width=10, fig.height=6}
-endline.data %>% 
+```{r mda-dates-dist}
+day1.wave1 <- as_date("2016-10-03")
+day12.wave1 <- day1.wave1 + days(11)
+day1.wave2 <- as_date("2016-10-24")
+day12.wave2 <- day1.wave2 + days(11)
+
+wave.dates <- tribble(~ wave, ~ begin.end, ~ day,
+                      1,      "begin",     day1.wave1,
+                      1,      "end",       day12.wave1,
+                      2,      "begin",     day1.wave2,
+                      2,      "end",       day12.wave2)
+
+mda.dates.dist.plot <- endline.data %>% 
   select(wave, treat_begin, treat_end, treat_begin_date, treat_end_date) %>% 
   gather(key = begin.end, value = day, -c(treat_begin, treat_end, wave)) %>% 
   mutate(begin.end = if_else(begin.end == "treat_begin_date", "begin", "end")) %>% 
   filter((treat_begin == "knows" & begin.end == "begin") | (treat_end == "knows" & begin.end == "end")) %>% 
   ggplot(aes(day)) +
   geom_histogram(aes(fill = begin.end), alpha = 0.75,  binwidth = 2, position = "identity") +
-  scale_x_date(date_breaks = "4 weeks", date_minor_breaks = "1 week", limits = c(as_date("2016-09-05"), as_date("2016-11-28"))) +
-  facet_wrap(~ wave, scales = "free_x") +
-  labs(title = "When does MDA begin?", x = "") +
+  geom_vline(aes(xintercept = day), linetype = "dotted", data = wave.dates) +
+  # scale_x_date(breaks = c(day1.wave1, day12.wave1, day1.wave2, day12.wave2)) + 
+  scale_x_date("", date_breaks = "4 weeks", date_minor_breaks = "1 week", limits = c(as_date("2016-09-05"), as_date("2016-11-28"))) +
+  scale_y_continuous("") +
+  scale_fill_discrete("", labels = c("Begin Date", "End Date")) +
+  facet_wrap(~ wave, scales = "free_x", labeller = as_labeller(. %>% sprintf("Wave %s", .))) +
+  labs(title = "When did the MDA begin and end?", caption = "Dotted vertical lines identify correct MDA start and end days.") +
   theme(legend.position = "bottom")
 ```
+
+```{r, fig.width=10, fig.height=6}
+plot(mda.dates.dist.plot)
+```
+
 ```{r}
 endline.data %>% 
   select(treat_days) %>% 
@@ -538,53 +559,56 @@ analysis.data %>%
 
 ## Self-reported Preferences (Endline)
 
-```{r reported-gift-pref, fig.width=8}
-analysis.data %>% 
+```{r reported-gift-pref}
+reported.gift.pref.plot <- analysis.data %>% 
   plot.pref.unfaceted() +
   facet_wrap(~ assigned.treatment, nrow = 1) 
 ```
 
-```{r reported-gift-pref-deworm, fig.width=8}
-analysis.data %>% 
+```{r, fig.width=8}
+plot(reported.gift.pref.plot)
+```
+ 
+```{r reported-gift-pref-deworm}
+reported.gift.pref.dewormed.plot <- analysis.data %>% 
   mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed")) %>% 
   plot.pref.unfaceted("dewormed.any") +
   facet_grid(dewormed.any ~ assigned.treatment)
 ```
 
 ```{r, fig.width=8}
-analysis.data %>% 
-  filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(hh_cal), assigned.treatment == "calendar") %>% 
+plot(reported.gift.pref.dewormed.plot)
+```
+
+```{r other-incentive-plot}
+other.have.incentive.plot <- analysis.data %>% 
+  filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(hh_cal) | !is.na(hh_bracelet), 
+         assigned.treatment %in% c("calendar", "bracelet")) %>% 
+  gather(hh.incentive, hh_switch, hh_cal, hh_bracelet) %>% 
+  filter(!is.na(hh_switch)) %>% 
   mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
-         hh_cal = fct_recode(hh_cal, "Other in household got calendar" = "yes", "No one else got calendar" = "no")) %>%
-  group_by(dewormed.any, hh_cal) %>% 
+         assigned.treatment = fct_relabel(assigned.treatment, . %>% paste("arm")),
+         hh_switch = fct_recode(hh_switch, "Other in household got calendar" = "yes", "No one else got calendar" = "no")) %>%
+  group_by(dewormed.any, assigned.treatment, hh_switch) %>% 
   mutate(arm.size = n()) %>% 
   group_by(gift_choice, add = TRUE) %>%
   summarize(pref.prop = n() / first(arm.size)) %>% 
-  ungroup %>% 
+  ungroup %>%
+  mutate_at(vars(gift_choice, assigned.treatment), funs(fct_relabel(., str_to_title))) %>% 
   ggplot(aes(gift_choice, pref.prop)) +
-  geom_col(alpha = 0.5, color = "black") +
+  geom_col(aes(fill = assigned.treatment), position = "dodge", alpha = 0.5, color = alpha("black", 0.5)) +
+  scale_fill_discrete("") +
   labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
-       subtitle = "Split by whether household has other calendar(s) and deworming take-up", caption = "This is only for the calendar arm of the experiment") +
-  facet_grid(dewormed.any ~ hh_cal)
+       subtitle = "Split by whether household has other calendar(s) and deworming take-up") +
+  facet_grid(dewormed.any ~ assigned.treatment + hh_switch) +
+  theme(legend.position = "bottom")
 ```
-The above graph seems to show that conditional on someone in my household having a calendar my desire for a calendar is the same regardless of whether I already have a calendar (i.e. dewormed) or do not have a calendar (i.e. not dewormed). Meaning one of my household members obtaining a calendar is the same as me having a calendar. However, given that overall the calendar is still prefered to the bracelet (see graph before that combines households) since for most households (70$\%$ in data) no one came for deworming, I think we are fine. Ideally, we find a way to control for these negatively correlated preferences in calendars but not sure how exactly.
 
 ```{r, fig.width=8}
-analysis.data %>% 
-  filter(!is.na(gift_choice), monitored, monitor.consent, !is.na(hh_bracelet), !hh.baseline.sample, assigned.treatment == "bracelet") %>% 
-  mutate(dewormed.any = if_else(dewormed.any, "Dewormed", "Not Dewormed"),
-         hh_bracelet = fct_recode(hh_bracelet, "Other in household got bracelet" = "yes", "No one else got bracelet" = "no")) %>%
-  group_by(dewormed.any, hh_bracelet) %>% 
-  mutate(arm.size = n()) %>% 
-  group_by(gift_choice, add = TRUE) %>%
-  summarize(pref.prop = n() / first(arm.size)) %>% 
-  ungroup %>% 
-  ggplot(aes(gift_choice, pref.prop)) +
-  geom_col(alpha = 0.5, color = "black") +
-  labs(x = "Gift", y = "Preferred Proportion", title = "Endline Gift Preference", 
-       subtitle = "Split by whether household has other bracelet(s) and deworming take-up", caption = "This is only for the bracelet arm of the experiment") +
-  facet_grid(dewormed.any ~ hh_bracelet)
+plot(other.have.incentive.plot)
 ```
+
+The above graph seems to show that conditional on someone in my household having a calendar my desire for a calendar is the same regardless of whether I already have a calendar (i.e. dewormed) or do not have a calendar (i.e. not dewormed). Meaning one of my household members obtaining a calendar is the same as me having a calendar. However, given that overall the calendar is still prefered to the bracelet (see graph before that combines households) since for most households (70$\%$ in data) no one came for deworming, I think we are fine. Ideally, we find a way to control for these negatively correlated preferences in calendars but not sure how exactly.
 
 Irrespective of whether you have come for deworming or not, or whether someone else has come for deworming in your households and received a bracelet, you still prefer the calendar. People just did not really like the bracelets! If you did not come for deworming you value a bracelet the same regardless of whether no one else in your household has a bracelet or someone else has a bracelet. There is no evidence for a complementarity or substitution here. 
 
@@ -627,14 +651,19 @@ analysis.data %>%
 
 ## Willing-to-Pay Survey
 
-```{r first-choice-wtp, fig.height=4}
-wtp.data %>% 
+```{r first-choice-wtp}
+first.choice.wtp.plot <- wtp.data %>% 
   filter(!is.na(first_choice)) %>% 
   ggplot() +
   geom_bar(aes(fct_relabel(first_choice, str_to_title), y = ..count../sum(..count..)), alpha = 0.5) +
-  labs(x = "First Choice", y = "Proportion", title = "First Choice When Offered Calendars or Bracelets", 
+  labs(x = "First Choice", title = "First Choice When Offered Calendars or Bracelets", 
        caption = "This data is for the control arm only.") +
+  scale_y_continuous("Proportion", breaks = seq(0, 1, 0.1)) +
   coord_flip()
+```
+
+```{r, fig.height=2, fig.width=8}
+plot(first.choice.wtp.plot)
 ```
 
 ```{r}
@@ -645,9 +674,9 @@ wtp.data %>%
 ```
 
 ```{r switch-price-wtp}
-wtp.data %>% 
+switch.price.plot <- wtp.data %>% 
   filter(!is.na(first_choice)) %>%
-  mutate(first_choice = fct_relabel(first_choice, str_to_title)) %>% 
+  mutate(first_choice = fct_relabel(first_choice, str_to_title) %>% fct_relevel("Calendar")) %>% 
   group_by(first_choice, price) %>% 
   summarize(prop.switch = sum(second_choice == "switch")/n()) %>% 
   ungroup %>% 
@@ -657,6 +686,10 @@ wtp.data %>%
   scale_color_discrete("First Choice") +
   labs(x = "Offered Price (KSh)", y = "Proportion", title = "Proportion Switching From First Choice of Gift When Offered Cash",
        caption = "This data is for the control arm only.")
+```
+
+```{r}
+plot(switch.price.plot)
 ```
 
 ## Estimate utility difference Calendar Bracelet 
@@ -689,6 +722,34 @@ ggplot(wtp.cdf, aes(x=price,y=tot_pr)) +
 ```
 
 Note: -60 KSH is a problem of small sample in bracelet choice group. should not observe 100 percent switching. Median u diff approx. KSH 40. Next step: fit CDF through LPM incl. possibly interaction terms. 
+
+```{r, eval=FALSE}
+wtp.data %>%
+  select(first_choice, second_choice, price) %>%
+  filter(!is.na(first_choice)) %>% 
+  mutate(choice.calendar = first_choice == if_else(second_choice == "keep", "calendar", "bracelet"),
+         price = (1 - 2 * (first_choice == "calendar")) * price) %>% 
+  bind_rows(mutate(., 
+                      choice.calendar = first_choice == "calendar",
+                      price = 0)) %>% 
+  group_by(price) %>% 
+  summarize(prop.pref.calendar = mean(choice.calendar),
+            price.prop = n() / nrow(.)) %>% 
+  ungroup %>%
+  arrange(price) %>% 
+  mutate(cumul.prop.pref.calendar = cumsum(prop.pref.calendar * price.prop) / cumsum(price.prop)) %>% 
+  arrange(desc(price)) %>% 
+  mutate(cumul.prop.pref.bracelet = cumsum((1 - prop.pref.calendar) * price.prop) / cumsum(price.prop)) %>% 
+  gather(ref.incentive, cumul.prop.pref, cumul.prop.pref.bracelet, cumul.prop.pref.calendar) %>% 
+  # mutate(#price = (1 - 2 * (ref.incentive == "cumul.prop.pref.bracelet")) * price,
+  #        cumul.prop.pref = if_else(ref.incentive == "cumul.prop.pref.bracelet", 1 - cumul.prop.pref, cumul.prop.pref)) %>% 
+  ggplot(aes(factor(price), cumul.prop.pref, group = ref.incentive)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(breaks = seq(0, 1, 0.05)) +
+  labs(x = "Offered Price (KSh)", y = "Proportion", title = "Proportion Switching From First Choice of Gift When Offered Cash",
+       caption = "This data is for the control arm only.")
+```
 
 # Social Knowledge
 

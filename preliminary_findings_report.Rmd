@@ -31,7 +31,7 @@ library(rgeos)
 library(knitr)
 library(sp)
 
-read_chunk(purl("takeup_analysis2.Rmd")) #, labels = c("setup", "load-data", "basic-reg-covar", "sms-reg-covar"))
+read_chunk(purl("takeup_analysis2.Rmd")) 
 
 opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "takeup_prelim-fig/", fig.align = "center", cache = TRUE)
 ```
@@ -41,10 +41,6 @@ opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "ta
 ```
 
 ```{r ggplot-theme, cache=FALSE}
-# theme_set(theme_bw() +
-#             theme(legend.position = "bottom",
-#                   strip.background = element_rect(colour = NA), 
-#                   panel.border = element_blank())) 
 theme_set(theme_minimal() +
             theme(legend.position = "bottom"))
 ```
@@ -434,11 +430,15 @@ grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, when.dewormed.plot, wher
 
 Since the study's main research questions focus on the social impact of signals, incentives and information, we included a number of questions in our surveys to get a clearer picture of how individuals perceive and predict others' deworming choices. Figure \ref{fig:response-other-deworm} shows individuals reporting that their own deworming decisions would not be influenced by others' decisions, as well as having a strong _intention_ to getting dewormed. In addition, as shown in Figure \ref{fig:baseline-deworming-beliefs}, people predicted similar deworming among peers. As we will see below, most people overestimated their own and others' deworming take-up. Finally, when individuals were asked about how others would respond to the use of indelible ink as a signal of deworming treatment, they predicted a positive effect, contrary to what we actually observed. 
 
-```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs"}
+```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs", warning=FALSE}
 ```
 
-```{r survey-of-10-beliefs-boxplot, ref.label="survey-of-10-beliefs-boxplot"}
+```{r survey-of-10-beliefs-boxplot, ref.label="survey-of-10-beliefs-boxplot", warning=FALSE}
 ```
+
+We also inquired about respondents' social perception/judgement of some of others' behaviors (some more observable than others). We wanted to compare attitudes towards deworming and other behaviors such as wearing nice clothes to church, using latrines, and immunizing children. Individuals were presented with difference scenarios and were asked whether they would inspire praise or stigma. Figure \ref{fig:praise-stigma-plot} shows that deworming during the MDA is reported to be as highly praiseworthy as the use of latrines and immunization children, more praise worthy than wearing nice clothes to church. In terms of stigma, failing to get dewormed is slightly lower than open defecation and not immunizating children, but much higher than not wearing nice clothes to church.
+
+To verify that the targeted communities were properly informed about the MDA we asked endline survey respondents a few questions to test their knowledge, presented in Figure \ref{fig:know-about-mda}. Responses indicate good knowledge of the MDA and start and end dates. The majority reported learning about the MDA from CHVs, and few said they were informed by other social contacts such as barazas, churches, family and friends. Posters did not appear to be very successful. Overall, the MDA's informational campaign, spearheaded by CHVs, was successful at reaching most community members.
 
 ```{r praise-stigma, ref.label="praise-stigma"}
 ```
@@ -472,11 +472,14 @@ grid.arrange(other.predict.deworm.plot, survey.takeup.beliefs.10, survey.takeup.
 ```
 
 ```{r praise-stigma-plot, fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
-plot(praise.stigma.plot)
+plot(praise.stigma.plot) 
 ```
 
-```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=4, fig.cap="Knowledge of RCT intervention."}
-tribble(~ col.name,      ~ label,
+```{r mda-dates-dist, ref.label="mda-dates-dist"}
+```
+
+```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=6, fig.cap="Knowledge of RCT intervention."}
+know.mda.cat.plot <- tribble(~ col.name,      ~ label,
         "know_deworm",    "Know about community-based MDA?",
         "treat_begin",    "Know when MDA starts?",
         "treat_end",      "Know when MDA ends?",
@@ -485,19 +488,46 @@ tribble(~ col.name,      ~ label,
         "chv_visit",      "Did a CHV visit you to tell you about MDA?") %>% 
   multi.know.bel.cat.plot(.baseline.data = NULL) +
   scale_y_continuous(breaks = seq(0, 1, 0.1)) 
-```
 
+mda.dates.dist.plot <- mda.dates.dist.plot + theme(legend.position = "right")
+
+grid.arrange(know.mda.cat.plot, mda.dates.dist.plot, layout_matrix = as.matrix(c(1, 1, 1, 2, 2)))
+```
 
 ## Revealed Preferences for Incentives
 
-```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm", fig.cap="Reported Calendar/Bracelet Preferences, split by experiment arm and respondents' deworming take-up."}
+In order to distinguish between the private and social motivation of incentives/signals, we asked endline survey respondents some questions on their preferences for calendars and bracelets, and separately conducted a [willingness-to-pay survey](#willingness-to-pay-survey-sample) in the control arm. The identification challenge for us is separating between 
+
+a) _private valuation_, individuals like it for its intrinsic value, and 
+b) _social valuation_, individuals are affected by braclets either because they they want to broadcast their deworming or are receiving information on observing others deworming.
+
+Figure \ref{fig:gift-plots} reports which incentive (bracelet or calendar) individuals preferred as a gift during the endline survey. Calendars are typically preferred by all except for those already dewormed or live in the same household as someone who already received a calendar (in the calendar treatment arm). Similarly, in the willingness-to-pay survey, we found that the majority of individuals preferred calendars to bracelets (Figure \ref{fig:wtp-plots}). Therefore, we are not concerned that bracelets could have influenced take-up only as a consumption good. 
+
+```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm"}
 ```
 
-```{r first-choice-wtp, ref.label="first-choice-wtp", fig.height=1.5, fig.cap="First choice of incentive in willingness-to-pay survey."}
+
+```{r other-incentive-plot, ref.label="other-incentive-plot"}
 ```
 
-```{r switch-price-wtp, ref.label="switch-price-wtp", fig.cap="Price at which individuals are willing to switch gift choice."}
+```{r first-choice-wtp, ref.label="first-choice-wtp"}
 ```
+
+```{r switch-price-wtp, ref.label="switch-price-wtp"}
+```
+
+```{r gift-plots, fig.height=7, fig.width=9, fig.cap="Reported calendar/bracelet preferences, split by experiment arm and respondents' deworming take-up."}
+grid.arrange(reported.gift.pref.dewormed.plot, other.have.incentive.plot, 
+             layout_matrix = as.matrix(c(1, 1, 2, 2, 2)))
+```
+
+```{r wtp-plots, fig.width=8, fig.cap="Willingness-to-pay survey responses."}
+switch.price.plot <- switch.price.plot + theme(legend.position = "right")
+
+grid.arrange(first.choice.wtp.plot, switch.price.plot, 
+             layout_matrix = as.matrix(c(1, 1, 2, 2, 2, 2, 2))) 
+```
+
 
 # Analysis
 
@@ -534,7 +564,7 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 ```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar"}
 ```
 
-```{r reg-tab-data}
+```{r reg-tab-data, include=FALSE}
 reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl, 
                        "Endline, No SMS" = reg.output.sms.ctrl.covar) %>% 
   map_df(function(reg.res) {
@@ -736,7 +766,7 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
   }, .id = "spec") 
 ```
 
-```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis", cache=FALSE}
+```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(reg.table.data, caption = "Incentive/signal treatment effects, without SMS treatment.")
 
 print.reg.table(dist.reg.table.data, 
@@ -753,19 +783,17 @@ dist.sms.reg.table.data %>%
 ```
 
 ```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
-prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% {
-  plot.sms.treat.takeup(.) +
-    labs(subtitle = "With Controls") 
-} 
+prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% 
+  plot.sms.treat.takeup +
+  labs(subtitle = "With Controls") 
 ```
 
 
 ```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions."}
-prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
-  plot.sms.treat.takeup(.) +
-    facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
-    labs(subtitle = "Split by distance to treatment location, with controls")
-}
+prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% 
+  plot.sms.treat.takeup +
+  facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
+  labs(subtitle = "Split by distance to treatment location, with controls")
 ```
 
 # Cost-effectiveness

@@ -352,7 +352,6 @@ multi.know.bel.cat.plot <- function(question.info,
 
 plot.pref.unfaceted <- function(.data, .second.group.by = NULL) {
   .data %>% 
-# analysis.data %>% 
     filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(sms.treatment)) %>% 
     group_by_(.dots = c("assigned.treatment", .second.group.by)) %>% 
     mutate(arm.size = n()) %>% 
@@ -614,7 +613,7 @@ print.reg.table <- function(.reg.table.data, caption = "", font.size = "footnote
               funs(fct_relabel(., function(.label) str_replace_all(.label, c(":" = " [x] ", "\\." = " ")) %>% 
                                  str_to_title %>% 
                                  str_replace_all(fixed("[X]"), "$\\times$")))) %>% 
-    right_join(modelr::data_grid(., spec, ref.type, term)) 
+    right_join(modelr::data_grid(., spec, ref.type, term), c("spec", "ref.type", "term")) 
   
   total.num.cols <- sum(.reg.table.data$num.col)
  
