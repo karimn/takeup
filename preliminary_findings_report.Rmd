@@ -3,7 +3,7 @@ title: |
     | Evidence from a Field Experiment in Kenya
     | The Role of Social Signaling in Community Mass Deworming:
 subtitle: "Preliminary Findings -- Do Not Distribute"
-date: "March 2017"
+date: "April 2017"
 author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`]
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
@@ -167,7 +167,7 @@ ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "st
 
 After all clusters were selected, we randomly assigned (stratified within counties) each cluster to be either a "close" or "far" cluster: whether its targeted village would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its nonoverlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted village^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan [@Karing2016].]. Figures \ref{fig:dist-to-pot} and \ref{fig:marginal-dist-to-other-pot} show the distribution of cluster distance to treatment locations and to other clusters. 
 
-```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Distance to Treatment Locations"}
+```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=3, fig.cap="Distance to Treatment Locations"}
 verify.vill.pot.dist %>% 
   select(dist.to.own.pot, closest.other) %>% 
   gather(dist.type, dist) %>% {
@@ -179,7 +179,7 @@ verify.vill.pot.dist %>%
 }
 ```
 
-```{r dist-to-other-pot, fig.width=6, fig.height=4, fig.cap="Distance to Closest Other Point-of-Treatment", eval=FALSE}
+```{r dist-to-other-pot, fig.width=6, fig.height=2, fig.cap="Distance to Closest Other Point-of-Treatment", eval=FALSE}
 verify.vill.pot.dist %>% { 
   ggplot(.) +
     geom_histogram(aes(closest.other), binwidth = 2500/4, boundary = 0, alpha = 0.5, color = "black") + 
@@ -188,7 +188,7 @@ verify.vill.pot.dist %>% {
 } 
 ```
 
-```{r marginal-dist-to-other-pot, fig.height=3, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
+```{r marginal-dist-to-other-pot, fig.height=2.5, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
 verify.vill.pot.dist %>% 
   mutate(marginal.dist = closest.other - dist.to.own.pot,
          dist.to.own.pot.cat = cut(dist.to.own.pot, 
@@ -346,6 +346,24 @@ analysis.data %>%
   scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
   scale_linetype_discrete("Distance From") +
   facet_wrap(~ assigned.treatment)
+```
+
+```{r mean-assigned-dist, warning=FALSE}
+analysis.data %>%  
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% {
+    bind_rows(group_by(., assigned.treatment, dist.pot.group) %>%
+                summarize(mean.dist = mean(dist.to.pot)) %>%
+                ungroup,
+              group_by(., dist.pot.group) %>% 
+                summarize(mean.dist = mean(dist.to.pot), assigned.treatment = "(All)") %>% 
+                ungroup)
+  } %>% 
+  spread(dist.pot.group, mean.dist) %>% 
+  mutate(mean.dist.diff = far - close) %>% 
+  kable(col.names = c("Arm", "Close", "Far", "Mean Difference"), 
+        caption = "Mean Distance to Treatment Location (meters)",
+        format = "latex", align = "lccc", booktabs = TRUE, longtable = FALSE, format.args = list(big.mark = ",")) 
 ```
 
 Figure \ref{fig:know-believe-categorical-responses} presents individuals' responses to some of the baseline and endline survey questions. Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the understanding of who is at risk of worm infection. More people are reporting after the intervention the belief that everyone is at risk of worm infection, compared to before. Surprisingly, there seems to be a decrease in the understanding that individuals can infection one another.
@@ -528,15 +546,30 @@ grid.arrange(first.choice.wtp.plot, switch.price.plot,
              layout_matrix = as.matrix(c(1, 1, 2, 2, 2, 2, 2))) 
 ```
 
-
 # Analysis
 
-```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive/signal treatments."}
-prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
-  plot.sms.ctrl.takeup(.) +
-    labs(subtitle = "With control")
-}
-```
+In this section we conduct a reduced form regression analysis in order identify the causal impact of cluster assigned incentive/signal treatment; cluster assigned distance to treatment location; and individually assigned SMS reminder and information treatment. We use the regression approach proposed by @Imbens2015 to analyze stratified experiments:
+
+\begin{equation*}
+Y_{ij} = m_K(Z_j, D_j, M_{ij}, B_j, X_{ij};\theta_K) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k=1}^{K-1} m_k(Z_j, D_j, M_{ij}, B_j, X_{ij};\theta_k) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij},
+\end{equation*}
+where the stratum specific model is
+\begin{align*}
+m_k(Z_j, D_j, M_{ij}, B_j; \theta) &= \alpha_k + X_{ij}\cdot \beta_k + \delta_k \cdot D_j \\
+&+ \sum_{z \in \mathcal{Z}\setminus \{control\}} Z_{j}(z) \cdot \left\{\tau_k(z) + \lambda_k(z) \cdot D_j + \sum_{s \in \mathcal{M}\setminus \{none\}} M_{ij}(s) \cdot \left[ \gamma_k(z, s) + \rho_k(z, s) \cdot D_j \right] \right\} \\ 
+&+ \sum_{s\in\mathcal{M}\setminus \{none\}}  M_{ij}(s) \left\{\psi_k(s) + \pi_k(s) \cdot D_j \right\}  
+\end{align*}
+
+* $i$ indexes individuals, $j$ clusters
+* $Z_j \in \mathcal{Z} = \{ control, ink, calendar, bracelet \}$
+* $M_{ij} \in \mathcal{M} = \{ none, reminders, socialinfo \}$
+* $Z_{j}(z) = \mathbf{1}\{Z_j = z\}$ is an indicator for whether cluster $j$ was assigned treatment $z$.
+* $B_{j}(k) = \mathbf{1}\{B_j = k\}$ is an indicator for whether cluster $j$ is in stratum $k$.
+* $X_{ij}$ is a vector of covariates
+* $N(k)$ is the size of stratum $k$.
+* $N$ is the total number of observations
+
+A typical parameter $\theta_k(z, s)$ captures the effect of $Z_j = z$ and $M_{ij} = s$ in stratum $k$. The super-population average treatment effects are estimated by the stratum $K$ parameters. Since this is linear probability model, average treatment effects are interpreted as the change in an individual's probability of deworming (or the proportion of the super-population doing so).
 
 ```{r basic-reg, ref.label="basic-reg"}
 ```
@@ -545,14 +578,6 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
 ```
 
 ```{r dist-reg-covar, ref.label="dist-reg-covar"}
-```
-
-```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive/signal treatments with distance from treatment location interactions."}
-prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
-  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
-  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
-    labs(subtitle = "With controls") 
-  }
 ```
 
 ```{r sms-reg, ref.label="sms-reg"}
@@ -766,12 +791,43 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
   }, .id = "spec") 
 ```
 
-```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(reg.table.data, caption = "Incentive/signal treatment effects, without SMS treatment.")
+We will report results for four specifications identifying:
 
+1. The average treatment effects of incentives/signals on deworming take-up, excluding individuals assigned to any SMS treatment
+2. The average treatment effects of incentives/signals and distance to treatment location on deworming take-up, excluding individuals assigned to any SMS treatment
+3. The average treatment effects of incentives/signals and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
+4. The average treatment effects of incentives/signals, distance to treatment location and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
+
+For each specification we present a table with point estimates and their standard errors, $P$-values for tests of joint significance, other regression related information, as well as a plot showing take-up rates and 90\% confidence intervals for tests of significance against the reference treatment, for the regression controlling for covariates. The number of clusters included in each specification vary because we dropped outlier clusters.
+
+The first results we look at are reported in Table \ref{tab:reg-basic} and Figure \ref{fig:reg-basic-covar-plot}. The impact of incentives/signals appears to be progressively stronger going from ink, calendars, to bracelets. Bracelets' impact is statistically significant compared to the control and calendar arms: bracelets increase the probability of take-up by 8 to 12 percentage points, with a baseline level of 37 to 34 percent take-up. Evidence on the preference for calendars over bracelets and the statistical significance between the impact of calendar and bracelets, lead us to conclude that bracelets did not prove effective solely as a private incentive.
+
+```{r reg-basic-table, results="asis", cache=FALSE, warning=FALSE}
+print.reg.table(reg.table.data, caption = "Incentive/signal treatment effects, without SMS treatment.", label = "tab:reg-basic")
+```
+
+```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive/signal treatments."}
+prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% 
+  plot.sms.ctrl.takeup +
+  labs(subtitle = "With control")
+```
+
+To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive/signal treatment with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, see that distance has strong negative effect on take-up, dropping 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also not a big change in the impact of incentives/signals: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm.
+
+```{r reg-dist-table, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(dist.reg.table.data, 
-                caption = "Incentive/signal treatment effects, split by assigned distance to treatment location, without SMS treatment.")
+                caption = "Incentive/signal treatment effects, split by assigned distance to treatment location, without SMS treatment.",
+                label = "tab:reg-dist")
+```
 
+```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive/signal treatments with distance from treatment location interactions."}
+prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% 
+  plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) +
+  labs(subtitle = "With controls") 
+```
+
+```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(sms.reg.table.data, 
                 caption = "Incentive/signal treatment and SMS treatment effects.", 
                 font.size = "footnotesize", estimate.buffer = FALSE, landscape = TRUE)

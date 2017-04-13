@@ -555,6 +555,7 @@ analysis.data %>%
   facet_wrap(~ assigned.treatment)
 ```
 
+
 # Incentive Preferences
 
 ## Self-reported Preferences (Endline)
@@ -860,6 +861,7 @@ Y_{ij} = \left(m(Z_j, B_j;\theta) + l(B_j;\theta^c) + X_{ij} \cdot \beta \right)
 $$
 
 * $i$ indexes individuals, $j$ clusters
+* $Z_j \in \mathcal{Z} = \{ control, ink, calendar, bracelet \}$
 * $Z_{j}(z) = \mathbf{1}\{Z_j = z\}$ is an indicator for whether cluster $j$ was assigned treatment $z$.
 * $B_{j}(k) = \mathbf{1}\{B_j = k\}$ is an indicator for whether cluster $j$ is in stratum $k$.
 * $X_{ij}$ is a vector of covariates
