@@ -593,7 +593,8 @@ incentive.treat.barplot <- function(.data) {
 
 # Table Generators --------------------------------------------------------
 
-print.reg.table <- function(.reg.table.data, caption = "", font.size = "footnotesize", estimate.buffer = TRUE, landscape = FALSE) {
+print.reg.table <- function(.reg.table.data, 
+                            caption = "", label = "", font.size = "footnotesize", estimate.buffer = TRUE, landscape = FALSE) {
   pval.stars <- . %>% 
     symnum(cutpoints = c(0, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ""))
   
@@ -623,21 +624,22 @@ print.reg.table <- function(.reg.table.data, caption = "", font.size = "footnote
     str_c(collapse = " ") %>% 
     str_c(if_else(estimate.buffer, "\\\\\n", "\n"), collapse = " ")
   
-  cat(sprintf("%s\\begin{table}\\centering\\%s%s\n", 
+  cat(sprintf("%s\\begin{table}\\centering\\%s%s%s\n", 
               if_else(landscape, "\\begin{landscape}", ""), 
               font.size,
-              if_else(nchar(caption) > 0, sprintf("\\caption{%s}", caption), "")))
+              if_else(nchar(caption) > 0, sprintf("\\caption{%s}", caption), ""),
+              if_else(nchar(label) > 0, sprintf("\\label{%s}", label), "")))
   cat("\\begin{threeparttable}\n")
   cat(sprintf("\\begin{tabular}{l*{%d}{c}}\n", total.num.cols))
   cat("\\toprule\n")
   cat(paste(sprintf("& (%d)", seq_len(total.num.cols)), collapse = " "))
   cat("\\\\\n")
   
-  cat(paste(.reg.table.data %$% 
-              map2(spec, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%s}", .y, .x)) %>% 
+  cat(paste("\\emph{Treatment Cell} ", 
+            .reg.table.data %$% map2(spec, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%s}", .y, .x)) %>% 
               str_c(collapse = " "),
             "\\\\\n", collapse = " "))
-  
+ 
   cat(cmidrules)
   
   d_ply(all.pt.est, .(term), function(term.rows) {
@@ -728,7 +730,7 @@ print.reg.table <- function(.reg.table.data, caption = "", font.size = "footnote
   cat("\\end{tabular}\n")
   cat("\\begin{tablenotes}\\footnotesize\n")
  
-  c("Reported analysis is from a stratified linear probability model regression. Highlighted cells identify the reference take-up level against which average treatment effects are reported. Standard errors computed using cluster robust Huber-White estimators are reported in parentheses under estimates.",
+  c("Reported analysis is from a stratified linear probability model regression. Highlighted cells identify the reference take-up level against which average treatment effects are reported. Each row reports the reference level or average treatment effect in a particular treatment cell. Standard errors computed using cluster robust Huber-White estimators are reported in parentheses under estimates.",
     "Endline survey samples control for ethnicity, gender, age, schooling, material of household floor, and mobile phone ownership.",
     "${}^{***}: P < 0.01, {}^{**}: P < 0.05, {}^*: P < 0.1$") %>% 
     walk(~ cat(sprintf("\\item %s\n", .)))
