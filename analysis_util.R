@@ -92,9 +92,18 @@ base.prepare.baseline.endline.data <- function(.data) { #, .census.data, .cluste
                                      labels = c("wash hands", "wearing shoes", "using toilets", "drink clean water", "medicine", "clean home")),
            when_treat = multi.factor(when_treat, 
                                      labels = c("every week", "every month", "every 2 months", "every 3 months", "every 6 months", 
-                                                "every year", "never", "when symptoms", "hw says"))) %>% 
+                                                "every year", "never", "when symptoms", "hw says")),
+           have_phone = factor(have_phone, levels = 0:1, labels = c("No", "Yes")),
+           school = factor(school,
+                           levels = c(1:15, 99, 97),
+                           labels = c("Never gone to school", paste("Primary", 1:8), paste("Secondary", 1:4), "College", "University", "Other", "Prefer Not to Say")),
+           floor = factor(floor, levels = c(1:3, 99, 97), labels = c("Cement", "Earth", "Tiles", "Other", "Prefer Not to Say")),
+           ethnicity = factor(ethnicity, levels = c(1:7, 99, 97),
+                              labels = c("Luo", "Luhya", "Kisii", "Kalengin", "Kikukyu", "Kamba", "Iteso", "Other", "Prefer Not to Say"))) %>% 
     mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
-    mutate_at(vars(spread_worms), yes.no.factor) 
+    mutate_at(vars(spread_worms), yes.no.factor) %>% 
+    mutate_at(vars(school, floor, ethnicity), funs(recode_factor(., "Other" = NA_character_, "Prefer Not to Say" = NA_character_) %>% 
+                                                     fct_drop)) 
 }
 
 prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
@@ -274,7 +283,6 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
    }
 }
 
-
 # Plotting code -----------------------------------------------------------
 
 know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
@@ -306,32 +314,36 @@ know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data
 multi.know.bel.cat.plot <- function(question.info, 
                                     .baseline.data = baseline.data, 
                                     .endline.data = endline.data, 
+                                    .census.data = NULL,
                                     na.rm = FALSE, 
                                     preprocess.fun = function(.data) .data) {
   stopifnot(is.data.frame(question.info))
   
-  list(Baseline = .baseline.data, Endline = .endline.data) %>% 
+  list(Census = .census.data, 
+       Baseline = .baseline.data %>% { if (!empty(.)) mutate(., KEY.individ = KEY) else return(.) }, 
+       Endline = .endline.data) %>% 
     compact %>% 
-    map_df(select_, .dots = c(question.info$col.name, "KEY"), .id = "survey.type") %>% 
+    map_df(~ select_(.x, .dots = c(intersect(names(.x), question.info$col.name), "KEY.individ")), .id = "survey.type") %>% 
     map_df(question.info$col.name, 
            function(.col.name, .data) {
              .data %>% 
-               unnest_(.col.name) %>% { 
-                 if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
-               } %>% 
+               unnest_(.col.name) %>% {
+                 if(na.rm) filter_(., sprintf("!is.na(%s)", .col.name)) else return(.)
+               } %>%
                group_by(survey.type) %>% 
-               do(mutate(count_(., c("survey.type", .col.name)), n = n/n_distinct(.$KEY))) %>% 
+               do(mutate(count_(., c("survey.type", .col.name)), n = n/n_distinct(.$KEY.individ))) %>% 
                ungroup %>% 
                rename_(response = .col.name) %>% 
                mutate(question = .col.name)
            },
-           .data = .) %>% 
+         .data = .) %>% 
     mutate(question = factor(question, levels = question.info$col.name, labels = question.info$label),
            response = fct_recode(response, "Don't Know" = "DK") %>% 
              fct_relabel(str_to_title) %>% 
              fct_relabel(function(.label) str_replace(.label, "Chv", "CHV")) %>% 
              fct_reorder(n)) %>%
-    preprocess.fun %>% { 
+    preprocess.fun %>%
+    mutate(survey.type = fct_relevel(survey.type, "Census", "Baseline", "Endline")) %>% { 
       if (n_distinct(.$survey.type) > 1) {
         ggplot(., aes(x = response, n, fill = survey.type)) +
           scale_fill_discrete("") 
@@ -340,7 +352,7 @@ multi.know.bel.cat.plot <- function(question.info,
       }
     } %>% {
       . +
-        geom_col(position = "dodge", alpha = 0.5) +
+        geom_col(position = "dodge", alpha = 0.5, na.rm = na.rm) +
         coord_flip() +
         labs(x = "", y = "Proportion") 
     } %>% {
