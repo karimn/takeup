@@ -382,6 +382,19 @@ tribble(~ col.name,      ~ label,
   scale_y_continuous(breaks = seq(0, 1, 0.1)) 
 ```
 
+```{r general-desc-stats, fig.width=8, fig.height=5, warning=FALSE, fig.cap="Study population summary statistics"}
+tribble(~ col.name,       ~ label,
+        "gender",         "Gender",
+        "ethnicity",      "Ethnicity",
+        "school",         "Schooling",
+        "floor",          "Home floor construction",
+        "have_phone",     "Own mobile phone?") %>%
+  multi.know.bel.cat.plot(.census.data = census.data %>% mutate(gender = factor(gender, levels = 1:2, labels = c("Male", "Female"))),
+                          preprocess.fun = . %>% mutate(response = fct_relevel(response, rev(levels(baseline.data$school)))),
+                          na.rm = TRUE)
+
+```
+
 Figure \ref{fig:dewormed-history} presents individuals' reported deworming history, prior to the intervention. Unsurprisingly, the majority of respondents said that children in their families have been previously dewormed, and the most common location for treatment for their family members had been during the annual school-based MDA. We also see that almost two of adults had been previously dewormed. However, more than half of those reporting prior treatment, were treated over two years ago. Furthermore, most adults reported getting dewormed at a hospital/clinic or purchased medication.
 
 ```{r dewormed-history, fig.width=8, fig.height=9, fig.cap="Deworming history."}
@@ -504,7 +517,7 @@ know.mda.cat.plot <- tribble(~ col.name,      ~ label,
         "days_available", "Know length of MDA?",
         "find_out",       "From whom or how did you learn about the MDA?",
         "chv_visit",      "Did a CHV visit you to tell you about MDA?") %>% 
-  multi.know.bel.cat.plot(.baseline.data = NULL) +
+  multi.know.bel.cat.plot(.baseline.data = NULL, .census.data = NULL) +
   scale_y_continuous(breaks = seq(0, 1, 0.1)) 
 
 mda.dates.dist.plot <- mda.dates.dist.plot + theme(legend.position = "right")
@@ -800,7 +813,7 @@ We will report results for four specifications identifying:
 
 For each specification we present a table with point estimates and their standard errors, $P$-values for tests of joint significance, other regression related information, as well as a plot showing take-up rates and 90\% confidence intervals for tests of significance against the reference treatment, for the regression controlling for covariates. The number of clusters included in each specification vary because we dropped outlier clusters.
 
-The first results we look at are reported in Table \ref{tab:reg-basic} and Figure \ref{fig:reg-basic-covar-plot}. The impact of incentives/signals appears to be progressively stronger going from ink, calendars, to bracelets. Bracelets' impact is statistically significant compared to the control and calendar arms: bracelets increase the probability of take-up by 8 to 12 percentage points, with a baseline level of 37 to 34 percent take-up. Evidence on the preference for calendars over bracelets and the statistical significance between the impact of calendar and bracelets, lead us to conclude that bracelets did not prove effective solely as a private incentive.
+The first results we look at are reported in Table \ref{tab:reg-basic} and Figure \ref{fig:reg-basic-covar-plot}. The impact of incentives/signals appears to be progressively stronger going from ink, calendars, to bracelets. Bracelets' impact is statistically significant compared to the control and calendar arms: bracelets increase the probability of take-up by 8 to 12 percentage points, with a baseline level of between 37 to 34 percent take-up. Evidence on the preference for calendars over bracelets and the statistical significance between the impact of calendar and bracelets, lead us to conclude that bracelets did not prove effective solely as a private incentive.
 
 ```{r reg-basic-table, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(reg.table.data, caption = "Incentive/signal treatment effects, without SMS treatment.", label = "tab:reg-basic")
@@ -812,7 +825,11 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>%
   labs(subtitle = "With control")
 ```
 
-To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive/signal treatment with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, see that distance has strong negative effect on take-up, dropping 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also not a big change in the impact of incentives/signals: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm.
+To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive/signal treatment with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, see that distance has strong negative effect on take-up, dropping between 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also not a big change in the impact of incentives/signals: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm. The pattern of incentives/signals' impact, compared to the control arm, is similar across specification, although only the bracelets have a statistically significant impact, in _far_ communities: between 11 and 17 percentage points change, compared to the control arm, and between 9 and 12 percentage points change compared to the calendar arm. 
+
+The following two specifications considered, we consider the impact of SMS reminders and informational messages, combined with incentive/signal treatment. Hence, we limit our analysis to the population of phone owners.
+
+
 
 ```{r reg-dist-table, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(dist.reg.table.data, 
