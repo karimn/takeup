@@ -60,7 +60,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
-    left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, any.sms.reported, gift_choice,
+    left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice,
                      hh_cal, cal_value, hh_bracelet, number_bracelet), "KEY.individ") %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.)))
@@ -103,7 +103,8 @@ base.prepare.baseline.endline.data <- function(.data) { #, .census.data, .cluste
     mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
     mutate_at(vars(spread_worms), yes.no.factor) %>% 
     mutate_at(vars(school, floor, ethnicity), funs(recode_factor(., "Other" = NA_character_, "Prefer Not to Say" = NA_character_) %>% 
-                                                     fct_drop)) 
+                                                     fct_drop)) %>% 
+    mutate(ethnicity2 = fct_lump(ethnicity, other_level = "Other Ethnicities", prop = 0.05))
 }
 
 prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
@@ -605,11 +606,11 @@ incentive.treat.barplot <- function(.data) {
 
 # Table Generators --------------------------------------------------------
 
+pval.stars <- . %>% 
+  symnum(cutpoints = c(0, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ""))
+
 print.reg.table <- function(.reg.table.data, 
                             caption = "", label = "", font.size = "footnotesize", estimate.buffer = TRUE, landscape = FALSE) {
-  pval.stars <- . %>% 
-    symnum(cutpoints = c(0, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ""))
-  
   all.pt.est <- .reg.table.data %>% 
     select(spec, num.col, pt.est) %>% 
     mutate(spec = forcats::as_factor(spec)) %>% 
@@ -752,3 +753,67 @@ print.reg.table <- function(.reg.table.data,
   cat(sprintf("\\end{table}%s\n", if_else(landscape, "\\end{landscape}", "")))
 }
 
+print.sms.interact.table <- function(.reg.table.data,
+                                     caption = "", label = "", font.size = "footnotesize", estimate.buffer = TRUE, landscape = FALSE) {
+  all.pt.est <- .reg.table.data %>% 
+    bind_rows(.id = "spec") %>% 
+    mutate(index = seq_len(n())) %>% 
+    right_join(modelr::data_grid(., spec, linear.test), c("spec", "linear.test")) %>% 
+    mutate_at(vars(linear.test), 
+              funs(str_replace_all(., c(":" = " <x> ", "\\." = " ")) %>% 
+                     str_to_title %>% 
+                     str_replace_all(c("<X>" = "$\\\\times$",
+                                       "([-\\+=])" = "$\\1$")))) %>% 
+    arrange(index) %>% 
+    mutate_at(vars(spec, linear.test), funs(. %>% forcats::as_factor())) %>% 
+    select(-index)
+  
+  total.num.cols <- length(.reg.table.data) * 1
+  
+  cat(sprintf("%s\\begin{table}\\centering\\%s%s%s\n", 
+              if_else(landscape, "\\begin{landscape}", ""), 
+              font.size,
+              if_else(nchar(caption) > 0, sprintf("\\caption{%s}", caption), ""),
+              if_else(nchar(label) > 0, sprintf("\\label{%s}", label), "")))
+  cat("\\begin{threeparttable}\n")
+  cat(sprintf("\\begin{tabular}{l*{%d}{c}}\n", total.num.cols))
+  cat("\\toprule\n")
+  
+  all.pt.est %$% map_chr(unique(spec), ~ sprintf("& \\multicolumn{1}{c}{%s}", .x)) %>% 
+    c(rep("\\\\\n", 1)) %>% 
+    str_c(collapse = " ") %>% 
+    cat
+  
+  seq(2, total.num.cols + 1) %>% 
+    map(~ sprintf("\\cmidrule(r){%d-%d}", .x, .x)) %>% 
+    str_c(collapse = " ") %>% 
+    str_c(if_else(estimate.buffer, "\\\\\n", "\n"), collapse = " ") %>% 
+    cat
+ 
+  all.pt.est %>% 
+    d_ply(.(linear.test), function(test.df) {
+      sprintf("%s %s \\\\\n", 
+              test.df$linear.test[1], 
+              alply(test.df, 1, . %$% sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))) %>% 
+                str_c(collapse = " "), collapse = " ") %>% 
+        cat
+      
+      alply(test.df, 1, . %$% sprintf("& (%.4f)", std.error)) %>% 
+        c(rep("\\\\\n", 1 + 1*(estimate.buffer))) %>% 
+        str_c(collapse = " ") %>% 
+        cat
+    })
+  
+  cat("\\bottomrule\n")
+  cat("\\end{tabular}\n")
+  cat("\\begin{tablenotes}\\footnotesize\n")
+ 
+  c("Reported analysis is from a stratified linear probability model regression. Each row reports the results of linear hypothesis test. Standard errors computed using cluster robust Huber-White estimators are reported in parentheses under estimates.",
+    "Endline survey samples control for ethnicity, gender, age, schooling, material of household floor, and mobile phone ownership.",
+    "${}^{***}: P < 0.01, {}^{**}: P < 0.05, {}^*: P < 0.1$") %>% 
+    walk(~ cat(sprintf("\\item %s\n", .)))
+  
+  cat("\\end{tablenotes}\n")
+  cat("\\end{threeparttable}\n")
+  cat(sprintf("\\end{table}%s\n", if_else(landscape, "\\end{landscape}", "")))
+}
