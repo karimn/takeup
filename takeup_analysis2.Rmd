@@ -24,7 +24,6 @@ date: "`r format(Sys.time(), '%B %d, %Y')`"
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-
 ```{r setup, include=FALSE}
 library(magrittr)
 library(plyr)
@@ -519,7 +518,7 @@ baseline.data %>%
 ## Balance
 
 ```{r, echo=TRUE}
-balance.test.covar <- c(setdiff(reg.covar, "ethnicity"), "dist.pot.group")
+balance.test.covar <- c(setdiff(reg.covar, "ethnicity"), "ethnicity2", "dist.pot.group")
 
 balance.data <- analysis.data %>%  
   filter(monitored, monitor.consent, sms.treatment == "sms.control", !hh.baseline.sample, 
