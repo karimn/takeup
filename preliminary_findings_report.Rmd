@@ -55,6 +55,7 @@ load(file.path("data", "takeup_village_pot_dist.RData"))
 ```
 
 ```{r load-analysis-data, ref.label="load-data"}
+
 ```
 
 # Introduction
@@ -299,7 +300,7 @@ individ.stats <- cluster.stats %>%
 County & Control & Ink & Calendar & Bracelet & All & Control & Ink & Calendar & Bracelet & All \\
 \cmidrule(r){2-6} \cmidrule(r){7-11}
 
-```{r test-tab, results="asis"}
+```{r cluster-stats-tab, results="asis"}
 clusters.stats %>%
   left_join(individ.stats, "County", suffix = c(".clusters", ".individuals")) %>% 
   a_ply(1, function(row) sprintf("%s %s \\\\\n", 
@@ -383,9 +384,9 @@ tribble(~ col.name,      ~ label,
 ```
 
 ```{r general-desc-stats, fig.width=8, fig.height=5, warning=FALSE, fig.cap="Study population summary statistics"}
-tribble(~ col.name,       ~ label,
+gen.stats.plot <- tribble(~ col.name,       ~ label,
         "gender",         "Gender",
-        "ethnicity",      "Ethnicity",
+        "ethnicity2",      "Ethnicity",
         "school",         "Schooling",
         "floor",          "Home floor construction",
         "have_phone",     "Own mobile phone?") %>%
@@ -393,6 +394,19 @@ tribble(~ col.name,       ~ label,
                           preprocess.fun = . %>% mutate(response = fct_relevel(response, rev(levels(baseline.data$school)))),
                           na.rm = TRUE)
 
+age.density.plot <- list(Census = mutate(census.data, age = age.census), 
+                         Baseline = baseline.data, 
+                         Endline = endline.data) %>% 
+  map_df(~ select(., age), .id = "survey.type") %>% 
+  mutate(survey.type = factor(survey.type, levels = c("Census", "Baseline", "Endline"))) %>% 
+  ggplot(aes(survey.type, age, color = survey.type)) +
+  geom_boxplot() +
+  coord_flip() +
+  scale_y_continuous("Age Box Plot", breaks = seq(15, 100, 5)) +
+  labs(x = "") +
+  theme(legend.position = "none")
+
+grid.arrange(gen.stats.plot, age.density.plot, layout_matrix = as.matrix(c(1, 1, 1, 1, 2)))
 ```
 
 Figure \ref{fig:dewormed-history} presents individuals' reported deworming history, prior to the intervention. Unsurprisingly, the majority of respondents said that children in their families have been previously dewormed, and the most common location for treatment for their family members had been during the annual school-based MDA. We also see that almost two of adults had been previously dewormed. However, more than half of those reporting prior treatment, were treated over two years ago. Furthermore, most adults reported getting dewormed at a hospital/clinic or purchased medication.
@@ -694,10 +708,26 @@ sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
                   mutate(term = c("ink", "ink:social.info")),
                 bracelet = linear_tester(reg.res, c("(intercept) + bracelet", "social.info + bracelet:social.info")) %>% 
                   mutate(term = c("bracelet", "bracelet:social.info")),
-                social.info = linear_tester(reg.res, c("(intercept) + social.info", "ink:social.info")) %>% 
-                  mutate(term = c("social.info", "ink:social.info")),
-                "calendar:social.info" = linear_tester(reg.res, c("(intercept) + social.info + calendar:social.info", "bracelet:social.info - calendar:social.info")) %>% 
-                  mutate(term = c("calendar:social.info", "bracelet:social.info")),
+                # social.info = linear_tester(reg.res, c("(intercept) + social.info", 
+                #                                        "ink:social.info", 
+                #                                        "calendar:social.info", 
+                #                                        "bracelet:social.info")) %>% 
+                #   mutate(term = c("social.info", 
+                #                   "ink:social.info", 
+                #                   "calendar:social.info", 
+                #                   "bracelet:social.info")),
+                # "calendar:social.info" = linear_tester(reg.res, c("(intercept) + social.info + calendar:social.info", 
+                #                                                   "bracelet:social.info - calendar:social.info", 
+                #                                                   "ink:social.info - calendar:social.info")) %>% 
+                #   mutate(term = c("calendar:social.info", 
+                #                   "bracelet:social.info", 
+                #                   "ink:social.info")),
+                # "ink:social.info" = linear_tester(reg.res, c("(intercept) + social.info + ink:social.info", 
+                #                                              "bracelet:social.info - ink:social.info", 
+                #                                              "calendar:social.info - ink:social.info")) %>% 
+                #   mutate(term = c("ink:social.info", 
+                #                   "bracelet:social.info", 
+                #                   "calendar:social.info")),
                 .id = "ref.type") %>% 
       mutate(term = fct_recode(factor(term), control = "(intercept)"),
              ref.pt = term == ref.type) %>% 
@@ -745,8 +775,12 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
                   mutate(term = c("ink", "calendar", "bracelet") %>% sprintf("%s:social.info:far", .) %>%  
                            c("reminder.only:far", "social.info:far"))) %>% 
       bind_rows(control = .,
-                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar", "social.info + calendar:social.info")) %>% 
-                  mutate(term = c("calendar", "bracelet", "calendar:social.info")),
+                calendar = linear_tester(reg.res, c("(intercept) + calendar", 
+                                                    "bracelet - calendar", 
+                                                    "social.info + calendar:social.info")) %>% 
+                  mutate(term = c("calendar", 
+                                  "bracelet", 
+                                  "calendar:social.info")),
                 far = linear_tester(reg.res, c("(intercept) + far", 
                                                "reminder.only + reminder.only:far",
                                                "social.info + social.info:far",
@@ -758,23 +792,36 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
                                   "ink:far", "calendar:far", "bracelet:far",
                                   "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far")),
                 "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", 
-                                                          "bracelet + bracelet:far - calendar - calendar:far")) %>% 
-                  mutate(term = c("calendar:far", "bracelet:far")),
-                reminder.only = linear_tester(reg.res, c("(intercept) + reminder.only", "social.info - reminder.only")) %>% 
-                  mutate(term = c("reminder.only", "social.info")),
+                                                          "bracelet + bracelet:far - calendar - calendar:far",
+                                                          "social.info + calendar:social.info + calendar:social.info:far")) %>% 
+                  mutate(term = c("calendar:far", 
+                                  "bracelet:far",
+                                  "calendar:social.info:far")),
+                reminder.only = linear_tester(reg.res, c("(intercept) + reminder.only", 
+                                                         "social.info - reminder.only")) %>% 
+                  mutate(term = c("reminder.only", 
+                                  "social.info")),
+                "reminder.only:far" = linear_tester(reg.res, c("(intercept) + reminder.only + far + reminder.only:far", 
+                                                               "social.info + social.info:far - reminder.only + reminder.only:far")) %>% 
+                  mutate(term = c("reminder.only:far", "social.info:far")),
                 ink = linear_tester(reg.res, c("(intercept) + ink", 
                                                "social.info + ink:social.info")) %>% 
                   mutate(term = c("ink", "ink:social.info")),
                 bracelet = linear_tester(reg.res, c("(intercept) + bracelet", 
                                                     "social.info + bracelet:social.info")) %>% 
                   mutate(term = c("bracelet", "bracelet:social.info")),
-                social.info = linear_tester(reg.res, c("(intercept) + social.info", 
-                                                       "ink:social.info")) %>% 
-                  mutate(term = c("social.info", "ink:social.info")),
+                # social.info = linear_tester(reg.res, c("(intercept) + social.info", 
+                #                                        "ink:social.info", "calendar:social.info", "bracelet:social.info")) %>% 
+                #   mutate(term = c("social.info", "ink:social.info", "calendar:social.info", "bracelet:social.info")),
                 
-                "calendar:social.info" = linear_tester(reg.res, c("(intercept) + calendar + social.info + calendar:social.info", 
-                                                                  "bracelet:social.info + bracelet - calendar:social.info + calendar")) %>% 
-                  mutate(term = c("calendar:social.info", "bracelet:social.info")),
+                # "calendar:social.info" = linear_tester(reg.res, c("(intercept) + calendar + social.info + calendar:social.info", 
+                #                                                   "ink:social.info + ink - calendar:social.info + calendar",
+                #                                                   "bracelet:social.info + bracelet - calendar:social.info + calendar")) %>% 
+                #   mutate(term = c("calendar:social.info", "ink:social.info", "bracelet:social.info")),
+                
+                # "ink:social.info" = linear_tester(reg.res, c("(intercept) + ink + social.info + ink:social.info", 
+                #                                               "bracelet:social.info + bracelet - ink:social.info + ink")) %>% 
+                #   mutate(term = c("ink:social.info", "bracelet:social.info")),
                 
                 "ink:far" = linear_tester(reg.res, c("(intercept) + ink + far + ink:far", 
                                                      "social.info + ink:social.info + social.info:far + ink:social.info:far")) %>% 
@@ -784,10 +831,20 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
                                                           "social.info + bracelet:social.info + social.info:far + bracelet:social.info:far")) %>% 
                   mutate(term = c("bracelet:far", "bracelet:social.info:far")),
                 
-                "calendar:social.info:far" = linear_tester(reg.res, 
-                                                           c("(intercept) + calendar + social.info + calendar:social.info + far + social.info:far + calendar:social.info:far", 
-                                                             "bracelet + bracelet:social.info + bracelet:social.info:far - calendar - calendar:social.info - calendar:social.info:far")) %>% 
-                  mutate(term = c("calendar:social.info:far", "bracelet:social.info:far")),
+                # "social.info:far" = linear_tester(reg.res, c("(intercept) + social.info + far + social.info:far", 
+                #                                        "ink:social.info + ink:far + ink:social.info:far", 
+                #                                        "calendar:social.info + calendar:far + calendar:social.info:far", 
+                #                                        "bracelet:social.info + bracelet:far + bracelet:social.info:far")) %>% 
+                #   mutate(term = c("social.info:far", "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far")),
+                
+                # "calendar:social.info:far" = linear_tester(reg.res, 
+                #                                            c("(intercept) + calendar + social.info + calendar:social.info + far + social.info:far + calendar:social.info:far", 
+                #                                              "bracelet + bracelet:social.info + bracelet:social.info:far - calendar - calendar:social.info - calendar:social.info:far")) %>% 
+                #   mutate(term = c("calendar:social.info:far", "bracelet:social.info:far")),
+                # "ink:social.info:far" = linear_tester(reg.res, 
+                #                                       c("(intercept) + ink + social.info + ink:social.info + far + social.info:far + ink:social.info:far", 
+                #                                         "bracelet + bracelet:social.info + bracelet:social.info:far - ink - ink:social.info - ink:social.info:far")) %>% 
+                  # mutate(term = c("ink:social.info:far", "bracelet:social.info:far")),
                 .id = "ref.type") %>% 
       mutate(term = fct_recode(factor(term), control = "(intercept)"),
              ref.pt = term == ref.type) %>% 
@@ -803,6 +860,7 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
     
   }, .id = "spec") 
 ```
+
 
 We will report results for four specifications identifying:
 
@@ -827,9 +885,6 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>%
 
 To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive/signal treatment with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, see that distance has strong negative effect on take-up, dropping between 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also not a big change in the impact of incentives/signals: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm. The pattern of incentives/signals' impact, compared to the control arm, is similar across specification, although only the bracelets have a statistically significant impact, in _far_ communities: between 11 and 17 percentage points change, compared to the control arm, and between 9 and 12 percentage points change compared to the calendar arm. 
 
-The following two specifications considered, we consider the impact of SMS reminders and informational messages, combined with incentive/signal treatment. Hence, we limit our analysis to the population of phone owners.
-
-
 
 ```{r reg-dist-table, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(dist.reg.table.data, 
@@ -844,15 +899,18 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
   labs(subtitle = "With controls") 
 ```
 
-```{r tab-test, dependson=c("reg-tab-data", "basic-reg-table"), results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(sms.reg.table.data, 
-                caption = "Incentive/signal treatment and SMS treatment effects.", 
-                font.size = "footnotesize", estimate.buffer = FALSE, landscape = TRUE)
+In the last two specifications, we consider the impact of SMS reminders and informational messages, combined with incentive/signal treatment and distance to treatment location, on deworming take-up. Hence, we limit our analysis to the population of phone owners. As shown in Figure \ref{fig:general-desc-stats}, this encompasses between 2/3 to 3/4 of the population.
 
-dist.sms.reg.table.data %>% 
-  a_ply(1, print.reg.table, 
-        caption = "Incentive/signal treatment and SMS treatment effects, split by assigned distance to treatment location.",
-        estimate.buffer = FALSE, landscape = TRUE)
+First, the impact of SMS treatment on deworming is estimated in Table \ref{tab:reg-sms} and Figure \ref{fig:sms-reg-covar-plot}. There appears to be a big difference in the estimated take-up of deworming in the control arm when control for individual characteristics (refer to columns 1 and 9 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of calendars and bracelets, as well as becoming statistically significant. Also, both impacts are very similar in magnitude (column 11). 
+
+Considering the difference between a reminders only treatment (only tested in the incentives/signals control arm) and a social information treatment (tested in all arms), we see an almost six percentage point difference in take-up (columns 5 and 13), although only statistically significant when not controlling for covariates. This is also a surprising outcome, considering the the social information messages also functioned as reminders. 
+
+Overall, social information treatment seems to have had a dramatic effect on deworming take-up, in particular when combined with incentives/signals. In columns 2-4 and 10-12, we observe an increase in the social information interaction effects, but only consistently statistically significant when comparing the bracelet and social information take-up with (i) the ink and social information take-up or (ii) the control social information take-up.
+
+```{r reg-sms, results="asis", cache=FALSE, warning=FALSE}
+print.reg.table(sms.reg.table.data, 
+                caption = "Incentive/signal treatment and SMS treatment effects.", label = "tab:reg-sms",
+                estimate.buffer = TRUE, landscape = TRUE)
 ```
 
 ```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
@@ -861,12 +919,53 @@ prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>%
   labs(subtitle = "With Controls") 
 ```
 
+Finally, regression analysis results for the impact of incentive/signal treatment, SMS reminders and social information treatment, and assigned distance to treatment location, are presented in Figure \ref{fig:sms-dist-plot} and Tables \ref{tab:reg-sms-dist-monitored} and \ref{tab:reg-sms-dist-endline}.
+
+```{r reg-sms-dist, results="asis", cache=FALSE, warning=FALSE}
+dist.sms.reg.table.data %>% 
+  mutate(spec.simple = str_extract(spec, "[^,]+") %>% str_to_lower) %>% 
+  a_ply(1, . %>% 
+          print.reg.table(caption = "Incentive/signal treatment and SMS treatment effects, split by assigned distance to treatment location.",
+                          label = paste0("tab:reg-sms-dist-", .$spec.simple), 
+                          font.size = "scriptsize",
+                          estimate.buffer = FALSE, landscape = TRUE))
+```
 
 ```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions."}
 prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% 
   plot.sms.treat.takeup +
   facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
   labs(subtitle = "Split by distance to treatment location, with controls")
+```
+
+```{r compare-sms-interact-reg}
+sms.interact.diff.lh <- c(paste(c("ink:social.info",
+                                  "calendar:social.info",
+                                  "bracelet:social.info"), "= social.info"),
+                          paste(c("calendar:social.info",
+                                  "bracelet:social.info"), "= ink:social.info"),
+                          "bracelet:social.info = calendar:social.info") %>% 
+  c(str_replace_all(., "(\\S*social.info)", "\\1 + \\1:far"))
+
+sms.interact.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
+                                "Endline, SMS" = reg.output.sms.treat.covar) %>% 
+  map(linear_tester, sms.interact.diff.lh %>% magrittr::extract(!str_detect(., "far")))
+
+sms.dist.interact.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
+                                     "Endline, SMS" = reg.output.sms.treat.dist.covar) %>% 
+  map(linear_tester, sms.interact.diff.lh)
+```
+
+```{r sms-interact-tab, results="asis", cache=FALSE, warning=FALSE}
+print.sms.interact.table(sms.interact.table.data, 
+                         caption = "Comparing the social information SMS treatment across incentive/signal treatment arms.",
+                         label = "tab:sms-interact")
+
+print.sms.interact.table(sms.dist.interact.table.data,
+                         landscape = TRUE,
+                         # font.size = "scriptsize",
+                         caption = "Comparing the social information SMS treatment across incentive/signal treatment arms, split by distance to treatment location.",
+                         label = "tab:sms-dist-interact")
 ```
 
 # Cost-effectiveness
