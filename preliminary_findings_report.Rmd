@@ -1,15 +1,15 @@
 ---
 title: |
     | Evidence from a Field Experiment in Kenya
-    | The Role of Social Signaling in Community Mass Deworming:
+    | The Role of Social Signaling in Community Mass Deworming^[Thanks]
 subtitle: "Preliminary Findings -- Do Not Distribute"
 date: "April 2017"
 author:
-- Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`]
-- Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`]
+- Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
+- Grace Morgan^[Evidence Action, `grace.morgan@evidenceaction.org`. Cost-effectiveness analysis.]
+- Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`. Corresponding author.]
 output: 
   pdf_document:
-    keep_tex: yes
     number_sections: yes
 header-includes:
    - \usepackage{pxfonts}
@@ -23,7 +23,7 @@ abstract: "This report presents preliminary analysis findings for a randomized c
 bibliography: ~/Documents/library.bib
 ---
 
-<!-- \doublespacing -->
+\doublespacing
 
 ```{r prelim-report-setup, include=FALSE}
 library(gridExtra)
@@ -36,7 +36,6 @@ read_chunk(purl("takeup_analysis2.Rmd"))
 opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "takeup_prelim-fig/", fig.align = "center", cache = TRUE)
 ```
 
-
 ```{r analysis-setup, include=FALSE, ref.label="setup", cache=FALSE}
 ```
 
@@ -44,7 +43,6 @@ opts_chunk$set(echo = FALSE, cache.path = "takeup_prelim-cache/", fig.path = "ta
 theme_set(theme_minimal() +
             theme(legend.position = "bottom"))
 ```
-
 
 ```{r load-experiment-design-data}
 rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
@@ -60,9 +58,9 @@ load(file.path("data", "takeup_village_pot_dist.RData"))
 
 # Introduction
 
-Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of Soil Transmitted Helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs [@Anderson2012]. Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
+Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of soil transmitted helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs [@Anderson2012]. Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
 
-This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and incentives. The evaluation of the incentivized community deworming program relates three separate strands of the literature: compliance with mass drug administration (MDA), incentives and volunatry good contributions. 
+This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and incentives. The evaluation of the incentivized community deworming program relates four separate strands of the literature: compliance with mass drug administration (MDA), incentives, volunatry good contributions, and pro-social signaling. 
 
 Different to previous MDA, this study is focused on deworming treatment at a central location, not through door-to-door visits. @Kremer2011a observe that for preventive and non-acute care such as deworming, insecticide-treated bednet use and water chlorination there is a dramatic drop in demand at non-zero prices. Since a large number of people have such an abrupt cutoff at the same point, they conclude that they are not likely motivated by a simple cost-benefit analysis, but instead have a strong present bias; future benefits are heavily discounted compared to immediate benefits. One approach that has been widely tested and shown to be successful, is to provide a small reward when coming for treatment to offset any inconvenience costs individuals might face, as well as to address present bias. @Kremer2011a review a wide number of studies on the use for incentives to increase education and health service take-up. They find strong evidence in favor of incentives compared to education only interventions.
 
@@ -130,13 +128,13 @@ phone.owner.control.takeup <- tidy(reg.output.sms.treat.covar) %>%
   multiply_by(100)
 ```
 
-Of the three incentive we found the bracelets to be the most effective, with a `r sprintf("%.2f", bracelet.vs.control.ate)` percentage point increase in deworming take-up, compared to the control arm (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.control.takeup, bracelet.vs.control.pval)`), a `r sprintf("%.2f", bracelet.vs.control.ate/basic.control.takeup * 100)`% change. When compared to the calendar incentive arm, to control for the private valuation bracelets might have, we found that bracelets increased deworming take-up by `r sprintf("%.2f", bracelet.vs.calendar.ate)` percentage point (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.calendar.takeup, bracelet.vs.calendar.pval)`), a `r sprintf("%.2f", bracelet.vs.calendar.ate/basic.calendar.takeup * 100)`% change. Other incentives did not have a statistically significant impact on take-up.
+Of the three incentive we found the bracelets to be the most effective, with a `r sprintf("%.2f", bracelet.vs.control.ate)` percentage point increase in deworming take-up, compared to the control arm (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.control.takeup, bracelet.vs.control.pval)`), a `r sprintf("%.2f", bracelet.vs.control.ate/basic.control.takeup * 100)`% change. When compared to the calendar incentive arm --- to control for the private valuation bracelets might have --- we found that bracelets increased deworming take-up by `r sprintf("%.2f", bracelet.vs.calendar.ate)` percentage point (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.calendar.takeup, bracelet.vs.calendar.pval)`), a `r sprintf("%.2f", bracelet.vs.calendar.ate/basic.calendar.takeup * 100)`% change. Other incentives did not have a statistically significant impact on take-up.
 
 Text messages reporting peer take-up were also found to have a strong impact on deworming take-up, in particular when combined with the bracelet incentives. Take-up in response to bracelet and text messaging treatment increased take-up by `r sprintf("%.2f", bracelet.sms.vs.control.ate)` percentage points when compared to the control arm without text messaging treatment (`r sprintf("%.2f%% vs %.2f%%, $P < %.2e$", bracelet.sms.takeup, phone.owner.control.takeup, bracelet.sms.vs.control.pval)`), a `r sprintf("%.2f", bracelet.sms.vs.control.ate/phone.owner.control.takeup * 100)`% increase.
 
 Based on our preliminary reduced form analysis, we conclude that the use of bracelets as social incentives is a promising instrument to motivate the take-up of health-related behaviors of low private value--but with some social value--such as adult deworming treatment. This is especially true when combined with an informational intervention such as text messages. While this report delves further in how distance affects take-up and how it interacts with the other experimental treatments, and what private value the study's population places on the incentives we are testing, we are not as of yet able to identify the different potential mechanisms influencing take-up. For example, while evidence points to social mechanisms, broadly speaking, as being the main influence, we are not able to distinguish between social learning (receiving information from others), social signaling (broadcasting information to other), or even if our treatments simply function as reminders or "nudges". We will consider these issues elsewhere. 
 
-The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; and finally, in section \ref{conclusion} we discuss our findings and present our conclusions.
+The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; in section \ref{cost-effectiveness} we compare the cost effectiveness of the incentives/signals tested; and finally, in section \ref{conclusion} we discuss our findings and present our conclusions.
 
 # The Intervention
 
@@ -901,41 +899,23 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 
 In the last two specifications, we consider the impact of SMS reminders and informational messages, combined with incentive/signal treatment and distance to treatment location, on deworming take-up. Hence, we limit our analysis to the population of phone owners. As shown in Figure \ref{fig:general-desc-stats}, this encompasses between 2/3 to 3/4 of the population.
 
-First, the impact of SMS treatment on deworming is estimated in Table \ref{tab:reg-sms} and Figure \ref{fig:sms-reg-covar-plot}. There appears to be a big difference in the estimated take-up of deworming in the control arm when control for individual characteristics (refer to columns 1 and 9 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of calendars and bracelets, as well as becoming statistically significant. Also, both impacts are very similar in magnitude (column 11). 
+First, the impact of SMS treatment on deworming is estimated in Figure \ref{fig:sms-reg-covar-plot} and Tables \ref{tab:reg-sms} and \ref{tab:sms-interact}. There appears to be a big difference in the estimated take-up of deworming in the control arm when control for individual characteristics (refer to columns 1 and 9 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of calendars and bracelets, as well as becoming statistically significant. Also, both impacts are very similar in magnitude (column 11). 
 
 Considering the difference between a reminders only treatment (only tested in the incentives/signals control arm) and a social information treatment (tested in all arms), we see an almost six percentage point difference in take-up (columns 5 and 13), although only statistically significant when not controlling for covariates. This is also a surprising outcome, considering the the social information messages also functioned as reminders. 
 
-Overall, social information treatment seems to have had a dramatic effect on deworming take-up, in particular when combined with incentives/signals. In columns 2-4 and 10-12, we observe an increase in the social information interaction effects, but only consistently statistically significant when comparing the bracelet and social information take-up with (i) the ink and social information take-up or (ii) the control social information take-up.
+Overall, social information treatment seems to have had a dramatic effect on deworming take-up, in particular when combined with incentives/signals. In columns 2-4 and 10-12, we observe an increase in the social information interaction effects, but only consistently statistically significant when comparing the bracelet and social information take-up with the ink and social information take-up (see Table \ref{tab:sms-interact}).
 
 ```{r reg-sms, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(sms.reg.table.data, 
+                font.size = "scriptsize",
                 caption = "Incentive/signal treatment and SMS treatment effects.", label = "tab:reg-sms",
-                estimate.buffer = TRUE, landscape = TRUE)
+                estimate.buffer = TRUE, landscape = FALSE)
 ```
 
 ```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
 prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% 
   plot.sms.treat.takeup +
   labs(subtitle = "With Controls") 
-```
-
-Finally, regression analysis results for the impact of incentive/signal treatment, SMS reminders and social information treatment, and assigned distance to treatment location, are presented in Figure \ref{fig:sms-dist-plot} and Tables \ref{tab:reg-sms-dist-monitored} and \ref{tab:reg-sms-dist-endline}.
-
-```{r reg-sms-dist, results="asis", cache=FALSE, warning=FALSE}
-dist.sms.reg.table.data %>% 
-  mutate(spec.simple = str_extract(spec, "[^,]+") %>% str_to_lower) %>% 
-  a_ply(1, . %>% 
-          print.reg.table(caption = "Incentive/signal treatment and SMS treatment effects, split by assigned distance to treatment location.",
-                          label = paste0("tab:reg-sms-dist-", .$spec.simple), 
-                          font.size = "scriptsize",
-                          estimate.buffer = FALSE, landscape = TRUE))
-```
-
-```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions."}
-prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% 
-  plot.sms.treat.takeup +
-  facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
-  labs(subtitle = "Split by distance to treatment location, with controls")
 ```
 
 ```{r compare-sms-interact-reg}
@@ -960,17 +940,66 @@ sms.dist.interact.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dis
 print.sms.interact.table(sms.interact.table.data, 
                          caption = "Comparing the social information SMS treatment across incentive/signal treatment arms.",
                          label = "tab:sms-interact")
+```
 
+Finally, regression analysis results for the impact of incentive/signal treatment, SMS reminders and social information treatment, and assigned distance to treatment location, are presented in Figure \ref{fig:sms-dist-plot} and Tables \ref{tab:reg-sms-dist-monitored}, \ref{tab:reg-sms-dist-endline}, and \ref{tab:sms-dist-interact}. The impact of incentives/signals and SMS treatment is very similar to that discussed above. In particular, impact is strengthened when looking at the social information interactions with incentives/signals in _far_ communities; we see the highest impact on deworming where it almost triples comparing going from the pure control arm to the bracelets with social information treatment (based on the endline sample analysis). 
+
+Evidence from this analysis does point to a multiplier effect of social information treatment when combined with the bracelet signal. As shown in Table \ref{tab:sms-dist-interact}, the difference between social information interaction is big in magnitude and statistically significant when comparing the bracelet interaction with the calendar and ink interactions. This multiplier effect, however, seems to disappear when considering _close_ communities, which points to another interesting pattern: there does appear to be a ceiling in proportion of deworming take-up across treatments and assigned distances. The take-up ceiling appears to be around 74 percent (absolute) take-up rate.
+
+```{r reg-sms-dist, results="asis", cache=FALSE, warning=FALSE}
+dist.sms.reg.table.data %>% 
+  mutate(spec.simple = str_extract(spec, "[^,]+") %>% str_to_lower) %>% 
+  a_ply(1, . %>% 
+          print.reg.table(caption = "Incentive/signal treatment and SMS treatment effects, split by assigned distance to treatment location.",
+                          label = paste0("tab:reg-sms-dist-", .$spec.simple), 
+                          font.size = "scriptsize",
+                          estimate.buffer = FALSE, landscape = FALSE))
+```
+
+```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions."}
+prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% 
+  plot.sms.treat.takeup +
+  facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
+  labs(subtitle = "Split by distance to treatment location, with controls")
+```
+
+
+```{r sms-dist-interact-tab, results="asis", cache=FALSE, warning=FALSE}
 print.sms.interact.table(sms.dist.interact.table.data,
                          landscape = TRUE,
-                         # font.size = "scriptsize",
                          caption = "Comparing the social information SMS treatment across incentive/signal treatment arms, split by distance to treatment location.",
                          label = "tab:sms-dist-interact")
 ```
 
 # Cost-effectiveness
 
-```{r abs-takeup-by-arm}
+We conducted a simplified analysis to assess which incentives/signals is the most cost-effective at increasing adult deworming treatment adoption. This analysis only assesses the incremental impact of ink, calendars, and bracelets, and does not look at the impact of SMS as an intervention. We estimated the baseline costs for implementing an adult community-based deworming program, first without any incentive/signal costs, based off of costs incurred during the study. We disaggregated costs that were directly related to the implementation of the deworming program, since many costs incurred during the study were related to research and design. Research-oriented costs, such as research enumerators and baseline survey costs, were excluded from the analysis. These implementation-related costs included 
+
+1) Program management costs 
+2) Drug and material transportation costs
+3) Monitoring costs
+4) Community sensitization costs
+5) Training costs
+6) Policy coordination costs
+7) CHEW and CHV costs. 
+
+The activities occurring during the weeks of deworming such as CHV/CHEW transport, airtime, supervision, and setup costs accounted for about 33% of implementation costs. Program management, messaging/sensitization activities, and CHV training made up 33%, 12%, and 6% of implementation costs, respectively. These cost proportions were estimated from budgeted amounts. We plan to do a more in-depth analysis of the implementation-related costs and the cost per person dewormed in the future.
+
+We then calculated unit costs per person for each intervention, as well as unit drug costs. Although the drugs were donated and did not present a direct cost to the program, their imputed value is included as an important incremental cost to implementing the deworming program. The outcome measure used to evaluate 'effect' was the percentage increase in adoption of deworming treatment. Percent adoption was measured by the number of targeted community members who came to receive deworming treatment out of the total targeted population. The cost-effectiveness for each intervention was calculated in comparison to the control group (the cost and effect of delivering deworming treatment using no social incentive).
+
+Arm         Unit Cost per Person (USD)   Take-up (%)   Cost Per % Increase in Take-up
+--------   ---------------------------- ------------- --------------------------------
+Ink            \$0.41                       35%             \$1,475
+Calendar       \$0.33                       38%             \$341
+Bracelet       \$0.35                       46%             \$141
+
+Table: Cost-effectiveness analysis.
+
+The cost-effectiveness analysis shows that using bracelets as an incentive/signal is the most cost-effective intervention in comparison to using calendars and ink when assessing the cost per percentage point increase in the take-up of deworming. Using bracelets as a social incentive/signal to increase treatment take-i[ by 1 percentage point for the community-based deworming program cost \$141. Using calendars and ink cost \$341 and \$1,475 per percentage increase in treatment take-up, respectively. The higher unit cost of providing ink as a social incentive (\$0.41) in comparison to the lower unit costs of calendars (\$0.33) and bracelets (\$0.35) can partially explain the low cost-effectiveness results of ink. Although calendars were the least expensive intervention on a per-unit basis, we observed the largest increase in adoption among the population who received bracelets, thus explaining its high cost-effectiveness. 
+
+We do not expect these cost-effectiveness results to be linear in application (i.e. we expect that there is a ceiling effect in adoption since certain populations may be harder to reach as adoption continues to increase). Therefore, the cost-effectiveness results presented demonstrate the actual cost-effectiveness between the observed control and treatment populations, but cannot necessarily be generalized to the cost of increasing adoption by 1% point from a higher baseline adoption rate (e.g. increasing adoption from 70% to 71%).  
+
+```{r abs-takeup-by-arm, eval=FALSE}
 left_join(takeup.data %>% count(assigned.treatment) %>% rename(abs.takeup = n),
           census.data %>% count(assigned.treatment) %>% rename(census.total = n), "assigned.treatment") %>% 
   mutate(coef = if_else(assigned.treatment == "control", "", levels(assigned.treatment)[assigned.treatment]),
