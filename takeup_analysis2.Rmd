@@ -542,7 +542,7 @@ waldtest(unrestricted.reg, restricted.reg)
 
 ```{r actual-distance-distribution}
 analysis.data %>%  
-  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  anti_join(unmonitored.outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
   ggplot(aes(dist.to.pot)) +
   geom_density(aes(color = dist.pot.group, linetype = "Household")) +
@@ -1032,6 +1032,26 @@ neyman.results %>%
   kable()
 ```
 
+#### Unmonitored
+
+```{r unmon-basic-reg}
+unmon.reg.output.sms.ctrl <- analysis.data %>%  
+  filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
+  anti_join(unmonitored.outlier.clusters, c("sms.treatment.2" = "sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id")
+```
+
+```{r}
+kable(tidy(unmon.reg.output.sms.ctrl), digits = 4)
+```
+
+```{r, fig.width=10}
+prep.sms.ctrl.plot.data(unmon.reg.output.sms.ctrl) %>% {
+  plot.sms.ctrl.takeup(.) +
+    labs(subtitle = "Entire census sample, without controls")
+}
+```
+
 ### Regression With Controls
 
 These are the regressors we are controlling for:
@@ -1266,6 +1286,36 @@ neyman.results %>%
   unite(incentive_dist, treatment.group, dist.pot.group) %>% 
   spread(incentive_dist, stratum.assign.size) %>% 
   kable()
+```
+
+##### Unmonitored
+
+```{r umon-dist-reg}
+unmon.reg.output.sms.ctrl.dist <- analysis.data %>%  
+  filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
+  anti_join(outlier.clusters, c("sms.treatment.2" = "sms.treatment", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id")
+```
+
+```{r}
+kable(tidy(unmon.reg.output.sms.ctrl.dist), digits = 4)
+```
+
+```{r, fig.width=12}
+prep.sms.ctrl.plot.data(unmon.reg.output.sms.ctrl.dist, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
+  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
+    labs(subtitle = "Entire census sample, without controls") 
+}
+```
+
+```{r}
+c("ink", "calendar", "bracelet") %>% 
+  map(~ paste0(., c("", ":far"))) %>%
+  map(~ paste(., collapse = " + ")) %>%
+  c("(intercept) + far", .) %>% 
+  linear_tester(unmon.reg.output.sms.ctrl.dist, .) %>% 
+  kable(digits = 4)
 ```
 
 #### Regression With Controls
