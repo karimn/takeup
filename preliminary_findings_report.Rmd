@@ -706,26 +706,6 @@ sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
                   mutate(term = c("ink", "ink:social.info")),
                 bracelet = linear_tester(reg.res, c("(intercept) + bracelet", "social.info + bracelet:social.info")) %>% 
                   mutate(term = c("bracelet", "bracelet:social.info")),
-                # social.info = linear_tester(reg.res, c("(intercept) + social.info", 
-                #                                        "ink:social.info", 
-                #                                        "calendar:social.info", 
-                #                                        "bracelet:social.info")) %>% 
-                #   mutate(term = c("social.info", 
-                #                   "ink:social.info", 
-                #                   "calendar:social.info", 
-                #                   "bracelet:social.info")),
-                # "calendar:social.info" = linear_tester(reg.res, c("(intercept) + social.info + calendar:social.info", 
-                #                                                   "bracelet:social.info - calendar:social.info", 
-                #                                                   "ink:social.info - calendar:social.info")) %>% 
-                #   mutate(term = c("calendar:social.info", 
-                #                   "bracelet:social.info", 
-                #                   "ink:social.info")),
-                # "ink:social.info" = linear_tester(reg.res, c("(intercept) + social.info + ink:social.info", 
-                #                                              "bracelet:social.info - ink:social.info", 
-                #                                              "calendar:social.info - ink:social.info")) %>% 
-                #   mutate(term = c("ink:social.info", 
-                #                   "bracelet:social.info", 
-                #                   "calendar:social.info")),
                 .id = "ref.type") %>% 
       mutate(term = fct_recode(factor(term), control = "(intercept)"),
              ref.pt = term == ref.type) %>% 
@@ -808,19 +788,6 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
                 bracelet = linear_tester(reg.res, c("(intercept) + bracelet", 
                                                     "social.info + bracelet:social.info")) %>% 
                   mutate(term = c("bracelet", "bracelet:social.info")),
-                # social.info = linear_tester(reg.res, c("(intercept) + social.info", 
-                #                                        "ink:social.info", "calendar:social.info", "bracelet:social.info")) %>% 
-                #   mutate(term = c("social.info", "ink:social.info", "calendar:social.info", "bracelet:social.info")),
-                
-                # "calendar:social.info" = linear_tester(reg.res, c("(intercept) + calendar + social.info + calendar:social.info", 
-                #                                                   "ink:social.info + ink - calendar:social.info + calendar",
-                #                                                   "bracelet:social.info + bracelet - calendar:social.info + calendar")) %>% 
-                #   mutate(term = c("calendar:social.info", "ink:social.info", "bracelet:social.info")),
-                
-                # "ink:social.info" = linear_tester(reg.res, c("(intercept) + ink + social.info + ink:social.info", 
-                #                                               "bracelet:social.info + bracelet - ink:social.info + ink")) %>% 
-                #   mutate(term = c("ink:social.info", "bracelet:social.info")),
-                
                 "ink:far" = linear_tester(reg.res, c("(intercept) + ink + far + ink:far", 
                                                      "social.info + ink:social.info + social.info:far + ink:social.info:far")) %>% 
                   mutate(term = c("ink:far", "ink:social.info:far")),
@@ -829,20 +796,6 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
                                                           "social.info + bracelet:social.info + social.info:far + bracelet:social.info:far")) %>% 
                   mutate(term = c("bracelet:far", "bracelet:social.info:far")),
                 
-                # "social.info:far" = linear_tester(reg.res, c("(intercept) + social.info + far + social.info:far", 
-                #                                        "ink:social.info + ink:far + ink:social.info:far", 
-                #                                        "calendar:social.info + calendar:far + calendar:social.info:far", 
-                #                                        "bracelet:social.info + bracelet:far + bracelet:social.info:far")) %>% 
-                #   mutate(term = c("social.info:far", "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far")),
-                
-                # "calendar:social.info:far" = linear_tester(reg.res, 
-                #                                            c("(intercept) + calendar + social.info + calendar:social.info + far + social.info:far + calendar:social.info:far", 
-                #                                              "bracelet + bracelet:social.info + bracelet:social.info:far - calendar - calendar:social.info - calendar:social.info:far")) %>% 
-                #   mutate(term = c("calendar:social.info:far", "bracelet:social.info:far")),
-                # "ink:social.info:far" = linear_tester(reg.res, 
-                #                                       c("(intercept) + ink + social.info + ink:social.info + far + social.info:far + ink:social.info:far", 
-                #                                         "bracelet + bracelet:social.info + bracelet:social.info:far - ink - ink:social.info - ink:social.info:far")) %>% 
-                  # mutate(term = c("ink:social.info:far", "bracelet:social.info:far")),
                 .id = "ref.type") %>% 
       mutate(term = fct_recode(factor(term), control = "(intercept)"),
              ref.pt = term == ref.type) %>% 
