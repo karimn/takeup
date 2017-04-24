@@ -170,6 +170,7 @@ endline.know.table.data %<>%
 # Save data ---------------------------------------------------------------
 
 save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, outlier.clusters,
+     unmonitored.cluster.takeup.data, unmonitored.outlier.clusters,
      census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
 
