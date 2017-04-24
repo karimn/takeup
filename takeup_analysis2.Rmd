@@ -26,13 +26,13 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r setup, include=FALSE}
 library(magrittr)
+library(purrr)
 library(plyr)
 library(dplyr)
 library(multidplyr)
 library(tibble)
 library(tidyr)
 library(lubridate)
-library(purrr)
 library(forcats)
 library(readr)
 library(haven)
@@ -93,8 +93,8 @@ Below we are linking the consent, census (including take-up status), and endline
 Below we want to identify outlier clusters. 
 
 ```{r, echo=FALSE, fig.width=12, fig.height=10}
-cluster.takeup.data %>% 
-  ggplot(aes(stratum, takeup.prop)) +
+bind_rows(monitored = cluster.takeup.data, all = unmonitored.cluster.takeup.data, .id = "monitored.sample") %>% 
+  ggplot(aes(stratum, takeup.prop, color = monitored.sample)) +
   geom_boxplot() + #aes(color = assigned.treatment)) + 
   geom_text_repel(aes(label = cluster.id), data = . %>% filter(outlier)) +
   xlab("Strata") +
@@ -107,9 +107,9 @@ cluster.takeup.data %>%
 The outlier clusters are:
 
 ```{r}
-outlier.clusters %>% 
-  select(cluster.id, sms.treatment) %>% 
-  arrange(sms.treatment) %>% 
+bind_rows(monitored = outlier.clusters, all = unmonitored.outlier.clusters, .id = "monitored.sample") %>% 
+  select(cluster.id, sms.treatment, monitored.sample) %>% 
+  arrange(monitored.sample, sms.treatment) %>% 
   kable
 ```
 
@@ -1771,4 +1771,3 @@ linear_tester(sms.recruit.reg.res,
 #   tidy %>% 
 #   kable
 ```
-

@@ -93,8 +93,10 @@ old.baseline.data <- baseline.data
 baseline.data %<>% prepare.baseline.data 
 
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data)
+unmonitored.cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, consented.monitored.only = FALSE)
 
 outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
+unmonitored.outlier.clusters <- unmonitored.cluster.takeup.data %>% filter(outlier) 
 
 # WTP prep ----------------------------------------------------------------
 
