@@ -28,7 +28,7 @@ prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
     map_df(. %>% select(KEY.individ, monitor.consent, dewormed.reported), .id = "data.source") %>% 
     filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>%  
     group_by(KEY.individ) %>%  
-    summarize(monitor.consent = any(monitor.consent), # Consider as reconsented if at least one acceptance
+    summarize(monitor.consent = any(!is.na(monitor.consent) & monitor.consent), # Consider as reconsented if at least one acceptance
               dewormed.reported = ifelse(n_distinct(dewormed.reported) == 1, first(dewormed.reported), NA)) %>% # Multiple contradictory responses
     ungroup
 }
@@ -45,6 +45,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     left_join(.consent.dewormed.reports, "KEY.individ") %>% 
     mutate(dewormed = KEY.individ %in% .takeup.data$KEY.individ, # TRUE if individual found in take-up data
            dewormed = ifelse(monitored, dewormed, NA),
+           monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
            sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control")) %>% # NA if not in the monitored group
     left_join(dewormed.day.data, "KEY.individ")
@@ -52,12 +53,12 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
   analysis.data %>% 
     filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
     group_by(cluster.id) %>% 
-    do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id))) %>% 
+    do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = 2)) %>% 
     ungroup %>% 
     select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
     right_join(analysis.data, "KEY.individ") %>% 
     left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day), c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
-    mutate(monitored = !is.na(wave) & monitored, # Remove those dropped from the study 
+    mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
