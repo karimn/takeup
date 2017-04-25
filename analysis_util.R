@@ -33,7 +33,8 @@ prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
     ungroup
 }
 
-prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .consent.dewormed.reports, .cluster.strat.data) {
+prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .consent.dewormed.reports, .cluster.strat.data,
+                                  max.name.match.cost = 1) {
   dewormed.day.data <- .takeup.data %>% 
     filter(!is.na(KEY.individ)) %>% 
     group_by(KEY.individ) %>% 
@@ -48,12 +49,13 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
            monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
            sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control")) %>% # NA if not in the monitored group
-    left_join(dewormed.day.data, "KEY.individ")
+    left_join(dewormed.day.data, "KEY.individ") %>% 
+    filter(!sms.treated | (!is.na(sms.consent) & sms.consent)) # Drop those assigned to SMS treatment but were not consented (hence not treated)
   
   analysis.data %>% 
     filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
     group_by(cluster.id) %>% 
-    do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = 2)) %>% 
+    do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost)) %>% 
     ungroup %>% 
     select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
     right_join(analysis.data, "KEY.individ") %>% 
@@ -162,10 +164,10 @@ prepare.baseline.data <- function(.data) {
 }
 
 
-prepare.cluster.takeup.data <- function(.data, consented.monitored.only = TRUE, exclude.baseline.sample = TRUE) {
+prepare.cluster.takeup.data <- function(.data, monitored.only = TRUE, consented.only = monitored.only, exclude.baseline.sample = TRUE) {
  .data %>% 
-   filter(monitored | !consented.monitored.only, 
-          monitor.consent | !consented.monitored.only, 
+   filter(monitored | !monitored.only, 
+          monitor.consent | !consented.only, 
           !(hh.baseline.sample & exclude.baseline.sample)) %>% 
    transmute(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any) %>% 
    unite(stratum, county, dist.pot.group, sep = " ") %>% 
