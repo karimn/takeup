@@ -49,7 +49,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
            dewormed = ifelse(monitored, dewormed, NA),
            monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
-           sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control")) %>% # NA if not in the monitored group
+           sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control") %>% fct_relevel("sms.control")) %>% # NA if not in the monitored group
     left_join(dewormed.day.data, "KEY.individ") %>% 
     filter(!sms.treated | (!is.na(sms.consent) & sms.consent)) # Drop those assigned to SMS treatment but were not consented (hence not treated)
   

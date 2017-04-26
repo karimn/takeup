@@ -1416,7 +1416,8 @@ The following table simplifies thinking about the analysis outlined in the pre-a
 reg.output.sms.treat <- analysis.data %>%  
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
 
@@ -1444,7 +1445,8 @@ Running regression without controls with the same sample as in the with controls
 reg.output.sms.treat.lim <- analysis.data %>%  
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
+  # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = census.reg.covar)
 
 reg.output.sms.treat %>% tidy %>% kable(digits = 4)
@@ -1547,7 +1549,8 @@ neyman.results %>%
 reg.output.sms.treat.covar <- analysis.data %>%  
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 ```
 
@@ -1673,7 +1676,8 @@ $$
 reg.output.sms.treat.dist <- analysis.data %>%  
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
+  # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
          # dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
@@ -1696,7 +1700,8 @@ Running regression without controls with the same sample as in the with controls
 reg.output.sms.treat.dist.lim <- analysis.data %>%  
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample, !is.na(floor)) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
+  # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
          # dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 
@@ -1716,7 +1721,8 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
 reg.output.sms.treat.dist.covar <- analysis.data %>%  
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
   anti_join(outlier.clusters, "cluster.id") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
          # dist.pot.group = relevel(dist.pot.group, ref = "far")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 ```

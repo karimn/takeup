@@ -2,10 +2,7 @@
 
 library(magrittr)
 library(plyr)
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(readr)
+library(tidyverse)
 library(stringr)
 library(forcats)
 library(lubridate)
