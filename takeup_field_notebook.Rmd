@@ -1867,6 +1867,9 @@ write_rds(wave1.sms.ctrl.individuals, file.path("data", "takeup_sms_ctrl_4.1_wav
 ```
 
 ```{r update-main-data-with-sms, eval=TRUE}
+takeup.dict <- c("data/takeup_survey_dict_wave1.csv") %>%  # Only needed for wave 1
+  map_df(~ read_csv(.) %>% transmute(person_key, KEY.individ, cluster_key)) 
+
 sms.treated <- read_rds(file.path("data", "takeup_sms_sample_all_6.rds"))
 
 wave1.sms.ctrl.individuals <- bind_rows(phone.owner = read_rds(file.path("data", "takeup_sms_ctrl_4.1_wave1.rds")),
@@ -1888,7 +1891,8 @@ census.data %<>%
   right_join(combined.sms.sample, ., "KEY.individ", suffix = c(".sms.recruit", ".census")) %>% 
   mutate(phone = ifelse(nchar(phone) == 10 & str_sub(phone, 1, 1) == "0", str_sub(phone, 2), phone),
          phone = ifelse(!is.na(phone), paste0("+254", phone), NA),
-         monitored = (sms.treatment == "sms.control" | (!is.na(sms.treatment) & !is.na(sms.consent) & sms.consent)) | individ.baseline.sample)
+         monitored = (!is.na(sms.treatment) & (sms.treatment == "sms.control" | (!is.na(sms.consent) & sms.consent))) | individ.baseline.sample,
+         true.monitored = (wave == 2 & monitored) | KEY.individ %in% takeup.dict$KEY.individ)
 ```
 
 ```{r generate-sample-csv, eval=FALSE} 
@@ -2887,9 +2891,6 @@ calc.pot.deviation <- function(.data, suffix = "", entry.coord.formula = ~ lon +
 
 
 ```{r takeup-data, results="hide"}
-takeup.dict <- c("data/takeup_survey_dict_wave1.csv") %>%  # Only needed for wave 1
-  map_df(~ read_csv(.) %>% transmute(person_key, KEY.individ, cluster_key)) 
-
 read.individ.takeup.data <- function(file.name) {
   read_csv(file.name,
            col_types = list(timestamp_begin = col_datetime("%Y-%b-%d %T"),
@@ -3896,7 +3897,7 @@ save(baseline.reward.data, endline.reward.data, rewards.data, file = "data/rewar
 
 
 ```{r, include=FALSE}  
-save(census.data, hh.census.data, cluster.strat.data, cluster.wave.county.data, pot.info, all.villages, file = "data/takeup_census.RData")
-save(takeup.data, takeup.data.individuals, all.takeup.survey.groups, file = "data/takeup_at_pot.RData")
+save(census.data, hh.census.data, cluster.strat.data, cluster.wave.county.data, pot.info, all.villages, file = file.path("data","takeup_census.RData"))
+save(takeup.data, takeup.data.individuals, all.takeup.survey.groups, file = file.path("data", "takeup_at_pot.RData"))
 # save(matched.tu.data.2, file = "data/takeup_matched_population.RData")
 ```
