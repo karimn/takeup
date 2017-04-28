@@ -138,33 +138,37 @@ The remainder of the report is organized as follows: In section \ref{the-interve
 
 # The Intervention
 
-Working with the Government of Kenya we offered free deworming treatment to adults in 3 counties in western Kenya: Busia, Kakamega and Siaya County. Community Health Volunteers (CHVs) provided the treatment at central locations and sensitized households about the upcoming deworming treatment. CHVs informed all study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment. Pamphlets were handed out to community members and posters were placed in prominent locations. 
+Working with the Government of Kenya we offered free deworming treatment to adults at central locations in 3 counties in Western Kenya: Busia, Kakamega and Siaya County. Central locations were selected to be easily locatable by targeted community members by being in close proximity of a primary school and either located in their own villages or in neighboring villages.^[We initially selected treatment locations to be adjacent to primary schools because of their prominence and ubiquity. However, the Ministry of Education did not permit us to operate in such close proximity to schools to prevent cheating in exams. We therefore used alternative locations (such as churches) that were not too far from the originally selected schools.] Community Health Volunteers (CHVs) led the implementation of the community deworming program and provided the treatment at central locations and informed households about the upcoming deworming treatment.^[CHVs were trained in drug administration by their supervising Community Health Extension Workers (CHEWs), who also handled the distribution and recovery of deworming drugs. The research team worked closely with national and local health officials but was not involved in the medical aspects of deworming.] One week prior to the start of the deworming treatment CHVs conducted a door-to-door sensitization, informing households about the community-wide benefits of deworming and risk of infection through others, when and where free treatment will be available and if applicable what type of incentive will be given to adults coming for treatment. CHVs further worked with community stakeholders to spread the information through established channels (e.g. community meetings/barazas) and placed posters in prominent locations. 
 
-Deworming treatment was subsequently offered at central locations, from 8am to 5pm, for a period of 12 days. For logistical reasons, we split deworming treatment into two waves: the first deworming wave was from October 3 to 14 in Busia and Siaya County, and the second wave was from October 24 to November 4 in Kakamega County. Depending on the a cluster's assigned treatment, individuals who came for deworming were either only dewormed or were dewormed and either 
+<!-- (ADD CHV script in Appendix) -->
+<!-- (ADD Poster Example in Appendix) -->
 
-(i) required to receive a mark on their hand using indelible ink as is normally done when voting, 
-(ii) given a simple one page wall calendars, with a design unrelated to deworming, as a gift, or
-(iii) given a silicon bracelet as a bracelet.
+Deworming treatment was subsequently offered at central locations, from 8am to 5pm, for a period of 12 days. For logistical reasons, we split the intervention into two waves: from October 3 to 14 we offered deworming treatment to communities in Busia and Siaya County, and from October 24 to November 4 we offered treatment in Kakamega County. Depending on the treatment location a community was assigned to, adults who came for deworming were dewormed or were dewormed and also the first deworming wave was from October 3 to 14 in Busia and Siaya County, and the second wave was from October 24 to November 4 in Kakamega County. Depending on the a cluster's assigned treatment, individuals who came for deworming were either only dewormed or were dewormed and either 
 
-All adults who came to a treatment location were provided with deworming (and applicable incentives/signals) irrespective of where they live; we did not provide treatment only to the communities targeted by the informational campaign^[This was particularly important since nearly half of all clusters' targeted villages were assigned a treatment location in another village.] or require individuals to receive treatment in their home cluster. After treatment, all individuals were asked brief questions by research enumerators.
+(i) received a mark on their thumb using indelible ink as is normally done during voting, 
+(ii) given a simple one page wall calendar, with a design unrelated to deworming, as a gift, or
+(iii) given a silicon green bracelet as a gift.
 
-Central locations were picked to be easy locatable by targeted community members, either in their own villages or in neighboring villages. We initially selected treatment locations to be adjacent to primary schools because of their prominence and ubiquity (more on this below). However, the Ministry of Education did not permit us to operate in such close proximity to schools, so we decided to use alternative locations (such as churches) that are not too far from the originally selected schools^[The Ministry of Education prohibited any social activities within or near primary schools to prevent cheating in exams. During the treatment location survey, we had collected information on backup locations.].
+All adults who came to a given treatment location were provided with deworming treatment (and if applicable were given an incentive) irrespective of where they lived^[We did not provide treatment only to adults that came from communities that were targeted by the informational campaign or require individuals to receive treatment in their home cluster.] After treatment, individuals were asked to provide their name, gender, age and community location.^[This data is commonly collected during health campaigns for administrative purposes. For the purpose of this evaluation, recording deworming treatment take-up directly at the point of treatment instead of relying on self-reported measures greatly helped us improve the accuracy of our data.]   
 
-During the informational campaign conducted by CHVs prior to the MDA, we also recruited a random sample of individuals from different households to receive informational text messages about the MDA (see the [Experiment Design](#experiment-design) section). Messages were sent to all recruited subjects a day before the MDA with information on where to find their treatment locations. After that, messages were sent every other day (on the second, fourth, sixth, eight and tenth deworming day). 
-
-CHVs were trained by their supervising Community Health Extension Workers (CHEWs), who also handled the distribution and recovery of deworming drugs. Thus our study was focused on the social aspects of the intervention, e.g., the framing of deworming as a public good and the use of private or social incentives to encourage take-up. We were not involved with the medical aspects of deworming, for which we coordinated with national and local health officials. 
+Prior to the start of deworming treatment, we also recruited a random sample of individuals to receive informational text messages about the MDA (see the [Experiment Design](#experiment-design) section). The text messages reminded adults of the availability of deworming treatment and their treatment location, and provided information about deworming treatment take-up in their communities. Messages were sent the day before the MDA started and after that every other day (on the second, fourth, sixth, eight and tenth deworming day). 
 
 # Experiment Design
 
-We randomly selected 158 clusters in the three study counties, of which 144 were used in the study^[We only intended to use 150 clusters, and only included eight extra clusters as fallback clusters. For various practical reasons, implementation was only possible in 144 clusters.]. We relied on the high geographic density of primary schools in the study counties to select both treatment locations and targeted villages^[Geographic coordinates for primary schools were retrieved from the Kenya Open Data Portal (<http://www.opendata.go.ke/>).]. Each cluster is defined as a treatment location and targeted village pair. We used the location of primary schools as proxies for communities, so that we can identify acceptable locations (i) to set up our treatment locations and (ii) to find villages to target with our informational campaign and data collection.
+We randomly selected 158 clusters in the three study counties, of which 144 were used in the study^[We only intended to use 150 clusters, and only included eight extra clusters as fallback clusters. For various practical reasons, implementation was only possible in 144 clusters.]. We relied on the high geographic density of primary schools in the study counties to select both treatment locations and targeted communities^[Geographic coordinates for primary schools were retrieved from the Kenya Open Data Portal (<http://www.opendata.go.ke/>).]. Each cluster is defined as a treatment location and targeted community pair. We used the location of primary schools as proxies to (i) identify acceptable locations to set up our treatment locations and (ii) to find villages to target with our informational campaign and data collection.
 
-To pick our clusters from the pool of all primary schools in our study area (a total of 1,451 schools), we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius _catchment circle_ and 3-4 kilometer radius _buffer circle_ (buffer sizes were randomly assigned). A cluster was considered acceptable if its _buffer circle_ did not leave any of the already selected clusters' nonoverlapped _catchment circles_ smaller than an a pre-specified size (with about one primary school nonoverlapped).
+To select our clusters from the pool of a total of 1,451 primary schools in our study area, we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius _catchment circle_ and 3-4 kilometer radius _buffer circle_. A cluster was considered acceptable if its _buffer circle_ did not leave any of the already selected clusters' non-overlapping _catchment circles_ smaller than an a pre-specified size.
+
+<!-- ^[Buffer sizes were randomly assigned -  EXPLAIN MORE?]  -->
+<!-- ^[EXPLAIN OR DELETE: with about one primary school nonoverlapped. ALSO ADD pre-specified size = X] -->
 
 ```{r all-clusters-map, message=FALSE, fig.width=6, fig.height=6, fig.cap="Map of Initial Cluster Selection. Black crosses (+) indicate the selected treatment locations, while the grey regions indicate the nonoverlapped catchment circles from which we selected village(s) to target."}
 ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner") 
 ```
 
-After all clusters were selected, we randomly assigned (stratified within counties) each cluster to be either a "close" or "far" cluster: whether its targeted village would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its nonoverlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted village^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan [@Karing2016].]. Figures \ref{fig:dist-to-pot} and \ref{fig:marginal-dist-to-other-pot} show the distribution of cluster distance to treatment locations and to other clusters. 
+After all clusters were selected, we randomly assigned^[Randomization was stratified within counties to increase statistical power.] each cluster to be either a "close" or "far" cluster: whether its targeted community would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its non-overlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted community^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan [@Karing2016].]. Figure \ref{fig:dist-to-pot} shows the distribution of targeted communities' distances (in meters) to their own treatment locations and to the closest other treatment locations.
+<!--I struggle to interpret: first graph shows almost zero overlap, second graph shows that for 25% of communities closest other treatment loc was 2.5km or less away. DELETED 2nd graph (for now). -->
+<!-- Add further detail about what learn from graph e.g. (?) cluster selection algorithm was successful in that for almost all clusters own treatment location was closer than closest other treatment location -->
 
 ```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=3, fig.cap="Distance to Treatment Locations"}
 verify.vill.pot.dist %>% 
@@ -187,83 +191,85 @@ verify.vill.pot.dist %>% {
 } 
 ```
 
-```{r marginal-dist-to-other-pot, fig.height=2.5, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution."}
+```{r marginal-dist-to-other-pot, fig.height=2.5, fig.width=6, fig.cap="Marginal Distance to Closest Other Treatment Location. Dashed vertical lines indicate the 10th, 25th, 50th, 75th, and 90th percentiles of the distribution.", eval=FALSE}
 verify.vill.pot.dist %>% 
   mutate(marginal.dist = closest.other - dist.to.own.pot,
          dist.to.own.pot.cat = cut(dist.to.own.pot, 
                                    breaks = c(0,  2500/2, 10000),
                                    labels = c("Close", "Far"))) %>% {
-  ggplot(.) +
-    geom_histogram(aes(marginal.dist), alpha = 0.5, color = alpha("black", 0.5), binwidth = 500, boundary = 0, position = "dodge") +
-    scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
-    scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
-     geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed", alpha = 0.5)
-}
+                                     ggplot(.) +
+                        geom_histogram(aes(marginal.dist), alpha = 0.5, color = alpha("black", 0.5), binwidth = 500, boundary = 0, position = "dodge") +
+                        scale_y_continuous("Number of Clusters", breaks = seq(0, 50, 2)) +
+                        scale_x_continuous("", breaks = seq(-1000, 10000, 1000)) +
+                        geom_vline(xintercept = quantile(.$marginal.dist, probs = c(0.1, 0.25, .5, 0.75, 0.9)), linetype = "dashed", alpha = 0.5)
+                                   }
 ```
 
-Clusters were then randomly assigned, stratified over counties and distance treatment, an incentive/signal treatment: 
+Clusters were then randomly assigned, stratified over counties and distance treatment, to the different incentive treatments: 
 
-(i) Control: no incentives or public signals
-(ii) Indelible ink: a mandatory signal of treatment
+(i) Control: no incentive
+(ii) Indelible ink: a public signal of treatment
 (iii) Calendar: a private low-value gift 
-(iv) Bracelet: a low-value gift and public signal 
+(iv) Bracelet: a low-value gift and public signal of treatment 
 
-To finalize the cluster selection process, we surveyed the treatment location and target village anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified an alternative treatment locations, not far from the selected schools, as backups. For the anchor schools, we identified all the villages near them. From each cluster's candidate villages we randomly selected a village to target (in some cases because the initial village was too small, we added a second village).
+To finalize the cluster selection process, we surveyed the treatment location and target community anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified alternative treatment locations, close to the selected schools, as potential backups. For the anchor schools, we identified all the communities near them and randomly selected one community to target^[In some cases because the initial village was too small, we added a second village]. We then conducted a census of all adults (18 years or older of age) residing in the selected communities: surveyors visited each household, captured their geographic coordinates, and collected basic information of each household member that would allow us to follow-up with individuals if they were sampled in later stages and to stratify over relevant characteristics (e.g., phone ownership).
 
-For each village selected for targeting we then conducted a census of all adult community members (18 years of age or older). Enumerators visited all the households in selected villages, captured their geographic coordinates, and filled a roster of all household members, enought to identify them if sampled in later stages and to stratify over relevant characteristics (e.g., phone ownership, relevant for text message treatment).
+Using the census lists we randomly sampled individuals to be surveyed at base- and/or endline and to be part of the text messaging intervention. The sampling of individuals who did not receive any text messages was stratified over phone ownership. For all sampled individuals, we monitored the decision to take-up deworming treatment and obtained their consent to having observed their take-up status and using their data.^[Except for individuals who were surveyed at baseline, the majority were not informed about their participation in the study and therefore needed to be reconsented.] 
 
-Using the census lists we drew a number of samples for data collection. All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment. This is the group for whom we estimate the probability of take-up in our analysis. Except for those in the baseline survey sample, all individuals were not informed about their participation in a study (incomplete disclosure), and therefore we needed to get their reconsent after the study was completed.
+<!-- Strange bit since we state above that all individuals who came for treatment, were asked about their name, age, gender and community. So saying "All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment." does not quite make sense and makes it sound like as if we did not monitor other people's treatment status which we did though.-->
 
-### Baseline survey sample {-}
+### Baseline survey {-}
 
-Before the intervention started, we aimed to conduct baseline surveys with 15 individuals (from unique households) per cluster^[The actual number of individuals that were located varied for all the samples.]. The baseline survey questionnaire covered topics such as:
+<!-- should later replace intended number of people surveyed with actual avrg. number of adults surveyed-->
 
-a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of
-b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others
-c) Beliefs about one's own and others' deworming decisions in response to an MDA, and how that decision is affected by others' choices
-d) Beliefs about one's own and others' reputation if infected and treated
-e) Past experience with deworming treatment
+Before implementing the information campaign, we aimed to conduct baseline surveys with 15 individuals from unique households in each cluster^[The actual number of individuals that were located varied for all the samples.]. 
+<!-- ADD WHY WE DID THIS?-->
+The baseline survey included questions on:
 
-### Text message sample {-}
+a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of.
+b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others.
+c) Beliefs about one's own and others' deworming decisions in response to an MDA, and how that decision is affected by others' choices.
+d) Beliefs about one's own and others' reputation if infected and treated.
+e) Past experience with deworming treatment.
 
-As described above, in the [Intervention](#the-intervention) section, we recruited individuals to receive informational text messages. We aimed to recruit 30 individiuals per cluster in the control arm and 25 individuals per cluster in the treated arms. In the control arm, we broke the sample into two groups of 15, one received reminder messages only, and the other got reminders and social information -- they were told about the take-up of their community members up to the day of the message^[Peer take-up was described both as "few", "almost half", "almost everyone", etc., and as a "$n$ in 10" proportion.]. In the treated arms, all individuals received social information messages. All text messages recipients were reminded about where the treatment location is.
+### Text message intervention {-}
 
-Naturally, this sample was drawn from the population of phone owners, from which we also drew a comparator "control" sample, not receiving any text messages, and included in the _monitored_ group. We also drew a sample of text message "control" individuals from the non phone owners population. In other words, the sampling of monitored individuals not receiving any text messages was stratified over phone ownership.
+We aimed to recruit 30 individiuals per cluster in the control arm and 25 individuals per cluster in the treated arms to receive informational text messages. In the control arm, we divided the sample into two groups of 15: one group that received reminder messages only^[The reminder messages stated "Free deworming now at [Central Location]."], and a second group that received reminders and social information about other individuals' deworming take-up^[Peer take-up was described both as "few", "almost half", "almost everyone", etc. of your village came, and as a "$n$ in 10" proportion.]. In the incentive arms, all individuals received the reminder and the social information.
 
-### Endline survey sample {-}
+The text message treatment sample was drawn from the population of phone owners, from which we also drew a comparison "control" sample, that did not receive any text messages. 
 
-After the intervention was concluded, we aimed to conduct endline surveys with the 25 individuals per cluster, selected according to the following schedule:
+### Endline survey {-}
+
+After deworming treatment was completed, we aimed to conduct endline surveys with the 25 individuals per cluster, who were selected from the following groups:
 
 * From the sample of those not receiving text messages:
     - 15 individuals per cluster in the control arm
     - 20 individuals per cluster in the treated arms
 * From the sample of those receiving reminder messages only:
     - 5 individuals per cluster 
-* From the sample of those receiving social information messages:
+* From the sample of those receiving reminder and social information messages:
     - 5 individuals per cluster 
    
-Since not all individuals responding to the endline survey also responded to the baseline survey, some questions overlapped between the two questionnaires. The endline survey questionnaire covered topics such as:
+Since the majority of endline survey respondents were not part of the baseline survey, some questions overlapped between the two questionnaires. The endline survey included questions on:
 
-a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of
-b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others
-c) Knowledge of the MDA intervention: location, start date, and duration of treatment; where respondent got dewormed; how did respondent learn about the MDA; and if they were contacted about a CHV or text messaging
-d) Questions testing knowledge of peer deworming: 
+a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of.
+b) Knowledge of STH infection, how it is spread and treated, and how individuals' infection status affects others.
+c) Knowledge of the MDA intervention: location, start date, and duration of treatment; where respondent got dewormed; how did respondent learn about the MDA; and if they were contacted by a CHV or received text messages.
+d) Questions testing knowledge of others' deworming choices: 
     i. Respondents were incentivized to estimate how many of their community members got dewormed.
-    ii. Respondents were explicitly asked about their relationship with and their knowledge of deworming status of ten other individuals or pairs of individuals in their community^[We randomly asked respondents about individuals or pairs of individuals, in an effort to overcome potential aversion to disclosing negative information about peers.].
+    ii. Respondents were explicitly asked about their relationship with and their knowledge of deworming status of ten other individuals or pairs of individuals in their community^[We randomly asked respondents about individuals or pairs of individuals, with the objective to reduce potential aversion to disclosing negative information about peers.].
     
-All individuals who responded to the endline survey were also asked to reconsent to having their observed take-up status used in our study. The study was explained to them, as well as the reason for not informing about the participation in it prior to the endline survey.
+<!--Note according to IRB WTP was part of endline survey, just a different survey part. I think we should treat it that way. -->
 
-### Reconsent only sample {-}
-
-All remaining individuals in the text message sample (recipients and non-recipients of messages) and who are not in the endline survey sample were visited to to ask for reconsent in the same manner as the endline survey sample. The baseline survey sample was reconsented if they overlapped with any of the other sample. Thus, we were table to observe deworming take-up for a mix of individuals who did and did not respond to a baseline survey.
-
-### Willingness-to-pay survey sample {-}
-
-In order to assess individuals' private valuation of the calendar and bracelet incentives, we conducted willingness-to-pay surveys with a sample of subjects in the control arm who have neither responded to any endline survey nor have they received any text messaging treatment. We randomly selected 25 individuals from each of 24 randomly selected control communities. Respondents were asked to choose one of the two incentives as a gift, revealing their preference. Subsequently, they were offered a random cash amount for them to switch the other incentive, allowing us to estimate the difference in the incentives' price value. 
+As part of the endline survey, we implemented a discrete choice experiment to elicit individuals' private valuation for the calendar and bracelet incentives. We conducted a willingness-to-pay survey with a sample of subjects in the control arm who were neither part of the endline survey nor were they part of the text messaging treatment. We randomly selected 24 control communities and sampled 25 individuals from each. Respondents were given the choice to receive either the calendar or the bracelet for free, revealing their preferred choice. We then offered a random cash amount for respondents to switch to the incentive that they had not chosen, which allows us to estimate the utility difference in monetary terms. 
 
 # Descriptive Statistics 
 
-In this section we will present some descriptive statistics and plots, using data collected from the various study surveys. 
+In this section we will present descriptive statistics pertinent to implementation of the community deworming program and its outcomes. 
+
+### Study sample
+Table \ref{tab:cluster-stats} shows the total number of clusters by treatment arm and county as well as the number of adults that were surveyed during the census. Across 144 cluster, we surveyed 39,301 individuals who formed the sampling frame for different surveys and text messaging intervention. 
+<!-- useless sentence and should definitely move table to appendix later. useful only if we describe different sample, where this is super sample and then there is monitored, monitored consent and endline sample -->
 
 ```{r cluster-stats}
 cluster.stats <- census.data %>%
@@ -291,7 +297,7 @@ individ.stats <- cluster.stats %>%
 
 \begin{table}
 \centering
-\caption{Number of clusters and individuals in targeted communities, by county and treatment arm.}
+\caption{Number of clusters and individuals in targeted communities, by county and treatment arm.}\label{tab:cluster-stats}
 \begin{tabular}{l*{10}{c}}
 \toprule
        & \multicolumn{5}{c}{Clusters} & \multicolumn{5}{c}{Individuals} \\ \\
@@ -311,77 +317,9 @@ clusters.stats %>%
 \end{tabular}
 \end{table}
 
-By the end of the intervention, we had recorded the deworming treatment of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal interpretations based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
+Figure \ref{fig:general-desc-stats} shows socio-economic characteristics of individuals in the census, base- and endline survey. The mean age is 35 and 40 years respectively. Over half of respondents have not completed primary education and a large share (80$\%$) live in houses with floors made of earth. Both is indicative of low-income status, yet 65$\%$ to 80$\%$ of respondents report to have a mobile phone across the different surveys. 
 
-```{r absolute-takeup, fig.height=6, fig.cap="Absolute Deworming Take-up"}
-plot.aggreg.takeup <- function(.data) {
-  ggplot(.data, aes(assigned.treatment)) +
-    geom_bar(alpha = 0.5, color = alpha("black", 0.5)) +
-    labs(x = "Treatment", y = "Number of Individuals Dewormed (x 100)", caption = "Note: range on Y axis varies between counties.") +
-    facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
-    scale_y_continuous(labels = . %>% divide_by(100)) + 
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-}
-
-takeup.data %>% 
-  mutate_at(vars(dist.pot.group, assigned.treatment), funs(factor(.) %>% fct_relabel(str_to_title))) %>% 
-  plot.aggreg.takeup 
-```
-
-As descibed in the [Experiment Design](#experiment-design) section, clusters were randomly assigned to be either _close_ or _far_ from the treatment location. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances the had the spread seen in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap or non-compliance with assigned treatment, this should not affect the intention-to-treat analysis carried in this report.
-
-```{r actual-distance, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
-analysis.data %>%  
-  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
-  ggplot(aes(dist.to.pot)) +
-  geom_density(aes(color = dist.pot.group, linetype = "Household")) +
-  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"),
-               data = mutate(village.centers, assigned.treatment = fct_relabel(assigned.treatment, str_to_title))) +
-  geom_vline(xintercept = c(1250), linetype = "dashed") +
-  labs(y = "Density", 
-       caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
-  scale_x_continuous("Distance to Treatment Location (meters)", breaks = seq(0, 10000, 2500/4)) +
-  scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
-  scale_linetype_discrete("Distance From") +
-  facet_wrap(~ assigned.treatment)
-```
-
-```{r mean-assigned-dist, warning=FALSE}
-analysis.data %>%  
-  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% {
-    bind_rows(group_by(., assigned.treatment, dist.pot.group) %>%
-                summarize(mean.dist = mean(dist.to.pot)) %>%
-                ungroup,
-              group_by(., dist.pot.group) %>% 
-                summarize(mean.dist = mean(dist.to.pot), assigned.treatment = "(All)") %>% 
-                ungroup)
-  } %>% 
-  spread(dist.pot.group, mean.dist) %>% 
-  mutate(mean.dist.diff = far - close) %>% 
-  kable(col.names = c("Arm", "Close", "Far", "Mean Difference"), 
-        caption = "Mean Distance to Treatment Location (meters)",
-        format = "latex", align = "lccc", booktabs = TRUE, longtable = FALSE, format.args = list(big.mark = ",")) 
-```
-
-Figure \ref{fig:know-believe-categorical-responses} presents individuals' responses to some of the baseline and endline survey questions. Comparing reported knowledge and beliefs of surveyed individuals, the most significant change appears to be the understanding of who is at risk of worm infection. More people are reporting after the intervention the belief that everyone is at risk of worm infection, compared to before. Surprisingly, there seems to be a decrease in the understanding that individuals can infection one another.
-
-```{r know-believe-categorical-responses, warning=FALSE, fig.width=8, fig.height=10, fig.cap="Knowledge and beliefs baseline and endline survey responses."}
-tribble(~ col.name,      ~ label,
-        "who_worms",     "Who is at risk of worms?",
-        "effect_worms",  "What are the effects of worms?",
-        "spread_worms",  "Can an infected person spread worms to other?",
-        "how_spread",    "How are worms spread?",
-        "stop_worms",    "How to stop worms?",
-        "when_treat",    "When should people get dewormed?",
-        "worms_affect",  "If infected, can you affect others' health?",
-        "neighbours_worms_affect", "Can neighbors or relatives worm infection affect your health?") %>% 
-  multi.know.bel.cat.plot() +
-  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
-```
-
-```{r general-desc-stats, fig.width=8, fig.height=5, warning=FALSE, fig.cap="Study population summary statistics"}
+```{r general-desc-stats, fig.width=8, fig.height=6, warning=FALSE, fig.cap="Study population summary statistics"}
 gen.stats.plot <- tribble(~ col.name,       ~ label,
         "gender",         "Gender",
         "ethnicity2",      "Ethnicity",
@@ -407,7 +345,82 @@ age.density.plot <- list(Census = mutate(census.data, age = age.census),
 grid.arrange(gen.stats.plot, age.density.plot, layout_matrix = as.matrix(c(1, 1, 1, 1, 2)))
 ```
 
-Figure \ref{fig:dewormed-history} presents individuals' reported deworming history, prior to the intervention. Unsurprisingly, the majority of respondents said that children in their families have been previously dewormed, and the most common location for treatment for their family members had been during the annual school-based MDA. We also see that almost two of adults had been previously dewormed. However, more than half of those reporting prior treatment, were treated over two years ago. Furthermore, most adults reported getting dewormed at a hospital/clinic or purchased medication.
+<!--Gender decomposition -->
+
+### Knowledge, beliefs and perceptions of deworming {-}
+Figure \ref{fig:know-believe-categorical-responses} presents individuals' responses to base- and endline questions about worms and deworming treatment. The majority of respondents knew about deworming treatment (78$\%$). However, less than one third of adults had knowledge of the negative externalites of worm infection. Comparing reported knowledge and beliefs of baseline and endline surveyed individuals, the most significant change is in people's understanding of who is at risk of worm infections. More people are reporting after the intervention the belief that everyone is at risk of worm infection. 
+<!-- TOOK OUT since people are both less likely to answer yes and no to this question, as if they were less open to answering the question after deworming took place "Surprisingly, there seems to be a decrease in the understanding that individuals can infection one another. -->
+
+```{r know-believe-categorical-responses, warning=FALSE, fig.width=8, fig.height=10, fig.cap="Knowledge and beliefs baseline and endline survey responses."}
+tribble(~ col.name,      ~ label,
+        "who_worms",     "Who is at risk of worms?",
+        "effect_worms",  "What are the effects of worms?",
+        "spread_worms",  "Can an infected person spread worms to other?",
+        "how_spread",    "How are worms spread?",
+        "stop_worms",    "How to stop worms?",
+        "when_treat",    "When should people get dewormed?",
+        "worms_affect",  "If infected, can you affect others' health?",
+        "neighbours_worms_affect", "Can neighbors or relatives worm infection affect your health?") %>% 
+  multi.know.bel.cat.plot() +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
+```
+
+Since our study's main research questions focus on social influence in deworming decisions, we tried to elicit individuals' perceptions and beliefs of others' deworming choices. Figure \ref{fig:response-other-deworm} shows individuals reporting that their own deworming decisions would not be influenced by others' decisions, as well as having a strong _intention_ to getting dewormed.
+
+```{r response-other-deworm, warning=FALSE, fig.width=8, fig.height=2.5, fig.cap="Reported response to others' deworming choices."}
+tribble(~ col.name,      ~ label,
+        "few_deworm",     "Deworm if less than half of others deworm?",
+        "many_deworm",    "Deworm if more than half of others deworm?",
+        "more_less",      "Would you be more likely to deworm if few/many others get dewormed?") %>% 
+  multi.know.bel.cat.plot(.endline.data = NULL) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
+```
+
+In addition, as shown in Figure \ref{fig:baseline-deworming-beliefs}, people predicted similar deworming among peers. As we will see below, most people overestimated their own and others' deworming take-up. Finally, when individuals were asked about how others would respond to the use of indelible ink as a signal of deworming treatment, they predicted a positive effect, contrary to what we actually observed.
+
+```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs", warning=FALSE}
+```
+
+```{r survey-of-10-beliefs-boxplot, ref.label="survey-of-10-beliefs-boxplot", warning=FALSE}
+```
+
+```{r baseline-deworming-beliefs, warning=FALSE, fig.width=8, fig.height=5, fig.cap="Baseline beliefs/predictions about others' deworming choices."}
+other.predict.deworm.plot <- tribble(~ col.name,              ~ label,
+                                     "dworm_proportion",      "How many people will come to get dewormed?",
+                                     "ink_more_less",         "Will the ink signal increase/decrease deworming take-up?") %>% 
+  multi.know.bel.cat.plot(.endline.data = NULL,
+                          preprocess.fun = . %>% 
+                            mutate(response = fct_relevel(response,
+                                                          "Few", "Nearly Half", "Half", "More Than Half", "Many", "All", "Less", "Same", "More", "Prefer Not Say", "Don't Know"))) +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+  labs(title = "Peer deworming predictions")
+
+survey.takeup.beliefs.10.boxplot <- survey.takeup.beliefs.10.boxplot + theme(legend.position = "none")
+survey.takeup.beliefs.10 <- survey.takeup.beliefs.10 + theme(legend.position = "right")
+
+grid.arrange(other.predict.deworm.plot, survey.takeup.beliefs.10, survey.takeup.beliefs.10.boxplot, 
+             layout_matrix = rbind(c(1, 1, 1, 1), c(2, 2, 3, 3)))
+
+```
+
+To measure existing social norms surrounding deworming, we elicited individuals' attitudes towards deworming and other well-known behaviors such as wearing nice clothes to church, using latrienes, and immunizing children. We presented individuals with different scenarios and asked whether these would inspire praise or stigma.
+
+We also inquired about respondents' social perception/judgement of some of others' behaviors (some more observable than others). We wanted to compare attitudes towards deworming and other behaviors such as wearing nice clothes to church, using latrines, and immunizing children. Individuals were presented with difference scenarios and were asked whether they would inspire praise or stigma. Figure \ref{fig:praise-stigma-plot} shows that deworming during the MDA is considered to be as highly praiseworthy as the use of latrines and immunization of children, and more praiseworthy than wearing nice clothes to church. In terms of stigma, failing to get dewormed is reported to be slightly less stigmatized than open defecation and not immunizing ones children, but is more negatively viewed than not wearing nice clothes to church.
+
+
+```{r praise-stigma, ref.label="praise-stigma"}
+```
+
+```{r praise-stigma-plot, fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
+plot(praise.stigma.plot) 
+```
+
+```{r mda-dates-dist, ref.label="mda-dates-dist"}
+```
+
+### Prior experience with deworming 
+
+Figure \ref{fig:dewormed-history} presents individuals' reported experience with deworming, prior to the intervention. The majority of respondents said that children in their families had been previously dewormed, and the most common location for treatment for family members had been during the annual school-based MDA. We also see that almost two third of adults had been previously dewormed. However, more than half of those reporting prior treatment, were treated over two years ago. Furthermore, most adults reported getting dewormed at a hospital/clinic or to have purchased medication.
 
 ```{r dewormed-history, fig.width=8, fig.height=9, fig.cap="Deworming history."}
 ever.dewormed.plot <- baseline.data %>% 
@@ -471,57 +484,10 @@ grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, when.dewormed.plot, wher
              layout_matrix = as.matrix(c(1, 1, 2, 3, 3, 4, 4)))
 ```
 
-Since the study's main research questions focus on the social impact of signals, incentives and information, we included a number of questions in our surveys to get a clearer picture of how individuals perceive and predict others' deworming choices. Figure \ref{fig:response-other-deworm} shows individuals reporting that their own deworming decisions would not be influenced by others' decisions, as well as having a strong _intention_ to getting dewormed. In addition, as shown in Figure \ref{fig:baseline-deworming-beliefs}, people predicted similar deworming among peers. As we will see below, most people overestimated their own and others' deworming take-up. Finally, when individuals were asked about how others would respond to the use of indelible ink as a signal of deworming treatment, they predicted a positive effect, contrary to what we actually observed. 
+### Information campaign and knowledge about MDA
+To verify that individuals were informed about the MDA we asked endline survey respondents questions to test their knowledge, presented in Figure \ref{fig:know-about-mda}. Responses indicate a good knowledge of the MDA and its start and end dates. The majority reported learning about the MDA from CHVs, and few said they were informed by other social contacts such as barazas, churches, family and friends. Posters did not appear to be very successful. Overall, the MDA's informational campaign, led by CHVs, was successful at reaching most community members.
 
-```{r survey-of-10-beliefs, ref.label="survey-of-10-beliefs", warning=FALSE}
-```
-
-```{r survey-of-10-beliefs-boxplot, ref.label="survey-of-10-beliefs-boxplot", warning=FALSE}
-```
-
-We also inquired about respondents' social perception/judgement of some of others' behaviors (some more observable than others). We wanted to compare attitudes towards deworming and other behaviors such as wearing nice clothes to church, using latrines, and immunizing children. Individuals were presented with difference scenarios and were asked whether they would inspire praise or stigma. Figure \ref{fig:praise-stigma-plot} shows that deworming during the MDA is reported to be as highly praiseworthy as the use of latrines and immunization children, more praise worthy than wearing nice clothes to church. In terms of stigma, failing to get dewormed is slightly lower than open defecation and not immunizating children, but much higher than not wearing nice clothes to church.
-
-To verify that the targeted communities were properly informed about the MDA we asked endline survey respondents a few questions to test their knowledge, presented in Figure \ref{fig:know-about-mda}. Responses indicate good knowledge of the MDA and start and end dates. The majority reported learning about the MDA from CHVs, and few said they were informed by other social contacts such as barazas, churches, family and friends. Posters did not appear to be very successful. Overall, the MDA's informational campaign, spearheaded by CHVs, was successful at reaching most community members.
-
-```{r praise-stigma, ref.label="praise-stigma"}
-```
-
-```{r response-other-deworm, warning=FALSE, fig.width=8, fig.height=2.5, fig.cap="Reported response to others' deworming choices."}
-tribble(~ col.name,      ~ label,
-        "few_deworm",     "Deworm if less than half of others deworm?",
-        "many_deworm",    "Deworm if more than half of others deworm?",
-        "more_less",      "Would you be more likely to deworm if few/many others get dewormed?") %>% 
-  multi.know.bel.cat.plot(.endline.data = NULL) +
-  scale_y_continuous(breaks = seq(0, 1, 0.1)) 
-```
-
-```{r baseline-deworming-beliefs, warning=FALSE, fig.width=8, fig.height=5, fig.cap="Baseline beliefs/predictions about others' deworming choices."}
-other.predict.deworm.plot <- tribble(~ col.name,              ~ label,
-                                     "dworm_proportion",      "How many people will come to get dewormed?",
-                                     "ink_more_less",         "Will the ink signal increase/decrease deworming take-up?") %>% 
-  multi.know.bel.cat.plot(.endline.data = NULL,
-                          preprocess.fun = . %>% 
-                            mutate(response = fct_relevel(response,
-                                                          "Few", "Nearly Half", "Half", "More Than Half", "Many", "All", "Less", "Same", "More", "Prefer Not Say", "Don't Know"))) +
-  scale_y_continuous(breaks = seq(0, 1, 0.1)) +
-  labs(title = "Peer deworming predictions")
-
-survey.takeup.beliefs.10.boxplot <- survey.takeup.beliefs.10.boxplot + theme(legend.position = "none")
-survey.takeup.beliefs.10 <- survey.takeup.beliefs.10 + theme(legend.position = "right")
-
-grid.arrange(other.predict.deworm.plot, survey.takeup.beliefs.10, survey.takeup.beliefs.10.boxplot, 
-             layout_matrix = rbind(c(1, 1, 1, 1), c(2, 2, 3, 3)))
-
-```
-
-```{r praise-stigma-plot, fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
-plot(praise.stigma.plot) 
-```
-
-```{r mda-dates-dist, ref.label="mda-dates-dist"}
-```
-
-```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=6, fig.cap="Knowledge of RCT intervention."}
+```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=6.5, fig.cap="Knowledge of RCT intervention."}
 know.mda.cat.plot <- tribble(~ col.name,      ~ label,
         "know_deworm",    "Know about community-based MDA?",
         "treat_begin",    "Know when MDA starts?",
@@ -537,26 +503,24 @@ mda.dates.dist.plot <- mda.dates.dist.plot + theme(legend.position = "right")
 grid.arrange(know.mda.cat.plot, mda.dates.dist.plot, layout_matrix = as.matrix(c(1, 1, 1, 2, 2)))
 ```
 
-## Revealed Preferences for Incentives
 
-In order to distinguish between the private and social motivation of incentives/signals, we asked endline survey respondents some questions on their preferences for calendars and bracelets, and separately conducted a [willingness-to-pay survey](#willingness-to-pay-survey-sample) in the control arm. The identification challenge for us is separating between 
+### Preferences for incentives {-}
 
-a) _private valuation_, individuals like it for its intrinsic value, and 
-b) _social valuation_, individuals are affected by braclets either because they they want to broadcast their deworming or are receiving information on observing others deworming.
+<!-- Revealed Preferences for Incentives AND STATED --> 
 
-Figure \ref{fig:gift-plots} reports which incentive (bracelet or calendar) individuals preferred as a gift during the endline survey. Calendars are typically preferred by all except for those already dewormed or live in the same household as someone who already received a calendar (in the calendar treatment arm). Similarly, in the willingness-to-pay survey, we found that the majority of individuals preferred calendars to bracelets (Figure \ref{fig:wtp-plots}). Therefore, we are not concerned that bracelets could have influenced take-up only as a consumption good. 
+In order to distinguish between the private and social motivation of incentives, we asked endline respondents for their preferences for the calendar and bracelet incentives, and separately conducted a [willingness-to-pay survey](#willingness-to-pay-survey-sample) in the control arm. The identification challenge for us is to separate
+
+a) _private valuation_, individuals like the bracelets for their consumption value, and 
+<!--I think in B&T intrinsic value is used to refer to the value assigned to deworming, a calendar or bracelet item would have extrinsic value because calendar can be used for dates etc. and bracelet can be worn on wrist -- both are goods to use-->
+b) _social valuation_, individuals are influenced by bracelets in their deworming decision because they want to broadcast that their deworming or because they are reminded or learn about deworming by observing others' decisions.
+
+Figure \ref{fig:gift-plots} reports which incentive (bracelet or calendar) individuals preferred as a gift during the endline survey. Calendars are typically preferred by all except for those already dewormed. Similarly, in the willingness-to-pay survey, we find that the majority (72 $\%$) of individuals preferred calendars to bracelets. This provides evidence that individuals assign a higher private value to calendars and that by comparing deworming treatment take-up across calendar and bracelet arms we are able to isolate the social component. 
+<!-- weak, needs to be rewritten but hopefully okay for CIFF, really would need model at beginning -->
 
 ```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm"}
 ```
 
-
 ```{r other-incentive-plot, ref.label="other-incentive-plot"}
-```
-
-```{r first-choice-wtp, ref.label="first-choice-wtp"}
-```
-
-```{r switch-price-wtp, ref.label="switch-price-wtp"}
 ```
 
 ```{r gift-plots, fig.height=7, fig.width=9, fig.cap="Reported calendar/bracelet preferences, split by experiment arm and respondents' deworming take-up."}
@@ -564,16 +528,74 @@ grid.arrange(reported.gift.pref.dewormed.plot, other.have.incentive.plot,
              layout_matrix = as.matrix(c(1, 1, 2, 2, 2)))
 ```
 
-```{r wtp-plots, fig.width=8, fig.cap="Willingness-to-pay survey responses."}
-switch.price.plot <- switch.price.plot + theme(legend.position = "right")
-
-grid.arrange(first.choice.wtp.plot, switch.price.plot, 
-             layout_matrix = as.matrix(c(1, 1, 2, 2, 2, 2, 2))) 
+```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm"}
 ```
 
-# Analysis
 
-In this section we conduct a reduced form regression analysis in order identify the causal impact of cluster assigned incentive/signal treatment; cluster assigned distance to treatment location; and individually assigned SMS reminder and information treatment. We use the regression approach proposed by @Imbens2015 to analyze stratified experiments:
+### Distance to treatment location {-}
+As descibed in the [Experiment Design](#experiment-design) section, communities were randomly assigned to be either located _close_ or _far_ from the treatment locations. The distance assignment is key for us to estimate individuals' response to changes in treatment (travel) cost and quantify the utility from social signaling. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances to points of treatments were distributed as shown in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap between _close_ and _far_ clusters (i.e. non-compliance with assigned treatment), this does not affect the intention-to-treat analysis carried out in this report.
+
+```{r actual-distance, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
+analysis.data %>%  
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
+  ggplot(aes(dist.to.pot)) +
+  geom_density(aes(color = dist.pot.group, linetype = "Household")) +
+  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"),
+               data = mutate(village.centers, assigned.treatment = fct_relabel(assigned.treatment, str_to_title))) +
+  geom_vline(xintercept = c(1250), linetype = "dashed") +
+  labs(y = "Density", 
+       caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
+  scale_x_continuous("Distance to Treatment Location (meters)", breaks = seq(0, 10000, 2500/4)) +
+  scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
+  scale_linetype_discrete("Distance From") +
+  facet_wrap(~ assigned.treatment)
+```
+
+We can see in Table \ref{tab:mean-assigned-dist} that individuals from _far_ communities had to travel more than twice the distance to treatment locations compared to individuals from _close_ communities. 
+<!-- Elaborate on point that "treatment cost" assignment was successful. Sadly, though least difference for bracelets... -->
+
+```{r mean-assigned-dist, warning=FALSE}
+analysis.data %>%  
+  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% {
+    bind_rows(group_by(., assigned.treatment, dist.pot.group) %>%
+                summarize(mean.dist = mean(dist.to.pot)) %>%
+                ungroup,
+              group_by(., dist.pot.group) %>% 
+                summarize(mean.dist = mean(dist.to.pot), assigned.treatment = "(All)") %>% 
+                ungroup)
+  } %>% 
+  spread(dist.pot.group, mean.dist) %>% 
+  mutate(mean.dist.diff = far - close) %>% 
+  kable(col.names = c("Arm", "Close", "Far", "Mean Difference"), 
+        caption = "Mean Distance to Treatment Location (meters)",
+        format = "latex", align = "lccc", booktabs = TRUE, longtable = FALSE, format.args = list(big.mark = ",")) 
+```
+
+
+### Absolut dworming treatment take-up
+By the end of the intervention, we had recorded the deworming treatment of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal interpretations based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
+
+
+```{r absolute-takeup, fig.height=6, fig.cap="Absolute Deworming Take-up"}
+plot.aggreg.takeup <- function(.data) {
+  ggplot(.data, aes(assigned.treatment)) +
+    geom_bar(alpha = 0.5, color = alpha("black", 0.5)) +
+    labs(x = "Treatment", y = "Number of Individuals Dewormed (x 100)", caption = "Note: range on Y axis varies between counties.") +
+    facet_grid(county.randomization ~ dist.pot.group, scales = "free_y", margins = TRUE) +
+    scale_y_continuous(labels = . %>% divide_by(100)) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+takeup.data %>% 
+  mutate_at(vars(dist.pot.group, assigned.treatment), funs(factor(.) %>% fct_relabel(str_to_title))) %>% 
+  plot.aggreg.takeup 
+```
+
+
+# Analysis
+In this section we conduct a reduced form regression analysis in order identify the causal impact of cluster assigned incentive treatments; cluster assigned distance to treatment location i.e. exogenous variation in travel cost; and individually assigned text message reminder and social information treatment. We use the regression approach proposed by @Imbens2015 to analyze stratified experiments:
 
 \begin{equation*}
 Y_{ij} = m_K(Z_j, D_j, M_{ij}, B_j, X_{ij};\theta_K) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k=1}^{K-1} m_k(Z_j, D_j, M_{ij}, B_j, X_{ij};\theta_k) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij},
@@ -815,61 +837,64 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
 
 We will report results for four specifications identifying:
 
-1. The average treatment effects of incentives/signals on deworming take-up, excluding individuals assigned to any SMS treatment
-2. The average treatment effects of incentives/signals and distance to treatment location on deworming take-up, excluding individuals assigned to any SMS treatment
-3. The average treatment effects of incentives/signals and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
-4. The average treatment effects of incentives/signals, distance to treatment location and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
+1. The average treatment effects of incentives on deworming take-up, excluding individuals assigned to any SMS treatment.
+2. The average treatment effects of incentives and distance to treatment location on deworming take-up, excluding individuals assigned to any SMS treatment.
+3. The average treatment effects of incentives and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
+4. The average treatment effects of incentives, distance to treatment location and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
 
 For each specification we present a table with point estimates and their standard errors, $P$-values for tests of joint significance, other regression related information, as well as a plot showing take-up rates and 90\% confidence intervals for tests of significance against the reference treatment, for the regression controlling for covariates. The number of clusters included in each specification vary because we dropped outlier clusters.
 
-The first results we look at are reported in Table \ref{tab:reg-basic} and Figure \ref{fig:reg-basic-covar-plot}. The impact of incentives/signals appears to be progressively stronger going from ink, calendars, to bracelets. Bracelets' impact is statistically significant compared to the control and calendar arms: bracelets increase the probability of take-up by 8 to 12 percentage points, with a baseline level of between 37 to 34 percent take-up. Evidence on the preference for calendars over bracelets and the statistical significance between the impact of calendar and bracelets, lead us to conclude that bracelets did not prove effective solely as a private incentive.
+The first results we look at are reported in Table \ref{tab:reg-basic} and Figure \ref{fig:reg-basic-covar-plot}. The impact of incentives appears to be progressively stronger going from ink, calendars, to bracelets. Bracelets' impact is statistically significant compared to the control and calendar arms: bracelets increase the probability of take-up by 8 to 12 percentage points, with a baseline level of between 37 to 34 percent take-up. Evidence on the preference for calendars over bracelets and the statistical significance between the impact of calendar and bracelets, lead us to conclude that bracelets did not prove effective solely as a private/consumption incentive.
 
 ```{r reg-basic-table, results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(reg.table.data, caption = "Incentive/signal treatment effects, without SMS treatment.", label = "tab:reg-basic")
+print.reg.table(reg.table.data, caption = "Incentive treatment effects, without SMS treatment.", label = "tab:reg-basic")
 ```
 
-```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive/signal treatments."}
+```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive treatments."}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% 
   plot.sms.ctrl.takeup +
   labs(subtitle = "With control")
 ```
 
-To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive/signal treatment with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, see that distance has strong negative effect on take-up, dropping between 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also not a big change in the impact of incentives/signals: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm. The pattern of incentives/signals' impact, compared to the control arm, is similar across specification, although only the bracelets have a statistically significant impact, in _far_ communities: between 11 and 17 percentage points change, compared to the control arm, and between 9 and 12 percentage points change compared to the calendar arm. 
+To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive treatments with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, we see that distance has strong negative effect on take-up, dropping between 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also note a big change in the impact of incentives with distance: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm. The pattern of incentives' impact is similar across specification, although only the bracelets have a statistically significant impact in _far_ communities: deworming take-up increases by 11 to 17 percentage points, compared to the control arm, and by 9 to 12 percentage points compared to the calendar arm. 
 
 
 ```{r reg-dist-table, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(dist.reg.table.data, 
-                caption = "Incentive/signal treatment effects, split by assigned distance to treatment location, without SMS treatment.",
+                caption = "Incentive treatment effects, split by assigned distance to treatment location, without SMS treatment.",
                 label = "tab:reg-dist")
 ```
 
-```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive/signal treatments with distance from treatment location interactions."}
+```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive treatments with distance from treatment location interactions."}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
   mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% 
   plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) +
   labs(subtitle = "With controls") 
 ```
 
-In the last two specifications, we consider the impact of SMS reminders and informational messages, combined with incentive/signal treatment and distance to treatment location, on deworming take-up. Hence, we limit our analysis to the population of phone owners. As shown in Figure \ref{fig:general-desc-stats}, this encompasses between 2/3 to 3/4 of the population.
+In the last two specifications, we consider the impact of text message reminders and social information messages, combined with incentives and distance to treatment location, on deworming take-up. Hence, we limit our analysis to the population of phone owners. As shown in Figure \ref{fig:general-desc-stats}, this encompasses between 2/3 to 3/4 of the population.
 
-First, the impact of SMS treatment on deworming is estimated in Figure \ref{fig:sms-reg-covar-plot} and Tables \ref{tab:reg-sms} and \ref{tab:sms-interact}. There appears to be a big difference in the estimated take-up of deworming in the control arm when control for individual characteristics (refer to columns 1 and 9 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of calendars and bracelets, as well as becoming statistically significant. Also, both impacts are very similar in magnitude (column 11). 
+First, the impact of SMS treatment on deworming is estimated in Figure \ref{fig:sms-reg-covar-plot} and Tables \ref{tab:reg-sms} and \ref{tab:sms-interact}. There appears to be a big difference in the estimated take-up of deworming in the control arm (refer to columns 1 and 6 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of SMS treatment combined with calendars and bracelets, as well as becoming statistically significant (see Table \ref{tab:sms-interact}). 
 
-Considering the difference between a reminders only treatment (only tested in the incentives/signals control arm) and a social information treatment (tested in all arms), we see an almost six percentage point difference in take-up (columns 5 and 13), although only statistically significant when not controlling for covariates. This is also a surprising outcome, considering the the social information messages also functioned as reminders. 
-
-Overall, social information treatment seems to have had a dramatic effect on deworming take-up, in particular when combined with incentives/signals. In columns 2-4 and 10-12, we observe an increase in the social information interaction effects, but only consistently statistically significant when comparing the bracelet and social information take-up with the ink and social information take-up (see Table \ref{tab:sms-interact}).
-
-```{r reg-sms, results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(sms.reg.table.data, 
-                font.size = "scriptsize",
-                caption = "Incentive/signal treatment and SMS treatment effects.", label = "tab:reg-sms",
-                estimate.buffer = TRUE, landscape = FALSE)
-```
-
-```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive/signal treatment with SMS treatment interactions."}
+```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive treatment with SMS treatment interactions."}
 prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% 
   plot.sms.treat.takeup +
   labs(subtitle = "With Controls") 
 ```
+
+
+```{r reg-sms, results="asis", cache=FALSE, warning=FALSE}
+print.reg.table(sms.reg.table.data, 
+                font.size = "scriptsize",
+                caption = "Incentive treatment and SMS treatment effects.", label = "tab:reg-sms",
+                estimate.buffer = TRUE, landscape = FALSE)
+```
+
+Considering the difference between the reminder only treatment (only tested in the control arm) and the reminder plus social information treatment (tested in all arms), we see an almost six percentage point difference in take-up (columns 5 and 10), although only statistically significant when not controlling for covariates. This is a surprising outcome, considering that the social information messages included the same message as the reminder only texts. 
+
+<!--i am not sure how much i trust these results GIVEN how thin we are cutting the sample here, i.e. how few obs we have in individual cells... but I assume CIFF won't care-->
+
+Overall, the text message treatment had a dramatic effect on deworming take-up, in particular when combined with incentives. In columns 2-4 and 7-9, we observe an increase in the social information interaction effects, but only consistently statistically significant when comparing the bracelet and social information take-up with the ink and social information take-up (see Table \ref{tab:sms-interact}).
 
 ```{r compare-sms-interact-reg}
 sms.interact.diff.lh <- c(paste(c("ink:social.info",
@@ -895,7 +920,7 @@ print.sms.interact.table(sms.interact.table.data,
                          label = "tab:sms-interact")
 ```
 
-Finally, regression analysis results for the impact of incentive/signal treatment, SMS reminders and social information treatment, and assigned distance to treatment location, are presented in Figure \ref{fig:sms-dist-plot} and Tables \ref{tab:reg-sms-dist-monitored}, \ref{tab:reg-sms-dist-endline}, and \ref{tab:sms-dist-interact}. The impact of incentives/signals and SMS treatment is very similar to that discussed above. In particular, impact is strengthened when looking at the social information interactions with incentives/signals in _far_ communities; we see the highest impact on deworming where it almost triples comparing going from the pure control arm to the bracelets with social information treatment (based on the endline sample analysis). 
+Finally, regression analysis results for the impact of incentive treatment, text message reminders and social information treatment, and assigned distance to treatment location, are presented in Figure \ref{fig:sms-dist-plot} and Tables \ref{tab:reg-sms-dist-monitored}, \ref{tab:reg-sms-dist-endline}, and \ref{tab:sms-dist-interact}. The impact of incentives and text message treatment is very similar to that discussed above. In particular, the impact is strengthened when looking at the social information treatment interactions with incentives in _far_ communities; we see the highest impact on deworming where it almost triples comparing going from the pure control arm to the bracelets with social information treatment (based on the endline sample analysis). 
 
 Evidence from this analysis does point to a multiplier effect of social information treatment when combined with the bracelet signal. As shown in Table \ref{tab:sms-dist-interact}, the difference between social information interaction is big in magnitude and statistically significant when comparing the bracelet interaction with the calendar and ink interactions. This multiplier effect, however, seems to disappear when considering _close_ communities, which points to another interesting pattern: there does appear to be a ceiling in proportion of deworming take-up across treatments and assigned distances. The take-up ceiling appears to be around 74 percent (absolute) take-up rate.
 
@@ -926,14 +951,14 @@ print.sms.interact.table(sms.dist.interact.table.data,
 
 # Cost-effectiveness
 
-We conducted a simplified analysis to assess which incentives/signals is the most cost-effective at increasing adult deworming treatment adoption. This analysis only assesses the incremental impact of ink, calendars, and bracelets, and does not look at the impact of SMS as an intervention. We estimated the baseline costs for implementing an adult community-based deworming program, first without any incentive/signal costs, based off of costs incurred during the study. We disaggregated costs that were directly related to the implementation of the deworming program, since many costs incurred during the study were related to research and design. Research-oriented costs, such as research enumerators and baseline survey costs, were excluded from the analysis. These implementation-related costs included 
+We conducted a simplified analysis to assess which incentives is the most cost-effective at increasing adult deworming treatment adoption. This analysis only assesses the incremental impact of ink, calendars, and bracelets, and does not look at the impact of text messages as an intervention. We estimated the baseline costs for implementing an adult community-based deworming program, first without any incentive costs, based off of costs incurred during the study. We disaggregated costs that were directly related to the implementation of the deworming program, since many costs incurred during the study were related to research and design. Research-oriented costs, such as research enumerators and baseline survey costs, were excluded from the analysis. These implementation-related costs included 
 
-1) Program management costs 
-2) Drug and material transportation costs
-3) Monitoring costs
-4) Community sensitization costs
-5) Training costs
-6) Policy coordination costs
+1) Program management costs, 
+2) Drug and material transportation costs,
+3) Monitoring costs,
+4) Community sensitization costs,
+5) Training costs,
+6) Policy coordination costs,
 7) CHEW and CHV costs. 
 
 The activities occurring during the weeks of deworming such as CHV/CHEW transport, airtime, supervision, and setup costs accounted for about 33% of implementation costs. Program management, messaging/sensitization activities, and CHV training made up 33%, 12%, and 6% of implementation costs, respectively. These cost proportions were estimated from budgeted amounts. We plan to do a more in-depth analysis of the implementation-related costs and the cost per person dewormed in the future.
@@ -948,7 +973,7 @@ Bracelet       \$0.35                       46%             \$141
 
 Table: Cost-effectiveness analysis.
 
-The cost-effectiveness analysis shows that using bracelets as an incentive/signal is the most cost-effective intervention in comparison to using calendars and ink when assessing the cost per percentage point increase in the take-up of deworming. Using bracelets as a social incentive/signal to increase treatment take-i[ by 1 percentage point for the community-based deworming program cost \$141. Using calendars and ink cost \$341 and \$1,475 per percentage increase in treatment take-up, respectively. The higher unit cost of providing ink as a social incentive (\$0.41) in comparison to the lower unit costs of calendars (\$0.33) and bracelets (\$0.35) can partially explain the low cost-effectiveness results of ink. Although calendars were the least expensive intervention on a per-unit basis, we observed the largest increase in adoption among the population who received bracelets, thus explaining its high cost-effectiveness. 
+The cost-effectiveness analysis shows that using bracelets as an incentive is the most cost-effective intervention in comparison to using calendars and ink when assessing the cost per percentage point increase in the take-up of deworming. Using bracelets as a social incentive to increase treatment take-i[ by 1 percentage point for the community-based deworming program cost \$141. Using calendars and ink cost \$341 and \$1,475 per percentage increase in treatment take-up, respectively. The higher unit cost of providing ink as a social incentive (\$0.41) in comparison to the lower unit costs of calendars (\$0.33) and bracelets (\$0.35) can partially explain the low cost-effectiveness results of ink. Although calendars were the least expensive intervention on a per-unit basis, we observed the largest increase in adoption among the population who received bracelets, thus explaining its high cost-effectiveness. 
 
 We do not expect these cost-effectiveness results to be linear in application (i.e. we expect that there is a ceiling effect in adoption since certain populations may be harder to reach as adoption continues to increase). Therefore, the cost-effectiveness results presented demonstrate the actual cost-effectiveness between the observed control and treatment populations, but cannot necessarily be generalized to the cost of increasing adoption by 1% point from a higher baseline adoption rate (e.g. increasing adoption from 70% to 71%).  
 
