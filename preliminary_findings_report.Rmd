@@ -1,8 +1,8 @@
 ---
 title: |
     | Evidence from a Field Experiment in Kenya
-    | The Role of Social Signaling in Community Mass Deworming^[Thanks]
-subtitle: "Preliminary Findings -- Do Not Distribute"
+    | The Role of Social Signaling in Community Mass Deworming^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
+subtitle: "Preliminary Findings -- Do Not Cite or Distribute"
 date: "April 2017"
 author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
@@ -19,7 +19,7 @@ header-includes:
    - \usepackage[table]{xcolor}
    - \usepackage{pdflscape}
    - \usepackage{threeparttable}
-abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. TODO conclude" 
+abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. We found that bracelets strongly incentivized deworming take-up, and our results point to this being a social rather than a private motivation. In addition, we found that informational text messages amplified this effect." 
 bibliography: ~/Documents/library.bib
 ---
 
@@ -60,11 +60,11 @@ load(file.path("data", "takeup_village_pot_dist.RData"))
 
 Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of soil transmitted helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs [@Anderson2012]. Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
 
-This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and incentives. The evaluation of the incentivized community deworming program relates four separate strands of the literature: compliance with mass drug administration (MDA), incentives, volunatry good contributions, and pro-social signaling. 
+This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and incentives. The evaluation of the incentivized community deworming program relates four separate strands of the literature: compliance with mass drug administration (MDA), incentives, voluntary good contributions, and pro-social signaling. 
 
 Different to previous MDA, this study is focused on deworming treatment at a central location, not through door-to-door visits. @Kremer2011a observe that for preventive and non-acute care such as deworming, insecticide-treated bednet use and water chlorination there is a dramatic drop in demand at non-zero prices. Since a large number of people have such an abrupt cutoff at the same point, they conclude that they are not likely motivated by a simple cost-benefit analysis, but instead have a strong present bias; future benefits are heavily discounted compared to immediate benefits. One approach that has been widely tested and shown to be successful, is to provide a small reward when coming for treatment to offset any inconvenience costs individuals might face, as well as to address present bias. @Kremer2011a review a wide number of studies on the use for incentives to increase education and health service take-up. They find strong evidence in favor of incentives compared to education only interventions.
 
-In this study we focus the program's message on social returns, emphasizing the benefit of taking treatment to reduce reinfection of community members, especially school-aged children. The community deworming program could therefore be viewed as a voluntary collective action game, where an individual's treatment compliance decision can be modeled as the decision to contribute to a pool shared by all community members. One approach to increase contribution in such a setting is to allow for signaling, thus introducing social approval/disapproval as a reward/punishment [@Benabou2006; @Benabou2012a]. Our aim is to test how social signaling can be leveraged to increase demand for deworming treatment among adults, by introducing two signals in the form of colorful ink (similar to that used for voting) and bracelets. Both allow individuals to show to others that they have taken deworming treatment. 
+In this study we focus the program's message on social returns, emphasizing the benefit of taking treatment to reduce reinfection of community members, especially school-aged children. The community deworming program could therefore be viewed as a voluntary collective action game, where an individual's treatment compliance decision can be modeled as the decision to contribute to a pool shared by all community members. One approach to increase contribution in such a setting is to allow for signaling, thus introducing social approval/disapproval as a reward/punishment [@Benabou2006; -@Benabou2012a]. Our aim is to test how social signaling can be leveraged to increase demand for deworming treatment among adults, by introducing two signals in the form of colorful ink (similar to that used for voting) and bracelets. Both allow individuals to show to others that they have taken deworming treatment. 
 
 To test the effectiveness of social signals and to investigate the behavioral and social mechanisms driving their influence on deworming take-up, we conducted a cluster randomized trial in western Kenya, stratified over three counties. Our main experimental manipulation was the provision of private incentives (simple wall calendars) and social incentives/signals (voting ink or bracelets).  In addition, we manipulated the distance community members would have to travel to receive deworming treatment; and provided reminders or social information (on peer deworming take-up) using text messaging, randomly assigned to a subset of individuals in each community.
 
@@ -134,7 +134,7 @@ Text messages reporting peer take-up were also found to have a strong impact on 
 
 Based on our preliminary reduced form analysis, we conclude that the use of bracelets as social incentives is a promising instrument to motivate the take-up of health-related behaviors of low private value--but with some social value--such as adult deworming treatment. This is especially true when combined with an informational intervention such as text messages. While this report delves further in how distance affects take-up and how it interacts with the other experimental treatments, and what private value the study's population places on the incentives we are testing, we are not as of yet able to identify the different potential mechanisms influencing take-up. For example, while evidence points to social mechanisms, broadly speaking, as being the main influence, we are not able to distinguish between social learning (receiving information from others), social signaling (broadcasting information to other), or even if our treatments simply function as reminders or "nudges". We will consider these issues elsewhere. 
 
-The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; in section \ref{cost-effectiveness} we compare the cost effectiveness of the incentives/signals tested; and finally, in section \ref{conclusion} we discuss our findings and present our conclusions.
+The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; in section \ref{cost-effectiveness} we compare the cost effectiveness of the incentives/signals tested; and finally, in section \ref{conclusion} we present our conclusions.
 
 # The Intervention
 
@@ -214,7 +214,7 @@ Clusters were then randomly assigned, stratified over counties and distance trea
 
 To finalize the cluster selection process, we surveyed the treatment location and target community anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified alternative treatment locations, close to the selected schools, as potential backups. For the anchor schools, we identified all the communities near them and randomly selected one community to target^[In some cases because the initial village was too small, we added a second village]. We then conducted a census of all adults (18 years or older of age) residing in the selected communities: surveyors visited each household, captured their geographic coordinates, and collected basic information of each household member that would allow us to follow-up with individuals if they were sampled in later stages and to stratify over relevant characteristics (e.g., phone ownership).
 
-Using the census lists we randomly sampled individuals to be surveyed at base- and/or endline and to be part of the text messaging intervention. The sampling of individuals who did not receive any text messages was stratified over phone ownership. For all sampled individuals, we monitored the decision to take-up deworming treatment and obtained their consent to having observed their take-up status and using their data.^[Except for individuals who were surveyed at baseline, the majority were not informed about their participation in the study and therefore needed to be reconsented.] 
+Using the census lists we randomly sampled individuals to be surveyed at base- and/or endline and to be part of the text messaging intervention. The sampling of individuals who did not receive any text messages was stratified over phone ownership. For all sampled individuals, we monitored the decision to take-up deworming treatment and obtained their consent to having observed their take-up status and using their data.^[Except for individuals who were surveyed at baseline, the majority were not informed about their participation in the study and therefore needed to be re-consented.] 
 
 <!-- Strange bit since we state above that all individuals who came for treatment, were asked about their name, age, gender and community. So saying "All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment." does not quite make sense and makes it sound like as if we did not monitor other people's treatment status which we did though.-->
 
@@ -234,7 +234,7 @@ e) Past experience with deworming treatment.
 
 ### Text message intervention {-}
 
-We aimed to recruit 30 individiuals per cluster in the control arm and 25 individuals per cluster in the treated arms to receive informational text messages. In the control arm, we divided the sample into two groups of 15: one group that received reminder messages only^[The reminder messages stated "Free deworming now at [Central Location]."], and a second group that received reminders and social information about other individuals' deworming take-up^[Peer take-up was described both as "few", "almost half", "almost everyone", etc. of your village came, and as a "$n$ in 10" proportion.]. In the incentive arms, all individuals received the reminder and the social information.
+We aimed to recruit 30 individuals per cluster in the control arm and 25 individuals per cluster in the treated arms to receive informational text messages. In the control arm, we divided the sample into two groups of 15: one group that received reminder messages only^[The reminder messages stated "Free deworming now at [Central Location]."], and a second group that received reminders and social information about other individuals' deworming take-up^[Peer take-up was described both as "few", "almost half", "almost everyone", etc. of your village came, and as a "$n$ in 10" proportion.]. In the incentive arms, all individuals received the reminder and the social information.
 
 The text message treatment sample was drawn from the population of phone owners, from which we also drew a comparison "control" sample, that did not receive any text messages. 
 
@@ -347,8 +347,9 @@ grid.arrange(gen.stats.plot, age.density.plot, layout_matrix = as.matrix(c(1, 1,
 
 <!--Gender decomposition -->
 
-### Knowledge, beliefs and perceptions of deworming {-}
-Figure \ref{fig:know-believe-categorical-responses} presents individuals' responses to base- and endline questions about worms and deworming treatment. The majority of respondents knew about deworming treatment (78$\%$). However, less than one third of adults had knowledge of the negative externalites of worm infection. Comparing reported knowledge and beliefs of baseline and endline surveyed individuals, the most significant change is in people's understanding of who is at risk of worm infections. More people are reporting after the intervention the belief that everyone is at risk of worm infection. 
+### Knowledge, beliefs and perceptions of deworming 
+
+Figure \ref{fig:know-believe-categorical-responses} presents individuals' responses to base- and endline questions about worms and deworming treatment. The majority of respondents knew about deworming treatment (78$\%$). However, less than one third of adults had knowledge of the negative externalities of worm infection. Comparing reported knowledge and beliefs of baseline and endline surveyed individuals, the most significant change is in people's understanding of who is at risk of worm infections. More people are reporting after the intervention the belief that everyone is at risk of worm infection. 
 <!-- TOOK OUT since people are both less likely to answer yes and no to this question, as if they were less open to answering the question after deworming took place "Surprisingly, there seems to be a decrease in the understanding that individuals can infection one another. -->
 
 ```{r know-believe-categorical-responses, warning=FALSE, fig.width=8, fig.height=10, fig.cap="Knowledge and beliefs baseline and endline survey responses."}
@@ -403,7 +404,7 @@ grid.arrange(other.predict.deworm.plot, survey.takeup.beliefs.10, survey.takeup.
 
 ```
 
-To measure existing social norms surrounding deworming, we elicited individuals' attitudes towards deworming and other well-known behaviors such as wearing nice clothes to church, using latrienes, and immunizing children. We presented individuals with different scenarios and asked whether these would inspire praise or stigma.
+To measure existing social norms surrounding deworming, we elicited individuals' attitudes towards deworming and other well-known behaviors such as wearing nice clothes to church, using latrines, and immunizing children. We presented individuals with different scenarios and asked whether these would inspire praise or stigma.
 
 We also inquired about respondents' social perception/judgement of some of others' behaviors (some more observable than others). We wanted to compare attitudes towards deworming and other behaviors such as wearing nice clothes to church, using latrines, and immunizing children. Individuals were presented with difference scenarios and were asked whether they would inspire praise or stigma. Figure \ref{fig:praise-stigma-plot} shows that deworming during the MDA is considered to be as highly praiseworthy as the use of latrines and immunization of children, and more praiseworthy than wearing nice clothes to church. In terms of stigma, failing to get dewormed is reported to be slightly less stigmatized than open defecation and not immunizing ones children, but is more negatively viewed than not wearing nice clothes to church.
 
@@ -485,6 +486,7 @@ grid.arrange(ever.dewormed.plot, who.was.dewormed.plot, when.dewormed.plot, wher
 ```
 
 ### Information campaign and knowledge about MDA
+
 To verify that individuals were informed about the MDA we asked endline survey respondents questions to test their knowledge, presented in Figure \ref{fig:know-about-mda}. Responses indicate a good knowledge of the MDA and its start and end dates. The majority reported learning about the MDA from CHVs, and few said they were informed by other social contacts such as barazas, churches, family and friends. Posters did not appear to be very successful. Overall, the MDA's informational campaign, led by CHVs, was successful at reaching most community members.
 
 ```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=6.5, fig.cap="Knowledge of RCT intervention."}
@@ -504,7 +506,7 @@ grid.arrange(know.mda.cat.plot, mda.dates.dist.plot, layout_matrix = as.matrix(c
 ```
 
 
-### Preferences for incentives {-}
+### Preferences for incentives 
 
 <!-- Revealed Preferences for Incentives AND STATED --> 
 
@@ -523,17 +525,19 @@ Figure \ref{fig:gift-plots} reports which incentive (bracelet or calendar) indiv
 ```{r other-incentive-plot, ref.label="other-incentive-plot"}
 ```
 
-```{r gift-plots, fig.height=7, fig.width=9, fig.cap="Reported calendar/bracelet preferences, split by experiment arm and respondents' deworming take-up."}
-grid.arrange(reported.gift.pref.dewormed.plot, other.have.incentive.plot, 
-             layout_matrix = as.matrix(c(1, 1, 2, 2, 2)))
+```{r gift-plots, fig.height=4, fig.width=8, fig.cap="Reported calendar/bracelet preferences, split by experiment arm and respondents' deworming take-up."}
+plot(reported.gift.pref.dewormed.plot)
+# grid.arrange(reported.gift.pref.dewormed.plot, other.have.incentive.plot, 
+#              layout_matrix = as.matrix(c(1, 1, 2, 2, 2)))
 ```
 
 ```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm"}
 ```
 
 
-### Distance to treatment location {-}
-As descibed in the [Experiment Design](#experiment-design) section, communities were randomly assigned to be either located _close_ or _far_ from the treatment locations. The distance assignment is key for us to estimate individuals' response to changes in treatment (travel) cost and quantify the utility from social signaling. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances to points of treatments were distributed as shown in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap between _close_ and _far_ clusters (i.e. non-compliance with assigned treatment), this does not affect the intention-to-treat analysis carried out in this report.
+### Distance to treatment location 
+
+As described in the [Experiment Design](#experiment-design) section, communities were randomly assigned to be either located _close_ or _far_ from the treatment locations. The distance assignment is key for us to estimate individuals' response to changes in treatment (travel) cost and quantify the utility from social signaling. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances to points of treatments were distributed as shown in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap between _close_ and _far_ clusters (i.e. non-compliance with assigned treatment), this does not affect the intention-to-treat analysis carried out in this report.
 
 ```{r actual-distance, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
 analysis.data %>%  
@@ -574,7 +578,8 @@ analysis.data %>%
 ```
 
 
-### Absolut dworming treatment take-up
+### Absolute deworming treatment take-up
+
 By the end of the intervention, we had recorded the deworming treatment of approximately 97,000 individuals. Figure \ref{fig:absolute-takeup} shows how much absolute take-up there was, split by assigned incentive treatment, assigned distance to treatment location, and county. While the pattern of take-up is similar to what we will find in our formal analysis, we are not making any causal interpretations based on these findings. The aim of this study is to learn about impact on the _proportion_ of take-up in targeted communities, and therefore an analysis based on absolute figures would be misleading as we do not have information of what communities all treated individuals are from.
 
 
@@ -834,13 +839,12 @@ dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
   }, .id = "spec") 
 ```
 
-
 We will report results for four specifications identifying:
 
 1. The average treatment effects of incentives on deworming take-up, excluding individuals assigned to any SMS treatment.
 2. The average treatment effects of incentives and distance to treatment location on deworming take-up, excluding individuals assigned to any SMS treatment.
-3. The average treatment effects of incentives and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
-4. The average treatment effects of incentives, distance to treatment location and SMS treatment on deworming-takeup, excluding individuals who do not own a mobile phone.
+3. The average treatment effects of incentives and SMS treatment on deworming take-up, excluding individuals who do not own a mobile phone.
+4. The average treatment effects of incentives, distance to treatment location and SMS treatment on deworming take-up, excluding individuals who do not own a mobile phone.
 
 For each specification we present a table with point estimates and their standard errors, $P$-values for tests of joint significance, other regression related information, as well as a plot showing take-up rates and 90\% confidence intervals for tests of significance against the reference treatment, for the regression controlling for covariates. The number of clusters included in each specification vary because we dropped outlier clusters.
 
@@ -951,7 +955,7 @@ print.sms.interact.table(sms.dist.interact.table.data,
 
 # Cost-effectiveness
 
-We conducted a simplified analysis to assess which incentives is the most cost-effective at increasing adult deworming treatment adoption. This analysis only assesses the incremental impact of ink, calendars, and bracelets, and does not look at the impact of text messages as an intervention. We estimated the baseline costs for implementing an adult community-based deworming program, first without any incentive costs, based off of costs incurred during the study. We disaggregated costs that were directly related to the implementation of the deworming program, since many costs incurred during the study were related to research and design. Research-oriented costs, such as research enumerators and baseline survey costs, were excluded from the analysis. These implementation-related costs included 
+We conducted a simplified analysis to assess which incentives is the most cost-effective at increasing adult deworming treatment adoption. This analysis only assesses the incremental impact of ink, calendars, and bracelets, and does not look at the impact of text messages as an intervention. We estimated the baseline costs for implementing an adult community-based deworming program, first without any incentive costs, based off costs incurred during the study. We disaggregated costs that were directly related to the implementation of the deworming program, since many costs incurred during the study were related to research and design. Research-oriented costs, such as research enumerators and baseline survey costs, were excluded from the analysis. Implementation-related costs included 
 
 1) Program management costs, 
 2) Drug and material transportation costs,
@@ -961,15 +965,15 @@ We conducted a simplified analysis to assess which incentives is the most cost-e
 6) Policy coordination costs,
 7) CHEW and CHV costs. 
 
-The activities occurring during the weeks of deworming such as CHV/CHEW transport, airtime, supervision, and setup costs accounted for about 33% of implementation costs. Program management, messaging/sensitization activities, and CHV training made up 33%, 12%, and 6% of implementation costs, respectively. These cost proportions were estimated from budgeted amounts. We plan to do a more in-depth analysis of the implementation-related costs and the cost per person dewormed in the future.
+The activities occurring during the weeks of deworming that entailed expenses including CHV/CHEW transport, airtime, supervision, and setup costs accounted for about 33% of implementation costs. Program management, messaging/sensitization activities, and CHV training made up 33%, 12%, and 6% of implementation costs, respectively. These cost proportions were estimated from budgeted amounts. We plan to do a more in-depth analysis of the implementation-related costs and the cost per person dewormed in the future.
 
 We then calculated unit costs per person for each intervention, as well as unit drug costs. Although the drugs were donated and did not present a direct cost to the program, their imputed value is included as an important incremental cost to implementing the deworming program. The outcome measure used to evaluate 'effect' was the percentage increase in adoption of deworming treatment. Percent adoption was measured by the number of targeted community members who came to receive deworming treatment out of the total targeted population. The cost-effectiveness for each intervention was calculated in comparison to the control group (the cost and effect of delivering deworming treatment using no social incentive).
 
-Arm         Unit Cost per Person (USD)   Take-up (%)   Cost Per % Increase in Take-up
---------   ---------------------------- ------------- --------------------------------
-Ink            \$0.41                       35%             \$1,475
-Calendar       \$0.33                       38%             \$341
-Bracelet       \$0.35                       46%             \$141
+Arm         Incremental Unit Cost per Person (USD)   Take-up (%)   Cost Per % Increase in Take-up
+--------   ---------------------------------------- ------------- --------------------------------
+Ink            \$0.41                                    35%             \$1,475
+Calendar       \$0.33                                    38%             \$341
+Bracelet       \$0.35                                    46%             \$141
 
 Table: Cost-effectiveness analysis.
 
@@ -992,5 +996,11 @@ left_join(takeup.data %>% count(assigned.treatment) %>% rename(abs.takeup = n),
 ```
 
 # Conclusion
+
+While the estimated absolute take-up rates in response to incentives are potentially lower than the very high take-up proportions that might be needed to achieve STH infection transmission breakpoint^[This is still an open research question.], the estimated average treatment effects are high. Thus, as an incentive for the take-up of a health-related treatment with low private valuation (such as deworming or vaccination), bracelets are remarkably effective. They were also found to be the most cost-effective approach even if it was not the lowest in cost. 
+
+It is worth noting that the deworming take-up data collected is based on a monitoring activity more likely to suffer from false negatives than false positives. In other words, we are more likely to miss the treatment of compliers than to incorrectly record the treatment of non-compliers, and therefore, the absolute take-up rates estimates are likely to be a lower bound.
+
+Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up. Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more in-depth model-based analysis (which the goal of the academic paper we plan to produce). Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social information caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
 
 # References
