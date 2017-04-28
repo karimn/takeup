@@ -1728,7 +1728,9 @@ reg.output.sms.treat.dist.covar <- analysis.data %>%
 ```
 
 ```{r}
-reg.output.sms.treat.dist.covar %>% tidy(.include_covar = FALSE) %>% kable(digits = 4)
+reg.output.sms.treat.dist.covar %>% 
+  tidy(.include_covar = FALSE) %>% 
+  kable(digits = 4)
 ```
 
 ```{r, fig.width=12}
