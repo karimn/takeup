@@ -73,7 +73,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
                      hh_cal, cal_value, hh_bracelet, number_bracelet), "KEY.individ") %>% 
     mutate_at(vars(age, age.census), funs(squared = (.)^2)) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
-    `attr<-`("class", c("takeup_df", class(.))) 
+    `attr<-`("class", c("takeup_df", class(.))) %>%
+    tidyr::unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
+    mutate_at(vars(county, county_dist_stratum), factor)
 }
 
 multi.factor <- function(.col, labels, levels, ...) {
@@ -88,7 +90,7 @@ multi.factor <- function(.col, labels, levels, ...) {
 yes.no.factor <- function(.col, .yes.no = 1:2) .col %>% 
   factor(levels = c(.yes.no, 97:98), labels = c("yes", "no", "prefer not say", "DK"))
 
-base.prepare.baseline.endline.data <- function(.data) { #, .census.data, .cluster.strat.data) {
+base.prepare.baseline.endline.data <- function(.data, .cluster.strat.data) { #, .census.data) {
   .data %>% 
     mutate(who_worms = multi.factor(who_worms, 
                                     labels = c("child", "adult", "sick", "healthy", "pregnant", "old", "everyone")), 
@@ -114,7 +116,10 @@ base.prepare.baseline.endline.data <- function(.data) { #, .census.data, .cluste
     mutate_at(vars(spread_worms), yes.no.factor) %>% 
     mutate_at(vars(school, floor, ethnicity), funs(recode_factor(., "Other" = NA_character_, "Prefer Not to Say" = NA_character_) %>% 
                                                      fct_drop)) %>% 
-    mutate(ethnicity2 = fct_lump(ethnicity, other_level = "Other Ethnicities", prop = 0.05))
+    mutate(ethnicity2 = fct_lump(ethnicity, other_level = "Other Ethnicities", prop = 0.05)) %>% 
+    left_join(select(.cluster.strat.data, wave, county, cluster.id, assigned.treatment, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
+    tidyr::unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
+    mutate_at(vars(county, county_dist_stratum), factor)
 }
 
 prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
@@ -124,7 +129,7 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
     group_by(KEY.individ) %>% # If more than one entry for an individual, take first one (there are 22 such individuals)
     filter(row_number() == 1) %>% 
     ungroup %>% 
-    base.prepare.baseline.endline.data %>% 
+    base.prepare.baseline.endline.data(.cluster.strat.data) %>% 
     mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported, hh_bracelet, hh_cal, cal_value), 
               funs(yes.no.factor(., .yes.no = 1:0))) %>% 
     mutate_at(vars(treat_begin, days_available, treat_end), funs(factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
@@ -136,14 +141,13 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
                                    labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
                                               "other")),
            gift_choice = factor(gift_choice, levels = 1:3, labels = c("bracelet", "calendar", "neither"))) %>%
-    left_join(select(.cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), c("cluster.id")) %>% 
     left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop), "KEY.individ")  
            # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
 }
 
-prepare.baseline.data <- function(.data) {
+prepare.baseline.data <- function(.data, .cluster.strat.data) {
   .data %>% 
-    base.prepare.baseline.endline.data %>% 
+    base.prepare.baseline.endline.data(.cluster.strat.data) %>% 
     mutate(more_less = factor(more_less, levels = 1:4, labels = c("more", "less", "no diff", "DK")),
            treated_when = factor(treated_when, 
                                  levels = c(1:9, 97), 

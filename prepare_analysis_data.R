@@ -88,7 +88,7 @@ consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reco
 analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
 
 old.baseline.data <- baseline.data
-baseline.data %<>% prepare.baseline.data 
+baseline.data %<>% prepare.baseline.data(cluster.strat.data) 
 
 cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, consented.only = FALSE)
 unmonitored.cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE)
