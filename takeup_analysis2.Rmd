@@ -1073,7 +1073,8 @@ kable(tidy(unmon.reg.output.sms.ctrl), digits = 4)
 
 ```{r}
 linear_tester(unmon.reg.output.sms.ctrl, str_c(c("ink", "calendar", "bracelet"), "unmonitored", sep = ":"), joint = TRUE) %>% 
-  tidy()
+  tidy() %>% 
+  kable()
 ```
 
 ```{r}
