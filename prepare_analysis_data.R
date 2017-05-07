@@ -85,16 +85,17 @@ village.centers %<>%
 
 endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.strat.data)
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
-analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data)
+analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data, max.name.match.cost = 1)
 
 old.baseline.data <- baseline.data
 baseline.data %<>% prepare.baseline.data(cluster.strat.data) 
 
-cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, consented.only = FALSE)
-unmonitored.cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE)
+# cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, consented.only = FALSE)
+cell.takeup.data <- prepare.cluster.takeup.data(analysis.data_match0, monitored.only = FALSE, add_group_by = "mon_status")
+# unmonitored.cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE)
 
-outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
-unmonitored.outlier.clusters <- unmonitored.cluster.takeup.data %>% filter(outlier) 
+# outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
+outlier.cells <- cell.takeup.data %>% filter(outlier) 
 
 # WTP prep ----------------------------------------------------------------
 
@@ -167,8 +168,9 @@ endline.know.table.data %<>%
 
 # Save data ---------------------------------------------------------------
 
-save(all.endline.data, endline.data, consent.dewormed.reports, analysis.data, baseline.data, cluster.takeup.data, outlier.clusters,
-     unmonitored.cluster.takeup.data, unmonitored.outlier.clusters,
+save(all.endline.data, endline.data, consent.dewormed.reports, baseline.data, 
+     analysis.data, 
+     cell.takeup.data, outlier.cells,
      census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
 

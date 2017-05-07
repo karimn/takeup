@@ -3,7 +3,8 @@
 # find individuals whose names were recorded at the PoT.
 name.match.monitored <- function(census.cluster.data, 
                                 takeup.cluster.data, 
-                                max.cost = 1) { # This is the maximum number of "edits" or difference allowed between names
+                                max.cost = 1,
+                                suffix = NULL) { # This is the maximum number of "edits" or difference allowed between names
   dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) +
     adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)
   
@@ -15,7 +16,10 @@ name.match.monitored <- function(census.cluster.data,
                                                       magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
                                               NA),
            dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
-           which.min.name.match.dist = ifelse(dewormed.matched, which.min.name.match.dist, NA))
+           which.min.name.match.dist = ifelse(dewormed.matched, which.min.name.match.dist, NA)) %>% 
+    # rename_(.dots = c(str_subset(names(.), "min\\.name\\.match\\.dist$"), "dewormed.matched") %>% 
+    #           setNames(paste0(., suffix))) %>% 
+    select(KEY.individ, starts_with("dewormed.matched"), contains("min.name.match.dist"))
 }
 # ---- end
 # Misc Functions and Constants ----
@@ -61,12 +65,16 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
     group_by(cluster.id) %>% 
     do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost)) %>% 
+    # do(left_join(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost),
+    #              name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = 0, suffix = "_0"),
+    #              "KEY.individ")) %>% 
     ungroup %>% 
-    select(KEY.individ, dewormed.matched, ends_with("min.name.match.dist")) %>% 
-    right_join(analysis.data, "KEY.individ") %>% 
+    # select(KEY.individ, starts_with("dewormed.matched"), contains("min.name.match.dist")) %>% 
+    right_join(analysis.data, c("cluster.id", "KEY.individ")) %>% 
     left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day), c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
     mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
+           # dewormed.any_0 = (!is.na(dewormed) & dewormed) | dewormed.matched_0,
            dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
     left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice,
@@ -74,8 +82,10 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     mutate_at(vars(age, age.census), funs(squared = (.)^2)) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.))) %>%
-    tidyr::unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
-    mutate_at(vars(county, county_dist_stratum), factor)
+    unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
+    unite(county_dist_mon_stratum, county, dist.pot.group, true.monitored, remove = FALSE) %>% 
+    mutate_at(vars(county, county_dist_stratum, county_dist_mon_stratum), factor) %>% 
+    mutate(mon_status = factor(true.monitored, levels = c(TRUE, FALSE), labels = c("monitored", "unmonitored"))) 
 }
 
 multi.factor <- function(.col, labels, levels, ...) {
@@ -141,7 +151,7 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
                                    labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
                                               "other")),
            gift_choice = factor(gift_choice, levels = 1:3, labels = c("bracelet", "calendar", "neither"))) %>%
-    left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop), "KEY.individ")  
+    left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop, true.monitored, monitored), "KEY.individ")  
            # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
 }
 
@@ -174,16 +184,22 @@ prepare.baseline.data <- function(.data, .cluster.strat.data) {
 }
 
 
-prepare.cluster.takeup.data <- function(.data, monitored.only = TRUE, consented.only = monitored.only, exclude.baseline.sample = TRUE) {
+prepare.cluster.takeup.data <- function(.data, 
+                                        monitored.only = TRUE, 
+                                        consented.only = monitored.only, 
+                                        exclude.baseline.sample = TRUE,
+                                        add_group_by = NULL) {
  .data %>% 
    filter(monitored | !monitored.only, 
           monitor.consent | !consented.only, 
           !(hh.baseline.sample & exclude.baseline.sample)) %>% 
-   transmute(county, dist.pot.group, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any) %>% 
-   unite(stratum, county, dist.pot.group, sep = " ") %>% 
-   group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
+   transmute(county, dist.pot.group, county_dist_stratum, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any, mon_status) %>% 
+   # unite(stratum, county, dist.pot.group, sep = " ") %>% 
+   group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", "cluster.id", add_group_by)) %>% 
+   # group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
    summarize(takeup.prop = mean(dewormed.any)) %>% 
-   group_by(assigned.treatment, sms.treatment, stratum) %>% 
+   # group_by(assigned.treatment, sms.treatment, stratum) %>% 
+   group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", add_group_by)) %>% 
    mutate(outlier = is_outlier(takeup.prop)) %>% 
    ungroup
 }
@@ -460,7 +476,8 @@ prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
   .reg.output %>% 
     tidy %>% {
       if (is.null(.interact.with)) return(.) else filter(., !str_detect(.$term, .interact.with))
-    } %>% 
+    } %>%
+    filter(term %in% c("(intercept)", incentive.treatment.terms)) %>% 
     bind_rows(magrittr::extract(., rep(1, 3), ), .) %>% 
     mutate(incentive.treatment = incentive.treatment.terms %>% { c("control", rep(.[-1], 2)) },
            ref = term == "(intercept)",  
