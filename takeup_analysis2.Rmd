@@ -314,7 +314,6 @@ baseline.data %>%
   labs(title = "Where last get dewormed?", x = "", y = "Proportion")
 ```
 
-
 ## Endline Treatment Questions
 
 ```{r}
