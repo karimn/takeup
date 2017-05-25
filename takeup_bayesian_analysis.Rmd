@@ -65,85 +65,278 @@ load(file.path("data", "analysis.RData"))
 ```{stan, output.var="basic_model_0"}
 data {
   int<lower = 0> num_obs;
+  int<lower = 0> num_missing;
   int<lower = 1> num_treatments;
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
   
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
+  int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing];
   int<lower = 1, upper = num_strata> stratum_id[num_clusters];
+  int<lower = 1> strata_sizes[num_strata]; // Getting around Stan's lack of support for ragged arrays
+  int<lower = 1> missing_strata_sizes[num_strata]; 
  
   matrix[num_obs, num_treatments] treatment_design_matrix;
+  matrix[num_missing, num_treatments] missing_treatment_design_matrix;
  
   // Binary deworming outcome 
   
   int<lower = 0, upper = 1> dewormed_any[num_obs];
 }
 
-parameters {
-  real<lower=-4, upper=10> mu_strata; // uniformly distributed
-
-  //vector[num_strata] stratum_intercept;
-  real stratum_intercept[num_strata];
-  vector[num_treatments] beta;
+transformed data {
+  int<lower = 1, upper = num_strata> stratum_id_individ[num_obs] = stratum_id[cluster_id];
+  int<lower = 1, upper = num_strata> missing_stratum_id_individ[num_missing] = stratum_id[missing_cluster_id];
   
-  // vector[num_treatments] mu; // Hyperparameter for beta_stratum
+  // Unmodeled parameters
+  
+  vector[num_treatments] mu_beta = rep_vector(0, num_treatments);
+}
+
+parameters {
+  real<lower=-4, upper=10> mu_strata; // uniformly distributed prior
+
+  vector[num_strata] stratum_intercept;
+  vector[num_treatments] beta[num_strata];
+  vector[num_clusters] cluster_effects;
   
   // Scale hyperparameters for betas 
   
   // corr_matrix[num_treatments] Omega_beta;
   vector<lower = 0>[num_treatments] tau_beta;
+  real<lower = 0> tau_cluster_effect;
+}
+
+transformed parameters {
+  cov_matrix[num_treatments] Sigma_beta = diag_matrix(tau_beta);
 }
 
 model {
   // Some hyperpriors with temp parameter values from the Stan Manual
   
   //Omega_beta ~ lkj_corr(50);
-  tau_beta ~ cauchy(0, 10);
+  tau_beta ~ cauchy(0, 20); // This is a very weakly informative prior
+  tau_cluster_effect ~ cauchy(0, 2.5);
   //tau_beta ~ normal(0, 2);
   //tau_beta ~ gamma(2, 1/10);
   
-  //mu ~ normal(0, 100);
+  stratum_intercept ~ normal(mu_strata, 100); // Weakly informative prior; big SD
+  cluster_effects ~ normal(0, tau_cluster_effect);
   
-  stratum_intercept ~ normal(mu_stratum, 100);
+  beta ~ multi_normal(mu_beta, Sigma_beta); // For now assuming no correlation between effects
+ 
+  {
+    int strata_pos = 1;
+    vector[num_obs] link_model;  
   
-  // beta ~ multi_normal(mu, quad_form_diag(Omega_beta, tau_beta));
-  beta ~ normal(0, tau_beta);
+    // Looping over strata in the data; Stan doesn't support ragged arrays, so can't split the data into arrays.
+    // Otherwise, will have to loop by row, which will slow things down dramatically.
+    for (strata_index in 1:num_strata) {
+      int curr_stratum_size = strata_sizes[strata_index];
+      int stratum_end = strata_pos + curr_stratum_size - 1;
+      
+      link_model[strata_pos:stratum_end] = treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index];  
+      strata_pos = strata_pos + curr_stratum_size;
+    }
+    
+    link_model = link_model + stratum_intercept[stratum_id_individ] + cluster_effects[cluster_id]; 
   
-  // dewormed_any ~ bernoulli_logit(treatment_design_matrix * beta);
-  dewormed_any ~ bernoulli_logit(stratum_intercept[stratum_id[cluster_id]] + treatment_design_matrix * beta);
+    dewormed_any ~ bernoulli_logit(link_model);
+  } 
+}
+
+generated quantities {
+  int<lower = 0, upper = 1> missing_dewormed_any[num_missing];
+  
+  {
+    int strata_pos = 1;
+    vector[num_missing] missing_link_model;  
+  
+    for (strata_index in 1:num_strata) {
+      int curr_stratum_size = missing_strata_sizes[strata_index];
+      int stratum_end = strata_pos + curr_stratum_size - 1;
+      
+      missing_link_model[strata_pos:stratum_end] = missing_treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index];  
+      strata_pos = strata_pos + curr_stratum_size;
+    }
+    
+    missing_link_model = missing_link_model + stratum_intercept[missing_stratum_id_individ] + cluster_effects[missing_cluster_id]; 
+   
+    for (i in 1:num_missing) {
+      missing_dewormed_any[i] = bernoulli_logit_rng(missing_link_model[i]);
+    } 
+  } 
 }
 
 ```
 
 ```{r}
-basic_model_0_fit <- analysis.data %>% 
-  filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
+stan_data <- analysis.data %>% 
+  # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer()) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% {
+  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county), funs(id = as.integer)) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  arrange(county_dist_stratum_id) %>% 
+  (function(prepared_analysis_data) {
+    treatment_map <- data_grid(prepared_analysis_data, assigned.treatment) %>% 
+      mutate(treatment_id = seq_len(n()))
+    
+    treatment_grid <- prepared_analysis_data %>% {
+      left_join(data_grid(., KEY.individ, assigned.treatment), 
+                select(., KEY.individ, new_cluster_id, county_dist_stratum_id), 
+                "KEY.individ") 
+    }
+    
+    missing_treatment <- anti_join(treatment_grid, prepared_analysis_data, c("KEY.individ", "assigned.treatment")) 
+    
     lst(
-      #treatment_design_matrix = model_matrix(., ~ assigned.treatment - 1),
-      treatment_design_matrix = model_matrix(., ~ assigned.treatment) %>% 
+      treatment_map,
+      
+      treatment_design_matrix = model_matrix(prepared_analysis_data, ~ assigned.treatment) %>% 
+        magrittr::extract(, -1),
+    
+      missing_treatment_design_matrix = model_matrix(missing_treatment, ~ assigned.treatment) %>% 
         magrittr::extract(, -1),
       
-      cluster_id = .$new_cluster_id,
-      stratum_id = distinct(., new_cluster_id, county_dist_stratum) %>% 
-        arrange(new_cluster_id) %$% 
-        as.integer(county_dist_stratum),
+      # treatment_id = left_join(prepared_analysis_data, treatment_map, c("assigned.treatment")), 
+      # missing_treatment_id = left_join(missing_treatment, treatment_map, c("assigned.treatment")), 
       
-      dewormed_any = .$dewormed.any,
+      cluster_id = prepared_analysis_data$new_cluster_id,
+      missing_cluster_id = missing_treatment$new_cluster_id,
+      stratum_id = distinct(prepared_analysis_data, new_cluster_id, county_dist_stratum_id) %>% 
+        arrange(new_cluster_id) %$% 
+        county_dist_stratum_id,
+      
+      dewormed_any = prepared_analysis_data$dewormed.any,
       
       num_obs = nrow(treatment_design_matrix),
+      num_missing = nrow(missing_treatment_design_matrix),
       num_treatments = ncol(treatment_design_matrix),
       num_clusters = n_distinct(cluster_id),
-      num_strata = n_distinct(stratum_id)
+      num_strata = n_distinct(stratum_id),
+      strata_sizes = count(prepared_analysis_data, county_dist_stratum_id) %>% arrange(county_dist_stratum_id) %$% n, 
+      missing_strata_sizes = count(missing_treatment, county_dist_stratum_id) %>% arrange(county_dist_stratum_id) %$% n 
     )
-  } %>% 
-  sampling(basic_model_0, data = ., control = lst(adapt_delta = 0.99, max_treedepth = 15))
+  }) 
+```
 
-basic_model_0_fit
+```{r}
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+# basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+
+print(basic_model_0_fit)
 ```
 
 ```{stan, output.var="basic_model_1"}
+data {
+  int<lower = 0> num_obs;
+  int<lower = 0> num_missing;
+  int<lower = 1> num_treatments;
+  int<lower = 1> num_clusters;
+  int<lower = 1> num_strata;
+  
+  int<lower = 1, upper = num_clusters> cluster_id[num_obs];
+  int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing];
+  int<lower = 1, upper = num_strata> stratum_id[num_clusters];
+  // int<lower = 1> strata_sizes[num_strata]; // Getting around Stan's lack of support for ragged arrays
+  int<lower = 1> treatment_group_sizes[num_treatments + 1]; 
+  int<lower = 1> missing_treatment_group_sizes[num_treatments + 1]; 
+  // int<lower = 1> missing_strata_sizes[num_strata]; 
+ 
+  matrix[num_obs, num_treatments] treatment_design_matrix;
+  matrix[num_missing, num_treatments] missing_treatment_design_matrix;
+ 
+  // Binary deworming outcome 
+  
+  int<lower = 0, upper = 1> dewormed_any[num_obs];
+}
+
+transformed data {
+  int<lower = 1, upper = num_strata> stratum_id_individ[num_obs] = stratum_id[cluster_id];
+  int<lower = 1, upper = num_strata> missing_stratum_id_individ[num_missing] = stratum_id[missing_cluster_id];
+  
+  // Unmodeled parameters
+  
+  vector[num_treatments] mu_beta = rep_vector(0, num_treatments);
+}
+
+parameters {
+  real<lower=-4, upper=10> mu_strata; // uniformly distributed prior
+
+  vector[num_strata] stratum_intercept;
+  vector[num_treatments] beta[num_strata];
+  vector[num_clusters] cluster_effects;
+  
+  // Scale hyperparameters for betas 
+  
+  // corr_matrix[num_treatments] Omega_beta;
+  vector<lower = 0>[num_treatments] tau_beta;
+  real<lower = 0> tau_cluster_effect;
+}
+
+transformed parameters {
+  cov_matrix[num_treatments] Sigma_beta = diag_matrix(tau_beta);
+}
+
+model {
+  stratum_intercept ~ normal(mu_strata, 100); // Weakly informative prior; big SD
+  
+  //Omega_beta ~ lkj_corr(50);
+  tau_beta ~ cauchy(0, 20); // This is a very weakly informative prior
+  tau_cluster_effect ~ cauchy(0, 2.5);
+  //tau_beta ~ normal(0, 2);
+  //tau_beta ~ gamma(2, 1/10);
+  
+  cluster_effects ~ normal(0, tau_cluster_effect);
+  
+  beta ~ multi_normal(mu_beta, Sigma_beta); // For now assuming no correlation between effects
+ 
+  {
+    int strata_pos = 1;
+    vector[num_obs] link_model;  
+  
+    // Looping over strata in the data; Stan doesn't support ragged arrays, so can't split the data into arrays.
+    // Otherwise, will have to loop by row, which will slow things down dramatically.
+    for (strata_index in 1:num_strata) {
+      int curr_stratum_size = strata_sizes[strata_index];
+      int stratum_end = strata_pos + curr_stratum_size - 1;
+      
+      link_model[strata_pos:stratum_end] = treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index];  
+      strata_pos = strata_pos + curr_stratum_size;
+    }
+    
+    link_model = link_model + stratum_intercept[stratum_id_individ] + cluster_effects[cluster_id]; 
+  
+    dewormed_any ~ bernoulli_logit(link_model);
+  } 
+}
+
+generated quantities {
+  int<lower = 0, upper = 1> missing_dewormed_any[num_missing];
+  
+  {
+    int strata_pos = 1;
+    vector[num_missing] missing_link_model;  
+  
+    for (strata_index in 1:num_strata) {
+      int curr_stratum_size = missing_strata_sizes[strata_index];
+      int stratum_end = strata_pos + curr_stratum_size - 1;
+      
+      missing_link_model[strata_pos:stratum_end] = missing_treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index];  
+      strata_pos = strata_pos + curr_stratum_size;
+    }
+    
+    missing_link_model = missing_link_model + stratum_intercept[missing_stratum_id_individ] + cluster_effects[missing_cluster_id]; 
+   
+    for (i in 1:num_missing) {
+      missing_dewormed_any[i] = bernoulli_logit_rng(missing_link_model[i]);
+    } 
+  } 
+}
+
+```
+
+```{stan, output.var="basic_model_2"}
 data {
   int<lower = 0> num_obs;
   int<lower = 1> num_treatments;
@@ -206,7 +399,6 @@ model {
 ```
 
 ```{r}
-#analysis.data %>% semi_join(data_grid(., KEY.individ, assigned.treatment), ., c("KEY.individ", "assigned.treatment")) %>% arrange(KEY.individ)
 
 basic_model_1_fit <- analysis.data %>% 
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
