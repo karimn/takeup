@@ -75,6 +75,11 @@ data {
   int<lower = 1, upper = num_strata> stratum_id[num_clusters];
   int<lower = 1> strata_sizes[num_strata]; // Getting around Stan's lack of support for ragged arrays
   int<lower = 1> missing_strata_sizes[num_strata]; 
+  
+  int<lower = 1, upper = num_obs> treatment_id[num_obs];
+  int<lower = 1, upper = num_missing> missing_treatment_id[num_missing];
+  int<lower = 1> treatment_sizes[num_treatments + 1];
+  int<lower = 1> missing_treatment_sizes[num_treatments + 1];
  
   matrix[num_obs, num_treatments] treatment_design_matrix;
   matrix[num_missing, num_treatments] missing_treatment_design_matrix;
@@ -147,8 +152,11 @@ model {
 
 generated quantities {
   int<lower = 0, upper = 1> missing_dewormed_any[num_missing];
+  real<lower = 0> takeup_proportion[num_treatments + 1];
   
   {
+    int treatment_pos = 1;
+    int missing_treatment_pos = 1;
     int strata_pos = 1;
     vector[num_missing] missing_link_model;  
   
@@ -164,7 +172,22 @@ generated quantities {
    
     for (i in 1:num_missing) {
       missing_dewormed_any[i] = bernoulli_logit_rng(missing_link_model[i]);
-    } 
+    }
+  
+    for (treatment_index in 1:(num_treatments + 1)) {
+      int curr_treatment_size = treatment_sizes[treatment_index];
+      int curr_missing_treatment_size = missing_treatment_sizes[treatment_index];
+      int treatment_end = treatment_pos + curr_treatment_size - 1;
+      int missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
+      
+      takeup_proportion[treatment_index] = 
+        sum(dewormed_any[treatment_id[treatment_pos:treatment_end]]) + sum(missing_dewormed_any[missing_treatment_id[missing_treatment_pos:missing_treatment_end]]);
+        
+      takeup_proportion[treatment_index] = takeup_proportion[treatment_index] / (curr_treatment_size + curr_missing_treatment_size);
+      
+      treatment_pos = treatment_pos + curr_treatment_size;
+      missing_treatment_pos = missing_treatment_pos + curr_missing_treatment_size;
+    }
   } 
 }
 
@@ -187,7 +210,11 @@ stan_data <- analysis.data %>%
                 "KEY.individ") 
     }
     
-    missing_treatment <- anti_join(treatment_grid, prepared_analysis_data, c("KEY.individ", "assigned.treatment")) 
+    missing_treatment <- anti_join(treatment_grid, prepared_analysis_data, c("KEY.individ", "assigned.treatment")) %>% 
+      left_join(treatment_map, c("assigned.treatment"))
+    
+    prepared_analysis_data %<>% 
+      left_join(treatment_map, c("assigned.treatment"))
     
     lst(
       treatment_map,
@@ -198,8 +225,16 @@ stan_data <- analysis.data %>%
       missing_treatment_design_matrix = model_matrix(missing_treatment, ~ assigned.treatment) %>% 
         magrittr::extract(, -1),
       
-      # treatment_id = left_join(prepared_analysis_data, treatment_map, c("assigned.treatment")), 
-      # missing_treatment_id = left_join(missing_treatment, treatment_map, c("assigned.treatment")), 
+      treatment_id = prepared_analysis_data %>% 
+        mutate(index = seq_len(n())) %>% 
+        arrange(treatment_id, index) %$% 
+        index,
+      missing_treatment_id = missing_treatment %>% 
+        mutate(index = seq_len(n())) %>% 
+        arrange(treatment_id, index) %$% 
+        index,
+      treatment_sizes = count(prepared_analysis_data, treatment_id) %>% arrange(treatment_id) %$% n,
+      missing_treatment_sizes = count(missing_treatment, treatment_id) %>% arrange(treatment_id) %$% n,
       
       cluster_id = prepared_analysis_data$new_cluster_id,
       missing_cluster_id = missing_treatment$new_cluster_id,
@@ -221,10 +256,10 @@ stan_data <- analysis.data %>%
 ```
 
 ```{r}
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
-print(basic_model_0_fit)
+print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any"), include = FALSE)
 ```
 
 ```{stan, output.var="basic_model_1"}
