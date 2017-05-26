@@ -64,25 +64,39 @@ load(file.path("data", "analysis.RData"))
 
 ```{stan, output.var="basic_model_0"}
 data {
+
   int<lower = 0> num_obs;
-  int<lower = 0> num_missing;
-  int<lower = 1> num_treatments;
+  int<lower = 1> num_all_treatments;
+  int<lower = 1> num_all_treatment_coef;
+  int<lower = 1> num_incentive_effects;
+  int<lower = 1> num_dist_effects;
+  int<lower = 1> num_incentive_dist_effects;
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
   
+  matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix;
+  int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs];
+  
+  //int<lower = 1> num_missing;
+  
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
-  int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing];
+  //int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing];
   int<lower = 1, upper = num_strata> stratum_id[num_clusters];
   int<lower = 1> strata_sizes[num_strata]; // Getting around Stan's lack of support for ragged arrays
-  int<lower = 1> missing_strata_sizes[num_strata]; 
+  //int<lower = 1> missing_strata_sizes[num_strata]; 
   
   int<lower = 1, upper = num_obs> treatment_id[num_obs];
-  int<lower = 1, upper = num_missing> missing_treatment_id[num_missing];
-  int<lower = 1> treatment_sizes[num_treatments + 1];
-  int<lower = 1> missing_treatment_sizes[num_treatments + 1];
+  //int<lower = 1, upper = num_missing> missing_treatment_id[num_missing];
+  int<lower = 1> treatment_sizes[num_all_treatments];
+  //int<lower = 1> missing_treatment_sizes[num_treatments + 1];
  
-  matrix[num_obs, num_treatments] treatment_design_matrix;
-  matrix[num_missing, num_treatments] missing_treatment_design_matrix;
+  //matrix[num_obs, num_treatments] treatment_design_matrix;
+  //matrix[num_missing, num_treatments] missing_treatment_design_matrix;
+  
+  //matrix[num_obs, num_dist_effects] dist_design_matrix;
+  //matrix[num_missing, num_dist_effects] missing_dist_design_matrix;
+  //matrix[num_obs, num_treatment_dist_effects] treatment_dist_design_matrix;
+  //matrix[num_missing, num_treatment_dist_effects] missing_treatment_dist_design_matrix;
  
   // Binary deworming outcome 
   
@@ -90,30 +104,45 @@ data {
 }
 
 transformed data {
+  matrix[num_obs, num_all_treatment_coef] all_treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
+  
+  // Column start positions hardcoded (danger!)
+  matrix[num_obs, num_incentive_effects] incentive_design_matrix = block(all_treatment_design_matrix, 1, 1, num_obs, num_incentive_effects);
+  matrix[num_obs, num_dist_effects] dist_design_matrix = block(all_treatment_design_matrix, 1, 4, num_obs, num_dist_effects);
+  matrix[num_obs, num_incentive_dist_effects] incentive_dist_design_matrix = block(all_treatment_design_matrix, 1, 5, num_obs, num_incentive_dist_effects);
+
   int<lower = 1, upper = num_strata> stratum_id_individ[num_obs] = stratum_id[cluster_id];
-  int<lower = 1, upper = num_strata> missing_stratum_id_individ[num_missing] = stratum_id[missing_cluster_id];
+  //int<lower = 1, upper = num_strata> missing_stratum_id_individ[num_missing] = stratum_id[missing_cluster_id];
   
   // Unmodeled parameters
   
-  vector[num_treatments] mu_beta = rep_vector(0, num_treatments);
+  vector[num_incentive_effects] mu_beta = rep_vector(0, num_incentive_effects);
+  vector[num_dist_effects] mu_dist = rep_vector(0, num_dist_effects);
+  vector[num_incentive_dist_effects] mu_incentive_dist = rep_vector(0, num_incentive_dist_effects);
 }
 
 parameters {
   real<lower=-4, upper=10> mu_strata; // uniformly distributed prior
 
   vector[num_strata] stratum_intercept;
-  vector[num_treatments] beta[num_strata];
+  vector[num_incentive_effects] beta[num_strata];
+  vector[num_dist_effects] dist_effects[num_strata];
+  vector[num_incentive_dist_effects] incentive_dist_effects[num_strata];
   vector[num_clusters] cluster_effects;
   
   // Scale hyperparameters for betas 
   
   // corr_matrix[num_treatments] Omega_beta;
-  vector<lower = 0>[num_treatments] tau_beta;
+  vector<lower = 0>[num_incentive_effects] tau_beta;
+  vector<lower = 0>[num_dist_effects] tau_dist;
+  vector<lower = 0>[num_incentive_dist_effects] tau_incentive_dist;
   real<lower = 0> tau_cluster_effect;
 }
 
 transformed parameters {
-  cov_matrix[num_treatments] Sigma_beta = diag_matrix(tau_beta);
+  cov_matrix[num_incentive_effects] Sigma_beta = diag_matrix(tau_beta);
+  cov_matrix[num_dist_effects] Sigma_dist = diag_matrix(tau_dist);
+  cov_matrix[num_incentive_dist_effects] Sigma_incentive_dist = diag_matrix(tau_incentive_dist);
 }
 
 model {
@@ -121,14 +150,18 @@ model {
   
   //Omega_beta ~ lkj_corr(50);
   tau_beta ~ cauchy(0, 20); // This is a very weakly informative prior
+  tau_dist ~ cauchy(0, 2.5); 
+  tau_incentive_dist ~ cauchy(0, 2.5); 
   tau_cluster_effect ~ cauchy(0, 2.5);
-  //tau_beta ~ normal(0, 2);
+  //tau_beta ~ normal(0, 2)
   //tau_beta ~ gamma(2, 1/10);
   
   stratum_intercept ~ normal(mu_strata, 100); // Weakly informative prior; big SD
   cluster_effects ~ normal(0, tau_cluster_effect);
   
   beta ~ multi_normal(mu_beta, Sigma_beta); // For now assuming no correlation between effects
+  dist_effects ~ multi_normal(mu_dist, Sigma_dist); // For now assuming no correlation between effects
+  incentive_dist_effects ~ multi_normal(mu_incentive_dist, Sigma_incentive_dist); // For now assuming no correlation between effects
  
   {
     int strata_pos = 1;
@@ -140,7 +173,11 @@ model {
       int curr_stratum_size = strata_sizes[strata_index];
       int stratum_end = strata_pos + curr_stratum_size - 1;
       
-      link_model[strata_pos:stratum_end] = treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index];  
+      link_model[strata_pos:stratum_end] = 
+        incentive_design_matrix[strata_pos:stratum_end] * beta[strata_index] +
+        dist_design_matrix[strata_pos:stratum_end] * dist_effects[strata_index] +  
+        incentive_dist_design_matrix[strata_pos:stratum_end] * incentive_dist_effects[strata_index];  
+        
       strata_pos = strata_pos + curr_stratum_size;
     }
     
@@ -151,6 +188,7 @@ model {
 }
 
 generated quantities {
+/*
   int<lower = 0, upper = 1> missing_dewormed_any[num_missing];
   real<lower = 0> takeup_proportion[num_treatments + 1];
   
@@ -181,76 +219,106 @@ generated quantities {
       int missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
       
       takeup_proportion[treatment_index] = 
-        sum(dewormed_any[treatment_id[treatment_pos:treatment_end]]) + sum(missing_dewormed_any[missing_treatment_id[missing_treatment_pos:missing_treatment_end]]);
+        sum(dewormed_any[treatment_id[treatment_pos:treatment_end]]) + 
+        sum(missing_dewormed_any[missing_treatment_id[missing_treatment_pos:missing_treatment_end]]);
         
       takeup_proportion[treatment_index] = takeup_proportion[treatment_index] / (curr_treatment_size + curr_missing_treatment_size);
       
       treatment_pos = treatment_pos + curr_treatment_size;
       missing_treatment_pos = missing_treatment_pos + curr_missing_treatment_size;
     }
-  } 
+  }
+  */
 }
 
 ```
 
 ```{r}
 stan_data <- analysis.data %>% 
-  # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
+  filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer()) %>% 
   mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county), funs(id = as.integer)) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
-  arrange(county_dist_stratum_id) %>% 
+  arrange(county_id) %>% 
   (function(prepared_analysis_data) {
-    treatment_map <- data_grid(prepared_analysis_data, assigned.treatment) %>% 
-      mutate(treatment_id = seq_len(n()))
+    treatment_map <- data_grid(prepared_analysis_data, assigned.treatment, dist.pot.group) %>% 
+      mutate(
+        all_treatment_id = seq_len(n()),
+        treatment_id = factor(assigned.treatment) %>% as.integer(),
+        dist_id = factor(dist.pot.group) %>% as.integer()
+      )
     
-    treatment_grid <- prepared_analysis_data %>% {
-      left_join(data_grid(., KEY.individ, assigned.treatment), 
-                select(., KEY.individ, new_cluster_id, county_dist_stratum_id), 
-                "KEY.individ") 
-    }
+    treatment_map_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group) %>% 
+      magrittr::extract(, -1)
     
-    missing_treatment <- anti_join(treatment_grid, prepared_analysis_data, c("KEY.individ", "assigned.treatment")) %>% 
-      left_join(treatment_map, c("assigned.treatment"))
+    # treatment_grid <- prepared_analysis_data %>% {
+    #   left_join(data_grid(., KEY.individ, assigned.treatment, dist.pot.group), 
+    #             select(., KEY.individ, new_cluster_id, county_id, county_dist_stratum_id), 
+    #             "KEY.individ") 
+    # }
+    # 
+    # missing_treatment <- anti_join(treatment_grid, prepared_analysis_data, c("KEY.individ", "assigned.treatment", "dist.pot.group")) %>% 
+    #   left_join(treatment_map, c("assigned.treatment", "dist.pot.group"))
     
     prepared_analysis_data %<>% 
-      left_join(treatment_map, c("assigned.treatment"))
+      left_join(treatment_map, c("assigned.treatment", "dist.pot.group"))
     
     lst(
       treatment_map,
       
-      treatment_design_matrix = model_matrix(prepared_analysis_data, ~ assigned.treatment) %>% 
-        magrittr::extract(, -1),
+      treatment_map_design_matrix,
+      num_all_treatments = nrow(treatment_map_design_matrix),
+      
+      obs_treatment = prepared_analysis_data$all_treatment_id,
+      
+      # treatment_design_matrix = model_matrix(prepared_analysis_data, ~ assigned.treatment) %>% 
+      #   magrittr::extract(, -1),
+      num_incentive_effects = n_distinct(prepared_analysis_data$assigned.treatment) - 1, #ncol(treatment_design_matrix),
+      
+      # dist_design_matrix = model_matrix(prepared_analysis_data, ~ dist.pot.group) %>% 
+      #   magrittr::extract(, -1),
+      num_dist_effects = n_distinct(prepared_analysis_data$dist.pot.group) - 1, # ncol(dist_design_matrix),
+      
+      # treatment_dist_design_matrix = model_matrix(prepared_analysis_data, ~ assigned.treatment:dist.pot.group * dist.pot.group) %>% 
+      #   magrittr::extract(, -seq_len(num_treatments + num_dist_effects + 1)),
+      num_incentive_dist_effects = num_incentive_effects * num_dist_effects, # ncol(treatment_dist_design_matrix),
+      
+      num_all_treatment_coef = num_incentive_effects + num_dist_effects + num_incentive_dist_effects,
     
-      missing_treatment_design_matrix = model_matrix(missing_treatment, ~ assigned.treatment) %>% 
-        magrittr::extract(, -1),
+      # missing_treatment_design_matrix = model_matrix(missing_treatment, ~ assigned.treatment) %>% 
+      #   magrittr::extract(, -1),
+      # missing_dist_design_matrix = model_matrix(missing_treatment, ~ dist.pot.group) %>% 
+      #   magrittr::extract(, -1),
+      # missing_treatment_dist_design_matrix = model_matrix(missing_treatment, ~ assigned.treatment:dist.pot.group * dist.pot.group) %>% 
+      #   magrittr::extract(, -seq_len(num_treatments + num_dist_effects + 1)),
       
       treatment_id = prepared_analysis_data %>% 
         mutate(index = seq_len(n())) %>% 
-        arrange(treatment_id, index) %$% 
+        arrange(all_treatment_id, index) %$% 
         index,
-      missing_treatment_id = missing_treatment %>% 
-        mutate(index = seq_len(n())) %>% 
-        arrange(treatment_id, index) %$% 
-        index,
-      treatment_sizes = count(prepared_analysis_data, treatment_id) %>% arrange(treatment_id) %$% n,
-      missing_treatment_sizes = count(missing_treatment, treatment_id) %>% arrange(treatment_id) %$% n,
       
-      cluster_id = prepared_analysis_data$new_cluster_id,
-      missing_cluster_id = missing_treatment$new_cluster_id,
-      stratum_id = distinct(prepared_analysis_data, new_cluster_id, county_dist_stratum_id) %>% 
-        arrange(new_cluster_id) %$% 
-        county_dist_stratum_id,
+      # missing_treatment_id = missing_treatment %>% 
+      #   mutate(index = seq_len(n())) %>% 
+      #   arrange(all_treatment_id, index) %$% 
+      #   index,
+      
+      num_obs = length(obs_treatment), # nrow(treatment_design_matrix),
+      # num_missing = num_obs * (num_all_treatments - 1), #nrow(missing_treatment_design_matrix),
+      
+      treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %$% n,
+      # missing_treatment_sizes = count(missing_treatment, treatment_id) %>% arrange(treatment_id) %$% n,
       
       dewormed_any = prepared_analysis_data$dewormed.any,
       
-      num_obs = nrow(treatment_design_matrix),
-      num_missing = nrow(missing_treatment_design_matrix),
-      num_treatments = ncol(treatment_design_matrix),
+      cluster_id = prepared_analysis_data$new_cluster_id,
+      # missing_cluster_id = missing_treatment$new_cluster_id,
+      stratum_id = distinct(prepared_analysis_data, new_cluster_id, county_id) %>% 
+        arrange(new_cluster_id) %$% 
+        county_id,
       num_clusters = n_distinct(cluster_id),
+      
       num_strata = n_distinct(stratum_id),
-      strata_sizes = count(prepared_analysis_data, county_dist_stratum_id) %>% arrange(county_dist_stratum_id) %$% n, 
-      missing_strata_sizes = count(missing_treatment, county_dist_stratum_id) %>% arrange(county_dist_stratum_id) %$% n 
+      strata_sizes = count(prepared_analysis_data, county_id) %>% arrange(county_id) %$% n 
+      # missing_strata_sizes = count(missing_treatment, county_id) %>% arrange(county_id) %$% n 
     )
   }) 
 ```
