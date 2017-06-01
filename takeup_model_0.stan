@@ -32,6 +32,7 @@ functions {
       int treatment_missing_cluster_id[curr_missing_treatment_size];
       real missing_treatment_link[curr_missing_treatment_size];
       real missing_dewormed[curr_missing_treatment_size];
+      int curr_missing_id[curr_missing_treatment_size];
       
       if (treatment_index > 1) {
         treatment_pos = sum(treatment_sizes[1:(treatment_index - 1)]) + 1;
@@ -43,8 +44,9 @@ functions {
       
       treatment_end = treatment_pos + curr_treatment_size - 1;
       missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
-      missing_stratum_id = missing_stratum_id_individ[missing_treatment_pos:missing_treatment_end];
-      treatment_missing_cluster_id = missing_cluster_id[missing_treatment_pos:missing_treatment_end];
+      curr_missing_id = missing_treatment_id[missing_treatment_pos:missing_treatment_end];
+      missing_stratum_id = missing_stratum_id_individ[curr_missing_id];
+      treatment_missing_cluster_id = missing_cluster_id[curr_missing_id];
       missing_treatment_link = missing_link_model[missing_stratum_id, treatment_index_index];
       
       for(i in 1:curr_missing_treatment_size) {
@@ -96,6 +98,8 @@ transformed data {
   // Unmodeled parameters
   
   vector[num_all_treatment_coef] mu_beta = rep_vector(0, num_all_treatment_coef);
+  
+  cov_matrix[num_all_treatment_coef] Sigma_beta = diag_matrix(rep_vector(1, num_all_treatment_coef));
 }
 
 parameters {
@@ -108,25 +112,25 @@ parameters {
   // Scale hyperparameters for betas 
   
   // corr_matrix[num_treatments] Omega_beta;
-  vector<lower = 0>[num_all_treatment_coef] tau_beta;
-  real<lower = 0> tau_stratum_effect;
-  real<lower = 0> tau_cluster_effect;
+  // vector<lower = 0>[num_all_treatment_coef] tau_beta;
+  // real<lower = 0> tau_stratum_effect;
+  // real<lower = 0> tau_cluster_effect;
 }
 
 transformed parameters {
-  cov_matrix[num_all_treatment_coef] Sigma_beta = diag_matrix(tau_beta);
+  // cov_matrix[num_all_treatment_coef] Sigma_beta = diag_matrix(tau_beta);
 }
 
 model {
   //Omega_beta ~ lkj_corr(50);
   //tau_beta ~ gamma(2, 1/10);
   
-  tau_beta ~ normal(0, 100); // cauchy(0, 20); // This is a very weakly informative prior
-  tau_stratum_effect ~ normal(0, 10); // cauchy(0, 2.5);
-  tau_cluster_effect ~ normal(0, 10); // cauchy(0, 2.5);
+  // tau_beta ~ normal(0, 100); // cauchy(0, 20); // This is a very weakly informative prior
+  // tau_stratum_effect ~ normal(0, 10); // cauchy(0, 2.5);
+  // tau_cluster_effect ~ normal(0, 10); // cauchy(0, 2.5);
   
-  stratum_intercept ~ normal(mu_strata, tau_stratum_effect); 
-  cluster_effects ~ normal(0, tau_cluster_effect);
+  stratum_intercept ~ normal(mu_strata, 1); # tau_stratum_effect); 
+  cluster_effects ~ normal(0, 1); # tau_cluster_effect);
   
   beta ~ multi_normal(mu_beta, Sigma_beta); // For now assuming no correlation between effects
  

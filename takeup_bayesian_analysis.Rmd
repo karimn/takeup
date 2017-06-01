@@ -75,23 +75,28 @@ stan_data <- analysis.data %>%
          phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county), funs(id = as.integer)) %>% 
   arrange(county_id) %>% 
-  (function(prepared_analysis_data) {
-    treatment_map <- data_grid(prepared_analysis_data, assigned.treatment, dist.pot.group, name_matched, phone_owner) %>% #, hh.baseline.sample) %>% 
+  (function(prepared_analysis_data, 
+            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group"), direct_only = c("name_matched", "phone_owner")),
+            exclude_from_eval = "name_matched") {
+    treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
       mutate(
-        #all_treatment_id = select(., -name_matched) %>% distinct() %>% nrow() %>% seq_len(),
-        all_treatment_id = seq_len(n()), 
-        treatment_id = factor(assigned.treatment) %>% as.integer(),
-        dist_id = factor(dist.pot.group) %>% as.integer()
-      )
+        all_treatment_id = seq_len(n())) %>% 
+      mutate_if(is.factor, funs(id = as.integer(.)))
     
-    treatment_map_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group + name_matched + phone_owner) %>% # + hh.baseline.sample) %>% 
+    design_matrix_formula <- str_c(str_c(treat_variables$interact, collapse = "*"),
+                                   str_c(treat_variables$direct_only, collapse = "+"), sep = "+") %>% 
+      str_c("~", .) %>% 
+      as.formula()
+    
+    treatment_map_design_matrix <- treatment_map %>%  
+      model_matrix(design_matrix_formula) %>% # + hh.baseline.sample) %>% 
       magrittr::extract(, -1)
     
     # name_match_interact_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group * name_matched * hh.baseline.sample) %>% 
     #   select(ends_with(":name_matchedTRUE"), ends_with(":hh.baseline.sampleTRUE"))
     
     prepared_analysis_data %<>% 
-      left_join(treatment_map, c("assigned.treatment", "dist.pot.group", "name_matched", "phone_owner"))
+      left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) 
     
     missing_treatment <- prepared_analysis_data %>% 
       ddply(., .(all_treatment_id), 
@@ -101,6 +106,12 @@ stan_data <- analysis.data %>%
             }, 
             all_obs = .)
     
+    if (!is.null(exclude_from_eval)) {
+      eval_treatment_prop_id <- filter_(treatment_map, sprintf("%s == 0", exclude_from_eval)) %$% all_treatment_id
+    } else {
+      eval_treatment_prop_id <- treatment_map$all_treatment_id
+    }
+    
     lst(
       treatment_map,
       
@@ -109,15 +120,9 @@ stan_data <- analysis.data %>%
       
       treatment_map_design_matrix,
       num_all_treatments = nrow(treatment_map_design_matrix),
-      num_all_treatment_coef = ncol(treatment_map_design_matrix), #num_incentive_effects + num_dist_effects + num_incentive_dist_effects,
+      num_all_treatment_coef = ncol(treatment_map_design_matrix), 
       
       obs_treatment = prepared_analysis_data$all_treatment_id,
-      
-      num_incentive_effects = n_distinct(prepared_analysis_data$assigned.treatment) - 1, 
-      
-      num_dist_effects = n_distinct(prepared_analysis_data$dist.pot.group) - 1, 
-      
-      num_incentive_dist_effects = num_incentive_effects * num_dist_effects, 
     
       treatment_id = prepared_analysis_data %>% 
         arrange(all_treatment_id, obs_index) %$% 
@@ -127,7 +132,7 @@ stan_data <- analysis.data %>%
         arrange(all_treatment_id) %$% 
         obs_index,
       
-      eval_treatment_prop_id = filter(treatment_map, name_matched == 0) %$% all_treatment_id,
+      eval_treatment_prop_id,
       num_eval_treatment_prop = length(eval_treatment_prop_id),
       
       num_obs = length(obs_treatment), 
