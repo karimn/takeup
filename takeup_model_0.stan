@@ -48,7 +48,7 @@ functions {
       missing_treatment_link = missing_link_model[missing_stratum_id, treatment_index_index];
       
       for(i in 1:curr_missing_treatment_size) {
-        missing_dewormed[i] = bernoulli_rng(Phi(missing_treatment_link[i] + cluster_effects[treatment_missing_cluster_id[treatment_id[i]]]));
+        missing_dewormed[i] = bernoulli_rng(Phi(missing_treatment_link[i] + cluster_effects[treatment_missing_cluster_id[i]]));
       }
       
       takeup_proportion[treatment_index_index] = 
@@ -121,7 +121,7 @@ model {
   //Omega_beta ~ lkj_corr(50);
   //tau_beta ~ gamma(2, 1/10);
   
-  tau_beta ~ normal(0, 10); // cauchy(0, 20); // This is a very weakly informative prior
+  tau_beta ~ normal(0, 100); // cauchy(0, 20); // This is a very weakly informative prior
   tau_stratum_effect ~ normal(0, 10); // cauchy(0, 2.5);
   tau_cluster_effect ~ normal(0, 10); // cauchy(0, 2.5);
   

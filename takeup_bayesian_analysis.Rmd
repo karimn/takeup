@@ -71,11 +71,12 @@ stan_data <- analysis.data %>%
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
          obs_index = seq_len(n()),
-         name_matched = !monitored) %>% 
+         name_matched = !monitored,
+         phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
   mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county), funs(id = as.integer)) %>% 
   arrange(county_id) %>% 
   (function(prepared_analysis_data) {
-    treatment_map <- data_grid(prepared_analysis_data, assigned.treatment, dist.pot.group, name_matched) %>% #, hh.baseline.sample) %>% 
+    treatment_map <- data_grid(prepared_analysis_data, assigned.treatment, dist.pot.group, name_matched, phone_owner) %>% #, hh.baseline.sample) %>% 
       mutate(
         #all_treatment_id = select(., -name_matched) %>% distinct() %>% nrow() %>% seq_len(),
         all_treatment_id = seq_len(n()), 
@@ -83,14 +84,14 @@ stan_data <- analysis.data %>%
         dist_id = factor(dist.pot.group) %>% as.integer()
       )
     
-    treatment_map_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group + name_matched) %>% # + hh.baseline.sample) %>% 
+    treatment_map_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group + name_matched + phone_owner) %>% # + hh.baseline.sample) %>% 
       magrittr::extract(, -1)
     
     # name_match_interact_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group * name_matched * hh.baseline.sample) %>% 
     #   select(ends_with(":name_matchedTRUE"), ends_with(":hh.baseline.sampleTRUE"))
     
     prepared_analysis_data %<>% 
-      left_join(treatment_map, c("assigned.treatment", "dist.pot.group", "name_matched"))
+      left_join(treatment_map, c("assigned.treatment", "dist.pot.group", "name_matched", "phone_owner"))
     
     missing_treatment <- prepared_analysis_data %>% 
       ddply(., .(all_treatment_id), 
