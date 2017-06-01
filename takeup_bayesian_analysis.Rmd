@@ -70,13 +70,15 @@ stan_data <- analysis.data %>%
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
-         obs_index = seq_len(n()),
          name_matched = !monitored,
          phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
-  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county), funs(id = as.integer)) %>% 
-  arrange(county_id) %>% 
+  unite(county_phone_owner_stratum, county, phone_owner, remove = FALSE) %>% 
+  mutate(county_phone_owner_stratum = factor(county_phone_owner_stratum),
+         stratum = county_phone_owner_stratum) %>% 
+  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county_phone_owner_stratum, county, stratum), funs(id = as.integer)) %>% 
+  arrange(stratum_id) %>% 
   (function(prepared_analysis_data, 
-            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group"), direct_only = c("name_matched", "phone_owner")),
+            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group"), direct_only = c("name_matched")),
             exclude_from_eval = "name_matched") {
     treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
       mutate(
@@ -89,14 +91,22 @@ stan_data <- analysis.data %>%
       as.formula()
     
     treatment_map_design_matrix <- treatment_map %>%  
-      model_matrix(design_matrix_formula) %>% # + hh.baseline.sample) %>% 
-      magrittr::extract(, -1)
+      model_matrix(design_matrix_formula) %>% 
+      magrittr::extract(, -1) # get rid of intercept column
     
-    # name_match_interact_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group * name_matched * hh.baseline.sample) %>% 
-    #   select(ends_with(":name_matchedTRUE"), ends_with(":hh.baseline.sampleTRUE"))
+    name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
+      str_c("~", .) %>% 
+      as.formula()
+    
+    name_match_interact_map_design_matrix <- treatment_map %>%  
+      model_matrix(name_match_interact_formula) %>%
+      magrittr::extract(, -1) %>% # get rid of intercept column
+      select(-one_of(names(treatment_map_design_matrix)))
     
     prepared_analysis_data %<>% 
-      left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) 
+      left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
+      arrange(stratum_id) %>% 
+      mutate(obs_index = seq_len(n()))
     
     missing_treatment <- prepared_analysis_data %>% 
       ddply(., .(all_treatment_id), 
@@ -113,24 +123,25 @@ stan_data <- analysis.data %>%
     }
     
     lst(
+      # Save meta data 
+       
       treatment_map,
       
-      county_map = distinct(prepared_analysis_data, county_id, county),
+      stratum_map = distinct(prepared_analysis_data, stratum_id, stratum),
       cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
       
+      # Data passed to model
+      
       treatment_map_design_matrix,
+      name_match_interact_map_design_matrix,
       num_all_treatments = nrow(treatment_map_design_matrix),
       num_all_treatment_coef = ncol(treatment_map_design_matrix), 
+      num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
       
       obs_treatment = prepared_analysis_data$all_treatment_id,
     
-      treatment_id = prepared_analysis_data %>% 
-        arrange(all_treatment_id, obs_index) %$% 
-        obs_index,
-      
-      missing_treatment_id = missing_treatment %>% 
-        arrange(all_treatment_id) %$% 
-        obs_index,
+      treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
+      missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, obs_index) %$% obs_index,
       
       eval_treatment_prop_id,
       num_eval_treatment_prop = length(eval_treatment_prop_id),
@@ -144,13 +155,11 @@ stan_data <- analysis.data %>%
       dewormed_any = prepared_analysis_data$dewormed.any,
       
       cluster_id = prepared_analysis_data$new_cluster_id,
-      stratum_id = distinct(prepared_analysis_data, new_cluster_id, county_id) %>% 
-        arrange(new_cluster_id) %$% 
-        county_id,
+      stratum_id = prepared_analysis_data$stratum_id,
       num_clusters = n_distinct(cluster_id),
       
       num_strata = n_distinct(stratum_id),
-      strata_sizes = count(prepared_analysis_data, county_id) %>% arrange(county_id) %$% n 
+      strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %$% n 
     )
   }) 
 ```
@@ -159,5 +168,5 @@ stan_data <- analysis.data %>%
 basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
-print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma_beta"), include = FALSE)
+print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)
 ```

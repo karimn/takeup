@@ -1,6 +1,7 @@
 functions {
-  real[] takeup_proportion_rng(int[] eval_treatment_ids, 
+  real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
                                matrix treatment_map_design_matrix,
+                               matrix name_match_interact_map_design_matrix,
                                int[] dewormed_any,
                                vector[] beta,
                                vector stratum_intercept,
@@ -10,14 +11,18 @@ functions {
                                int[] treatment_sizes,
                                int[] missing_treatment_sizes,
                                int[] missing_stratum_id_individ,
-                               int[] missing_cluster_id) { // the treatment IDs to evaluate proportions for 
+                               int[] missing_cluster_id) { 
     int num_eval_treatment_prop = size(eval_treatment_ids);
+    int total_num_coef = cols(treatment_map_design_matrix) + cols(name_match_interact_map_design_matrix);
     real takeup_proportion[num_eval_treatment_prop]; 
     int num_strata = num_elements(stratum_intercept);
     real missing_link_model[num_strata, num_eval_treatment_prop];
     
     for (strata_index in 1:num_strata) {
-      missing_link_model[strata_index, ] = to_array_1d(treatment_map_design_matrix[eval_treatment_ids] * beta[strata_index] + stratum_intercept[strata_index]);
+      matrix[num_eval_treatment_prop, total_num_coef] all_treat_map_design_matrix = 
+        append_col(treatment_map_design_matrix[eval_treatment_ids], name_match_interact_map_design_matrix[eval_treatment_ids]); 
+        
+      missing_link_model[strata_index, ] = to_array_1d(all_treat_map_design_matrix * beta[strata_index] + stratum_intercept[strata_index]);
     }
     
     for (treatment_index_index in 1:num_eval_treatment_prop) {
@@ -54,7 +59,8 @@ functions {
       }
       
       takeup_proportion[treatment_index_index] = 
-        (sum(missing_dewormed) + sum(dewormed_any[treatment_id[treatment_pos:treatment_end]]))/(curr_missing_treatment_size + curr_treatment_size);
+        (sum(missing_dewormed) + sum(dewormed_any[treatment_id[treatment_pos:treatment_end]])) /
+        (curr_missing_treatment_size + curr_treatment_size);
     }
     
     return(takeup_proportion);
@@ -66,16 +72,18 @@ data {
   int<lower = 1> num_missing;
   int<lower = 1> num_all_treatments;
   int<lower = 1> num_all_treatment_coef;
+  int<lower = 1> num_name_match_interact_coef;
   int<lower = 1> num_eval_treatment_prop;
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
   
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix;
+  matrix[num_all_treatments, num_name_match_interact_coef] name_match_interact_map_design_matrix;
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs];
   int<lower = 1, upper = num_all_treatments> eval_treatment_prop_id[num_eval_treatment_prop];
   
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
-  int<lower = 1, upper = num_strata> stratum_id[num_clusters];
+  int<lower = 1, upper = num_strata> stratum_id[num_obs];
   int<lower = 1> strata_sizes[num_strata]; 
   
   int<lower = 1, upper = num_obs> treatment_id[num_obs];
@@ -89,25 +97,28 @@ data {
 }
 
 transformed data {
-  matrix[num_obs, num_all_treatment_coef] all_treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
+  matrix[num_obs, num_all_treatment_coef + num_name_match_interact_coef] all_treatment_design_matrix = 
+    append_col(treatment_map_design_matrix[obs_treatment], name_match_interact_map_design_matrix[obs_treatment]);
 
-  int<lower = 1, upper = num_strata> stratum_id_individ[num_obs] = stratum_id[cluster_id];
-  int<lower = 1, upper = num_strata> missing_stratum_id_individ[num_missing] = stratum_id_individ[missing_treatment_id];
+  // int<lower = 1, upper = num_strata> stratum_id_individ[num_obs] = stratum_id[cluster_id];
+  int<lower = 1, upper = num_strata> missing_stratum_id[num_missing] = stratum_id[missing_treatment_id];
   int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
   
   // Unmodeled parameters
   
-  vector[num_all_treatment_coef] mu_beta = rep_vector(0, num_all_treatment_coef);
-  
-  cov_matrix[num_all_treatment_coef] Sigma_beta = diag_matrix(rep_vector(1, num_all_treatment_coef));
+  vector[num_all_treatment_coef + num_name_match_interact_coef] mu = rep_vector(0, num_all_treatment_coef + num_name_match_interact_coef);
+  vector[num_all_treatment_coef] tau_treatment = rep_vector(1, num_all_treatment_coef);
+  vector[num_name_match_interact_coef] tau_name_match_interact = rep_vector(sqrt(0.25), num_name_match_interact_coef);
+  vector[num_all_treatment_coef + num_name_match_interact_coef] tau = append_row(tau_treatment, tau_name_match_interact);
+  cov_matrix[num_all_treatment_coef + num_name_match_interact_coef] Sigma = diag_matrix(tau);
 }
 
 parameters {
-  real<lower=-4, upper=4> mu_strata; // uniformly distributed prior
+  real<lower=-3, upper=3> mu_strata; // uniformly distributed prior
 
   vector[num_strata] stratum_intercept;
-  vector[num_all_treatment_coef] beta[num_strata];
   vector[num_clusters] cluster_effects;
+  vector[num_all_treatment_coef + num_name_match_interact_coef] beta[num_strata];
   
   // Scale hyperparameters for betas 
   
@@ -132,7 +143,7 @@ model {
   stratum_intercept ~ normal(mu_strata, 1); # tau_stratum_effect); 
   cluster_effects ~ normal(0, 1); # tau_cluster_effect);
   
-  beta ~ multi_normal(mu_beta, Sigma_beta); // For now assuming no correlation between effects
+  beta ~ multi_normal(mu, Sigma); // For now assuming no correlation between effects
  
   {
     int strata_pos = 1;
@@ -149,7 +160,7 @@ model {
       strata_pos = strata_pos + curr_stratum_size;
     }
     
-    link_model = link_model + stratum_intercept[stratum_id_individ] + cluster_effects[cluster_id]; 
+    link_model = link_model + stratum_intercept[stratum_id] + cluster_effects[cluster_id]; 
   
     dewormed_any ~ bernoulli(Phi(link_model)); // Probit
     //dewormed_any ~ bernoulli_logit(link_model);
@@ -157,9 +168,9 @@ model {
 }
 
 generated quantities {
-  real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] = 
+  real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] =
     takeup_proportion_rng(
-      eval_treatment_prop_id, treatment_map_design_matrix, dewormed_any, beta, stratum_intercept, cluster_effects, treatment_id, missing_treatment_id, 
-      treatment_sizes, missing_treatment_sizes, missing_stratum_id_individ, missing_cluster_id
+      eval_treatment_prop_id, treatment_map_design_matrix, name_match_interact_map_design_matrix, dewormed_any, beta, stratum_intercept, cluster_effects,
+      treatment_id, missing_treatment_id, treatment_sizes, missing_treatment_sizes, missing_stratum_id, missing_cluster_id
     );
 }
