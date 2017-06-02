@@ -69,27 +69,34 @@ functions {
 
 data {
   int<lower = 0> num_obs;
-  int<lower = 1> num_missing;
-  int<lower = 1> num_all_treatments;
-  int<lower = 1> num_all_treatment_coef;
-  int<lower = 1> num_name_match_interact_coef;
-  int<lower = 1> num_eval_treatment_prop;
+  int<lower = 1> num_missing; // # of missing counterfactuals
+  int<lower = 1> num_all_treatments; // # of treatment cells
+  int<lower = 1> num_all_treatment_coef; // # of linear model coefficients minus intercept
+  int<lower = 1> num_name_match_interact_coef; // # of linear model for name matched indicator interacted with other treatments
+  int<lower = 1> num_eval_treatment_prop; // # of treatment cells to be imputed
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
+  int<lower = 1> num_census_covar_coef; // # of linear model of census covariates coefficients minus intercept
   
-  matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix;
-  matrix[num_all_treatments, num_name_match_interact_coef] name_match_interact_map_design_matrix;
-  int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs];
-  int<lower = 1, upper = num_all_treatments> eval_treatment_prop_id[num_eval_treatment_prop];
+  // Below references to "maps" refer to a finite set of treatment cells that has a one-to-many relationship to actual observations
+  
+  matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
+  matrix[num_all_treatments, num_name_match_interact_coef] name_match_interact_map_design_matrix; // Design matrix generated from name-match interaction map
+  int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
+  int<lower = 1, upper = num_all_treatments> eval_treatment_prop_id[num_eval_treatment_prop]; // Which treatments to impute
+  matrix[num_obs, num_census_covar_coef] census_covar_dm; // Design matrix for census covariates
+  
+  int<lower = 1, upper = num_obs> stratum_covar_id[num_obs]; // Observation indices ordered by stratum and endline covariate missingness
+  int<lower = 1> startum_missing_sizes[num_strata]; // Number of covariate missingness per stratum (ordered by stratum)
   
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs];
   int<lower = 1> strata_sizes[num_strata]; 
   
-  int<lower = 1, upper = num_obs> treatment_id[num_obs];
-  int<lower = 1, upper = num_missing> missing_treatment_id[num_missing];
-  int<lower = 1> treatment_sizes[num_all_treatments];
-  int<lower = 1> missing_treatment_sizes[num_all_treatments];
+  int<lower = 1, upper = num_obs> treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
+  int<lower = 1> treatment_sizes[num_all_treatments]; // Number of observations per treatment ID, in ascending order
+  int<lower = 1, upper = num_missing> missing_treatment_id[num_missing]; // Observation indices with missing treatment counterfactural, ordered by missing treatment ID
+  int<lower = 1> missing_treatment_sizes[num_all_treatments]; // Number of obserations missing treatment, in ascending order of missing treatment ID
  
   // Binary deworming outcome 
   
@@ -97,28 +104,34 @@ data {
 }
 
 transformed data {
-  matrix[num_obs, num_all_treatment_coef + num_name_match_interact_coef] all_treatment_design_matrix = 
+  int num_treat_name_match_coef = num_all_treatment_coef + num_name_match_interact_coef; 
+  matrix[num_obs, num_treat_name_match_coef] all_treatment_design_matrix = // Merge treatment and name-match interactions
     append_col(treatment_map_design_matrix[obs_treatment], name_match_interact_map_design_matrix[obs_treatment]);
 
-  // int<lower = 1, upper = num_strata> stratum_id_individ[num_obs] = stratum_id[cluster_id];
   int<lower = 1, upper = num_strata> missing_stratum_id[num_missing] = stratum_id[missing_treatment_id];
   int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
   
-  // Unmodeled parameters
+  // Unmodeled parameters for priors and hyperpriors
   
-  vector[num_all_treatment_coef + num_name_match_interact_coef] mu = rep_vector(0, num_all_treatment_coef + num_name_match_interact_coef);
+  vector[num_treat_name_match_coef] mu = rep_vector(0, num_treat_name_match_coef);
+  vector[num_census_covar_coef] mu_census_covar = rep_vector(0, num_census_covar_coef);
   vector[num_all_treatment_coef] tau_treatment = rep_vector(1, num_all_treatment_coef);
   vector[num_name_match_interact_coef] tau_name_match_interact = rep_vector(sqrt(0.25), num_name_match_interact_coef);
-  vector[num_all_treatment_coef + num_name_match_interact_coef] tau = append_row(tau_treatment, tau_name_match_interact);
-  cov_matrix[num_all_treatment_coef + num_name_match_interact_coef] Sigma = diag_matrix(tau);
+  vector[num_treat_name_match_coef] tau = append_row(tau_treatment, tau_name_match_interact);
+  cov_matrix[num_treat_name_match_coef] Sigma_beta = diag_matrix(tau);
+  vector[num_census_covar_coef] tau_census_covar = rep_vector(1, num_census_covar_coef);
+  cov_matrix[num_census_covar_coef] Sigma_census_covar = diag_matrix(tau_census_covar);
 }
 
 parameters {
-  real<lower=-3, upper=3> mu_strata; // uniformly distributed prior
+  real<lower=-3, upper=3> mu_strata; // intercept, uniformly distributed prior
 
   vector[num_strata] stratum_intercept;
   vector[num_clusters] cluster_effects;
+  vector[num_all_treatment_coef + num_name_match_interact_coef] hyper_beta;
   vector[num_all_treatment_coef + num_name_match_interact_coef] beta[num_strata];
+  vector[num_census_covar_coef] hyper_census_covar_coef;
+  vector[num_census_covar_coef] census_covar_coef[num_strata];
   
   // Scale hyperparameters for betas 
   
@@ -140,10 +153,14 @@ model {
   // tau_stratum_effect ~ normal(0, 10); // cauchy(0, 2.5);
   // tau_cluster_effect ~ normal(0, 10); // cauchy(0, 2.5);
   
+  hyper_census_covar_coef ~ multi_normal(mu_census_covar, Sigma_census_covar);
+  census_covar_coef ~ multi_normal(hyper_census_covar_coef, Sigma_census_covar);
+  
   stratum_intercept ~ normal(mu_strata, 1); # tau_stratum_effect); 
   cluster_effects ~ normal(0, 1); # tau_cluster_effect);
   
-  beta ~ multi_normal(mu, Sigma); // For now assuming no correlation between effects
+  hyper_beta ~ multi_normal(mu, Sigma_beta); // For now assuming no correlation between effects
+  beta ~ multi_normal(hyper_beta, Sigma_beta); // For now assuming no correlation between effects
  
   {
     int strata_pos = 1;
@@ -155,7 +172,8 @@ model {
       int curr_stratum_size = strata_sizes[strata_index];
       int stratum_end = strata_pos + curr_stratum_size - 1;
       
-      link_model[strata_pos:stratum_end] = all_treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index];
+      link_model[strata_pos:stratum_end] = all_treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index] + 
+        census_covar_dm[strata_pos:stratum_end] * census_covar_coef[strata_index];
         
       strata_pos = strata_pos + curr_stratum_size;
     }
@@ -168,9 +186,9 @@ model {
 }
 
 generated quantities {
-  real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] =
-    takeup_proportion_rng(
-      eval_treatment_prop_id, treatment_map_design_matrix, name_match_interact_map_design_matrix, dewormed_any, beta, stratum_intercept, cluster_effects,
-      treatment_id, missing_treatment_id, treatment_sizes, missing_treatment_sizes, missing_stratum_id, missing_cluster_id
-    );
+  // real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] =
+  //   takeup_proportion_rng(
+  //     eval_treatment_prop_id, treatment_map_design_matrix, name_match_interact_map_design_matrix, dewormed_any, beta, stratum_intercept, cluster_effects,
+  //     treatment_id, missing_treatment_id, treatment_sizes, missing_treatment_sizes, missing_stratum_id, missing_cluster_id
+  //   );
 }
