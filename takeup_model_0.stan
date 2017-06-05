@@ -110,7 +110,7 @@ data {
 }
 
 transformed data {
-  int num_treat_name_match_coef = num_all_treatment_coef + num_name_match_interact_coef; 
+  int num_treat_name_match_coef = num_all_treatment_coef + num_name_match_interact_coef; # Total number of treatment and name-matching coefficients
   matrix[num_obs, num_treat_name_match_coef] all_treatment_design_matrix = // Merge treatment and name-match interactions
     append_col(treatment_map_design_matrix[obs_treatment], name_match_interact_map_design_matrix[obs_treatment]);
 
