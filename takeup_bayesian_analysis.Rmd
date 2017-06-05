@@ -98,6 +98,12 @@ stan_data <- analysis.data %>%
       model_matrix(design_matrix_formula) %>% 
       magrittr::extract(, -1) # get rid of intercept column
     
+    experiment_coef <- treatment_map_design_matrix %>% 
+      names() %>% 
+      str_detect("name_matched") %>% 
+      not() %>% 
+      which()
+    
     name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
       str_c("~", .) %>% 
       as.formula()
@@ -151,8 +157,10 @@ stan_data <- analysis.data %>%
       
       treatment_map_design_matrix,
       name_match_interact_map_design_matrix,
+      experiment_coef,
       num_all_treatments = nrow(treatment_map_design_matrix),
       num_all_treatment_coef = ncol(treatment_map_design_matrix), 
+      num_experiment_coef = length(experiment_coef),
       num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
       
       census_covar_dm,
@@ -193,15 +201,15 @@ stan_data <- analysis.data %>%
   }) 
 ```
 
-```{r covar-model-0}
-covar_model_0 <- stan_model(file = "takeup_covar_model_0.stan", model_name = "covar_model_0")
-covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = file.path("stanfit", "covar_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
-```
-
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
 basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
 print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)
+```
+
+```{r covar-model-0}
+covar_model_0 <- stan_model(file = "takeup_covar_model_0.stan", model_name = "covar_model_0")
+covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = file.path("stanfit", "covar_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
