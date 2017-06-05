@@ -63,23 +63,27 @@ rstan_options(auto_write = TRUE)
 load(file.path("data", "analysis.RData"))
 ```
 
-```{r basic-model-0}
-basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-
+```{r model-data}
 stan_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
          name_matched = !monitored,
-         phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner") %>% 
+         phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
+         age = if_else(!is.na(age), age, age.census),
+         age_squared = age^2,
+         missing_covar = is.na(floor)) %>% 
   unite(county_phone_owner_stratum, county, phone_owner, remove = FALSE) %>% 
   mutate(county_phone_owner_stratum = factor(county_phone_owner_stratum),
-         stratum = county_phone_owner_stratum) %>% 
-  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county_phone_owner_stratum, county, stratum), funs(id = as.integer)) %>% 
+         stratum = county) %>% 
+  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county_phone_owner_stratum, county, stratum,
+                 gender, school, floor, ethnicity), 
+            funs(id = as.integer)) %>% 
   arrange(stratum_id) %>% 
   (function(prepared_analysis_data, 
             treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group"), direct_only = c("name_matched")),
-            exclude_from_eval = "name_matched") {
+            exclude_from_eval = "name_matched",
+            endline_covar = c("ethnicity", "floor", "school")) {
     treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
       mutate(
         all_treatment_id = seq_len(n())) %>% 
@@ -107,6 +111,19 @@ stan_data <- analysis.data %>%
       left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
       arrange(stratum_id) %>% 
       mutate(obs_index = seq_len(n()))
+    
+    census_covar_dm <- prepared_analysis_data %>% 
+      model_matrix(~ poly(age, 2) + gender + phone_owner) %>% 
+      magrittr::extract(, -1) %>% # get rid of intercept column
+      scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
+    
+    endline_covar_dm <- prepared_analysis_data %>% 
+      filter(!missing_covar) %>% 
+      arrange(stratum_id, obs_index) %>% 
+      model_matrix(str_c("~", str_c(endline_covar, collapse = "+")) %>% as.formula()) %>% # ~ school + floor + ethnicity) %>% 
+      magrittr::extract(, -1) %>% # get rid of intercept column
+      magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
+      scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
     
     missing_treatment <- prepared_analysis_data %>% 
       ddply(., .(all_treatment_id), 
@@ -138,6 +155,18 @@ stan_data <- analysis.data %>%
       num_all_treatment_coef = ncol(treatment_map_design_matrix), 
       num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
       
+      census_covar_dm,
+      num_census_covar_coef = ncol(census_covar_dm),
+      endline_covar_dm,
+      num_endline_covar_coef = ncol(endline_covar_dm),
+      
+      stratum_covar_id = prepared_analysis_data %>% arrange(stratum_id, missing_covar, obs_index) %$% obs_index, # First obs then missing
+      stratum_missing_covar_sizes = prepared_analysis_data %>% 
+        filter(missing_covar | (select_(., .dots = endline_covar) %>% map(is.na) %>% reduce(or))) %>% 
+        count(stratum_id) %>% 
+        arrange(stratum_id) %$% 
+        n,
+      
       obs_treatment = prepared_analysis_data$all_treatment_id,
     
       treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
@@ -164,7 +193,13 @@ stan_data <- analysis.data %>%
   }) 
 ```
 
-```{r}
+```{r covar-model-0}
+covar_model_0 <- stan_model(file = "takeup_covar_model_0.stan", model_name = "covar_model_0")
+covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = file.path("stanfit", "covar_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+```
+
+```{r basic-model-0}
+basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
 basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
