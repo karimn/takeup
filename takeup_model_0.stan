@@ -73,17 +73,12 @@ functions {
 
 data {
   int<lower = 0> num_obs;
-  int<lower = 1> num_missing; // # of missing counterfactuals
   int<lower = 1> num_all_treatments; // # of treatment cells
   int<lower = 1> num_all_treatment_coef; // # of linear model coefficients minus intercept
   int<lower = 0> num_experiment_coef;
   int<lower = 1> num_name_match_interact_coef; // # of linear model for name matched indicator interacted with other treatments
-  int<lower = 1> num_eval_treatment_prop; // # of treatment cells to be imputed
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
-  
-  int<lower = 1, upper = num_obs> stratum_covar_id[num_obs]; // Observation indices ordered by stratum and endline covariate missingness
-  int<lower = 1> stratum_missing_covar_sizes[num_strata]; // Number of covariate missingness per stratum (ordered by stratum)
   
   // Below references to "maps" refer to a finite set of treatment cells that has a one-to-many relationship to actual observations
   
@@ -91,15 +86,6 @@ data {
   matrix[num_all_treatments, num_name_match_interact_coef] name_match_interact_map_design_matrix; // Design matrix generated from name-match interaction map
   int<lower = 1, upper = num_all_treatment_coef> experiment_coef[num_experiment_coef];
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
-  int<lower = 1, upper = num_all_treatments> eval_treatment_prop_id[num_eval_treatment_prop]; // Which treatments to impute
-  
-  // # of linear model of covariates coefficients minus intercept
-  int<lower = 1> num_census_covar_coef; 
-  int<lower = 1> num_endline_covar_coef; 
-  
-  // Design matrix for covariates
-  matrix[num_obs, num_census_covar_coef] census_covar_dm; 
-  matrix[num_obs - sum(stratum_missing_covar_sizes), num_endline_covar_coef] endline_covar_dm;
   
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs];
@@ -107,8 +93,28 @@ data {
   
   int<lower = 1, upper = num_obs> treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
   int<lower = 1> treatment_sizes[num_all_treatments]; // Number of observations per treatment ID, in ascending order
+ 
+  // Counterfactual information for finite sample analysis
+  
+  int<lower = 1> num_missing; // # of missing counterfactuals
+  int<lower = 1> num_eval_treatment_prop; // # of treatment cells to be imputed
+  
+  int<lower = 1, upper = num_obs> stratum_covar_id[num_obs]; // Observation indices ordered by stratum and endline covariate missingness
+  int<lower = 1> stratum_missing_covar_sizes[num_strata]; // Number of covariate missingness per stratum (ordered by stratum)
+  int<lower = 1, upper = num_all_treatments> eval_treatment_prop_id[num_eval_treatment_prop]; // Which treatments to impute
   int<lower = 1, upper = num_missing> missing_treatment_id[num_missing]; // Observation indices with missing treatment counterfactural, ordered by missing treatment ID
   int<lower = 1> missing_treatment_sizes[num_all_treatments]; // Number of obserations missing treatment, in ascending order of missing treatment ID
+  
+  // Covariates
+  
+  
+  int<lower = 1> num_census_covar_coef;
+  int<lower = 1> num_endline_covar_coef; 
+  int<lower = 1> num_distinct_census_covar;
+  
+  matrix[num_distinct_census_covar, num_census_covar_coef] census_covar_map_dm; 
+  int census_covar_id[num_obs];
+  // matrix[num_obs - sum(stratum_missing_covar_sizes), num_endline_covar_coef] endline_covar_dm;
  
   // Binary deworming outcome 
   
@@ -116,27 +122,28 @@ data {
 }
 
 transformed data {
-  int num_treat_name_match_coef = num_all_treatment_coef + num_name_match_interact_coef; # Total number of treatment and name-matching coefficients
-  matrix[num_obs, num_treat_name_match_coef] all_treatment_design_matrix = // Merge treatment and name-match interactions
-    append_col(treatment_map_design_matrix[obs_treatment], name_match_interact_map_design_matrix[obs_treatment]);
-    
-  matrix[num_obs, num_experiment_coef] experiment_treatment_dm_t = all_treatment_design_matrix[, experiment_coef]';
-
-  int<lower = 1, upper = num_strata> missing_stratum_id[num_missing] = stratum_id[missing_treatment_id];
-  int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
+  // int num_treat_name_match_coef = num_all_treatment_coef + num_name_match_interact_coef; # Total number of treatment and name-matching coefficients
   
-  int<lower = 1, upper = num_obs> num_missing_endline_covar = sum(stratum_missing_covar_sizes);
+  // matrix[num_obs, num_treat_name_match_coef] all_treatment_design_matrix = // Merge treatment and name-match interactions
+  //   append_col(treatment_map_design_matrix[obs_treatment], name_match_interact_map_design_matrix[obs_treatment]);
+    
+  // matrix[num_obs, num_experiment_coef] experiment_treatment_dm_t = all_treatment_design_matrix[, experiment_coef];
+
+  // int<lower = 1, upper = num_strata> missing_stratum_id[num_missing] = stratum_id[missing_treatment_id];
+  // int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
+  // 
+  // int<lower = 1, upper = num_obs> num_missing_endline_covar = sum(stratum_missing_covar_sizes);
   
   // Unmodeled parameters for priors and hyperpriors
   
-  vector[num_treat_name_match_coef] mu = rep_vector(0, num_treat_name_match_coef);
+  vector[num_all_treatment_coef] mu = rep_vector(0, num_all_treatment_coef);
   vector[num_census_covar_coef] mu_census_covar = rep_vector(0, num_census_covar_coef);
-  vector[num_endline_covar_coef] mu_endline_covar = rep_vector(0, num_endline_covar_coef);
+  // vector[num_endline_covar_coef] mu_endline_covar = rep_vector(0, num_endline_covar_coef);
   
   vector[num_all_treatment_coef] tau_treatment = rep_vector(1, num_all_treatment_coef);
-  vector[num_name_match_interact_coef] tau_name_match_interact = rep_vector(sqrt(0.25), num_name_match_interact_coef);
-  vector[num_treat_name_match_coef] tau = append_row(tau_treatment, tau_name_match_interact);
-  cov_matrix[num_treat_name_match_coef] Sigma_beta = diag_matrix(tau);
+  // vector[num_name_match_interact_coef] tau_name_match_interact = rep_vector(sqrt(0.25), num_name_match_interact_coef);
+  // vector[num_treat_name_match_coef] tau = append_row(tau_treatment, tau_name_match_interact);
+  cov_matrix[num_all_treatment_coef] Sigma_beta = diag_matrix(tau_treatment);
   
   vector[num_census_covar_coef] tau_census_covar = rep_vector(1, num_census_covar_coef);
   cov_matrix[num_census_covar_coef] Sigma_census_covar = diag_matrix(tau_census_covar);
@@ -147,15 +154,19 @@ transformed data {
 parameters {
   // Modelled parameters
   
-  real<lower=-3, upper=3> mu_strata; // intercept, uniformly distributed prior
-
-  vector[num_strata] stratum_intercept;
+  real<lower=-3, upper=3> mu_strata; // intercept hyperparameter, uniformly distributed prior
+  vector[num_strata] stratum_intercept; // Stratum variation in intercept
+  
   vector[num_clusters] cluster_effects;
-  vector[num_treat_name_match_coef] hyper_beta;
-  vector[num_treat_name_match_coef] beta[num_strata];
+  
+  vector[num_all_treatment_coef] hyper_beta;
+  vector[num_all_treatment_coef] beta[num_strata];
+  vector[num_name_match_interact_coef] beta_name_match_interact;
+  
   vector[num_census_covar_coef] hyper_census_covar_coef;
   vector[num_census_covar_coef] census_covar_coef[num_strata];
-  matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_coef[num_strata]; // census characteristics' effect on treatment effects
+  
+  // matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_coef[num_strata]; // census characteristics' effect on treatment effects
   // vector[num_endline_covar_coef] hyper_endline_covar_coef;
   // vector[num_endline_covar_coef] endline_covar_coef[num_strata];
   
@@ -176,12 +187,12 @@ parameters {
 }
 
 transformed parameters {
-  // cov_matrix[num_all_treatment_coef] Sigma_beta = diag_matrix(tau_beta);
 }
 
 model {
   int strata_pos = 1;
-  vector[num_obs] link_model;  
+  
+  // vector[num_obs] link_model;  
   
   //Omega_beta ~ lkj_corr(50);
   //tau_beta ~ gamma(2, 1/10);
@@ -201,40 +212,56 @@ model {
   stratum_intercept ~ normal(mu_strata, 1); # tau_stratum_effect); 
   cluster_effects ~ normal(0, 1); # tau_cluster_effect);
   
+  beta_name_match_interact ~ normal(0, 1);
+  
   hyper_beta ~ multi_normal(mu, Sigma_beta); // For now assuming no correlation between effects
+  beta ~ multi_normal(hyper_beta, Sigma_beta);
   
-  for (strata_index in 1:num_strata) {
-    beta[strata_index] ~ multi_normal(hyper_beta, Sigma_beta); 
-    to_vector(beta_census_covar_coef[strata_index]) ~ normal(0, 1);
-      
-    census_covar_coef[strata_index] ~ multi_normal(hyper_census_covar_coef, Sigma_census_covar);
-  }
-  
-  // Looping over strata in the data; Stan doesn't support ragged arrays, so can't split the data into arrays.
-  // Otherwise, will have to loop by row, which will slow things down dramatically.
   for (strata_index in 1:num_strata) {
     int curr_stratum_size = strata_sizes[strata_index];
     int stratum_end = strata_pos + curr_stratum_size - 1;
-    vector[curr_stratum_size] census_covar_effect = census_covar_dm[strata_pos:stratum_end] * census_covar_coef[strata_index];
-    // vector[curr_stratum_size] beta_census_covar_effect = row_sums(census_covar_dm[strata_pos:stratum_end] * beta_census_covar_coef[strata_index]);
-    vector[curr_stratum_size] beta_census_covar_effect = rows_dot_product(census_covar_dm[strata_pos:stratum_end] * beta_census_covar_coef[strata_index], experiment_treatment_dm_t);
-    // 
-    // print(dims(beta_census_covar_effect));
     
-    link_model[strata_pos:stratum_end] = 
-      (all_treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index] +
-        cluster_effects[cluster_id[strata_pos:stratum_end]] + 
-        census_covar_effect) +
-        // beta_census_covar_effect) +
-       stratum_intercept[strata_index];
-    // + 
-    //   ((census_covar_dm[strata_pos:stratum_end] * beta_census_covar_coef[strata_index]) * rep_vector(1, num_experiment_coef)) + // census interacted with treatment
-      
+    
+  //   to_vector(beta_census_covar_coef[strata_index]) ~ normal(0, 1);
+  //     
+  //   census_covar_coef[strata_index] ~ multi_normal(hyper_census_covar_coef, Sigma_census_covar);
+  
+    // Probit
+    dewormed_any[strata_pos:stratum_end] ~ bernoulli(Phi(stratum_intercept[strata_index] + cluster_effects[cluster_id[strata_pos:stratum_end]] + 
+      treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end]] * beta[strata_index] + 
+      census_covar_map_dm[census_covar_id[strata_pos:stratum_end]] * census_covar_coef[strata_index] + 
+      name_match_interact_map_design_matrix[obs_treatment[strata_pos:stratum_end]] * beta_name_match_interact)); 
+    
     strata_pos = strata_pos + curr_stratum_size;
   }
-  
-  dewormed_any ~ bernoulli(Phi(link_model)); // Probit
+ 
+  // Looping over strata in the data; Stan doesn't support ragged arrays, so can't split the data into arrays.
+  // Otherwise, will have to loop by row, which will slow things down dramatically.
+  // for (strata_index in 1:num_strata) {
+  //   int curr_stratum_size = strata_sizes[strata_index];
+  //   int stratum_end = strata_pos + curr_stratum_size - 1;
+  //   vector[curr_stratum_size] census_covar_effect = census_covar_dm[strata_pos:stratum_end] * census_covar_coef[strata_index];
+  //   // vector[curr_stratum_size] beta_census_covar_effect = row_sums(census_covar_dm[strata_pos:stratum_end] * beta_census_covar_coef[strata_index]);
+  //   // vector[curr_stratum_size] beta_census_covar_effect = 
+  //   //   rows_dot_product(census_covar_dm[strata_pos:stratum_end] * beta_census_covar_coef[strata_index], experiment_treatment_dm_t[strata_pos:stratum_end]);
+  //   // 
+  //   // print(dims(beta_census_covar_effect));
+  //   
+  //   link_model[strata_pos:stratum_end] = 
+  //     (all_treatment_design_matrix[strata_pos:stratum_end] * beta[strata_index] +
+  //       cluster_effects[cluster_id[strata_pos:stratum_end]] + 
+  //       census_covar_effect) +
+  //       // beta_census_covar_effect) +
+  //      stratum_intercept[strata_index];
+  //   // + 
+  //   //   ((census_covar_dm[strata_pos:stratum_end] * beta_census_covar_coef[strata_index]) * rep_vector(1, num_experiment_coef)) + // census interacted with treatment
+  //     
+  //   strata_pos = strata_pos + curr_stratum_size;
+  // }
+  // 
+  // dewormed_any ~ bernoulli(Phi(link_model)); // Probit
   //dewormed_any ~ bernoulli_logit(link_model);
+  
 }
 
 generated quantities {

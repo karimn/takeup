@@ -62,6 +62,20 @@ load(file.path("data", "analysis.RData"))
 ```
 
 ```{r model-data}
+scale_covar <- function (covar_data) {
+  covar_data %<>% 
+    select_if(function(col) n_distinct(col) > 1)
+  
+  is_factor_col <- map(covar_data, ~ if(is.factor(.)) rep(TRUE, nlevels(.) - 1) else FALSE) %>% 
+    unlist()
+  
+  model_matrix(covar_data, ~ .) %>% 
+    magrittr::extract(, -1) %>% # get rid of intercept column
+    # magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
+    scale(scale = map2_dbl(., is_factor_col, ~ if_else(!.y, sd(.x) * 2, 1)),
+          center = map2_dbl(., is_factor_col, ~ if_else(!.y, mean(.x), 0))) # Center and scale to have SD = 0.5
+}
+
 stan_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
@@ -111,23 +125,29 @@ stan_data <- analysis.data %>%
       magrittr::extract(, -1) %>% # get rid of intercept column
       select(-one_of(names(treatment_map_design_matrix)))
     
+    census_covar_map <- distinct(prepared_analysis_data, age, gender) %>% 
+      mutate(census_covar_id = seq_len(n()))
+    
     prepared_analysis_data %<>% 
       left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
+      left_join(census_covar_map, c("gender", "age")) %>% 
       arrange(stratum_id) %>% 
       mutate(obs_index = seq_len(n()))
     
-    census_covar_dm <- prepared_analysis_data %>% 
-      model_matrix(~ poly(age, 2) + gender + phone_owner) %>% 
-      magrittr::extract(, -1) %>% # get rid of intercept column
-      scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
+    census_covar_map_dm <- census_covar_map %>% 
+      mutate(age_squared = age ^ 2) %>% 
+      select(-census_covar_id) %>% 
+      scale_covar()
     
     endline_covar_dm <- prepared_analysis_data %>% 
       filter(!missing_covar) %>% 
       arrange(stratum_id, obs_index) %>% 
-      model_matrix(str_c("~", str_c(endline_covar, collapse = "+")) %>% as.formula()) %>% # ~ school + floor + ethnicity) %>% 
-      magrittr::extract(, -1) %>% # get rid of intercept column
-      magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
-      scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
+      select_(.dots = endline_covar) %>%
+      scale_covar()
+      # model_matrix(str_c("~", str_c(endline_covar, collapse = "+")) %>% as.formula()) %>% # ~ school + floor + ethnicity) %>% 
+      # magrittr::extract(, -1) %>% # get rid of intercept column
+      # magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
+      # scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
     
     missing_treatment <- prepared_analysis_data %>% 
       ddply(., .(all_treatment_id), 
@@ -161,8 +181,11 @@ stan_data <- analysis.data %>%
       num_experiment_coef = length(experiment_coef),
       num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
       
-      census_covar_dm,
-      num_census_covar_coef = ncol(census_covar_dm),
+      census_covar_map_dm,
+      num_census_covar_coef = ncol(census_covar_map_dm),
+      num_distinct_census_covar = nrow(census_covar_map_dm),
+      census_covar_id = prepared_analysis_data$census_covar_id,
+      
       endline_covar_dm,
       num_endline_covar_coef = ncol(endline_covar_dm),
       
@@ -201,7 +224,7 @@ stan_data <- analysis.data %>%
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, iter = 1000, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
 print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)
