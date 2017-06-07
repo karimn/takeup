@@ -66,7 +66,11 @@ scale_covar <- function (covar_data) {
   covar_data %<>% 
     select_if(function(col) n_distinct(col) > 1)
   
-  is_factor_col <- map(covar_data, ~ if(is.factor(.)) rep(TRUE, nlevels(.) - 1) else FALSE) %>% 
+  is_factor_col <- map(covar_data, 
+                       ~ switch(class(.),
+                                factor = rep(TRUE, nlevels(.) - 1),
+                                logical = TRUE,
+                                FALSE)) %>% 
     unlist()
   
   model_matrix(covar_data, ~ .) %>% 
@@ -93,7 +97,7 @@ stan_data <- analysis.data %>%
             funs(id = as.integer)) %>% 
   arrange(stratum_id) %>% 
   (function(prepared_analysis_data, 
-            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group"), direct_only = c("name_matched")),
+            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner"), direct_only = c("name_matched")),
             exclude_from_eval = "name_matched",
             endline_covar = c("ethnicity", "floor", "school")) {
     treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
