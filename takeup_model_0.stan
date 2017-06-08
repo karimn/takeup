@@ -211,8 +211,8 @@ model {
     // matrix[curr_stratum_size, num_all_treatment_coef] stratum_treat_map_dm = treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end]];
     // matrix[curr_stratum_size, num_census_covar_coef] stratum_census_covar_map_dm = census_covar_map_dm[census_covar_id[strata_pos:stratum_end]];
     
-    vector[curr_stratum_size] test = rows_dot_product(census_covar_interact_map_dm[census_covar_id[strata_pos:stratum_end]], 
-                                                      treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef]);
+    // vector[curr_stratum_size] test = rows_dot_product(census_covar_interact_map_dm[census_covar_id[strata_pos:stratum_end]], 
+                                                      // treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef]);
   
     // Probit
     dewormed_any[strata_pos:stratum_end] ~ bernoulli(Phi(
@@ -221,7 +221,9 @@ model {
       treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end]] * beta[strata_index] +
       // stratum_treat_map_dm * beta[strata_index] + 
       name_match_interact_map_design_matrix[obs_treatment[strata_pos:stratum_end]] * beta_name_match_interact +
-      census_covar_map_dm[census_covar_id[strata_pos:stratum_end]] * census_covar_coef[strata_index] 
+      census_covar_map_dm[census_covar_id[strata_pos:stratum_end]] * census_covar_coef[strata_index] +
+      rows_dot_product(census_covar_interact_map_dm[census_covar_id[strata_pos:stratum_end]], 
+                                                      treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef])
     )); 
     
     strata_pos = strata_pos + curr_stratum_size;
