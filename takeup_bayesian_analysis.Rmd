@@ -80,6 +80,8 @@ scale_covar <- function (covar_data) {
           center = map2_dbl(., is_factor_col, ~ if_else(!.y, mean(.x), 0))) # Center and scale to have SD = 0.5
 }
 
+prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
+
 stan_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
@@ -95,10 +97,10 @@ stan_data <- analysis.data %>%
   mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county_phone_owner_stratum, county, stratum,
                  gender, school, floor, ethnicity), 
             funs(id = as.integer)) %>% 
-  arrange(stratum_id) %>% 
+  prep_data_arranger() %>% 
   (function(prepared_analysis_data, 
-            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner"), direct_only = c("name_matched")),
-            exclude_from_eval = "name_matched",
+            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner")),
+            exclude_from_eval = NULL, #  "name_matched",
             endline_covar = c("ethnicity", "floor", "school")) {
     treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
       mutate(
@@ -135,7 +137,7 @@ stan_data <- analysis.data %>%
     prepared_analysis_data %<>% 
       left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
       left_join(census_covar_map, c("gender", "age")) %>% 
-      arrange(stratum_id) %>% 
+      prep_data_arranger() %>% 
       mutate(obs_index = seq_len(n()))
     
     census_covar_map_dm <- census_covar_map %>% 
@@ -145,7 +147,7 @@ stan_data <- analysis.data %>%
     
     endline_covar_dm <- prepared_analysis_data %>% 
       filter(!missing_covar) %>% 
-      arrange(stratum_id, obs_index) %>% 
+      prep_data_arranger(obs_index) %>% 
       select_(.dots = endline_covar) %>%
       scale_covar()
       # model_matrix(str_c("~", str_c(endline_covar, collapse = "+")) %>% as.formula()) %>% # ~ school + floor + ethnicity) %>% 
@@ -167,6 +169,9 @@ stan_data <- analysis.data %>%
       eval_treatment_prop_id <- treatment_map$all_treatment_id
     }
     
+    name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
+      prep_data_arranger() # Should already be in the right order, but to be on the safe size
+    
     lst(
       # Save meta data 
        
@@ -183,7 +188,15 @@ stan_data <- analysis.data %>%
       num_all_treatments = nrow(treatment_map_design_matrix),
       num_all_treatment_coef = ncol(treatment_map_design_matrix), 
       num_experiment_coef = length(experiment_coef),
+      
       num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
+      name_matched = prepared_analysis_data$name_matched,
+      num_name_matched = sum(name_matched),
+      name_matched_id = name_matched_data %$% obs_index, # should already be arranged (but to be safe)
+      name_matched_strata_sizes = count(name_matched_data, stratum_id) %>% arrange(stratum_id) %$% n,
+      name_matched_dewormed_strata_sizes = filter(name_matched_data, dewormed.any) %>% 
+        count(stratum_id) %>% 
+        arrange(stratum_id) %$% n,
       
       census_covar_map_dm,
       num_census_covar_coef = ncol(census_covar_map_dm),
@@ -193,7 +206,7 @@ stan_data <- analysis.data %>%
       endline_covar_dm,
       num_endline_covar_coef = ncol(endline_covar_dm),
       
-      stratum_covar_id = prepared_analysis_data %>% arrange(stratum_id, missing_covar, obs_index) %$% obs_index, # First obs then missing
+      stratum_covar_id = prepared_analysis_data %>% prep_data_arranger(missing_covar, obs_index) %$% obs_index, # First obs then missing
       stratum_missing_covar_sizes = prepared_analysis_data %>% 
         filter(missing_covar | (select_(., .dots = endline_covar) %>% map(is.na) %>% reduce(or))) %>% 
         count(stratum_id) %>% 
