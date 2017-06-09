@@ -245,7 +245,8 @@ model {
                                                                                                 beta[strata_index],
                                                                                               census_covar_map_dm[census_covar_id[strata_pos:monitored_stratum_end]] * 
                                                                                                 census_covar_coef[strata_index]);
-                          
+               
+    // Marginalizing out the imputed deworming outcome (for the name matched)           
     name_matched_lp[1, strata_index] = 
       dewormed_monitored_probit_lpmf(rep_array(0, curr_matched_stratum_size) | stratum_intercept[strata_index], 
                                                                                cluster_effects[cluster_id[strata_matched_pos:stratum_end]],

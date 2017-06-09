@@ -855,9 +855,13 @@ print.sms.interact.table <- function(.reg.table.data,
 
 prepare_bayesian_analysis_data <- function(prepared_analysis_data, 
                                            ...,
-                                           treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner")),
-                                           exclude_from_eval = NULL, #  "name_matched",
+                                           # treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner")),
+                                           treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
+                                           # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
+  
+  prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
+
   scale_covar <- function (covar_data) {
     covar_data %<>% 
       select_if(function(col) n_distinct(col) > 1)
@@ -875,18 +879,19 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
             center = map2_dbl(., is_factor_col, ~ if_else(!.y, mean(.x), 0))) # Center and scale to have SD = 0.5
   }
   
-  treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
+  # treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
+  treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% 
     mutate(
       all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
     
-  design_matrix_formula <- str_c(str_c(treat_variables$interact, collapse = "*"),
-                                 str_c(treat_variables$direct_only, collapse = "+"), sep = "+") %>% 
-    str_c("~", .) %>% 
-    as.formula()
+  # design_matrix_formula <- str_c(str_c(treat_variables$interact, collapse = "*"),
+  #                                str_c(treat_variables$direct_only, collapse = "+"), sep = "+") %>% 
+  #   str_c("~", .) %>% 
+  #   as.formula()
   
   treatment_map_design_matrix <- treatment_map %>%  
-    model_matrix(design_matrix_formula) %>% 
+    model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
     magrittr::extract(, -1) # get rid of intercept column
   
   experiment_coef <- treatment_map_design_matrix %>% 
@@ -895,23 +900,27 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     not() %>% 
     which()
   
-  name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
-    str_c("~", .) %>% 
-    as.formula()
-  
-  name_match_interact_map_design_matrix <- treatment_map %>%  
-    model_matrix(name_match_interact_formula) %>%
-    magrittr::extract(, -1) %>% # get rid of intercept column
-    select(-one_of(names(treatment_map_design_matrix)))
+  # name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
+  #   str_c("~", .) %>% 
+  #   as.formula()
+  # 
+  # name_match_interact_map_design_matrix <- treatment_map %>%  
+  #   model_matrix(name_match_interact_formula) %>%
+  #   magrittr::extract(, -1) %>% # get rid of intercept column
+  #   select(-one_of(names(treatment_map_design_matrix)))
   
   census_covar_map <- distinct(prepared_analysis_data, age, gender) %>% 
     mutate(census_covar_id = seq_len(n()))
   
   prepared_analysis_data %<>% 
-    left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
+    left_join(treatment_map, all.vars(treatment_formula)) %>% 
+    # left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
     left_join(census_covar_map, c("gender", "age")) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
+ 
+  # Get rid of treatment cells that don't exist in the data 
+  treatment_map %<>% semi_join(prepared_analysis_data, "all_treatment_id") 
   
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
@@ -923,10 +932,6 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     prep_data_arranger(obs_index) %>% 
     select_(.dots = endline_covar) %>%
     scale_covar()
-    # model_matrix(str_c("~", str_c(endline_covar, collapse = "+")) %>% as.formula()) %>% # ~ school + floor + ethnicity) %>% 
-    # magrittr::extract(, -1) %>% # get rid of intercept column
-    # magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
-    # scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
   
   missing_treatment <- prepared_analysis_data %>% 
     ddply(., .(all_treatment_id), 
@@ -936,11 +941,11 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
           }, 
           all_obs = .)
   
-  if (!is.null(exclude_from_eval)) {
-    eval_treatment_prop_id <- filter_(treatment_map, sprintf("%s == 0", exclude_from_eval)) %$% all_treatment_id
-  } else {
+  # if (!is.null(exclude_from_eval)) {
+  #   eval_treatment_prop_id <- filter_(treatment_map, sprintf("%s == 0", exclude_from_eval)) %$% all_treatment_id
+  # } else {
     eval_treatment_prop_id <- treatment_map$all_treatment_id
-  }
+  # }
   
   name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
     prep_data_arranger() # Should already be in the right order, but to be on the safe size
@@ -956,13 +961,13 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     # Data passed to model
     
     treatment_map_design_matrix,
-    name_match_interact_map_design_matrix,
+    # name_match_interact_map_design_matrix,
     experiment_coef,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
     num_experiment_coef = length(experiment_coef),
     
-    num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
+    # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
     num_name_matched = sum(name_matched),
     name_matched_id = name_matched_data %$% obs_index, # should already be arranged (but to be safe)
