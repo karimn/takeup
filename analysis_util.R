@@ -920,7 +920,20 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     mutate(obs_index = seq_len(n()))
  
   # Get rid of treatment cells that don't exist in the data 
-  treatment_map %<>% semi_join(prepared_analysis_data, "all_treatment_id") 
+  treatment_map %<>% 
+    semi_join(prepared_analysis_data, "all_treatment_id") %>% 
+    arrange(all_treatment_id) %>% 
+    mutate(new_all_treatment_id = seq_len(n()))
+ 
+  prepared_analysis_data %<>%
+    left_join(select(treatment_map, ends_with("all_treatment_id")), "all_treatment_id") %>% 
+    select(-all_treatment_id) %>% 
+    rename(all_treatment_id = new_all_treatment_id) %>% 
+    arrange(obs_index)
+  
+  treatment_map %<>%
+    select(-all_treatment_id) %>% 
+    rename(all_treatment_id = new_all_treatment_id) 
   
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
