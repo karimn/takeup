@@ -84,6 +84,11 @@ data {
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
   
+  // Constants for priors
+  
+  real<lower = 0> name_match_false_pos_alpha;
+  real<lower = 0> name_match_false_pos_beta;
+  
   // Below references to "maps" refer to a finite set of treatment cells that has a one-to-many relationship to actual observations
   
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
@@ -202,7 +207,7 @@ model {
   matrix[num_distinct_census_covar, num_experiment_coef] census_covar_interact_map_dm; 
   real name_matched_lp[2, num_strata]; // binary (latent) deworming outcome
   
-  name_match_false_pos ~ beta(1.24, 10);
+  name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
   
   hyper_census_covar_coef ~ multi_normal(mu_census_covar, Sigma_census_covar);
   census_covar_coef ~ multi_normal(hyper_census_covar_coef, Sigma_census_covar);

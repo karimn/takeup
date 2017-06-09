@@ -61,24 +61,18 @@ rstan_options(auto_write = TRUE)
 load(file.path("data", "analysis.RData"))
 ```
 
+```{r prior-constants}
+name_match_false_pos_alpha <- 1.24
+name_match_false_pos_beta <- 10
+```
+
+```{r name-match-false-pos-prior}
+ggplot(tibble(x = c(0, 1)), aes(x)) + 
+  stat_function(fun = . %>% dbeta(shape1 = name_match_false_pos_alpha, shape2 = name_match_false_pos_beta)) + 
+  labs(x = "Probability of False Positive", y = "Density", title = "Prior Distribution for the Name Matching Model")
+```
+
 ```{r model-data}
-scale_covar <- function (covar_data) {
-  covar_data %<>% 
-    select_if(function(col) n_distinct(col) > 1)
-  
-  is_factor_col <- map(covar_data, 
-                       ~ switch(class(.),
-                                factor = rep(TRUE, nlevels(.) - 1),
-                                logical = TRUE,
-                                FALSE)) %>% 
-    unlist()
-  
-  model_matrix(covar_data, ~ .) %>% 
-    magrittr::extract(, -1) %>% # get rid of intercept column
-    # magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
-    scale(scale = map2_dbl(., is_factor_col, ~ if_else(!.y, sd(.x) * 2, 1)),
-          center = map2_dbl(., is_factor_col, ~ if_else(!.y, mean(.x), 0))) # Center and scale to have SD = 0.5
-}
 
 prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
 
@@ -98,145 +92,7 @@ stan_data <- analysis.data %>%
                  gender, school, floor, ethnicity), 
             funs(id = as.integer)) %>% 
   prep_data_arranger() %>% 
-  (function(prepared_analysis_data, 
-            treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner")),
-            exclude_from_eval = NULL, #  "name_matched",
-            endline_covar = c("ethnicity", "floor", "school")) {
-    treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
-      mutate(
-        all_treatment_id = seq_len(n())) %>% 
-      mutate_if(is.factor, funs(id = as.integer(.)))
-    
-    design_matrix_formula <- str_c(str_c(treat_variables$interact, collapse = "*"),
-                                   str_c(treat_variables$direct_only, collapse = "+"), sep = "+") %>% 
-      str_c("~", .) %>% 
-      as.formula()
-    
-    treatment_map_design_matrix <- treatment_map %>%  
-      model_matrix(design_matrix_formula) %>% 
-      magrittr::extract(, -1) # get rid of intercept column
-    
-    experiment_coef <- treatment_map_design_matrix %>% 
-      names() %>% 
-      str_detect("name_matched") %>% 
-      not() %>% 
-      which()
-    
-    name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
-      str_c("~", .) %>% 
-      as.formula()
-    
-    name_match_interact_map_design_matrix <- treatment_map %>%  
-      model_matrix(name_match_interact_formula) %>%
-      magrittr::extract(, -1) %>% # get rid of intercept column
-      select(-one_of(names(treatment_map_design_matrix)))
-    
-    census_covar_map <- distinct(prepared_analysis_data, age, gender) %>% 
-      mutate(census_covar_id = seq_len(n()))
-    
-    prepared_analysis_data %<>% 
-      left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
-      left_join(census_covar_map, c("gender", "age")) %>% 
-      prep_data_arranger() %>% 
-      mutate(obs_index = seq_len(n()))
-    
-    census_covar_map_dm <- census_covar_map %>% 
-      mutate(age_squared = age ^ 2) %>% 
-      select(-census_covar_id) %>% 
-      scale_covar()
-    
-    endline_covar_dm <- prepared_analysis_data %>% 
-      filter(!missing_covar) %>% 
-      prep_data_arranger(obs_index) %>% 
-      select_(.dots = endline_covar) %>%
-      scale_covar()
-      # model_matrix(str_c("~", str_c(endline_covar, collapse = "+")) %>% as.formula()) %>% # ~ school + floor + ethnicity) %>% 
-      # magrittr::extract(, -1) %>% # get rid of intercept column
-      # magrittr::extract(, map_lgl(., ~ n_distinct(.x) > 1)) %>% 
-      # scale(scale = map_dbl(., sd) * 2) # Center and scale to have SD = 0.5
-    
-    missing_treatment <- prepared_analysis_data %>% 
-      ddply(., .(all_treatment_id), 
-            function(treatment_group, all_obs) { 
-              filter(all_obs, all_treatment_id != treatment_group$all_treatment_id[1]) %>% 
-                select(obs_index)
-            }, 
-            all_obs = .)
-    
-    if (!is.null(exclude_from_eval)) {
-      eval_treatment_prop_id <- filter_(treatment_map, sprintf("%s == 0", exclude_from_eval)) %$% all_treatment_id
-    } else {
-      eval_treatment_prop_id <- treatment_map$all_treatment_id
-    }
-    
-    name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
-      prep_data_arranger() # Should already be in the right order, but to be on the safe size
-    
-    lst(
-      # Save meta data 
-       
-      treatment_map,
-      
-      stratum_map = distinct(prepared_analysis_data, stratum_id, stratum),
-      cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
-      
-      # Data passed to model
-      
-      treatment_map_design_matrix,
-      name_match_interact_map_design_matrix,
-      experiment_coef,
-      num_all_treatments = nrow(treatment_map_design_matrix),
-      num_all_treatment_coef = ncol(treatment_map_design_matrix), 
-      num_experiment_coef = length(experiment_coef),
-      
-      num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
-      name_matched = prepared_analysis_data$name_matched,
-      num_name_matched = sum(name_matched),
-      name_matched_id = name_matched_data %$% obs_index, # should already be arranged (but to be safe)
-      name_matched_strata_sizes = count(name_matched_data, stratum_id) %>% arrange(stratum_id) %$% n,
-      name_matched_dewormed_strata_sizes = filter(name_matched_data, dewormed.any) %>% 
-        count(stratum_id) %>% 
-        arrange(stratum_id) %$% n,
-      
-      census_covar_map_dm,
-      num_census_covar_coef = ncol(census_covar_map_dm),
-      num_distinct_census_covar = nrow(census_covar_map_dm),
-      census_covar_id = prepared_analysis_data$census_covar_id,
-      
-      endline_covar_dm,
-      num_endline_covar_coef = ncol(endline_covar_dm),
-      
-      stratum_covar_id = prepared_analysis_data %>% prep_data_arranger(missing_covar, obs_index) %$% obs_index, # First obs then missing
-      stratum_missing_covar_sizes = prepared_analysis_data %>% 
-        filter(missing_covar | (select_(., .dots = endline_covar) %>% map(is.na) %>% reduce(or))) %>% 
-        count(stratum_id) %>% 
-        arrange(stratum_id) %$% 
-        n,
-      
-      obs_treatment = prepared_analysis_data$all_treatment_id,
-    
-      treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
-      missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, obs_index) %$% obs_index,
-      
-      eval_treatment_prop_id,
-      num_eval_treatment_prop = length(eval_treatment_prop_id),
-      
-      num_obs = length(obs_treatment), 
-      num_missing = nrow(missing_treatment),
-      
-      treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %$% n,
-      missing_treatment_sizes = count(missing_treatment, all_treatment_id) %>% arrange(all_treatment_id) %$% n,
-      
-      dewormed_any = prepared_analysis_data$dewormed.any,
-      
-      cluster_id = prepared_analysis_data$new_cluster_id,
-      stratum_id = prepared_analysis_data$stratum_id,
-      num_clusters = n_distinct(cluster_id),
-      
-      num_strata = n_distinct(stratum_id),
-      strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %$% n 
-    )
-  }) 
+  prepare_bayesian_analysis_data(name_match_false_pos_alpha, name_match_false_pos_beta)
 ```
 
 ```{r basic-model-0}
