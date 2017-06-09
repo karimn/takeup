@@ -855,7 +855,6 @@ print.sms.interact.table <- function(.reg.table.data,
 
 prepare_bayesian_analysis_data <- function(prepared_analysis_data, 
                                            ...,
-                                           # treat_variables = lst(interact = c("assigned.treatment", "dist.pot.group", "phone_owner")),
                                            treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
                                            # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
@@ -879,42 +878,16 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
             center = map2_dbl(., is_factor_col, ~ if_else(!.y, mean(.x), 0))) # Center and scale to have SD = 0.5
   }
   
-  # treatment_map <- expand_(prepared_analysis_data, unlist(treat_variables, use.names = FALSE)) %>% 
   treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% 
     mutate(
       all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
-    
-  # design_matrix_formula <- str_c(str_c(treat_variables$interact, collapse = "*"),
-  #                                str_c(treat_variables$direct_only, collapse = "+"), sep = "+") %>% 
-  #   str_c("~", .) %>% 
-  #   as.formula()
-  
-  treatment_map_design_matrix <- treatment_map %>%  
-    model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
-    magrittr::extract(, -1) # get rid of intercept column
-  
-  experiment_coef <- treatment_map_design_matrix %>% 
-    names() %>% 
-    str_detect("name_matched") %>% 
-    not() %>% 
-    which()
-  
-  # name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
-  #   str_c("~", .) %>% 
-  #   as.formula()
-  # 
-  # name_match_interact_map_design_matrix <- treatment_map %>%  
-  #   model_matrix(name_match_interact_formula) %>%
-  #   magrittr::extract(, -1) %>% # get rid of intercept column
-  #   select(-one_of(names(treatment_map_design_matrix)))
   
   census_covar_map <- distinct(prepared_analysis_data, age, gender) %>% 
     mutate(census_covar_id = seq_len(n()))
-  
+    
   prepared_analysis_data %<>% 
     left_join(treatment_map, all.vars(treatment_formula)) %>% 
-    # left_join(treatment_map, unlist(treat_variables, use.names = FALSE)) %>% 
     left_join(census_covar_map, c("gender", "age")) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
@@ -930,6 +903,26 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     select(-all_treatment_id) %>% 
     rename(all_treatment_id = new_all_treatment_id) %>% 
     arrange(obs_index)
+  
+  treatment_map_design_matrix <- treatment_map %>%  
+    model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
+    magrittr::extract(, -1) %>% # get rid of intercept column
+    magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1))
+  
+  experiment_coef <- treatment_map_design_matrix %>% 
+    names() %>% 
+    str_detect("name_matched") %>% 
+    not() %>% 
+    which()
+  
+  # name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
+  #   str_c("~", .) %>% 
+  #   as.formula()
+  # 
+  # name_match_interact_map_design_matrix <- treatment_map %>%  
+  #   model_matrix(name_match_interact_formula) %>%
+  #   magrittr::extract(, -1) %>% # get rid of intercept column
+  #   select(-one_of(names(treatment_map_design_matrix)))
   
   treatment_map %<>%
     select(-all_treatment_id) %>% 
