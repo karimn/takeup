@@ -66,12 +66,8 @@ functions {
     return(takeup_proportion);
   }
 
-  vector row_sums(matrix to_sum) {
-    return(to_sum * rep_vector(1, rows(to_sum)));
-  }
-  
   real dewormed_matched_lpmf(int[] dewormed, int[] matched, real prob_false_pos, real prob_false_neg) {
-    return(bernoulli_lpmf(dewormed | prob_false_neg + (1 - prob_false_pos - prob_false_neg) * to_vector(matched)));
+    return(bernoulli_lpmf(dewormed | prob_false_pos + (1 - prob_false_pos - prob_false_neg) * to_vector(matched)));
   }
 
   real dewormed_monitored_probit_lpmf(int[] dewormed, real stratum_intercept, vector cluster_effects, vector treatment_effects, vector census_covar_effects) {
@@ -266,14 +262,14 @@ model {
                                                                                                 census_covar_coef[strata_index]);
     
     target += log_sum_exp(dewormed_matched_lpmf(rep_array(0, curr_matched_stratum_size) | dewormed_any[strata_matched_pos:stratum_end], name_match_false_pos, name_match_false_neg) +
-                            dewormed_monitored_probit_lpmf(rep_array(0, curr_matched_stratum_size) | stratum_intercept[strata_index], 
+                            dewormed_monitored_probit_lpmf(rep_array(0, curr_matched_stratum_size) | stratum_intercept[strata_index],
                                                                                                      cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
                                                                                                      treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * 
                                                                                                        beta[strata_index],
                                                                                                      census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * 
                                                                                                        census_covar_coef[strata_index]),
                           dewormed_matched_lpmf(rep_array(1, curr_matched_stratum_size) | dewormed_any[strata_matched_pos:stratum_end], name_match_false_pos, name_match_false_neg) +
-                            dewormed_monitored_probit_lpmf(rep_array(1, curr_matched_stratum_size) | stratum_intercept[strata_index], 
+                            dewormed_monitored_probit_lpmf(rep_array(1, curr_matched_stratum_size) | stratum_intercept[strata_index],
                                                                                                      cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
                                                                                                      treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * 
                                                                                                        beta[strata_index],
