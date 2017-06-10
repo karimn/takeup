@@ -879,8 +879,8 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   }
   
   treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% 
-    mutate(
-      all_treatment_id = seq_len(n())) %>% 
+    arrange(phone_owner) %>% 
+    mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
   
   census_covar_map <- distinct(prepared_analysis_data, age, gender) %>% 
@@ -904,6 +904,10 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     rename(all_treatment_id = new_all_treatment_id) %>% 
     arrange(obs_index)
   
+  treatment_map %<>%
+    select(-all_treatment_id) %>% 
+    rename(all_treatment_id = new_all_treatment_id) 
+  
   treatment_map_design_matrix <- treatment_map %>%  
     model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
     magrittr::extract(, -1) %>% # get rid of intercept column
@@ -923,10 +927,6 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   #   model_matrix(name_match_interact_formula) %>%
   #   magrittr::extract(, -1) %>% # get rid of intercept column
   #   select(-one_of(names(treatment_map_design_matrix)))
-  
-  treatment_map %<>%
-    select(-all_treatment_id) %>% 
-    rename(all_treatment_id = new_all_treatment_id) 
   
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
@@ -972,6 +972,7 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
     num_experiment_coef = length(experiment_coef),
+    num_non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% nrow(),
     
     # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
