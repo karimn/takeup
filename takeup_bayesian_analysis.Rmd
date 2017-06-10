@@ -62,8 +62,8 @@ load(file.path("data", "analysis.RData"))
 ```
 
 ```{r prior-constants}
-name_match_false_pos_alpha <- 1.24
-name_match_false_pos_beta <- 10
+name_match_false_pos_alpha <- 1
+name_match_false_pos_beta <- 15
 ```
 
 ```{r name-match-false-pos-prior}
@@ -97,7 +97,7 @@ stan_data <- analysis.data %>%
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 8, iter =2000, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
 print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)

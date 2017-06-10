@@ -196,7 +196,7 @@ parameters {
   
   // Name matching model parameters
   
-  real<lower = 0, upper = 1> name_match_false_pos; 
+  real<lower = 0, upper = 0.5> name_match_false_pos; 
   real<lower = 0, upper = 1> name_match_false_neg; // uninformative prior on this
 }
 
