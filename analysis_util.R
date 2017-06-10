@@ -853,13 +853,14 @@ print.sms.interact.table <- function(.reg.table.data,
 
 # Bayesian Analysis -------------------------------------------------------
 
+prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
+
 prepare_bayesian_analysis_data <- function(prepared_analysis_data, 
                                            ...,
                                            treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
                                            # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
   
-  prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
 
   scale_covar <- function (covar_data) {
     covar_data %<>% 
