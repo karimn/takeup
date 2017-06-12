@@ -97,10 +97,12 @@ data {
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
   
   int <lower = 0, upper = num_obs> num_name_matched;
-  int<lower = 0, upper = 1> name_matched[num_obs];
+  int <lower = 0, upper = num_obs> num_name_matching_errors_ids;
+  vector<lower = 0, upper = 1>[num_obs] name_matched;
   int<lower = 1, upper = num_obs> name_matched_id[num_name_matched];
   int<lower = 1, upper = num_obs> name_matched_strata_sizes[num_strata];
   int<lower = 1, upper = num_obs> name_matched_dewormed_strata_sizes[num_strata];
+  int<lower = 1, upper = num_obs> name_matching_error_ids[num_name_matching_errors_ids];
   
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs];
@@ -141,6 +143,8 @@ transformed data {
   // int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
   // 
   // int<lower = 1, upper = num_obs> num_missing_endline_covar = sum(stratum_missing_covar_sizes);
+  
+  vector<lower = 0, upper = 1>[num_obs] monitored = 1 - name_matched;
   
   // Unmodeled parameters for priors and hyperpriors
   
@@ -198,9 +202,12 @@ parameters {
   
   real<lower = 0, upper = 0.5> name_match_false_pos; 
   real<lower = 0, upper = 1> name_match_false_neg; // uninformative prior on this
+  
+  real<lower = 0, upper = 1> name_match_error_intercept;
 }
 
 transformed parameters {
+  real<lower = 0, upper = 1> name_match_error_diff = name_match_error_intercept * (name_match_false_neg - name_match_false_pos);
 }
 
 model {
@@ -255,19 +262,22 @@ model {
                                                                                cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
                                                                                treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * beta[strata_index],
                                                                                census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * census_covar_coef[strata_index]) +
-      dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(0, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg) - log(2);
+      dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(0, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg);
       
     name_matched_lp[2, strata_index] = 
       dewormed_monitored_probit_lpmf(rep_array(1, curr_matched_stratum_size) | stratum_intercept[strata_index], 
                                                                                cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
                                                                                treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * beta[strata_index],
                                                                                census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * census_covar_coef[strata_index]) +
-      dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(1, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg) - log(2);
+      dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(1, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg);
     
     strata_pos = stratum_end + 1;
   }
   
   target += log_sum_exp(sum(name_matched_lp[1]), sum(name_matched_lp[2]));
+  
+  target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + 
+                                                                   name_match_error_diff * (monitored[name_matching_error_ids]));
 }
 
 generated quantities {

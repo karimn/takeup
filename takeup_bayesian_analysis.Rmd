@@ -78,7 +78,7 @@ stan_data <- analysis.data %>%
   filter(!hh.baseline.sample, sms.treatment.2 == "sms.control") %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
-         name_matched = !monitored,
+         name_matched = !true.monitored,
          phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
          age = if_else(!is.na(age), age, age.census),
          age_squared = age^2,

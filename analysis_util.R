@@ -957,6 +957,14 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
     prep_data_arranger() # Should already be in the right order, but to be on the safe size
   
+  matching_error_data <- prepared_analysis_data %>% 
+    filter(assigned.treatment == "control", 
+           sms.treatment.2 == "sms.control",
+           true.monitored | !monitored) # using only true monitored and those not monitored because they weren't in a study sample
+    # group_by(stratum_id, new_cluster_id, name_matched) %>% 
+    # summarize(dewormed_prop = sum(dewormed.any)/n()) %>% 
+    # ungroup()
+  
   lst(
     # Save meta data 
      
@@ -978,11 +986,13 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
     num_name_matched = sum(name_matched),
-    name_matched_id = name_matched_data %$% obs_index, # should already be arranged (but to be safe)
+    name_matched_id = name_matched_data %$% obs_index, 
     name_matched_strata_sizes = count(name_matched_data, stratum_id) %>% arrange(stratum_id) %$% n,
     name_matched_dewormed_strata_sizes = filter(name_matched_data, dewormed.any) %>% 
       count(stratum_id) %>% 
       arrange(stratum_id) %$% n,
+    name_matching_error_ids = matching_error_data %>% arrange(obs_index) %$% obs_index,
+    num_name_matching_errors_ids = length(name_matching_error_ids),
     
     census_covar_map_dm,
     num_census_covar_coef = ncol(census_covar_map_dm),
