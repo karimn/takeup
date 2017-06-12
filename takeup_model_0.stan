@@ -200,22 +200,22 @@ parameters {
   
   // Name matching model parameters
   
-  real<lower = 0, upper = 0.5> name_match_false_pos; 
-  real<lower = 0, upper = 1> name_match_false_neg; // uninformative prior on this
-  
-  real<lower = 0, upper = 1> name_match_error_intercept;
+  // real<lower = 0, upper = 0.5> name_match_false_pos; 
+  // real<lower = 0, upper = 1> name_match_false_neg; // uninformative prior on this
+  // 
+  // real<lower = 0, upper = 1> name_match_error_intercept;
 }
 
 transformed parameters {
-  real<lower = 0, upper = 1> name_match_error_diff = name_match_error_intercept * (name_match_false_neg - name_match_false_pos);
+  // real<lower = 0, upper = 1> name_match_error_diff = name_match_error_intercept * (name_match_false_neg - name_match_false_pos);
 }
 
 model {
   int strata_pos = 1;
   matrix[num_distinct_census_covar, num_experiment_coef] census_covar_interact_map_dm; 
-  real name_matched_lp[2, num_strata]; // binary (latent) deworming outcome
+  // real name_matched_lp[2, num_strata]; // binary (latent) deworming outcome
   
-  name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
+  // name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
   
   hyper_census_covar_coef ~ multi_normal(mu_census_covar, Sigma_census_covar);
   census_covar_coef ~ multi_normal(hyper_census_covar_coef, Sigma_census_covar);
@@ -249,35 +249,37 @@ model {
     // vector[curr_stratum_size] test = rows_dot_product(census_covar_interact_map_dm[census_covar_id[strata_pos:stratum_end]], 
     //                                                   treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef]);
   
-    target += dewormed_monitored_probit_lpmf(dewormed_any[strata_pos:monitored_stratum_end] | stratum_intercept[strata_index], 
-                                                                                              cluster_effects[cluster_id[strata_pos:monitored_stratum_end]],
-                                                                                              treatment_map_design_matrix[obs_treatment[strata_pos:monitored_stratum_end]] * 
-                                                                                                beta[strata_index],
-                                                                                              census_covar_map_dm[census_covar_id[strata_pos:monitored_stratum_end]] * 
-                                                                                                census_covar_coef[strata_index]);
+    target += dewormed_monitored_probit_lpmf(
+      dewormed_any[strata_pos:monitored_stratum_end] | stratum_intercept[strata_index], 
+      
+                                                       cluster_effects[cluster_id[strata_pos:monitored_stratum_end]],
+                                                       
+                                                       treatment_map_design_matrix[obs_treatment[strata_pos:monitored_stratum_end]] * beta[strata_index],
+                                                         
+                                                       census_covar_map_dm[census_covar_id[strata_pos:monitored_stratum_end]] * census_covar_coef[strata_index]);
                
     // Marginalizing out the imputed deworming outcome (for the name matched)           
-    name_matched_lp[1, strata_index] = 
-      dewormed_monitored_probit_lpmf(rep_array(0, curr_matched_stratum_size) | stratum_intercept[strata_index], 
-                                                                               cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
-                                                                               treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * beta[strata_index],
-                                                                               census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * census_covar_coef[strata_index]) +
-      dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(0, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg);
-      
-    name_matched_lp[2, strata_index] = 
-      dewormed_monitored_probit_lpmf(rep_array(1, curr_matched_stratum_size) | stratum_intercept[strata_index], 
-                                                                               cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
-                                                                               treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * beta[strata_index],
-                                                                               census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * census_covar_coef[strata_index]) +
-      dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(1, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg);
+    // name_matched_lp[1, strata_index] = 
+    //   dewormed_monitored_probit_lpmf(rep_array(0, curr_matched_stratum_size) | stratum_intercept[strata_index], 
+    //                                                                            cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
+    //                                                                            treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * beta[strata_index],
+    //                                                                            census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * census_covar_coef[strata_index]) +
+    //   dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(0, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg);
+    //   
+    // name_matched_lp[2, strata_index] = 
+    //   dewormed_monitored_probit_lpmf(rep_array(1, curr_matched_stratum_size) | stratum_intercept[strata_index], 
+    //                                                                            cluster_effects[cluster_id[strata_matched_pos:stratum_end]],
+    //                                                                            treatment_map_design_matrix[obs_treatment[strata_matched_pos:stratum_end]] * beta[strata_index],
+    //                                                                            census_covar_map_dm[census_covar_id[strata_matched_pos:stratum_end]] * census_covar_coef[strata_index]) +
+    //   dewormed_matched_lpmf(dewormed_any[strata_matched_pos:stratum_end] | rep_array(1, curr_matched_stratum_size), name_match_false_pos, name_match_false_neg);
     
     strata_pos = stratum_end + 1;
   }
   
-  target += log_sum_exp(sum(name_matched_lp[1]), sum(name_matched_lp[2]));
-  
-  target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + 
-                                                                   name_match_error_diff * (monitored[name_matching_error_ids]));
+  // target += log_sum_exp(sum(name_matched_lp[1]), sum(name_matched_lp[2]));
+  // 
+  // target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + 
+  //                                                                  name_match_error_diff * (monitored[name_matching_error_ids]));
 }
 
 generated quantities {
