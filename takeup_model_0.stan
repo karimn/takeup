@@ -246,6 +246,13 @@ model {
     int strata_matched_dewormed_pos = strata_matched_not_dewormed_end + 1;
     int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
     
+    // print("stratum[", strata_index, "]: stratum size = ", curr_stratum_size, ", strata_pos = ", strata_pos, 
+    //       ", monitored_stratum_end = ", monitored_stratum_end, ", strata_matched_pos = ", strata_matched_pos, ", stratum_end = ", stratum_end);
+    // print("sum monitored:", sum(name_matched[strata_pos:monitored_stratum_end]));
+    // print("sum matched:", sum(name_matched[strata_matched_pos:stratum_end]));
+    // print("size of monitored: ", curr_monitored_stratum_size);
+    // print("size of matched: ", curr_matched_stratum_size);
+    
     // vector[curr_stratum_size] test = rows_dot_product(census_covar_interact_map_dm[census_covar_id[strata_pos:stratum_end]], 
     //                                                   treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef]);
   
