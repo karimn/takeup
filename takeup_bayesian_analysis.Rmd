@@ -61,12 +61,10 @@ rstan_options(auto_write = TRUE)
 load(file.path("data", "analysis.RData"))
 ```
 
-```{r prior-constants}
+```{r name-match-priors}
 name_match_false_pos_alpha <- 1
 name_match_false_pos_beta <- 15
-```
 
-```{r name-match-false-pos-prior}
 ggplot(tibble(x = c(0, 1)), aes(x)) + 
   stat_function(fun = . %>% dbeta(shape1 = name_match_false_pos_alpha, shape2 = name_match_false_pos_beta)) + 
   labs(x = "Probability of False Positive", y = "Density", title = "Prior Distribution for the Name Matching Model") +
@@ -97,7 +95,7 @@ stan_data <- analysis.data %>%
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 8, iter =2000, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 1, iter =2, sample_file = file.path("stanfit", "basic_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 
 print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)
@@ -106,4 +104,11 @@ print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Si
 ```{r covar-model-0, eval=FALSE}
 covar_model_0 <- stan_model(file = "takeup_covar_model_0.stan", model_name = "covar_model_0")
 covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = file.path("stanfit", "covar_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+```
+
+```{r name-match-model-0, eval=FALSE}
+name_match_model_0 <- stan_model(file = "name_matching.stan", model_name = "name_match_model_0")
+name_match_model_0_fit <- sampling(name_match_model_0, iter = 2000, data = stan_data, sample_file = file.path("stanfit", "name_match_model_0.csv"), control = lst(adapt_delta = 0.99)) #, max_treedepth = 15))
+
+print(name_match_model_0_fit)
 ```
