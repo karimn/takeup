@@ -111,7 +111,7 @@ basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 2, iter 
 ```
 
 ```{r}
-basic_model_0_fit_2 <- sampling(basic_model_0, data = stan_data, chains = 2, iter = 50, control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit_2 <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 50, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
 ```{r}
