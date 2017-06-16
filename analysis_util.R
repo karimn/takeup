@@ -893,7 +893,8 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
    
     design_matrix %>%  
       scale(scale = map2_dbl(., map_means, 
-                             function(col, col_mean) (sum(map_count * (col - col_mean))^2)/(sum(map_count) - 1) * 2) %>% 
+                             # function(col, col_mean) (sum(map_count * (col - col_mean))^2)/(sum(map_count) - 1) * 2) %>% 
+                             function(col, col_mean) sqrt(sum(map_count * ((col - col_mean)^2))/(sum(map_count) - 1)) * 2) %>%  
               if_else(is_factor_col, 1, .),
       # scale(scale = map2_dbl(., is_factor_col, ~ if_else(!.y, .x -  sd(.x) * 2, 1)),
             center = map_means) # Center and scale to have SD = 0.5
@@ -906,6 +907,7 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   
   census_covar_map <- count(prepared_analysis_data, age, gender) %>% 
     mutate(census_covar_id = seq_len(n()))
+  
     
   prepared_analysis_data %<>% 
     left_join(treatment_map, all.vars(treatment_formula)) %>% 
