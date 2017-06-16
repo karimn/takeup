@@ -40,7 +40,7 @@ parameters {
 
 transformed parameters {
   real<lower = 0, upper = 1> name_match_error_diff =
-    (name_match_error_intercept + name_match_error_intercept) * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
+    name_match_error_intercept * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
   // real<lower = 0, upper = 1> name_match_false_neg = 1 - (inv_logit(name_match_error_intercept)/inv_logit(name_match_error_intercept + name_match_error_diff)) + name_match_false_pos;
   // real<lower = 0, upper = 1> name_match_false_neg = 1 - (inv_Phi(name_match_error_intercept)/inv_Phi(name_match_error_intercept + name_match_error_diff)) + name_match_false_pos; 
 }
