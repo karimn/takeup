@@ -863,8 +863,21 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   
 
   scale_covar <- function (covar_data) {
+    counted_map <- "n" %in% names(covar_data)
+    
     covar_data %<>% 
-      select_if(function(col) n_distinct(col) > 1)
+      select_if(~ n_distinct(.) > 1) %>% 
+      na.omit()
+    
+    if (counted_map) {
+      map_count <- covar_data$n 
+      
+      covar_data %<>%
+        select(-n) 
+    } else {
+      map_count <- rep(1, nrow(covar_data))
+    }
+    
     
     is_factor_col <- map(covar_data, 
                          ~ switch(class(.),
@@ -873,10 +886,18 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
                                   FALSE)) %>% 
       unlist()
     
-    model_matrix(covar_data, ~ .) %>% 
-      magrittr::extract(, -1) %>% # get rid of intercept column
-      scale(scale = map2_dbl(., is_factor_col, ~ if_else(!.y, sd(.x) * 2, 1)),
-            center = map2_dbl(., is_factor_col, ~ if_else(!.y, mean(.x), 0))) # Center and scale to have SD = 0.5
+    design_matrix <- model_matrix(covar_data, ~ .) %>% 
+      magrittr::extract(, -1) # get rid of intercept column
+   
+    map_means <- map2_dbl(design_matrix, is_factor_col, ~ if_else(!.y, weighted.mean(.x, map_count), 0))
+   
+    design_matrix %>%  
+      scale(scale = map2_dbl(., map_means, 
+                             # function(col, col_mean) (sum(map_count * (col - col_mean))^2)/(sum(map_count) - 1) * 2) %>% 
+                             function(col, col_mean) sqrt(sum(map_count * ((col - col_mean)^2))/(sum(map_count) - 1)) * 2) %>%  
+              if_else(is_factor_col, 1, .),
+      # scale(scale = map2_dbl(., is_factor_col, ~ if_else(!.y, .x -  sd(.x) * 2, 1)),
+            center = map_means) # Center and scale to have SD = 0.5
   }
   
   treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% 
@@ -884,12 +905,13 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
   
-  census_covar_map <- distinct(prepared_analysis_data, age, gender) %>% 
+  census_covar_map <- count(prepared_analysis_data, age, gender) %>% 
     mutate(census_covar_id = seq_len(n()))
+  
     
   prepared_analysis_data %<>% 
     left_join(treatment_map, all.vars(treatment_formula)) %>% 
-    left_join(census_covar_map, c("gender", "age")) %>% 
+    left_join(select(census_covar_map, -n), c("gender", "age")) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
  
