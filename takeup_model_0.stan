@@ -292,7 +292,7 @@ model {
                                                        
     // for (true_dewormed in 0:1) {
     // name_matched_lp[true_dewormed + 1, strata_index] =
-    //   dewormed_monitored_probit_lpmf(rep_array(true_dewormed, curr_matched_stratum_size) | hyper_intercept + stratum_intercept[strata_index] * tau_stratum_intercept, 
+    //   dewormed_monitored_logit_lpmf(rep_array(true_dewormed, curr_matched_stratum_size) | hyper_intercept + stratum_intercept[strata_index] * tau_stratum_intercept, 
     //   
     //                                                                                        cluster_effects[cluster_id[strata_matched_pos:stratum_end]] * tau_cluster_effect,
     //                                                                                        
