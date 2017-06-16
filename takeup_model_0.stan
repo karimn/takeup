@@ -204,7 +204,7 @@ parameters {
 }
 
 transformed parameters {
-  real hyper_intercept = inv_Phi(hyper_baseline_takeup);
+  real hyper_intercept = inv_logit(hyper_baseline_takeup);
 }
 
 model {
