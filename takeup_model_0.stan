@@ -197,17 +197,17 @@ parameters {
   
   /* Name matching model parameters *****************************************************/
   
-  real<lower = 0, upper = 1> name_match_false_pos; 
-  real<lower = 0, upper = 1> name_match_false_neg; 
-  
-  real<lower = 0, upper = 1> name_match_error_intercept;
+  // real<lower = 0, upper = 1> name_match_false_pos; 
+  // real<lower = 0, upper = 1> name_match_false_neg; 
+  // 
+  // real<lower = 0, upper = 1> name_match_error_intercept;
 }
 
 transformed parameters {
   real hyper_intercept = inv_logit(hyper_baseline_takeup);
   
-  real<lower = 0, upper = 1> name_match_error_diff =
-    (name_match_error_intercept + name_match_error_intercept) * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
+  // real<lower = 0, upper = 1> name_match_error_diff =
+  //   name_match_error_intercept * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
     
   vector[num_all_treatment_coef] hyper_beta = hyper_beta_raw * coef_sigma; 
   vector[num_census_covar_coef] hyper_census_covar_coef = hyper_census_covar_coef_raw * coef_sigma;
@@ -216,10 +216,10 @@ transformed parameters {
 
 model {
   int strata_pos = 1;
-  real name_matched_lp[2, num_strata];
+  // real name_matched_lp[2, num_strata];
   
-  name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
-  dewormed_any[name_matching_error_ids] ~ bernoulli(name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
+  // name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
+  // dewormed_any[name_matching_error_ids] ~ bernoulli(name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
   
   // stratum_intercept ~ normal(0, 5); 
   stratum_intercept ~ student_t(coef_df, 0, 1); 
@@ -264,7 +264,6 @@ model {
     int strata_matched_not_dewormed_end = stratum_end - curr_matched_dewormed_stratum_size;
     int strata_matched_dewormed_pos = strata_matched_not_dewormed_end + 1;
     int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
-    // matrix[num_distinct_census_covar, num_experiment_coef] census_covar_interact_map_dm;
     matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_map_dm;
     
     to_vector(beta_census_covar_interact[strata_index]) ~ student_t(coef_df, 0, 1);
@@ -279,9 +278,6 @@ model {
     // print("size of monitored: ", curr_monitored_stratum_size);
     // print("size of matched: ", curr_matched_stratum_size);
     
-    // vector[curr_stratum_size] test = rows_dot_product(census_covar_interact_map_dm[census_covar_id[strata_pos:stratum_end]], 
-    //                                                   treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef]);
-  
     target += dewormed_monitored_logit_lpmf(
       dewormed_any[strata_pos:monitored_stratum_end] | 
         hyper_intercept + stratum_intercept[strata_index] * tau_stratum_intercept, 
