@@ -97,7 +97,7 @@ stan_data <- analysis.data %>%
                  gender, school, floor, ethnicity), 
             funs(id = as.integer)) %>% 
   prep_data_arranger() %>% 
-  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner,
+  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner - assigned.treatment * sms.treatment.2 + assigned.treatment,
                                  name_match_false_pos_alpha, 
                                  name_match_false_pos_beta)
 ```
@@ -109,18 +109,17 @@ basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter 
 ```
 
 ```{r}
-basic_model_0_fit_2 <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 50, control = lst(adapt_delta = 0.99, max_treedepth = 15))
-```
-
-```{r}
 print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)
 ```
 
+# Covariates Model
 
 ```{r covar-model-0, eval=FALSE}
 covar_model_0 <- stan_model(file = "takeup_covar_model_0.stan", model_name = "covar_model_0")
 covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = file.path("stanfit", "covar_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
+
+# Name Matching Model
 
 ```{r name-match-model-0, eval=FALSE}
 name_match_model_0 <- stan_model(file = "name_matching.stan", model_name = "name_match_model_0")
