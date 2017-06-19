@@ -165,88 +165,80 @@ parameters {
   // Modelled parameters
   
   real<lower = 0, upper = 1> hyper_baseline_takeup; 
-  vector[num_strata] stratum_intercept;
+  vector[num_strata] stratum_intercept_raw;
   real<lower = 0> tau_stratum_intercept;
   
-  vector[num_clusters] cluster_effects;
+  vector[num_clusters] cluster_effects_raw;
   real<lower = 0> tau_cluster_effect;
   
   vector[num_all_treatment_coef] hyper_beta_raw;
-  vector[num_all_treatment_coef] beta[num_strata];
+  vector[num_all_treatment_coef] beta_raw[num_strata];
   vector<lower = 0>[num_all_treatment_coef] tau_treatment;
   
   // vector[num_name_match_interact_coef] beta_name_match_interact;
   
   vector[num_census_covar_coef] hyper_census_covar_coef_raw;
-  vector[num_census_covar_coef] census_covar_coef[num_strata];
+  vector[num_census_covar_coef] census_covar_coef_raw[num_strata];
   vector<lower = 0>[num_census_covar_coef] tau_census_covar;
   
   matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact_raw; // census characteristics' effect on treatment effects
   matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_interact[num_strata];
   matrix<lower = 0>[num_census_covar_coef, num_experiment_coef] tau_beta_census_covar_interact[num_strata];
-  // vector[num_endline_covar_coef] hyper_endline_covar_coef;
-  // vector[num_endline_covar_coef] endline_covar_coef[num_strata];
-  
-  // Scale hyperparameters for betas 
-  
-  // vector[num_strata] stratum_intercept_covar;
-  
-  // corr_matrix[num_treatments] Omega_beta;
-  // vector<lower = 0>[num_all_treatment_coef] tau_beta;
-  // real<lower = 0> tau_stratum_effect;
-  
-  // Parameters used to predict missing endline covariates
-  
-  // Imputed data
-  
-  // matrix[num_missing_endline_covar, num_endline_covar_coef] missing_endline_covar; 
   
   /* Name matching model parameters *****************************************************/
   
-  real<lower = 0, upper = 1> name_match_false_pos;
-  real<lower = 0, upper = 1> name_match_false_neg;
-
-  real<lower = 0, upper = 1> name_match_error_intercept;
+  // real<lower = 0, upper = 1> name_match_false_pos;
+  // real<lower = 0, upper = 1> name_match_false_neg;
+  // 
+  // real<lower = 0, upper = 1> name_match_error_intercept;
 }
 
 transformed parameters {
   real hyper_intercept = inv_logit(hyper_baseline_takeup);
   
-  real<lower = 0, upper = 1> name_match_error_diff =
-    name_match_error_intercept * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
+  // real<lower = 0, upper = 1> name_match_error_diff =
+  //   name_match_error_intercept * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
     
   vector[num_all_treatment_coef] hyper_beta = hyper_beta_raw * coef_sigma; 
   vector[num_census_covar_coef] hyper_census_covar_coef = hyper_census_covar_coef_raw * coef_sigma;
-  matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact = hyper_beta_census_covar_interact_raw * coef_sigma;
+  // matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact = hyper_beta_census_covar_interact_raw * coef_sigma;
+  
+  vector[num_strata] stratum_intercept = stratum_intercept_raw * tau_stratum_intercept;
+  vector[num_clusters] cluster_effects = cluster_effects_raw * tau_cluster_effect;
+  
+  vector[num_all_treatment_coef] beta[num_strata];
+  vector[num_census_covar_coef] census_covar_coef[num_strata];
+  
+  for (strata_index in 1:num_strata) {
+    beta[strata_index] = beta_raw[strata_index] .* tau_treatment;
+    census_covar_coef[strata_index] = census_covar_coef_raw[strata_index] .* tau_census_covar;
+  }
 }
 
 model {
-  int strata_pos = 1;
-  real name_matched_lp[2, num_strata + 1];
+  int stratum_pos = 1;
   vector[num_obs] latent_utility;
   
-  name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
-  // dewormed_any[name_matching_error_ids] ~ bernoulli(name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
+  // name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
   
-  stratum_intercept ~ student_t(coef_df, 0, 1); 
+  stratum_intercept_raw ~ student_t(coef_df, 0, 1); 
   tau_stratum_intercept ~ student_t(scale_df, 0, scale_sigma);
   
-  cluster_effects ~ student_t(coef_df, 0, 1); 
+  cluster_effects_raw ~ student_t(coef_df, 0, 1); 
   tau_cluster_effect ~ student_t(scale_df, 0, scale_sigma);
   
   hyper_beta_raw ~ student_t(coef_df, 0, 1); 
-  beta ~ multi_student_t(coef_df, rep_vector(0.0, num_all_treatment_coef), diag_matrix(rep_vector(1, num_all_treatment_coef)));
+  beta_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_all_treatment_coef), diag_matrix(rep_vector(1, num_all_treatment_coef)));
   tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   
   hyper_census_covar_coef_raw ~ student_t(coef_df, 0, 1);
-  census_covar_coef ~ multi_student_t(coef_df, rep_vector(0.0, num_census_covar_coef), diag_matrix(rep_vector(1, num_census_covar_coef)));
+  census_covar_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_census_covar_coef), diag_matrix(rep_vector(1, num_census_covar_coef)));
   tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
   
-  to_vector(hyper_beta_census_covar_interact_raw) ~ student_t(coef_df, 0, 1);
+  // to_vector(hyper_beta_census_covar_interact_raw) ~ student_t(coef_df, 0, 1);
   
   // hyper_endline_covar_coef ~ multi_normal(mu_endline_covar, Sigma_endline_covar);
   // endline_covar_coef ~ multi_normal(hyper_endline_covar_coef, Sigma_endline_covar);
-  
   
   // for (strata_index in 1:num_strata) {
   //   int curr_stratum_size = strata_sizes[strata_index];
@@ -297,22 +289,39 @@ model {
   //   strata_pos = stratum_end + 1;
   // }
   
-  latent_utility = //latent_utility + 
-      treatment_design_matrix * hyper_beta +
+  for (strata_index in 1:num_strata) {
+    int curr_stratum_size = strata_sizes[strata_index];
+    // int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
+    // int curr_monitored_stratum_size = curr_stratum_size - curr_matched_stratum_size;
+    int stratum_end = stratum_pos + curr_stratum_size - 1;
+    // int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
+    // matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
+    // vector[curr_stratum_size] stratum_latent_utility;
+    
+    latent_utility[stratum_pos:stratum_end] = 
+        hyper_intercept + 
+        stratum_intercept[stratum_id[strata_index]] + 
+        cluster_effects[cluster_id[stratum_pos:stratum_end]] +
+        census_covar_dm * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
+        treatment_design_matrix * (hyper_beta + beta[strata_index]); 
+        
+    // stratum_pos = stratum_end + 1;
+  }
+      
       // census_covar_map_dm[census_covar_id] * hyper_beta_census_covar_interact * hyper_census_covar_coef +
       // rows_dot_product(census_covar_map_dm[census_covar_id], treatment_design_matrix) +
-      hyper_intercept + stratum_intercept[stratum_id] * tau_stratum_intercept + cluster_effects[cluster_id] * tau_cluster_effect;
   
-  target += (2 * bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]));
+  target += bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]);
+  // target += (2 * bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]));
   
-  target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
-   
-  for (matched_index in 1:num_name_matched) {
-    target += log_sum_exp(dewormed_matched_lpmf(dewormed_any[name_matched_id[matched_index]] | 1, name_match_false_pos, name_match_false_neg) +
-                            2 * bernoulli_logit_lpmf(1 | latent_utility[name_matched_id[matched_index]]),
-                          dewormed_matched_lpmf(dewormed_any[name_matched_id[matched_index]] | 0, name_match_false_pos, name_match_false_neg) +
-                            2 * bernoulli_logit_lpmf(0 | latent_utility[name_matched_id[matched_index]]));
-  } 
+  // target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
+  //  
+  // for (matched_index in 1:num_name_matched) {
+  //   target += log_sum_exp(dewormed_matched_lpmf(dewormed_any[name_matched_id[matched_index]] | 1, name_match_false_pos, name_match_false_neg) +
+  //                           2 * bernoulli_logit_lpmf(1 | latent_utility[name_matched_id[matched_index]]),
+  //                         dewormed_matched_lpmf(dewormed_any[name_matched_id[matched_index]] | 0, name_match_false_pos, name_match_false_neg) +
+  //                           2 * bernoulli_logit_lpmf(0 | latent_utility[name_matched_id[matched_index]]));
+  // } 
     
     // log_sum_exp(bernoulli_logit_lpmf(rep_array(0, num_name_matched) | latent_utility[name_matched_id]) +
     //               dewormed_matched_lpmf(dewormed_any[name_matched_id] | rep_array(0, num_name_matched), name_match_false_pos, name_match_false_neg),
