@@ -104,13 +104,18 @@ stan_data <- analysis.data %>%
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 500, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 8, iter = 500, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
 ```{r}
-print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma"), include = FALSE)
+print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Sigma", "latent_utility", "cluster_effects_raw", "stratum_intercept_raw", "hyper_beta_raw", "beta_raw", "hyper_census_covar_coef_raw", "census_covar_coef_raw", "hyper_beta_census_covar_interact_raw", "beta_census_covar_interact_raw", "beta_census_covar_interact", "tau_beta_census_covar_interact"), include = FALSE)
 ```
+
+```{r, eval=FALSE}
+pairs(basic_model_0_fit, pars = c("hyper_baseline_takeup", "tau_stratum_intercept", "tau_cluster_effect", "tau_treatment[1]", "hyper_beta[1]"))
+```
+
 
 # Covariates Model
 
