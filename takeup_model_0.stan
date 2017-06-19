@@ -1,12 +1,15 @@
-functions {/*
-  real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
+functions {
+/*  real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
                                matrix treatment_map_design_matrix,
-                               matrix name_match_interact_map_design_matrix,
+                               matrix census_covar_dm,
+                               // matrix name_match_interact_map_design_matrix,
                                int[] dewormed_any,
                                vector[] beta,
+                               vector[] census_covar_coef,
+                               real hyper_intercept,
                                vector stratum_intercept,
                                vector cluster_effects,
-                              int[] treatment_id,
+                               int[] treatment_id,
                                int[] missing_treatment_id,
                                int[] treatment_sizes,
                                int[] missing_treatment_sizes,
@@ -38,6 +41,7 @@ functions {/*
       real missing_treatment_link[curr_missing_treatment_size];
       real missing_dewormed[curr_missing_treatment_size];
       int curr_missing_id[curr_missing_treatment_size];
+      real missing_latent_utility[curr_missing_treatment_size];
       
       if (treatment_index > 1) {
         treatment_pos = sum(treatment_sizes[1:(treatment_index - 1)]) + 1;
@@ -50,12 +54,26 @@ functions {/*
       treatment_end = treatment_pos + curr_treatment_size - 1;
       missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
       curr_missing_id = missing_treatment_id[missing_treatment_pos:missing_treatment_end];
-      missing_stratum_id = missing_stratum_id_individ[curr_missing_id];
-      treatment_missing_cluster_id = missing_cluster_id[curr_missing_id];
-      missing_treatment_link = missing_link_model[missing_stratum_id, treatment_index_index];
+      missing_stratum_id = missing_stratum_id_individ[missing_treatment_pos:missing_treatment_end]; // curr_missing_id];
+      treatment_missing_cluster_id = missing_cluster_id[missing_treatment_pos:missing_treatment_end]; // curr_missing_id];
+      // missing_treatment_link = missing_link_model[missing_stratum_id, treatment_index_index];
       
-      for(i in 1:curr_missing_treatment_size) {
-        missing_dewormed[i] = bernoulli_rng(Phi(missing_treatment_link[i] + cluster_effects[treatment_missing_cluster_id[i]]));
+      missing_latent_utility = 
+        hyper_intercept + 
+        stratum_intercept[missing_stratum_id] +
+        cluster_effects[treatment_missing_cluster_id] +
+        census_covar_dm[curr_missing_id] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
+        
+      
+      for(missing_index in 1:curr_missing_treatment_size) {
+        // missing_dewormed[i] = bernoulli_rng(Phi(missing_treatment_link[i] + cluster_effects[treatment_missing_cluster_id[i]]));
+        missing_dewormed[missing_index] = bernoulli_rng(logit(missing_latent_utility[missing_index]));
+          
+          hyper_intercept + 
+          stratum_intercept[strata_index] + 
+          cluster_effects[cluster_id[stratum_pos:monitored_stratum_end]] +
+          census_covar_dm[stratum_pos:monitored_stratum_end] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
+          treatment_design_matrix[stratum_pos:monitored_stratum_end] * (hyper_beta + beta[strata_index]); 
       }
       
       takeup_proportion[treatment_index_index] = 
@@ -64,8 +82,8 @@ functions {/*
     }
     
     return(takeup_proportion);
-  }
-*/
+  }*/
+
   real dewormed_matched_lpmf(int matched, int dewormed, real prob_false_pos, real prob_false_neg) {
     return(bernoulli_lpmf(matched | prob_false_pos + (1 - prob_false_pos - prob_false_neg) * dewormed));
   }
@@ -144,8 +162,8 @@ data {
 }
 
 transformed data {
-  // int<lower = 1, upper = num_strata> missing_stratum_id[num_missing] = stratum_id[missing_treatment_id];
-  // int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
+  int<lower = 1, upper = num_strata> missing_stratum_id[num_missing] = stratum_id[missing_treatment_id];
+  int<lower = 1, upper = num_clusters> missing_cluster_id[num_missing] = cluster_id[missing_treatment_id];
   // 
   // int<lower = 1, upper = num_obs> num_missing_endline_covar = sum(stratum_missing_covar_sizes);
   
@@ -206,12 +224,15 @@ transformed parameters {
   vector[num_census_covar_coef] hyper_census_covar_coef = hyper_census_covar_coef_raw * coef_sigma;
   // matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact = hyper_beta_census_covar_interact_raw * coef_sigma;
   
-  vector[num_strata] stratum_intercept = stratum_intercept_raw * tau_stratum_intercept;
+  vector[num_strata] stratum_intercept = hyper_intercept + stratum_intercept_raw * tau_stratum_intercept;
   vector[num_clusters] cluster_effects = cluster_effects_raw * tau_cluster_effect;
   
   vector[num_all_treatment_coef] beta[num_strata];
   vector[num_census_covar_coef] census_covar_coef[num_strata];
   vector[num_obs] latent_utility;
+  
+  // vector[num_obs] obs_intercept;
+  // matrix[num_all_treatment_coef, num_obs] obs_beta;
  
   { 
     int stratum_pos = 1;
@@ -223,17 +244,15 @@ transformed parameters {
       int stratum_end = stratum_pos + curr_stratum_size - 1;
       int monitored_stratum_end = stratum_pos + curr_monitored_stratum_size - 1;
       // matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
-      // vector[curr_stratum_size] stratum_latent_utility;
       
-      beta[strata_index] = beta_raw[strata_index] .* tau_treatment;
-      census_covar_coef[strata_index] = census_covar_coef_raw[strata_index] .* tau_census_covar;
+      beta[strata_index] = hyper_beta + beta_raw[strata_index] .* tau_treatment;
+      census_covar_coef[strata_index] = hyper_census_covar_coef + census_covar_coef_raw[strata_index] .* tau_census_covar;
       
       latent_utility[stratum_pos:monitored_stratum_end] = 
-          hyper_intercept + 
-          stratum_intercept[strata_index] + 
+          stratum_intercept[strata_index] +
           cluster_effects[cluster_id[stratum_pos:monitored_stratum_end]] +
-          census_covar_dm[stratum_pos:monitored_stratum_end] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
-          treatment_design_matrix[stratum_pos:monitored_stratum_end] * (hyper_beta + beta[strata_index]); 
+          census_covar_dm[stratum_pos:monitored_stratum_end] * census_covar_coef[strata_index] +
+          treatment_design_matrix[stratum_pos:monitored_stratum_end] * beta[strata_index];
           
       stratum_pos = stratum_end + 1;
     }
