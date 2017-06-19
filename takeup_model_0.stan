@@ -112,7 +112,10 @@ data {
   
   int<lower = 1, upper = num_obs> treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
   int<lower = 1, upper = num_obs> treatment_sizes[num_all_treatments]; // Number of observations per treatment ID, in ascending order
-  // int<lower = 1, upper = num_all_treatments> num_non_phone_owner_treatments;
+  int<lower = 1, upper = num_all_treatments> num_non_phone_owner_treatments;
+  int<lower = 1, upper = num_all_treatments> non_phone_owner_treatments[num_non_phone_owner_treatments];
+  int<lower = 1, upper = num_all_treatments> num_phone_owner_treatments;
+  int<lower = 1, upper = num_all_treatments> phone_owner_treatments[num_phone_owner_treatments];
  
   // Counterfactual information for finite sample analysis
   
