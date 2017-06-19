@@ -208,16 +208,36 @@ transformed parameters {
   
   vector[num_all_treatment_coef] beta[num_strata];
   vector[num_census_covar_coef] census_covar_coef[num_strata];
-  
-  for (strata_index in 1:num_strata) {
-    beta[strata_index] = beta_raw[strata_index] .* tau_treatment;
-    census_covar_coef[strata_index] = census_covar_coef_raw[strata_index] .* tau_census_covar;
+  vector[num_obs] latent_utility;
+ 
+  { 
+    int stratum_pos = 1;
+    
+    for (strata_index in 1:num_strata) {
+      int curr_stratum_size = strata_sizes[strata_index];
+      int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
+      int curr_monitored_stratum_size = curr_stratum_size - curr_matched_stratum_size;
+      int stratum_end = stratum_pos + curr_stratum_size - 1;
+      int monitored_stratum_end = stratum_pos + curr_monitored_stratum_size - 1;
+      // matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
+      // vector[curr_stratum_size] stratum_latent_utility;
+      
+      beta[strata_index] = beta_raw[strata_index] .* tau_treatment;
+      census_covar_coef[strata_index] = census_covar_coef_raw[strata_index] .* tau_census_covar;
+      
+      latent_utility[stratum_pos:monitored_stratum_end] = 
+          hyper_intercept + 
+          stratum_intercept[strata_index] + 
+          cluster_effects[cluster_id[stratum_pos:monitored_stratum_end]] +
+          census_covar_dm[stratum_pos:monitored_stratum_end] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
+          treatment_design_matrix[stratum_pos:monitored_stratum_end] * (hyper_beta + beta[strata_index]); 
+          
+      stratum_pos = stratum_end + 1;
+    }
   }
 }
 
 model {
-  int stratum_pos = 1;
-  vector[num_obs] latent_utility;
   
   // name_match_false_pos ~ beta(name_match_false_pos_alpha, name_match_false_pos_beta);
   
@@ -289,24 +309,24 @@ model {
   //   strata_pos = stratum_end + 1;
   // }
   
-  for (strata_index in 1:num_strata) {
-    int curr_stratum_size = strata_sizes[strata_index];
-    // int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
-    // int curr_monitored_stratum_size = curr_stratum_size - curr_matched_stratum_size;
-    int stratum_end = stratum_pos + curr_stratum_size - 1;
-    // int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
-    // matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
-    // vector[curr_stratum_size] stratum_latent_utility;
-    
-    latent_utility[stratum_pos:stratum_end] = 
-        hyper_intercept + 
-        stratum_intercept[stratum_id[strata_index]] + 
-        cluster_effects[cluster_id[stratum_pos:stratum_end]] +
-        census_covar_dm * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
-        treatment_design_matrix * (hyper_beta + beta[strata_index]); 
-        
-    // stratum_pos = stratum_end + 1;
-  }
+  // for (strata_index in 1:num_strata) {
+  //   int curr_stratum_size = strata_sizes[strata_index];
+  //   // int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
+  //   // int curr_monitored_stratum_size = curr_stratum_size - curr_matched_stratum_size;
+  //   int stratum_end = stratum_pos + curr_stratum_size - 1;
+  //   // int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
+  //   // matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
+  //   // vector[curr_stratum_size] stratum_latent_utility;
+  //   
+  //   latent_utility[stratum_pos:stratum_end] = 
+  //       hyper_intercept + 
+  //       stratum_intercept[strata_index] + 
+  //       cluster_effects[cluster_id[stratum_pos:stratum_end]] +
+  //       census_covar_dm[stratum_pos:strata_index] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
+  //       treatment_design_matrix[stratum_pos:strata_index] * (hyper_beta + beta[strata_index]); 
+  //       
+  //   stratum_pos = stratum_end + 1;
+  // }
       
       // census_covar_map_dm[census_covar_id] * hyper_beta_census_covar_interact * hyper_census_covar_coef +
       // rows_dot_product(census_covar_map_dm[census_covar_id], treatment_design_matrix) +
