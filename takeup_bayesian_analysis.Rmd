@@ -82,7 +82,7 @@ ggplot(tibble(x = c(0, 5)), aes(x)) +
 
 ```{r model-data}
 stan_data <- analysis.data %>% 
-  filter(!hh.baseline.sample, sms.treatment.2 == "sms.control") %>% 
+  filter(!hh.baseline.sample) %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
          name_matched = !true.monitored,
@@ -97,14 +97,14 @@ stan_data <- analysis.data %>%
                  gender, school, floor, ethnicity), 
             funs(id = as.integer)) %>% 
   prep_data_arranger() %>% 
-  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * phone_owner,
+  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner,
                                  name_match_false_pos_alpha, 
                                  name_match_false_pos_beta)
 ```
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 2, iter = 1000, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 500, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
@@ -124,7 +124,7 @@ covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = fil
 
 ```{r name-match-model-0, eval=FALSE}
 name_match_model_0 <- stan_model(file = "name_matching.stan", model_name = "name_match_model_0")
-name_match_model_0_fit <- sampling(name_match_model_0, iter = 2000, data = stan_data, sample_file = file.path("stanfit", "name_match_model_0.csv"), control = lst(adapt_delta = 0.99)) #, max_treedepth = 15))
+name_match_model_0_fit <- sampling(name_match_model_0, iter = 4000, data = stan_data, sample_file = file.path("stanfit", "name_match_model_0.csv"), control = lst(adapt_delta = 0.99)) #, max_treedepth = 15))
 
 print(name_match_model_0_fit)
 ```
