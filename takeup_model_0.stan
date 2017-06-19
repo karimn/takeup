@@ -181,9 +181,9 @@ parameters {
   vector[num_census_covar_coef] census_covar_coef_raw[num_strata];
   vector<lower = 0>[num_census_covar_coef] tau_census_covar;
   
-  matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact_raw; // census characteristics' effect on treatment effects
-  matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_interact[num_strata];
-  matrix<lower = 0>[num_census_covar_coef, num_experiment_coef] tau_beta_census_covar_interact[num_strata];
+  // matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact_raw; // census characteristics' effect on treatment effects
+  // matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_interact[num_strata];
+  // matrix<lower = 0>[num_census_covar_coef, num_experiment_coef] tau_beta_census_covar_interact[num_strata];
   
   /* Name matching model parameters *****************************************************/
   
@@ -208,7 +208,7 @@ transformed parameters {
   
   vector[num_all_treatment_coef] beta[num_strata];
   vector[num_census_covar_coef] census_covar_coef[num_strata];
-  vector[num_obs] latent_utility;
+  vector[num_obs] latent_utility = rep_vector(0, num_obs);
  
   { 
     int stratum_pos = 1;
