@@ -965,8 +965,10 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   missing_treatment <- prepared_analysis_data %>% 
     ddply(., .(all_treatment_id), 
           function(treatment_group, all_obs) { 
-            filter(all_obs, all_treatment_id != treatment_group$all_treatment_id[1]) %>% 
-              select(obs_index)
+            filter(all_obs, 
+                   all_treatment_id != treatment_group$all_treatment_id[1],
+                   phone_owner == treatment_group$phone_owner[1]) %>%
+              select(stratum_id, obs_index)
           }, 
           all_obs = .)
   
@@ -992,8 +994,12 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   
   lst(
     # Save meta data 
+    
+    prepared_analysis_data,
      
     treatment_map,
+    
+    missing_treatment,
     
     stratum_map = distinct(prepared_analysis_data, stratum_id, stratum),
     cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
@@ -1041,7 +1047,7 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     obs_treatment = prepared_analysis_data$all_treatment_id,
   
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
-    missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, obs_index) %$% obs_index,
+    missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, stratum_id, obs_index) %$% obs_index,
     
     eval_treatment_prop_id,
     num_eval_treatment_prop = length(eval_treatment_prop_id),
