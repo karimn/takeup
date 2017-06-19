@@ -29,7 +29,7 @@ census.reg.covar <- c("gender", "age.census", "age.census_squared")
 
 prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
   list(endline.survey = .all.endline.data, 
-       reconsent = .reconsent.data) %>% 
+       reconsent = .reconsent.data %>% mutate_at(vars(monitor.consent), as.logical)) %>% 
     map_df(. %>% select(KEY.individ, monitor.consent, dewormed.reported), .id = "data.source") %>% 
     filter(!is.na(monitor.consent), !is.na(dewormed.reported)) %>%  
     group_by(KEY.individ) %>%  
@@ -75,7 +75,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            # dewormed.any_0 = (!is.na(dewormed) & dewormed) | dewormed.matched_0,
-           dewormed.day.any = if_else(!is.na(dewormed.day), dewormed.day, dewormed.day.matched), 
+           dewormed.day.any = if_else(!is.na(dewormed.day), as.integer(dewormed.day), dewormed.day.matched), 
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
     left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice,
                      hh_cal, cal_value, hh_bracelet, number_bracelet), "KEY.individ") %>% 
