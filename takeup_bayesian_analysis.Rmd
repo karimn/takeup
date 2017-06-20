@@ -93,18 +93,18 @@ stan_data <- analysis.data %>%
   unite(county_phone_owner_stratum, county, phone_owner, remove = FALSE) %>%
   mutate(county_phone_owner_stratum = factor(county_phone_owner_stratum),
          stratum = county) %>% 
-  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, #  county_phone_owner_stratum,
+  mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, # county_phone_owner_stratum,
                  gender, school, floor, ethnicity), 
             funs(id = as.integer)) %>% 
   prep_data_arranger() %>% 
-  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner - assigned.treatment * sms.treatment.2 + assigned.treatment,
+  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner - assigned.treatment * sms.treatment.2 + assigned.treatment * name_matched * phone_owner,
                                  name_match_false_pos_alpha, 
                                  name_match_false_pos_beta)
 ```
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 500, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 50, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 # basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 

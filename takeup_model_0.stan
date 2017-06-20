@@ -1,18 +1,18 @@
 functions {
-/*  real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
-                               matrix treatment_map_design_matrix,
+  real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
+                               matrix treatment_design_matrix,
                                matrix census_covar_dm,
                                // matrix name_match_interact_map_design_matrix,
                                int[] dewormed_any,
                                vector[] beta,
                                vector[] census_covar_coef,
-                               real hyper_intercept,
                                vector stratum_intercept,
                                vector cluster_effects,
                                int[] treatment_id,
                                int[] missing_treatment_id,
                                int[] treatment_sizes,
                                int[] missing_treatment_sizes,
+                               int[,] missing_treatment_strata_sizes,
                                int[] missing_stratum_id_individ,
                                int[] missing_cluster_id) { 
     int num_eval_treatment_prop = size(eval_treatment_ids);
@@ -30,50 +30,58 @@ functions {
     
     for (treatment_index_index in 1:num_eval_treatment_prop) {
       int treatment_index = eval_treatment_ids[treatment_index_index]; 
-      int treatment_pos;  
-      int missing_treatment_pos; 
       int curr_treatment_size = treatment_sizes[treatment_index];
       int curr_missing_treatment_size = missing_treatment_sizes[treatment_index];
+      int treatment_pos;  
+      int missing_treatment_pos; 
       int treatment_end;
       int missing_treatment_end;
+      int missing_treatment_stratum_pos;
       int missing_stratum_id[curr_missing_treatment_size];
       int treatment_missing_cluster_id[curr_missing_treatment_size];
       real missing_treatment_link[curr_missing_treatment_size];
       real missing_dewormed[curr_missing_treatment_size];
       int curr_missing_id[curr_missing_treatment_size];
-      real missing_latent_utility[curr_missing_treatment_size];
+      vector[curr_missing_treatment_size] missing_latent_utility = rep_vector(0, curr_missing_treatment_size);
+      int missing_latent_util_pos = 1;
       
       if (treatment_index > 1) {
         treatment_pos = sum(treatment_sizes[1:(treatment_index - 1)]) + 1;
         missing_treatment_pos = sum(missing_treatment_sizes[1:(treatment_index - 1)]) + 1;
-      } else
+      } else {
         treatment_pos = 1;
         missing_treatment_pos = 1;
       }
       
       treatment_end = treatment_pos + curr_treatment_size - 1;
       missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
+      missing_treatment_stratum_pos = missing_treatment_pos;
       curr_missing_id = missing_treatment_id[missing_treatment_pos:missing_treatment_end];
       missing_stratum_id = missing_stratum_id_individ[missing_treatment_pos:missing_treatment_end]; // curr_missing_id];
       treatment_missing_cluster_id = missing_cluster_id[missing_treatment_pos:missing_treatment_end]; // curr_missing_id];
       // missing_treatment_link = missing_link_model[missing_stratum_id, treatment_index_index];
       
-      missing_latent_utility = 
-        hyper_intercept + 
-        stratum_intercept[missing_stratum_id] +
-        cluster_effects[treatment_missing_cluster_id] +
-        census_covar_dm[curr_missing_id] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
+      for (stratum_index in 1:num_strata) {
+        int curr_missing_treatment_stratum_size = missing_treatment_strata_sizes[treatment_index, stratum_index];
+        int missing_treatment_stratum_end = missing_treatment_stratum_pos + curr_missing_treatment_stratum_size - 1;
+        int missing_latent_util_end = missing_latent_util_pos + curr_missing_treatment_stratum_size - 1;
         
+        // print(stratum_index, curr_missing_treatment_stratum_size);
+        // print(missing_treatment_stratum_pos,missing_treatment_stratum_end);
+        // print(missing_latent_util_pos, missing_latent_util_end);
+        
+        missing_latent_utility[missing_latent_util_pos:missing_latent_util_end] = 
+          stratum_intercept[missing_stratum_id[missing_latent_util_pos:missing_latent_util_end]] +
+          cluster_effects[treatment_missing_cluster_id[missing_latent_util_pos:missing_latent_util_end]] +
+          census_covar_dm[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * census_covar_coef[stratum_index] +
+          treatment_design_matrix[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * beta[stratum_index]; 
+          
+        missing_treatment_stratum_pos = missing_treatment_stratum_end + 1;
+        missing_latent_util_pos = missing_latent_util_end + 1;
+      }
       
       for(missing_index in 1:curr_missing_treatment_size) {
-        // missing_dewormed[i] = bernoulli_rng(Phi(missing_treatment_link[i] + cluster_effects[treatment_missing_cluster_id[i]]));
-        missing_dewormed[missing_index] = bernoulli_rng(logit(missing_latent_utility[missing_index]));
-          
-          hyper_intercept + 
-          stratum_intercept[strata_index] + 
-          cluster_effects[cluster_id[stratum_pos:monitored_stratum_end]] +
-          census_covar_dm[stratum_pos:monitored_stratum_end] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
-          treatment_design_matrix[stratum_pos:monitored_stratum_end] * (hyper_beta + beta[strata_index]); 
+        missing_dewormed[missing_index] = bernoulli_logit_rng(missing_latent_utility[missing_index]);
       }
       
       takeup_proportion[treatment_index_index] = 
@@ -82,7 +90,7 @@ functions {
     }
     
     return(takeup_proportion);
-  }*/
+  }
 
   real dewormed_matched_lpmf(int matched, int dewormed, real prob_false_pos, real prob_false_neg) {
     return(bernoulli_lpmf(matched | prob_false_pos + (1 - prob_false_pos - prob_false_neg) * dewormed));
@@ -144,7 +152,7 @@ data {
   int<lower = 1> stratum_missing_covar_sizes[num_strata]; // Number of covariate missingness per stratum (ordered by stratum)
   int<lower = 1, upper = num_all_treatments> eval_treatment_prop_id[num_eval_treatment_prop]; // Which treatments to impute
   int<lower = 1, upper = num_missing> missing_treatment_id[num_missing]; // Observation indices with missing treatment counterfactural, ordered by missing treatment ID
-  int<lower = 1> missing_treatment_sizes[num_all_treatments]; // Number of obserations missing treatment, in ascending order of missing treatment ID
+  int<lower = 1, upper = num_obs> missing_treatment_strata_sizes[num_all_treatments, num_strata];
   
   // Covariates
   
@@ -169,17 +177,24 @@ transformed data {
   
   vector<lower = 0, upper = 1>[num_obs] monitored = 1 - name_matched;
   
-  // 
-  
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
   matrix[num_obs, num_census_covar_coef] census_covar_dm = census_covar_map_dm[census_covar_id];
- 
+  
   // Constants for hyperpriors 
   real scale_df = 3;
   real scale_sigma = 1;
   
   real coef_df = 7;
   real coef_sigma = 10;
+  
+  int<lower = 1, upper = num_obs> missing_treatment_sizes[num_all_treatments]; 
+  // int<lower = 1, upper = num_obs> treatment_pos[num_all_treatments] = cumulative_sum(treatment_sizes); 
+  // int<lower = 1, upper = num_obs> missing_treatment_pos[num_all_treatments]; 
+  
+  for (treatment_index in 1:num_all_treatments) {
+    missing_treatment_sizes[treatment_index] = sum(missing_treatment_strata_sizes[treatment_index]);
+  }
+ 
 }
 
 parameters {
@@ -194,17 +209,19 @@ parameters {
   
   vector[num_all_treatment_coef] hyper_beta_raw;
   vector[num_all_treatment_coef] beta_raw[num_strata];
+  // matrix[num_all_treatment_coef, num_strata] beta_raw;
   vector<lower = 0>[num_all_treatment_coef] tau_treatment;
   
   // vector[num_name_match_interact_coef] beta_name_match_interact;
   
   vector[num_census_covar_coef] hyper_census_covar_coef_raw;
   vector[num_census_covar_coef] census_covar_coef_raw[num_strata];
+  // matrix[num_census_covar_coef, num_strata] census_covar_coef_raw;
   vector<lower = 0>[num_census_covar_coef] tau_census_covar;
   
-  matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact_raw; // census characteristics' effect on treatment effects
-  matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_interact[num_strata];
-  matrix<lower = 0>[num_census_covar_coef, num_experiment_coef] tau_beta_census_covar_interact[num_strata];
+  // matrix[num_census_covar_coef, num_experiment_coef] hyper_beta_census_covar_interact_raw; // census characteristics' effect on treatment effects
+  // matrix[num_census_covar_coef, num_experiment_coef] beta_census_covar_interact[num_strata];
+  // matrix<lower = 0>[num_census_covar_coef, num_experiment_coef] tau_beta_census_covar_interact[num_strata];
   
   /* Name matching model parameters *****************************************************/
   
@@ -229,14 +246,22 @@ transformed parameters {
   
   vector[num_all_treatment_coef] beta[num_strata];
   vector[num_census_covar_coef] census_covar_coef[num_strata];
-  vector[num_obs] latent_utility;
+  // matrix[num_all_treatment_coef, num_strata] beta = rep_matrix(hyper_beta, num_strata) + beta_raw .* rep_matrix(tau_treatment, num_strata);
+  // matrix[num_census_covar_coef, num_strata] census_covar_coef = rep_matrix(hyper_census_covar_coef, num_strata) + census_covar_coef_raw .* rep_matrix(tau_census_covar, num_strata);
+  vector[num_obs] latent_utility = rep_vector(0, num_obs);
   
   // vector[num_obs] obs_intercept;
   // matrix[num_all_treatment_coef, num_obs] obs_beta;
+  
+  // latent_utility = 
+  //     stratum_intercept[stratum_id] +
+  //     cluster_effects[cluster_id] +
+  //     rows_dot_product(census_covar_dm, census_covar_coef[stratum_id]) +
+  //     rows_dot_product(treatment_design_matrix, beta[stratum_id]);
  
-  { 
+  {
     int stratum_pos = 1;
-    
+
     for (strata_index in 1:num_strata) {
       int curr_stratum_size = strata_sizes[strata_index];
       int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
@@ -247,13 +272,13 @@ transformed parameters {
       
       beta[strata_index] = hyper_beta + beta_raw[strata_index] .* tau_treatment;
       census_covar_coef[strata_index] = hyper_census_covar_coef + census_covar_coef_raw[strata_index] .* tau_census_covar;
-      
-      latent_utility[stratum_pos:monitored_stratum_end] = 
+
+      latent_utility[stratum_pos:stratum_end] =
           stratum_intercept[strata_index] +
-          cluster_effects[cluster_id[stratum_pos:monitored_stratum_end]] +
-          census_covar_dm[stratum_pos:monitored_stratum_end] * census_covar_coef[strata_index] +
-          treatment_design_matrix[stratum_pos:monitored_stratum_end] * beta[strata_index];
-          
+          cluster_effects[cluster_id[stratum_pos:stratum_end]] +
+          census_covar_dm[stratum_pos:stratum_end] * census_covar_coef[strata_index] +
+          treatment_design_matrix[stratum_pos:stratum_end] * beta[strata_index];
+
       stratum_pos = stratum_end + 1;
     }
   }
@@ -271,11 +296,15 @@ model {
   
   hyper_beta_raw ~ student_t(coef_df, 0, 1); 
   beta_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_all_treatment_coef), diag_matrix(rep_vector(1, num_all_treatment_coef)));
+  // to_vector(beta_raw) ~ student_t(coef_df, 0, 1);
   tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   
   hyper_census_covar_coef_raw ~ student_t(coef_df, 0, 1);
   census_covar_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_census_covar_coef), diag_matrix(rep_vector(1, num_census_covar_coef)));
+  // to_vector(census_covar_coef_raw) ~ student_t(coef_df, 0, 1);
   tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
+  
+  dewormed_any ~ bernoulli_logit(latent_utility);
   
   // to_vector(hyper_beta_census_covar_interact_raw) ~ student_t(coef_df, 0, 1);
   
@@ -353,7 +382,7 @@ model {
       // census_covar_map_dm[census_covar_id] * hyper_beta_census_covar_interact * hyper_census_covar_coef +
       // rows_dot_product(census_covar_map_dm[census_covar_id], treatment_design_matrix) +
   
-  target += bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]);
+  // target += bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]);
   // target += (2 * bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]));
   
   // target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
@@ -377,9 +406,15 @@ model {
 }
 
 generated quantities {
-  // real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] =
-  //   takeup_proportion_rng(
-  //     eval_treatment_prop_id, treatment_map_design_matrix, name_match_interact_map_design_matrix, dewormed_any, beta, stratum_intercept, cluster_effects,
-  //     treatment_id, missing_treatment_id, treatment_sizes, missing_treatment_sizes, missing_stratum_id, missing_cluster_id
-  //   );
+  real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] =
+    takeup_proportion_rng(
+      eval_treatment_prop_id,
+      treatment_design_matrix,
+      census_covar_dm,
+      dewormed_any,
+      beta, census_covar_coef, stratum_intercept, cluster_effects,
+      treatment_id, missing_treatment_id,
+      treatment_sizes, missing_treatment_sizes, missing_treatment_strata_sizes,
+      missing_stratum_id, missing_cluster_id
+    );
 }

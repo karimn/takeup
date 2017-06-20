@@ -972,11 +972,9 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
           }, 
           all_obs = .)
   
-  # if (!is.null(exclude_from_eval)) {
-  #   eval_treatment_prop_id <- filter_(treatment_map, sprintf("%s == 0", exclude_from_eval)) %$% all_treatment_id
-  # } else {
-    eval_treatment_prop_id <- treatment_map$all_treatment_id
-  # }
+  eval_treatment_prop_id <- treatment_map %>% 
+    filter(!name_matched) %>% 
+    pull(all_treatment_id)
   
   name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
     prep_data_arranger() # Should already be in the right order, but to be on the safe size
@@ -1055,8 +1053,14 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     num_obs = length(obs_treatment), 
     num_missing = nrow(missing_treatment),
     
-    treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %$% n,
-    missing_treatment_sizes = count(missing_treatment, all_treatment_id) %>% arrange(all_treatment_id) %$% n,
+    treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
+    # missing_treatment_sizes = count(missing_treatment, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
+    missing_treatment_strata_sizes = missing_treatment %>% 
+      group_by(all_treatment_id) %>% 
+      do(strata_sizes = count(., stratum_id) %>% arrange(stratum_id) %>% pull(n)) %>% 
+      ungroup %>%
+      arrange(all_treatment_id) %>% 
+      pull(strata_sizes),
     
     dewormed_any = prepared_analysis_data$dewormed.any,
     
