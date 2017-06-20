@@ -246,18 +246,7 @@ transformed parameters {
   
   vector[num_all_treatment_coef] beta[num_strata];
   vector[num_census_covar_coef] census_covar_coef[num_strata];
-  // matrix[num_all_treatment_coef, num_strata] beta = rep_matrix(hyper_beta, num_strata) + beta_raw .* rep_matrix(tau_treatment, num_strata);
-  // matrix[num_census_covar_coef, num_strata] census_covar_coef = rep_matrix(hyper_census_covar_coef, num_strata) + census_covar_coef_raw .* rep_matrix(tau_census_covar, num_strata);
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
-  
-  // vector[num_obs] obs_intercept;
-  // matrix[num_all_treatment_coef, num_obs] obs_beta;
-  
-  // latent_utility = 
-  //     stratum_intercept[stratum_id] +
-  //     cluster_effects[cluster_id] +
-  //     rows_dot_product(census_covar_dm, census_covar_coef[stratum_id]) +
-  //     rows_dot_product(treatment_design_matrix, beta[stratum_id]);
  
   {
     int stratum_pos = 1;
