@@ -82,7 +82,7 @@ ggplot(tibble(x = c(0, 5)), aes(x)) +
 
 ```{r model-data}
 stan_data <- analysis.data %>% 
-  filter(!hh.baseline.sample) %>% 
+  # filter(!hh.baseline.sample) %>% 
   # filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
          name_matched = !true.monitored,
@@ -97,7 +97,7 @@ stan_data <- analysis.data %>%
                  gender, school, floor, ethnicity), 
             funs(id = as.integer)) %>% 
   prep_data_arranger() %>% 
-  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner - assigned.treatment * sms.treatment.2 + assigned.treatment * name_matched * phone_owner,
+  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner - assigned.treatment * sms.treatment.2 + assigned.treatment * phone_owner * (name_matched * hh.baseline.sample),
                                  name_match_false_pos_alpha, 
                                  name_match_false_pos_beta)
 ```
