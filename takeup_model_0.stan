@@ -2,7 +2,6 @@ functions {
   real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
                                matrix treatment_map_design_matrix,
                                matrix census_covar_dm,
-                               // matrix name_match_interact_map_design_matrix,
                                int[] dewormed_any,
                                vector[] beta,
                                vector[] census_covar_coef,
@@ -15,18 +14,10 @@ functions {
                                int[,] missing_treatment_strata_sizes,
                                int[] missing_stratum_id_individ,
                                int[] missing_cluster_id) { 
+                                 
     int num_eval_treatment_prop = size(eval_treatment_ids);
-    // int total_num_coef = cols(treatment_map_design_matrix) + cols(name_match_interact_map_design_matrix);
     real takeup_proportion[num_eval_treatment_prop]; 
     int num_strata = num_elements(stratum_intercept);
-    // real missing_link_model[num_strata, num_eval_treatment_prop];
-    
-    // for (strata_index in 1:num_strata) {
-    //   matrix[num_eval_treatment_prop, total_num_coef] all_treat_map_design_matrix = 
-    //     append_col(treatment_map_design_matrix[eval_treatment_ids], name_match_interact_map_design_matrix[eval_treatment_ids]); 
-    //     
-    //   missing_link_model[strata_index, ] = to_array_1d(all_treat_map_design_matrix * beta[strata_index] + stratum_intercept[strata_index]);
-    // }
     
     for (treatment_index_index in 1:num_eval_treatment_prop) {
       int treatment_index = eval_treatment_ids[treatment_index_index]; 
@@ -66,16 +57,11 @@ functions {
         int missing_treatment_stratum_end = missing_treatment_stratum_pos + curr_missing_treatment_stratum_size - 1;
         int missing_latent_util_end = missing_latent_util_pos + curr_missing_treatment_stratum_size - 1;
         
-        // print(stratum_index, curr_missing_treatment_stratum_size);
-        // print(missing_treatment_stratum_pos,missing_treatment_stratum_end);
-        // print(missing_latent_util_pos, missing_latent_util_end);
-        
         missing_latent_utility[missing_latent_util_pos:missing_latent_util_end] = 
           stratum_intercept[missing_stratum_id[missing_latent_util_pos:missing_latent_util_end]] +
           cluster_effects[treatment_missing_cluster_id[missing_latent_util_pos:missing_latent_util_end]] +
           census_covar_dm[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * census_covar_coef[stratum_index] +
           treatment_map_design_matrix[treatment_index] * beta[stratum_index]; 
-          // treatment_design_matrix[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * beta[stratum_index]; 
           
         missing_treatment_stratum_pos = missing_treatment_stratum_end + 1;
         missing_latent_util_pos = missing_latent_util_end + 1;
@@ -96,10 +82,6 @@ functions {
   real dewormed_matched_lpmf(int matched, int dewormed, real prob_false_pos, real prob_false_neg) {
     return(bernoulli_lpmf(matched | prob_false_pos + (1 - prob_false_pos - prob_false_neg) * dewormed));
   }
-  
-  // vector calculate_latent_utility(vector stratum_intercept, vector cluster_effects, vector treatment_effects, vector census_covar_effects, vector census_covar_interact_effects) {
-  //   return(stratum_intercept + cluster_effects + treatment_effects + census_covar_effects + census_covar_interact_effects);
-  // }
 }
 
 data {
@@ -189,8 +171,6 @@ transformed data {
   real coef_sigma = 10;
   
   int<lower = 1, upper = num_obs> missing_treatment_sizes[num_all_treatments]; 
-  // int<lower = 1, upper = num_obs> treatment_pos[num_all_treatments] = cumulative_sum(treatment_sizes); 
-  // int<lower = 1, upper = num_obs> missing_treatment_pos[num_all_treatments]; 
   
   for (treatment_index in 1:num_all_treatments) {
     missing_treatment_sizes[treatment_index] = sum(missing_treatment_strata_sizes[treatment_index]);
@@ -295,104 +275,6 @@ model {
   tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
   
   dewormed_any ~ bernoulli_logit(latent_utility);
-  
-  // to_vector(hyper_beta_census_covar_interact_raw) ~ student_t(coef_df, 0, 1);
-  
-  // hyper_endline_covar_coef ~ multi_normal(mu_endline_covar, Sigma_endline_covar);
-  // endline_covar_coef ~ multi_normal(hyper_endline_covar_coef, Sigma_endline_covar);
-  
-  // for (strata_index in 1:num_strata) {
-  //   int curr_stratum_size = strata_sizes[strata_index];
-  //   int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
-  //   int curr_monitored_stratum_size = curr_stratum_size - curr_matched_stratum_size;
-  //   int stratum_end = strata_pos + curr_stratum_size - 1;
-  //   int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
-  //   matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
-  //   vector[curr_stratum_size] stratum_latent_utility;
-  //   
-  //   to_vector(beta_census_covar_interact[strata_index]) ~ student_t(coef_df, 0, 1);
-  //   to_vector(tau_beta_census_covar_interact[strata_index]) ~ student_t(scale_df, 0, 1);
-  //   
-  //   census_covar_interact_dm = 
-  //     census_covar_map_dm[census_covar_id[strata_pos:stratum_end]] * 
-  //     (hyper_beta_census_covar_interact + beta_census_covar_interact[strata_index] .* tau_beta_census_covar_interact[strata_index]);
-  //   
-  //   // print("stratum[", strata_index, "]: stratum size = ", curr_stratum_size, ", strata_pos = ", strata_pos, 
-  //   //       ", monitored_stratum_end = ", monitored_stratum_end, ", strata_matched_pos = ", strata_matched_pos, ", stratum_end = ", stratum_end);
-  //   // print("sum monitored:", sum(name_matched[strata_pos:monitored_stratum_end]));
-  //   // print("sum matched:", sum(name_matched[strata_matched_pos:stratum_end]));
-  //   // print("size of monitored: ", curr_monitored_stratum_size);
-  //   // print("size of matched: ", curr_matched_stratum_size);
-  //   
-  //   latent_utility[strata_pos:stratum_end] = 
-  //     treatment_design_matrix[strata_pos:stratum_end] * (hyper_beta + beta[strata_index] .* tau_treatment) +
-  //     census_covar_dm[strata_pos:stratum_end] * (hyper_census_covar_coef + census_covar_coef[strata_index] .* tau_census_covar) +
-  //     rows_dot_product(census_covar_interact_dm, treatment_design_matrix[strata_pos:stratum_end, experiment_coef]);
-  //   
-  //   // stratum_latent_utility = calculate_latent_utility(
-  //     // hyper_intercept + stratum_intercept[stratum_id[strata_pos:stratum_end]] * tau_stratum_intercept, 
-  //     // cluster_effects[cluster_id[strata_pos:stratum_end]] * tau_cluster_effect,
-  //     // treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end]] * (hyper_beta + beta[strata_index] .* tau_treatment),
-  //     // treatment_design_matrix[strata_pos:stratum_end] * (hyper_beta + beta[strata_index] .* tau_treatment),
-  //     // census_covar_map_dm[census_covar_id[strata_pos:stratum_end]] * (hyper_census_covar_coef + census_covar_coef[strata_index] .* tau_census_covar),
-  //     // census_covar_dm[strata_pos:stratum_end] * (hyper_census_covar_coef + census_covar_coef[strata_index] .* tau_census_covar),
-  //     // rows_dot_product(census_covar_interact_map_dm, treatment_map_design_matrix[obs_treatment[strata_pos:stratum_end], experiment_coef]));
-  //     // rows_dot_product(census_covar_interact_map_dm, treatment_design_matrix[strata_pos:stratum_end, experiment_coef]));
-  //     
-  //   // target += bernoulli_logit_lpmf(dewormed_any[strata_pos:monitored_stratum_end] | stratum_latent_utility[1:curr_monitored_stratum_size]);
-  //                                                      
-  //   // Marginalization of latent deworming take-up variable, conditional on name matching 
-  //   // for (true_dewormed in 0:1) {
-  //   //   name_matched_lp[true_dewormed + 1, strata_index] = bernoulli_logit_lpmf(rep_array(true_dewormed, curr_matched_stratum_size) | 
-  //   //     stratum_latent_utility[(curr_monitored_stratum_size + 1):curr_stratum_size]); 
-  //   // }
-  // 
-  //   strata_pos = stratum_end + 1;
-  // }
-  
-  // for (strata_index in 1:num_strata) {
-  //   int curr_stratum_size = strata_sizes[strata_index];
-  //   // int curr_matched_stratum_size = name_matched_strata_sizes[strata_index];
-  //   // int curr_monitored_stratum_size = curr_stratum_size - curr_matched_stratum_size;
-  //   int stratum_end = stratum_pos + curr_stratum_size - 1;
-  //   // int monitored_stratum_end = strata_pos + curr_monitored_stratum_size - 1;
-  //   // matrix[curr_stratum_size, num_experiment_coef] census_covar_interact_dm;
-  //   // vector[curr_stratum_size] stratum_latent_utility;
-  //   
-  //   latent_utility[stratum_pos:stratum_end] = 
-  //       hyper_intercept + 
-  //       stratum_intercept[strata_index] + 
-  //       cluster_effects[cluster_id[stratum_pos:stratum_end]] +
-  //       census_covar_dm[stratum_pos:strata_index] * (hyper_census_covar_coef + census_covar_coef[strata_index]) +
-  //       treatment_design_matrix[stratum_pos:strata_index] * (hyper_beta + beta[strata_index]); 
-  //       
-  //   stratum_pos = stratum_end + 1;
-  // }
-      
-      // census_covar_map_dm[census_covar_id] * hyper_beta_census_covar_interact * hyper_census_covar_coef +
-      // rows_dot_product(census_covar_map_dm[census_covar_id], treatment_design_matrix) +
-  
-  // target += bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]);
-  // target += (2 * bernoulli_logit_lpmf(dewormed_any[monitored_id] | latent_utility[monitored_id]));
-  
-  // target += bernoulli_lpmf(dewormed_any[name_matching_error_ids] | name_match_error_intercept + name_match_error_diff * (monitored[name_matching_error_ids]));
-  //  
-  // for (matched_index in 1:num_name_matched) {
-  //   target += log_sum_exp(dewormed_matched_lpmf(dewormed_any[name_matched_id[matched_index]] | 1, name_match_false_pos, name_match_false_neg) +
-  //                           2 * bernoulli_logit_lpmf(1 | latent_utility[name_matched_id[matched_index]]),
-  //                         dewormed_matched_lpmf(dewormed_any[name_matched_id[matched_index]] | 0, name_match_false_pos, name_match_false_neg) +
-  //                           2 * bernoulli_logit_lpmf(0 | latent_utility[name_matched_id[matched_index]]));
-  // } 
-    
-    // log_sum_exp(bernoulli_logit_lpmf(rep_array(0, num_name_matched) | latent_utility[name_matched_id]) +
-    //               dewormed_matched_lpmf(dewormed_any[name_matched_id] | rep_array(0, num_name_matched), name_match_false_pos, name_match_false_neg),
-    //             bernoulli_logit_lpmf(rep_array(1, num_name_matched) | latent_utility[name_matched_id]) +
-    //               dewormed_matched_lpmf(dewormed_any[name_matched_id] | rep_array(1, num_name_matched), name_match_false_pos, name_match_false_neg));
-  
-  // name_matched_lp[1, num_strata + 1] = dewormed_matched_lpmf(dewormed_any[name_matched_id] | rep_array(0, num_name_matched), name_match_false_pos, name_match_false_neg);
-  // name_matched_lp[2, num_strata + 1] = dewormed_matched_lpmf(dewormed_any[name_matched_id] | rep_array(1, num_name_matched), name_match_false_pos, name_match_false_neg);
-  // 
-  // target += log_sum_exp(sum(name_matched_lp[1]), sum(name_matched_lp[2]));
 }
 
 generated quantities {
