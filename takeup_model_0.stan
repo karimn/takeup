@@ -1,6 +1,6 @@
 functions {
   real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
-                               matrix treatment_design_matrix,
+                               matrix treatment_map_design_matrix,
                                matrix census_covar_dm,
                                // matrix name_match_interact_map_design_matrix,
                                int[] dewormed_any,
@@ -74,7 +74,8 @@ functions {
           stratum_intercept[missing_stratum_id[missing_latent_util_pos:missing_latent_util_end]] +
           cluster_effects[treatment_missing_cluster_id[missing_latent_util_pos:missing_latent_util_end]] +
           census_covar_dm[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * census_covar_coef[stratum_index] +
-          treatment_design_matrix[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * beta[stratum_index]; 
+          treatment_map_design_matrix[treatment_index] * beta[stratum_index]; 
+          // treatment_design_matrix[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * beta[stratum_index]; 
           
         missing_treatment_stratum_pos = missing_treatment_stratum_end + 1;
         missing_latent_util_pos = missing_latent_util_end + 1;
@@ -398,7 +399,7 @@ generated quantities {
   real<lower = 0, upper = 1> takeup_proportion[num_eval_treatment_prop] =
     takeup_proportion_rng(
       eval_treatment_prop_id,
-      treatment_design_matrix,
+      treatment_map_design_matrix,
       census_covar_dm,
       dewormed_any,
       beta, census_covar_coef, stratum_intercept, cluster_effects,
