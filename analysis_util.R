@@ -853,14 +853,27 @@ print.sms.interact.table <- function(.reg.table.data,
 
 # Bayesian Analysis -------------------------------------------------------
 
-prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
 
 prepare_bayesian_analysis_data <- function(prepared_analysis_data, 
                                            ...,
                                            treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
                                            # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
+  prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
   
+  prepared_analysis_data %<>% 
+    mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
+           name_matched = !true.monitored,
+           phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
+           age = if_else(!is.na(age), age, age.census),
+           age_squared = age^2,
+           missing_covar = is.na(floor)) %>% 
+    unite(county_phone_owner_stratum, county, phone_owner, remove = FALSE) %>%
+    mutate(county_phone_owner_stratum = factor(county_phone_owner_stratum),
+           stratum = county) %>% 
+    mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, gender, school, floor, ethnicity), 
+              funs(id = as.integer)) %>% 
+    prep_data_arranger() 
 
   scale_covar <- function (covar_data) {
     counted_map <- "n" %in% names(covar_data)
