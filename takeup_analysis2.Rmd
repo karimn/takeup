@@ -363,7 +363,7 @@ mda.dates.dist.plot <- endline.data %>%
   filter((treat_begin == "knows" & begin.end == "begin") | (treat_end == "knows" & begin.end == "end")) %>% 
   ggplot(aes(day)) +
   geom_histogram(aes(fill = begin.end), alpha = 0.75,  binwidth = 2, position = "identity") +
-  geom_vline(aes(xintercept = day), linetype = "dotted", data = wave.dates) +
+  geom_vline(aes(xintercept = as.numeric(day)), linetype = "dotted", data = wave.dates) +
   # scale_x_date(breaks = c(day1.wave1, day12.wave1, day1.wave2, day12.wave2)) + 
   scale_x_date("", date_breaks = "4 weeks", date_minor_breaks = "1 week", limits = c(as_date("2016-09-05"), as_date("2016-11-28"))) +
   scale_y_continuous("") +
