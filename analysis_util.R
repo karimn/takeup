@@ -85,7 +85,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
     unite(county_dist_mon_stratum, county, dist.pot.group, true.monitored, remove = FALSE) %>% 
     mutate_at(vars(county, county_dist_stratum, county_dist_mon_stratum), factor) %>% 
-    mutate(mon_status = factor(true.monitored, levels = c(TRUE, FALSE), labels = c("monitored", "unmonitored"))) 
+    mutate(mon_status = factor(true.monitored, levels = c(TRUE, FALSE), labels = c("monitored", "unmonitored")),
+           name_matched = !true.monitored,
+           phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner")
 }
 
 multi.factor <- function(.col, labels, levels, ...) {
@@ -863,8 +865,8 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
   
   prepared_analysis_data %<>% 
     mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
-           name_matched = !true.monitored,
-           phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
+           # name_matched = !true.monitored,
+           # phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
            age = if_else(!is.na(age), age, age.census),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
@@ -913,8 +915,9 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
             center = map_means) # Center and scale to have SD = 0.5
   }
   
-  treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% 
-    arrange(phone_owner) %>% 
+  treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% {
+      if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
+    } %>% 
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
   
@@ -985,8 +988,9 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
           }, 
           all_obs = .)
   
-  eval_treatment_prop_id <- treatment_map %>% 
-    filter(!name_matched) %>% 
+  eval_treatment_prop_id <- treatment_map %>% {
+      if("name_matched" %in% names(.)) filter(., !name_matched) else return(.) 
+    } %>% 
     pull(all_treatment_id)
   
   name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
