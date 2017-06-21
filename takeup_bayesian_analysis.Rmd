@@ -92,7 +92,6 @@ stan_data <- analysis.data %>%
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
 basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 2, iter = 50, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
-# basic_model_0_fit <- sampling(basic_model_0, dat  a = stan_data, chains = 1, iter = 1000) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
 ```{r}
@@ -102,7 +101,6 @@ print(basic_model_0_fit, pars = c("cluster_effects", "missing_dewormed_any", "Si
 ```{r, eval=FALSE}
 pairs(basic_model_0_fit, pars = c("hyper_baseline_takeup", "tau_stratum_intercept", "tau_cluster_effect", "tau_treatment[1]", "hyper_beta[1]"))
 ```
-
 
 # Covariates Model
 
@@ -119,3 +117,15 @@ name_match_model_0_fit <- sampling(name_match_model_0, iter = 4000, data = stan_
 
 print(name_match_model_0_fit)
 ```
+
+# Model Parametrization
+
+## Calendar Private Utility
+
+```{r}
+calendar_param_stan_data <- analysis.data %>% 
+  filter(assigned.treatment %in% c("control", "calendar"), true.monitored, sms.treatment.2 == "sms.control") %>% 
+  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * phone_owner)
+```
+
+
