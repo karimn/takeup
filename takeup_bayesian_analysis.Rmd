@@ -122,7 +122,7 @@ print(name_match_model_0_fit)
 
 ## Willingness-to-Pay
 
-```{r}
+```{r wtp-stan-data}
 incentive_choice_data <- analysis.data %>% 
   filter(!is.na(gift_choice) & gift_choice != "neither", 
          assigned.treatment == "control", 
@@ -138,10 +138,11 @@ incentive_choice_data <- wtp.data %>%
             offer = price,
             response = second_choice) %>% 
   bind_rows(incentive_choice_data) %>% 
+  left_join(stan_data$stratum_map, c("county" = "stratum")) %>% 
   mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
          response = 2 * (response == "switch") - 1) %>% 
          # gift_and_response = gift_choice * response) %>% 
-  arrange(response)
+  arrange(stratum_id, response)
 
 wtp_stan_data <- lst(
   # gift_and_response_count = count(incentive_choice_data, gift_choice, response) %>% arrange(gift_choice, response),
@@ -150,6 +151,8 @@ wtp_stan_data <- lst(
   # num_gift_and_response_cells = nrow(gift_and_response_count),
   # gift_and_response_count = gift_and_response_count$n
   num_obs = nrow(incentive_choice_data),
+  num_strata = n_distinct(incentive_choice_data$stratum_id),
+  strata_sizes = count(incentive_choice_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
   gift_choice = incentive_choice_data$gift_choice,
   offer = incentive_choice_data$offer,
   response = incentive_choice_data$response,
