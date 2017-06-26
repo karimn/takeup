@@ -856,14 +856,15 @@ print.sms.interact.table <- function(.reg.table.data,
 # Bayesian Analysis -------------------------------------------------------
 
 
-prepare_bayesian_analysis_data <- function(prepared_analysis_data, 
+prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
+                                           wtp_data,
                                            ...,
                                            treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
                                            # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
   
-  prepared_analysis_data %<>% 
+  prepared_analysis_data <- origin_prepared_analysis_data %>% 
     mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
            # name_matched = !true.monitored,
            # phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
@@ -892,7 +893,6 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     } else {
       map_count <- rep(1, nrow(covar_data))
     }
-    
     
     is_factor_col <- map(covar_data, 
                          ~ switch(class(.),
@@ -1006,17 +1006,44 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     # group_by(stratum_id, new_cluster_id, name_matched) %>% 
     # summarize(dewormed_prop = sum(dewormed.any)/n()) %>% 
     # ungroup()
+     
+  stratum_map <- distinct(prepared_analysis_data, stratum_id, stratum)
+  
+  bracelet_treated <- prepared_analysis_data %>% 
+    filter(assigned.treatment == "bracelet") %>% 
+    arrange(stratum_id, obs_index)
+  
+  incentive_choice_data <- origin_prepared_analysis_data %>% 
+    filter(!is.na(gift_choice) & gift_choice != "neither", 
+           assigned.treatment == "control", 
+           sms.treatment.2 == "sms.control") %>% 
+    select(county, gift_choice) %>% 
+    mutate(offer = 0,
+           response = "keep") 
+  
+  incentive_choice_data <- wtp_data %>% 
+    filter(!is.na(first_choice)) %>% 
+    transmute(county, 
+              gift_choice = first_choice,
+              offer = price,
+              response = second_choice) %>% 
+    bind_rows(incentive_choice_data) %>% 
+    left_join(stratum_map, c("county" = "stratum")) %>% 
+    mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
+           response = 2 * (response == "switch") - 1) %>% 
+    arrange(stratum_id, response)
   
   lst(
     # Save meta data 
     
     prepared_analysis_data,
+    bracelet_treated,
      
     treatment_map,
     
     missing_treatment,
     
-    stratum_map = distinct(prepared_analysis_data, stratum_id, stratum),
+    stratum_map,
     cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
     
     # Data passed to model
@@ -1031,6 +1058,10 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% pull(all_treatment_id),
     num_phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% nrow(),
     phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% pull(all_treatment_id),
+    
+    num_bracelet_treated = nrow(bracelet_treated),
+    bracelet_treated_id = bracelet_treated$obs_index,
+    strata_bracelet_sizes = bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n),
     
     # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
@@ -1087,6 +1118,15 @@ prepare_bayesian_analysis_data <- function(prepared_analysis_data,
     
     num_strata = n_distinct(stratum_id),
     strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %$% n,
+    
+    # WTP data
+    
+    num_wtp_obs = nrow(incentive_choice_data),
+    wtp_strata_sizes = count(incentive_choice_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
+    gift_choice = incentive_choice_data$gift_choice,
+    wtp_offer = incentive_choice_data$offer,
+    wtp_response = incentive_choice_data$response,
+    # response_keep_size = num_obs - sum((1 + incentive_choice_data$response)/2),
     
     ...
   )

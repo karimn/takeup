@@ -83,10 +83,18 @@ ggplot(tibble(x = c(0, 5)), aes(x)) +
 ```{r model-data}
 stan_data <- analysis.data %>% 
   prepare_bayesian_analysis_data(
+    wtp.data,
     treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner * hh.baseline.sample - assigned.treatment * hh.baseline.sample * sms.treatment.2 + assigned.treatment * phone_owner * hh.baseline.sample * name_matched,
     
     name_match_false_pos_alpha, 
-    name_match_false_pos_beta)
+    name_match_false_pos_beta,
+    
+    wtp_utility_df = 3,
+    tau_mu_wtp_diff = 100,
+    mu_wtp_df_student_t = 7,
+    tau_sigma_wtp_diff = 50,
+    sigma_wtp_df_student_t = 2.5,
+  )
 ```
 
 ```{r basic-model-0}
@@ -122,72 +130,44 @@ print(name_match_model_0_fit)
 
 ## Willingness-to-Pay
 
-```{r wtp-stan-data}
-incentive_choice_data <- analysis.data %>% 
-  filter(!is.na(gift_choice) & gift_choice != "neither", 
-         assigned.treatment == "control", 
-         sms.treatment.2 == "sms.control") %>% 
-  select(county, cluster.id, gift_choice) %>% 
-  mutate(offer = 0,
-         response = "keep") 
-
-incentive_choice_data <- wtp.data %>% 
-  filter(!is.na(first_choice)) %>% 
-  transmute(county, cluster.id,
-            gift_choice = first_choice,
-            offer = price,
-            response = second_choice) %>% 
-  bind_rows(incentive_choice_data) %>% 
-  left_join(stan_data$stratum_map, c("county" = "stratum")) %>% 
-  mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
-         response = 2 * (response == "switch") - 1) %>% 
-         # gift_and_response = gift_choice * response) %>% 
-  arrange(stratum_id, response)
-
-wtp_stan_data <- lst(
-  # gift_and_response_count = count(incentive_choice_data, gift_choice, response) %>% arrange(gift_choice, response),
-  # 
-  # gift_and_response_map = gift_and_response_count %>% select(-n),
-  # num_gift_and_response_cells = nrow(gift_and_response_count),
-  # gift_and_response_count = gift_and_response_count$n
-  num_obs = nrow(incentive_choice_data),
-  num_strata = n_distinct(incentive_choice_data$stratum_id),
-  strata_sizes = count(incentive_choice_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
-  gift_choice = incentive_choice_data$gift_choice,
-  offer = incentive_choice_data$offer,
-  response = incentive_choice_data$response,
-  response_keep_size = num_obs - sum((1 + incentive_choice_data$response)/2),
-  # gift_and_response = incentive_choice_data$gift_and_response
-  
-  tau_mu_diff = 100,
-  mu_df_student_t = 7,
-  tau_sigma_diff = 50,
-  sigma_df_student_t = 2.5
-)
-```
-
 ```{r}
 wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
-wtp_model_0_fit <- sampling(wtp_model_0, data = wtp_stan_data, chains = 6, iter = 2000) 
+wtp_model_0_fit <- sampling(wtp_model_0, data = stan_data, chains = 4, iter = 2000) 
 
 print(wtp_model_0_fit)
 ```
 
-
-## Calendar Private Utility
+## Calendar-Bracelet Private Utility
 
 ```{r}
 calendar_param_stan_data <- analysis.data %>% 
-  filter(assigned.treatment %in% c("control", "calendar"), 
+  filter(assigned.treatment %in% c("control", "calendar", "bracelet"), 
          sms.treatment.2 == "sms.control",
          !phone_owner,
          true.monitored) %>% 
-  prepare_bayesian_analysis_data(treatment_formula = ~ assigned.treatment * phone_owner)
+  mutate(assigned.treatment.2 = fct_collapse(assigned.treatment, private_value = c("calendar", "bracelet"))) %>% 
+  prepare_bayesian_analysis_data(
+    wtp.data, 
+    treatment_formula = ~ assigned.treatment.2 * phone_owner,
+    
+    scale_df = 3,
+    scale_sigma = 1,
+    
+    coef_df = 7,
+    coef_sigma = 10,
+    bracelet_val_coef_sigma = 100,
+    
+    wtp_utility_df = 3,
+    tau_mu_wtp_diff = 100,
+    mu_wtp_df_student_t = 7,
+    tau_sigma_wtp_diff = 50,
+    sigma_wtp_df_student_t = 2.5
+  )
 ```
 
 ```{r calendar-param-0}
 param_model_0 <- stan_model(file = "takeup_param_model_0.stan", model_name = "param_model_0")
-param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 4, iter = 2000, 
+param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 2, iter = 20, 
                               sample_file = file.path("stanfit", "param_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
