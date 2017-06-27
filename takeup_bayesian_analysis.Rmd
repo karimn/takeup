@@ -145,10 +145,13 @@ calendar_param_stan_data <- analysis.data %>%
          sms.treatment.2 == "sms.control",
          !phone_owner,
          true.monitored) %>% 
-  mutate(assigned.treatment.2 = fct_collapse(assigned.treatment, private_value = c("calendar", "bracelet"))) %>% 
+  mutate(assigned.treatment.2 = fct_collapse(assigned.treatment, 
+                                             no_value = c("control", "ink"), 
+                                             private_value = c("calendar", "bracelet")),
+         assigned.treatment = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
-    treatment_formula = ~ assigned.treatment.2 * phone_owner,
+    treatment_formula = ~ (assigned.treatment  + assigned.treatment.2) * phone_owner,
     
     scale_df = 3,
     scale_sigma = 1,
