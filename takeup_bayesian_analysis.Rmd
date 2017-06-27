@@ -145,10 +145,13 @@ calendar_param_stan_data <- analysis.data %>%
          sms.treatment.2 == "sms.control",
          !phone_owner,
          true.monitored) %>% 
-  mutate(assigned.treatment.2 = fct_collapse(assigned.treatment, private_value = c("calendar", "bracelet"))) %>% 
+  mutate(assigned.treatment.2 = fct_collapse(assigned.treatment, 
+                                             no_value = c("control", "ink"), 
+                                             private_value = c("calendar", "bracelet")),
+         assigned.treatment = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
-    treatment_formula = ~ assigned.treatment.2 * phone_owner,
+    treatment_formula = ~ (assigned.treatment  + assigned.treatment.2) * phone_owner,
     
     scale_df = 3,
     scale_sigma = 1,
@@ -167,11 +170,11 @@ calendar_param_stan_data <- analysis.data %>%
 
 ```{r calendar-param-0}
 param_model_0 <- stan_model(file = "takeup_param_model_0.stan", model_name = "param_model_0")
-param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 2, iter = 20, 
+param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 4, iter = 100, 
                               sample_file = file.path("stanfit", "param_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
 ```{r}
-print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "latent_utility"), include = FALSE)
+print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "latent_utility", "latent_bracelet_val_diff"), include = FALSE)
 ```
 
