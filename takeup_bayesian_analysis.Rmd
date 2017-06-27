@@ -167,11 +167,11 @@ calendar_param_stan_data <- analysis.data %>%
 
 ```{r calendar-param-0}
 param_model_0 <- stan_model(file = "takeup_param_model_0.stan", model_name = "param_model_0")
-param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 2, iter = 20, 
+param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 8, iter = 500, 
                               sample_file = file.path("stanfit", "param_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 
 ```{r}
-print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "latent_utility"), include = FALSE)
+print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "latent_utility", "latent_bracelet_val_diff"), include = FALSE)
 ```
 
