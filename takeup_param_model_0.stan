@@ -142,7 +142,7 @@ transformed parameters {
         mu_wtp_diff[strata_index] + latent_bracelet_val_diff_raw[bracelet_val_stratum_pos:bracelet_val_stratum_end] * sigma_wtp_diff;
         
       full_bracelet_util_diff[bracelet_treated_id[bracelet_val_stratum_pos:bracelet_val_stratum_end]] = 
-        latent_bracelet_val_diff[bracelet_val_stratum_pos:bracelet_val_stratum_end] * ksh_util_gamma;
+         - (latent_bracelet_val_diff[bracelet_val_stratum_pos:bracelet_val_stratum_end] * ksh_util_gamma);
 
       beta[strata_index] = (hyper_beta + beta_raw[strata_index] .* tau_treatment) .* [ 1, ksh_util_gamma ]';
 
@@ -150,7 +150,7 @@ transformed parameters {
           stratum_intercept[strata_index] +
           cluster_effects[cluster_id[stratum_pos:stratum_end]] +
           treatment_design_matrix[stratum_pos:stratum_end] * beta[strata_index] +
-          (- full_bracelet_util_diff[stratum_pos:stratum_end]);
+          full_bracelet_util_diff[stratum_pos:stratum_end];
 
       stratum_pos = stratum_end + 1;
       bracelet_val_stratum_pos = bracelet_val_stratum_end + 1;
