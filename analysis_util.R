@@ -866,8 +866,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   
   prepared_analysis_data <- origin_prepared_analysis_data %>% 
     mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
-           # name_matched = !true.monitored,
-           # phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner",
            age = if_else(!is.na(age), age, age.census),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
@@ -1009,6 +1007,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
      
   stratum_map <- distinct(prepared_analysis_data, stratum_id, stratum)
   
+  # calendar_treated <- prepared_analysis_data %>% 
+  #   filter(assigned.treatment == "calendar") %>% 
+  #   arrange(stratum_id, obs_index)
+  
   bracelet_treated <- prepared_analysis_data %>% 
     filter(assigned.treatment == "bracelet") %>% 
     arrange(stratum_id, obs_index)
@@ -1037,7 +1039,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     # Save meta data 
     
     prepared_analysis_data,
-    bracelet_treated,
      
     treatment_map,
     
@@ -1059,9 +1060,21 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% nrow(),
     phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% pull(all_treatment_id),
     
+    # num_calendar_treated = nrow(calendar_treated),
+    # calendar_treated_id = calendar_treated$obs_index,
+    # strata_calendar_sizes = if (num_calendar_treated > 0) {
+    #   calendar_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
+    # } else {
+    #   rep(0, num_strata)
+    # },
+    
     num_bracelet_treated = nrow(bracelet_treated),
     bracelet_treated_id = bracelet_treated$obs_index,
-    strata_bracelet_sizes = bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n),
+    strata_bracelet_sizes = if (num_bracelet_treated > 0) {
+      bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
+    } else {
+      rep(0, num_strata)
+    },
     
     # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
