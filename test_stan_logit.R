@@ -9,10 +9,11 @@ test_data <- tibble(treated = rep(0:2, 2000),
                     re_intercept = rnorm(length(treated), 0.2, 1), # 0.2 intercept and epsilon ~ N(0, 1)
                     re_te1 = rnorm(length(treated), 0.5, 0.5),
                     re_te2 = rnorm(length(treated), 0.25, 0.1),
+                    # latent utility 
                     u = re_intercept + 
                       (treated == 1) * re_te1 + 
                       (treated == 2) * re_te2 + 
-                      (treated == 2) * 0.25, 
+                      (treated == 2) * 0.5, 
                     y = 1*(u > 0)) %>% # observed outcome
   arrange(treated) %>% 
   mutate(obs_index = seq(n()))
@@ -20,7 +21,7 @@ test_data <- tibble(treated = rep(0:2, 2000),
 # Analyze -----------------------------------------------------------------
 
 test_model <- stan_model(file = "test.stan", model_name = "test_model")
-test_model_fit <- sampling(test_model, iter = 100, 
+test_model_fit <- sampling(test_model, iter = 100, chains = 4, 
                            data = 
                              lst(num_obs = nrow(test_data), 
                                  treated1 = test_data$treated == 1, 
