@@ -89,7 +89,7 @@ stan_data <- analysis.data %>%
     name_match_false_pos_alpha, 
     name_match_false_pos_beta,
     
-    wtp_utility_df = 3,
+    # wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
     mu_wtp_df_student_t = 7,
     tau_sigma_wtp_diff = 50,
@@ -132,9 +132,29 @@ print(name_match_model_0_fit)
 
 ```{r}
 wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
-wtp_model_0_fit <- sampling(wtp_model_0, data = stan_data, chains = 4, iter = 2000) 
+wtp_model_0_fit <- sampling(wtp_model_0, data = stan_data, chains = 4, iter = 2000, sample_file = file.path("stanfit", "wtp_model.csv")) 
 
-print(wtp_model_0_fit)
+print(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response"), include = FALSE)
+```
+
+### Model Checking
+
+```{r}
+wtp_model_0_fit %>% 
+  extract(pars = "sim_gift_choice") %$% 
+  # add(sim_gift_choice, 1) %>%
+  # divide_by(2) %>%
+  adply(sim_gift_choice, 1, function(iter) tibble(prop_calendar = mean(iter))) %>% 
+  ggplot() +
+  geom_density(aes(x = prop_calendar)) +
+  geom_vline(xintercept = mean(stan_data$gift_choice))
+
+wtp_model_0_fit %>% 
+  extract(pars = "sim_wtp_response") %$% 
+  adply(sim_wtp_response, 1, function(iter) tibble(prop_switch = mean(iter))) %>% 
+  ggplot() +
+  geom_density(aes(x = prop_switch)) +
+  geom_vline(xintercept = mean(stan_data$wtp_response))
 ```
 
 ## Calendar-Bracelet Private Utility
@@ -170,7 +190,7 @@ calendar_param_stan_data <- analysis.data %>%
 
 ```{r calendar-param-0}
 param_model_0 <- stan_model(file = "takeup_param_model_0.stan", model_name = "param_model_0")
-param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 8, iter = 500, 
+param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 4, iter = 100, 
                               sample_file = file.path("stanfit", "param_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
 ```
 

@@ -14,13 +14,14 @@ data {
   real<lower = 0> tau_sigma_wtp_diff;
   real<lower = 0> sigma_wtp_df_student_t;
   
-  real<lower = 0, upper = 10> wtp_utility_df; // TODO put hyperprior on this parameter
 }
 
 parameters {
   real hyper_mu_wtp_diff_raw;
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
+  
+  real<lower = 0, upper = 10> wtp_utility_df; 
 }
 
 transformed parameters {
@@ -62,7 +63,26 @@ generated quantities {
   real hyper_prob_prefer_calendar = 1 - student_t_cdf(0, wtp_utility_df, hyper_mu_wtp_diff, sigma_wtp_diff);
   real prob_prefer_calendar[num_strata];
   
-  for (stratum_index in 1:num_strata) {
-    prob_prefer_calendar[stratum_index] = 1 - student_t_cdf(0, wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff);
-  } 
+  vector<lower = -1, upper = 1>[num_wtp_obs] sim_gift_choice;
+  vector<lower = -1, upper = 1>[num_wtp_obs] sim_wtp_response; 
+  
+  {
+    int stratum_pos = 1;
+    
+    for (stratum_index in 1:num_strata) {
+      int curr_stratum_size = wtp_strata_sizes[stratum_index];
+      int stratum_end = stratum_pos + curr_stratum_size - 1;
+      
+      prob_prefer_calendar[stratum_index] = 1 - student_t_cdf(0, wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff);
+     
+      for (i in 1:curr_stratum_size) { 
+        real val_diff = student_t_rng(wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff);
+        
+        sim_gift_choice[stratum_pos + i - 1] = val_diff > 0 ? 1 : -1;
+        sim_wtp_response[stratum_pos + i - 1] = wtp_offer[stratum_pos + i - 1] > fabs(val_diff) ? 1 : -1;
+      }
+      
+      stratum_pos = stratum_end + 1;
+    }
+  }
 }
