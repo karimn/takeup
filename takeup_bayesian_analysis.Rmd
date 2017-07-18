@@ -142,19 +142,19 @@ print(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response"), include 
 ```{r}
 wtp_model_0_fit %>% 
   extract(pars = "sim_gift_choice") %$% 
-  # add(sim_gift_choice, 1) %>%
-  # divide_by(2) %>%
   adply(sim_gift_choice, 1, function(iter) tibble(prop_calendar = mean(iter))) %>% 
   ggplot() +
   geom_density(aes(x = prop_calendar)) +
-  geom_vline(xintercept = mean(stan_data$gift_choice))
+  geom_vline(xintercept = mean(stan_data$gift_choice)) +
+  coord_cartesian(xlim = c(-1, 1))
 
 wtp_model_0_fit %>% 
   extract(pars = "sim_wtp_response") %$% 
   adply(sim_wtp_response, 1, function(iter) tibble(prop_switch = mean(iter))) %>% 
   ggplot() +
   geom_density(aes(x = prop_switch)) +
-  geom_vline(xintercept = mean(stan_data$wtp_response))
+  geom_vline(xintercept = mean(stan_data$wtp_response)) +
+  coord_cartesian(xlim = c(-1, 1))
 ```
 
 ## Calendar-Bracelet Private Utility
