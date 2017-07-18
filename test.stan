@@ -20,7 +20,7 @@ transformed data {
 
 parameters {
   real alpha_raw;
-  real te_raw;
+  real<lower = 0> te_raw;
   real<lower = 0> gamma_raw;
   real<lower = 0> delta_raw;
   
@@ -33,8 +33,8 @@ parameters {
 transformed parameters {
   real alpha = alpha_raw * 5;
   real te = te_raw * 5;
-  real<lower = 0> gamma = gamma_raw * 1;
-  real<lower = 0> delta = delta_raw * 5;
+  real gamma = gamma_raw * 1;
+  real delta = delta_raw * 5;
   
   vector[num_treated2] latent_diff = mu_diff + latent_diff_raw * sigma_diff;
 }
@@ -54,19 +54,17 @@ model {
     vector[num_obs] full_latent_diff = rep_vector(0, num_obs);
     full_latent_diff[treated2_ids] = latent_diff;
     
-    y ~ bernoulli(Phi(alpha + gamma * te * (treated1 + treated2) - gamma * (full_latent_diff .* treated2) + delta * treated2));
-    // y ~ bernoulli(Phi(alpha + gamma * te * (treated1 + treated2) - gamma * (full_latent_diff .* treated2)));
-    // y ~ bernoulli(Phi(alpha + gamma * te * (treated1 + treated2) - gamma * mu_diff * treated2 + delta * treated2));
+    y ~ bernoulli(Phi(alpha + te * (treated1 + treated2) + gamma * full_latent_diff + delta * treated2));
   }
 }
 
 generated quantities {
   real t0 = Phi(alpha);
-  real util_te = gamma * te;
-  real t1 = Phi(alpha + util_te); 
-  real t2;
-  real t2_mean_latent = Phi(alpha + util_te - gamma * mu_diff + delta); 
-  real ape1 = t1 - t0;
+  // real util_te = gamma * te;
+  real t1 = Phi(alpha + te); 
+  real t2; // = Phi(alpha + te + delta);
+  // real t2_mean_latent = Phi(alpha + util_te - gamma * mu_diff + delta); 
+  // real ape1 = t1 - t0;
   
   {
     vector[num_treated2] simul_latent_diff = rep_vector(0, num_treated2);
@@ -76,6 +74,7 @@ generated quantities {
     }
 
     // t2 = mean(Phi(alpha + util_te - gamma * simul_latent_diff));
-    t2 = mean(Phi(alpha + util_te - gamma * simul_latent_diff + delta));
+    // t2 = mean(Phi(alpha + util_te - gamma * simul_latent_diff + delta));
+    t2 = mean(Phi(alpha + te + gamma * simul_latent_diff + delta));
   }
 }
