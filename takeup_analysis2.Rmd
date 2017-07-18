@@ -1081,6 +1081,13 @@ kable(tidy(restrict.unmon.reg.output.sms.ctrl), digits = 4)
 ```
 
 ```{r, fig.width=10}
+prep.sms.ctrl.plot.data(unmon.reg.output.sms.ctrl) %>% {
+  plot.sms.ctrl.takeup(.) +
+    labs(subtitle = "Entire census sample, without controls")
+}
+```
+
+```{r, fig.width=10}
 prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl) %>% {
   plot.sms.ctrl.takeup(.) +
     labs(subtitle = "Entire census sample, without controls, restricted")
@@ -1135,6 +1142,11 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
 #### Unmonitored
 
 ```{r restrict-unmon-basic-reg-covar}
+unmon.reg.output.sms.ctrl.covar <- analysis.data %>%  
+  filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * mon_status, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = reg.covar)
+
 restrict.unmon.reg.output.sms.ctrl.covar <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
@@ -1143,6 +1155,13 @@ restrict.unmon.reg.output.sms.ctrl.covar <- analysis.data %>%
 
 ```{r}
 kable(tidy(restrict.unmon.reg.output.sms.ctrl.covar), digits = 4)
+```
+
+```{r, fig.width=10}
+prep.sms.ctrl.plot.data(unmon.reg.output.sms.ctrl.covar) %>% {
+  plot.sms.ctrl.takeup(.) +
+    labs(subtitle = "Entire census sample, with controls")
+}
 ```
 
 ```{r, fig.width=10}
@@ -1376,6 +1395,14 @@ kable(tidy(restrict.unmon.reg.output.sms.ctrl.dist), digits = 4)
 ```
 
 ```{r, fig.width=12}
+prep.sms.ctrl.plot.data(unmon.reg.output.sms.ctrl.dist, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
+  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
+    labs(subtitle = "Entire census sample, without controls") 
+}
+```
+
+```{r, fig.width=12}
 prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl.dist, .interact.with = "far") %>% 
   mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
   plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
@@ -1416,6 +1443,11 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 ##### Unmonitored
 
 ```{r umon-dist-reg-covar}
+unmon.reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
+  filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * mon_status * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
+
 restrict.unmon.reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
@@ -1424,6 +1456,14 @@ restrict.unmon.reg.output.sms.ctrl.dist.covar <- analysis.data %>%
 
 ```{r}
 kable(tidy(restrict.unmon.reg.output.sms.ctrl.dist.covar), digits = 4)
+```
+
+```{r, fig.width=12}
+prep.sms.ctrl.plot.data(unmon.reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% {
+  plot.sms.ctrl.takeup(., .facet.formula = grp ~ ref.treatment) +
+    labs(subtitle = "Entire census sample, without controls") 
+}
 ```
 
 ```{r, fig.width=12}
@@ -1640,6 +1680,13 @@ neyman.results %>%
 #### Unmonitored
 
 ```{r umon-sms-reg}
+unmon.reg.output.sms.treat <- analysis.data %>%  
+  filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * mon_status, 
+                .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
+
 restrict.unmon.reg.output.sms.treat <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
@@ -1653,9 +1700,16 @@ kable(tidy(restrict.unmon.reg.output.sms.treat), digits = 4)
 ```
 
 ```{r, fig.height=6}
-prep.sms.treat.plot.data(restrict.unmon.reg.output.sms.treat) %>% { 
+prep.sms.treat.plot.data(unmon.reg.output.sms.treat) %>% { 
   plot.sms.treat.takeup(.) +
     labs(subtitle = "Without Controls, full census sample") 
+}
+```
+
+```{r, fig.height=6}
+prep.sms.treat.plot.data(restrict.unmon.reg.output.sms.treat) %>% { 
+  plot.sms.treat.takeup(.) +
+    labs(subtitle = "Without Controls, full census sample, restricted") 
 }
 ```
 
@@ -1833,6 +1887,12 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
 #### Unmonitored
 
 ```{r unmon-dist-sms-reg}
+unmon.reg.output.sms.treat.dist <- analysis.data %>%  
+  filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  mutate(sms.treatment = sms.treatment.2) %>% 
+  run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * mon_status * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
+
 restrict.unmon.reg.output.sms.treat.dist <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
@@ -1845,10 +1905,18 @@ restrict.unmon.reg.output.sms.treat.dist %>% tidy %>% kable(digits = 4)
 ```
 
 ```{r, fig.width=12}
-prep.sms.treat.dist.plot.data(restrict.unmon.reg.output.sms.treat.dist) %>% {
+prep.sms.treat.dist.plot.data(unmon.reg.output.sms.treat.dist) %>% {
   plot.sms.treat.takeup(.) +
     facet_wrap(~ dist) +
     labs(subtitle = "Split by distance to PoT, without controls, entire census sample")
+}
+```
+
+```{r, fig.width=12}
+prep.sms.treat.dist.plot.data(restrict.unmon.reg.output.sms.treat.dist) %>% {
+  plot.sms.treat.takeup(.) +
+    facet_wrap(~ dist) +
+    labs(subtitle = "Split by distance to PoT, without controls, entire census sample, restricted")
 }
 ```
 
