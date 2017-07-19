@@ -537,7 +537,7 @@ balance.test.covar <- c(setdiff(reg.covar, "ethnicity"), "ethnicity2", "dist.pot
 balance.data <- analysis.data %>%  
   filter(!sms.treated, !hh.baseline.sample, 
          !is.na(floor), !is.na(school), !is.na(dist.pot.group), !is.na(ethnicity)) %>% 
-  anti_join(outlier.cells, c("assigned.treatment", "sms.treatment", "mon_status", "cluster.id")) %>% 
+  # anti_join(outlier.cells, c("assigned.treatment", "sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   select_(.dots = c("assigned.treatment", balance.test.covar)) %>%
   mlogit.data(choice = "assigned.treatment") 
 
@@ -928,14 +928,13 @@ Without controls (using cluster robust standard errors). ~~Also including block 
 ```{r basic-reg}
 reg.output.sms.ctrl <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, 
-                # .strat.by = c("county", "dist.pot.group"), .cluster = "cluster.id", .covariates = census.reg.covar)
                 .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
     
 reg.output.sms.ctrl.calendar <- analysis.data %>%
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>%
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
@@ -965,12 +964,12 @@ Running regression without controls with the same sample as in the with controls
 ```{r, warning=FALSE}
 reg.output.sms.ctrl.lim <- analysis.data %>%  
   filter(monitored, sms.treatment == "sms.control", !hh.baseline.sample, !is.na(floor)) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
     
 reg.output.sms.ctrl.calendar.lim <- analysis.data %>%
   filter(monitored, sms.treatment == "sms.control", !hh.baseline.sample, !is.na(floor)) %>%
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>%
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
 
@@ -1057,12 +1056,12 @@ neyman.results %>%
 ```{r unmon-basic-reg}
 unmon.reg.output.sms.ctrl <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * mon_status, .strat.by = "county_dist_stratum", .cluster = "cluster.id")
 
 restrict.unmon.reg.output.sms.ctrl <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment + mon_status, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
 
@@ -1104,12 +1103,12 @@ reg.covar
 ```{r basic-reg-covar}
 reg.output.sms.ctrl.covar <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = reg.covar)
 
 reg.output.sms.ctrl.calendar.covar <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate( assigned.treatment = relevel(assigned.treatment, ref = "calendar")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = reg.covar)
 ```
@@ -1144,12 +1143,12 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
 ```{r restrict-unmon-basic-reg-covar}
 unmon.reg.output.sms.ctrl.covar <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * mon_status, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = reg.covar)
 
 restrict.unmon.reg.output.sms.ctrl.covar <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment + mon_status, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = reg.covar)
 ```
 
@@ -1178,7 +1177,7 @@ prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl.covar) %>% {
 ```{r, echo=2:3}
 reg.output.nonphone <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
 
 kable(tidy(reg.output.nonphone), digits = 4)
@@ -1204,7 +1203,7 @@ prep.sms.ctrl.plot.data(reg.output.nonphone, .interact.with = "phone.owner") %>%
 ```{r}
 reg.output.nonphone.covar <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% #, sms.ctrl.subpop == "non.phone.owner") %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.ctrl.subpop, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 
 kable(tidy(reg.output.nonphone.covar, .include_covar = FALSE), digits = 4)
@@ -1264,7 +1263,7 @@ $$
 ```{r dist-reg}
 reg.output.sms.ctrl.dist <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
 
@@ -1303,7 +1302,7 @@ Running regression without controls with the same sample as in the with controls
 ```{r}
 reg.output.sms.ctrl.dist.lim <- analysis.data %>%  
   filter(monitored, sms.treatment == "sms.control", !hh.baseline.sample, !is.na(floor)) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 
 kable(tidy(reg.output.sms.ctrl.dist), digits = 4)
@@ -1323,7 +1322,7 @@ We can see that most of the changes that we observe between the regression witho
 ```{r}
 neyman.results.dist <- analysis.data %>% 
   filter(monitored, sms.treatment == "sms.control") %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   analyze.neyman.blk.bs(0, .interact.with = "dist.pot.group") %>% 
   mutate(treatment.group = factor(treatment.group, levels = c("control", "ink", "calendar", "bracelet"))) 
 ```
@@ -1367,12 +1366,12 @@ neyman.results %>%
 ```{r umon-dist-reg}
 unmon.reg.output.sms.ctrl.dist <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group * mon_status, .strat.by = "county", .cluster = "cluster.id")
 
 restrict.unmon.reg.output.sms.ctrl.dist <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ (assigned.treatment + mon_status) * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
 
@@ -1424,7 +1423,7 @@ c("ink", "calendar", "bracelet") %>%
 ```{r dist-reg-covar}
 reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
   filter(monitored, sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
 ```
 
@@ -1445,12 +1444,12 @@ prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") 
 ```{r umon-dist-reg-covar}
 unmon.reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * mon_status * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
 
 restrict.unmon.reg.output.sms.ctrl.dist.covar <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ (assigned.treatment + mon_status) * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = reg.covar)
 ```
 
@@ -1481,7 +1480,7 @@ reg.output.sms.ctrl.cont.dist <- analysis.data %>%
   filter(monitored, sms.treatment == "sms.control", !hh.baseline.sample) %>% 
   mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
          dist.to.pot.2 = dist.to.pot^2) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * (dist.to.pot + dist.to.pot.2), .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 
 kable(tidy(reg.output.sms.ctrl.cont.dist), digits = 4)
@@ -1507,7 +1506,7 @@ reg.output.sms.ctrl.cont.dist.lim <- analysis.data %>%
   filter(monitored, sms.treatment == "sms.control", !hh.baseline.sample, floor!="NA") %>% 
   mutate(dist.to.pot = dist.to.pot / 1000, # Convert to km
          dist.to.pot.2 = dist.to.pot^2) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * (dist.to.pot + dist.to.pot.2), .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 
 kable(tidy(reg.output.sms.ctrl.cont.dist), digits = 4)
@@ -1549,7 +1548,7 @@ The following table simplifies thinking about the analysis outlined in the pre-a
 ```{r sms-reg}
 reg.output.sms.treat <- analysis.data %>%  
   filter(monitored, sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
@@ -1578,7 +1577,7 @@ Running regression without controls with the same sample as in the with controls
 ```{r}
 reg.output.sms.treat.lim <- analysis.data %>%  
   filter(monitored, sms.treated | have_phone == "Yes", !hh.baseline.sample, !is.na(floor)) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   # mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info"))) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
@@ -1604,7 +1603,7 @@ c("ink", "calendar", "bracelet") %>%
 ```{r}
 neyman.results.sms <- analysis.data %>% 
   filter(monitored, sms.treated | sms.ctrl.subpop == "phone.owner", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   analyze.neyman.blk.bs(0, .treatment = c("assigned.treatment", "sms.treatment")) %>% 
   separate(treatment.group, c("assigned.treatment", "sms.treatment"), sep = "_") %>% 
   mutate(assigned.treatment = factor(assigned.treatment, levels = c("control", "ink", "calendar", "bracelet")))  
@@ -1682,14 +1681,14 @@ neyman.results %>%
 ```{r umon-sms-reg}
 unmon.reg.output.sms.treat <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * mon_status, 
                 .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
 
 restrict.unmon.reg.output.sms.treat <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment + mon_status, 
                 .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = census.reg.covar)
@@ -1718,7 +1717,7 @@ prep.sms.treat.plot.data(restrict.unmon.reg.output.sms.treat) %>% {
 ```{r sms-reg-covar}
 reg.output.sms.treat.covar <- analysis.data %>%  
   filter(monitored, sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment, .strat.by = "county_dist_stratum", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 ```
@@ -1764,7 +1763,7 @@ after.msg.days <- seq(3, 11, 2)
 
 time.takeup.data <- analysis.data %>%  
   filter(monitored, !is.na(sms.treatment), !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   group_by(assigned.treatment, sms.treatment) %>% 
   mutate(n.total = n()) %>% 
   group_by(dewormed.day.any, add = TRUE) %>% 
@@ -1848,7 +1847,7 @@ $$
 ```{r dist-sms-reg}
 reg.output.sms.treat.dist <- analysis.data %>%  
   filter(monitored, sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
@@ -1870,7 +1869,7 @@ Running regression without controls with the same sample as in the with controls
 ```{r}
 reg.output.sms.treat.dist.lim <- analysis.data %>%  
   filter(monitored, sms.treated | have_phone == "Yes", !hh.baseline.sample, !is.na(floor)) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 
@@ -1889,13 +1888,13 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.lim) %>% {
 ```{r unmon-dist-sms-reg}
 unmon.reg.output.sms.treat.dist <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * mon_status * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 
 restrict.unmon.reg.output.sms.treat.dist <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ (assigned.treatment * sms.treatment + mon_status) * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar)
 ```
@@ -1925,7 +1924,7 @@ prep.sms.treat.dist.plot.data(restrict.unmon.reg.output.sms.treat.dist) %>% {
 ```{r sms-dist-reg-covar, echo=2}
 reg.output.sms.treat.dist.covar <- analysis.data %>%  
   filter(monitored, sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate(sms.treatment = sms.treatment.2) %>% 
   run_strat_reg(dewormed.any ~ assigned.treatment * sms.treatment * dist.pot.group, .strat.by = "county", .cluster = "cluster.id", .covariates = setdiff(reg.covar, "sms.ctrl.subpop"))
 ```
@@ -1967,7 +1966,7 @@ Test if there is a difference in impact in response to surveying. We do this by 
 ```{r, echo=2}
 reg.output.sms.ctrl.survey.effect <- analysis.data %>%  
   filter(monitored, sms.treatment == "sms.control") %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   mutate_at(vars(hh.baseline.sample, individ.baseline.sample), funs(factor(if_else(., "baseline", "not.baseline")) %>% relevel(ref = "not.baseline"))) %>% 
   mutate(sms.ctrl.subpop = relevel(factor(sms.ctrl.subpop), ref = "phone.owner")) %>% 
   run_strat_reg(dewormed.any ~ hh.baseline.sample * assigned.treatment, 
@@ -1999,7 +1998,7 @@ linear_tester(reg.output.sms.ctrl.survey.effect,
 ```{r}
 sms.recruit.reg.res <- analysis.data %>% 
   filter(!is.na(any.sms.reported), sms.treatment %in% c("social.info")) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
+  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
   run_strat_reg(dewormed.any ~ any.sms.reported * assigned.treatment, 
                 .strat.by = "county_dist_stratum", 
                 .cluster = "cluster.id",

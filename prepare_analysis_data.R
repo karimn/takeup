@@ -90,11 +90,11 @@ analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, c
 old.baseline.data <- baseline.data
 baseline.data %<>% prepare.baseline.data(cluster.strat.data) 
 
-# cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, consented.only = FALSE)
-cell.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE, add_group_by = "mon_status")
-# unmonitored.cluster.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE)
+# Outliers ----------------------------------------------------------------
 
-# outlier.clusters <- cluster.takeup.data %>% filter(outlier) 
+cell.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE, 
+                                                add_group_by = c("phone_owner", "mon_status"))
+
 outlier.cells <- cell.takeup.data %>% filter(outlier) 
 
 # WTP prep ----------------------------------------------------------------
