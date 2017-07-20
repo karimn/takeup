@@ -195,7 +195,7 @@ prepare.cluster.takeup.data <- function(.data,
    filter(monitored | !monitored.only, 
           monitor.consent | !consented.only, 
           !(hh.baseline.sample & exclude.baseline.sample)) %>% 
-   transmute(county, dist.pot.group, county_dist_stratum, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any, mon_status) %>% 
+   transmute(county, dist.pot.group, county_dist_stratum, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any, mon_status, phone_owner) %>% 
    # unite(stratum, county, dist.pot.group, sep = " ") %>% 
    group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", "cluster.id", add_group_by)) %>% 
    # group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
@@ -316,6 +316,33 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
      
      return(original.stats)
    }
+}
+
+get_treatment_map <- function(analysis_data, analysis_formula) {
+  treatment_vars <- analysis_formula %>% 
+    terms() %>% 
+    delete.response() %>% 
+    all.vars() 
+  
+  analysis_data %>% 
+    expand_(treatment_vars) %>% 
+    semi_join(analysis_data, treatment_vars) 
+}
+
+get_treatment_map_design_matrix <- function(analysis_data, analysis_formula, treatment_map = get_treatment_map(analysis_data, analysis_formula)) {
+  rhs_formula <- analysis_formula %>% 
+    terms() %>% 
+    delete.response() 
+  
+  old.contrasts <- getOption("contrasts")
+  old.contrasts["unordered"] <- "contr.Treatment"
+  old.options <- options(contrasts = old.contrasts)
+  on.exit(options(old.options), add = TRUE)
+ 
+  treatment_map %>%  
+    modelr::model_matrix(rhs_formula) %>% 
+    # magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% 
+    set_colnames(str_replace_all(colnames(.), "([^:\\[]+)\\[T\\.([^\\]]+)]", "\\2"))
 }
 
 # Plotting code -----------------------------------------------------------
