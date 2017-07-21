@@ -191,7 +191,8 @@ analysis.data %>%
 
 # Test treatment map ------------------------------------------------------
 
-mht_analysis_formula <- dewormed.any ~ assigned.treatment * sms.treatment * mon_status * dist.pot.group * phone_owner
+# mht_analysis_formula <- dewormed.any ~ assigned.treatment * sms.treatment * mon_status * dist.pot.group * phone_owner
+mht_analysis_formula <- dewormed.any ~ (assigned.treatment * sms.treatment + mon_status) * dist.pot.group * phone_owner
 
 mht_analysis_data <- analysis.data %>% 
   filter(!hh.baseline.sample) %>% 
@@ -206,7 +207,7 @@ mht_selected_treatment <- get_treatment_map(mht_analysis_data, mht_analysis_form
 mht_treatment_map_dm <- get_treatment_map_design_matrix(mht_analysis_data, mht_analysis_formula, mht_selected_treatment) %>% 
   select_if(~ n_distinct(.x) > 1)
 
-mht_selected_treatment %<>% mutate(hypo_id = seq_len(n()))
+mht_selected_treatment %<>% mutate(ate_id = seq_len(n()))
 
 incentive_ate_hypo <- tribble(
   ~ left, ~ right, # Incentive ATE for all subgroups (phone-ownership + distance from PoT)
@@ -249,10 +250,11 @@ test_mat <- sms_ate_between_hypo %$%
   bind_rows(test_mat, .) %>% 
   as.matrix()
 
-# mht_analysis_data %>%
-#   run_strat_reg(mht_analysis_formula,
-#                 .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar) %>% 
-#   tidy()
+reg_res <- mht_analysis_data %>%
+  run_strat_reg(mht_analysis_formula,
+                .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar) 
+  # tidy() %>%
+  # filter(term %in% colnames(test_mat))
 
 mht_results <- mht_analysis_data %>%
   strat_mht(mht_analysis_formula,
@@ -265,10 +267,11 @@ sig_mht_results <- mht_results %>%
 
 bind_rows(incentive_ate_hypo, sms_ate_hypo) %>% 
   mutate(hypo_id = seq_len(n())) %>% 
-  left_join(mht_selected_treatment, c("left" = "hypo_id")) %>% 
-  left_join(mht_selected_treatment, c("right" = "hypo_id"), suffix = c("_l", "_r")) %>% 
+  left_join(mht_selected_treatment, c("left" = "ate_id")) %>% 
+  left_join(mht_selected_treatment, c("right" = "ate_id"), suffix = c("_l", "_r")) %>% 
   select(-starts_with("mon_status")) %>% 
-  right_join(sig_mht_results, "hypo_id")
+  right_join(sig_mht_results, "hypo_id") %>% 
+  print(n = nrow(.))
 
 # mht_analysis_data %>% 
 #   strat_mht(mht_analysis_formula,
@@ -277,11 +280,21 @@ bind_rows(incentive_ate_hypo, sms_ate_hypo) %>%
 
 # mht examples ------------------------------------------------------------
 
-read_csv("data.csv") %>% 
-  transmute(amount, treatment = factor(ratio, levels = 0:3), dummy_stratum = factor(1), cluster = 1:n()) %>% 
-  # run_strat_reg(amount ~ treatment, .cluster = "cluster", .strat.by = NULL) %>% 
+test_data <- read_csv("data.csv") %>% 
+  transmute(amount, treatment = factor(ratio, levels = 0:3), dummy_stratum = factor(1), cluster = 1:n()) 
+
+test_hypo_mat <- diag(3) %>% set_colnames(c("treatment[T.1]", "treatment[T.2]", "treatment[T.3]"))
+
+test_est <- test_data %>% 
+  run_strat_reg(amount ~ treatment, .cluster = "cluster", .strat.by = NULL) %>%
+  predict(test_hypo_mat)
+
+test_data %>% 
+  # run_strat_reg(amount ~ treatment, .cluster = "cluster", .strat.by = NULL) %>%
   # linear_tester(c("treatment[T.1]", "treatment[T.2]", "treatment[T.3]"))
   # tidy()
   strat_mht(amount ~ treatment, cluster = "cluster", strat_by = NULL, covar = NULL,
-            hypotheses = c("treatment[T.1]", "treatment[T.2]", "treatment[T.3]"),
-            num_resample = 30) 
+            hypotheses = test_hypo_mat,
+            # hypotheses = c("treatment[T.1]", "treatment[T.2]", "treatment[T.3]"),
+            num_resample = 3000) %>% 
+  mutate(estimate = test_est)
