@@ -191,93 +191,6 @@ analysis.data %>%
 
 # Test treatment map ------------------------------------------------------
 
-# mht_analysis_formula <- dewormed.any ~ assigned.treatment * sms.treatment * mon_status * dist.pot.group * phone_owner
-mht_analysis_formula <- dewormed.any ~ (assigned.treatment * sms.treatment + mon_status) * dist.pot.group * phone_owner
-
-mht_analysis_data <- analysis.data %>% 
-  filter(!hh.baseline.sample) %>% 
-  anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
-  mutate(sms.treatment = sms.treatment.2,
-         phone_owner = factor(phone_owner, levels = c(TRUE, FALSE), labels = c("phone_owner", "non_phone_owner"))) 
-
-mht_selected_treatment <- get_treatment_map(mht_analysis_data, mht_analysis_formula) %>% 
-  filter(mon_status == "monitored") %>% 
-  arrange(phone_owner, dist.pot.group, sms.treatment, assigned.treatment) 
-
-mht_treatment_map_dm <- get_treatment_map_design_matrix(mht_analysis_data, mht_analysis_formula, mht_selected_treatment) %>% 
-  select_if(~ n_distinct(.x) > 1)
-
-mht_selected_treatment %<>% mutate(ate_id = seq_len(n()))
-
-incentive_ate_hypo <- tribble(
-  ~ left, ~ right, # Incentive ATE for all subgroups (phone-ownership + distance from PoT)
-     2,      1, 
-     3,      1, 
-     4,      1,
-     4,      3
-  ) %>% 
-  bind_rows(map_df(c(10, 19, 23), function(offset, original) original + offset - 1, original = .))
-
-sms_ate_hypo <- tribble(
-  ~ left, ~ right,
-     5,       1,
-     6,       1,
-     7,       1,
-     8,       1,
-     9,       1,
-     6,       5,
-     7,       2,
-     8,       3,
-     9,       4
-  ) %>% 
-  bind_rows(. + 10 - 1)
-
-sms_ate_between_hypo <- tribble(
-  ~ left1, ~ right1, ~ left2, ~ right2,
-     7,       2,        6,        1,
-     8,       3,        6,        1,
-     9,       4,        6,        1,
-     9,       4,        8,        3
-) %>% 
-  bind_rows(. + 10 - 1)
-
-test_mat <- bind_rows(incentive_ate_hypo, sms_ate_hypo) %$% 
-  subtract(mht_treatment_map_dm[left, ], mht_treatment_map_dm[right, ]) 
-
-test_mat <- sms_ate_between_hypo %$% 
-  subtract(subtract(mht_treatment_map_dm[left1, ], mht_treatment_map_dm[right1, ]),
-           subtract(mht_treatment_map_dm[left2, ], mht_treatment_map_dm[right2, ])) %>% 
-  bind_rows(test_mat, .) %>% 
-  as.matrix()
-
-reg_res <- mht_analysis_data %>%
-  run_strat_reg(mht_analysis_formula,
-                .strat.by = "county", .cluster = "cluster.id", .covariates = census.reg.covar) 
-  # tidy() %>%
-  # filter(term %in% colnames(test_mat))
-
-mht_results <- mht_analysis_data %>%
-  strat_mht(mht_analysis_formula,
-            strat_by = "county", cluster = "cluster.id", covar = census.reg.covar,
-            hypotheses = test_mat, num_resample = 3000)
-
-sig_mht_results <- mht_results %>% 
-  mutate(hypo_id = seq_len(n())) %>% 
-  filter(adj_p_value <= 0.1)
-
-bind_rows(incentive_ate_hypo, sms_ate_hypo) %>% 
-  mutate(hypo_id = seq_len(n())) %>% 
-  left_join(mht_selected_treatment, c("left" = "ate_id")) %>% 
-  left_join(mht_selected_treatment, c("right" = "ate_id"), suffix = c("_l", "_r")) %>% 
-  select(-starts_with("mon_status")) %>% 
-  right_join(sig_mht_results, "hypo_id") %>% 
-  print(n = nrow(.))
-
-# mht_analysis_data %>% 
-#   strat_mht(mht_analysis_formula,
-#             strat_by = "county", cluster = "cluster.id", covar = census.reg.covar,
-#             hypotheses = c("ink", "calendar", "bracelet", "bracelet - calendar"), num_resample = 100)
-
 # mht examples ------------------------------------------------------------
 
 test_data <- read_csv("data.csv") %>% 
@@ -296,5 +209,4 @@ test_data %>%
   strat_mht(amount ~ treatment, cluster = "cluster", strat_by = NULL, covar = NULL,
             hypotheses = test_hypo_mat,
             # hypotheses = c("treatment[T.1]", "treatment[T.2]", "treatment[T.3]"),
-            num_resample = 3000) %>% 
-  mutate(estimate = test_est)
+            num_resample = 30) 
