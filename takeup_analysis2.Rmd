@@ -1363,7 +1363,7 @@ neyman.results %>%
 
 ##### Unmonitored
 
-```{r umon-dist-reg}
+```{r unmon-dist-reg}
 unmon.reg.output.sms.ctrl.dist <- analysis.data %>%  
   filter(sms.treatment.2 == "sms.control", !hh.baseline.sample) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 
@@ -1678,7 +1678,7 @@ neyman.results %>%
 
 #### Unmonitored
 
-```{r umon-sms-reg}
+```{r unmon-sms-reg}
 unmon.reg.output.sms.treat <- analysis.data %>%  
   filter(sms.treated | have_phone == "Yes", !hh.baseline.sample) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id", "phone_owner")) %>% 

@@ -53,7 +53,6 @@ load(file.path("data", "takeup_village_pot_dist.RData"))
 ```
 
 ```{r load-analysis-data, ref.label="load-data"}
-
 ```
 
 # Introduction
@@ -541,8 +540,7 @@ As described in the [Experiment Design](#experiment-design) section, communities
 
 ```{r actual-distance, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
 analysis.data %>%  
-  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
-  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
   ggplot(aes(dist.to.pot)) +
   geom_density(aes(color = dist.pot.group, linetype = "Household")) +
   geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"),
@@ -561,7 +559,7 @@ We can see in Table \ref{tab:mean-assigned-dist} that individuals from _far_ com
 
 ```{r mean-assigned-dist, warning=FALSE}
 analysis.data %>%  
-  anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
+  # anti_join(outlier.clusters, c("sms.treatment", "cluster.id")) %>% 
   mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% {
     bind_rows(group_by(., assigned.treatment, dist.pot.group) %>%
                 summarize(mean.dist = mean(dist.to.pot)) %>%
@@ -623,26 +621,27 @@ m_k(Z_j, D_j, M_{ij}, B_j; \theta) &= \alpha_k + X_{ij}\cdot \beta_k + \delta_k 
 
 A typical parameter $\theta_k(z, s)$ captures the effect of $Z_j = z$ and $M_{ij} = s$ in stratum $k$. The super-population average treatment effects are estimated by the stratum $K$ parameters. Since this is linear probability model, average treatment effects are interpreted as the change in an individual's probability of deworming (or the proportion of the super-population doing so).
 
-```{r basic-reg, ref.label="basic-reg"}
+```{r basic-reg, ref.label="unmon-basic-reg", warning=FALSE}
 ```
 
-```{r dist-reg, ref.label="dist-reg"}
+```{r dist-reg, ref.label="unmon-dist-reg", warning=FALSE}
 ```
 
-```{r dist-reg-covar, ref.label="dist-reg-covar"}
+```{r dist-reg-covar, ref.label="dist-reg-covar", warning=FALSE}
 ```
 
-```{r sms-reg, ref.label="sms-reg"}
+```{r sms-reg, ref.label="unmon-sms-reg", warning=FALSE}
 ```
 
-```{r dist-sms-reg, ref.label="dist-sms-reg"}
+```{r dist-sms-reg, ref.label="unmon-dist-sms-reg", warning=FALSE}
 ```
 
-```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar"}
+```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar", warning=FALSE}
 ```
 
 ```{r reg-tab-data, include=FALSE}
-reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl, 
+reg.table.data <- list(#"Monitored, No SMS" = reg.output.sms.ctrl, 
+                       "All, No SMS" = restrict.unmon.reg.output.sms.ctrl, 
                        "Endline, No SMS" = reg.output.sms.ctrl.covar) %>% 
   map_df(function(reg.res) {
     joint.tests.res <- list("Any Treatment" = c("ink", "calendar", "bracelet"),
@@ -670,7 +669,7 @@ reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl,
     
   }, .id = "spec") 
  
-dist.reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl.dist,
+dist.reg.table.data <- list("All, No SMS" = restrict.unmon.reg.output.sms.ctrl.dist,
                             "Endline, No SMS" = reg.output.sms.ctrl.dist.covar) %>% 
   map_df(function(reg.res) {
     joint.tests.res <- list("Any Treatment" = c("ink", "calendar", "bracelet", "ink:far", "calendar:far", "bracelet:far"),
@@ -708,7 +707,7 @@ dist.reg.table.data <- list("Monitored, No SMS" = reg.output.sms.ctrl.dist,
     
   }, .id = "spec") 
 
-sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
+sms.reg.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat,
                            "Endline, SMS" = reg.output.sms.treat.covar) %>% 
   map_df(function(reg.res) {
     joint.tests.res <- list("Any Incentive Treatment" = c("ink", "calendar", "bracelet", 
@@ -748,7 +747,7 @@ sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
     
   }, .id = "spec") 
 
-dist.sms.reg.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
+dist.sms.reg.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat.dist,
                            "Endline, SMS" = reg.output.sms.treat.dist.covar) %>% 
   map_df(function(reg.res) {
     joint.tests.res <- list("Any Incentive Treatment" = c("ink", "calendar", "bracelet", 
@@ -854,10 +853,14 @@ The first results we look at are reported in Table \ref{tab:reg-basic} and Figur
 print.reg.table(reg.table.data, caption = "Incentive treatment effects, without SMS treatment.", label = "tab:reg-basic")
 ```
 
-```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive treatments."}
+```{r reg-basic-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive treatments (without controls)."}
+prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl) %>% 
+  plot.sms.ctrl.takeup() 
+```
+
+```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive treatments (with control)."}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% 
-  plot.sms.ctrl.takeup +
-  labs(subtitle = "With control")
+  plot.sms.ctrl.takeup() 
 ```
 
 To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive treatments with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, we see that distance has strong negative effect on take-up, dropping between 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also note a big change in the impact of incentives with distance: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm. The pattern of incentives' impact is similar across specification, although only the bracelets have a statistically significant impact in _far_ communities: deworming take-up increases by 11 to 17 percentage points, compared to the control arm, and by 9 to 12 percentage points compared to the calendar arm. 
@@ -869,23 +872,31 @@ print.reg.table(dist.reg.table.data,
                 label = "tab:reg-dist")
 ```
 
-```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive treatments with distance from treatment location interactions."}
+```{r dist-reg-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive treatments with distance from treatment location interactions (without controls)."}
+prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl.dist, .interact.with = "far") %>% 
+  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% 
+  plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) 
+```
+
+```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive treatments with distance from treatment location interactions (with controls)."}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
   mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% 
-  plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) +
-  labs(subtitle = "With controls") 
+  plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) 
 ```
 
 In the last two specifications, we consider the impact of text message reminders and social information messages, combined with incentives and distance to treatment location, on deworming take-up. Hence, we limit our analysis to the population of phone owners. As shown in Figure \ref{fig:general-desc-stats}, this encompasses between 2/3 to 3/4 of the population.
 
 First, the impact of SMS treatment on deworming is estimated in Figure \ref{fig:sms-reg-covar-plot} and Tables \ref{tab:reg-sms} and \ref{tab:sms-interact}. There appears to be a big difference in the estimated take-up of deworming in the control arm (refer to columns 1 and 6 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of SMS treatment combined with calendars and bracelets, as well as becoming statistically significant (see Table \ref{tab:sms-interact}). 
 
-```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive treatment with SMS treatment interactions."}
-prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% 
-  plot.sms.treat.takeup +
-  labs(subtitle = "With Controls") 
+```{r sms-reg-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive treatment with SMS treatment interactions (without controls)."}
+prep.sms.treat.plot.data(restrict.unmon.reg.output.sms.treat) %>% 
+  plot.sms.treat.takeup() 
 ```
 
+```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive treatment with SMS treatment interactions (with controls)."}
+prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% 
+  plot.sms.treat.takeup() 
+```
 
 ```{r reg-sms, results="asis", cache=FALSE, warning=FALSE}
 print.reg.table(sms.reg.table.data, 
@@ -909,16 +920,16 @@ sms.interact.diff.lh <- c(paste(c("ink:social.info",
                           "bracelet:social.info = calendar:social.info") %>% 
   c(str_replace_all(., "(\\S*social.info)", "\\1 + \\1:far"))
 
-sms.interact.table.data <- list("Monitored, SMS" = reg.output.sms.treat,
+sms.interact.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat,
                                 "Endline, SMS" = reg.output.sms.treat.covar) %>% 
   map(linear_tester, sms.interact.diff.lh %>% magrittr::extract(!str_detect(., "far")))
 
-sms.dist.interact.table.data <- list("Monitored, SMS" = reg.output.sms.treat.dist,
+sms.dist.interact.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat.dist,
                                      "Endline, SMS" = reg.output.sms.treat.dist.covar) %>% 
   map(linear_tester, sms.interact.diff.lh)
 ```
 
-```{r sms-interact-tab, results="asis", cache=FALSE, warning=FALSE}
+```{r sms-interact-tab, results="asis", warning=FALSE}
 print.sms.interact.table(sms.interact.table.data, 
                          caption = "Comparing the social information SMS treatment across incentive/signal treatment arms.",
                          label = "tab:sms-interact")
@@ -938,13 +949,19 @@ dist.sms.reg.table.data %>%
                           estimate.buffer = FALSE, landscape = FALSE))
 ```
 
-```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions."}
+```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions (without controls)."}
+prep.sms.treat.dist.plot.data(restrict.unmon.reg.output.sms.treat.dist) %>% 
+  plot.sms.treat.takeup +
+  facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
+  labs(subtitle = "Split by distance to treatment location")
+```
+
+```{r sms-dist-covar-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions (with controls)."}
 prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% 
   plot.sms.treat.takeup +
   facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
-  labs(subtitle = "Split by distance to treatment location, with controls")
+  labs(subtitle = "Split by distance to treatment location")
 ```
-
 
 ```{r sms-dist-interact-tab, results="asis", cache=FALSE, warning=FALSE}
 print.sms.interact.table(sms.dist.interact.table.data,
