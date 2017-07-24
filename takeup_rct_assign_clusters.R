@@ -68,6 +68,7 @@ ggplot.clusters <- function(selected.clusters,
                             maptype = "roadmap", 
                             source = "google",
                             include.cluster.ids = TRUE, 
+                            suppress.selected.clusters = FALSE,
                             caption = NULL,
                             ...) {
   
@@ -89,12 +90,14 @@ ggplot.clusters <- function(selected.clusters,
     make_bbox(long, lat, data = .) %>% {
       ggmap(get_map(., maptype = maptype, source = source, ...))
     }
- 
-  map.obj <- map.obj + (selected.clusters %>% 
-                          spTransform(wgs.84) %>% 
-                          tidy(region = "cluster.id") %>% 
-                          left_join(selected.clusters@data[, c("cluster.id", "cluster.group", "county")], by = c("id" = "cluster.id")) %>% 
-                          geom_polygon(aes(long, lat, group = group, color = county), alpha = 0.2, linetype = "dashed", data = .)) 
+
+  if (!suppress.selected.clusters) {
+    map.obj <- map.obj + (selected.clusters %>% 
+                            spTransform(wgs.84) %>% 
+                            tidy(region = "cluster.id") %>% 
+                            left_join(selected.clusters@data[, c("cluster.id", "cluster.group", "county")], by = c("id" = "cluster.id")) %>% 
+                            geom_polygon(aes(long, lat, group = group, color = county), alpha = 0.2, linetype = "dashed", data = .)) 
+  }
   
   map.obj <- map.obj + (rct.schools.data %>% 
                           spTransform(wgs.84) %>% {
@@ -109,14 +112,18 @@ ggplot.clusters <- function(selected.clusters,
     #   })
   
       # map.obj <- magrittr::extract(., .$cluster.id %in% selected.clusters$cluster.id, ) %>% { 
-      magrittr::extract(., .$cluster.id %in% selected.clusters$cluster.id, ) %>% { 
-        if (include.cluster.ids) {
-            # geom_point(aes(lon, lat), shape = 3, color = "red", data = as.data.frame(.)) +
-          geom_text(aes(lon, lat, label = cluster.id), data = as.data.frame(.))
-        } else {
-          geom_point(aes(lon, lat), shape = 3, data = as.data.frame(.)) 
+      if (!suppress.selected.clusters) {
+        magrittr::extract(., .$cluster.id %in% selected.clusters$cluster.id, ) %>% { 
+          if (include.cluster.ids) {
+              # geom_point(aes(lon, lat), shape = 3, color = "red", data = as.data.frame(.)) +
+            geom_text(aes(lon, lat, label = cluster.id), data = as.data.frame(.))
+          } else {
+            geom_point(aes(lon, lat), shape = 3, data = as.data.frame(.)) 
+          } 
         }
-      } 
+      } else {
+        geom_point(aes(lon, lat), shape = 3, color = alpha("red", 0.5), data = as.data.frame(.))
+      }
     }) 
     # return(map.obj)
   
