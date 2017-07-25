@@ -70,6 +70,7 @@ options(dplyr.show_progress = FALSE, digits = 4)
 
 ```{r load-data, include=FALSE}
 load(file.path("data", "analysis.RData"))
+load(file.path("data", "mht_results.RData"))
 ```
 
 These are the _monitored_: baseline and endline survey respondents, as well as a sample of people from whom we received reconsent without surveying.
@@ -2058,10 +2059,6 @@ save(mht_results, sig_mht_results, mht_formatted_results, mht_between_formatted_
 ```
 
 ```{r}
-load(file.path("data", "mht_results.RData"))
-```
-
-```{r}
 mht_formatted_results %>% 
   select(-c(phone_owner_l, dist.pot.group_l, left, right)) %>% 
   kable()
@@ -2071,6 +2068,57 @@ mht_formatted_results %>%
 mht_between_formatted_results %>% 
   select(-starts_with("left"), -starts_with("right")) %>% 
   kable()
+```
+
+```{r, fig.width=12, fig.height=12}
+mht_formatted_results %>% 
+  # filter(white_p_value <= 0.1 | hypo_id %in% c(mht_between_formatted_results$hypo_id_left, mht_between_formatted_results$hypo_id_right)) %>% 
+  mutate(phone_owner = fct_recode(phone_owner_l, "Phone Owner" = "phone_owner", "Non Phone Owner" = "non_phone_owner"),
+         dist.pot.group = fct_relabel(dist.pot.group_l, str_to_title)) %>% 
+  mutate_at(vars(starts_with("assigned.treatment")), funs(fct_relabel(., str_to_title))) %>% 
+  mutate_at(vars(starts_with("sms.treatment")), funs(fct_recode(., "No SMS" = "sms.control", "Reminder SMS" = "reminder.only", "Social Info SMS" = "social.info"))) %>% 
+  mutate(hypo_text = if_else(phone_owner_l == "phone_owner", 
+                             sprintf("%s with %s vs. %s with %s [%d]", assigned.treatment_l, sms.treatment_l, assigned.treatment_r, sms.treatment_r, hypo_id),
+                             sprintf("%s vs. %s [%d]", assigned.treatment_l, assigned.treatment_r, hypo_id))) %>% 
+  select(phone_owner, dist.pot.group, hypo_text, ends_with("p_value"), hypo_id, estimate) %>% 
+  gather(p_value_type, p_value, ends_with("p_value")) %>%
+  mutate(hypo_text = fct_reorder(hypo_text, hypo_id, .desc = TRUE)) %>% 
+  mutate(p_value_type = factor(p_value_type, levels = paste0(c("adj", "unadj", "white"), "_p_value"), c("Adjusted Bootstrap", "Unadjusted Bootstrap", "Unadjusted Cluster Robust"))) %>% 
+  ggplot() +
+  geom_segment(aes(x = hypo_text, xend = hypo_text, y = 0, yend = 1 - p_value, color = p_value_type)) +
+  geom_point(aes(hypo_text, 1 - p_value, color = p_value_type), size = 2) +
+  geom_text(aes(x = hypo_text, y = 1.1, label = sprintf("%.2f", estimate)), data = . %>% distinct(hypo_id, .keep_all = TRUE)) +
+  # geom_line(aes(hypo_text, p_value, color = p_value_type, group = p_value_type)) +
+  geom_hline(yintercept = c(0.9, 0.95), linetype = "dotted") +
+  # geom_hline(yintercept = c(0.05, 0.1), linetype = "dotted") +
+  scale_y_continuous("1 - p-value", breaks = seq(0, 1, 0.05)) +
+  scale_color_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() +
+  theme(legend.position = "bottom") +
+  # facet_grid(phone_owner ~ dist.pot.group, scales = "free_y")
+  facet_wrap(~ phone_owner + dist.pot.group, scales = "free_y", ncol = 1)
+```
+```{r, fig.width=12, fig.height=4}
+mht_between_formatted_results %>% 
+  # filter(white_p_value <= 0.1) %>% 
+  mutate(hypo_text = sprintf("[%d] vs [%d]", hypo_id_left, hypo_id_right)) %>% 
+  select(hypo_text, ends_with("p_value"), hypo_id, estimate) %>% 
+  gather(p_value_type, p_value, ends_with("p_value")) %>%
+  mutate(hypo_text = fct_reorder(hypo_text, hypo_id, .desc = TRUE)) %>% 
+  mutate(p_value_type = factor(p_value_type, levels = paste0(c("adj", "unadj", "white"), "_p_value"), c("Adjusted Bootstrap", "Unadjusted Bootstrap", "Unadjusted Cluster Robust"))) %>% 
+  ggplot() +
+  geom_segment(aes(x = hypo_text, xend = hypo_text, y = 0, yend = 1 - p_value, color = p_value_type)) +
+  geom_point(aes(hypo_text, 1 - p_value, color = p_value_type), size = 2) +
+  geom_text(aes(x = hypo_text, y = 1.1, label = sprintf("%.2f", estimate)), data = . %>% distinct(hypo_id, .keep_all = TRUE)) +
+  # geom_line(aes(hypo_text, p_value, color = p_value_type, group = p_value_type)) +
+  geom_hline(yintercept = c(0.9, 0.95), linetype = "dotted") +
+  # geom_hline(yintercept = c(0.05, 0.1), linetype = "dotted") +
+  scale_y_continuous("1 - p-value", breaks = seq(0, 1, 0.05)) +
+  scale_color_discrete("") +
+  scale_x_discrete("") +
+  coord_flip() +
+  theme(legend.position = "bottom") 
 ```
 
 # Robustness Checks
