@@ -2070,7 +2070,7 @@ mht_between_formatted_results %>%
   kable()
 ```
 
-```{r, fig.width=12, fig.height=12}
+```{r mht-ate-plot, fig.width=12, fig.height=12}
 mht_formatted_results %>% 
   # filter(white_p_value <= 0.1 | hypo_id %in% c(mht_between_formatted_results$hypo_id_left, mht_between_formatted_results$hypo_id_right)) %>% 
   mutate(phone_owner = fct_recode(phone_owner_l, "Phone Owner" = "phone_owner", "Non Phone Owner" = "non_phone_owner"),
@@ -2099,7 +2099,7 @@ mht_formatted_results %>%
   # facet_grid(phone_owner ~ dist.pot.group, scales = "free_y")
   facet_wrap(~ phone_owner + dist.pot.group, scales = "free_y", ncol = 1)
 ```
-```{r, fig.width=12, fig.height=4}
+```{r sms-ate-diff-plot, fig.width=12, fig.height=4}
 mht_between_formatted_results %>% 
   # filter(white_p_value <= 0.1) %>% 
   mutate(hypo_text = sprintf("[%d] vs [%d]", hypo_id_left, hypo_id_right)) %>% 
