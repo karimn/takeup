@@ -1,0 +1,16 @@
+.reveal .subtitle {
+  font-size: 160%;
+}
+
+.reveal .author {
+  font-size: 90%;
+  font-weight: bold;
+}
+
+.reveal .date {
+  font-size: 80%;
+}
+
+.reveal section img {
+  border: none;
+}
