@@ -28,9 +28,6 @@ functions {
         cluster_effects[missing_cluster_id[missing_treatment_pos:missing_treatment_end]] +
         missing_census_covar_dm[missing_treatment_pos:missing_treatment_end] * census_covar_coef +
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_dm[treatment_ids[treatment_ids_index]]';
-        
-        // rows_dot_product(missing_treatment_dm[missing_treatment_pos:missing_treatment_end], 
-        //                  stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]]);
       
       int takeup[curr_missing_treatment_size];
       
@@ -41,8 +38,6 @@ functions {
       cell_takeup_prop[treatment_ids_index] = sum(takeup) + sum(observed_dewormed_any[observed_treatment_pos:observed_treatment_end]);
       cell_takeup_prop[treatment_ids_index] = cell_takeup_prop[treatment_ids_index] / (curr_missing_treatment_size + curr_observed_treatment_size);
         
-      // rep_vector(0, curr_missing_treatment_size);
-      
       missing_treatment_pos = missing_treatment_end + 1;
       observed_treatment_pos = observed_treatment_end + 1;
     }
@@ -50,87 +45,6 @@ functions {
     return(cell_takeup_prop);
   }
   
-  /*
-  real[] takeup_proportion_rng(int[] eval_treatment_ids, // the treatment IDs to evaluate proportions for  
-                               matrix treatment_map_design_matrix,
-                               matrix census_covar_dm,
-                               int[] dewormed_any,
-                               vector[] stratum_beta,
-                               vector[] census_covar_coef,
-                               vector stratum_intercept,
-                               vector cluster_effects,
-                               int[] treatment_id,
-                               int[] missing_treatment_id,
-                               int[] treatment_sizes,
-                               int[] missing_treatment_sizes,
-                               int[,] missing_treatment_strata_sizes,
-                               int[] missing_stratum_id_individ,
-                               int[] missing_cluster_id) { 
-                                 
-    int num_eval_treatment_prop = size(eval_treatment_ids);
-    real takeup_proportion[num_eval_treatment_prop]; 
-    int num_strata = num_elements(stratum_intercept);
-    
-    for (treatment_index_index in 1:num_eval_treatment_prop) {
-      int treatment_index = eval_treatment_ids[treatment_index_index]; 
-      int curr_treatment_size = treatment_sizes[treatment_index];
-      int curr_missing_treatment_size = missing_treatment_sizes[treatment_index];
-      int treatment_pos;  
-      int missing_treatment_pos; 
-      int treatment_end;
-      int missing_treatment_end;
-      int missing_treatment_stratum_pos;
-      int missing_stratum_id[curr_missing_treatment_size];
-      int treatment_missing_cluster_id[curr_missing_treatment_size];
-      real missing_treatment_link[curr_missing_treatment_size];
-      real missing_dewormed[curr_missing_treatment_size];
-      int curr_missing_id[curr_missing_treatment_size];
-      vector[curr_missing_treatment_size] missing_latent_utility = rep_vector(0, curr_missing_treatment_size);
-      int missing_latent_util_pos = 1;
-      
-      if (treatment_index > 1) {
-        treatment_pos = sum(treatment_sizes[1:(treatment_index - 1)]) + 1;
-        missing_treatment_pos = sum(missing_treatment_sizes[1:(treatment_index - 1)]) + 1;
-      } else {
-        treatment_pos = 1;
-        missing_treatment_pos = 1;
-      }
-      
-      treatment_end = treatment_pos + curr_treatment_size - 1;
-      missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
-      missing_treatment_stratum_pos = missing_treatment_pos;
-      curr_missing_id = missing_treatment_id[missing_treatment_pos:missing_treatment_end];
-      missing_stratum_id = missing_stratum_id_individ[missing_treatment_pos:missing_treatment_end]; // curr_missing_id];
-      treatment_missing_cluster_id = missing_cluster_id[missing_treatment_pos:missing_treatment_end]; // curr_missing_id];
-      // missing_treatment_link = missing_link_model[missing_stratum_id, treatment_index_index];
-      
-      for (stratum_index in 1:num_strata) {
-        int curr_missing_treatment_stratum_size = missing_treatment_strata_sizes[treatment_index, stratum_index];
-        int missing_treatment_stratum_end = missing_treatment_stratum_pos + curr_missing_treatment_stratum_size - 1;
-        int missing_latent_util_end = missing_latent_util_pos + curr_missing_treatment_stratum_size - 1;
-        
-        missing_latent_utility[missing_latent_util_pos:missing_latent_util_end] = 
-          stratum_intercept[missing_stratum_id[missing_latent_util_pos:missing_latent_util_end]] +
-          cluster_effects[treatment_missing_cluster_id[missing_latent_util_pos:missing_latent_util_end]] +
-          census_covar_dm[curr_missing_id[missing_latent_util_pos:missing_latent_util_end]] * census_covar_coef[stratum_index] +
-          treatment_map_design_matrix[treatment_index] * beta[stratum_index]; 
-          
-        missing_treatment_stratum_pos = missing_treatment_stratum_end + 1;
-        missing_latent_util_pos = missing_latent_util_end + 1;
-      }
-      
-      for(missing_index in 1:curr_missing_treatment_size) {
-        missing_dewormed[missing_index] = bernoulli_logit_rng(missing_latent_utility[missing_index]);
-      }
-      
-      takeup_proportion[treatment_index_index] = 
-        (sum(missing_dewormed) + sum(dewormed_any[treatment_id[treatment_pos:treatment_end]])) /
-        (curr_missing_treatment_size + curr_treatment_size);
-    }
-    
-    return(takeup_proportion);
-  }*/
-
   real dewormed_matched_lpmf(int matched, int dewormed, real prob_false_pos, real prob_false_neg) {
     return(bernoulli_lpmf(matched | prob_false_pos + (1 - prob_false_pos - prob_false_neg) * dewormed));
   }
@@ -234,9 +148,6 @@ transformed data {
   
   matrix[num_missing_non_phone_owner_obs_ids, num_census_covar_coef] non_phone_missing_census_covar_dm = census_covar_dm[missing_non_phone_owner_obs_ids];
   matrix[num_missing_phone_owner_obs_ids, num_census_covar_coef] phone_missing_census_covar_dm = census_covar_dm[missing_phone_owner_obs_ids];
-  
-  // matrix[num_missing_non_phone_owner_obs_ids, num_all_treatment_coef] non_phone_missing_treatment_dm = treatment_design_matrix[missing_non_phone_owner_obs_ids];
-  // matrix[num_missing_phone_owner_obs_ids, num_all_treatment_coef] phone_missing_treatment_dm = treatment_design_matrix[missing_phone_owner_obs_ids];
   
   int observed_non_phone_dewormed_any[num_observed_non_phone_owner_obs_ids] = dewormed_any[observed_non_phone_owner_obs_ids];
   int observed_phone_dewormed_any[num_observed_phone_owner_obs_ids] = dewormed_any[observed_phone_owner_obs_ids];
@@ -376,6 +287,8 @@ generated quantities {
   vector<lower = 0, upper = 1>[num_phone_owner_treatments] phone_takeup; 
   vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate;
   vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate;
+  vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent;
+  vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   
@@ -413,4 +326,6 @@ generated quantities {
                                            
   non_phone_takeup_ate = non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
   phone_takeup_ate = phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
+  non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
+  phone_takeup_ate_percent = non_phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
 }
