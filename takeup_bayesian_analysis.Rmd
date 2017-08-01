@@ -80,11 +80,53 @@ ggplot(tibble(x = c(0, 5)), aes(x)) +
   scale_x_continuous(breaks = seq(0, 5, 0.5))
 ```
 
+```{r ate}
+sms_control_ate <- tribble(
+  ~ assigned.treatment_left, ~ assigned.treatment_right,
+  "ink",                     "control",
+  "calendar",                "control",
+  "bracelet",                "control",
+  "bracelet",                "calendar"
+) %>%
+  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+  bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>% 
+  mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
+         phone_owner = as.logical(phone_owner))  
+
+phone_owners_ate <- tribble(
+  ~ assigned.treatment_left, ~ sms.treatment.2_left, ~ assigned.treatment_right, ~ sms.treatment.2_right,
+  "control",                 "reminder.only",        "control",                  "sms.control",
+  "control",                 "social.info",          "control",                  "sms.control",
+  "control",                 "social.info",          "control",                  "reminder.only",
+  
+  "ink",                     "social.info",          "control",                  "sms.control",
+  "ink",                     "social.info",          "control",                  "social.info",
+  "ink",                     "social.info",          "ink",                      "sms.control",
+  
+  "calendar",                "social.info",          "control",                  "sms.control",
+  "calendar",                "social.info",          "control",                  "social.info",
+  "calendar",                "social.info",          "calendar",                 "sms.control",
+  
+  "bracelet",                "social.info",          "control",                  "sms.control",
+  "bracelet",                "social.info",          "control",                  "social.info",
+  "bracelet",                "social.info",          "calendar",                 "social.info",
+  "bracelet",                "social.info",          "bracelet",                 "sms.control"
+) %>%
+  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+  mutate(phone_owner = TRUE)  
+
+all_ate <- bind_rows(sms_control_ate, phone_owners_ate) %>%
+  mutate(hh.baseline.sample = FALSE) 
+```
+
 ```{r model-data}
-stan_data <- analysis.data %>% 
+stan_data <- analysis.data %>%
+  filter(!name_matched) %>% 
   prepare_bayesian_analysis_data(
     wtp.data,
-    treatment_formula = ~ assigned.treatment * sms.treatment.2 * phone_owner * hh.baseline.sample - assigned.treatment * hh.baseline.sample * sms.treatment.2 + assigned.treatment * phone_owner * hh.baseline.sample * name_matched,
+    # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * phone_owner * hh.baseline.sample - assigned.treatment * dist.pot.group * hh.baseline.sample * sms.treatment.2 + assigned.treatment * dist.pot.group * phone_owner * hh.baseline.sample * name_matched,
+    treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
+    all_ate = all_ate,
     
     name_match_false_pos_alpha, 
     name_match_false_pos_beta,
@@ -99,7 +141,7 @@ stan_data <- analysis.data %>%
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 2, iter = 50, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 100, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r}

@@ -886,18 +886,20 @@ print.sms.interact.table <- function(.reg.table.data,
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
-                                           treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
+                                           # treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
+                                           treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2,
+                                           all_ate = NULL,
                                            # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
-  prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, name_matched, dewormed.any, ...)
+  prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
   
   prepared_analysis_data <- origin_prepared_analysis_data %>% 
     mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
            age = if_else(!is.na(age), age, age.census),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
-    unite(county_phone_owner_stratum, county, phone_owner, remove = FALSE) %>%
-    mutate(county_phone_owner_stratum = factor(county_phone_owner_stratum),
+    # unite(county_phone_owner_stratum, county, phone_owner, remove = FALSE) %>%
+    mutate(#county_phone_owner_stratum = factor(county_phone_owner_stratum),
            stratum = county) %>% 
     mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, gender, school, floor, ethnicity), 
               funs(id = as.integer)) %>% 
@@ -946,13 +948,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
   
-  census_covar_map <- count(prepared_analysis_data, age, gender) %>% 
-    mutate(census_covar_id = seq_len(n()))
-  
+  census_covar_map <- count(prepared_analysis_data, age, gender, phone_owner) %>% 
+    mutate(census_covar_id = seq_len(n())) 
     
   prepared_analysis_data %<>% 
     left_join(treatment_map, all.vars(treatment_formula)) %>% 
-    left_join(select(census_covar_map, -n), c("gender", "age")) %>% 
+    left_join(select(census_covar_map, -n), c("gender", "age", "phone_owner")) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
  
@@ -975,7 +976,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   treatment_map_design_matrix <- treatment_map %>%  
     model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
     magrittr::extract(, -1) %>% # get rid of intercept column
-    magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1))
+    magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% 
+    magrittr::extract(, !duplicated(t(.))) # Remove redundant columns
   
   experiment_coef <- treatment_map_design_matrix %>% 
     names() %>% 
@@ -997,26 +999,28 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     select(-census_covar_id) %>% 
     scale_covar()
   
+  census_covar_map %<>% select(-n)
+  
   endline_covar_dm <- prepared_analysis_data %>% 
     filter(!missing_covar) %>% 
     prep_data_arranger(obs_index) %>% 
     select_(.dots = endline_covar) %>%
     scale_covar()
   
-  missing_treatment <- prepared_analysis_data %>% 
-    ddply(., .(all_treatment_id), 
-          function(treatment_group, all_obs) { 
-            filter(all_obs, 
-                   all_treatment_id != treatment_group$all_treatment_id[1],
-                   phone_owner == treatment_group$phone_owner[1]) %>%
-              select(stratum_id, obs_index)
-          }, 
-          all_obs = .)
-  
-  eval_treatment_prop_id <- treatment_map %>% {
-      if("name_matched" %in% names(.)) filter(., !name_matched) else return(.) 
-    } %>% 
-    pull(all_treatment_id)
+  # missing_treatment <- prepared_analysis_data %>% 
+  #   ddply(., .(all_treatment_id), 
+  #         function(treatment_group, all_obs) { 
+  #           filter(all_obs, 
+  #                  all_treatment_id != treatment_group$all_treatment_id[1],
+  #                  phone_owner == treatment_group$phone_owner[1]) %>%
+  #             select(stratum_id, obs_index)
+  #         }, 
+  #         all_obs = .)
+  # 
+  # eval_treatment_prop_id <- treatment_map %>% {
+  #     if("name_matched" %in% names(.)) filter(., !name_matched) else return(.) 
+  #   } %>% 
+  #   pull(all_treatment_id)
   
   name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
     prep_data_arranger() # Should already be in the right order, but to be on the safe size
@@ -1061,6 +1065,90 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
            response = 2 * (response == "switch") - 1) %>% 
     arrange(stratum_id, response)
+ 
+  if (!is.null(all_ate)) {
+    all_ate %<>% 
+      inner_join(treatment_map, 
+                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_left")), "dist.pot.group", "hh.baseline.sample", "phone_owner")) %>% 
+      inner_join(treatment_map, 
+                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_right")), "dist.pot.group", "hh.baseline.sample", "phone_owner"),
+                suffix = c("_left", "_right"))
+    
+    # unique_treatment_ids <- all_ate %>% 
+    #   select(phone_owner, all_treatment_id_left, all_treatment_id_right) %>%
+    #   group_by(phone_owner) %>% 
+    #   gather(value = id) %>% 
+    #   distinct(id) %>% 
+    #   arrange(id) %>% 
+    #   mutate(rank_id = seq_len(n())) %>% 
+    #   ungroup()
+      
+    all_subgroup_treatments <- all_ate %>%
+      filter(!phone_owner) %>%
+      # c(all_treatment_id_right, all_subgroup_treatments) %>%
+      # unique() %>%
+      # sort()
+      select(all_treatment_id_left, all_treatment_id_right) %>%
+      gather(value = id) %>%
+      distinct(id) %>%
+      arrange(id) %>%
+      mutate(rank_id = seq_len(n()))
+
+    phone_owner_treatments <- all_ate %>%
+      filter(phone_owner) %>%
+      select(all_treatment_id_left, all_treatment_id_right) %>%
+      gather(value = id) %>%
+      bind_rows(all_subgroup_treatments) %>% 
+      distinct(id) %>%
+      arrange(id) %>%
+      mutate(rank_id = seq_len(n()))
+      # c(all_treatment_id_right, all_subgroup_treatments) %>%
+      # unique() %>%
+      # sort()
+    
+    non_phone_owner_missing_treatment <- all_subgroup_treatments$id %>% 
+      map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id != .x) %>% pull(obs_index))
+    
+    non_phone_owner_observed_treatment <- all_subgroup_treatments$id %>% 
+      map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id == .x) %>% pull(obs_index))
+    
+    phone_owner_missing_treatment <- phone_owner_treatments$id %>% 
+      map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id != .x) %>% pull(obs_index))
+    
+    phone_owner_observed_treatment <- phone_owner_treatments$id %>% 
+      map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id == .x) %>% pull(obs_index))
+    
+    num_non_phone_owner_ate_pairs <- all_ate %>% filter(!phone_owner) %>% nrow()
+    num_phone_owner_ate_pairs <- all_ate %>% filter(phone_owner) %>% nrow()
+    
+    non_phone_owner_ate_pairs <- all_ate %>% 
+      filter(!phone_owner) %>% 
+      select(all_treatment_id_left, all_treatment_id_right) %>%
+      left_join(all_subgroup_treatments, c("all_treatment_id_left" = "id")) %>% 
+      left_join(all_subgroup_treatments, c("all_treatment_id_right" = "id"), suffix = c("_left", "_right")) %>% 
+      select(rank_id_left, rank_id_right)
+    
+    phone_owner_ate_pairs <- all_ate %>% 
+      filter(phone_owner) %>% 
+      select(all_treatment_id_left, all_treatment_id_right) %>% 
+      left_join(phone_owner_treatments, c("all_treatment_id_left" = "id")) %>% 
+      left_join(phone_owner_treatments, c("all_treatment_id_right" = "id"), suffix = c("_left", "_right")) %>% 
+      select(rank_id_left, rank_id_right)
+  } else {
+    all_subgroup_treatments <- NULL
+    phone_owner_treatments <- NULL
+    
+    non_phone_owner_missing_treatment <- NULL 
+    non_phone_owner_observed_treatment <- NULL
+    phone_owner_missing_treatment <- NULL
+    phone_owner_observed_treatment <- NULL
+    
+    num_non_phone_owner_ate_pairs <- NULL
+    num_phone_owner_ate_pairs <- NULL
+    
+    non_phone_owner_ate_pairs <- NULL
+    phone_owner_ate_pairs <- NULL
+  }
   
   lst(
     # Save meta data 
@@ -1069,8 +1157,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
      
     treatment_map,
     
-    missing_treatment,
+    all_ate,
     
+    # missing_treatment,
+   
+    census_covar_map, 
     stratum_map,
     cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
     
@@ -1082,10 +1173,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
     num_experiment_coef = length(experiment_coef),
-    num_non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% nrow(),
-    non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% pull(all_treatment_id),
-    num_phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% nrow(),
-    phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% pull(all_treatment_id),
+    # num_non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% nrow(),
+    # non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% pull(all_treatment_id),
+    # num_phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% nrow(),
+    # phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% pull(all_treatment_id),
     
     # num_calendar_treated = nrow(calendar_treated),
     # calendar_treated_id = calendar_treated$obs_index,
@@ -1133,22 +1224,22 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     obs_treatment = prepared_analysis_data$all_treatment_id,
   
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
-    missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, stratum_id, obs_index) %$% obs_index,
+    # missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, stratum_id, obs_index) %$% obs_index,
     
-    eval_treatment_prop_id,
-    num_eval_treatment_prop = length(eval_treatment_prop_id),
+    # eval_treatment_prop_id,
+    # num_eval_treatment_prop = length(eval_treatment_prop_id),
     
     num_obs = length(obs_treatment), 
-    num_missing = nrow(missing_treatment),
+    # num_missing = nrow(missing_treatment),
     
     treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
     # missing_treatment_sizes = count(missing_treatment, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
-    missing_treatment_strata_sizes = missing_treatment %>% 
-      group_by(all_treatment_id) %>% 
-      do(strata_sizes = count(., stratum_id) %>% arrange(stratum_id) %>% pull(n)) %>% 
-      ungroup %>%
-      arrange(all_treatment_id) %>% 
-      pull(strata_sizes),
+    # missing_treatment_strata_sizes = missing_treatment %>% 
+    #   group_by(all_treatment_id) %>% 
+    #   do(strata_sizes = count(., stratum_id) %>% arrange(stratum_id) %>% pull(n)) %>% 
+    #   ungroup %>%
+    #   arrange(all_treatment_id) %>% 
+    #   pull(strata_sizes),
     
     dewormed_any = prepared_analysis_data$dewormed.any,
     
@@ -1157,7 +1248,40 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_clusters = n_distinct(cluster_id),
     
     num_strata = n_distinct(stratum_id),
-    strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %$% n,
+    strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
+    cluster_sizes = count(prepared_analysis_data, stratum_id, new_cluster_id) %>% arrange(stratum_id, new_cluster_id) %>% pull(n),
+    strata_num_clusters = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
+      count(stratum_id) %>% 
+      arrange(stratum_id) %>% 
+      pull(n),
+    
+    # ATE
+    
+    num_non_phone_owner_treatments = nrow(all_subgroup_treatments),
+    num_phone_owner_treatments = nrow(phone_owner_treatments),
+    
+    non_phone_owner_treatments = all_subgroup_treatments$id,
+    phone_owner_treatments = phone_owner_treatments$id,
+    
+    missing_non_phone_owner_obs_ids = unlist(non_phone_owner_missing_treatment),
+    num_missing_non_phone_owner_obs_ids = length(missing_non_phone_owner_obs_ids),
+    missing_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_missing_treatment, length),
+    observed_non_phone_owner_obs_ids = unlist(non_phone_owner_observed_treatment),
+    num_observed_non_phone_owner_obs_ids = length(observed_non_phone_owner_obs_ids),
+    observed_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_observed_treatment, length),
+    
+    missing_phone_owner_obs_ids = unlist(phone_owner_missing_treatment),
+    num_missing_phone_owner_obs_ids = length(missing_phone_owner_obs_ids), 
+    missing_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_missing_treatment, length),
+    observed_phone_owner_obs_ids = unlist(phone_owner_observed_treatment),
+    num_observed_phone_owner_obs_ids = length(observed_phone_owner_obs_ids),
+    observed_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_observed_treatment, length),
+    
+    num_non_phone_owner_ate_pairs,
+    num_phone_owner_ate_pairs,
+    
+    non_phone_owner_ate_pairs,
+    phone_owner_ate_pairs,
     
     # WTP data
     
