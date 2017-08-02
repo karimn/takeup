@@ -197,7 +197,7 @@ parameters {
 }
 
 transformed parameters {
-  real hyper_intercept = inv_logit(hyper_baseline_takeup);
+  real hyper_intercept = logit(hyper_baseline_takeup);
   
   // real<lower = 0, upper = 1> name_match_error_diff =
   //   name_match_error_intercept * (name_match_false_neg - name_match_false_pos) / (1 - name_match_false_neg + name_match_false_pos);
