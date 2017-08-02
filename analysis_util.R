@@ -1069,9 +1069,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   if (!is.null(all_ate)) {
     all_ate %<>% 
       inner_join(treatment_map, 
-                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_left")), "dist.pot.group", "hh.baseline.sample", "phone_owner")) %>% 
+                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_left")), "dist.pot.group", "name_matched", "hh.baseline.sample", "phone_owner")) %>% 
       inner_join(treatment_map, 
-                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_right")), "dist.pot.group", "hh.baseline.sample", "phone_owner"),
+                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_right")), "dist.pot.group", "name_matched", "hh.baseline.sample", "phone_owner"),
                 suffix = c("_left", "_right"))
     
     # unique_treatment_ids <- all_ate %>% 
