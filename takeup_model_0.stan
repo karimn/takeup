@@ -287,8 +287,8 @@ generated quantities {
   vector<lower = 0, upper = 1>[num_phone_owner_treatments] phone_takeup; 
   vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate;
   vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate;
-  vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent;
-  vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
+  vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent;
+  vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   
@@ -327,5 +327,5 @@ generated quantities {
   non_phone_takeup_ate = non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
   phone_takeup_ate = phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
   non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  phone_takeup_ate_percent = non_phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
+  phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
 }
