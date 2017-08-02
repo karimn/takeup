@@ -1067,11 +1067,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     arrange(stratum_id, response)
  
   if (!is.null(all_ate)) {
+    left_right_cells_colnames <- str_subset(names(all_ate), "_(left|right)$")
+    both_cells_colnames <- setdiff(names(all_ate), left_right_cells_colnames)
+    left_right_cells_colnames %<>% 
+      str_replace("_(left|right)$", "") %>% 
+      unique()
+    
     all_ate %<>% 
       inner_join(treatment_map, 
-                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_left")), "dist.pot.group", "name_matched", "hh.baseline.sample", "phone_owner")) %>% 
+                c(left_right_cells_colnames %>% setNames(paste0(., "_left")), both_cells_colnames)) %>% 
       inner_join(treatment_map, 
-                c(c("assigned.treatment", "sms.treatment.2") %>% setNames(paste0(., "_right")), "dist.pot.group", "name_matched", "hh.baseline.sample", "phone_owner"),
+                c(left_right_cells_colnames %>% setNames(paste0(., "_right")), both_cells_colnames),
                 suffix = c("_left", "_right"))
     
     # unique_treatment_ids <- all_ate %>% 
