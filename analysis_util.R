@@ -1,19 +1,19 @@
 # ---- name.match.monitored
 # Name matching function. Given the census data and take-up from a particular attempt to 
 # find individuals whose names were recorded at the PoT.
-name.match.monitored <- function(census.cluster.data, 
-                                takeup.cluster.data, 
-                                max.cost = 1,
-                                suffix = NULL) { # This is the maximum number of "edits" or difference allowed between names
-  dist.mat <- adist(census.cluster.data$name1st, takeup.cluster.data$name1st, ignore.case = TRUE) +
-    adist(census.cluster.data$last_name, takeup.cluster.data$last_name, ignore.case = TRUE)
+name.match.monitored <- function(census.data, 
+                                 takeup.data, 
+                                 max.cost = 1,
+                                 suffix = NULL) { # This is the maximum number of "edits" or difference allowed between names
+  dist.mat <- adist(census.data$name1st, takeup.data$name1st, ignore.case = TRUE) +
+    adist(census.data$last_name, takeup.data$last_name, ignore.case = TRUE)
   
-  census.cluster.data %>% 
+  census.data %>% 
     mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
            which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
                                               aaply(dist.mat, 1, . %>% 
                                                       which.min %>% 
-                                                      magrittr::extract(takeup.cluster.data$KEY.survey.individ, .)),
+                                                      magrittr::extract(takeup.data$KEY.survey.individ, .)),
                                               NA),
            dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
            which.min.name.match.dist = ifelse(dewormed.matched, which.min.name.match.dist, NA)) %>% 
@@ -65,9 +65,6 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     filter(is.na(dewormed) | !dewormed) %>% # For anyone in study with with unknown or negative deworming status
     group_by(cluster.id) %>% 
     do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost)) %>% 
-    # do(left_join(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost),
-    #              name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = 0, suffix = "_0"),
-    #              "KEY.individ")) %>% 
     ungroup %>% 
     # select(KEY.individ, starts_with("dewormed.matched"), contains("min.name.match.dist")) %>% 
     right_join(analysis.data, c("cluster.id", "KEY.individ")) %>% 

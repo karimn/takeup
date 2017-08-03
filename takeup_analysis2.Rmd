@@ -2200,3 +2200,43 @@ linear_tester(sms.recruit.reg.res,
 #   tidy %>% 
 #   kable
 ```
+
+## Spillover
+
+Looking into spillover of monitored individuals into neighboring clusters, using name-matching.
+
+```{r}
+sp_target_villages <- village.centers %>% 
+  convert.to.sp(~ lon + lat, wgs.84) %>% 
+  spTransform(kenya.proj4)
+
+sp_pot <- village.centers %>% 
+  convert.to.sp(~ pot.lon + pot.lat, wgs.84) %>% 
+  spTransform(kenya.proj4)
+
+spillover_matches <- gDistance(sp_target_villages, sp_pot, byid = TRUE) %>% 
+  is_weakly_less_than(5000) %>% 
+  `diag<-`(FALSE) %>%
+  as_tibble() %>% 
+  set_names(village.centers$cluster.id) %>% 
+  mutate(census_cluster_id = village.centers$cluster.id) %>% 
+  gather(takeup_cluster_id, is_neighbor, -census_cluster_id) %>% 
+  filter(is_neighbor) %>% 
+  mutate(takeup_cluster_id = as.numeric(takeup_cluster_id)) %>% 
+  group_by(census_cluster_id) %>% 
+  do(name.match.monitored(filter(analysis.data, cluster.id == .$census_cluster_id[1], !name_matched, !dewormed), 
+                          filter(takeup.data, cluster.id == .$takeup_cluster_id[1]), 
+                          max.cost = 2)) %>% 
+  ungroup() %>% 
+  left_join(transmute(analysis.data, KEY.individ, assigned.treatment), "KEY.individ") %>% 
+  left_join(transmute(takeup.data, KEY.survey.individ, assigned.treatment), c("which.min.name.match.dist" = "KEY.survey.individ"), suffix = c("_census", "_target"))
+
+spillover_matches %>% 
+  group_by(assigned.treatment_census, assigned.treatment_target) %>% 
+  summarize(num_spillover = sum(dewormed.matched), num_census = n()) %>% 
+  group_by(assigned.treatment_census) %>% 
+  mutate(num_census = sum(num_census),
+    mean_spillover = num_spillover / num_census) %>% 
+  filter(!is.na(assigned.treatment_target))
+```
+
