@@ -116,7 +116,7 @@ phone_owners_ate <- tribble(
   mutate(phone_owner = TRUE)  
 
 all_ate <- bind_rows(sms_control_ate, phone_owners_ate) %>%
-  mutate(hh.baseline.sample = FALSE, name_matched = FALSE) 
+  mutate(hh.baseline.sample = FALSE) #, name_matched = FALSE) 
 ```
 
 ```{r model-data}
@@ -125,8 +125,8 @@ stan_data <- analysis.data %>%
   prepare_bayesian_analysis_data(
     wtp.data,
     # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * phone_owner * hh.baseline.sample - assigned.treatment * dist.pot.group * hh.baseline.sample * sms.treatment.2 + assigned.treatment * dist.pot.group * phone_owner * hh.baseline.sample * name_matched,
-    # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
-    treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * name_matched * phone_owner - phone_owner,
+    treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
+    # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * name_matched * phone_owner - phone_owner,
     all_ate = all_ate,
     
     name_match_false_pos_alpha, 
