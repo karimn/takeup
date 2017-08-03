@@ -209,7 +209,7 @@ test_data %>%
   strat_mht(amount ~ treatment, cluster = "cluster", strat_by = NULL, covar = NULL,
             hypotheses = test_hypo_mat[, 1:3],
             # hypotheses = c("treatment[T.1]", "treatment[T.2]", "treatment[T.3]"),
-            num_resample = 4000) %T>%
+            num_resample = 3000) %T>%
   str()
 
 test_data %>%
