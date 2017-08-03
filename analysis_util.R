@@ -884,7 +884,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            wtp_data,
                                            ...,
                                            # treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
-                                           treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2,
+                                           # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2,
+                                           treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample"),
+                                           subgroup_col = "phone_owner",
                                            all_ate = NULL,
                                            # exclude_from_eval = NULL, #  "name_matched",
                                            endline_covar = c("ethnicity", "floor", "school")) {
@@ -939,18 +941,20 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             center = map_means) # Center and scale to have SD = 0.5
   }
   
-  treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% {
+  treatment_map <- expand_(prepared_analysis_data, c(treatment_col, subgroup_col)) %>% {
+  # treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% {
       if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
     } %>% 
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
   
-  census_covar_map <- count(prepared_analysis_data, age, gender, phone_owner) %>% 
+  census_covar_map <- count_(prepared_analysis_data, c("age", "gender", subgroup_col)) %>% 
     mutate(census_covar_id = seq_len(n())) 
     
   prepared_analysis_data %<>% 
-    left_join(treatment_map, all.vars(treatment_formula)) %>% 
-    left_join(select(census_covar_map, -n), c("gender", "age", "phone_owner")) %>% 
+    # left_join(treatment_map, all.vars(treatment_formula)) %>% 
+    left_join(treatment_map, c(treatment_col, subgroup_col)) %>% 
+    left_join(select(census_covar_map, -n), c("age", "gender", subgroup_col)) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
  
@@ -970,8 +974,14 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     select(-all_treatment_id) %>% 
     rename(all_treatment_id = new_all_treatment_id) 
   
+  treatment_dm_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {
+      if (!is.null(subgroup_col)) str_c(., " - ", str_c(subgroup_col, collapse = " - ")) else return(.)
+    } %>% 
+    as.formula()
+  
   treatment_map_design_matrix <- treatment_map %>%  
-    model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
+    # model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
+    model_matrix(treatment_dm_formula) %>% #design_matrix_formula) %>% 
     magrittr::extract(, -1) %>% # get rid of intercept column
     magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% 
     magrittr::extract(, !duplicated(t(.))) # Remove redundant columns
@@ -1039,28 +1049,28 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   #   filter(assigned.treatment == "calendar") %>% 
   #   arrange(stratum_id, obs_index)
   
-  bracelet_treated <- prepared_analysis_data %>% 
-    filter(assigned.treatment == "bracelet") %>% 
-    arrange(stratum_id, obs_index)
-  
-  incentive_choice_data <- origin_prepared_analysis_data %>% 
-    filter(!is.na(gift_choice) & gift_choice != "neither", 
-           assigned.treatment == "control", 
-           sms.treatment.2 == "sms.control") %>% 
-    select(county, gift_choice) %>% 
+  # bracelet_treated <- prepared_analysis_data %>% 
+  #   filter(assigned.treatment == "bracelet") %>% 
+  #   arrange(stratum_id, obs_index)
+  # 
+  incentive_choice_data <- origin_prepared_analysis_data %>%
+    filter(!is.na(gift_choice) & gift_choice != "neither",
+           assigned.treatment == "control",
+           sms.treatment.2 == "sms.control") %>%
+    select(county, gift_choice) %>%
     mutate(offer = 0,
-           response = "keep") 
-  
-  incentive_choice_data <- wtp_data %>% 
-    filter(!is.na(first_choice)) %>% 
-    transmute(county, 
+           response = "keep")
+
+  incentive_choice_data <- wtp_data %>%
+    filter(!is.na(first_choice)) %>%
+    transmute(county,
               gift_choice = first_choice,
               offer = price,
-              response = second_choice) %>% 
-    bind_rows(incentive_choice_data) %>% 
-    left_join(stratum_map, c("county" = "stratum")) %>% 
+              response = second_choice) %>%
+    bind_rows(incentive_choice_data) %>%
+    left_join(stratum_map, c("county" = "stratum")) %>%
     mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
-           response = 2 * (response == "switch") - 1) %>% 
+           response = 2 * (response == "switch") - 1) %>%
     arrange(stratum_id, response)
  
   if (!is.null(all_ate)) {
@@ -1077,20 +1087,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                 c(left_right_cells_colnames %>% setNames(paste0(., "_right")), both_cells_colnames),
                 suffix = c("_left", "_right"))
     
-    # unique_treatment_ids <- all_ate %>% 
-    #   select(phone_owner, all_treatment_id_left, all_treatment_id_right) %>%
-    #   group_by(phone_owner) %>% 
-    #   gather(value = id) %>% 
-    #   distinct(id) %>% 
-    #   arrange(id) %>% 
-    #   mutate(rank_id = seq_len(n())) %>% 
-    #   ungroup()
-      
     all_subgroup_treatments <- all_ate %>%
       filter(!phone_owner) %>%
-      # c(all_treatment_id_right, all_subgroup_treatments) %>%
-      # unique() %>%
-      # sort()
       select(all_treatment_id_left, all_treatment_id_right) %>%
       gather(value = id) %>%
       distinct(id) %>%
@@ -1105,9 +1103,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       distinct(id) %>%
       arrange(id) %>%
       mutate(rank_id = seq_len(n()))
-      # c(all_treatment_id_right, all_subgroup_treatments) %>%
-      # unique() %>%
-      # sort()
     
     non_phone_owner_missing_treatment <- all_subgroup_treatments$id %>% 
       map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id != .x) %>% pull(obs_index))
@@ -1176,26 +1171,14 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
     num_experiment_coef = length(experiment_coef),
-    # num_non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% nrow(),
-    # non_phone_owner_treatments = filter(treatment_map, phone_owner == 0) %>% pull(all_treatment_id),
-    # num_phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% nrow(),
-    # phone_owner_treatments = filter(treatment_map, phone_owner == 1) %>% pull(all_treatment_id),
     
-    # num_calendar_treated = nrow(calendar_treated),
-    # calendar_treated_id = calendar_treated$obs_index,
-    # strata_calendar_sizes = if (num_calendar_treated > 0) {
-    #   calendar_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
+    # num_bracelet_treated = nrow(bracelet_treated),
+    # bracelet_treated_id = bracelet_treated$obs_index,
+    # strata_bracelet_sizes = if (num_bracelet_treated > 0) {
+    #   bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
     # } else {
     #   rep(0, num_strata)
     # },
-    
-    num_bracelet_treated = nrow(bracelet_treated),
-    bracelet_treated_id = bracelet_treated$obs_index,
-    strata_bracelet_sizes = if (num_bracelet_treated > 0) {
-      bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
-    } else {
-      rep(0, num_strata)
-    },
     
     # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
@@ -1227,22 +1210,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     obs_treatment = prepared_analysis_data$all_treatment_id,
   
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
-    # missing_treatment_id = missing_treatment %>% arrange(all_treatment_id, stratum_id, obs_index) %$% obs_index,
-    
-    # eval_treatment_prop_id,
-    # num_eval_treatment_prop = length(eval_treatment_prop_id),
     
     num_obs = length(obs_treatment), 
-    # num_missing = nrow(missing_treatment),
     
     treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
-    # missing_treatment_sizes = count(missing_treatment, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
-    # missing_treatment_strata_sizes = missing_treatment %>% 
-    #   group_by(all_treatment_id) %>% 
-    #   do(strata_sizes = count(., stratum_id) %>% arrange(stratum_id) %>% pull(n)) %>% 
-    #   ungroup %>%
-    #   arrange(all_treatment_id) %>% 
-    #   pull(strata_sizes),
     
     dewormed_any = prepared_analysis_data$dewormed.any,
     
@@ -1293,7 +1264,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     gift_choice = incentive_choice_data$gift_choice,
     wtp_offer = incentive_choice_data$offer,
     wtp_response = incentive_choice_data$response,
-    # response_keep_size = num_obs - sum((1 + incentive_choice_data$response)/2),
     
     ...
   )

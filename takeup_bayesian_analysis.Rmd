@@ -124,9 +124,9 @@ stan_data <- analysis.data %>%
   filter(!name_matched | sms.treatment.2 == "sms.control") %>% 
   prepare_bayesian_analysis_data(
     wtp.data,
-    # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * phone_owner * hh.baseline.sample - assigned.treatment * dist.pot.group * hh.baseline.sample * sms.treatment.2 + assigned.treatment * dist.pot.group * phone_owner * hh.baseline.sample * name_matched,
-    treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
-    # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2 * hh.baseline.sample * name_matched * phone_owner - phone_owner,
+    treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample"),
+    subgroup_col = "phone_owner",
+    
     all_ate = all_ate,
     
     name_match_false_pos_alpha, 
