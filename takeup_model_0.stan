@@ -1,10 +1,11 @@
 functions {
-  vector treatment_cell_takeup_rng(int[] treatment_ids, 
+  matrix treatment_cell_takeup_rng(int[] treatment_ids, 
                                    int[] missing_obs_ids, 
                                    int[] missing_stratum_id,
                                    int[] missing_cluster_id,
                                    matrix missing_census_covar_dm,
                                    vector missing_name_matched,
+                                   vector observed_name_matched,
                                    matrix treatment_map_dm,
                                    matrix diag_treatment_map_dm,
                                    int[] missing_treatment_sizes,
@@ -15,11 +16,11 @@ functions {
                                    vector stratum_name_matching_effect,
                                    matrix stratum_treatment_name_matching_interact,
                                    matrix stratum_treatment_coef,
-                                   int[] observed_dewormed_any) {
+                                   vector observed_dewormed_any) {
     int num_treatment_ids = size(treatment_ids);
     int missing_treatment_pos = 1;
     int observed_treatment_pos = 1;
-    vector[num_treatment_ids] cell_takeup_prop;
+    matrix[num_treatment_ids, 2] cell_takeup_prop;
     
     for (treatment_ids_index in 1:num_treatment_ids) {
       int curr_missing_treatment_size = missing_treatment_sizes[treatment_ids_index];
@@ -36,14 +37,22 @@ functions {
         (diag_treatment_map_dm[treatment_ids[treatment_ids_index]] * stratum_treatment_name_matching_interact[, missing_stratum_id[missing_treatment_pos:missing_treatment_end]])' .*
           missing_name_matched[missing_treatment_pos:missing_treatment_end];
       
-      int takeup[curr_missing_treatment_size];
+      vector[curr_missing_treatment_size] all_takeup;
+      real all_observed_takeup_total = sum(observed_dewormed_any[observed_treatment_pos:observed_treatment_end]); 
+      real monitored_observed_takeup_total = 
+          sum(observed_dewormed_any[observed_treatment_pos:observed_treatment_end] .* (1 - observed_name_matched[observed_treatment_pos:observed_treatment_end]));
+          
+      real all_cell_num_obs = curr_missing_treatment_size + curr_observed_treatment_size;
+      real monitored_cell_num_obs = all_cell_num_obs - 
+        sum(missing_name_matched[missing_treatment_pos:missing_treatment_end]) - sum(observed_name_matched[missing_treatment_pos:missing_treatment_end]);
       
       for (missing_obs_ids_index in 1:curr_missing_treatment_size) {
-        takeup[missing_obs_ids_index] = bernoulli_logit_rng(missing_latent_utility[missing_obs_ids_index]);
+        all_takeup[missing_obs_ids_index] = bernoulli_logit_rng(missing_latent_utility[missing_obs_ids_index]);  
       }
-      
-      cell_takeup_prop[treatment_ids_index] = sum(takeup) + sum(observed_dewormed_any[observed_treatment_pos:observed_treatment_end]);
-      cell_takeup_prop[treatment_ids_index] = cell_takeup_prop[treatment_ids_index] / (curr_missing_treatment_size + curr_observed_treatment_size);
+     
+      cell_takeup_prop[treatment_ids_index, 1] = (sum(all_takeup) + all_observed_takeup_total) / all_cell_num_obs;
+      cell_takeup_prop[treatment_ids_index, 2] = 
+        (sum(all_takeup .* (1 - observed_name_matched[observed_treatment_pos:observed_treatment_end])) + monitored_observed_takeup_total) / monitored_cell_num_obs;
         
       missing_treatment_pos = missing_treatment_end + 1;
       observed_treatment_pos = observed_treatment_end + 1;
@@ -156,6 +165,8 @@ transformed data {
   int phone_missing_treatment_cluster_id[num_missing_phone_owner_obs_ids] = cluster_id[missing_phone_owner_obs_ids];
   vector<lower = 0, upper = 1>[num_missing_non_phone_owner_obs_ids] non_phone_missing_name_matched = name_matched[missing_non_phone_owner_obs_ids];
   vector<lower = 0, upper = 1>[num_missing_phone_owner_obs_ids] phone_missing_name_matched = name_matched[missing_phone_owner_obs_ids];
+  vector<lower = 0, upper = 1>[num_observed_non_phone_owner_obs_ids] non_phone_observed_name_matched = name_matched[observed_non_phone_owner_obs_ids];
+  vector<lower = 0, upper = 1>[num_observed_phone_owner_obs_ids] phone_observed_name_matched = name_matched[observed_phone_owner_obs_ids];
   
   matrix[num_missing_non_phone_owner_obs_ids, num_census_covar_coef] non_phone_missing_census_covar_dm = census_covar_dm[missing_non_phone_owner_obs_ids];
   matrix[num_missing_phone_owner_obs_ids, num_census_covar_coef] phone_missing_census_covar_dm = census_covar_dm[missing_phone_owner_obs_ids];
@@ -290,12 +301,12 @@ model {
 }
 
 generated quantities {
-  vector<lower = 0, upper = 1>[num_non_phone_owner_treatments] non_phone_takeup; 
-  vector<lower = 0, upper = 1>[num_phone_owner_treatments] phone_takeup; 
+  matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, 2] non_phone_takeup; 
+  matrix<lower = 0, upper = 1>[num_phone_owner_treatments, 2] phone_takeup; 
   vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate;
   vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate;
-  // vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent;
-  // vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
+  vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent;
+  vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   
@@ -309,6 +320,7 @@ generated quantities {
                                            non_phone_missing_treatment_cluster_id,
                                            non_phone_missing_census_covar_dm,
                                            non_phone_missing_name_matched,
+                                           non_phone_observed_name_matched,
                                            treatment_map_design_matrix,
                                            diag_treatment_dm,
                                            missing_non_phone_owner_treatment_sizes,
@@ -319,7 +331,7 @@ generated quantities {
                                            stratum_name_matching_effect,
                                            stratum_treatment_name_matching_interact_raw,
                                            stratum_beta_mat,
-                                           observed_non_phone_dewormed_any);
+                                           to_vector(observed_non_phone_dewormed_any));
                                            
   phone_takeup = treatment_cell_takeup_rng(phone_owner_treatments,
                                            missing_phone_owner_obs_ids,
@@ -327,6 +339,7 @@ generated quantities {
                                            phone_missing_treatment_cluster_id,
                                            phone_missing_census_covar_dm,
                                            phone_missing_name_matched,
+                                           phone_observed_name_matched,
                                            treatment_map_design_matrix,
                                            diag_treatment_dm,
                                            missing_phone_owner_treatment_sizes,
@@ -337,10 +350,10 @@ generated quantities {
                                            stratum_name_matching_effect,
                                            stratum_treatment_name_matching_interact_raw,
                                            stratum_beta_mat,
-                                           observed_phone_dewormed_any);
+                                           to_vector(observed_phone_dewormed_any));
                                            
-  non_phone_takeup_ate = non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  phone_takeup_ate = phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
-  // non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  // phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
+  non_phone_takeup_ate = non_phone_takeup[non_phone_owner_ate_pairs[, 1], 1] - non_phone_takeup[non_phone_owner_ate_pairs[, 2], 1];
+  phone_takeup_ate = phone_takeup[phone_owner_ate_pairs[, 1], 1] - phone_takeup[phone_owner_ate_pairs[, 2], 1];
+  non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2], 2];
+  phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2], 2];
 }
