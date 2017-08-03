@@ -1,9 +1,9 @@
 ---
 title: |
-    | Evidence from a Field Experiment in Kenya
-    | The Role of Social Signaling in Community Mass Deworming^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
+    | The Role of Social Signaling in Community Mass Deworming
+    | Evidence from a Field Experiment in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
 subtitle: "Preliminary Findings -- Do Not Cite or Distribute"
-date: "April 2017"
+date: "July 2017"
 author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
 - Grace Morgan^[Evidence Action, `grace.morgan@evidenceaction.org`. Cost-effectiveness analysis.]
@@ -67,10 +67,10 @@ In this study we focus the program's message on social returns, emphasizing the 
 
 To test the effectiveness of social signals and to investigate the behavioral and social mechanisms driving their influence on deworming take-up, we conducted a cluster randomized trial in western Kenya, stratified over three counties. Our main experimental manipulation was the provision of private incentives (simple wall calendars) and social incentives/signals (voting ink or bracelets).  In addition, we manipulated the distance community members would have to travel to receive deworming treatment; and provided reminders or social information (on peer deworming take-up) using text messaging, randomly assigned to a subset of individuals in each community.
 
-```{r, ref.label="basic-reg-covar"}
+```{r, ref.label="basic-reg-covar", warning=FALSE}
 ```
 
-```{r, ref.label="sms-reg-covar"}
+```{r, ref.label="sms-reg-covar", warning=FALSE}
 ```
 
 ```{r basic-ate}
@@ -518,10 +518,10 @@ b) _social valuation_, individuals are influenced by bracelets in their dewormin
 Figure \ref{fig:gift-plots} reports which incentive (bracelet or calendar) individuals preferred as a gift during the endline survey. Calendars are typically preferred by all except for those already dewormed. Similarly, in the willingness-to-pay survey, we find that the majority (72 $\%$) of individuals preferred calendars to bracelets. This provides evidence that individuals assign a higher private value to calendars and that by comparing deworming treatment take-up across calendar and bracelet arms we are able to isolate the social component. 
 <!-- weak, needs to be rewritten but hopefully okay for CIFF, really would need model at beginning -->
 
-```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm"}
+```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm", warning=FALSE}
 ```
 
-```{r other-incentive-plot, ref.label="other-incentive-plot"}
+```{r other-incentive-plot, ref.label="other-incentive-plot", warning=FALSE}
 ```
 
 ```{r gift-plots, fig.height=4, fig.width=8, fig.cap="Reported calendar/bracelet preferences, split by experiment arm and respondents' deworming take-up."}
@@ -530,7 +530,7 @@ plot(reported.gift.pref.dewormed.plot)
 #              layout_matrix = as.matrix(c(1, 1, 2, 2, 2)))
 ```
 
-```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm"}
+```{r reported-gift-pref-deworm, ref.label="reported-gift-pref-deworm", warning=FALSE}
 ```
 
 
