@@ -44,7 +44,7 @@ functions {
           
       real all_cell_num_obs = curr_missing_treatment_size + curr_observed_treatment_size;
       real monitored_cell_num_obs = all_cell_num_obs - 
-        sum(missing_name_matched[missing_treatment_pos:missing_treatment_end]) - sum(observed_name_matched[missing_treatment_pos:missing_treatment_end]);
+        sum(missing_name_matched[missing_treatment_pos:missing_treatment_end]) - sum(observed_name_matched[observed_treatment_pos:observed_treatment_end]);
       
       for (missing_obs_ids_index in 1:curr_missing_treatment_size) {
         all_takeup[missing_obs_ids_index] = bernoulli_logit_rng(missing_latent_utility[missing_obs_ids_index]);  
@@ -52,7 +52,7 @@ functions {
      
       cell_takeup_prop[treatment_ids_index, 1] = (sum(all_takeup) + all_observed_takeup_total) / all_cell_num_obs;
       cell_takeup_prop[treatment_ids_index, 2] = 
-        (sum(all_takeup .* (1 - observed_name_matched[observed_treatment_pos:observed_treatment_end])) + monitored_observed_takeup_total) / monitored_cell_num_obs;
+        (sum(all_takeup .* (1 - missing_name_matched[missing_treatment_pos:missing_treatment_end])) + monitored_observed_takeup_total) / monitored_cell_num_obs;
         
       missing_treatment_pos = missing_treatment_end + 1;
       observed_treatment_pos = observed_treatment_end + 1;
@@ -70,7 +70,6 @@ data {
   int<lower = 0> num_obs;
   int<lower = 1> num_all_treatments; // # of treatment cells
   int<lower = 1> num_all_treatment_coef; // # of linear model coefficients minus intercept
-  int<lower = 0> num_experiment_coef;
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
   
@@ -83,7 +82,6 @@ data {
   
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
   // matrix[num_all_treatments, num_name_match_interact_coef] name_match_interact_map_design_matrix; // Design matrix generated from name-match interaction map
-  int<lower = 1, upper = num_all_treatment_coef> experiment_coef[num_experiment_coef];
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
   
   // int <lower = 0, upper = num_obs> num_name_matched;
