@@ -120,17 +120,10 @@ all_ate <- bind_rows(sms_control_ate, phone_owners_ate) %>%
 ```
 
 ```{r model-data}
-treatment_map <- data_grid(param_analysis_data, private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>% 
-  filter(phone_owner | sms.treatment.2 == "sms.control",
-         (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-         private_value != "calendar" | social_value == "control",
-         private_value != "bracelet" | social_value == "bracelet")
-
 stan_data <- analysis.data %>%
-  filter(!name_matched | sms.treatment.2 == "sms.control") %>% 
+  filter(!name_matched) %>% # | sms.treatment.2 == "sms.control") %>% 
   prepare_bayesian_analysis_data(
     wtp.data,
-    # treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample"),
     treatment_map = data_grid(., assigned.treatment, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>% 
       filter(phone_owner | sms.treatment.2 == "sms.control",
              sms.treatment.2 != "reminder.only" | assigned.treatment == "control"),
@@ -151,7 +144,7 @@ stan_data <- analysis.data %>%
 
 ```{r basic-model-0}
 basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 100, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 2, iter = 100, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r}
@@ -249,71 +242,69 @@ print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "lat
 ## Full Parameterized Model
 
 ```{r param-ate}
-sms_control_ate <- tribble(
-  ~ assigned.treatment_left, ~ assigned.treatment_right,
-  "ink",                     "control",
-  "calendar",                "control",
-  "bracelet",                "control",
-  "bracelet",                "calendar"
+param_sms_control_ate <- tribble(
+  ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
+  "control",            "ink",               "control",             "control",
+  "calendar",           "control",           "control",             "control",
+  "bracelet",           "bracelet",          "control",             "control",
+  "bracelet",           "bracelet",          "calendar",            "control",
+  
+  "bracelet",           "control",           "control",            "control" 
 ) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
   mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
          phone_owner = as.logical(phone_owner))  
 
-phone_owners_ate <- tribble(
-  ~ assigned.treatment_left, ~ sms.treatment.2_left, ~ assigned.treatment_right, ~ sms.treatment.2_right,
-  "control",                 "reminder.only",        "control",                  "sms.control",
-  "control",                 "social.info",          "control",                  "sms.control",
-  "control",                 "social.info",          "control",                  "reminder.only",
-  
-  "ink",                     "social.info",          "control",                  "sms.control",
-  "ink",                     "social.info",          "control",                  "social.info",
-  "ink",                     "social.info",          "ink",                      "sms.control",
-  
-  "calendar",                "social.info",          "control",                  "sms.control",
-  "calendar",                "social.info",          "control",                  "social.info",
-  "calendar",                "social.info",          "calendar",                 "sms.control",
-  
-  "bracelet",                "social.info",          "control",                  "sms.control",
-  "bracelet",                "social.info",          "control",                  "social.info",
-  "bracelet",                "social.info",          "calendar",                 "social.info",
-  "bracelet",                "social.info",          "bracelet",                 "sms.control"
-) %>%
-  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
-  mutate(phone_owner = TRUE)  
+# phone_owners_ate <- tribble(
+#   ~ assigned.treatment_left, ~ sms.treatment.2_left, ~ assigned.treatment_right, ~ sms.treatment.2_right,
+#   "control",                 "reminder.only",        "control",                  "sms.control",
+#   "control",                 "social.info",          "control",                  "sms.control",
+#   "control",                 "social.info",          "control",                  "reminder.only",
+#   
+#   "ink",                     "social.info",          "control",                  "sms.control",
+#   "ink",                     "social.info",          "control",                  "social.info",
+#   "ink",                     "social.info",          "ink",                      "sms.control",
+#   
+#   "calendar",                "social.info",          "control",                  "sms.control",
+#   "calendar",                "social.info",          "control",                  "social.info",
+#   "calendar",                "social.info",          "calendar",                 "sms.control",
+#   
+#   "bracelet",                "social.info",          "control",                  "sms.control",
+#   "bracelet",                "social.info",          "control",                  "social.info",
+#   "bracelet",                "social.info",          "calendar",                 "social.info",
+#   "bracelet",                "social.info",          "bracelet",                 "sms.control"
+# ) %>%
+#   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+#   mutate(phone_owner = TRUE)  
 
-all_ate <- bind_rows(sms_control_ate, phone_owners_ate) %>%
+param_all_ate <- param_sms_control_ate %>% # bind_rows(sms_control_ate, phone_owners_ate) %>%
   mutate(hh.baseline.sample = FALSE) 
 ```
 
 ```{r param-model-data}
-param_analysis_data <- analysis.data %>% 
+param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
-         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")))
-
-treatment_map <- data_grid(param_analysis_data, private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>% 
-  filter(phone_owner | sms.treatment.2 == "sms.control",
-         (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-         # private_value != "control" | social_value %in% c("control", "ink"),
-         private_value != "calendar" | social_value == "control",
-         private_value != "bracelet" | social_value == "bracelet")
-
-param_stan_data <- param_analysis_data %>%
-  filter(!name_matched | sms.treatment.2 == "sms.control") %>% 
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
+  filter(!name_matched) %>% # | sms.treatment.2 == "sms.control") %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
     
-    treatment_map = treatment_map,
+    treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>% 
+      filter(phone_owner | sms.treatment.2 == "sms.control",
+            (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+            private_value != "calendar" | social_value == "control",
+            private_value != "bracelet" | social_value == "bracelet"),
+    
     treatment_formula = ~ (private_value + social_value) * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
     subgroup_col = "phone_owner",
     
-    # all_ate = all_ate,
+    all_ate = param_all_ate,
     
     name_match_false_pos_alpha, 
     name_match_false_pos_beta,
     
-    # wtp_utility_df = 3,
+    wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
     mu_wtp_df_student_t = 7,
     tau_sigma_wtp_diff = 50,
@@ -321,7 +312,7 @@ param_stan_data <- param_analysis_data %>%
   )
 ```
 
-```{r basic-model-0}
-basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 4, iter = 100, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+```{r basic-model-1}
+basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 2, iter = 100, sample_file = file.path("stanfit", "basic_model_1.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```

@@ -1069,10 +1069,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   #   filter(assigned.treatment == "calendar") %>% 
   #   arrange(stratum_id, obs_index)
   
-  # bracelet_treated <- prepared_analysis_data %>% 
-  #   filter(assigned.treatment == "bracelet") %>% 
-  #   arrange(stratum_id, obs_index)
-  # 
+  bracelet_treated <- prepared_analysis_data %>%
+    filter(assigned.treatment == "bracelet") %>%
+    arrange(stratum_id, obs_index)
+
   incentive_choice_data <- origin_prepared_analysis_data %>%
     filter(!is.na(gift_choice) & gift_choice != "neither",
            assigned.treatment == "control",
@@ -1107,7 +1107,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                 c(left_right_cells_colnames %>% setNames(paste0(., "_right")), both_cells_colnames),
                 suffix = c("_left", "_right"))
     
-    all_subgroup_treatments <- all_ate %>%
+    non_phone_owner_treatments <- all_ate %>%
       filter(!phone_owner) %>%
       select(all_treatment_id_left, all_treatment_id_right) %>%
       gather(value = id) %>%
@@ -1119,15 +1119,15 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       filter(phone_owner) %>%
       select(all_treatment_id_left, all_treatment_id_right) %>%
       gather(value = id) %>%
-      bind_rows(all_subgroup_treatments) %>% 
+      # bind_rows(all_subgroup_treatments) %>% 
       distinct(id) %>%
       arrange(id) %>%
       mutate(rank_id = seq_len(n()))
     
-    non_phone_owner_missing_treatment <- all_subgroup_treatments$id %>% 
+    non_phone_owner_missing_treatment <- non_phone_owner_treatments$id %>% 
       map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id != .x) %>% pull(obs_index))
     
-    non_phone_owner_observed_treatment <- all_subgroup_treatments$id %>% 
+    non_phone_owner_observed_treatment <- non_phone_owner_treatments$id %>% 
       map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id == .x) %>% pull(obs_index))
     
     phone_owner_missing_treatment <- phone_owner_treatments$id %>% 
@@ -1142,8 +1142,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     non_phone_owner_ate_pairs <- all_ate %>% 
       filter(!phone_owner) %>% 
       select(all_treatment_id_left, all_treatment_id_right) %>%
-      left_join(all_subgroup_treatments, c("all_treatment_id_left" = "id")) %>% 
-      left_join(all_subgroup_treatments, c("all_treatment_id_right" = "id"), suffix = c("_left", "_right")) %>% 
+      left_join(non_phone_owner_treatments, c("all_treatment_id_left" = "id")) %>% 
+      left_join(non_phone_owner_treatments, c("all_treatment_id_right" = "id"), suffix = c("_left", "_right")) %>% 
       select(rank_id_left, rank_id_right)
     
     phone_owner_ate_pairs <- all_ate %>% 
@@ -1153,7 +1153,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       left_join(phone_owner_treatments, c("all_treatment_id_right" = "id"), suffix = c("_left", "_right")) %>% 
       select(rank_id_left, rank_id_right)
   } else {
-    all_subgroup_treatments <- NULL
+    non_phone_owner_treatments <- NULL
     phone_owner_treatments <- NULL
     
     non_phone_owner_missing_treatment <- NULL 
@@ -1177,6 +1177,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     all_ate,
     
+    non_phone_owner_missing_treatment,
+    non_phone_owner_observed_treatment,
+    phone_owner_missing_treatment,
+    phone_owner_observed_treatment,
+    
     # missing_treatment,
    
     census_covar_map, 
@@ -1197,15 +1202,15 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     private_value_calendar_coef,
     private_value_bracelet_coef,
     not_private_value_bracelet_coef = seq_len(num_all_treatment_coef) %>% setdiff(private_value_bracelet_coef),
-    num_not_private_value_bracelet_coef = length(not_private_value_bracelet_coef),
+    # num_not_private_value_bracelet_coef = length(not_private_value_bracelet_coef),
     
-    # num_bracelet_treated = nrow(bracelet_treated),
-    # bracelet_treated_id = bracelet_treated$obs_index,
-    # strata_bracelet_sizes = if (num_bracelet_treated > 0) {
-    #   bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
-    # } else {
-    #   rep(0, num_strata)
-    # },
+    num_bracelet_treated = nrow(bracelet_treated),
+    bracelet_treated_id = bracelet_treated$obs_index,
+    strata_bracelet_sizes = if (num_bracelet_treated > 0) {
+      bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
+    } else {
+      rep(0, num_strata)
+    },
     
     # num_name_match_interact_coef = ncol(name_match_interact_map_design_matrix),
     name_matched = prepared_analysis_data$name_matched,
@@ -1258,10 +1263,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     # ATE
     
-    num_non_phone_owner_treatments = nrow(all_subgroup_treatments),
+    num_non_phone_owner_treatments = nrow(non_phone_owner_treatments),
     num_phone_owner_treatments = nrow(phone_owner_treatments),
     
-    non_phone_owner_treatments = all_subgroup_treatments$id,
+    non_phone_owner_treatments = non_phone_owner_treatments$id,
     phone_owner_treatments = phone_owner_treatments$id,
     
     missing_non_phone_owner_obs_ids = unlist(non_phone_owner_missing_treatment),
