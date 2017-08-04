@@ -289,8 +289,6 @@ model {
   mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
   sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff); 
   
-  ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
-  
   {
     int wtp_stratum_pos = 1;
 
