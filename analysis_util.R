@@ -879,13 +879,14 @@ print.sms.interact.table <- function(.reg.table.data,
 
 # Bayesian Analysis -------------------------------------------------------
 
-
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
                                            # treatment_formula = ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment.2),
                                            # treatment_formula = ~ assigned.treatment * dist.pot.group * sms.treatment.2,
                                            treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample"),
+                                           treatment_map = NULL,
+                                           treatment_formula = NULL,
                                            subgroup_col = "phone_owner",
                                            all_ate = NULL,
                                            # exclude_from_eval = NULL, #  "name_matched",
@@ -941,10 +942,18 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             center = map_means) # Center and scale to have SD = 0.5
   }
   
-  treatment_map <- expand_(prepared_analysis_data, c(treatment_col, subgroup_col)) %>% {
-  # treatment_map <- expand_(prepared_analysis_data, all.vars(treatment_formula)) %>% {
-      if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
-    } %>% 
+  remove_dup_treatment_dm_cols <- TRUE
+ 
+  if (is.null(treatment_map)) { 
+    treatment_map <- expand_(prepared_analysis_data, c(treatment_col, subgroup_col)) %>% {
+        if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
+      } 
+  } else {
+    treatment_col <- names(treatment_map)
+    # remove_dup_treatment_dm_cols <- FALSE
+  }
+  
+  treatment_map %<>% 
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.)))
   
@@ -952,44 +961,55 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(census_covar_id = seq_len(n())) 
     
   prepared_analysis_data %<>% 
-    # left_join(treatment_map, all.vars(treatment_formula)) %>% 
     left_join(treatment_map, c(treatment_col, subgroup_col)) %>% 
     left_join(select(census_covar_map, -n), c("age", "gender", subgroup_col)) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
  
   # Get rid of treatment cells that don't exist in the data 
-  treatment_map %<>% 
-    semi_join(prepared_analysis_data, "all_treatment_id") %>% 
-    arrange(all_treatment_id) %>% 
-    mutate(new_all_treatment_id = seq_len(n()))
+  # treatment_map %<>% 
+  #   semi_join(prepared_analysis_data, "all_treatment_id") %>% 
+  #   arrange(all_treatment_id) %>% 
+  #   mutate(new_all_treatment_id = seq_len(n()))
  
-  prepared_analysis_data %<>%
-    left_join(select(treatment_map, ends_with("all_treatment_id")), "all_treatment_id") %>% 
-    select(-all_treatment_id) %>% 
-    rename(all_treatment_id = new_all_treatment_id) %>% 
-    arrange(obs_index)
-  
-  treatment_map %<>%
-    select(-all_treatment_id) %>% 
-    rename(all_treatment_id = new_all_treatment_id) 
-  
-  treatment_dm_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {
-      if (!is.null(subgroup_col)) str_c(., " - ", str_c(subgroup_col, collapse = " - ")) else return(.)
-    } %>% 
-    as.formula()
+  # prepared_analysis_data %<>%
+  #   left_join(select(treatment_map, ends_with("all_treatment_id")), "all_treatment_id") %>% 
+  #   select(-all_treatment_id) %>% 
+  #   rename(all_treatment_id = new_all_treatment_id) %>% 
+  #   arrange(obs_index)
+  # 
+  # treatment_map %<>%
+  #   select(-all_treatment_id) %>% 
+  #   rename(all_treatment_id = new_all_treatment_id) 
+ 
+  if (is.null(treatment_formula)) { 
+    treatment_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {
+        if (!is.null(subgroup_col)) str_c(., " - ", str_c(subgroup_col, collapse = " - ")) else return(.)
+      } %>% 
+      as.formula()
+  }
   
   treatment_map_design_matrix <- treatment_map %>%  
-    # model_matrix(treatment_formula) %>% #design_matrix_formula) %>% 
-    model_matrix(treatment_dm_formula) %>% #design_matrix_formula) %>% 
+    model_matrix(treatment_formula) %>% 
     magrittr::extract(, -1) %>% # get rid of intercept column
-    magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% 
-    magrittr::extract(, !duplicated(t(.))) # Remove redundant columns
+    magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% {
+      if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns
+    }
   
-  experiment_coef <- treatment_map_design_matrix %>% 
+  # experiment_coef <- treatment_map_design_matrix %>% 
+  #   names() %>% 
+  #   str_detect("name_matched") %>% 
+  #   not() %>% 
+  #   which()
+  
+  private_value_calendar_coef <- treatment_map_design_matrix %>% 
     names() %>% 
-    str_detect("name_matched") %>% 
-    not() %>% 
+    str_detect("private_valuecalendar") %>% 
+    which()
+  
+  private_value_bracelet_coef <- treatment_map_design_matrix %>% 
+    names() %>% 
+    str_detect("private_valuebracelet") %>% 
     which()
   
   # name_match_interact_formula <- str_c(c(treat_variables$interact, treat_variables$direct_only), collapse = "*") %>% 
@@ -1167,10 +1187,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     treatment_map_design_matrix,
     # name_match_interact_map_design_matrix,
-    experiment_coef,
+    # experiment_coef,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
-    num_experiment_coef = length(experiment_coef),
+    # num_experiment_coef = length(experiment_coef),
+    
+    num_private_value_calendar_coef = length(private_value_calendar_coef),
+    num_private_value_bracelet_coef = length(private_value_bracelet_coef),
+    private_value_calendar_coef,
+    private_value_bracelet_coef,
+    not_private_value_bracelet_coef = seq_len(num_all_treatment_coef) %>% setdiff(private_value_bracelet_coef),
+    num_not_private_value_bracelet_coef = length(not_private_value_bracelet_coef),
     
     # num_bracelet_treated = nrow(bracelet_treated),
     # bracelet_treated_id = bracelet_treated$obs_index,
