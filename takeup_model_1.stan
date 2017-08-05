@@ -272,7 +272,7 @@ transformed parameters {
           census_covar_dm[stratum_pos:stratum_end] * hyper_census_covar_coef +
           treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta +
           (treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * 
-            stratum_beta[private_value_calendar_coef]) .* (1 + full_bracelet_val_diff[bracelet_treated_id[bracelet_val_stratum_pos:bracelet_val_stratum_end]]); 
+            stratum_beta[private_value_calendar_coef]) .* (1 + full_bracelet_val_diff[stratum_pos:stratum_end]); 
           // name_matched[stratum_pos:stratum_end] * stratum_name_matching_effect[strata_index] +
           // (diag_treatment_dm[stratum_pos:stratum_end] * stratum_treatment_name_matching_interact[, strata_index]) .* name_matched[stratum_pos:stratum_end];
       
