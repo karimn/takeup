@@ -244,7 +244,7 @@ print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "lat
 ```{r param-ate}
 param_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
-  "control",            "ink",               "control",             "control",
+  # "control",            "ink",               "control",             "control",
   "calendar",           "control",           "control",             "control",
   "bracelet",           "bracelet",          "control",             "control",
   "bracelet",           "bracelet",          "calendar",            "control",
@@ -286,7 +286,7 @@ param_all_ate <- param_sms_control_ate %>% # bind_rows(sms_control_ate, phone_ow
 param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
-  filter(!name_matched) %>% # | sms.treatment.2 == "sms.control") %>% 
+  filter(!name_matched, sms.treatment.2 == "sms.control", assigned.treatment != "ink") %>% # | sms.treatment.2 == "sms.control") %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
     
