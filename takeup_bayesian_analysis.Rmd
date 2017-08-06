@@ -301,8 +301,8 @@ param_stan_data <- analysis.data %>%
     
     all_ate = param_all_ate,
     
-    name_match_false_pos_alpha, 
-    name_match_false_pos_beta,
+    # name_match_false_pos_alpha, 
+    # name_match_false_pos_beta,
     
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
@@ -314,5 +314,10 @@ param_stan_data <- analysis.data %>%
 
 ```{r basic-model-1}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 2, iter = 100, sample_file = file.path("stanfit", "basic_model_1.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 100, sample_file = file.path("stanfit", "basic_model_1_1.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+```
+
+
+```{r}
+print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
 ```
