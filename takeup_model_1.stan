@@ -3,6 +3,9 @@ functions {
                                    int[] missing_obs_ids, 
                                    int[] missing_stratum_id,
                                    int[] missing_cluster_id,
+                                   vector missing_bracelet_util_diff,
+                                   int[] private_value_calendar_coef,
+                                   int[] private_value_bracelet_coef,
                                    matrix missing_census_covar_dm,
                                    vector missing_name_matched,
                                    vector observed_name_matched,
@@ -32,7 +35,13 @@ functions {
         stratum_intercept[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] +
         cluster_effects[missing_cluster_id[missing_treatment_pos:missing_treatment_end]] +
         missing_census_covar_dm[missing_treatment_pos:missing_treatment_end] * census_covar_coef +
+        
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]' +
+        
+        (stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end], private_value_calendar_coef] *
+           treatment_map_dm[treatment_ids[treatment_ids_index], private_value_bracelet_coef]') .* 
+          (1 + missing_bracelet_util_diff[missing_treatment_pos:missing_treatment_end]) +
+          
         missing_name_matched[missing_treatment_pos:missing_treatment_end] .* stratum_name_matching_effect[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] +
         (diag_treatment_map_dm[treatment_ids[treatment_ids_index]] * stratum_treatment_name_matching_interact[, missing_stratum_id[missing_treatment_pos:missing_treatment_end]])' .*
           missing_name_matched[missing_treatment_pos:missing_treatment_end];
@@ -207,11 +216,11 @@ parameters {
   vector[num_not_private_value_bracelet_coef] stratum_beta_raw[num_strata];
   vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment;
   
-  // vector[num_strata] stratum_name_matching_effect_raw;
-  // real<lower = 0> tau_stratum_name_matching;
-  
-  // matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact_raw;
-  // real<lower = 0> tau_stratum_treatment_name_matching_interact;
+  vector[num_strata] stratum_name_matching_effect_raw;
+  real<lower = 0> tau_stratum_name_matching;
+
+  matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact_raw;
+  real<lower = 0> tau_stratum_treatment_name_matching_interact;
   
   vector[num_census_covar_coef] hyper_census_covar_coef_raw;
   
@@ -225,7 +234,7 @@ parameters {
   // real stratum_ksh_util_gamma_raw[num_strata];
   // real tau_stratum_ksh_util;
   
-  vector[num_bracelet_treated] latent_bracelet_val_diff_raw;
+  vector[num_obs] latent_bracelet_val_diff_raw;
 }
 
 transformed parameters {
@@ -237,6 +246,14 @@ transformed parameters {
   vector[num_strata] stratum_intercept = hyper_intercept + stratum_intercept_raw * tau_stratum_intercept;
   vector[num_clusters] cluster_effects = cluster_effects_raw * tau_cluster_effect;
   
+  matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
+  
+  vector[num_strata] stratum_name_matching_effect = stratum_name_matching_effect_raw * tau_stratum_name_matching;
+  matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact =
+    stratum_treatment_name_matching_interact_raw * tau_stratum_treatment_name_matching_interact;
+    
+  vector[num_obs] latent_bracelet_util_diff;
+    
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
     
   // WTP parameters
@@ -244,10 +261,6 @@ transformed parameters {
   vector[num_strata] mu_wtp_diff = (hyper_mu_wtp_diff_raw * tau_mu_wtp_diff) + mu_wtp_diff_raw * tau_mu_wtp_diff;
   
   {
-    // vector[num_strata] stratum_name_matching_effect = stratum_name_matching_effect_raw * tau_stratum_name_matching;
-    // matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact =
-    //   stratum_treatment_name_matching_interact_raw * tau_stratum_treatment_name_matching_interact;
-    vector[num_obs] full_bracelet_val_diff = rep_vector(0, num_obs);
     int stratum_pos = 1;
     int bracelet_val_stratum_pos = 1;
 
@@ -260,21 +273,26 @@ transformed parameters {
       int curr_bracelet_val_stratum_size = strata_bracelet_sizes[strata_index];
       int bracelet_val_stratum_end = bracelet_val_stratum_pos + curr_bracelet_val_stratum_size - 1;
       
-      full_bracelet_val_diff[bracelet_treated_id[bracelet_val_stratum_pos:bracelet_val_stratum_end]] = 
-        (mu_wtp_diff[strata_index] + 
-         (latent_bracelet_val_diff_raw[bracelet_val_stratum_pos:bracelet_val_stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
+      latent_bracelet_util_diff[stratum_pos:stratum_end] =
+        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
       
       stratum_beta[not_private_value_bracelet_coef] = hyper_beta + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
+      // stratum_beta[private_value_bracelet_coef] = stratum_beta[private_value_calendar_coef];
+     
+      // updated_treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] = 
+      //   rep_matrix(1 + full_bracelet_val_diff_raw[stratum_pos:stratum_end], num_private_value_bracelet_coef);
               
       latent_utility[stratum_pos:stratum_end] =
           stratum_intercept[strata_index] +
           cluster_effects[cluster_id[stratum_pos:stratum_end]] +
           census_covar_dm[stratum_pos:stratum_end] * hyper_census_covar_coef +
           treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta +
-          (treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * 
-            stratum_beta[private_value_calendar_coef]) .* (1 + full_bracelet_val_diff[stratum_pos:stratum_end]); 
-          // name_matched[stratum_pos:stratum_end] * stratum_name_matching_effect[strata_index] +
-          // (diag_treatment_dm[stratum_pos:stratum_end] * stratum_treatment_name_matching_interact[, strata_index]) .* name_matched[stratum_pos:stratum_end];
+          (treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * stratum_beta[private_value_calendar_coef]) .* 
+             (1 + latent_bracelet_util_diff[stratum_pos:stratum_end]) +
+          name_matched[stratum_pos:stratum_end] * stratum_name_matching_effect[strata_index] +
+          (diag_treatment_dm[stratum_pos:stratum_end] * stratum_treatment_name_matching_interact[, strata_index]) .* name_matched[stratum_pos:stratum_end];
+          
+      stratum_beta_mat[strata_index] = stratum_beta';
       
       stratum_pos = stratum_end + 1;
       bracelet_val_stratum_pos = bracelet_val_stratum_end + 1;
@@ -332,10 +350,10 @@ model {
                                      diag_matrix(rep_vector(1, num_not_private_value_bracelet_coef)));
   stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   
-  // stratum_name_matching_effect_raw ~ student_t(coef_df, 0, 1);
-  // tau_stratum_name_matching ~ student_t(scale_df, 0, scale_sigma);
-  // to_vector(stratum_treatment_name_matching_interact_raw) ~ student_t(coef_df, 0, 1);
-  // tau_stratum_treatment_name_matching_interact ~ student_t(scale_df, 0, scale_sigma);
+  stratum_name_matching_effect_raw ~ student_t(coef_df, 0, 1);
+  tau_stratum_name_matching ~ student_t(scale_df, 0, scale_sigma);
+  to_vector(stratum_treatment_name_matching_interact_raw) ~ student_t(coef_df, 0, 1);
+  tau_stratum_treatment_name_matching_interact ~ student_t(scale_df, 0, scale_sigma);
   
   hyper_census_covar_coef_raw ~ student_t(coef_df, 0, 1);
   
@@ -343,7 +361,7 @@ model {
   
 }
 
-generated quantities { /*
+generated quantities { 
   matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, 2] non_phone_takeup; 
   matrix<lower = 0, upper = 1>[num_phone_owner_treatments, 2] phone_takeup; 
   vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate;
@@ -352,16 +370,16 @@ generated quantities { /*
   vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
   
   {
-    matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
-    
-    for (stratum_index in 1:num_strata) {
-      stratum_beta_mat[stratum_index] = stratum_beta[stratum_index]';
-    }
+    vector[num_missing_non_phone_owner_obs_ids] missing_non_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_non_phone_owner_obs_ids];
+    vector[num_missing_phone_owner_obs_ids] missing_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_phone_owner_obs_ids];
     
     non_phone_takeup = treatment_cell_takeup_rng(non_phone_owner_treatments,
                                              missing_non_phone_owner_obs_ids,
                                              non_phone_missing_treatment_stratum_id,
                                              non_phone_missing_treatment_cluster_id,
+                                             missing_non_phone_bracelet_util_diff,
+                                             private_value_calendar_coef,
+                                             private_value_bracelet_coef,
                                              non_phone_missing_census_covar_dm,
                                              non_phone_missing_name_matched,
                                              non_phone_observed_name_matched,
@@ -373,7 +391,7 @@ generated quantities { /*
                                              cluster_effects,
                                              hyper_census_covar_coef,
                                              stratum_name_matching_effect,
-                                             stratum_treatment_name_matching_interact_raw,
+                                             stratum_treatment_name_matching_interact,
                                              stratum_beta_mat,
                                              to_vector(observed_non_phone_dewormed_any));
                                              
@@ -381,6 +399,9 @@ generated quantities { /*
                                              missing_phone_owner_obs_ids,
                                              phone_missing_treatment_stratum_id,
                                              phone_missing_treatment_cluster_id,
+                                             missing_phone_bracelet_util_diff,
+                                             private_value_calendar_coef,
+                                             private_value_bracelet_coef,
                                              phone_missing_census_covar_dm,
                                              phone_missing_name_matched,
                                              phone_observed_name_matched,
@@ -392,7 +413,7 @@ generated quantities { /*
                                              cluster_effects,
                                              hyper_census_covar_coef,
                                              stratum_name_matching_effect,
-                                             stratum_treatment_name_matching_interact_raw,
+                                             stratum_treatment_name_matching_interact,
                                              stratum_beta_mat,
                                              to_vector(observed_phone_dewormed_any));
   }
@@ -400,5 +421,5 @@ generated quantities { /*
   non_phone_takeup_ate = non_phone_takeup[non_phone_owner_ate_pairs[, 1], 1] - non_phone_takeup[non_phone_owner_ate_pairs[, 2], 1];
   phone_takeup_ate = phone_takeup[phone_owner_ate_pairs[, 1], 1] - phone_takeup[phone_owner_ate_pairs[, 2], 1];
   non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2], 2];
-  phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2], 2];*/
+  phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2], 2];
 }
