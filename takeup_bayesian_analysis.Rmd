@@ -244,7 +244,7 @@ print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "lat
 ```{r param-ate}
 param_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
-  # "control",            "ink",               "control",             "control",
+  "control",            "ink",               "control",             "control",
   "calendar",           "control",           "control",             "control",
   "bracelet",           "bracelet",          "control",             "control",
   "bracelet",           "bracelet",          "calendar",            "control",
@@ -256,29 +256,34 @@ param_sms_control_ate <- tribble(
   mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
          phone_owner = as.logical(phone_owner))  
 
-# phone_owners_ate <- tribble(
-#   ~ assigned.treatment_left, ~ sms.treatment.2_left, ~ assigned.treatment_right, ~ sms.treatment.2_right,
-#   "control",                 "reminder.only",        "control",                  "sms.control",
-#   "control",                 "social.info",          "control",                  "sms.control",
-#   "control",                 "social.info",          "control",                  "reminder.only",
-#   
-#   "ink",                     "social.info",          "control",                  "sms.control",
-#   "ink",                     "social.info",          "control",                  "social.info",
-#   "ink",                     "social.info",          "ink",                      "sms.control",
-#   
-#   "calendar",                "social.info",          "control",                  "sms.control",
-#   "calendar",                "social.info",          "control",                  "social.info",
-#   "calendar",                "social.info",          "calendar",                 "sms.control",
-#   
-#   "bracelet",                "social.info",          "control",                  "sms.control",
-#   "bracelet",                "social.info",          "control",                  "social.info",
-#   "bracelet",                "social.info",          "calendar",                 "social.info",
-#   "bracelet",                "social.info",          "bracelet",                 "sms.control"
-# ) %>%
-#   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
-#   mutate(phone_owner = TRUE)  
+param_phone_owners_ate <- tribble(
+  ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
+  "control",            "control",           "reminder.only",        "control",             "control",            "sms.control",
+  "control",            "control",           "social.info",          "control",             "control",            "sms.control",
+  "control",            "control",           "social.info",          "control",             "control",            "reminder.only",
 
-param_all_ate <- param_sms_control_ate %>% # bind_rows(sms_control_ate, phone_owners_ate) %>%
+  "control",            "ink",               "social.info",          "control",             "control",            "sms.control",
+  "control",            "ink",               "social.info",          "control",             "control",            "social.info",
+  "control",            "ink",               "social.info",          "control",             "ink",                "sms.control",
+
+  "calendar",           "control",           "social.info",          "control",             "control",            "sms.control",
+  "calendar",           "control",           "social.info",          "control",             "control",            "social.info",
+  "calendar",           "control",           "social.info",          "calendar",            "control",            "sms.control",
+
+  "bracelet",           "bracelet",          "social.info",          "control",             "control",            "sms.control",
+  "bracelet",           "bracelet",          "social.info",          "control",             "control",            "social.info",
+  "bracelet",           "bracelet",          "social.info",          "calendar",            "control",            "social.info",
+  "bracelet",           "bracelet",          "social.info",          "bracelet",            "bracelet",           "sms.control",
+  
+  "bracelet",           "control",           "social.info",          "control",             "control",            "sms.control",
+  "bracelet",           "control",           "social.info",          "control",             "control",            "social.info",
+  "bracelet",           "control",           "social.info",          "calendar",            "control",            "social.info",
+  "bracelet",           "control",           "social.info",          "bracelet",            "control",            "sms.control"
+) %>%
+  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
+  mutate(phone_owner = TRUE)
+
+param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) %>%
   mutate(hh.baseline.sample = FALSE) 
 ```
 
@@ -286,7 +291,7 @@ param_all_ate <- param_sms_control_ate %>% # bind_rows(sms_control_ate, phone_ow
 param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
-  filter(!name_matched, sms.treatment.2 == "sms.control", assigned.treatment != "ink") %>% # | sms.treatment.2 == "sms.control") %>% 
+  filter(!name_matched) %>% # | sms.treatment.2 == "sms.control") %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
     
