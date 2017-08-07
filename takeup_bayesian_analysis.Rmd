@@ -212,7 +212,7 @@ calendar_param_stan_data <- analysis.data %>%
          assigned.treatment = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
-    treatment_formula = ~ (assigned.treatment  + assigned.treatment.2) * phone_owner,
+    treatment_formula = ~ (assigned.treatment + assigned.treatment.2) * phone_owner,
     
     scale_df = 3,
     scale_sigma = 1,
@@ -249,7 +249,7 @@ param_sms_control_ate <- tribble(
   "bracelet",           "bracelet",          "control",             "control",
   "bracelet",           "bracelet",          "calendar",            "control",
   
-  "bracelet",           "control",           "control",            "control" 
+  "control",           "bracelet",           "control",            "control" 
 ) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
@@ -275,10 +275,10 @@ param_phone_owners_ate <- tribble(
   "bracelet",           "bracelet",          "social.info",          "calendar",            "control",            "social.info",
   "bracelet",           "bracelet",          "social.info",          "bracelet",            "bracelet",           "sms.control",
   
-  "bracelet",           "control",           "social.info",          "control",             "control",            "sms.control",
-  "bracelet",           "control",           "social.info",          "control",             "control",            "social.info",
-  "bracelet",           "control",           "social.info",          "calendar",            "control",            "social.info",
-  "bracelet",           "control",           "social.info",          "bracelet",            "control",            "sms.control"
+  "control",           "bracelet",           "social.info",          "control",             "control",            "sms.control",
+  "control",           "bracelet",           "social.info",          "control",             "control",            "social.info",
+  "control",           "bracelet",           "social.info",          "calendar",            "control",            "social.info",
+  "control",           "bracelet",           "social.info",          "bracelet",            "control",            "sms.control"
 ) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE)
@@ -320,6 +320,12 @@ param_stan_data <- analysis.data %>%
 ```{r basic-model-1}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
 basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 100, sample_file = file.path("stanfit", "basic_model_1_1.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+```
+
+```{r, eval=FALSE}
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_2_..csv") %>% 
+  file.path("stanfit", .) %>% 
+  read_stan_csv()
 ```
 
 
