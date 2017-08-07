@@ -140,7 +140,7 @@ survey.know.list <- file.path("instruments", "SurveyCTO Forms", "Endline Survey"
   filter(wave == 1 | !is.na(survey.type))
 
 endline.know.table.data %<>% 
-  inner_join(select(endline.data, KEY.individ, wave, cluster.id, KEY), c("PARENT_KEY" = "KEY")) %>% 
+  inner_join(select(endline.data, KEY.individ, wave, cluster.id, assigned.treatment, sms.treatment, dist.pot.group, KEY), c("PARENT_KEY" = "KEY")) %>% 
   inner_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other),
              c("KEY.individ" = "person_key", "know.other.index")) %>% 
   left_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other), # Get the second person (table B)
@@ -163,8 +163,8 @@ endline.know.table.data %<>%
             c("KEY.individ.other.1" = "KEY.individ")) %>% 
   left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, actual.other.dewormed.any.2 = dewormed.any),
             c("KEY.individ.other.2" = "KEY.individ")) %>% 
-  mutate(actual.other.dewormed.any.either = actual.other.dewormed.any.1 | (know.table.type == "table.B" & actual.other.dewormed.any.2)) %>% 
-  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id")  
+  mutate(actual.other.dewormed.any.either = actual.other.dewormed.any.1 | (know.table.type == "table.B" & actual.other.dewormed.any.2)) 
+  # left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id") # Get it from endline data 
 
 # Save data ---------------------------------------------------------------
 
