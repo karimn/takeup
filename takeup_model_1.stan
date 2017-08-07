@@ -163,6 +163,8 @@ data {
   real<lower = 0> tau_sigma_wtp_diff;
   real<lower = 0> sigma_wtp_df_student_t;
   
+  real<lower = 0> sigma_ksh_util_gamma;
+  
   real<lower = 0, upper = 10> wtp_utility_df; // TODO put hyperprior on this parameter
 }
 
@@ -274,13 +276,10 @@ transformed parameters {
       int bracelet_val_stratum_end = bracelet_val_stratum_pos + curr_bracelet_val_stratum_size - 1;
       
       latent_bracelet_util_diff[stratum_pos:stratum_end] =
-        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
+        // (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
+        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * sigma_ksh_util_gamma;
       
       stratum_beta[not_private_value_bracelet_coef] = hyper_beta + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
-      // stratum_beta[private_value_bracelet_coef] = stratum_beta[private_value_calendar_coef];
-     
-      // updated_treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] = 
-      //   rep_matrix(1 + full_bracelet_val_diff_raw[stratum_pos:stratum_end], num_private_value_bracelet_coef);
               
       latent_utility[stratum_pos:stratum_end] =
           stratum_intercept[strata_index] +
@@ -332,7 +331,8 @@ model {
   } 
   
   latent_bracelet_val_diff_raw ~ student_t(wtp_utility_df, 0, 1);
-  hyper_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
+  hyper_ksh_util_gamma_raw ~ normal(0, 1);
+  // hyper_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
   // stratum_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
   // tau_stratum_ksh_util ~ student_t(scale_df, 0, scale_sigma);
   
