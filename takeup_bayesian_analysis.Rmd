@@ -72,12 +72,13 @@ ggplot(tibble(x = c(0, 1)), aes(x)) +
 ```
 
 ```{r scale-prior-plots}
-ggplot(tibble(x = c(0, 5)), aes(x)) + 
+ggplot(tibble(x = c(0, 20)), aes(x)) + 
   stat_function(aes(color = "Cauchy"), fun = . %>% dcauchy(0, 2.5)) + 
   stat_function(aes(color = "Student t(2)"), fun = . %>% dt(2)) + 
   stat_function(aes(color = "Student t(4)"), fun = . %>% dt(4)) + 
   stat_function(aes(color = "Student t(7)"), fun = . %>% dt(7)) + 
-  scale_x_continuous(breaks = seq(0, 5, 0.5))
+  stat_function(aes(color = "N(0, 5)"), fun = . %>% dnorm(0, 5)) + 
+  scale_x_continuous(breaks = seq(0, 50, 1))
 ```
 
 ```{r ate}
@@ -314,6 +315,7 @@ param_stan_data <- analysis.data %>%
     mu_wtp_df_student_t = 7,
     tau_sigma_wtp_diff = 50,
     sigma_wtp_df_student_t = 2.5,
+    sigma_ksh_util_gamma = 5,
   )
 ```
 
@@ -332,3 +334,7 @@ basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_2_..csv") %>%
 ```{r}
 print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
 ```
+```{r}
+print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw")
+```
+
