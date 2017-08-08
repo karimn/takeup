@@ -335,6 +335,6 @@ basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_3_..csv") %>%
 print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
 ```
 ```{r}
-print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw")
+print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
 ```
 

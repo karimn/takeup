@@ -277,7 +277,7 @@ transformed parameters {
       
       latent_bracelet_util_diff[stratum_pos:stratum_end] =
         // (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
-        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw;
+        - (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw;
       
       stratum_beta[not_private_value_bracelet_coef] = hyper_beta + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
               
