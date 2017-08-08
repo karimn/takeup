@@ -325,7 +325,7 @@ basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8,
 ```
 
 ```{r, eval=FALSE}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_2_..csv") %>% 
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_3_..csv") %>% 
   file.path("stanfit", .) %>% 
   read_stan_csv()
 ```
@@ -335,6 +335,6 @@ basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_2_..csv") %>%
 print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
 ```
 ```{r}
-print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw")
+print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
 ```
 
