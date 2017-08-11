@@ -1265,6 +1265,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     hazard_day_map = diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)], 
     hazard_day_triangle_map = lower.tri(hazard_day_triangle_map),
+    hazard_day_map = hazard_day_map[seq_len(num_deworming_days), ],
     
     cluster_id = prepared_analysis_data$new_cluster_id,
     stratum_id = prepared_analysis_data$stratum_id,
