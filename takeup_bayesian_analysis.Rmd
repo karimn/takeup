@@ -321,11 +321,11 @@ param_stan_data <- analysis.data %>%
 
 ```{r basic-model-1}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 200, sample_file = file.path("stanfit", "basic_model_1_3.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 50, sample_file = file.path("stanfit", "basic_model_1_3.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r, eval=FALSE}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_3_..csv") %>% 
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_4_[1-8].csv") %>% 
   file.path("stanfit", .) %>% 
   read_stan_csv()
 ```
@@ -334,6 +334,7 @@ basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_3_..csv") %>%
 ```{r}
 print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
 ```
+
 ```{r}
 print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
 ```
