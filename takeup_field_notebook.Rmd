@@ -216,7 +216,7 @@ all.villages <- rct.villages %>%
     if(is.na(first(.$village))) {
       mutate(., village = 1000 + seq_len(nrow(.)))
     } else {
-      return(.)
+      (.)
     }
   }) %>% 
   ungroup %>% 
