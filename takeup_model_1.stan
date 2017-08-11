@@ -232,7 +232,7 @@ parameters {
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
 
-  real<lower = -0.5, upper = 0.5> hyper_ksh_util_gamma_raw; // Uniform[0, 1] prior
+  real<lower = -0.5, upper = 0.5> hyper_ksh_util_gamma_raw; 
   // real stratum_ksh_util_gamma_raw[num_strata];
   // real tau_stratum_ksh_util;
   
