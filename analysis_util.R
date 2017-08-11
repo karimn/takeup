@@ -47,9 +47,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     ungroup
   
   analysis.data <- .census.data %>% 
-           filter(!is.na(wave)) %>%  # Remove clusters no longer in study
+    filter(!is.na(wave)) %>%  # Remove clusters no longer in study
     left_join(.consent.dewormed.reports, "KEY.individ") %>% 
-    mutate(dewormed = KEY.individ %in% .takeup.data$KEY.individ, # TRUE if individual found in take-up data
+    mutate(dewormed = KEY.individ %in% discard(.takeup.data$KEY.individ, is.na), # TRUE if individual found in take-up data
            dewormed = ifelse(monitored, dewormed, NA),
            monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
