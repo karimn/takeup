@@ -236,7 +236,11 @@ parameters {
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
 
+<<<<<<< HEAD
   vector<lower = -0.5, upper = 0.5>[2] hyper_ksh_util_gamma_raw; 
+=======
+  real<lower = -0.5, upper = 0.5> hyper_ksh_util_gamma_raw; 
+>>>>>>> 4cca50ea067d8a8167f1037d7e711a4a4729c1eb
   // real stratum_ksh_util_gamma_raw[num_strata];
   // real tau_stratum_ksh_util;
   
@@ -335,7 +339,7 @@ model {
   } 
   
   latent_bracelet_val_diff_raw ~ student_t(wtp_utility_df, 0, 1);
-  hyper_ksh_util_gamma_raw ~ normal(0, 1);
+  // hyper_ksh_util_gamma_raw ~ normal(0, 1);
   // hyper_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
   // stratum_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
   // tau_stratum_ksh_util ~ student_t(scale_df, 0, scale_sigma);
