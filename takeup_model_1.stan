@@ -143,7 +143,8 @@ data {
   matrix[num_distinct_census_covar, num_census_covar_coef] census_covar_map_dm; 
   int census_covar_id[num_obs];
   
-  vector<lower = 0, upper = 1>[num_obs] phone_owner;
+  // vector<lower = 0, upper = 1>[num_obs] phone_owner;
+  int phone_owner_indices[num_obs];
  
   // Binary deworming outcome 
   
@@ -193,7 +194,7 @@ transformed data {
   
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
   
-  matrix[num_obs, 2] phone_owner_dm = append_col(rep_vector(1, num_obs), phone_owner);
+  // matrix[num_obs, 2] phone_owner_dm = append_col(rep_vector(1, num_obs), phone_owner);
   
   // Constants for hyperpriors 
   real scale_df = 3;
@@ -236,11 +237,7 @@ parameters {
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
 
-<<<<<<< HEAD
-  vector<lower = -0.5, upper = 0.5>[2] hyper_ksh_util_gamma_raw; 
-=======
-  real<lower = -0.5, upper = 0.5> hyper_ksh_util_gamma_raw; 
->>>>>>> 4cca50ea067d8a8167f1037d7e711a4a4729c1eb
+  vector<lower = -0.25, upper = 0.25>[2] hyper_ksh_util_gamma_raw; 
   // real stratum_ksh_util_gamma_raw[num_strata];
   // real tau_stratum_ksh_util;
   
@@ -285,7 +282,7 @@ transformed parameters {
       
       latent_bracelet_util_diff[stratum_pos:stratum_end] =
         // (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
-        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) .* (phone_owner_dm[stratum_pos:stratum_end] * hyper_ksh_util_gamma_raw);
+        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) .* hyper_ksh_util_gamma_raw[phone_owner_indices[stratum_pos:stratum_end]];
       
       stratum_beta[not_private_value_bracelet_coef] = hyper_beta + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
               

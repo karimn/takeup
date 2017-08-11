@@ -1224,7 +1224,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     name_matching_error_ids = matching_error_data %>% arrange(obs_index) %$% obs_index,
     num_name_matching_errors_ids = length(name_matching_error_ids),
     
-    phone_owner = prepared_analysis_data$phone_owner,
+    phone_owner_indices = prepared_analysis_data$phone_owner + 1,
     
     census_covar_map_dm,
     num_census_covar_coef = ncol(census_covar_map_dm),
