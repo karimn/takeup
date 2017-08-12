@@ -47,9 +47,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     ungroup
   
   analysis.data <- .census.data %>% 
-           filter(!is.na(wave)) %>%  # Remove clusters no longer in study
+    filter(!is.na(wave)) %>%  # Remove clusters no longer in study
     left_join(.consent.dewormed.reports, "KEY.individ") %>% 
-    mutate(dewormed = KEY.individ %in% .takeup.data$KEY.individ, # TRUE if individual found in take-up data
+    mutate(dewormed = KEY.individ %in% discard(.takeup.data$KEY.individ, is.na), # TRUE if individual found in take-up data
            dewormed = ifelse(monitored, dewormed, NA),
            monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
@@ -1250,6 +1250,22 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
     
     dewormed_any = prepared_analysis_data$dewormed.any,
+    
+    num_deworming_days = 12L, 
+    
+    dewormed_day_any = prepared_analysis_data$dewormed.day.any %>% coalesce(num_deworming_days + 1L), # Set dewormed day to 13 for the non-dewormed
+    
+    num_dewormed = sum(dewormed_any),
+    dewormed_ids = prepared_analysis_data %>% filter(dewormed.any) %>% arrange(stratum_id) %>% pull(obs_index),
+    strata_dewormed_sizes = prepared_analysis_data %>% 
+      filter(dewormed.any) %>% 
+      count(stratum_id) %>% 
+      arrange(stratum_id) %>% 
+      pull(n),
+    
+    hazard_day_map = diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)], 
+    hazard_day_triangle_map = lower.tri(hazard_day_triangle_map),
+    hazard_day_map = hazard_day_map[seq_len(num_deworming_days), ],
     
     cluster_id = prepared_analysis_data$new_cluster_id,
     stratum_id = prepared_analysis_data$stratum_id,
