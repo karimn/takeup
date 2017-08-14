@@ -1077,7 +1077,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     filter(!is.na(gift_choice) & gift_choice != "neither",
            assigned.treatment == "control",
            sms.treatment.2 == "sms.control") %>%
-    select(county, gift_choice) %>%
+    select(county, gift_choice, phone_owner) %>%
     mutate(offer = 0,
            response = "keep")
 
@@ -1263,9 +1263,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       arrange(stratum_id) %>% 
       pull(n),
     
-    hazard_day_map = diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)], 
-    hazard_day_triangle_map = lower.tri(hazard_day_triangle_map),
-    hazard_day_map = hazard_day_map[seq_len(num_deworming_days), ],
+    hazard_day_map = diag(num_deworming_days),
+    hazard_day_triangle_map = lower.tri(diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)]) * 1,
     
     cluster_id = prepared_analysis_data$new_cluster_id,
     stratum_id = prepared_analysis_data$stratum_id,
