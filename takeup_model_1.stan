@@ -199,6 +199,7 @@ transformed data {
   // Constants for hyperpriors 
   real scale_df = 3;
   real scale_sigma = 1;
+  real scale_sigma_ksh_util_gamma = 0.05;
   
   real coef_df = 7;
   real coef_sigma = 10;
@@ -237,10 +238,12 @@ parameters {
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
 
-  vector<lower = -0.25, upper = 0>[2] hyper_ksh_util_gamma_raw; 
+  // vector<lower = -0.25, upper = 0>[2] hyper_ksh_util_gamma_raw;
+  vector[2] hyper_ksh_util_gamma_raw;
+  real<lower = 0> tau_hyper_ksh_util_gamma;
   // real stratum_ksh_util_gamma_raw[num_strata];
   // real tau_stratum_ksh_util;
-  
+
   vector[num_obs] latent_bracelet_val_diff_raw;
 }
 
@@ -279,10 +282,10 @@ transformed parameters {
       
       int curr_bracelet_val_stratum_size = strata_bracelet_sizes[strata_index];
       int bracelet_val_stratum_end = bracelet_val_stratum_pos + curr_bracelet_val_stratum_size - 1;
-      
+
       latent_bracelet_util_diff[stratum_pos:stratum_end] =
-        // (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) * hyper_ksh_util_gamma_raw * coef_sigma;
-        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) .* hyper_ksh_util_gamma_raw[phone_owner_indices[stratum_pos:stratum_end]];
+        (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) .* 
+        (hyper_ksh_util_gamma_raw[phone_owner_indices[stratum_pos:stratum_end]] * tau_hyper_ksh_util_gamma);
       
       stratum_beta[not_private_value_bracelet_coef] = hyper_beta + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
               
@@ -309,8 +312,8 @@ model {
   
   hyper_mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
   mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
-  sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff); 
-  
+  sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff);
+
   {
     int wtp_stratum_pos = 1;
 
@@ -333,11 +336,12 @@ model {
 
       wtp_stratum_pos = wtp_stratum_end + 1;
     }
-  } 
-  
+  }
+
   latent_bracelet_val_diff_raw ~ student_t(wtp_utility_df, 0, 1);
   // hyper_ksh_util_gamma_raw ~ normal(0, 1);
-  // hyper_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
+  hyper_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
+  tau_hyper_ksh_util_gamma ~ student_t(scale_df, 0, scale_sigma_ksh_util_gamma);
   // stratum_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
   // tau_stratum_ksh_util ~ student_t(scale_df, 0, scale_sigma);
   
