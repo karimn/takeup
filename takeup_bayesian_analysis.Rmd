@@ -293,17 +293,77 @@ param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate)
 param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
-  filter(!name_matched, sms.treatment.2 == "sms.control") %>% 
+  filter(!name_matched) %>% #, sms.treatment.2 == "sms.control") %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
     
-    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>% 
+    treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
+      filter(phone_owner | sms.treatment.2 == "sms.control",
+            (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+            private_value != "calendar" | social_value == "control",
+            private_value != "bracelet" | social_value == "bracelet"),
+    
+    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>%
+    #   filter(private_value != "calendar" | social_value == "control",
+    #          private_value != "bracelet" | social_value == "bracelet"),
+    
+    treatment_formula = ~ (private_value + social_value) * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
+    # treatment_formula = ~ (private_value + social_value) * dist.pot.group * hh.baseline.sample * phone_owner - phone_owner,
+    
+    subgroup_col = "phone_owner",
+    
+    all_ate = param_all_ate,
+    # all_ate = param_sms_control_ate %>% select(-contains("sms.treatment")),
+    
+    # name_match_false_pos_alpha, 
+    # name_match_false_pos_beta,
+    
+    wtp_utility_df = 3,
+    tau_mu_wtp_diff = 100,
+    mu_wtp_df_student_t = 7,
+    tau_sigma_wtp_diff = 50,
+    sigma_wtp_df_student_t = 2.5,
+    sigma_ksh_util_gamma = 5,
+  )
+```
+
+```{r basic-model-1}
+basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 100, sample_file = file.path("stanfit", "basic_model_1_4.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+```
+
+```{r, eval=FALSE}
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_4_[1-8].csv") %>% 
+  file.path("stanfit", .) %>% 
+  read_stan_csv()
+```
+
+
+```{r}
+print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
+```
+
+```{r}
+print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
+```
+
+## Dynamic Model
+
+```{r dyn-model-data}
+dyn_stan_data <- analysis.data %>%
+  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
+  filter(!name_matched, sms.treatment.2 == "sms.control") %>%
+  prepare_bayesian_analysis_data(
+    wtp.data, 
+    
+    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
     #   filter(phone_owner | sms.treatment.2 == "sms.control",
     #         (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
     #         private_value != "calendar" | social_value == "control",
     #         private_value != "bracelet" | social_value == "bracelet"),
     
-    treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>% 
+    treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>%
       filter(private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet"),
     
@@ -326,27 +386,7 @@ param_stan_data <- analysis.data %>%
   )
 ```
 
-```{r basic-model-1}
-basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-<<<<<<< HEAD
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 50, sample_file = file.path("stanfit", "basic_model_1_4.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
-=======
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 50, sample_file = file.path("stanfit", "basic_model_1_3.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
->>>>>>> 4cca50ea067d8a8167f1037d7e711a4a4729c1eb
+```{r basic-model-2}
+basic_model_2 <- stan_model(file = "takeup_model_2.stan", model_name = "model_2")
+basic_model_2_fit <- sampling(basic_model_2, data = dyn_stan_data, chains = 2, iter = 50, sample_file = file.path("stanfit", "basic_model_2_1.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
-
-```{r, eval=FALSE}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_4_[1-8].csv") %>% 
-  file.path("stanfit", .) %>% 
-  read_stan_csv()
-```
-
-
-```{r}
-print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
-```
-
-```{r}
-print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
-```
-
