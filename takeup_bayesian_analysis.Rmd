@@ -293,27 +293,30 @@ param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate)
 param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
-  filter(!name_matched) %>% #, sms.treatment.2 == "sms.control") %>%
+  # filter(!name_matched, sms.treatment.2 == "sms.control") %>%
+  filter(sms.treatment.2 == "sms.control") %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
     
-    treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
-      filter(phone_owner | sms.treatment.2 == "sms.control",
-            (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-            private_value != "calendar" | social_value == "control",
-            private_value != "bracelet" | social_value == "bracelet"),
+    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
+    #   filter(phone_owner | sms.treatment.2 == "sms.control",
+    #         (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+    #         private_value != "calendar" | social_value == "control",
+    #         private_value != "bracelet" | social_value == "bracelet"),
     
-    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>%
-    #   filter(private_value != "calendar" | social_value == "control",
-    #          private_value != "bracelet" | social_value == "bracelet"),
+    treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>%
+      filter(private_value != "calendar" | social_value == "control",
+             private_value != "bracelet" | social_value == "bracelet"),
     
-    treatment_formula = ~ (private_value + social_value) * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
+    # treatment_formula = ~ (private_value + social_value) * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
     # treatment_formula = ~ (private_value + social_value) * dist.pot.group * hh.baseline.sample * phone_owner - phone_owner,
+    treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
+    # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner,
     
-    subgroup_col = "phone_owner",
+    subgroup_col = NULL,
     
-    all_ate = param_all_ate,
-    # all_ate = param_sms_control_ate %>% select(-contains("sms.treatment")),
+    # all_ate = param_all_ate,
+    all_ate = param_sms_control_ate %>% select(-contains("sms.treatment")),
     
     # name_match_false_pos_alpha, 
     # name_match_false_pos_beta,

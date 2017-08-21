@@ -1069,7 +1069,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   #   filter(assigned.treatment == "calendar") %>% 
   #   arrange(stratum_id, obs_index)
   
-  bracelet_treated <- prepared_analysis_data %>%
+  bracelet_treated_obs <- prepared_analysis_data %>%
     filter(assigned.treatment == "bracelet") %>%
     arrange(stratum_id, obs_index)
 
@@ -1201,13 +1201,15 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_private_value_bracelet_coef = length(private_value_bracelet_coef),
     private_value_calendar_coef,
     private_value_bracelet_coef,
+    private_value_bracelet_indicator = colnames(treatment_map_design_matrix) %>% str_detect("^private_valuebracelet$") %>% which,
     not_private_value_bracelet_coef = seq_len(num_all_treatment_coef) %>% setdiff(private_value_bracelet_coef),
     # num_not_private_value_bracelet_coef = length(not_private_value_bracelet_coef),
-    
-    num_bracelet_treated = nrow(bracelet_treated),
-    bracelet_treated_id = bracelet_treated$obs_index,
+   
+    bracelet_treated = prepared_analysis_data$assigned.treatment == "bracelet",
+    num_bracelet_treated = nrow(bracelet_treated_obs),
+    bracelet_treated_id = bracelet_treated_obs$obs_index,
     strata_bracelet_sizes = if (num_bracelet_treated > 0) {
-      bracelet_treated %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
+      bracelet_treated_obs %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
     } else {
       rep(0, num_strata)
     },
