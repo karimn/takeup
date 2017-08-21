@@ -42,8 +42,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
                                   max.name.match.cost = 1) {
   dewormed.day.data <- .takeup.data %>% 
     filter(!is.na(KEY.individ)) %>% 
+    rename(dewormed.day = deworming.day) %>% 
     group_by(KEY.individ) %>% 
-    summarize(dewormed.day = min(deworming.day)) %>% # If dewormed multiple times, take the first day only
+    summarize_at(vars(dewormed.day, dewormed.date), min) %>% # If dewormed multiple times, take the first day only
     ungroup
   
   analysis.data <- .census.data %>% 
@@ -68,14 +69,18 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     ungroup %>% 
     # select(KEY.individ, starts_with("dewormed.matched"), contains("min.name.match.dist")) %>% 
     right_join(analysis.data, c("cluster.id", "KEY.individ")) %>% 
-    left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day), c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
+    left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day, dewormed.date.matched = dewormed.date), 
+              c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
     mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            # dewormed.any_0 = (!is.na(dewormed) & dewormed) | dewormed.matched_0,
            dewormed.day.any = if_else(!is.na(dewormed.day), as.integer(dewormed.day), dewormed.day.matched), 
+           dewormed.date.any = if_else(!is.na(dewormed.date), dewormed.date, dewormed.date.matched),
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
-    left_join(select(.endline.data, KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice,
-                     hh_cal, cal_value, hh_bracelet, number_bracelet), "KEY.individ") %>% 
+    left_join(
+        transmute(.endline.data, 
+                  KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice, hh_cal, cal_value, hh_bracelet, number_bracelet, 
+                  endline_deworm_rate = dworm_rate), "KEY.individ") %>% 
     mutate_at(vars(age, age.census), funs(squared = (.)^2)) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.))) %>%
