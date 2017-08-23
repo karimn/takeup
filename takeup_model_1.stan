@@ -149,6 +149,13 @@ data {
   
   // vector<lower = 0, upper = 1>[num_obs] phone_owner;
   int phone_owner_indices[num_obs];
+  
+  real<lower = 0> scale_df;
+  real<lower = 0> scale_sigma;
+  // real scale_sigma_ksh_util_gamma = 0.05;
+  
+  real<lower = 0> coef_df;
+  real<lower = 0> coef_sigma;
  
   // Binary deworming outcome 
   
@@ -200,14 +207,6 @@ transformed data {
   
   // matrix[num_obs, 2] phone_owner_dm = append_col(rep_vector(1, num_obs), phone_owner);
   
-  // Constants for hyperpriors 
-  real scale_df = 3;
-  real scale_sigma = 1;
-  real scale_sigma_ksh_util_gamma = 0.05;
-  
-  real coef_df = 7;
-  real coef_sigma = 1;
-
   // diag_treatment_map_dm[1] = rep_row_vector(0, num_all_treatment_coef);
   // diag_treatment_map_dm[2:num_all_treatments] = diag_matrix(rep_vector(1, num_all_treatment_coef));
   diag_treatment_map_dm[, 1] = rep_vector(1, num_all_treatments);
