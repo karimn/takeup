@@ -358,6 +358,63 @@ print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
 
 ## Dynamic Model
 
+```{r, fig.width=10, fig.height=10}
+prop_deworm_day_data <- analysis.data %>% 
+  filter(!name_matched) %>% 
+  group_by(wave, assigned.treatment, dist.pot.group, sms.treatment.2) %>% 
+  mutate(cell_size = n()) %>% 
+  group_by(dewormed.date.any, add = TRUE) %>% 
+  summarize(prop_dewormed = n() / first(cell_size)) %>% 
+  group_by(wave, assigned.treatment, dist.pot.group, sms.treatment.2) %>% 
+  mutate(cumul_prop_dewormed = cumsum(prop_dewormed)) %>% 
+  ungroup() %>% 
+  mutate(dewormed.weekday = factor(weekdays(dewormed.date.any), 
+                                   levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")))
+
+base_plot <- function(.data, col, lt = NULL) {
+  .data %>% 
+    filter(!is.na(dewormed.date.any)) %>% 
+    ggplot(aes_string(x = "dewormed.date.any", y = "cumul_prop_dewormed", color = col)) +
+    geom_line(aes_string(color = col, linetype = lt)) +
+    geom_point() +
+    scale_x_date(labels = scales::date_format("%a")) +
+    theme(legend.position = "bottom")
+}
+
+dist_incentive_plot <- prop_deworm_day_data %>% 
+  base_plot("sms.treatment.2") + 
+  facet_grid(assigned.treatment ~ dist.pot.group + wave, scales = "free_x")
+  # facet_grid(assigned.treatment ~ dist.pot.group, scales = "free_x")
+
+dist_sms_plot <- prop_deworm_day_data %>% 
+  base_plot("assigned.treatment", lt = "sms.treatment.2") + 
+  facet_grid(~ dist.pot.group + wave, scales = "free_x")
+  # facet_grid(~ dist.pot.group, scales = "free_x")
+
+dist_sms_plot_split <- prop_deworm_day_data %>% 
+  base_plot("assigned.treatment", lt = "sms.treatment.2") + 
+  facet_grid(sms.treatment.2 ~ dist.pot.group + wave, scales = "free_x")
+
+plot(dist_incentive_plot)
+```
+
+```{r, fig.width=14, fig.height=6}
+plot(dist_sms_plot)
+```
+
+```{r, fig.width=14, fig.height=10}
+plot(dist_sms_plot_split)
+```
+
+```{r, fig.width=10}
+analysis.data %>% 
+  filter(!is.na(endline_deworm_rate)) %>% 
+  ggplot() +
+  geom_violin(aes(assigned.treatment, endline_deworm_rate, color = dist.pot.group, linetype = sms.treatment.2), draw_quantiles = c(0.25, 0.5, 0.75)) +
+  scale_y_continuous(breaks = 0:10)
+```
+
+
 ```{r dyn-model-data}
 dyn_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
@@ -376,15 +433,20 @@ dyn_stan_data <- analysis.data %>%
       filter(private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet"),
     
-    # treatment_formula = ~ (private_value + social_value) * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
-    treatment_formula = ~ (private_value + social_value) * dist.pot.group * hh.baseline.sample * phone_owner - phone_owner,
-    subgroup_col = "phone_owner",
+    treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
+    subgroup_col = NULL,
     
     # all_ate = param_all_ate,
     all_ate = param_sms_control_ate %>% select(-contains("sms.treatment")),
     
     # name_match_false_pos_alpha, 
     # name_match_false_pos_beta,
+    
+    scale_df = 7,
+    scale_sigma = 1,
+   
+    coef_df = 7,
+    coef_sigma = 1,
     
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
@@ -395,7 +457,14 @@ dyn_stan_data <- analysis.data %>%
   )
 ```
 
-```{r basic-model-2}
-basic_model_2 <- stan_model(file = "takeup_model_2.stan", model_name = "model_2")
-basic_model_2_fit <- sampling(basic_model_2, data = dyn_stan_data, chains = 2, iter = 50, sample_file = file.path("stanfit", "basic_model_2_1.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+```{r basic-model-2-simple}
+basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
+basic_model_2_simple_fit <- sampling(basic_model_2_simple, data = dyn_stan_data, 
+                                     chains = 8, iter = 200, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+                                     sample_file = file.path("stanfit", "basic_model_2_simple_2.csv")) 
 ```
+
+```{r}
+print(basic_model_2_simple_fit, pars = c(sprintf("all_treatment_cond_takeup[34,%d]", 1:12)))
+```
+
