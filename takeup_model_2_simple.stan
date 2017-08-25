@@ -94,13 +94,8 @@ transformed parameters {
     int dewormed_stratum_pos = 1;
     int dynamic_stratum_pos = 1;
     
-    // matrix[num_deworming_days + 1, num_deworming_days] stratum_log_lambda_mat = rep_matrix(log(hyper_baseline_hazard), num_deworming_days + 1);
-    // matrix[num_deworming_days + 1, num_deworming_days] stratum_triangle_lambda = hazard_day_triangle_map .* lambda_mat;
-    // matrix[num_deworming_days, num_deworming_days] stratum_dewormed_day_lambda = hazard_day_map .* rep_matrix(hyper_baseline_hazard, num_deworming_days);
-      
     vector[num_obs] latent_utility = rep_vector(0, num_obs);
-    // matrix[num_obs, num_deworming_days] kappa;
-    matrix[num_obs, num_deworming_days] loglog_lambda_t;
+    matrix[num_obs, num_deworming_days] log_lambda_t;
     
     for (strata_index in 1:num_strata) {
       int curr_stratum_size = strata_sizes[strata_index];
@@ -136,32 +131,44 @@ transformed parameters {
       // print("stratum_beta_raw = ", stratum_beta_raw);
       // print("hyper_beta = ", hyper_beta);
       
-      loglog_lambda_t[stratum_pos:stratum_end] = 
+      log_lambda_t[stratum_pos:stratum_end] = 
          (rep_matrix(latent_utility[stratum_pos:stratum_end], num_deworming_days) +
           to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0) +
           rep_matrix(log(hyper_baseline_hazard), curr_stratum_size)); 
-      
-      // kappa[stratum_pos:stratum_end] = 
-      //   - exp(rep_matrix(latent_utility[stratum_pos:stratum_end], num_deworming_days) +
-      //         to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0));
-         
-      // stratum_lp[strata_index] = sum(rows_dot_product(kappa[stratum_pos:stratum_end], stratum_triangle_lambda[stratum_dewormed_day_all])) +
-      //   sum(log1m_exp(rows_dot_product(kappa[stratum_dewormed_ids], stratum_dewormed_day_lambda[stratum_dewormed_day_dewormed])));
         
       stratum_lp[strata_index] = 
-        - (exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
-        sum(log(inv_cloglog(loglog_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
+        - (exp(log_sum_exp(log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
+        sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
-      // print("stratum_lp[", strata_index, "] = ", stratum_lp[strata_index]);
-      
-      if (is_nan(stratum_lp[strata_index])) {
-        reject("Stratum ", strata_index, " log probability is NaN.");
+      if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
+        reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);
       }
+      
+      // print("stratum ", strata_index, ": latent_utility[stratum_pos] = ", latent_utility[stratum_pos]);
+      // print("stratum ", strata_index, ": latent_utility[stratum_end] = ", latent_utility[stratum_end]);
+      // print("stratum ", strata_index, ": loglog_lambda_t[stratum_pos, ] = ", loglog_lambda_t[stratum_pos]);
+      // print("stratum ", strata_index, ": loglog_lambda_t[stratum_end, ] = ", loglog_lambda_t[stratum_end]);
+      // print("stratum ", strata_index, ": stratum_dewormed_day_all[1:100] = ", stratum_dewormed_day_all[1:100]);
+      // print("stratum ", strata_index, ": stratum_dewormed_day_dewormed[1:10] = ", stratum_dewormed_day_dewormed[1:10]);
+      // print("stratum ", strata_index, ": stratum_hazard_day_triangle_map[1:100, ] = ", stratum_hazard_day_triangle_map[1:100]);
+      // print("stratum ", strata_index, ": stratum_hazard_day_map[1:10, ] = ", stratum_hazard_day_map[1:10]);
+      // print("Debug value: ",
+      //   hyper_baseline_cond_takeup,
+      //   hyper_baseline_hazard,
+      //   rep_matrix(log(hyper_baseline_hazard), 10));
+        // stratum_dynamic_treatment_coef,
+        // dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end][1:(12 * 2)],
+        // to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end][1:(12 * 2)] * stratum_dynamic_treatment_coef, 2, num_deworming_days, 0));
+        // dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end][1:(12 * 10), ]);
+        // to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0)[1:10, ]);
+        // - (exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map))); 
           
       stratum_pos = stratum_end + 1;
       dewormed_stratum_pos = dewormed_stratum_end + 1;
       dynamic_stratum_pos = dynamic_stratum_end + 1;
     }
+    
+    // print("stratum_lp = ", stratum_lp);
   }
 }
 
@@ -170,12 +177,11 @@ model {
   stratum_beta_raw ~ multi_student_t(coef_df, 
                                      rep_vector(0.0, num_not_private_value_bracelet_coef), 
                                      diag_matrix(rep_vector(1, num_not_private_value_bracelet_coef)));
-  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma_dynamic);
+  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   
   hyper_dynamic_treatment_coef_raw ~ student_t(coef_df, 0, 1);
-  
   stratum_dynamic_treatment_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_dynamic_treatment_col), diag_matrix(rep_vector(1, num_dynamic_treatment_col)));
-  stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma);
+  stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma_dynamic);
 
   target += stratum_lp;
 }
