@@ -138,7 +138,8 @@ transformed parameters {
         
       stratum_lp[strata_index] = 
         - (exp(log_sum_exp(log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
-        sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
+        sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
+        // sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
       if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
         reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);
