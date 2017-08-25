@@ -28,7 +28,7 @@ data {
   int<lower = 1, upper = num_obs> strata_sizes[num_strata]; 
   
   int<lower = 1, upper = num_obs> treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
- 
+  
   // Deworming outcomes
   
   int num_deworming_days;
@@ -43,12 +43,22 @@ data {
   matrix[num_deworming_days, num_deworming_days] hazard_day_map;
   matrix[num_deworming_days + 1, num_deworming_days] hazard_day_triangle_map;
   
+  // Dynamics
+  
+  int<lower = 0> num_dynamic_treatment_col;
+ 
+  matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map;
+  matrix<lower = 0, upper = 1>[num_obs, num_dynamic_treatment_col] dynamic_treatment_col;
+  matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+  
   // Constants for hyperpriors 
   real<lower = 0> scale_df;
   real<lower = 0> scale_sigma;
+  real<lower = 0> scale_sigma_dynamic;
   
   real<lower = 0> coef_df;
   real<lower = 0> coef_sigma;
+  real<lower = 0> coef_sigma_dynamic;
 }
 
 transformed data {
@@ -58,20 +68,22 @@ transformed data {
 }
 
 parameters {
-  vector<lower = 0, upper = 1>[num_deworming_days] hyper_baseline_cond_takeup; // Uniform[0, 1]
+  row_vector<lower = 0, upper = 1>[num_deworming_days] hyper_baseline_cond_takeup; // Uniform[0, 1]
   
   vector[num_not_private_value_bracelet_coef] hyper_beta_raw; // No tau for hyper parameter; coef_sigma is the SD
   vector[num_not_private_value_bracelet_coef] stratum_beta_raw[num_strata];
   vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment;
+  
+  vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef_raw;
+  vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef_raw[num_strata];
+  vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment;
 }
 
 transformed parameters {
-  vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
+  row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
   
   vector[num_all_treatment_coef] hyper_beta = rep_vector(0, num_all_treatment_coef); 
-  
-  vector[num_obs] latent_utility = rep_vector(0, num_obs);
-  vector<upper = 0>[num_obs] hetero_kappa = rep_vector(0, num_obs);
+  vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef = hyper_dynamic_treatment_coef_raw * coef_sigma_dynamic;
   
   vector[num_strata] stratum_lp;
   
@@ -80,34 +92,71 @@ transformed parameters {
   {
     int stratum_pos = 1;
     int dewormed_stratum_pos = 1;
+    int dynamic_stratum_pos = 1;
     
-    vector[num_deworming_days + 1] stratum_triangle_sum_lambda = hazard_day_triangle_map * hyper_baseline_hazard;
-    vector[num_deworming_days] stratum_dewormed_day_lambda = hazard_day_map * hyper_baseline_hazard;
-
+    // matrix[num_deworming_days + 1, num_deworming_days] stratum_log_lambda_mat = rep_matrix(log(hyper_baseline_hazard), num_deworming_days + 1);
+    // matrix[num_deworming_days + 1, num_deworming_days] stratum_triangle_lambda = hazard_day_triangle_map .* lambda_mat;
+    // matrix[num_deworming_days, num_deworming_days] stratum_dewormed_day_lambda = hazard_day_map .* rep_matrix(hyper_baseline_hazard, num_deworming_days);
+      
+    vector[num_obs] latent_utility = rep_vector(0, num_obs);
+    // matrix[num_obs, num_deworming_days] kappa;
+    matrix[num_obs, num_deworming_days] loglog_lambda_t;
+    
     for (strata_index in 1:num_strata) {
       int curr_stratum_size = strata_sizes[strata_index];
       int stratum_end = stratum_pos + curr_stratum_size - 1;
+      
       int curr_dewormed_stratum_size = strata_dewormed_sizes[strata_index];
       int dewormed_stratum_end = dewormed_stratum_pos + curr_dewormed_stratum_size - 1;
       
+      int curr_dynamic_stratum_size = curr_stratum_size * num_deworming_days;  
+      int dynamic_stratum_end = dynamic_stratum_pos + curr_dynamic_stratum_size - 1;
+      
       vector[num_all_treatment_coef] stratum_beta = rep_vector(0, num_all_treatment_coef);
       
-      stratum_beta[not_private_value_bracelet_coef] = hyper_beta[not_private_value_bracelet_coef] + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
+      vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef = 
+        hyper_dynamic_treatment_coef + stratum_dynamic_treatment_coef_raw[strata_index] .* stratum_tau_dynamic_treatment; 
+        
+      int stratum_dewormed_ids[curr_dewormed_stratum_size] = dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]; 
+      int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end]; 
+      int stratum_dewormed_day_dewormed[curr_dewormed_stratum_size] = dewormed_day_any[stratum_dewormed_ids];
+      
+      matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
+      matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
+      
+      stratum_beta[not_private_value_bracelet_coef] = 
+        hyper_beta[not_private_value_bracelet_coef] + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
               
       latent_utility[stratum_pos:stratum_end] =
-          treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta + 
+          treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta +
           treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * stratum_beta[private_value_calendar_coef];
          
-      hetero_kappa[stratum_pos:stratum_end] = 
-        (- exp(latent_utility[stratum_pos:stratum_end])); 
-    
-      stratum_lp[strata_index] = 
-        sum(hetero_kappa[stratum_pos:stratum_end] .* stratum_triangle_sum_lambda[dewormed_day_any[stratum_pos:stratum_end]]) +
-        sum(log1m_exp(hetero_kappa[dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]] .*
-                        stratum_dewormed_day_lambda[dewormed_day_any[dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]]]));
+      // print("stratum = ", strata_index, ", latent_utility[1] = ", latent_utility[stratum_pos]);
+      // print("stratum_beta = ", stratum_beta);
+      // print("stratum_beta_raw = ", stratum_beta_raw);
+      // print("hyper_beta = ", hyper_beta);
       
+      loglog_lambda_t[stratum_pos:stratum_end] = 
+         (rep_matrix(latent_utility[stratum_pos:stratum_end], num_deworming_days) +
+          to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0) +
+          rep_matrix(log(hyper_baseline_hazard), curr_stratum_size)); 
+      
+      // kappa[stratum_pos:stratum_end] = 
+      //   - exp(rep_matrix(latent_utility[stratum_pos:stratum_end], num_deworming_days) +
+      //         to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0));
+         
+      // stratum_lp[strata_index] = sum(rows_dot_product(kappa[stratum_pos:stratum_end], stratum_triangle_lambda[stratum_dewormed_day_all])) +
+      //   sum(log1m_exp(rows_dot_product(kappa[stratum_dewormed_ids], stratum_dewormed_day_lambda[stratum_dewormed_day_dewormed])));
+        
+      stratum_lp[strata_index] = 
+        - exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map) - sum(1 - stratum_hazard_day_triangle_map)) +
+        sum(log(inv_cloglog(loglog_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
+        
+      // print("stratum_lp[", strata_index, "] = ", stratum_lp[strata_index]);
+          
       stratum_pos = stratum_end + 1;
       dewormed_stratum_pos = dewormed_stratum_end + 1;
+      dynamic_stratum_pos = dynamic_stratum_end + 1;
     }
   }
 }
@@ -117,14 +166,19 @@ model {
   stratum_beta_raw ~ multi_student_t(coef_df, 
                                      rep_vector(0.0, num_not_private_value_bracelet_coef), 
                                      diag_matrix(rep_vector(1, num_not_private_value_bracelet_coef)));
-  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
+  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma_dynamic);
+  
+  hyper_dynamic_treatment_coef_raw ~ student_t(coef_df, 0, 1);
+  
+  stratum_dynamic_treatment_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_dynamic_treatment_col), diag_matrix(rep_vector(1, num_dynamic_treatment_col)));
+  stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma);
 
   target += sum(stratum_lp);
 }
 
 generated quantities {
-  matrix[num_all_treatments, num_deworming_days] all_treatment_cond_takeup = 1 - 
-    exp(- exp(treatment_map_design_matrix[, not_private_value_bracelet_coef] * hyper_beta[not_private_value_bracelet_coef] + 
-              treatment_map_design_matrix[, private_value_bracelet_coef] * hyper_beta[private_value_calendar_coef]) * 
-          hyper_baseline_hazard');
-  }
+  // matrix[num_all_treatments, num_deworming_days] all_treatment_cond_takeup = 1 - 
+  //   exp(- exp(treatment_map_design_matrix[, not_private_value_bracelet_coef] * hyper_beta[not_private_value_bracelet_coef] + 
+  //             treatment_map_design_matrix[, private_value_bracelet_coef] * hyper_beta[private_value_calendar_coef]) * 
+  //         hyper_baseline_hazard');
+}

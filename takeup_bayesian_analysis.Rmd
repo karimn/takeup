@@ -415,10 +415,11 @@ analysis.data %>%
 ```
 
 
-```{r dyn-model-data}
+```{r dyn-model-data, dependson="param-ate"}
 dyn_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
-         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+         signal_observed = social_value) %>% 
   filter(!name_matched, sms.treatment.2 == "sms.control") %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
@@ -433,6 +434,8 @@ dyn_stan_data <- analysis.data %>%
       filter(private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet"),
     
+    dynamic_treatment_map = tibble(signal_observed = 0:11),
+    
     treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
     subgroup_col = NULL,
     
@@ -443,10 +446,12 @@ dyn_stan_data <- analysis.data %>%
     # name_match_false_pos_beta,
     
     scale_df = 7,
-    scale_sigma = 1,
+    scale_sigma = 0.1,
+    scale_sigma_dynamic = 0.1,
    
     coef_df = 7,
-    coef_sigma = 1,
+    coef_sigma = 0.1,
+    coef_sigma_dynamic = 0.1,
     
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
@@ -459,9 +464,18 @@ dyn_stan_data <- analysis.data %>%
 
 ```{r basic-model-2-simple}
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
-basic_model_2_simple_fit <- sampling(basic_model_2_simple, data = dyn_stan_data, 
-                                     chains = 8, iter = 200, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-                                     sample_file = file.path("stanfit", "basic_model_2_simple_2.csv")) 
+basic_model_2_simple_fit <- dyn_stan_data %>% 
+  sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
+                                     chains = 8, iter = 100, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+                                     sample_file = file.path("stanfit", "basic_model_2_simple_3.csv")) 
+```
+
+```{r basic-model-2-simple-debug}
+basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
+basic_model_2_simple_fit <- dyn_stan_data %>% 
+  sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
+           chains = 1, iter = 10, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
 ```{r}
