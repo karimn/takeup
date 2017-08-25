@@ -153,6 +153,10 @@ transformed parameters {
         sum(log(inv_cloglog(loglog_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
       // print("stratum_lp[", strata_index, "] = ", stratum_lp[strata_index]);
+      
+      if (is_nan(stratum_lp[strata_index])) {
+        reject("Stratum ", strata_index, " log probability is NaN.");
+      }
           
       stratum_pos = stratum_end + 1;
       dewormed_stratum_pos = dewormed_stratum_end + 1;
@@ -173,7 +177,7 @@ model {
   stratum_dynamic_treatment_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_dynamic_treatment_col), diag_matrix(rep_vector(1, num_dynamic_treatment_col)));
   stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma);
 
-  target += sum(stratum_lp);
+  target += stratum_lp;
 }
 
 generated quantities {
