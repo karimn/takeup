@@ -121,6 +121,9 @@ transformed parameters {
       int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end]; 
       int stratum_dewormed_day_dewormed[curr_dewormed_stratum_size] = dewormed_day_any[stratum_dewormed_ids];
       
+      matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
+      matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
+      
       stratum_beta[not_private_value_bracelet_coef] = 
         hyper_beta[not_private_value_bracelet_coef] + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
               
@@ -146,11 +149,10 @@ transformed parameters {
       //   sum(log1m_exp(rows_dot_product(kappa[stratum_dewormed_ids], stratum_dewormed_day_lambda[stratum_dewormed_day_dewormed])));
         
       stratum_lp[strata_index] = 
-        - exp(log_sum_exp(loglog_lambda_t .* hazard_day_triangle_map[stratum_dewormed_day_all]) - sum(1 - hazard_day_triangle_map[stratum_dewormed_day_all])) +
-        sum(log(inv_cloglog(loglog_lambda_t[stratum_dewormed_ids] .* hazard_day_map[stratum_dewormed_day_dewormed]))) - 
-          sum(1 - hazard_day_map[stratum_dewormed_day_dewormed]) * log1m_exp(-1);
+        - exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map) - sum(1 - stratum_hazard_day_triangle_map)) +
+        sum(log(inv_cloglog(loglog_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
-      print("stratum_lp[", strata_index, "] = ", stratum_lp[strata_index]);
+      // print("stratum_lp[", strata_index, "] = ", stratum_lp[strata_index]);
           
       stratum_pos = stratum_end + 1;
       dewormed_stratum_pos = dewormed_stratum_end + 1;
