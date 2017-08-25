@@ -149,7 +149,7 @@ transformed parameters {
       //   sum(log1m_exp(rows_dot_product(kappa[stratum_dewormed_ids], stratum_dewormed_day_lambda[stratum_dewormed_day_dewormed])));
         
       stratum_lp[strata_index] = 
-        - exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map) - sum(1 - stratum_hazard_day_triangle_map)) +
+        - (exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
         sum(log(inv_cloglog(loglog_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
       // print("stratum_lp[", strata_index, "] = ", stratum_lp[strata_index]);
