@@ -996,12 +996,22 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       alply(1, function(row_treat) names(dynamic_treatment_map) %in% unlist(row_treat)) %>% 
       do.call(rbind, .) 
   
-    dynamic_treatment_map %<>% cbind(.^2)
+    dynamic_treatment_map %<>% 
+      cbind(.^2) %>% 
+      scale(center = FALSE, scale = rep(max(.), ncol(.)))
+      
     dynamic_treatment_col %<>% cbind(., .)
     
+    # dynamic_treatment_dm <- dynamic_treatment_col %>% 
+    #   alply(1, . %>% multiply_by(dynamic_treatment_map)) %>% 
+    #   do.call(rbind, .)
+    
     dynamic_treatment_dm <- dynamic_treatment_col %>% 
-      alply(1, . %>% multiply_by(dynamic_treatment_map)) %>% 
-      do.call(rbind, .)
+      alply(1, 
+            function(col_mask_row) {
+              matrix(col_mask_row, nrow = nrow(dynamic_treatment_map), ncol = length(col_mask_row), byrow = TRUE) * dynamic_treatment_map
+            }) %>% 
+      do.call(rbind, .)  
   }
   
   private_value_calendar_coef <- treatment_map_design_matrix %>% 
