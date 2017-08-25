@@ -440,12 +440,12 @@ dyn_stan_data <- analysis.data %>%
     # name_match_false_pos_beta,
     
     scale_df = 7,
-    scale_sigma = 0.1,
-    scale_sigma_dynamic = 0.1,
+    scale_sigma = 1,
+    scale_sigma_dynamic = 1,
    
     coef_df = 7,
-    coef_sigma = 0.1,
-    coef_sigma_dynamic = 0.1,
+    coef_sigma = 1,
+    coef_sigma_dynamic = 5,
     
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
@@ -460,7 +460,7 @@ dyn_stan_data <- analysis.data %>%
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-                                     chains = 8, iter = 100, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+                                     chains = 7, iter = 50, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
                                      sample_file = file.path("stanfit", "basic_model_2_simple_3.csv")) 
 ```
 
@@ -468,7 +468,7 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 1, iter = 10, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           chains = 1, iter = 20, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
            sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
