@@ -45,11 +45,16 @@ data {
   
   // Dynamics
   
+  int<lower = 0> num_dynamic_treatments;
+  
+  int<lower = 1, upper = num_obs> dynamic_treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
   int<lower = 0> num_dynamic_treatment_col;
  
   matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map;
-  matrix<lower = 0, upper = 1>[num_obs, num_dynamic_treatment_col] dynamic_treatment_col;
-  matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+  matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
+  
+  // matrix<lower = 0, upper = 1>[num_obs, num_dynamic_treatment_col] dynamic_treatment_col;
+  // matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
   
   // Constants for hyperpriors 
   real<lower = 0> scale_df;
@@ -65,6 +70,19 @@ transformed data {
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
   
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
+  
+  matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+
+  {
+    int dynamic_treatment_dm_pos = 1;
+    
+    for (obs_index in 1:num_obs) {
+      dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = 
+        rep_matrix(dynamic_treatment_mask_map[obs_index], num_deworming_days) .* dynamic_treatment_map;
+      
+      dynamic_treatment_dm_pos = dynamic_treatment_dm_pos + num_deworming_days;
+    }
+  } 
 }
 
 parameters {
@@ -138,7 +156,8 @@ transformed parameters {
         
       stratum_lp[strata_index] = 
         - (exp(log_sum_exp(log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
-        sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
+        sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
+        // sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
       if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
         reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);

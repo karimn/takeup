@@ -993,25 +993,35 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     dynamic_treatment_col <- prepared_analysis_data %>% 
       select(dyn_var) %>% 
-      alply(1, function(row_treat) names(dynamic_treatment_map) %in% unlist(row_treat)) %>% 
-      do.call(rbind, .) 
+      adply(1, function(row_treat) setNames(1*(names(dynamic_treatment_map) %in% unlist(row_treat)), names(dynamic_treatment_map)))
   
     dynamic_treatment_map %<>% 
-      cbind(.^2) %>% 
+      cbind(set_colnames(.^2, str_c(colnames(.), "_squared"))) %>% 
       scale(center = FALSE, scale = rep(max(.), ncol(.)))
+    
+    dynamic_treatment_col %<>% bind_cols(select(., - seq_along(dyn_var)) %>% set_names(str_c(names(.), "_squared")))
+    dynamic_treatment_mask_map <- distinct(dynamic_treatment_col) %>% 
+      mutate(dynamic_treatment_id = seq_len(n()))
+    
+    prepared_analysis_data %<>% 
+      left_join(select(dynamic_treatment_mask_map, dyn_var, dynamic_treatment_id), by = dyn_var) %>% 
+      arrange(obs_index)
+    
+    dynamic_treatment_mask_map %<>% select(- one_of(dyn_var), -dynamic_treatment_id)
       
-    dynamic_treatment_col %<>% cbind(., .)
+    dynamic_treatment_col %<>% select(., - seq_along(dyn_var)) %>% as.matrix()
     
     # dynamic_treatment_dm <- dynamic_treatment_col %>% 
-    #   alply(1, . %>% multiply_by(dynamic_treatment_map)) %>% 
-    #   do.call(rbind, .)
-    
-    dynamic_treatment_dm <- dynamic_treatment_col %>% 
-      alply(1, 
-            function(col_mask_row) {
-              matrix(col_mask_row, nrow = nrow(dynamic_treatment_map), ncol = length(col_mask_row), byrow = TRUE) * dynamic_treatment_map
-            }) %>% 
-      do.call(rbind, .)  
+    #   alply(1, 
+    #         function(col_mask_row) {
+    #           matrix(col_mask_row, nrow = nrow(dynamic_treatment_map), ncol = length(col_mask_row), byrow = TRUE) * dynamic_treatment_map
+    #         }) %>% 
+    #   do.call(rbind, .)  
+  } else {
+    dyn_var <- NULL
+    dynamic_treatment_col <- NULL
+    dynamic_treatment_mask_map <- NULL
+    dynamic_treatment_dm <- NULL
   }
   
   private_value_calendar_coef <- treatment_map_design_matrix %>% 
@@ -1173,9 +1183,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     dynamic_treatment_map,
     dynamic_treatment_col = 1 * dynamic_treatment_col, # Convert to integers but keep as matrix (as.integer() messed it up)
-    dynamic_treatment_dm,
+    # dynamic_treatment_dm,
+    dynamic_treatment_mask_map, # = select(dynamic_treatment_mask_map, ),
     
-    num_dynamic_treatment_col = ncol(dynamic_treatment_col),
+    num_dynamic_treatments = if (is_empty(dynamic_treatment_mask_map)) 0 else nrow(dynamic_treatment_mask_map),
+    
+    num_dynamic_treatment_col = if (is_empty(dynamic_treatment_col)) 0 else ncol(dynamic_treatment_col),
     
     num_private_value_calendar_coef = length(private_value_calendar_coef),
     num_private_value_bracelet_coef = length(private_value_bracelet_coef),
@@ -1230,6 +1243,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     obs_treatment = prepared_analysis_data$all_treatment_id,
   
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
+    dynamic_treatment_id = if (is_empty(dynamic_treatment_mask_map)) rep(0, nrow(prepared_analysis_data)) else prepared_analysis_data$dynamic_treatment_id,
     
     num_obs = length(obs_treatment), 
     
