@@ -78,7 +78,7 @@ transformed data {
     
     for (obs_index in 1:num_obs) {
       dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = 
-        rep_matrix(dynamic_treatment_mask_map[obs_index], num_deworming_days) .* dynamic_treatment_map;
+        rep_matrix(dynamic_treatment_mask_map[dynamic_treatment_id[obs_index]], num_deworming_days) .* dynamic_treatment_map;
       
       dynamic_treatment_dm_pos = dynamic_treatment_dm_pos + num_deworming_days;
     }
