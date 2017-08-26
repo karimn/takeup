@@ -209,6 +209,8 @@ transformed data {
   
   real coef_df = 7;
   real coef_sigma = 10;
+  
+  vector<lower = -0.5, upper = 0.5>[2] hyper_ksh_util_gamma_raw = [ 0, 0 ]'; 
 
   diag_treatment_map_dm[1] = rep_row_vector(0, num_all_treatment_coef);
   diag_treatment_map_dm[2:num_all_treatments] = diag_matrix(rep_vector(1, num_all_treatment_coef));
@@ -234,54 +236,57 @@ parameters {
   vector[num_not_private_value_bracelet_coef] stratum_beta_raw[num_strata];
   vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment;
   
-  vector[num_strata] stratum_name_matching_effect_raw;
-  real<lower = 0> tau_stratum_name_matching;
-
-  matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact_raw;
-  real<lower = 0> tau_stratum_treatment_name_matching_interact;
-  
-  vector[num_census_covar_coef] hyper_census_covar_coef_raw;
+  // vector[num_strata] stratum_name_matching_effect_raw;
+  // real<lower = 0> tau_stratum_name_matching;
+  // 
+  // matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact_raw;
+  // real<lower = 0> tau_stratum_treatment_name_matching_interact;
+  // 
+  // vector[num_census_covar_coef] hyper_census_covar_coef_raw;
   
   // WTP parameters
-  
+
   real hyper_mu_wtp_diff_raw;
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
 
-  vector<lower = -0.5, upper = 0.5>[2] hyper_ksh_util_gamma_raw; 
-  
+  // vector<lower = -0.5, upper = 0.5>[2] hyper_ksh_util_gamma_raw;
+
   vector[num_obs] latent_bracelet_val_diff_raw;
 }
 
 transformed parameters {
-  real hyper_baseline_day1_hazard = log(hyper_baseline_day1_takeup);
+  real<lower = 0> hyper_baseline_day1_hazard = - log(hyper_baseline_day1_takeup);
   
-  matrix[num_deworming_days, num_strata] baseline_hazards = 
+  matrix<lower = 0>[num_deworming_days, num_strata] baseline_hazards = 
     hyper_baseline_day1_hazard * rep_matrix(stratum_hazard_effect, num_deworming_days) .* rep_matrix(day_hazard_effect, num_strata);
     
   vector[num_not_private_value_bracelet_coef] hyper_beta = hyper_beta_raw * coef_sigma;
-  vector[num_census_covar_coef] hyper_census_covar_coef = hyper_census_covar_coef_raw * coef_sigma;
+  // vector[num_census_covar_coef] hyper_census_covar_coef = hyper_census_covar_coef_raw * coef_sigma;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   
-  vector[num_strata] stratum_name_matching_effect = stratum_name_matching_effect_raw * tau_stratum_name_matching;
-  matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact =
-    stratum_treatment_name_matching_interact_raw * tau_stratum_treatment_name_matching_interact;
+  // vector[num_strata] stratum_name_matching_effect = stratum_name_matching_effect_raw * tau_stratum_name_matching;
+  // matrix[num_all_treatment_coef, num_strata] stratum_treatment_name_matching_interact =
+  //   stratum_treatment_name_matching_interact_raw * tau_stratum_treatment_name_matching_interact;
     
   vector[num_obs] latent_bracelet_util_diff;
     
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
-  
-  vector[num_strata] stratum_lp;
+  // 
     
   // WTP parameters
   real hyper_mu_wtp_diff = hyper_mu_wtp_diff_raw * tau_mu_wtp_diff;
   vector[num_strata] mu_wtp_diff = (hyper_mu_wtp_diff_raw * tau_mu_wtp_diff) + mu_wtp_diff_raw * tau_mu_wtp_diff;
   
+  vector<upper = 0>[num_obs] hetero_kappa = rep_vector(0, num_obs); 
+  vector[num_strata] stratum_lp;
+  
   {
     int stratum_pos = 1;
     int bracelet_val_stratum_pos = 1;
     int dewormed_stratum_pos = 1;
+    
 
     for (strata_index in 1:num_strata) {
       vector[num_all_treatment_coef] stratum_beta = rep_vector(0, num_all_treatment_coef);
@@ -297,26 +302,24 @@ transformed parameters {
       int curr_dewormed_stratum_size = strata_dewormed_sizes[strata_index];
       int dewormed_stratum_end = dewormed_stratum_pos + curr_dewormed_stratum_size - 1;
       
-      vector[curr_stratum_size] hetero_kappa = rep_vector(0, curr_stratum_size); 
-      
       latent_bracelet_util_diff[stratum_pos:stratum_end] =
         (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) .* hyper_ksh_util_gamma_raw[phone_owner_indices[stratum_pos:stratum_end]];
       
       stratum_beta[not_private_value_bracelet_coef] = hyper_beta + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
               
       latent_utility[stratum_pos:stratum_end] =
-          census_covar_dm[stratum_pos:stratum_end] * hyper_census_covar_coef +
-          treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta +
-          (treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * stratum_beta[private_value_calendar_coef]) .* 
-             (1 + latent_bracelet_util_diff[stratum_pos:stratum_end]) +
-          name_matched[stratum_pos:stratum_end] * stratum_name_matching_effect[strata_index] +
-          (diag_treatment_dm[stratum_pos:stratum_end] * stratum_treatment_name_matching_interact[, strata_index]) .* name_matched[stratum_pos:stratum_end];
+          // census_covar_dm[stratum_pos:stratum_end] * hyper_census_covar_coef +
+          treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta + 
+          (treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * stratum_beta[private_value_calendar_coef]) .*
+             (1 + latent_bracelet_util_diff[stratum_pos:stratum_end]);
+          // name_matched[stratum_pos:stratum_end] * stratum_name_matching_effect[strata_index] +
+          // (diag_treatment_dm[stratum_pos:stratum_end] * stratum_treatment_name_matching_interact[, strata_index]) .* name_matched[stratum_pos:stratum_end];
          
-      hetero_kappa = (- exp(latent_utility[stratum_pos:stratum_end])) .* cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]];
+      hetero_kappa[stratum_pos:stratum_end] = (- exp(latent_utility[stratum_pos:stratum_end])) .* cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]];
     
       stratum_lp[strata_index] = 
-        sum(hetero_kappa .* stratum_triangle_sum_lambda[dewormed_day_any[stratum_pos:stratum_end]]) +
-        sum(log1m_exp(hetero_kappa[dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]] .* 
+        sum(hetero_kappa[stratum_pos:stratum_end] .* stratum_triangle_sum_lambda[dewormed_day_any[stratum_pos:stratum_end]]) + 
+        sum(log1m_exp(hetero_kappa[dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]] .*
                         stratum_dewormed_day_lambda[dewormed_day_any[dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]]]));
           
       stratum_beta_mat[strata_index] = stratum_beta';
@@ -333,8 +336,8 @@ model {
   
   hyper_mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
   mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
-  sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff); 
-  
+  sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff);
+
   {
     int wtp_stratum_pos = 1;
 
@@ -357,13 +360,9 @@ model {
 
       wtp_stratum_pos = wtp_stratum_end + 1;
     }
-  } 
-  
+  }
+
   latent_bracelet_val_diff_raw ~ student_t(wtp_utility_df, 0, 1);
-  // hyper_ksh_util_gamma_raw ~ normal(0, 1);
-  // hyper_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
-  // stratum_ksh_util_gamma_raw ~ student_t(coef_df, 0, 1);
-  // tau_stratum_ksh_util ~ student_t(scale_df, 0, scale_sigma);
   
   // Take-up sampling
   
@@ -377,14 +376,14 @@ model {
                                      diag_matrix(rep_vector(1, num_not_private_value_bracelet_coef)));
   stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   
-  stratum_name_matching_effect_raw ~ student_t(coef_df, 0, 1);
-  tau_stratum_name_matching ~ student_t(scale_df, 0, scale_sigma);
-  to_vector(stratum_treatment_name_matching_interact_raw) ~ student_t(coef_df, 0, 1);
-  tau_stratum_treatment_name_matching_interact ~ student_t(scale_df, 0, scale_sigma);
-  
-  hyper_census_covar_coef_raw ~ student_t(coef_df, 0, 1);
+  // stratum_name_matching_effect_raw ~ student_t(coef_df, 0, 1);
+  // tau_stratum_name_matching ~ student_t(scale_df, 0, scale_sigma);
+  // to_vector(stratum_treatment_name_matching_interact_raw) ~ student_t(coef_df, 0, 1);
+  // tau_stratum_treatment_name_matching_interact ~ student_t(scale_df, 0, scale_sigma);
 
-  target += sum(stratum_lp);  
+  // hyper_census_covar_coef_raw ~ student_t(coef_df, 0, 1);
+
+  target += sum(stratum_lp);
 }
 
 generated quantities {

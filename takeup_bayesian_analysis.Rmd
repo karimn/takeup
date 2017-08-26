@@ -434,7 +434,8 @@ dyn_stan_data <- analysis.data %>%
       filter(private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet"),
     
-    dynamic_treatment_map = tibble(signal_observed = 0:11),
+    dynamic_treatment_map = lst(formula = ~ signal_observed*phone_owner, 
+                                trends = tibble(signal_observed = 0:11)),
     
     treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
     subgroup_col = NULL,
