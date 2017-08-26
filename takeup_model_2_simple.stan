@@ -45,11 +45,16 @@ data {
   
   // Dynamics
   
+  int<lower = 0> num_dynamic_treatments;
+  
+  int<lower = 1, upper = num_obs> dynamic_treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
   int<lower = 0> num_dynamic_treatment_col;
  
   matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map;
-  matrix<lower = 0, upper = 1>[num_obs, num_dynamic_treatment_col] dynamic_treatment_col;
-  matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+  matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
+  
+  // matrix<lower = 0, upper = 1>[num_obs, num_dynamic_treatment_col] dynamic_treatment_col;
+  // matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
   
   // Constants for hyperpriors 
   real<lower = 0> scale_df;
@@ -65,6 +70,19 @@ transformed data {
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
   
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
+  
+  matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+
+  {
+    int dynamic_treatment_dm_pos = 1;
+    
+    for (obs_index in 1:num_obs) {
+      dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = 
+        rep_matrix(dynamic_treatment_mask_map[obs_index], num_deworming_days) .* dynamic_treatment_map;
+      
+      dynamic_treatment_dm_pos = dynamic_treatment_dm_pos + num_deworming_days;
+    }
+  } 
 }
 
 parameters {
