@@ -483,7 +483,7 @@ dyn_stan_data <- analysis.data %>%
     treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
       filter(private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet",
-             signal_observed == social_value),
+             signal_observed == social_value | signal_observed == "control"),
     
     dynamic_treatment_map = lst(formula = ~ signal_observed*phone_owner, 
                                 trends = tibble(signal_observed = 0:11)),
