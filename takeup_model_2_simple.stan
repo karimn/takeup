@@ -52,9 +52,34 @@ data {
  
   matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map;
   matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
+  int all_treatment_dyn_id[num_all_treatments];
   
-  // matrix<lower = 0, upper = 1>[num_obs, num_dynamic_treatment_col] dynamic_treatment_col;
-  // matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+  // Counterfactuals and ATE
+  
+  int<lower = 0, upper = num_all_treatments> num_non_phone_owner_treatments;
+  int<lower = 0, upper = num_all_treatments> num_phone_owner_treatments;
+  int<lower = 1, upper = num_all_treatments> non_phone_owner_treatments[num_non_phone_owner_treatments];
+  int<lower = 1, upper = num_all_treatments> phone_owner_treatments[num_phone_owner_treatments];
+  
+  int<lower = 0> num_missing_non_phone_owner_obs_ids;
+  int<lower = 0, upper = num_obs> missing_non_phone_owner_treatment_sizes[num_non_phone_owner_treatments];
+  int<lower = 1, upper = num_obs> missing_non_phone_owner_obs_ids[num_missing_non_phone_owner_obs_ids];
+  int<lower = 0> num_missing_phone_owner_obs_ids;
+  int<lower = 0, upper = num_obs> missing_phone_owner_treatment_sizes[num_phone_owner_treatments];
+  int<lower = 1, upper = num_obs> missing_phone_owner_obs_ids[num_missing_phone_owner_obs_ids];
+  
+  int<lower = 0> num_observed_non_phone_owner_obs_ids;
+  int<lower = 0, upper = num_obs> observed_non_phone_owner_treatment_sizes[num_non_phone_owner_treatments];
+  int<lower = 1, upper = num_obs> observed_non_phone_owner_obs_ids[num_observed_non_phone_owner_obs_ids];
+  int<lower = 0> num_observed_phone_owner_obs_ids;
+  int<lower = 0, upper = num_obs> observed_phone_owner_treatment_sizes[num_phone_owner_treatments];
+  int<lower = 1, upper = num_obs> observed_phone_owner_obs_ids[num_observed_phone_owner_obs_ids];
+  
+  int<lower = 0, upper = num_all_treatments> num_non_phone_owner_ate_pairs;
+  int<lower = 0, upper = num_all_treatments> num_phone_owner_ate_pairs;
+  
+  int<lower = 1, upper = num_all_treatments> non_phone_owner_ate_pairs[num_non_phone_owner_ate_pairs, 2];
+  int<lower = 1, upper = num_all_treatments> phone_owner_ate_pairs[num_phone_owner_ate_pairs, 2];
   
   // Constants for hyperpriors 
   real<lower = 0> scale_df;
@@ -157,7 +182,6 @@ transformed parameters {
       stratum_lp[strata_index] = 
         - (exp(log_sum_exp(log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
         sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
-        // sum(log(inv_cloglog(log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - sum(1 - stratum_hazard_day_map) * log1m_exp(-1);
         
       if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
         reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);

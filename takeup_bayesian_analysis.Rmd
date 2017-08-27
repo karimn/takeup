@@ -415,7 +415,7 @@ analysis.data %>%
 ```
 
 ```{r dyn-param-ate}
-param_sms_control_ate <- tribble(
+dyn_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
   "control",            "ink",               "control",             "control",
   "calendar",           "control",           "control",             "control",
@@ -428,9 +428,11 @@ param_sms_control_ate <- tribble(
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
   mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
          phone_owner = as.logical(phone_owner),
+         signal_observed_left = social_value_left,
+         signal_observed_right = social_value_right,
          hh.baseline.sample = FALSE) 
 
-param_phone_owners_ate <- tribble(
+dyn_phone_owners_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
   "control",            "control",           "reminder.only",        "control",             "control",            "sms.control",
   "control",            "control",           "social.info",          "control",             "control",            "sms.control",
@@ -456,9 +458,11 @@ param_phone_owners_ate <- tribble(
 ) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE,
-         hh.baseline.sample = FALSE) 
+         hh.baseline.sample = FALSE, 
+         signal_observed_left = social_value_left,
+         signal_observed_right = social_value_right)
 
-param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) 
+dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
 
 ```{r dyn-model-data, dependson="param-ate"}
@@ -476,9 +480,10 @@ dyn_stan_data <- analysis.data %>%
     #         private_value != "calendar" | social_value == "control",
     #         private_value != "bracelet" | social_value == "bracelet"),
     
-    treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>%
+    treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
       filter(private_value != "calendar" | social_value == "control",
-             private_value != "bracelet" | social_value == "bracelet"),
+             private_value != "bracelet" | social_value == "bracelet",
+             signal_observed == social_value),
     
     dynamic_treatment_map = lst(formula = ~ signal_observed*phone_owner, 
                                 trends = tibble(signal_observed = 0:11)),
@@ -487,7 +492,7 @@ dyn_stan_data <- analysis.data %>%
     subgroup_col = NULL,
     
     # all_ate = param_all_ate,
-    all_ate = param_sms_control_ate %>% select(-contains("sms.treatment")),
+    all_ate = dyn_sms_control_ate %>% select(-contains("sms.treatment")),
     
     # name_match_false_pos_alpha, 
     # name_match_false_pos_beta,
