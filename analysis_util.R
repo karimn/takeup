@@ -958,16 +958,16 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   
   if (!is.null(dynamic_treatment_map)) {
     dyn_var <- names(dynamic_treatment_map$trends)
+    dyn_var_re <- str_c(dyn_var, collapse = "|")
     dyn_formula_var <- all.vars(dynamic_treatment_map$formula)
     
     dynamic_treatment_mask_map <- prepared_analysis_data %>% 
       distinct_(.dots = dyn_formula_var) %>% 
-      bind_cols(model_matrix(., dynamic_treatment_map$formula) %>% select(contains(dyn_var)))
+      bind_cols(model_matrix(., dynamic_treatment_map$formula) %>% select(matches(dyn_var_re)))
     
     dynamic_treatment_map <- dynamic_treatment_mask_map %>%
       select(- one_of(dyn_formula_var)) %>% 
-      map2_dfc(str_extract(names(.), fixed(names(dynamic_treatment_map$trends))),
-              ~ dynamic_treatment_map$trends %>% pull(.y)) %>% 
+      map2_dfc(str_extract(names(.), dyn_var_re), ~ dynamic_treatment_map$trends %>% pull(.y)) %>% 
       cbind(set_colnames(.^2, str_c(colnames(.), "_squared"))) %>% 
       scale(center = FALSE, scale = rep(max(.), ncol(.)))
     

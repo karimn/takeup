@@ -469,30 +469,36 @@ dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate)
 dyn_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
-         signal_observed = social_value) %>% 
-  filter(!name_matched, sms.treatment.2 == "sms.control") %>%
+         signal_observed = social_value,
+         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+  # filter(!name_matched, sms.treatment.2 == "sms.control") %>%
+  filter(!name_matched) %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
     
-    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
-    #   filter(phone_owner | sms.treatment.2 == "sms.control",
-    #         (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-    #         private_value != "calendar" | social_value == "control",
-    #         private_value != "bracelet" | social_value == "bracelet"),
-    
-    treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
-      filter(private_value != "calendar" | social_value == "control",
+    treatment_map = data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
+      filter(phone_owner | sms.treatment.2 == "sms.control",
+            (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+             private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet",
-             signal_observed == social_value | signal_observed == "control"),
+             signal_observed == social_value | signal_observed == "control",
+             reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control")),
     
-    dynamic_treatment_map = lst(formula = ~ signal_observed*phone_owner, 
-                                trends = tibble(signal_observed = 0:11)),
+    # treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
+    #   filter(private_value != "calendar" | social_value == "control",
+    #          private_value != "bracelet" | social_value == "bracelet",
+    #          signal_observed == social_value | signal_observed == "control"),
     
-    treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
+    dynamic_treatment_map = lst(formula = ~ (signal_observed + reminder_info_stock)*phone_owner, 
+                                trends = tibble(signal_observed = 0:11,
+                                                reminder_info_stock = rep(0:5, each = 2))),
+    
+    # treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
+    treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner,
     subgroup_col = NULL,
     
-    # all_ate = param_all_ate,
-    all_ate = dyn_sms_control_ate %>% select(-contains("sms.treatment")),
+    all_ate = dyn_all_ate,
+    # all_ate = dyn_sms_control_ate %>% select(-contains("sms.treatment")),
     
     # name_match_false_pos_alpha, 
     # name_match_false_pos_beta,
