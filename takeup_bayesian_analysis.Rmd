@@ -430,7 +430,10 @@ dyn_sms_control_ate <- tribble(
          phone_owner = as.logical(phone_owner),
          signal_observed_left = social_value_left,
          signal_observed_right = social_value_right,
-         hh.baseline.sample = FALSE) 
+         hh.baseline.sample = FALSE) %>% 
+  bind_rows(tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
+                    "control",            "bracelet",         "control",               "control",             "control",            "control",
+                    "control",            "ink",              "control",               "control",             "control",            "control"))
 
 dyn_phone_owners_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -536,7 +539,85 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
            sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
-```{r}
-print(basic_model_2_simple_fit, pars = c(sprintf("all_treatment_cond_takeup[34,%d]", 1:12)))
+```{r, eval=FALSE}
+basic_model_2_simple_fit <- read_stan_csv(dir("stanfit", pattern = "basic_model_2_simple_6_[1-8].csv", full.names = TRUE))
 ```
+
+```{r}
+est_deworming_days <- basic_model_2_simple_fit %>% 
+  as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>% 
+  imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
+  separate(outcome_id, c("phone_owner", "all_treatment_rank", "day"), "(_deworming_days\\[)|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(day, all_treatment_rank), as.integer) %>% 
+  group_by(phone_owner) %>% 
+  mutate(all_treatment_id = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>%
+  ungroup() %>% 
+  mutate(phone_owner = phone_owner == "phone") %>% 
+  left_join(dyn_stan_data$treatment_map, "all_treatment_id")
+
+assertthat::assert_that(all(phone_owner.x == phone_owner.y), env = est_deworming_days)
+
+est_deworming_days %<>% 
+  mutate(phone_owner = phone_owner.x) %>% 
+  select(-matches("phone_owner\\.[xy]"))
+```
+```{r, fig.width=12}
+sms_control_dyn_takeup <- est_deworming_days %>% 
+  filter(sms.treatment.2 == "sms.control",
+         social_value != "bracelet" | private_value == "control") %>% 
+  unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
+  group_by(day, phone_owner, dist.pot.group, private_value, social_value, incentive_treatment, day) %>% 
+  summarize(mean_takeup_prop = mean(sim_outcome),
+            ub_90 = quantile(sim_outcome, 0.95),
+            lb_90 = quantile(sim_outcome, 0.05)) %>% 
+  ungroup() %>% {
+    treated <- filter(., incentive_treatment != "control-control") %>% 
+      mutate(comparator = incentive_treatment)
+    baseline <- filter(., incentive_treatment == "control-control") %>% 
+      left_join(select(treated, day, phone_owner, dist.pot.group, comparator), c("day", "phone_owner", "dist.pot.group"))
+    
+    bind_rows(treated, baseline)
+  } 
+
+sms_control_dyn_takeup %>% 
+  filter(day < 13) %>% 
+  ggplot(aes(x = day, y = mean_takeup_prop)) +
+  geom_line(data = . %>% filter(incentive_treatment == "control-control")) +
+  geom_point(data = . %>% filter(incentive_treatment == "control-control")) +
+  geom_line(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_point(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
+  facet_grid(phone_owner + dist.pot.group ~ comparator, labeller = label_both, scales = "free_y")
+```
+
+```{r}
+sms_control_dyn_takeup %>% 
+  filter(day == 13, incentive_treatment == comparator | (comparator == "control-ink" & incentive_treatment == "control-control")) %>% 
+  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet")) %>% 
+  mutate(mean_takeup_prop = 1 - mean_takeup_prop) %>% 
+  ggplot(aes(x = incentive_treatment, y = mean_takeup_prop)) +
+  geom_pointrange(aes(ymin = 1 - lb_90, ymax = 1 - ub_90)) +
+  # scale_y_continuous(limits = c(0, 0.5)) +
+  facet_grid(phone_owner ~ dist.pot.group, labeller = label_both)
+```
+
+```{r, fig.width=10, fig.height=10}
+est_deworming_days %>% 
+  filter(phone_owner,
+         social_value != "bracelet" | private_value == "bracelet",
+         day < 13) %>% 
+  unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
+  group_by(day, phone_owner, dist.pot.group, private_value, social_value, incentive_treatment, sms.treatment.2) %>% 
+  summarize(mean_takeup_prop = mean(sim_outcome),
+            ub_90 = quantile(sim_outcome, 0.95),
+            lb_90 = quantile(sim_outcome, 0.05)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = day, y = mean_takeup_prop)) +
+  geom_point(aes(group = sms.treatment.2, color = incentive_treatment)) +
+  geom_line(aes(linetype = sms.treatment.2, color = incentive_treatment)) +
+  geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25) +
+  facet_grid(incentive_treatment ~ dist.pot.group )
+```
+
+
 
