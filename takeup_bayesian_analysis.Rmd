@@ -430,6 +430,8 @@ dyn_sms_control_ate <- tribble(
          phone_owner = as.logical(phone_owner),
          signal_observed_left = social_value_left,
          signal_observed_right = social_value_right,
+         reminder_info_stock_left = "control",
+         reminder_info_stock_right = "control",
          hh.baseline.sample = FALSE) %>% 
   bind_rows(tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
                     "control",            "bracelet",         "control",               "control",             "control",            "control",
@@ -463,7 +465,16 @@ dyn_phone_owners_ate <- tribble(
   mutate(phone_owner = TRUE,
          hh.baseline.sample = FALSE, 
          signal_observed_left = social_value_left,
-         signal_observed_right = social_value_right)
+         signal_observed_right = social_value_right,
+         reminder_info_stock_left = fct_recode(sms.treatment.2_left, control = "sms.control"),
+         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control")) %>% 
+  bind_rows(
+    tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right,
+            "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "bracelet",            "control",             "sms.control",           "control",
+            
+            
+            "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "control",            "control",             "sms.social_info",           "control"))
+            
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
