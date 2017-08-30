@@ -216,15 +216,18 @@ parameters {
   
   vector[num_not_private_value_bracelet_coef] hyper_beta_raw; // No tau for hyper parameter; coef_sigma is the SD
   vector[num_not_private_value_bracelet_coef] stratum_beta_raw[num_strata];
-  vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment;
+  vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment_raw;
   
   row_vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef_raw;
   row_vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef_raw[num_strata];
-  row_vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment;
+  row_vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment_raw;
 }
 
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
+  
+  vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment = stratum_tau_treatment_raw * scale_sigma;
+  row_vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment = stratum_tau_dynamic_treatment_raw * scale_sigma;
   
   vector[num_all_treatment_coef] hyper_beta = rep_vector(0, num_all_treatment_coef); 
   row_vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef = hyper_dynamic_treatment_coef_raw * coef_sigma_dynamic;
@@ -330,11 +333,11 @@ model {
   stratum_beta_raw ~ multi_student_t(coef_df, 
                                      rep_vector(0.0, num_not_private_value_bracelet_coef), 
                                      diag_matrix(rep_vector(1, num_not_private_value_bracelet_coef)));
-  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
+  stratum_tau_treatment_raw ~ student_t(scale_df, 0, 1);
   
   hyper_dynamic_treatment_coef_raw ~ student_t(coef_df, 0, 1);
   stratum_dynamic_treatment_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_dynamic_treatment_col), diag_matrix(rep_vector(1, num_dynamic_treatment_col)));
-  stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma_dynamic);
+  stratum_tau_dynamic_treatment_raw ~ student_t(scale_df, 0, 1);
 
   target += stratum_lp;
 }
