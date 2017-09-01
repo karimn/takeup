@@ -85,7 +85,58 @@ ggplot(tibble(x = c(0, 20)), aes(x)) +
   scale_x_continuous(breaks = seq(0, 50, 1))
 ```
 
+# Common Notation
+
+Subscripts:
+
+* $i$: individuals
+* $j$: clusters
+* $k$: strata (counties)
+
+Randomized treatment variables:
+
+* Incentives/signals are split into
+    - Private incentives: $Z^p_j \in \mathcal{Z}^p = \{\text{control, calendar, bracelet}\}$
+    - Social incentives: $Z^r_j \in \mathcal{Z}^r = \{\text{control, ink, bracelet}\}$
+* Assigned distance to treatment location: $D_j \in \{0, 1\}$ is an indicator of being assigned _far_ treatment (vs. _close_).
+* SMS treatment: $S_i \in \mathcal{S} = \{\text{control, reminders-only, social-info}\}$ 
+* Baseline survey indicator: $B_i = \{0, 1\}$.
+
+For convenience, define:
+
+* $T_i \equiv (Z^p_{j[i]}, Z^r_{j[i]}, D_{j[i]}, S_i, B_i)'$ be a vector of all randomly assigned treatments. 
+* $\widetilde{\mathcal{Z}}^p \equiv \mathcal{Z}^p \setminus \{control\}$, $\widetilde{\mathcal{Z}}^r \equiv \mathcal{Z}^r \setminus \{control\}$, and $\widetilde{\mathcal{S}} \equiv \mathcal{S} \setminus \{control\}$
+
+Furthermore:
+
+* Phone ownership subgroup: $H_i = \{0, 1\}$.
+* Controls/covariates vector: $X_i$.
+* Deworming outcome: $Y_i(t) \in \{0, 1\}$, in response to randomly assigned treatment.
+
 # Willingness-to-Pay
+Let
+
+* $V^c_i$ and $V^b_i$ be an individual's monetary valuation of calendars and bracelets, respectively.
+* $G_i \in \{0, 1\}$ indicates initial gift choice of calendar (vs bracelet). Also, let $\widetilde{G}_i \equiv 2\cdot G_i - 1$.
+* $M_i \in \{0, 10, 20,\ldots, 100\}$ be the randomly assigned offer (in Ksh) to switch gifts choice (calendar instead of bracelet and v.v.)
+* $W_i(m) \in \{0, 1\}$ indicates accepting $m$ Ksh to switch gift choice.
+
+$$
+\begin{align}
+V_i = V^c_i - V^b_i &\sim \mathcal{StudentT}(\nu_v, \mu_{j[i]}, \sigma) \\
+\mu_j &\sim \mathcal{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
+\mu &\sim \mathcal{StudentT}(\nu_\mu, 0, \tau_\mu) \\
+\sigma &\sim \mathcal{StudentT}[0, \infty](\nu_\sigma, 0, \tau_\sigma)
+\end{align}
+$$
+
+with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
+
+We estimate our model parameters using the log-likelihood:
+
+$$
+\log\mathcal{L} = \sum_i W_i\cdot\log\left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) - F_V(0|\mu, \mu_{j[i]}, \sigma)]\right\} + (1 - W_i)\cdot \log F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) 
+$$
 
 ```{r, warning=FALSE}
 wtp_stan_data <- analysis.data %>% 
@@ -137,14 +188,55 @@ wtp_model_0_fit %>%
 
 # Private/Social Value Parameterized Model
 
-* Incentives/signals are split into
-    - Private incentives: $Z^p_j \in \{\text{control, calendar, bracelet}\}$
-    - Social incentives: $Z^s_j \in \{\text{control, ink, bracelet}\}$
-* Assigned distance to treatment location: $D_j \in \{\text{close, far}\}$
-* SMS treatment: $S_i \in \{\text{control, reminders-only, social-info}\}$ 
-* Baseline survey indicator: $B_i = \{0, 1\}$.
-* Phone ownership subgroup: $H_i = \{\0, 1\}$.
-* Deworming outcome: $Y_i(z^p, z^s, d, s, b)$, in response to randomly assigned incentives, distance, SMS treatment and baseline surveying.
+The probability of take-up is
+$$
+\Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y^*_i(t|H_i, X_i) > 0]
+$$
+
+where the latent utility is:
+
+\begin{align}
+Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
+
+U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
+               &= \sum_{w\in\widetilde{Z}^p} \left\{Z^p_w(z^p)\times\beta^p_1 + Z^p_w(z^p)\times h\times\beta^p_2\right\} \\
+                                                {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_1 + Z^r_w(z^r)\times h\times\beta^r_2 + Z^r_w(z^r)\times d \times \beta^r_3 + Z^r_w(z^r)\times h\times d\times\beta^r_4 + Z^r_w(z^r)\times b \times \beta^r_5 + Z^r_w(z^r)\times h\times b\times\beta^r_6\right\} \\
+                                                {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_1 + S_w(s)\times h\times\beta^s_2 + S_w(s)\times d \times \beta^s_3 + S_w(s)\times h\times d\times\beta^s_4 + S_w(S)\times b \times \beta^s_5 + S_w(s)\times h\times b\times\beta^s_6\right\} \\
+                                                {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^s_1 + S_w(s)\times h\times\beta^s_2 + S_w(s)\times d \times \beta^s_3 + S_w(s)\times h\times d\times\beta^s_4 + S_w(S)\times b \times \beta^s_5 + S_w(s)\times h\times b\times\beta^s_6\right\} \\
+                                                {} &+ h\times \beta^h + d\times \beta^d + b\times\beta^b 
+\end{align}
+
+with priors
+
+$$
+\begin{align}
+\alpha_0 &\sim \mathcal{Uniform}(0, 1) \\
+\alpha^{clust}_j &\sim \mathcal{StudentT}(\nu^{coef}, 0, \tau^{clust}) \\
+\alpha^{strat}_k &\sim \mathcal{StudentT}(\nu^{coef}, 0, \tau^{strat}) \\
+\delta &\sim \mathcal{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\beta &\sim \mathcal{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\beta_k &\sim \mathcal{StudentT}\left(\nu^{coef}, \beta, \begin{pmatrix} \tau & 0             & \cdots & 0  \\
+                                                     0             & \tau & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \tau \end{pmatrix}\right)
+\end{align}
+$$
+
+and hyper-priors
+
+$$
+\tau^{clust} \sim \mathcal{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\ 
+\tau^{strat} \sim \mathcal{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\
+\tau \sim \mathcal{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) 
+$$
+
+With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
 
 ```{r param-ate}
 param_sms_control_ate <- tribble(
@@ -195,7 +287,6 @@ param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate)
 
 ```{r}
 param_all_ate %>% 
-  # select(-hh.baseline.sample) %>% 
   select(phone_owner, dist.pot.group, private_value_left, social_value_left, sms.treatment.2_left, private_value_right, social_value_right, sms.treatment.2_right) %>% 
   mutate_at(vars(starts_with("sms")), funs(fct_recode(., control = "sms.control"))) %>% 
   kable(col.names = c("Phone Owner", "Distance", sprintf(c("Private Value (%s)", "Social Value (%s)", "SMS (%s)"), rep(c("L", "R"), each = 3))))
@@ -239,6 +330,8 @@ param_stan_data <- analysis.data %>%
     sigma_ksh_util_gamma = 5,
   )
 ```
+
+## Inference
 
 ```{r basic-model-1, eval=FALSE}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
