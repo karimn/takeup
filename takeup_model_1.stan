@@ -270,7 +270,7 @@ transformed parameters {
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
     
   // WTP parameters
-  real hyper_mu_wtp_diff = hyper_mu_wtp_diff_raw * tau_mu_wtp_diff;
+  // real hyper_mu_wtp_diff = hyper_mu_wtp_diff_raw * tau_mu_wtp_diff;
   vector[num_strata] mu_wtp_diff = (hyper_mu_wtp_diff_raw * tau_mu_wtp_diff) + mu_wtp_diff_raw * tau_mu_wtp_diff;
   
   // vector[num_obs] latent_bracelet_util_diff = mu_wtp_diff[stratum_id] .* hyper_ksh_util_gamma_raw[phone_owner_indices] * tau_hyper_ksh_util_gamma;
