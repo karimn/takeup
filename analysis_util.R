@@ -884,6 +884,47 @@ print.sms.interact.table <- function(.reg.table.data,
 
 # Bayesian Analysis -------------------------------------------------------
 
+prepare_bayes_wtp_data <- function(
+  origin_prepared_analysis_data, 
+  wtp_data,
+  stratum_map = origin_prepared_analysis_data %>% 
+    mutate(stratum_id = as.integer(stratum)) %>% 
+    distinct(stratum_id, stratum),
+  ...) {
+  
+  incentive_choice_data <- origin_prepared_analysis_data %>%
+    filter(!is.na(gift_choice) & gift_choice != "neither",
+           assigned.treatment == "control",
+           sms.treatment.2 == "sms.control") %>%
+    select(county, gift_choice, phone_owner) %>%
+    mutate(offer = 0,
+           response = "keep")
+
+  incentive_choice_data <- wtp_data %>%
+    filter(!is.na(first_choice)) %>%
+    transmute(county,
+              gift_choice = first_choice,
+              offer = price,
+              response = second_choice) %>%
+    bind_rows(incentive_choice_data) %>%
+    left_join(stratum_map, c("county" = "stratum")) %>%
+    mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
+           response = 2 * (response == "switch") - 1) %>%
+    arrange(stratum_id, response)
+ 
+  lst(
+    num_strata = nrow(stratum_map),
+    
+    num_wtp_obs = nrow(incentive_choice_data),
+    wtp_strata_sizes = count(incentive_choice_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
+    gift_choice = incentive_choice_data$gift_choice,
+    wtp_offer = incentive_choice_data$offer,
+    wtp_response = incentive_choice_data$response,
+    
+    ...
+  ) 
+}
+
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
@@ -1047,25 +1088,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     filter(assigned.treatment == "bracelet") %>%
     arrange(stratum_id, obs_index)
 
-  incentive_choice_data <- origin_prepared_analysis_data %>%
-    filter(!is.na(gift_choice) & gift_choice != "neither",
-           assigned.treatment == "control",
-           sms.treatment.2 == "sms.control") %>%
-    select(county, gift_choice, phone_owner) %>%
-    mutate(offer = 0,
-           response = "keep")
-
-  incentive_choice_data <- wtp_data %>%
-    filter(!is.na(first_choice)) %>%
-    transmute(county,
-              gift_choice = first_choice,
-              offer = price,
-              response = second_choice) %>%
-    bind_rows(incentive_choice_data) %>%
-    left_join(stratum_map, c("county" = "stratum")) %>%
-    mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
-           response = 2 * (response == "switch") - 1) %>%
-    arrange(stratum_id, response)
  
   if (!is.null(all_ate)) {
     left_right_cells_colnames <- str_subset(names(all_ate), "_(left|right)$")
@@ -1286,16 +1308,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     non_phone_owner_ate_pairs,
     phone_owner_ate_pairs,
     
-    # WTP data
-    
-    num_wtp_obs = nrow(incentive_choice_data),
-    wtp_strata_sizes = count(incentive_choice_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
-    gift_choice = incentive_choice_data$gift_choice,
-    wtp_offer = incentive_choice_data$offer,
-    wtp_response = incentive_choice_data$response,
     
     ...
-  )
+  ) %>% 
+    modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
   
   stan_data_list$dynamic_initializer <- function() { 
     num_not_private_value_bracelet_coef <- with(stan_data_list, num_all_treatment_coef - num_private_value_bracelet_coef)
