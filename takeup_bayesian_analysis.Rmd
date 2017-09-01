@@ -87,35 +87,52 @@ ggplot(tibble(x = c(0, 20)), aes(x)) +
 
 # Willingness-to-Pay
 
-Skip for now.
+```{r, warning=FALSE}
+wtp_stan_data <- analysis.data %>% 
+  mutate(stratum = county) %>% 
+  prepare_bayes_wtp_data(
+    wtp.data,
+    
+    wtp_utility_df = 3,
+    tau_mu_wtp_diff = 100,
+    mu_wtp_df_student_t = 7,
+    tau_sigma_wtp_diff = 50,
+    sigma_wtp_df_student_t = 2.5
+  )
+```
+
 
 ```{r wtp-sim-run, eval=FALSE}
 wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
-wtp_model_0_fit <- sampling(wtp_model_0, data = stan_data, chains = 4, iter = 2000, sample_file = file.path("stanfit", "wtp_model.csv")) 
+wtp_model_0_fit <- sampling(wtp_model_0, data = wtp_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "wtp_model.csv")) 
 ```
+
+```{r}
+wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_[1-8].csv", full.names = TRUE) %>% 
+  read_stan_csv()
+```
+
 
 ```{r, eval=FALSE}
 print(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response"), include = FALSE)
 ```
 
-## Model Checking
-
-```{r, eval=FALSE}
+```{r}
 wtp_model_0_fit %>% 
   extract(pars = "sim_gift_choice") %$% 
   adply(sim_gift_choice, 1, function(iter) tibble(prop_calendar = mean(iter))) %>% 
   ggplot() +
   geom_density(aes(x = prop_calendar)) +
-  geom_vline(xintercept = mean(stan_data$gift_choice)) +
-  coord_cartesian(xlim = c(-1, 1))
+  geom_vline(xintercept = mean(wtp_stan_data$gift_choice), linetype = "dashed") +
+  coord_cartesian(xlim = c(0.25, 0.75))
 
 wtp_model_0_fit %>% 
   extract(pars = "sim_wtp_response") %$% 
   adply(sim_wtp_response, 1, function(iter) tibble(prop_switch = mean(iter))) %>% 
   ggplot() +
   geom_density(aes(x = prop_switch)) +
-  geom_vline(xintercept = mean(stan_data$wtp_response)) +
-  coord_cartesian(xlim = c(-1, 1))
+  geom_vline(xintercept = mean(wtp_stan_data$wtp_response), linetype = "dashed") +
+  coord_cartesian(xlim = c(-0.75, -0.25))
 ```
 
 # Private/Social Value Parameterized Model
@@ -185,7 +202,7 @@ param_all_ate %>%
 ```
 
 
-```{r param-model-data}
+```{r param-model-data, warning=FALSE}
 param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
@@ -229,7 +246,7 @@ basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8,
 ```
 
 ```{r}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_10_[1-8].csv", full.names = TRUE) %>% 
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_11_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 ```
 
@@ -292,7 +309,7 @@ sms_ctrl_est_deworming_takeup_ate %>%
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75) +
   geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_text(aes(label = sprintf("%.2f", mean_takeup_prop)), nudge_x = 0.16) +
+  geom_text(aes(label = sprintf("%.2f", mean_takeup_prop)), nudge_x = 0.2) +
   scale_x_discrete("Comparator Incentive Treatment") +
   scale_y_continuous("Average Difference in Deworming Proportion") +
   labs(title = "Incentive Average Treatment Effect", subtitle = "Compared with the control arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
@@ -341,8 +358,8 @@ sms_ctrl_est_deworming_takeup <- est_deworming_takeup %>%
 sms_ctrl_est_deworming_takeup %>%
   filter(incentive_treatment != "control-bracelet") %>% 
   ggplot(aes(incentive_treatment, mean_takeup_prop, color = monitored)) + 
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(), size = 0.75) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(), size = 1.75) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
   scale_x_discrete("Incentive Treatment Arm") +
   scale_y_continuous("Deworming Proportion", breaks = seq(0, 1, 0.1)) +
   labs(title = "Deworming Take-up by Treatment Arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
@@ -479,7 +496,7 @@ dyn_phone_owners_ate <- tribble(
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
 
-```{r dyn-model-data, dependson="param-ate"}
+```{r dyn-model-data, warning=FALSE}
 dyn_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
