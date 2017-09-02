@@ -190,21 +190,22 @@ wtp_model_0_fit %>%
 
 The probability of take-up is
 $$
-\Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y^*_i(t|H_i, X_i) > 0]
+\Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i]
 $$
 
 where the latent utility is:
 
+$$
 \begin{align}
 Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
-
 U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
-               &= \sum_{w\in\widetilde{Z}^p} \left\{Z^p_w(z^p)\times\beta^p_1 + Z^p_w(z^p)\times h\times\beta^p_2\right\} \\
-                                                {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_1 + Z^r_w(z^r)\times h\times\beta^r_2 + Z^r_w(z^r)\times d \times \beta^r_3 + Z^r_w(z^r)\times h\times d\times\beta^r_4 + Z^r_w(z^r)\times b \times \beta^r_5 + Z^r_w(z^r)\times h\times b\times\beta^r_6\right\} \\
-                                                {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_1 + S_w(s)\times h\times\beta^s_2 + S_w(s)\times d \times \beta^s_3 + S_w(s)\times h\times d\times\beta^s_4 + S_w(S)\times b \times \beta^s_5 + S_w(s)\times h\times b\times\beta^s_6\right\} \\
-                                                {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^s_1 + S_w(s)\times h\times\beta^s_2 + S_w(s)\times d \times \beta^s_3 + S_w(s)\times h\times d\times\beta^s_4 + S_w(S)\times b \times \beta^s_5 + S_w(s)\times h\times b\times\beta^s_6\right\} \\
+               &= \sum_{w\in\widetilde{Z}^p} \left\{Z^p_w(z^p)\times\beta^p_{w1} + Z^p_w(z^p)\times h\times\beta^p_{w2}\right\} \\
+                                                {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{w1} + Z^r_w(z^r)\times h\times\beta^r_{w2} + Z^r_w(z^r)\times d \times \beta^r_{w3} + Z^r_w(z^r)\times h\times d\times\beta^r_{w4} + Z^r_w(z^r)\times b \times \beta^r_{w5} + Z^r_w(z^r)\times h\times b\times\beta^r_{w6}\right\} \\
+                                                {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{w1} + S_w(s)\times h\times\beta^s_{w2} + S_w(s)\times d \times \beta^s_{w3} + S_w(s)\times h\times d\times\beta^s_{w4} + S_w(S)\times b \times \beta^s_{w5} + S_w(s)\times h\times b\times\beta^s_{w6}\right\} \\
+                                                {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uw1} + S_w(s)\times h\times\beta^{rs}_{uw2} + S_w(s)\times d \times \beta^{rs}_{uw3} + S_w(s)\times h\times d\times\beta^{rs}_{uw4} + S_w(S)\times b \times \beta^{rs}_{uw5} + S_w(s)\times h\times b\times\beta^{rs}_{uw6}\right\} \\
                                                 {} &+ h\times \beta^h + d\times \beta^d + b\times\beta^b 
 \end{align}
+$$
 
 with priors
 
@@ -292,6 +293,7 @@ param_all_ate %>%
   kable(col.names = c("Phone Owner", "Distance", sprintf(c("Private Value (%s)", "Social Value (%s)", "SMS (%s)"), rep(c("L", "R"), each = 3))))
 ```
 
+## Inference
 
 ```{r param-model-data, warning=FALSE}
 param_stan_data <- analysis.data %>%
@@ -331,7 +333,6 @@ param_stan_data <- analysis.data %>%
   )
 ```
 
-## Inference
 
 ```{r basic-model-1, eval=FALSE}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
@@ -339,7 +340,7 @@ basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8,
 ```
 
 ```{r}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_11_[1-8].csv", full.names = TRUE) %>% 
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_12_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 ```
 
@@ -397,7 +398,7 @@ sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>%
 
 ```{r, fig.height=6}
 sms_ctrl_est_deworming_takeup_ate %>% 
-  filter(incentive_treatment_left != "control-bracelet") %>% 
+  filter(incentive_treatment_left != "bracelet-bracelet") %>% 
   ggplot(aes(incentive_treatment_left, mean_takeup_prop)) +
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75) +
@@ -449,7 +450,7 @@ sms_ctrl_est_deworming_takeup <- est_deworming_takeup %>%
 
 ```{r, fig.width=10}
 sms_ctrl_est_deworming_takeup %>%
-  filter(incentive_treatment != "control-bracelet") %>% 
+  filter(incentive_treatment != "bracelet-bracelet") %>% 
   ggplot(aes(incentive_treatment, mean_takeup_prop, color = monitored)) + 
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
@@ -462,6 +463,35 @@ sms_ctrl_est_deworming_takeup %>%
 ```
 
 # Dynamic Model
+
+Subscripts:
+
+* $m \in \{0, 1, \ldots, 13\}$: deworming day. There were 12 possible days of deworming: $1 \geq m \leq 12$.
+
+Model variables:
+
+* $Y_{im}(t, m) \in \{0, 1\}$, indicator of deworming on day $m$, in response to time-invariant and time-varying treatments. We define $Y_{i0}(t, m) = 0, \forall i, t, m$.
+
+$$
+\begin{align}
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 0, H_i = h] &= 1 - \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]})  \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 0, H_i = h] &=  \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}) \\
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 1, H_i = h] &= 1 \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 1, H_i = h] &= 0 \\\\
+\alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}) &= \exp[-\kappa(t, m, h;\beta_{j[i]}, \gamma_{j[i]})\lambda_m] \\
+\kappa(t,m,h;\beta,\gamma) &= \exp\left[U(t,h;\beta) + M(t,m,h;\gamma)\right]
+\end{align}
+$$
+
+where $U(t,h;\beta)$ is the same as in the basic model, excluding the intercept and cluster and stratum effects.
+
+$$
+\begin{align}
+M(t, m, h; \gamma) &= M(z^p, z^r, d, s, b, m, h; \gamma) \\
+                   &= \sum_{w\in\widetilde{Z}^r} \sum_{q = 1}^2 (m - 1)^q\cdot\left\{Z^r_w(z^r)\times\gamma^r_{qw1} + Z^r_w(z^r)\times h\times\gamma^r_{qw2}\right\} \\
+                   {} &+ \sum_{w\in\widetilde{S}} \sum_{q = 1}^2\lfloor (m - 1)/2 \rfloor^q\cdot\left\{S_w(s)\times\gamma^s_{qw1} + S_w(s)\times h\times\gamma^s_{qw2}\right\} \\
+\end{align}
+$$
 
 ## Qualitative Plots
 
@@ -522,9 +552,8 @@ analysis.data %>%
   scale_y_continuous(breaks = 0:10)
 ```
 
-## Inference
 
-```{r dyn-param-ate}
+```{r dyn-param-ate, echo=TRUE, warning=FALSE}
 dyn_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
   "control",            "ink",               "control",             "control",
@@ -588,6 +617,8 @@ dyn_phone_owners_ate <- tribble(
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
+
+## Inference
 
 ```{r dyn-model-data, warning=FALSE}
 dyn_stan_data <- analysis.data %>%
