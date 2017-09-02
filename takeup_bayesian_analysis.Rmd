@@ -339,7 +339,7 @@ param_stan_data <- analysis.data %>%
 
 ```{r basic-model-1}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 200, sample_file = file.path("stanfit", "basic_model_1_10.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 400, sample_file = file.path("stanfit", "basic_model_1_12.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r, eval=FALSE}
@@ -539,7 +539,7 @@ basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_na
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
                                      chains = 8, iter = 400, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-                                     sample_file = file.path("stanfit", "basic_model_2_simple_7.csv")) 
+                                     sample_file = file.path("stanfit", "basic_model_2_simple_8.csv")) 
 ```
 
 ```{r basic-model-2-simple-debug}
