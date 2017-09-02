@@ -3,7 +3,7 @@ functions {
                                    int[] missing_obs_ids, 
                                    int[] missing_stratum_id,
                                    int[] missing_cluster_id,
-                                   vector missing_bracelet_util_diff,
+                                   // vector missing_bracelet_util_diff,
                                    int[] private_value_calendar_coef,
                                    int[] private_value_bracelet_coef,
                                    matrix missing_census_covar_dm,
@@ -42,7 +42,7 @@ functions {
         (stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end], private_value_calendar_coef] *
            treatment_map_dm[treatment_ids[treatment_ids_index], private_value_bracelet_coef]') + 
           
-        missing_bracelet_util_diff[missing_treatment_pos:missing_treatment_end] * treatment_map_dm[treatment_ids[treatment_ids_index], private_value_bracelet_indicator] +
+        // missing_bracelet_util_diff[missing_treatment_pos:missing_treatment_end] * treatment_map_dm[treatment_ids[treatment_ids_index], private_value_bracelet_indicator] +
           
         // missing_name_matched[missing_treatment_pos:missing_treatment_end] .* stratum_name_matching_effect[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] +
         (diag_treatment_map_dm[treatment_ids[treatment_ids_index]] * stratum_treatment_name_matching_interact[, missing_stratum_id[missing_treatment_pos:missing_treatment_end]])' .*
@@ -239,11 +239,11 @@ parameters {
   
   // WTP parameters
   
-  real hyper_mu_wtp_diff_raw;
-  vector[num_strata] mu_wtp_diff_raw;
-  real<lower = 0> sigma_wtp_diff;
+  // real hyper_mu_wtp_diff_raw;
+  // vector[num_strata] mu_wtp_diff_raw;
+  // real<lower = 0> sigma_wtp_diff;
 
-  vector<lower = -0.1, upper = 0>[2] hyper_ksh_util_gamma_raw;
+  // vector<lower = -0.1, upper = 0>[2] hyper_ksh_util_gamma_raw;
   // vector[2] hyper_ksh_util_gamma_raw;
   // real<lower = 0> tau_hyper_ksh_util_gamma;
   // real stratum_ksh_util_gamma_raw[num_strata];
@@ -270,11 +270,11 @@ transformed parameters {
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
     
   // WTP parameters
-  real hyper_mu_wtp_diff = hyper_mu_wtp_diff_raw * tau_mu_wtp_diff;
-  vector[num_strata] mu_wtp_diff = (hyper_mu_wtp_diff_raw * tau_mu_wtp_diff) + mu_wtp_diff_raw * tau_mu_wtp_diff;
-  
-  // vector[num_obs] latent_bracelet_util_diff = mu_wtp_diff[stratum_id] .* hyper_ksh_util_gamma_raw[phone_owner_indices] * tau_hyper_ksh_util_gamma;
-  vector[num_obs] latent_bracelet_util_diff = mu_wtp_diff[stratum_id] .* hyper_ksh_util_gamma_raw[phone_owner_indices];
+  // real hyper_mu_wtp_diff = hyper_mu_wtp_diff_raw * tau_mu_wtp_diff;
+  // vector[num_strata] mu_wtp_diff = (hyper_mu_wtp_diff_raw * tau_mu_wtp_diff) + mu_wtp_diff_raw * tau_mu_wtp_diff;
+  // 
+  // // vector[num_obs] latent_bracelet_util_diff = mu_wtp_diff[stratum_id] .* hyper_ksh_util_gamma_raw[phone_owner_indices] * tau_hyper_ksh_util_gamma;
+  // vector[num_obs] latent_bracelet_util_diff = mu_wtp_diff[stratum_id] .* hyper_ksh_util_gamma_raw[phone_owner_indices];
   
   {
     int stratum_pos = 1;
@@ -286,8 +286,8 @@ transformed parameters {
       int curr_stratum_size = strata_sizes[strata_index];
       int stratum_end = stratum_pos + curr_stratum_size - 1;
       
-      int curr_bracelet_val_stratum_size = strata_bracelet_sizes[strata_index];
-      int bracelet_val_stratum_end = bracelet_val_stratum_pos + curr_bracelet_val_stratum_size - 1;
+      // int curr_bracelet_val_stratum_size = strata_bracelet_sizes[strata_index];
+      // int bracelet_val_stratum_end = bracelet_val_stratum_pos + curr_bracelet_val_stratum_size - 1;
 
       // latent_bracelet_util_diff[stratum_pos:stratum_end] =
       //   // (mu_wtp_diff[strata_index] + (latent_bracelet_val_diff_raw[stratum_pos:stratum_end] * sigma_wtp_diff)) .*
@@ -303,14 +303,14 @@ transformed parameters {
           // (treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * stratum_beta[private_value_calendar_coef]) .* 
           //    (1 + latent_bracelet_util_diff[stratum_pos:stratum_end]) +
           treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * stratum_beta[private_value_calendar_coef] + 
-          bracelet_treated[stratum_pos:stratum_end] .* latent_bracelet_util_diff[stratum_pos:stratum_end] +
+          // bracelet_treated[stratum_pos:stratum_end] .* latent_bracelet_util_diff[stratum_pos:stratum_end] +
           // name_matched[stratum_pos:stratum_end] * stratum_name_matching_effect[strata_index] +
           (diag_treatment_dm[stratum_pos:stratum_end] * stratum_treatment_name_matching_interact[, strata_index]) .* name_matched[stratum_pos:stratum_end];
           
       stratum_beta_mat[strata_index] = stratum_beta';
       
       stratum_pos = stratum_end + 1;
-      bracelet_val_stratum_pos = bracelet_val_stratum_end + 1;
+      // bracelet_val_stratum_pos = bracelet_val_stratum_end + 1;
     }
   }
 }
@@ -318,33 +318,33 @@ transformed parameters {
 model {
   // WTP sampling
   
-  hyper_mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
-  mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
-  sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff);
-
-  {
-    int wtp_stratum_pos = 1;
-
-    for (strata_index in 1:num_strata) {
-      int curr_wtp_stratum_size = wtp_strata_sizes[strata_index];
-      int wtp_stratum_end = wtp_stratum_pos + curr_wtp_stratum_size - 1;
-
-      for (wtp_obs_index in wtp_stratum_pos:wtp_stratum_end) {
-        if (wtp_response[wtp_obs_index] == -1) {
-          if (gift_choice[wtp_obs_index] == -1) {
-            target += student_t_lcdf(- wtp_offer[wtp_obs_index] | wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff);
-          } else {
-            target += student_t_lccdf(wtp_offer[wtp_obs_index] | wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff);
-          }
-        } else {
-          target += log(gift_choice[wtp_obs_index] * (student_t_cdf(gift_choice[wtp_obs_index] * wtp_offer[wtp_obs_index], wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff) -
-                                                      student_t_cdf(0, wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff)));
-        }
-      }
-
-      wtp_stratum_pos = wtp_stratum_end + 1;
-    }
-  }
+  // hyper_mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
+  // mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
+  // sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff);
+  // 
+  // {
+  //   int wtp_stratum_pos = 1;
+  // 
+  //   for (strata_index in 1:num_strata) {
+  //     int curr_wtp_stratum_size = wtp_strata_sizes[strata_index];
+  //     int wtp_stratum_end = wtp_stratum_pos + curr_wtp_stratum_size - 1;
+  // 
+  //     for (wtp_obs_index in wtp_stratum_pos:wtp_stratum_end) {
+  //       if (wtp_response[wtp_obs_index] == -1) {
+  //         if (gift_choice[wtp_obs_index] == -1) {
+  //           target += student_t_lcdf(- wtp_offer[wtp_obs_index] | wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff);
+  //         } else {
+  //           target += student_t_lccdf(wtp_offer[wtp_obs_index] | wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff);
+  //         }
+  //       } else {
+  //         target += log(gift_choice[wtp_obs_index] * (student_t_cdf(gift_choice[wtp_obs_index] * wtp_offer[wtp_obs_index], wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff) -
+  //                                                     student_t_cdf(0, wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff)));
+  //       }
+  //     }
+  // 
+  //     wtp_stratum_pos = wtp_stratum_end + 1;
+  //   }
+  // }
 
   // latent_bracelet_val_diff_raw ~ student_t(wtp_utility_df, 0, 1);
   // hyper_ksh_util_gamma_raw ~ normal(0, 1);
@@ -387,14 +387,14 @@ generated quantities {
   vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
   
   {
-    vector[num_missing_non_phone_owner_obs_ids] missing_non_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_non_phone_owner_obs_ids];
-    vector[num_missing_phone_owner_obs_ids] missing_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_phone_owner_obs_ids];
+    // vector[num_missing_non_phone_owner_obs_ids] missing_non_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_non_phone_owner_obs_ids];
+    // vector[num_missing_phone_owner_obs_ids] missing_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_phone_owner_obs_ids];
     
     non_phone_takeup = treatment_cell_takeup_rng(non_phone_owner_treatments,
                                              missing_non_phone_owner_obs_ids,
                                              non_phone_missing_treatment_stratum_id,
                                              non_phone_missing_treatment_cluster_id,
-                                             missing_non_phone_bracelet_util_diff,
+                                             // missing_non_phone_bracelet_util_diff,
                                              private_value_calendar_coef,
                                              private_value_bracelet_coef,
                                              non_phone_missing_census_covar_dm,
@@ -417,7 +417,7 @@ generated quantities {
                                              missing_phone_owner_obs_ids,
                                              phone_missing_treatment_stratum_id,
                                              phone_missing_treatment_cluster_id,
-                                             missing_phone_bracelet_util_diff,
+                                             // missing_phone_bracelet_util_diff,
                                              private_value_calendar_coef,
                                              private_value_bracelet_coef,
                                              phone_missing_census_covar_dm,
