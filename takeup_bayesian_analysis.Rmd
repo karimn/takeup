@@ -61,6 +61,10 @@ rstan_options(auto_write = TRUE)
 load(file.path("data", "analysis.RData"))
 ```
 
+# Priors
+
+Just some plots to visualize what some prior distributions look like. Not very exciting.
+
 ```{r name-match-priors}
 name_match_false_pos_alpha <- 1
 name_match_false_pos_beta <- 15
@@ -81,146 +85,64 @@ ggplot(tibble(x = c(0, 20)), aes(x)) +
   scale_x_continuous(breaks = seq(0, 50, 1))
 ```
 
-```{r ate}
-sms_control_ate <- tribble(
-  ~ assigned.treatment_left, ~ assigned.treatment_right,
-  "ink",                     "control",
-  "calendar",                "control",
-  "bracelet",                "control",
-  "bracelet",                "calendar"
-) %>%
-  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
-  bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
-  mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
-         phone_owner = as.logical(phone_owner))  
+# Common Notation
 
-phone_owners_ate <- tribble(
-  ~ assigned.treatment_left, ~ sms.treatment.2_left, ~ assigned.treatment_right, ~ sms.treatment.2_right,
-  "control",                 "reminder.only",        "control",                  "sms.control",
-  "control",                 "social.info",          "control",                  "sms.control",
-  "control",                 "social.info",          "control",                  "reminder.only",
-  
-  "ink",                     "social.info",          "control",                  "sms.control",
-  "ink",                     "social.info",          "control",                  "social.info",
-  "ink",                     "social.info",          "ink",                      "sms.control",
-  
-  "calendar",                "social.info",          "control",                  "sms.control",
-  "calendar",                "social.info",          "control",                  "social.info",
-  "calendar",                "social.info",          "calendar",                 "sms.control",
-  
-  "bracelet",                "social.info",          "control",                  "sms.control",
-  "bracelet",                "social.info",          "control",                  "social.info",
-  "bracelet",                "social.info",          "calendar",                 "social.info",
-  "bracelet",                "social.info",          "bracelet",                 "sms.control"
-) %>%
-  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
-  mutate(phone_owner = TRUE)  
+Subscripts:
 
-all_ate <- bind_rows(sms_control_ate, phone_owners_ate) %>%
-  mutate(hh.baseline.sample = FALSE) 
-```
+* $i$: individuals
+* $j$: clusters
+* $k$: strata (counties)
 
-```{r model-data}
-stan_data <- analysis.data %>%
-  filter(!name_matched) %>% # | sms.treatment.2 == "sms.control") %>% 
-  prepare_bayesian_analysis_data(
+Randomized treatment variables:
+
+* Incentives/signals are split into
+    - Private incentives: $Z^p_j \in \mathcal{Z}^p = \{\text{control, calendar, bracelet}\}$
+    - Social incentives: $Z^r_j \in \mathcal{Z}^r = \{\text{control, ink, bracelet}\}$
+* Assigned distance to treatment location: $D_j \in \{0, 1\}$ is an indicator of being assigned _far_ treatment (vs. _close_).
+* SMS treatment: $S_i \in \mathcal{S} = \{\text{control, reminders-only, social-info}\}$ 
+* Baseline survey indicator: $B_i = \{0, 1\}$.
+
+For convenience, define:
+
+* $T_i \equiv (Z^p_{j[i]}, Z^r_{j[i]}, D_{j[i]}, S_i, B_i)'$ be a vector of all randomly assigned treatments. 
+* $\widetilde{\mathcal{Z}}^p \equiv \mathcal{Z}^p \setminus \{control\}$, $\widetilde{\mathcal{Z}}^r \equiv \mathcal{Z}^r \setminus \{control\}$, and $\widetilde{\mathcal{S}} \equiv \mathcal{S} \setminus \{control\}$
+
+Furthermore:
+
+* Phone ownership subgroup: $H_i = \{0, 1\}$.
+* Controls/covariates vector: $X_i$.
+* Deworming outcome: $Y_i(t) \in \{0, 1\}$, in response to randomly assigned treatment.
+
+# Willingness-to-Pay
+Let
+
+* $V^c_i$ and $V^b_i$ be an individual's monetary valuation of calendars and bracelets, respectively.
+* $G_i \in \{0, 1\}$ indicates initial gift choice of calendar (vs bracelet). Also, let $\widetilde{G}_i \equiv 2\cdot G_i - 1$.
+* $M_i \in \{0, 10, 20,\ldots, 100\}$ be the randomly assigned offer (in Ksh) to switch gifts choice (calendar instead of bracelet and v.v.)
+* $W_i(m) \in \{0, 1\}$ indicates accepting $m$ Ksh to switch gift choice.
+
+$$
+\begin{align}
+V_i = V^c_i - V^b_i &\sim \mathcal{StudentT}(\nu_v, \mu_{j[i]}, \sigma) \\
+\mu_j &\sim \mathcal{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
+\mu &\sim \mathcal{StudentT}(\nu_\mu, 0, \tau_\mu) \\
+\sigma &\sim \mathcal{StudentT}[0, \infty](\nu_\sigma, 0, \tau_\sigma)
+\end{align}
+$$
+
+with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
+
+We estimate our model parameters using the log-likelihood:
+
+$$
+\log\mathcal{L} = \sum_i W_i\cdot\log\left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) - F_V(0|\mu, \mu_{j[i]}, \sigma)]\right\} + (1 - W_i)\cdot \log F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) 
+$$
+
+```{r, warning=FALSE}
+wtp_stan_data <- analysis.data %>% 
+  mutate(stratum = county) %>% 
+  prepare_bayes_wtp_data(
     wtp.data,
-    treatment_map = data_grid(., assigned.treatment, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>% 
-      filter(phone_owner | sms.treatment.2 == "sms.control",
-             sms.treatment.2 != "reminder.only" | assigned.treatment == "control"),
-    subgroup_col = "phone_owner",
-    
-    all_ate = all_ate,
-    
-    name_match_false_pos_alpha, 
-    name_match_false_pos_beta,
-    
-    # wtp_utility_df = 3,
-    tau_mu_wtp_diff = 100,
-    mu_wtp_df_student_t = 7,
-    tau_sigma_wtp_diff = 50,
-    sigma_wtp_df_student_t = 2.5,
-  )
-```
-
-```{r basic-model-0}
-basic_model_0 <- stan_model(file = "takeup_model_0.stan", model_name = "model_0")
-basic_model_0_fit <- sampling(basic_model_0, data = stan_data, chains = 2, iter = 100, sample_file = file.path("stanfit", "basic_model_0.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
-```
-
-```{r}
-print(basic_model_0_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
-```
-
-# Covariates Model
-
-```{r covar-model-0, eval=FALSE}
-covar_model_0 <- stan_model(file = "takeup_covar_model_0.stan", model_name = "covar_model_0")
-covar_model_0_fit <- sampling(covar_model_0, data = stan_data, sample_file = file.path("stanfit", "covar_model_0.csv")) #, control = lst(adapt_delta = 0.99, max_treedepth = 15))
-```
-
-# Name Matching Model
-
-```{r name-match-model-0, eval=FALSE}
-name_match_model_0 <- stan_model(file = "name_matching.stan", model_name = "name_match_model_0")
-name_match_model_0_fit <- sampling(name_match_model_0, iter = 4000, data = stan_data, sample_file = file.path("stanfit", "name_match_model_0.csv"), control = lst(adapt_delta = 0.99)) #, max_treedepth = 15))
-
-print(name_match_model_0_fit)
-```
-
-# Model Parametrization
-
-## Willingness-to-Pay
-
-```{r}
-wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
-wtp_model_0_fit <- sampling(wtp_model_0, data = stan_data, chains = 4, iter = 2000, sample_file = file.path("stanfit", "wtp_model.csv")) 
-
-print(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response"), include = FALSE)
-```
-
-### Model Checking
-
-```{r}
-wtp_model_0_fit %>% 
-  extract(pars = "sim_gift_choice") %$% 
-  adply(sim_gift_choice, 1, function(iter) tibble(prop_calendar = mean(iter))) %>% 
-  ggplot() +
-  geom_density(aes(x = prop_calendar)) +
-  geom_vline(xintercept = mean(stan_data$gift_choice)) +
-  coord_cartesian(xlim = c(-1, 1))
-
-wtp_model_0_fit %>% 
-  extract(pars = "sim_wtp_response") %$% 
-  adply(sim_wtp_response, 1, function(iter) tibble(prop_switch = mean(iter))) %>% 
-  ggplot() +
-  geom_density(aes(x = prop_switch)) +
-  geom_vline(xintercept = mean(stan_data$wtp_response)) +
-  coord_cartesian(xlim = c(-1, 1))
-```
-
-## Calendar-Bracelet Private Utility
-
-```{r}
-calendar_param_stan_data <- analysis.data %>% 
-  filter(assigned.treatment %in% c("control", "calendar", "bracelet"), 
-         sms.treatment.2 == "sms.control",
-         !phone_owner,
-         true.monitored) %>% 
-  mutate(assigned.treatment.2 = fct_collapse(assigned.treatment, 
-                                             no_value = c("control", "ink"), 
-                                             private_value = c("calendar", "bracelet")),
-         assigned.treatment = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
-  prepare_bayesian_analysis_data(
-    wtp.data, 
-    treatment_formula = ~ (assigned.treatment + assigned.treatment.2) * phone_owner,
-    
-    scale_df = 3,
-    scale_sigma = 1,
-    
-    coef_df = 7,
-    coef_sigma = 10,
-    bracelet_val_coef_sigma = 100,
     
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
@@ -230,17 +152,92 @@ calendar_param_stan_data <- analysis.data %>%
   )
 ```
 
-```{r calendar-param-0}
-param_model_0 <- stan_model(file = "takeup_param_model_0.stan", model_name = "param_model_0")
-param_model_0_fit <- sampling(param_model_0, data = calendar_param_stan_data, chains = 4, iter = 100, 
-                              sample_file = file.path("stanfit", "param_model_0.csv"), control = lst(adapt_delta = 0.99, max_treedepth = 15))
+
+```{r wtp-sim-run, eval=FALSE}
+wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
+wtp_model_0_fit <- sampling(wtp_model_0, data = wtp_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "wtp_model.csv")) 
 ```
 
 ```{r}
-print(param_model_0_fit, pars = c("cluster_effects_raw", "cluster_effects", "latent_utility", "latent_bracelet_val_diff"), include = FALSE)
+wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_[1-8].csv", full.names = TRUE) %>% 
+  read_stan_csv()
 ```
 
-## Full Parameterized Model
+
+```{r, eval=FALSE}
+print(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response"), include = FALSE)
+```
+
+```{r}
+wtp_model_0_fit %>% 
+  extract(pars = "sim_gift_choice") %$% 
+  adply(sim_gift_choice, 1, function(iter) tibble(prop_calendar = mean(iter))) %>% 
+  ggplot() +
+  geom_density(aes(x = prop_calendar)) +
+  geom_vline(xintercept = mean(wtp_stan_data$gift_choice), linetype = "dashed") +
+  coord_cartesian(xlim = c(0.25, 0.75))
+
+wtp_model_0_fit %>% 
+  extract(pars = "sim_wtp_response") %$% 
+  adply(sim_wtp_response, 1, function(iter) tibble(prop_switch = mean(iter))) %>% 
+  ggplot() +
+  geom_density(aes(x = prop_switch)) +
+  geom_vline(xintercept = mean(wtp_stan_data$wtp_response), linetype = "dashed") +
+  coord_cartesian(xlim = c(-0.75, -0.25))
+```
+
+# Private/Social Value Parameterized Model
+
+The probability of take-up is
+$$
+\Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i]
+$$
+
+where the latent utility is:
+
+$$
+\begin{align}
+Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
+U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
+               &= \sum_{w\in\widetilde{Z}^p} \left\{Z^p_w(z^p)\times\beta^p_{w1} + Z^p_w(z^p)\times h\times\beta^p_{w2}\right\} \\
+                                                {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{w1} + Z^r_w(z^r)\times h\times\beta^r_{w2} + Z^r_w(z^r)\times d \times \beta^r_{w3} + Z^r_w(z^r)\times h\times d\times\beta^r_{w4} + Z^r_w(z^r)\times b \times \beta^r_{w5} + Z^r_w(z^r)\times h\times b\times\beta^r_{w6}\right\} \\
+                                                {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{w1} + S_w(s)\times h\times\beta^s_{w2} + S_w(s)\times d \times \beta^s_{w3} + S_w(s)\times h\times d\times\beta^s_{w4} + S_w(S)\times b \times \beta^s_{w5} + S_w(s)\times h\times b\times\beta^s_{w6}\right\} \\
+                                                {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uw1} + S_w(s)\times h\times\beta^{rs}_{uw2} + S_w(s)\times d \times \beta^{rs}_{uw3} + S_w(s)\times h\times d\times\beta^{rs}_{uw4} + S_w(S)\times b \times \beta^{rs}_{uw5} + S_w(s)\times h\times b\times\beta^{rs}_{uw6}\right\} \\
+                                                {} &+ h\times \beta^h + d\times \beta^d + b\times\beta^b 
+\end{align}
+$$
+
+with priors
+
+$$
+\begin{align}
+\alpha_0 &\sim \mathcal{Uniform}(0, 1) \\
+\alpha^{clust}_j &\sim \mathcal{StudentT}(\nu^{coef}, 0, \tau^{clust}) \\
+\alpha^{strat}_k &\sim \mathcal{StudentT}(\nu^{coef}, 0, \tau^{strat}) \\
+\delta &\sim \mathcal{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\beta &\sim \mathcal{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\beta_k &\sim \mathcal{StudentT}\left(\nu^{coef}, \beta, \begin{pmatrix} \tau & 0             & \cdots & 0  \\
+                                                     0             & \tau & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \tau \end{pmatrix}\right)
+\end{align}
+$$
+
+and hyper-priors
+
+$$
+\tau^{clust} \sim \mathcal{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\ 
+\tau^{strat} \sim \mathcal{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\
+\tau \sim \mathcal{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) 
+$$
+
+With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
 
 ```{r param-ate}
 param_sms_control_ate <- tribble(
@@ -289,12 +286,19 @@ param_phone_owners_ate <- tribble(
 param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) 
 ```
 
-```{r param-model-data}
+```{r}
+param_all_ate %>% 
+  select(phone_owner, dist.pot.group, private_value_left, social_value_left, sms.treatment.2_left, private_value_right, social_value_right, sms.treatment.2_right) %>% 
+  mutate_at(vars(starts_with("sms")), funs(fct_recode(., control = "sms.control"))) %>% 
+  kable(col.names = c("Phone Owner", "Distance", sprintf(c("Private Value (%s)", "Social Value (%s)", "SMS (%s)"), rep(c("L", "R"), each = 3))))
+```
+
+## Inference
+
+```{r param-model-data, warning=FALSE}
 param_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
-  # filter(!name_matched, sms.treatment.2 == "sms.control") %>%
-  # filter(sms.treatment.2 == "sms.control") %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
     
@@ -304,19 +308,11 @@ param_stan_data <- analysis.data %>%
             private_value != "calendar" | social_value == "control",
             private_value != "bracelet" | social_value == "bracelet"),
     
-    # treatment_map = data_grid(., private_value, social_value, dist.pot.group, hh.baseline.sample, phone_owner) %>%
-    #   filter(private_value != "calendar" | social_value == "control",
-    #          private_value != "bracelet" | social_value == "bracelet"),
-    
-    # treatment_formula = ~ (private_value + social_value) * dist.pot.group * sms.treatment.2 * hh.baseline.sample * phone_owner - phone_owner,
-    # treatment_formula = ~ (private_value + social_value) * dist.pot.group * hh.baseline.sample * phone_owner - phone_owner,
-    # treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
     treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner,
     
     subgroup_col = NULL,
     
     all_ate = param_all_ate,
-    # all_ate = param_sms_control_ate %>% select(-contains("sms.treatment")),
     
     # name_match_false_pos_alpha, 
     # name_match_false_pos_beta,
@@ -337,26 +333,167 @@ param_stan_data <- analysis.data %>%
   )
 ```
 
-```{r basic-model-1}
+
+```{r basic-model-1, eval=FALSE}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
 basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 400, sample_file = file.path("stanfit", "basic_model_1_12.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
-```{r, eval=FALSE}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_4_[1-8].csv") %>% 
-  file.path("stanfit", .) %>% 
+```{r}
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_12_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 ```
 
-```{r}
+```{r, eval=FALSE}
 print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
 ```
 
-```{r}
+```{r, eval=FALSE}
 print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
 ```
 
-## Dynamic Model
+```{r basic-model-1-prep-data}
+est_deworming_takeup_ate <- basic_model_1_fit %>% 
+  as.data.frame(pars = c("non_phone_takeup_ate", "phone_takeup_ate")) %>% 
+  imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
+  separate(outcome_id, c("phone_owner", "ate_pair_rank"), "(_takeup_ate\\[)|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(ate_pair_rank), as.integer) %>% 
+  group_by(phone_owner) %>% 
+  do(bind_cols(., param_stan_data[[str_interp("${first(.$phone_owner)}_owner_ate_pairs")]][.$ate_pair_rank, ])) %>%
+  mutate(all_treatment_id_left = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
+         all_treatment_id_right = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right]) %>%
+  ungroup() 
+
+num_raw_takeup_ate <- nrow(est_deworming_takeup_ate)
+
+est_deworming_takeup_ate %<>% 
+  mutate(phone_owner = phone_owner == "phone") %>% 
+  left_join(param_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>% 
+  left_join(param_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right"))
+
+assertthat::assert_that(num_raw_takeup_ate == nrow(est_deworming_takeup_ate) & all(phone_owner.x == phone_owner.y) & all(phone_owner.y == phone_owner), 
+                        env = est_deworming_takeup_ate)
+
+est_deworming_takeup_ate %<>% 
+  select(-matches("phone_owner\\.[xy]"))
+
+sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% 
+  filter(sms.treatment.2_left == "sms.control", 
+         sms.treatment.2_right == "sms.control",
+         private_value_right == "control",
+         social_value_right == "control",
+         private_value_left != "control" | social_value_left != "control") %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)_(left|right)"), phone_owner)) %>% 
+  summarize(mean_takeup_prop = mean(sim_outcome),
+            ub_90 = quantile(sim_outcome, 0.95),
+            ub_95 = quantile(sim_outcome, 0.975),
+            lb_90 = quantile(sim_outcome, 0.05),
+            lb_95 = quantile(sim_outcome, 0.025)) %>% 
+  ungroup() %>% 
+  unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
+  unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
+  mutate_at(vars(matches("incentive_treatment_left")), 
+            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+```
+
+```{r, fig.height=6}
+sms_ctrl_est_deworming_takeup_ate %>% 
+  filter(incentive_treatment_left != "bracelet-bracelet") %>% 
+  ggplot(aes(incentive_treatment_left, mean_takeup_prop)) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_text(aes(label = sprintf("%.2f", mean_takeup_prop)), nudge_x = 0.2) +
+  scale_x_discrete("Comparator Incentive Treatment") +
+  scale_y_continuous("Average Difference in Deworming Proportion") +
+  labs(title = "Incentive Average Treatment Effect", subtitle = "Compared with the control arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
+  facet_grid(phone_owner ~ dist.pot.group_left, labeller = label_both) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
+
+```{r}
+est_deworming_takeup <- basic_model_1_fit %>% 
+  as.data.frame(pars = c("non_phone_takeup", "phone_takeup")) %>% 
+  imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
+  separate(outcome_id, c("phone_owner", "all_treatment_rank", "monitored"), "(_takeup\\[)|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(all_treatment_rank, monitored), as.integer) %>% 
+  mutate(monitored = monitored == 2) %>% 
+  group_by(phone_owner) %>% 
+  mutate(all_treatment_id = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>% 
+  ungroup() 
+
+num_raw_takeup <- nrow(est_deworming_takeup)
+
+est_deworming_takeup %<>% 
+  mutate(phone_owner = phone_owner == "phone") %>% 
+  left_join(param_stan_data$treatment_map, c("all_treatment_id" = "all_treatment_id")) 
+
+assertthat::assert_that(num_raw_takeup == nrow(est_deworming_takeup) & all(phone_owner.x == phone_owner.y), 
+                        env = est_deworming_takeup)
+
+est_deworming_takeup %<>% 
+  mutate(phone_owner = phone_owner.x) %>% 
+  select(-matches("phone_owner\\.[xy]"))
+
+sms_ctrl_est_deworming_takeup <- est_deworming_takeup %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)"), phone_owner, monitored)) %>% 
+  summarize(mean_takeup_prop = mean(sim_outcome),
+            ub_90 = quantile(sim_outcome, 0.95),
+            ub_95 = quantile(sim_outcome, 0.975),
+            lb_90 = quantile(sim_outcome, 0.05),
+            lb_95 = quantile(sim_outcome, 0.025)) %>% 
+  ungroup() %>% 
+  unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
+  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
+```
+
+```{r, fig.width=10}
+sms_ctrl_est_deworming_takeup %>%
+  filter(incentive_treatment != "bracelet-bracelet") %>% 
+  ggplot(aes(incentive_treatment, mean_takeup_prop, color = monitored)) + 
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
+  scale_x_discrete("Incentive Treatment Arm") +
+  scale_y_continuous("Deworming Proportion", breaks = seq(0, 1, 0.1)) +
+  labs(title = "Deworming Take-up by Treatment Arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
+  scale_color_discrete("", labels = c("Name Matched", "Monitored")) +
+  facet_grid(phone_owner ~ dist.pot.group, labeller = label_both) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
+
+# Dynamic Model
+
+Subscripts:
+
+* $m \in \{0, 1, \ldots, 13\}$: deworming day. There were 12 possible days of deworming: $1 \geq m \leq 12$.
+
+Model variables:
+
+* $Y_{im}(t, m) \in \{0, 1\}$, indicator of deworming on day $m$, in response to time-invariant and time-varying treatments. We define $Y_{i0}(t, m) = 0, \forall i, t, m$.
+
+$$
+\begin{align}
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 0, H_i = h] &= 1 - \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]})  \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 0, H_i = h] &=  \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}) \\
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 1, H_i = h] &= 1 \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 1, H_i = h] &= 0 \\\\
+\alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}) &= \exp[-\kappa(t, m, h;\beta_{j[i]}, \gamma_{j[i]})\lambda_m] \\
+\kappa(t,m,h;\beta,\gamma) &= \exp\left[U(t,h;\beta) + M(t,m,h;\gamma)\right]
+\end{align}
+$$
+
+where $U(t,h;\beta)$ is the same as in the basic model, excluding the intercept and cluster and stratum effects.
+
+$$
+\begin{align}
+M(t, m, h; \gamma) &= M(z^p, z^r, d, s, b, m, h; \gamma) \\
+                   &= \sum_{w\in\widetilde{Z}^r} \sum_{q = 1}^2 (m - 1)^q\cdot\left\{Z^r_w(z^r)\times\gamma^r_{qw1} + Z^r_w(z^r)\times h\times\gamma^r_{qw2}\right\} \\
+                   {} &+ \sum_{w\in\widetilde{S}} \sum_{q = 1}^2\lfloor (m - 1)/2 \rfloor^q\cdot\left\{S_w(s)\times\gamma^s_{qw1} + S_w(s)\times h\times\gamma^s_{qw2}\right\} \\
+\end{align}
+$$
+
+## Qualitative Plots
 
 ```{r, fig.width=10, fig.height=10}
 prop_deworm_day_data <- analysis.data %>% 
@@ -377,7 +514,8 @@ base_plot <- function(.data, col, lt = NULL) {
     ggplot(aes_string(x = "dewormed.date.any", y = "cumul_prop_dewormed", color = col)) +
     geom_line(aes_string(color = col, linetype = lt)) +
     geom_point() +
-    scale_x_date(labels = scales::date_format("%a")) +
+    scale_x_date("", labels = scales::date_format("%a")) +
+    scale_y_continuous("Cumulative Deworming Proportion") +
     theme(legend.position = "bottom")
 }
 
@@ -414,7 +552,8 @@ analysis.data %>%
   scale_y_continuous(breaks = 0:10)
 ```
 
-```{r dyn-param-ate}
+
+```{r dyn-param-ate, echo=TRUE, warning=FALSE}
 dyn_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
   "control",            "ink",               "control",             "control",
@@ -479,7 +618,9 @@ dyn_phone_owners_ate <- tribble(
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
 
-```{r dyn-model-data, dependson="param-ate"}
+## Inference
+
+```{r dyn-model-data, warning=FALSE}
 dyn_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
@@ -534,7 +675,7 @@ dyn_stan_data <- analysis.data %>%
   )
 ```
 
-```{r basic-model-2-simple}
+```{r basic-model-2-simple, eval=FALSE}
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
@@ -542,7 +683,7 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
                                      sample_file = file.path("stanfit", "basic_model_2_simple_8.csv")) 
 ```
 
-```{r basic-model-2-simple-debug}
+```{r basic-model-2-simple-debug, eval=FALSE}
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
@@ -550,11 +691,12 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
            sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
-```{r, eval=FALSE}
-basic_model_2_simple_fit <- read_stan_csv(dir("stanfit", pattern = "basic_model_2_simple_6_[1-8].csv", full.names = TRUE))
+```{r}
+basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_6_[1-8].csv", full.names = TRUE) %>% 
+  read_stan_csv()
 ```
 
-```{r}
+```{r basic-model-2-prep-data}
 est_deworming_days <- basic_model_2_simple_fit %>% 
   as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>% 
   imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
@@ -572,6 +714,7 @@ est_deworming_days %<>%
   mutate(phone_owner = phone_owner.x) %>% 
   select(-matches("phone_owner\\.[xy]"))
 ```
+
 ```{r, fig.width=12}
 sms_control_dyn_takeup <- est_deworming_days %>% 
   filter(sms.treatment.2 == "sms.control",
