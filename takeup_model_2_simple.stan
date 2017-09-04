@@ -215,6 +215,7 @@ parameters {
   row_vector<lower = 0, upper = 1>[num_deworming_days] hyper_baseline_cond_takeup; // Uniform[0, 1]
   
   vector[num_not_private_value_bracelet_coef] hyper_beta_raw; // No tau for hyper parameter; coef_sigma is the SD
+  vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment_raw;
   vector[num_not_private_value_bracelet_coef] stratum_beta_raw[num_strata];
   vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment_raw;
   
@@ -226,6 +227,7 @@ parameters {
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
   
+  vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment = hyper_tau_treatment_raw * scale_sigma;
   vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment = stratum_tau_treatment_raw * scale_sigma;
   row_vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment = stratum_tau_dynamic_treatment_raw * scale_sigma;
   
@@ -237,7 +239,7 @@ transformed parameters {
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
   
-  hyper_beta[not_private_value_bracelet_coef] = hyper_beta_raw * coef_sigma;
+  hyper_beta[not_private_value_bracelet_coef] = hyper_beta_raw .* hyper_tau_treatment;
   
   {
     int stratum_pos = 1;
@@ -330,6 +332,8 @@ transformed parameters {
 
 model {
   hyper_beta_raw ~ student_t(coef_df, 0, 1); 
+  hyper_tau_treatment_raw ~ student_t(scale_df, 0, 1);
+  
   stratum_beta_raw ~ multi_student_t(coef_df, 
                                      rep_vector(0.0, num_not_private_value_bracelet_coef), 
                                      diag_matrix(rep_vector(1, num_not_private_value_bracelet_coef)));
@@ -343,37 +347,37 @@ model {
 }
 
 generated quantities {
-  matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 1] non_phone_deworming_days =
-    treatment_cell_deworming_day_rng(non_phone_owner_treatments,
-                                     missing_non_phone_owner_obs_ids,
-                                     non_phone_missing_treatment_stratum_id,
-                                     // non_phone_missing_treatment_cluster_id,
-                                     private_value_calendar_coef,
-                                     private_value_bracelet_coef,
-                                     treatment_map_design_matrix,
-                                     dynamic_treatment_map_dm,
-                                     all_treatment_dyn_id,
-                                     missing_non_phone_owner_treatment_sizes,
-                                     observed_non_phone_owner_treatment_sizes,
-                                     hyper_baseline_hazard,
-                                     stratum_beta_mat,
-                                     stratum_dyn_treatment_mat,
-                                     observed_non_phone_dewormed_day);
-
-  matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 1] phone_deworming_days =
-    treatment_cell_deworming_day_rng(phone_owner_treatments,
-                                     missing_phone_owner_obs_ids,
-                                     phone_missing_treatment_stratum_id,
-                                     // phone_missing_treatment_cluster_id,
-                                     private_value_calendar_coef,
-                                     private_value_bracelet_coef,
-                                     treatment_map_design_matrix,
-                                     dynamic_treatment_map_dm,
-                                     all_treatment_dyn_id,
-                                     missing_phone_owner_treatment_sizes,
-                                     observed_phone_owner_treatment_sizes,
-                                     hyper_baseline_hazard,
-                                     stratum_beta_mat,
-                                     stratum_dyn_treatment_mat,
-                                     observed_phone_dewormed_day);
+  // matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 1] non_phone_deworming_days =
+  //   treatment_cell_deworming_day_rng(non_phone_owner_treatments,
+  //                                    missing_non_phone_owner_obs_ids,
+  //                                    non_phone_missing_treatment_stratum_id,
+  //                                    // non_phone_missing_treatment_cluster_id,
+  //                                    private_value_calendar_coef,
+  //                                    private_value_bracelet_coef,
+  //                                    treatment_map_design_matrix,
+  //                                    dynamic_treatment_map_dm,
+  //                                    all_treatment_dyn_id,
+  //                                    missing_non_phone_owner_treatment_sizes,
+  //                                    observed_non_phone_owner_treatment_sizes,
+  //                                    hyper_baseline_hazard,
+  //                                    stratum_beta_mat,
+  //                                    stratum_dyn_treatment_mat,
+  //                                    observed_non_phone_dewormed_day);
+  // 
+  // matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 1] phone_deworming_days =
+  //   treatment_cell_deworming_day_rng(phone_owner_treatments,
+  //                                    missing_phone_owner_obs_ids,
+  //                                    phone_missing_treatment_stratum_id,
+  //                                    // phone_missing_treatment_cluster_id,
+  //                                    private_value_calendar_coef,
+  //                                    private_value_bracelet_coef,
+  //                                    treatment_map_design_matrix,
+  //                                    dynamic_treatment_map_dm,
+  //                                    all_treatment_dyn_id,
+  //                                    missing_phone_owner_treatment_sizes,
+  //                                    observed_phone_owner_treatment_sizes,
+  //                                    hyper_baseline_hazard,
+  //                                    stratum_beta_mat,
+  //                                    stratum_dyn_treatment_mat,
+  //                                    observed_phone_dewormed_day);
 }
