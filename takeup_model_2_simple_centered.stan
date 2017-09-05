@@ -214,6 +214,8 @@ transformed data {
 parameters {
   row_vector<lower = 0, upper = 1>[num_deworming_days] hyper_baseline_cond_takeup; // Uniform[0, 1]
   
+  real<lower = 0> stratum_hazard_effect[num_strata];
+  
   vector[num_not_private_value_bracelet_coef] hyper_beta; // No tau for hyper parameter; coef_sigma is the SD
   // vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment;
   // vector[num_not_private_value_bracelet_coef] stratum_beta[num_strata];
@@ -226,6 +228,8 @@ parameters {
 
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
+  
+  real<lower = 0> hyper_hazard_frailty_var = 1;
   
   // vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment = hyper_tau_treatment_raw * scale_sigma;
   // vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment = stratum_tau_treatment_raw * scale_sigma;
@@ -286,7 +290,7 @@ transformed parameters {
       log_lambda_t[stratum_pos:stratum_end] = calculate_stratum_log_lambda_t(latent_utility[stratum_pos:stratum_end], 
                                                                              dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
                                                                              stratum_dynamic_treatment_coef',
-                                                                             hyper_baseline_hazard);
+                                                                             hyper_baseline_hazard * stratum_hazard_effect[strata_index]);
          // (rep_matrix(latent_utility[stratum_pos:stratum_end], num_deworming_days) +
          //  to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0) +
          //  rep_matrix(log(hyper_baseline_hazard), curr_stratum_size)); 
@@ -331,6 +335,8 @@ transformed parameters {
 }
 
 model {
+  stratum_hazard_effect ~ gamma(1 / hyper_hazard_frailty_var, 1 / hyper_hazard_frailty_var); 
+  
   // hyper_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   // hyper_beta ~ student_t(coef_df, 0, hyper_tau_treatment); 
   hyper_beta ~ student_t(coef_df, 0, coef_sigma); 
