@@ -1,16 +1,17 @@
 functions {
-  matrix calculate_stratum_log_lambda_t(vector day_constant_kappa, matrix dyn_treat_dm, vector dyn_treat_coef, row_vector stratum_hazard) {
+  matrix calculate_stratum_log_lambda_t(vector day_constant_kappa, matrix dyn_treat_dm, vector dyn_treat_coef, matrix individ_hazard) {
     int num_obs = rows(day_constant_kappa);
-    int num_days = cols(stratum_hazard);
+    int num_days = cols(individ_hazard);
     
-    return rep_matrix(day_constant_kappa, num_days) + to_matrix(dyn_treat_dm * dyn_treat_coef, num_obs, num_days, 0) + rep_matrix(log(stratum_hazard), num_obs); 
+    // return rep_matrix(day_constant_kappa, num_days) + to_matrix(dyn_treat_dm * dyn_treat_coef, num_obs, num_days, 0) + rep_matrix(log(stratum_hazard), num_obs); 
+    return rep_matrix(day_constant_kappa, num_days) + to_matrix(dyn_treat_dm * dyn_treat_coef, num_obs, num_days, 0) + log(individ_hazard); 
   } 
   
-  matrix calculate_treatment_log_lambda_t(vector day_constant_kappa, matrix dyn_treat_dm, matrix dyn_treat_coef, row_vector baseline_hazard) {
+  matrix calculate_treatment_log_lambda_t(vector day_constant_kappa, matrix dyn_treat_dm, matrix dyn_treat_coef, matrix individ_hazard) {
     int num_obs = rows(day_constant_kappa);
-    int num_days = cols(baseline_hazard);
+    int num_days = cols(individ_hazard);
     
-    return rep_matrix(day_constant_kappa, num_days) + (dyn_treat_coef * dyn_treat_dm') + rep_matrix(log(baseline_hazard), num_obs); 
+    return rep_matrix(day_constant_kappa, num_days) + (dyn_treat_coef * dyn_treat_dm') + log(individ_hazard); 
   } 
   
   matrix treatment_cell_deworming_day_rng(int[] treatment_ids, 
@@ -24,12 +25,12 @@ functions {
                                           int[] all_treat_dyn_treat_id,
                                           int[] missing_treatment_sizes,
                                           int[] observed_treatment_sizes,
-                                          row_vector baseline_hazard,
+                                          matrix individ_hazard,
                                           matrix stratum_treatment_coef,
                                           matrix stratum_dyn_treatment_coef,
                                           int[] observed_dewormed_any) {
     int num_treatment_ids = size(treatment_ids);
-    int num_deworming_days = cols(baseline_hazard);
+    int num_deworming_days = cols(individ_hazard);
     int missing_treatment_pos = 1;
     int observed_treatment_pos = 1;
     matrix[num_treatment_ids, num_deworming_days + 1] cell_deworming_day = rep_matrix(0, num_treatment_ids, num_deworming_days + 1);
@@ -51,7 +52,7 @@ functions {
         calculate_treatment_log_lambda_t(missing_latent_utility, 
                                dyn_treatment_map_dm[all_treat_dyn_treat_id[treatment_ids_index]],
                                stratum_dyn_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
-                               baseline_hazard);
+                               individ_hazard[missing_treatment_pos:missing_treatment_end]);
                               
       matrix[curr_missing_treatment_size, num_deworming_days + 1] missing_deworming_days_mask = rep_matrix(0, curr_missing_treatment_size, num_deworming_days + 1);
       matrix[curr_observed_treatment_size, num_deworming_days + 1] observed_deworming_days_mask = days_diag[observed_dewormed_any[observed_treatment_pos:observed_treatment_end]];
@@ -215,6 +216,10 @@ parameters {
   row_vector<lower = 0, upper = 1>[num_deworming_days] hyper_baseline_cond_takeup; // Uniform[0, 1]
   
   real<lower = 0> stratum_hazard_effect[num_strata];
+  real<lower = 0> stratum_hazard_frailty_var;
+  
+  vector<lower = 0>[num_clusters] cluster_hazard_effect;
+  real<lower = 0> cluster_hazard_frailty_var;
   
   vector[num_not_private_value_bracelet_coef] hyper_beta; // No tau for hyper parameter; coef_sigma is the SD
   // vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment;
@@ -229,12 +234,12 @@ parameters {
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
   
-  real<lower = 0> hyper_hazard_frailty_var = 1;
-  
   vector[num_strata] stratum_lp;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
+  
+  matrix<lower = 0>[num_obs, num_deworming_days] individ_baseline_hazard;
   
   {
     int stratum_pos = 1;
@@ -274,10 +279,15 @@ transformed parameters {
       // print("stratum_beta_raw = ", stratum_beta_raw);
       // print("hyper_beta = ", hyper_beta);
       
-      log_lambda_t[stratum_pos:stratum_end] = calculate_stratum_log_lambda_t(latent_utility[stratum_pos:stratum_end], 
-                                                                             dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
-                                                                             stratum_dynamic_treatment_coef[strata_index]',
-                                                                             hyper_baseline_hazard * stratum_hazard_effect[strata_index]);
+      individ_baseline_hazard[stratum_pos:stratum_end] = 
+        rep_matrix(stratum_hazard_effect[strata_index] * hyper_baseline_hazard, curr_stratum_size) .* 
+        rep_matrix(cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]], num_deworming_days);
+      
+      log_lambda_t[stratum_pos:stratum_end] = 
+      calculate_stratum_log_lambda_t(latent_utility[stratum_pos:stratum_end], 
+                                     dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
+                                     stratum_dynamic_treatment_coef[strata_index]',
+                                     individ_baseline_hazard);
         
       stratum_lp[strata_index] = 
         - (exp(log_sum_exp(log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
@@ -319,7 +329,11 @@ transformed parameters {
 }
 
 model {
-  stratum_hazard_effect ~ gamma(1 / hyper_hazard_frailty_var, 1 / hyper_hazard_frailty_var); 
+  cluster_hazard_frailty_var ~ student_t(scale_df, 0, scale_sigma);
+  cluster_hazard_effect ~ gamma(1 / cluster_hazard_frailty_var, 1 / cluster_hazard_frailty_var); 
+  
+  stratum_hazard_frailty_var ~ student_t(scale_df, 0, scale_sigma);
+  stratum_hazard_effect ~ gamma(1 / stratum_hazard_frailty_var, 1 / stratum_hazard_frailty_var); 
   
   hyper_beta ~ student_t(coef_df, 0, coef_sigma); 
   stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
@@ -333,37 +347,37 @@ model {
 }
 
 generated quantities {
-  // matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 1] non_phone_deworming_days =
-  //   treatment_cell_deworming_day_rng(non_phone_owner_treatments,
-  //                                    missing_non_phone_owner_obs_ids,
-  //                                    non_phone_missing_treatment_stratum_id,
-  //                                    // non_phone_missing_treatment_cluster_id,
-  //                                    private_value_calendar_coef,
-  //                                    private_value_bracelet_coef,
-  //                                    treatment_map_design_matrix,
-  //                                    dynamic_treatment_map_dm,
-  //                                    all_treatment_dyn_id,
-  //                                    missing_non_phone_owner_treatment_sizes,
-  //                                    observed_non_phone_owner_treatment_sizes,
-  //                                    hyper_baseline_hazard,
-  //                                    stratum_beta_mat,
-  //                                    stratum_dyn_treatment_mat,
-  //                                    observed_non_phone_dewormed_day);
-  // 
-  // matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 1] phone_deworming_days =
-  //   treatment_cell_deworming_day_rng(phone_owner_treatments,
-  //                                    missing_phone_owner_obs_ids,
-  //                                    phone_missing_treatment_stratum_id,
-  //                                    // phone_missing_treatment_cluster_id,
-  //                                    private_value_calendar_coef,
-  //                                    private_value_bracelet_coef,
-  //                                    treatment_map_design_matrix,
-  //                                    dynamic_treatment_map_dm,
-  //                                    all_treatment_dyn_id,
-  //                                    missing_phone_owner_treatment_sizes,
-  //                                    observed_phone_owner_treatment_sizes,
-  //                                    hyper_baseline_hazard,
-  //                                    stratum_beta_mat,
-  //                                    stratum_dyn_treatment_mat,
-  //                                    observed_phone_dewormed_day);
+  matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 1] non_phone_deworming_days =
+    treatment_cell_deworming_day_rng(non_phone_owner_treatments,
+                                     missing_non_phone_owner_obs_ids,
+                                     non_phone_missing_treatment_stratum_id,
+                                     // non_phone_missing_treatment_cluster_id,
+                                     private_value_calendar_coef,
+                                     private_value_bracelet_coef,
+                                     treatment_map_design_matrix,
+                                     dynamic_treatment_map_dm,
+                                     all_treatment_dyn_id,
+                                     missing_non_phone_owner_treatment_sizes,
+                                     observed_non_phone_owner_treatment_sizes,
+                                     individ_baseline_hazard,
+                                     stratum_beta_mat,
+                                     stratum_dyn_treatment_mat,
+                                     observed_non_phone_dewormed_day);
+
+  matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 1] phone_deworming_days =
+    treatment_cell_deworming_day_rng(phone_owner_treatments,
+                                     missing_phone_owner_obs_ids,
+                                     phone_missing_treatment_stratum_id,
+                                     // phone_missing_treatment_cluster_id,
+                                     private_value_calendar_coef,
+                                     private_value_bracelet_coef,
+                                     treatment_map_design_matrix,
+                                     dynamic_treatment_map_dm,
+                                     all_treatment_dyn_id,
+                                     missing_phone_owner_treatment_sizes,
+                                     observed_phone_owner_treatment_sizes,
+                                     individ_baseline_hazard,
+                                     stratum_beta_mat,
+                                     stratum_dyn_treatment_mat,
+                                     observed_phone_dewormed_day);
 }
