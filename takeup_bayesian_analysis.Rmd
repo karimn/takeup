@@ -132,10 +132,10 @@ $$
 
 with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
 
-We estimate our model parameters using the log-likelihood:
+We estimate our model parameters using the likelihood probability:
 
 $$
-\log\mathcal{L} = \sum_i W_i\cdot\log\left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) - F_V(0|\mu, \mu_{j[i]}, \sigma)]\right\} + (1 - W_i)\cdot \log F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) 
+\mathcal{L}_i = \left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) - F_V(0|\mu, \mu_{j[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma)\right\}^{(1 - W_i)} 
 $$
 
 ```{r, warning=FALSE}
@@ -163,27 +163,31 @@ wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_[1-8].csv", full.names = 
   read_stan_csv()
 ```
 
-
-```{r, eval=FALSE}
+```{r}
 print(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response"), include = FALSE)
 ```
 
 ```{r}
-wtp_model_0_fit %>% 
-  extract(pars = "sim_gift_choice") %$% 
-  adply(sim_gift_choice, 1, function(iter) tibble(prop_calendar = mean(iter))) %>% 
-  ggplot() +
-  geom_density(aes(x = prop_calendar)) +
-  geom_vline(xintercept = mean(wtp_stan_data$gift_choice), linetype = "dashed") +
-  coord_cartesian(xlim = c(0.25, 0.75))
+wtp_sim_data <- as.data.frame(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response")) %>% 
+  mutate(run_id = seq_len(n())) %>% 
+  gather(outcome_id, sim_outcome, -run_id) %>% 
+  separate(outcome_id, c("outcome", "obs_id"), "(\\[)|\\]", extra = "drop") %>% 
+  mutate_at(vars(obs_id), as.integer) 
+```
 
-wtp_model_0_fit %>% 
-  extract(pars = "sim_wtp_response") %$% 
-  adply(sim_wtp_response, 1, function(iter) tibble(prop_switch = mean(iter))) %>% 
+```{r wtp-model-check-plot}
+wtp_sim_data %>% 
+  mutate(sim_outcome = (sim_outcome + 1) / 2) %>% 
+  group_by(run_id, outcome) %>% 
+  summarize(mean_sim_outcome = mean(sim_outcome)) %>% 
   ggplot() +
-  geom_density(aes(x = prop_switch)) +
-  geom_vline(xintercept = mean(wtp_stan_data$wtp_response), linetype = "dashed") +
-  coord_cartesian(xlim = c(-0.75, -0.25))
+  scale_color_discrete("", labels = c("Proportion prefer calendars", "Proportion switch")) +
+  scale_x_continuous("") +
+  geom_vline(xintercept = mean((wtp_stan_data$gift_choice + 1) / 2), linetype = "dashed") +
+  geom_vline(xintercept = mean((wtp_stan_data$wtp_response + 1) / 2), linetype = "dashed") +
+  geom_density(aes(x = mean_sim_outcome, color = outcome)) +
+  labs(title = "Simulated vs Observed WTP Outcomes", subtitle = "Initial gift choice and response to an offer to switch") +
+  theme(legend.position = "bottom")
 ```
 
 # Private/Social Value Parameterized Model
@@ -222,10 +226,10 @@ $$
                                                      0             & \sigma^{coef} & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
                                                      0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
-\beta_k &\sim \mathcal{StudentT}\left(\nu^{coef}, \beta, \begin{pmatrix} \tau & 0             & \cdots & 0  \\
-                                                     0             & \tau & \cdots & 0 \\ 
+\beta_k &\sim \mathcal{StudentT}\left(\nu^{coef}, \beta, \begin{pmatrix} \tau_1 & 0             & \cdots & 0  \\
+                                                     0             & \tau_2 & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
-                                                     0             &               &        & \tau \end{pmatrix}\right)
+                                                     0             &               &        &  \end{pmatrix}\right)
 \end{align}
 $$
 
@@ -238,6 +242,9 @@ $$
 $$
 
 With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
+
+
+## Inference
 
 ```{r param-ate}
 param_sms_control_ate <- tribble(
@@ -286,14 +293,14 @@ param_phone_owners_ate <- tribble(
 param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) 
 ```
 
+Below are the ATE in take-up we are interested in estimating (at this point)
+
 ```{r}
 param_all_ate %>% 
   select(phone_owner, dist.pot.group, private_value_left, social_value_left, sms.treatment.2_left, private_value_right, social_value_right, sms.treatment.2_right) %>% 
   mutate_at(vars(starts_with("sms")), funs(fct_recode(., control = "sms.control"))) %>% 
   kable(col.names = c("Phone Owner", "Distance", sprintf(c("Private Value (%s)", "Social Value (%s)", "SMS (%s)"), rep(c("L", "R"), each = 3))))
 ```
-
-## Inference
 
 ```{r param-model-data, warning=FALSE}
 param_stan_data <- analysis.data %>%
@@ -471,15 +478,22 @@ Subscripts:
 Model variables:
 
 * $Y_{im}(t, m) \in \{0, 1\}$, indicator of deworming on day $m$, in response to time-invariant and time-varying treatments. We define $Y_{i0}(t, m) = 0, \forall i, t, m$.
+* $M_i \in \{1, \ldots, 13\}$ is the day an individual got dewormed. We reserved day 13 for those who did not get dewormed at all ($Y_i = 0$).
+* We use the same time-invariant treatments as in the above static model.
+* The time-varying treatments we introduce in this model is simply a quadratic (we can modify this later) function of the
+    - number of days observing an ink or bracelet signal
+    - number of reminders
+    - number of social information messages
 
 $$
 \begin{align}
-\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 0, H_i = h] &= 1 - \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]})  \\
-\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 0, H_i = h] &=  \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}) \\
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 0, H_i = h] &= 1 - \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m})  \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 0, H_i = h] &=  \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) \\
 \Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 1, H_i = h] &= 1 \\
 \Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 1, H_i = h] &= 0 \\\\
-\alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}) &= \exp[-\kappa(t, m, h;\beta_{j[i]}, \gamma_{j[i]})\lambda_m] \\
-\kappa(t,m,h;\beta,\gamma) &= \exp\left[U(t,h;\beta) + M(t,m,h;\gamma)\right]
+\alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) &= \exp[-\kappa(t, m, h;\beta_{j[i]}, \gamma_{j[i]})\lambda_{j[i],m}] \\
+\kappa(t,m,h;\beta,\gamma) &= \exp\left[U(t,h;\beta) + M(t,m,h;\gamma)\right] \\
+\lambda_{jm} &= v_j \lambda_m
 \end{align}
 $$
 
@@ -491,6 +505,29 @@ M(t, m, h; \gamma) &= M(z^p, z^r, d, s, b, m, h; \gamma) \\
                    &= \sum_{w\in\widetilde{Z}^r} \sum_{q = 1}^2 (m - 1)^q\cdot\left\{Z^r_w(z^r)\times\gamma^r_{qw1} + Z^r_w(z^r)\times h\times\gamma^r_{qw2}\right\} \\
                    {} &+ \sum_{w\in\widetilde{S}} \sum_{q = 1}^2\lfloor (m - 1)/2 \rfloor^q\cdot\left\{S_w(s)\times\gamma^s_{qw1} + S_w(s)\times h\times\gamma^s_{qw2}\right\} \\
 \end{align}
+$$
+
+In addition to the applicable priors from the static model above:
+
+$$
+\begin{align}
+-\exp(\lambda_m) &\sim \mathcal{Uniform}[0, 1] \\
+v_j &\sim \mathcal{Gamma}(\delta, \delta) \\
+\gamma &\sim \mathcal{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\gamma_k &\sim \mathcal{StudentT}\left(\nu^{coef}, \gamma, \begin{pmatrix} \tau^{dyn}_{1} & 0             & \cdots & 0  \\
+                                                     0             & \tau^{dyn}_2 & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0            &               &        &  \end{pmatrix}\right)
+\end{align}
+$$
+
+To estimate this model we use the likelihood probability:
+
+$$
+\mathcal{L}_i = \prod_{m = 1}^{M_i - 1} \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) \cdot (1 - \alpha_{M_i}(t, M_i, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m})^{Y_i}
 $$
 
 ## Qualitative Plots
@@ -687,7 +724,7 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple_centered")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-                                     chains = 8, iter = 200, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+                                     chains = 2, iter = 20, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
                                      sample_file = file.path("stanfit", "basic_model_2_simple_centered_1.csv")) 
 ```
 
