@@ -218,12 +218,12 @@ parameters {
   
   vector[num_not_private_value_bracelet_coef] hyper_beta; // No tau for hyper parameter; coef_sigma is the SD
   // vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment;
-  // vector[num_not_private_value_bracelet_coef] stratum_beta[num_strata];
-  // vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment;
+  vector[num_not_private_value_bracelet_coef] stratum_beta[num_strata];
+  vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment;
   // 
   row_vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef;
-  // row_vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef_raw[num_strata];
-  // row_vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment_raw;
+  row_vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef[num_strata];
+  vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment;
 }
 
 transformed parameters {
@@ -231,19 +231,10 @@ transformed parameters {
   
   real<lower = 0> hyper_hazard_frailty_var = 1;
   
-  // vector<lower = 0>[num_not_private_value_bracelet_coef] hyper_tau_treatment = hyper_tau_treatment_raw * scale_sigma;
-  // vector<lower = 0>[num_not_private_value_bracelet_coef] stratum_tau_treatment = stratum_tau_treatment_raw * scale_sigma;
-  // row_vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment = stratum_tau_dynamic_treatment_raw * scale_sigma;
-  
-  // vector[num_all_treatment_coef] hyper_beta = rep_vector(0, num_all_treatment_coef); 
-  // row_vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef = hyper_dynamic_treatment_coef_raw * coef_sigma_dynamic;
-  
   vector[num_strata] stratum_lp;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
-  
-  // hyper_beta[not_private_value_bracelet_coef] = hyper_beta_raw .* hyper_tau_treatment;
   
   {
     int stratum_pos = 1;
@@ -264,9 +255,6 @@ transformed parameters {
       int dynamic_stratum_end = dynamic_stratum_pos + curr_dynamic_stratum_size - 1;
       
       vector[num_all_treatment_coef] local_stratum_beta = rep_vector(0, num_all_treatment_coef);
-      
-      row_vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef = hyper_dynamic_treatment_coef; 
-      //   hyper_dynamic_treatment_coef + stratum_dynamic_treatment_coef_raw[strata_index] .* stratum_tau_dynamic_treatment; 
         
       int stratum_dewormed_ids[curr_dewormed_stratum_size] = dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]; 
       int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end]; 
@@ -275,8 +263,7 @@ transformed parameters {
       matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
       matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
       
-      local_stratum_beta[not_private_value_bracelet_coef] = hyper_beta;
-        // hyper_beta[not_private_value_bracelet_coef] + stratum_beta_raw[strata_index] .* stratum_tau_treatment;
+      local_stratum_beta[not_private_value_bracelet_coef] = stratum_beta[strata_index];
               
       latent_utility[stratum_pos:stratum_end] =
           treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
@@ -289,11 +276,8 @@ transformed parameters {
       
       log_lambda_t[stratum_pos:stratum_end] = calculate_stratum_log_lambda_t(latent_utility[stratum_pos:stratum_end], 
                                                                              dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
-                                                                             stratum_dynamic_treatment_coef',
+                                                                             stratum_dynamic_treatment_coef[strata_index]',
                                                                              hyper_baseline_hazard * stratum_hazard_effect[strata_index]);
-         // (rep_matrix(latent_utility[stratum_pos:stratum_end], num_deworming_days) +
-         //  to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0) +
-         //  rep_matrix(log(hyper_baseline_hazard), curr_stratum_size)); 
         
       stratum_lp[strata_index] = 
         - (exp(log_sum_exp(log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
@@ -323,7 +307,7 @@ transformed parameters {
         // - (exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map))); 
         
       stratum_beta_mat[strata_index] = local_stratum_beta';
-      stratum_dyn_treatment_mat[strata_index] = stratum_dynamic_treatment_coef;
+      stratum_dyn_treatment_mat[strata_index] = stratum_dynamic_treatment_coef[strata_index];
           
       stratum_pos = stratum_end + 1;
       dewormed_stratum_pos = dewormed_stratum_end + 1;
@@ -337,16 +321,13 @@ transformed parameters {
 model {
   stratum_hazard_effect ~ gamma(1 / hyper_hazard_frailty_var, 1 / hyper_hazard_frailty_var); 
   
-  // hyper_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
-  // hyper_beta ~ student_t(coef_df, 0, hyper_tau_treatment); 
   hyper_beta ~ student_t(coef_df, 0, coef_sigma); 
+  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
+  stratum_beta ~ multi_student_t(coef_df, hyper_beta, diag_matrix(stratum_tau_treatment));
   
-  // stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
-  // stratum_beta ~ multi_student_t(coef_df, hyper_beta, diag_matrix(stratum_tau_treatment));
-  // 
-  hyper_dynamic_treatment_coef ~ student_t(coef_df, 0, coef_sigma);
-  // stratum_dynamic_treatment_coef_raw ~ multi_student_t(coef_df, rep_vector(0.0, num_dynamic_treatment_col), diag_matrix(rep_vector(1, num_dynamic_treatment_col)));
-  // stratum_tau_dynamic_treatment_raw ~ student_t(scale_df, 0, 1);
+  hyper_dynamic_treatment_coef ~ student_t(coef_df, 0, coef_sigma_dynamic);
+  stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma_dynamic);
+  stratum_dynamic_treatment_coef ~ multi_student_t(coef_df, hyper_dynamic_treatment_coef, diag_matrix(stratum_tau_dynamic_treatment));
 
   target += stratum_lp;
 }

@@ -589,6 +589,7 @@ analysis.data %>%
   scale_y_continuous(breaks = 0:10)
 ```
 
+## Inference
 
 ```{r dyn-param-ate, echo=TRUE, warning=FALSE}
 dyn_sms_control_ate <- tribble(
@@ -654,8 +655,6 @@ dyn_phone_owners_ate <- tribble(
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
-
-## Inference
 
 ```{r dyn-model-data, warning=FALSE}
 dyn_stan_data <- analysis.data %>%
