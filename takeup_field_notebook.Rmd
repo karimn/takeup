@@ -216,7 +216,7 @@ all.villages <- rct.villages %>%
     if(is.na(first(.$village))) {
       mutate(., village = 1000 + seq_len(nrow(.)))
     } else {
-      return(.)
+      (.)
     }
   }) %>% 
   ungroup %>% 
@@ -2959,7 +2959,8 @@ all.takeup.survey.groups %<>%
          is.valid.wave.datetime(starttime), 
          is.valid.wave.datetime(endtime),
          !is.na(cluster.id)) %>% 
-  mutate(deworming.day = as.integer(date(starttime) - ifelse(wave == 1, day1.wave1, day1.wave2) + 1),
+  mutate(dewormed.date = date(starttime),
+         deworming.day = as.integer(dewormed.date - ifelse(wave == 1, day1.wave1, day1.wave2) + 1),
          lon = coalesce(lon, lon.hidden),
          lat = coalesce(lat, lat.hidden)) %>% 
   left_join(village.centers, c("wave", "county", "cluster.id"), suffix = c(".act.pot", ".village.center")) %>% 

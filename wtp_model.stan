@@ -14,14 +14,13 @@ data {
   real<lower = 0> tau_sigma_wtp_diff;
   real<lower = 0> sigma_wtp_df_student_t;
   
+  real<lower = 0, upper = 10> wtp_utility_df; 
 }
 
 parameters {
   real hyper_mu_wtp_diff_raw;
   vector[num_strata] mu_wtp_diff_raw;
   real<lower = 0> sigma_wtp_diff;
-  
-  real<lower = 0, upper = 10> wtp_utility_df; 
 }
 
 transformed parameters {
@@ -35,26 +34,26 @@ model {
   sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff); 
  
   {
-    int stratum_pos = 1;
-    
-    for (stratum_index in 1:num_strata) {
-      int curr_stratum_size = wtp_strata_sizes[stratum_index];
-      int stratum_end = stratum_pos + curr_stratum_size - 1;
-      
-      for (i in stratum_pos:stratum_end) {
-        if (wtp_response[i] == -1) {
-          if (gift_choice[i] == -1) {
-            target += student_t_lcdf(- wtp_offer[i] | wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff);
+    int wtp_stratum_pos = 1;
+
+    for (strata_index in 1:num_strata) {
+      int curr_wtp_stratum_size = wtp_strata_sizes[strata_index];
+      int wtp_stratum_end = wtp_stratum_pos + curr_wtp_stratum_size - 1;
+
+      for (wtp_obs_index in wtp_stratum_pos:wtp_stratum_end) {
+        if (wtp_response[wtp_obs_index] == -1) {
+          if (gift_choice[wtp_obs_index] == -1) {
+            target += student_t_lcdf(- wtp_offer[wtp_obs_index] | wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff);
           } else {
-            target += student_t_lccdf(wtp_offer[i] | wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff);
+            target += student_t_lccdf(wtp_offer[wtp_obs_index] | wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff);
           }
         } else {
-          target += log(gift_choice[i] * (student_t_cdf(gift_choice[i] * wtp_offer[i], wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff) 
-                    - student_t_cdf(0, wtp_utility_df, mu_wtp_diff[stratum_index], sigma_wtp_diff)));
-        } 
+          target += log(gift_choice[wtp_obs_index] * (student_t_cdf(gift_choice[wtp_obs_index] * wtp_offer[wtp_obs_index], wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff) -
+                                                      student_t_cdf(0, wtp_utility_df, mu_wtp_diff[strata_index], sigma_wtp_diff)));
+        }
       }
-      
-      stratum_pos = stratum_end + 1;
+
+      wtp_stratum_pos = wtp_stratum_end + 1;
     }
   }
 }
