@@ -243,7 +243,6 @@ $$
 
 With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
 
-
 ## Inference
 
 ```{r param-ate}
@@ -293,7 +292,12 @@ param_phone_owners_ate <- tribble(
 param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) 
 ```
 
-Below are the ATE in take-up we are interested in estimating (at this point)
+We are interested in estimating the finite sample average treatment effect
+
+$$
+\tau(t', t; h) = \frac{1}{N}\sum_{i: H_i = h}^N Y_i(t') - Y_i(t) = \frac{1}{N}\sum_{i: H_i = h}^N \widehat{Y}_i(t') - \widehat{Y}_i(t)
+$$
+where substitute $\widehat{Y}_i(t)$ with either the observed or imputed value of $Y_i(t)$. Below are the ATE in take-up we are interested in estimating (at this point).  
 
 ```{r}
 param_all_ate %>% 
@@ -391,7 +395,7 @@ sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>%
          social_value_right == "control",
          private_value_left != "control" | social_value_left != "control") %>% 
   group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)_(left|right)"), phone_owner)) %>% 
-  summarize(mean_takeup_prop = mean(sim_outcome),
+  summarize(mean_ate = mean(sim_outcome),
             ub_90 = quantile(sim_outcome, 0.95),
             ub_95 = quantile(sim_outcome, 0.975),
             lb_90 = quantile(sim_outcome, 0.05),
@@ -406,11 +410,11 @@ sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>%
 ```{r, fig.height=6}
 sms_ctrl_est_deworming_takeup_ate %>% 
   filter(incentive_treatment_left != "bracelet-bracelet") %>% 
-  ggplot(aes(incentive_treatment_left, mean_takeup_prop)) +
+  ggplot(aes(incentive_treatment_left, mean_ate)) +
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75) +
   geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_text(aes(label = sprintf("%.2f", mean_takeup_prop)), nudge_x = 0.2) +
+  geom_text(aes(label = sprintf("%.2f", mean_ate)), nudge_x = 0.2) +
   scale_x_discrete("Comparator Incentive Treatment") +
   scale_y_continuous("Average Difference in Deworming Proportion") +
   labs(title = "Incentive Average Treatment Effect", subtitle = "Compared with the control arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
@@ -484,6 +488,10 @@ Model variables:
     - number of days observing an ink or bracelet signal
     - number of reminders
     - number of social information messages
+    
+  Thus we add two more possible random treatments:
+    - $Z^{dyn}_j \in \{\text{control, ink, bracelet}\}$, the observable social signals.
+    - $S^{dyn}_i \in \{\text{control, reminders-only, social-info}\}$, the SMS treatment received.
 
 $$
 \begin{align}
@@ -493,7 +501,7 @@ $$
 \Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 1, H_i = h] &= 0 \\\\
 \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) &= \exp[-\kappa(t, m, h;\beta_{j[i]}, \gamma_{j[i]})\lambda_{j[i],m}] \\
 \kappa(t,m,h;\beta,\gamma) &= \exp\left[U(t,h;\beta) + M(t,m,h;\gamma)\right] \\
-\lambda_{jm} &= v_j \lambda_m
+\lambda_{jm} &= v_j v_{k[j]} \lambda_m
 \end{align}
 $$
 
@@ -501,9 +509,9 @@ where $U(t,h;\beta)$ is the same as in the basic model, excluding the intercept 
 
 $$
 \begin{align}
-M(t, m, h; \gamma) &= M(z^p, z^r, d, s, b, m, h; \gamma) \\
-                   &= \sum_{w\in\widetilde{Z}^r} \sum_{q = 1}^2 (m - 1)^q\cdot\left\{Z^r_w(z^r)\times\gamma^r_{qw1} + Z^r_w(z^r)\times h\times\gamma^r_{qw2}\right\} \\
-                   {} &+ \sum_{w\in\widetilde{S}} \sum_{q = 1}^2\lfloor (m - 1)/2 \rfloor^q\cdot\left\{S_w(s)\times\gamma^s_{qw1} + S_w(s)\times h\times\gamma^s_{qw2}\right\} \\
+M(t, m, h; \gamma) &= M(z^{dyn}, s^{dyn}, d, s, b, m, h; \gamma) \\
+                   &= \sum_{w\in\widetilde{Z}^r} \sum_{q = 1}^2 (m - 1)^q\cdot\left\{Z^r_w(z^{dyn})\times\gamma^r_{qw1} + Z^r_w(z^{dyn})\times h\times\gamma^r_{qw2}\right\} \\
+                   {} &+ \sum_{w\in\widetilde{S}} \sum_{q = 1}^2\lfloor (m - 1)/2 \rfloor^q\cdot\left\{S_w(s^{dyn})\times\gamma^s_{qw1} + S_w(s^{dyn})\times h\times\gamma^s_{qw2}\right\} \\
 \end{align}
 $$
 
@@ -512,7 +520,8 @@ In addition to the applicable priors from the static model above:
 $$
 \begin{align}
 -\exp(\lambda_m) &\sim \mathcal{Uniform}[0, 1] \\
-v_j &\sim \mathcal{Gamma}(\delta, \delta) \\
+v^{clust}_j &\sim \mathcal{Gamma}(\delta^{clust}, \delta^{clust}) \\
+v^{strat}_k &\sim \mathcal{Gamma}(\delta^{strat}, \delta^{strat}) \\
 \gamma &\sim \mathcal{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
                                                      0             & \sigma^{coef} & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
@@ -520,7 +529,9 @@ v_j &\sim \mathcal{Gamma}(\delta, \delta) \\
 \gamma_k &\sim \mathcal{StudentT}\left(\nu^{coef}, \gamma, \begin{pmatrix} \tau^{dyn}_{1} & 0             & \cdots & 0  \\
                                                      0             & \tau^{dyn}_2 & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
-                                                     0            &               &        &  \end{pmatrix}\right)
+                                                     0            &               &        &  \end{pmatrix}\right) \\
+\delta^{clust} &\sim StudentT[0, \infty)(\nu^{scale}, 0, \tau^{scale}) \\
+\delta^{strat} &\sim StudentT[0, \infty)(\nu^{scale}, 0, \tau^{scale}) 
 \end{align}
 $$
 
@@ -531,6 +542,8 @@ $$
 $$
 
 ## Qualitative Plots
+
+These are plots using raw data, not from an estimated model.
 
 ```{r, fig.width=10, fig.height=10}
 prop_deworm_day_data <- analysis.data %>% 
@@ -590,6 +603,8 @@ analysis.data %>%
 ```
 
 ## Inference
+
+The finite sample average treatment effects we are interested in estimating is similar to that of the static model; we are interested in the impact on deworming $Y_i \equiv \mathbbm{1}\{M_i \leq 12\}$. We are not interested in the timing of take-up. We use the dynamic model to analyze impute unobservable counterfactuals. For example, estimating the impact of bracelets without any learning, assuming that learning can be captured by the time-varying dynamics of bracelets (days of observable signals). We can't completely shutdown learning, but we can fix at the baseline (control) level.
 
 ```{r dyn-param-ate, echo=TRUE, warning=FALSE}
 dyn_sms_control_ate <- tribble(
@@ -736,14 +751,22 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 ```
 
 ```{r}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_6_[1-8].csv", full.names = TRUE) %>% 
+basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_2_[1-4].csv", full.names = TRUE) %>% 
   read_stan_csv()
+```
+
+```{r}
+basic_model_2_simple_fit %>% 
+  print(pars = c("hyper_baseline_cond_takeup", "hyper_baseline_hazard", 
+                 "stratum_hazard_effect", "stratum_hazard_frailty_var", 
+                 sprintf("cluster_hazard_effect[%d]", 1:10), "cluster_hazard_frailty_var"))
 ```
 
 ```{r basic-model-2-prep-data}
 est_deworming_days <- basic_model_2_simple_fit %>% 
-  as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>% 
-  imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
+  as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, sim_outcome, -iter_id) %>% 
   separate(outcome_id, c("phone_owner", "all_treatment_rank", "day"), "(_deworming_days\\[)|,|\\]", extra = "drop") %>% 
   mutate_at(vars(day, all_treatment_rank), as.integer) %>% 
   group_by(phone_owner) %>% 
@@ -759,12 +782,11 @@ est_deworming_days %<>%
   select(-matches("phone_owner\\.[xy]"))
 ```
 
+
 ```{r, fig.width=12}
-sms_control_dyn_takeup <- est_deworming_days %>% 
-  filter(sms.treatment.2 == "sms.control",
-         social_value != "bracelet" | private_value == "control") %>% 
+summ_dyn_takeup <- est_deworming_days %>% 
   unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
-  group_by(day, phone_owner, dist.pot.group, private_value, social_value, incentive_treatment, day) %>% 
+  group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment) %>% 
   summarize(mean_takeup_prop = mean(sim_outcome),
             ub_90 = quantile(sim_outcome, 0.95),
             lb_90 = quantile(sim_outcome, 0.05)) %>% 
@@ -775,45 +797,120 @@ sms_control_dyn_takeup <- est_deworming_days %>%
       left_join(select(treated, day, phone_owner, dist.pot.group, comparator), c("day", "phone_owner", "dist.pot.group"))
     
     bind_rows(treated, baseline)
-  } 
+  }
 
-sms_control_dyn_takeup %>% 
-  filter(day < 13) %>% 
+dyn_ate <- bind_rows(non_phone = dyn_stan_data$non_phone_owner_ate_pairs,
+                     phone = dyn_stan_data$phone_owner_ate_pairs, .id = "phone_owner") %>% 
+  group_by(phone_owner) %>% 
+  mutate(all_treatment_id_left = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
+         all_treatment_id_right = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right]) %>%
+  ungroup() %>% 
+  mutate(ate_id = seq_len(n()),
+         phone_owner = phone_owner == "phone") %>% 
+  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>%
+  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), c("all_treatment_id_left" = "all_treatment_id")) %>% 
+  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), 
+            c("all_treatment_id_right" = "all_treatment_id", "iter_id", "day"),
+            suffix = c("_left", "_right")) %>% 
+  unite(incentive_treatment_left, private_value_left, social_value_left, sep = "-", remove = FALSE) %>% 
+  unite(incentive_treatment_right, private_value_right, social_value_right, sep = "-", remove = FALSE) 
+
+
+assertthat::assert_that(all(phone_owner.x == phone_owner.y) && all(phone_owner.x.x == phone_owner.y.y) & all(phone_owner == phone_owner.y.y), env = dyn_ate)
+assertthat::assert_that(all(dist.pot.group_left == dist.pot.group_right), env = dyn_ate)
+
+dyn_ate %<>% 
+  select(-contains("phone_owner.")) %>% 
+  filter(day == 13) %>% 
+  mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
+  group_by_at(c("day", "phone_owner", 
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>% 
+                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
+  summarize(mean_ate = mean(iter_ate),
+            ub_90 = quantile(iter_ate, 0.95),
+            ub_95 = quantile(iter_ate, 0.975),
+            lb_90 = quantile(iter_ate, 0.05),
+            lb_95 = quantile(iter_ate, 0.025)) %>% 
+  ungroup() %>% 
+  mutate_at(vars(matches("incentive_treatment")), 
+            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+
+  # vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate = 
+  #   non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
+  # vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
+  #   phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
+
+summ_dyn_takeup %>% 
+  filter(day < 13,
+         sms.treatment.2 == "sms.control",
+         social_value != "bracelet" | private_value == "control") %>% 
   ggplot(aes(x = day, y = mean_takeup_prop)) +
   geom_line(data = . %>% filter(incentive_treatment == "control-control")) +
   geom_point(data = . %>% filter(incentive_treatment == "control-control")) +
   geom_line(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
   geom_point(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
   geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
   facet_grid(phone_owner + dist.pot.group ~ comparator, labeller = label_both, scales = "free_y")
 ```
 
+```{r plot-dyn-ate, fig.height=6}
+bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>% 
+            filter(incentive_treatment_left != "bracelet-bracelet") %>% 
+            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
+          Dynamic = dyn_ate %>% 
+            filter(incentive_treatment_left != "bracelet-bracelet", 
+                   incentive_treatment_right == "control-control",
+                   sms.treatment.2_left == "sms.control", sms.treatment.2_right == "sms.control") %>% 
+            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
+          .id = "model") %>% 
+  mutate_at(vars(matches("incentive_treatment")), 
+            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
+  ggplot(aes(incentive_treatment_left, mean_ate, color = model)) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  # geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL)) +
+  geom_text(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, data = . %>% filter(model == "Dynamic")) +
+  geom_text(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.25, data = . %>% filter(model == "Static")) +
+  scale_x_discrete("Comparator Incentive Treatment") +
+  scale_y_continuous("Average Difference in Deworming Proportion") +
+  scale_color_discrete("Model") +
+  labs(title = "Incentive Average Treatment Effect", subtitle = "Compared with the control arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
+  facet_grid(phone_owner ~ dist.pot.group_left, labeller = label_both) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
+
 ```{r}
-sms_control_dyn_takeup %>% 
-  filter(day == 13, incentive_treatment == comparator | (comparator == "control-ink" & incentive_treatment == "control-control")) %>% 
+dyn_ate %>% 
+```
+
+```{r}
+summ_dyn_takeup %>% 
+  filter(day == 13, 
+         sms.treatment.2 == "sms.control",
+         social_value != "bracelet" | private_value == "control",
+         incentive_treatment == comparator | (comparator == "control-ink" & incentive_treatment == "control-control")) %>% 
   mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet")) %>% 
   mutate(mean_takeup_prop = 1 - mean_takeup_prop) %>% 
   ggplot(aes(x = incentive_treatment, y = mean_takeup_prop)) +
   geom_pointrange(aes(ymin = 1 - lb_90, ymax = 1 - ub_90)) +
-  # scale_y_continuous(limits = c(0, 0.5)) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1)) +
+  scale_y_continuous(limits = c(0, 0.75)) +
   facet_grid(phone_owner ~ dist.pot.group, labeller = label_both)
 ```
 
 ```{r, fig.width=10, fig.height=10}
-est_deworming_days %>% 
+summ_dyn_takeup %>% 
   filter(phone_owner,
          social_value != "bracelet" | private_value == "bracelet",
          day < 13) %>% 
-  unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
-  group_by(day, phone_owner, dist.pot.group, private_value, social_value, incentive_treatment, sms.treatment.2) %>% 
-  summarize(mean_takeup_prop = mean(sim_outcome),
-            ub_90 = quantile(sim_outcome, 0.95),
-            lb_90 = quantile(sim_outcome, 0.05)) %>% 
-  ungroup() %>% 
   ggplot(aes(x = day, y = mean_takeup_prop)) +
   geom_point(aes(group = sms.treatment.2, color = incentive_treatment)) +
   geom_line(aes(linetype = sms.treatment.2, color = incentive_treatment)) +
   geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
   facet_grid(incentive_treatment ~ dist.pot.group )
 ```
 
