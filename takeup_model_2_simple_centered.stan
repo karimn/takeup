@@ -23,6 +23,7 @@ functions {
                                           int[] missing_cluster_id,
                                           int[] private_value_calendar_coef,
                                           int[] private_value_bracelet_coef,
+                                          matrix missing_census_covar_dm,
                                           matrix treatment_map_dm,
                                           matrix[] dyn_treatment_map_dm,
                                           int[] all_treat_dyn_treat_id,
@@ -30,6 +31,7 @@ functions {
                                           int[] observed_treatment_sizes,
                                           matrix stratum_hazard,
                                           vector cluster_frailty,
+                                          vector census_covar_coef,
                                           matrix stratum_treatment_coef,
                                           matrix stratum_dyn_treatment_coef,
                                           int[] observed_dewormed_any) {
@@ -48,6 +50,7 @@ functions {
       int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
       
       vector[curr_missing_treatment_size] missing_latent_utility =
+        missing_census_covar_dm[missing_treatment_pos:missing_treatment_end] * census_covar_coef +
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]' +
         (stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end], private_value_calendar_coef] *
            treatment_map_dm[treatment_ids[treatment_ids_index], private_value_bracelet_coef]'); 
@@ -140,6 +143,14 @@ data {
   matrix[num_deworming_days, num_deworming_days] hazard_day_map;
   matrix[num_deworming_days + 1, num_deworming_days] hazard_day_triangle_map;
   
+  // Covariates
+  
+  int<lower = 1> num_census_covar_coef;
+  int<lower = 1> num_distinct_census_covar;
+  
+  matrix[num_distinct_census_covar, num_census_covar_coef] census_covar_map_dm; 
+  int census_covar_id[num_obs];
+  
   // Dynamics
   
   int<lower = 0> num_dynamic_treatments;
@@ -190,6 +201,7 @@ data {
 
 transformed data {
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
+  matrix[num_obs, num_census_covar_coef] census_covar_dm = census_covar_map_dm[census_covar_id];
   
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
   
@@ -198,6 +210,9 @@ transformed data {
   
   int observed_non_phone_dewormed_day[num_observed_non_phone_owner_obs_ids] = dewormed_day_any[observed_non_phone_owner_obs_ids];
   int observed_phone_dewormed_day[num_observed_phone_owner_obs_ids] = dewormed_day_any[observed_phone_owner_obs_ids];
+  
+  matrix[num_missing_non_phone_owner_obs_ids, num_census_covar_coef] non_phone_missing_census_covar_dm = census_covar_dm[missing_non_phone_owner_obs_ids];
+  matrix[num_missing_phone_owner_obs_ids, num_census_covar_coef] phone_missing_census_covar_dm = census_covar_dm[missing_phone_owner_obs_ids];
   
   int non_phone_missing_treatment_stratum_id[num_missing_non_phone_owner_obs_ids] = stratum_id[missing_non_phone_owner_obs_ids];
   int phone_missing_treatment_stratum_id[num_missing_phone_owner_obs_ids] = stratum_id[missing_phone_owner_obs_ids];
@@ -237,6 +252,8 @@ parameters {
   row_vector[num_dynamic_treatment_col] hyper_dynamic_treatment_coef;
   row_vector[num_dynamic_treatment_col] stratum_dynamic_treatment_coef[num_strata];
   vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment;
+  
+  vector[num_census_covar_coef] hyper_census_covar_coef;
 }
 
 transformed parameters {
@@ -284,6 +301,7 @@ transformed parameters {
       local_stratum_beta[not_private_value_bracelet_coef] = stratum_beta[strata_index];
               
       latent_utility[stratum_pos:stratum_end] =
+          census_covar_dm[stratum_pos:stratum_end] * hyper_census_covar_coef +
           treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
           treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
          
@@ -358,6 +376,8 @@ model {
   hyper_dynamic_treatment_coef ~ student_t(coef_df, 0, coef_sigma_dynamic);
   stratum_tau_dynamic_treatment ~ student_t(scale_df, 0, scale_sigma_dynamic);
   stratum_dynamic_treatment_coef ~ multi_student_t(coef_df, hyper_dynamic_treatment_coef, diag_matrix(stratum_tau_dynamic_treatment));
+  
+  hyper_census_covar_coef ~ student_t(coef_df, 0, coef_sigma);
 
   target += stratum_lp;
 }
@@ -372,6 +392,7 @@ generated quantities {
                                      non_phone_missing_treatment_cluster_id,
                                      private_value_calendar_coef,
                                      private_value_bracelet_coef,
+                                     non_phone_missing_census_covar_dm,
                                      treatment_map_design_matrix,
                                      dynamic_treatment_map_dm,
                                      all_treatment_dyn_id,
@@ -379,6 +400,7 @@ generated quantities {
                                      observed_non_phone_owner_treatment_sizes,
                                      stratum_hazard_mat,
                                      cluster_hazard_effect,
+                                     hyper_census_covar_coef,
                                      stratum_beta_mat,
                                      stratum_dyn_treatment_mat,
                                      observed_non_phone_dewormed_day);
@@ -390,6 +412,7 @@ generated quantities {
                                      phone_missing_treatment_cluster_id,
                                      private_value_calendar_coef,
                                      private_value_bracelet_coef,
+                                     phone_missing_census_covar_dm,
                                      treatment_map_design_matrix,
                                      dynamic_treatment_map_dm,
                                      all_treatment_dyn_id,
@@ -397,6 +420,7 @@ generated quantities {
                                      observed_phone_owner_treatment_sizes,
                                      stratum_hazard_mat,
                                      cluster_hazard_effect,
+                                     hyper_census_covar_coef,
                                      stratum_beta_mat,
                                      stratum_dyn_treatment_mat,
                                      observed_phone_dewormed_day);
