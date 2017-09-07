@@ -409,7 +409,10 @@ generated quantities {
     non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
   vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
     phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
-                                     
+ 
+  vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
+  vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
+    
   for (stratum_index in 1:num_strata) {
     stratum_baseline_cond_takeup[stratum_index] = exp(- hyper_baseline_hazard * stratum_hazard_effect[stratum_index]);
   }
