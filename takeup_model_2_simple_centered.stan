@@ -25,8 +25,10 @@ functions {
                                           int[] private_value_bracelet_coef,
                                           matrix missing_census_covar_dm,
                                           matrix treatment_map_dm,
-                                          matrix[] dyn_treatment_map_dm,
+                                          matrix[,,] dyn_treatment_map_dm,
                                           int[] all_treat_dyn_treat_id,
+                                          int[] all_treat_signal_observed_days,
+                                          int[] all_treat_reminder_info_days,
                                           int[] missing_treatment_sizes,
                                           int[] observed_treatment_sizes,
                                           matrix stratum_hazard,
@@ -48,9 +50,9 @@ functions {
       int missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
       int curr_observed_treatment_size = observed_treatment_sizes[treatment_ids_index];
       int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
+      int curr_all_treatment_id = all_treat_dyn_treat_id[treatment_ids_index];
       
       vector[curr_missing_treatment_size] missing_latent_utility =
-        // missing_census_covar_dm[missing_treatment_pos:missing_treatment_end] * stratum_census_covar_coef[] +
         rows_dot_product(stratum_census_covar_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
                          missing_census_covar_dm[missing_treatment_pos:missing_treatment_end]) +
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]' +
@@ -59,11 +61,11 @@ functions {
       
       matrix[curr_missing_treatment_size, num_deworming_days] missing_log_lambda_t = 
         calculate_treatment_log_lambda_t(missing_latent_utility, 
-                               dyn_treatment_map_dm[all_treat_dyn_treat_id[treatment_ids_index]],
-                               stratum_dyn_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
-                               stratum_hazard[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
-                               cluster_frailty[missing_cluster_id[missing_treatment_pos:missing_treatment_end]]);
-                               // individ_hazard[missing_treatment_pos:missing_treatment_end]);
+                                         dyn_treatment_map_dm[curr_all_treatment_id, 
+                                                              all_treat_signal_observed_days[curr_all_treatment_id], all_treat_reminder_info_days[curr_all_treatment_id]],
+                                         stratum_dyn_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
+                                         stratum_hazard[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
+                                         cluster_frailty[missing_cluster_id[missing_treatment_pos:missing_treatment_end]]);
                               
       matrix[curr_missing_treatment_size, num_deworming_days + 1] missing_deworming_days_mask = rep_matrix(0, curr_missing_treatment_size, num_deworming_days + 1);
       matrix[curr_observed_treatment_size, num_deworming_days + 1] observed_deworming_days_mask = days_diag[observed_dewormed_any[observed_treatment_pos:observed_treatment_end]];
@@ -164,6 +166,14 @@ data {
   matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
   int all_treatment_dyn_id[num_all_treatments];
   
+  int<lower = 0, upper = num_dynamic_treatment_col> num_signal_observed_coef;
+  int<lower = 0, upper = num_dynamic_treatment_col> num_reminder_info_coef;
+  int<lower = 1, upper = num_dynamic_treatment_col> signal_observed_coef[num_signal_observed_coef];
+  int<lower = 1, upper = num_dynamic_treatment_col> reminder_info_coef[num_reminder_info_coef];
+  
+  int<lower = 0, upper = num_deworming_days> all_treatment_signal_observed_days[num_all_treatments];
+  int<lower = 0, upper = num_deworming_days> all_treatment_reminder_info_days[num_all_treatments];
+  
   // Counterfactuals and ATE
   
   int<lower = 0, upper = num_all_treatments> num_non_phone_owner_treatments;
@@ -208,7 +218,7 @@ transformed data {
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
   
   matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
-  matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments];
+  matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments, num_deworming_days, num_deworming_days];
   
   int observed_non_phone_dewormed_day[num_observed_non_phone_owner_obs_ids] = dewormed_day_any[observed_non_phone_owner_obs_ids];
   int observed_phone_dewormed_day[num_observed_phone_owner_obs_ids] = dewormed_day_any[observed_phone_owner_obs_ids];
@@ -233,9 +243,24 @@ transformed data {
     }
     
     for (dyn_treatment_index in 1:num_dynamic_treatments) {
-      dynamic_treatment_map_dm[dyn_treatment_index] = rep_matrix(dynamic_treatment_mask_map[dyn_treatment_index], num_deworming_days) .* dynamic_treatment_map;
+      for (days_observed_index in 1:num_deworming_days) {
+        for (days_sms_index in 1:num_deworming_days) {
+          dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index, days_sms_index] = 
+            rep_matrix(dynamic_treatment_mask_map[dyn_treatment_index], num_deworming_days) .* dynamic_treatment_map;
+            
+          if (days_observed_index < num_deworming_days) {
+            dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index, days_sms_index, (days_observed_index + 1):num_deworming_days, signal_observed_coef] =
+              rep_matrix(0, num_deworming_days - days_observed_index, num_signal_observed_coef);
+          }
+          
+          if (days_sms_index < num_deworming_days) {
+            dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index, days_sms_index, (days_sms_index + 1):num_deworming_days, reminder_info_coef] =
+              rep_matrix(0, num_deworming_days - days_sms_index, num_reminder_info_coef);
+          }
+        }
+      }
     }
-  } 
+  }
 }
 
 parameters {
@@ -403,6 +428,8 @@ generated quantities {
                                      treatment_map_design_matrix,
                                      dynamic_treatment_map_dm,
                                      all_treatment_dyn_id,
+                                     all_treatment_signal_observed_days,
+                                     all_treatment_reminder_info_days,
                                      missing_non_phone_owner_treatment_sizes,
                                      observed_non_phone_owner_treatment_sizes,
                                      stratum_hazard_mat,
@@ -423,6 +450,8 @@ generated quantities {
                                      treatment_map_design_matrix,
                                      dynamic_treatment_map_dm,
                                      all_treatment_dyn_id,
+                                     all_treatment_signal_observed_days,
+                                     all_treatment_reminder_info_days,
                                      missing_phone_owner_treatment_sizes,
                                      observed_phone_owner_treatment_sizes,
                                      stratum_hazard_mat,

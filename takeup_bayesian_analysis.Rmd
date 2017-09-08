@@ -619,21 +619,32 @@ dyn_sms_control_ate <- tribble(
   "bracelet",           "bracelet",          "calendar",            "control",
   
   "control",           "bracelet",           "control",            "control" 
-) %>%
+) %>% 
+  mutate(signal_observed_left = social_value_left,
+         signal_observed_right = social_value_right) %>% 
+  bind_rows(
+    tribble(
+      ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
+      "control",            "bracelet",          "control",              "control",             "control",            "control",
+      "control",            "ink",               "control",              "control",             "control",            "control"
+  )) %>%
+  mutate(days_observed_left = 12,
+         days_observed_right = 12) %>% 
+  bind_rows(
+    tribble(
+      ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~days_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ days_observed_right,
+      "control",            "bracelet",          "control",              12,                  "control",             "control",            "control",               0,
+      "control",            "ink",               "control",              12,                  "control",             "control",            "control",               0
+  )) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
   mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
          phone_owner = as.logical(phone_owner),
-         signal_observed_left = social_value_left,
-         signal_observed_right = social_value_right,
-         reminder_info_stock_left = "control",
-         reminder_info_stock_right = "control",
-         days_observed = 12,
-         days_sms = 12,
-         hh.baseline.sample = FALSE) %>% 
-  bind_rows(tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
-                    "control",            "bracelet",         "control",               "control",             "control",            "control",
-                    "control",            "ink",              "control",               "control",             "control",            "control"))
+         days_sms_left = 12,
+         days_sms_right = 12,
+         hh.baseline.sample = FALSE, 
+         reminder_info_stock_left = fct_recode(sms.treatment.2_left, control = "sms.control"),
+         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control"))
 
 dyn_phone_owners_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -659,22 +670,30 @@ dyn_phone_owners_ate <- tribble(
   "control",           "bracelet",           "social.info",          "calendar",            "control",            "social.info",
   "control",           "bracelet",           "social.info",          "bracelet",            "control",            "sms.control"
 ) %>%
+  mutate(signal_observed_left = social_value_left,
+         signal_observed_right = social_value_right,
+         reminder_info_stock_left = fct_recode(sms.treatment.2_left, control = "sms.control"),
+         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control")) %>% 
+  bind_rows(
+    tribble(
+      ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right,
+      "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "bracelet",            "control",    "sms.control",           "control",
+      
+      
+      "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "control",             "control",    "sms.social_info",       "control")) %>% 
+  mutate(days_sms_left = 12,
+         days_sms_right = 12) %>% 
+  bind_rows(
+    tribble(
+      ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ days_sms_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right, ~ days_sms_right,
+      "control",            "bracelet",         "bracelet",              "social_info",          "social_info",              12,               "control",                    "bracelet",         "bracelet",               "social_info",           "social_info",               0,
+      "control",            "bracelet",         "bracelet",              "social_info",          "social_info",              0,                "control",                    "bracelet",         "bracelet",               "sms.control",           "control",                   0
+  )) %>% 
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE,
          hh.baseline.sample = FALSE, 
-         signal_observed_left = social_value_left,
-         signal_observed_right = social_value_right,
-         reminder_info_stock_left = fct_recode(sms.treatment.2_left, control = "sms.control"),
-         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control"),
-         days_observed = 12,
-         days_sms = 12) %>% 
-  bind_rows(
-    tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right,
-            "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "bracelet",            "control",             "sms.control",           "control",
-            
-            
-            "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "control",            "control",             "sms.social_info",           "control"))
-            
+         days_observed_left = 12,
+         days_observed_right = 12)
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
@@ -757,10 +776,10 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 ```
 
 ```{r basic-model-2-simple-debug, eval=FALSE}
-basic_model_2_simple <- stan_model(file = "takeup_model_2_simple.stan", model_name = "model_2_simple")
+basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 1, iter = 20, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           chains = 2, iter = 2, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
            sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
