@@ -990,7 +990,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
         if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
       } 
   } else {
-    treatment_col <- names(treatment_map)
+    treatment_col <- intersect(names(treatment_map), names(prepared_analysis_data))
   }
   
   treatment_map %<>% 
