@@ -31,7 +31,7 @@ functions {
                                           int[] observed_treatment_sizes,
                                           matrix stratum_hazard,
                                           vector cluster_frailty,
-                                          vector census_covar_coef,
+                                          matrix stratum_census_covar_coef,
                                           matrix stratum_treatment_coef,
                                           matrix stratum_dyn_treatment_coef,
                                           int[] observed_dewormed_any) {
@@ -50,7 +50,9 @@ functions {
       int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
       
       vector[curr_missing_treatment_size] missing_latent_utility =
-        missing_census_covar_dm[missing_treatment_pos:missing_treatment_end] * census_covar_coef +
+        // missing_census_covar_dm[missing_treatment_pos:missing_treatment_end] * stratum_census_covar_coef[] +
+        rows_dot_product(stratum_census_covar_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
+                         missing_census_covar_dm[missing_treatment_pos:missing_treatment_end]) +
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]' +
         (stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end], private_value_calendar_coef] *
            treatment_map_dm[treatment_ids[treatment_ids_index], private_value_bracelet_coef]'); 
@@ -254,6 +256,8 @@ parameters {
   vector<lower = 0>[num_dynamic_treatment_col] stratum_tau_dynamic_treatment;
   
   vector[num_census_covar_coef] hyper_census_covar_coef;
+  vector[num_census_covar_coef] stratum_census_covar_coef[num_strata];
+  vector<lower = 0>[num_census_covar_coef] stratum_tau_census_covar;
 }
 
 transformed parameters {
@@ -263,6 +267,7 @@ transformed parameters {
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
+  matrix[num_strata, num_census_covar_coef] stratum_census_covar_coef_mat;
   matrix[num_strata, num_deworming_days] stratum_hazard_mat;
   
   {
@@ -301,7 +306,7 @@ transformed parameters {
       local_stratum_beta[not_private_value_bracelet_coef] = stratum_beta[strata_index];
               
       latent_utility[stratum_pos:stratum_end] =
-          census_covar_dm[stratum_pos:stratum_end] * hyper_census_covar_coef +
+          census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
           treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
           treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
          
@@ -318,7 +323,6 @@ transformed parameters {
         calculate_stratum_log_lambda_t(latent_utility[stratum_pos:stratum_end], 
                                        dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
                                        stratum_dynamic_treatment_coef[strata_index]',
-                                       // stratum_hazard_effect[strata_index] * hyper_baseline_hazard);
                                        stratum_baseline_hazard,
                                        cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]]);
         
@@ -351,6 +355,7 @@ transformed parameters {
         
       stratum_beta_mat[strata_index] = local_stratum_beta';
       stratum_dyn_treatment_mat[strata_index] = stratum_dynamic_treatment_coef[strata_index];
+      stratum_census_covar_coef_mat[strata_index] = stratum_census_covar_coef[strata_index]';
       stratum_hazard_mat[strata_index] = stratum_baseline_hazard;
           
       stratum_pos = stratum_end + 1;
@@ -378,6 +383,8 @@ model {
   stratum_dynamic_treatment_coef ~ multi_student_t(coef_df, hyper_dynamic_treatment_coef, diag_matrix(stratum_tau_dynamic_treatment));
   
   hyper_census_covar_coef ~ student_t(coef_df, 0, coef_sigma);
+  stratum_tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
+  stratum_census_covar_coef ~ multi_student_t(coef_df, hyper_census_covar_coef, diag_matrix(stratum_tau_census_covar));
 
   target += stratum_lp;
 }
@@ -400,7 +407,7 @@ generated quantities {
                                      observed_non_phone_owner_treatment_sizes,
                                      stratum_hazard_mat,
                                      cluster_hazard_effect,
-                                     hyper_census_covar_coef,
+                                     stratum_census_covar_coef_mat,
                                      stratum_beta_mat,
                                      stratum_dyn_treatment_mat,
                                      observed_non_phone_dewormed_day);
@@ -420,11 +427,10 @@ generated quantities {
                                      observed_phone_owner_treatment_sizes,
                                      stratum_hazard_mat,
                                      cluster_hazard_effect,
-                                     hyper_census_covar_coef,
+                                     stratum_census_covar_coef_mat,
                                      stratum_beta_mat,
                                      stratum_dyn_treatment_mat,
                                      observed_phone_dewormed_day);
-                                     
    
   vector<lower = 0, upper = 1>[num_non_phone_owner_treatments] non_phone_takeup = 1 - non_phone_deworming_days[, 13]; 
   vector<lower = 0, upper = 1>[num_phone_owner_treatments] phone_takeup = 1 - phone_deworming_days[, 13]; 
