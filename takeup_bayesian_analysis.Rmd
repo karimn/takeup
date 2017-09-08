@@ -349,9 +349,14 @@ basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1"
 basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 400, sample_file = file.path("stanfit", "basic_model_1_12.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
-```{r}
+```{r, echo=TRUE}
 basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_12_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
+
+basic_model_1_fit %>% 
+  get_sampler_params(inc_warmup = FALSE) %>% 
+  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
+  sum()
 ```
 
 ```{r, eval=FALSE}
@@ -623,6 +628,8 @@ dyn_sms_control_ate <- tribble(
          signal_observed_right = social_value_right,
          reminder_info_stock_left = "control",
          reminder_info_stock_right = "control",
+         days_observed = 12,
+         days_sms = 12,
          hh.baseline.sample = FALSE) %>% 
   bind_rows(tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
                     "control",            "bracelet",         "control",               "control",             "control",            "control",
@@ -658,7 +665,9 @@ dyn_phone_owners_ate <- tribble(
          signal_observed_left = social_value_left,
          signal_observed_right = social_value_right,
          reminder_info_stock_left = fct_recode(sms.treatment.2_left, control = "sms.control"),
-         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control")) %>% 
+         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control"),
+         days_observed = 12,
+         days_sms = 12) %>% 
   bind_rows(
     tribble(~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right,
             "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "bracelet",            "control",             "sms.control",           "control",
@@ -675,19 +684,25 @@ dyn_stan_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
          signal_observed = social_value,
-         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-  # filter(!name_matched, sms.treatment.2 == "sms.control") %>%
+         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
+         days_observed = 12,
+         days_sms = 12) %>% 
   filter(!name_matched) %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
     
-    treatment_map = data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner) %>%
+    treatment_map = 
+      data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner,
+                # days_observed = 12, days_sms = 12) %>%
+                days_observed = c(0, 12), days_sms = c(0, 12)) %>%
       filter(phone_owner | sms.treatment.2 == "sms.control",
             (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
              private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet",
              signal_observed == social_value | signal_observed == "control",
-             reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control")),
+             reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control"),
+             signal_observed != "control" | days_observed == 12,
+             reminder_info_stock != "control" | days_sms == 12),
     
     # treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
     #   filter(private_value != "calendar" | social_value == "control",
@@ -750,8 +765,13 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 ```
 
 ```{r}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_2_[1-4].csv", full.names = TRUE) %>% 
+basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_2_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
+
+basic_model_2_simple_fit %>% 
+  get_sampler_params(inc_warmup = FALSE) %>% 
+  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
+  sum()
 ```
 
 ```{r}
@@ -815,7 +835,6 @@ dyn_ate <- bind_rows(non_phone = dyn_stan_data$non_phone_owner_ate_pairs,
   unite(incentive_treatment_left, private_value_left, social_value_left, sep = "-", remove = FALSE) %>% 
   unite(incentive_treatment_right, private_value_right, social_value_right, sep = "-", remove = FALSE) 
 
-
 assertthat::assert_that(all(phone_owner.x == phone_owner.y) && all(phone_owner.x.x == phone_owner.y.y) & all(phone_owner == phone_owner.y.y), env = dyn_ate)
 assertthat::assert_that(all(dist.pot.group_left == dist.pot.group_right), env = dyn_ate)
 
@@ -843,7 +862,8 @@ dyn_ate %<>%
 summ_dyn_takeup %>% 
   filter(day < 13,
          sms.treatment.2 == "sms.control",
-         social_value != "bracelet" | private_value == "control") %>% 
+         social_value != "bracelet" | private_value == "control",
+         comparator != "bracelet-bracelet") %>% 
   ggplot(aes(x = day, y = mean_takeup_prop)) +
   geom_line(data = . %>% filter(incentive_treatment == "control-control")) +
   geom_point(data = . %>% filter(incentive_treatment == "control-control")) +
@@ -851,7 +871,7 @@ summ_dyn_takeup %>%
   geom_point(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
   geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
   scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
-  facet_grid(phone_owner + dist.pot.group ~ comparator, labeller = label_both, scales = "free_y")
+  facet_grid(phone_owner + dist.pot.group ~ comparator,  labeller = label_both, scales = "free_y")
 ```
 
 ```{r plot-dyn-ate, fig.height=6}
@@ -882,10 +902,6 @@ bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>%
 ```
 
 ```{r}
-dyn_ate %>% 
-```
-
-```{r}
 summ_dyn_takeup %>% 
   filter(day == 13, 
          sms.treatment.2 == "sms.control",
@@ -904,13 +920,17 @@ summ_dyn_takeup %>%
 summ_dyn_takeup %>% 
   filter(phone_owner,
          social_value != "bracelet" | private_value == "bracelet",
+         comparator != "control-bracelet",
+         incentive_treatment != "control-control" | sms.treatment.2 == "sms.control",
          day < 13) %>% 
   ggplot(aes(x = day, y = mean_takeup_prop)) +
-  geom_point(aes(group = sms.treatment.2, color = incentive_treatment)) +
-  geom_line(aes(linetype = sms.treatment.2, color = incentive_treatment)) +
-  geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25) +
+  geom_line(aes(group = sms.treatment.2), data = . %>% filter(incentive_treatment == "control-control")) +
+  # geom_point(aes(group = sms.treatment.2), data = . %>% filter(incentive_treatment == "control-control")) +
+  geom_point(aes(group = sms.treatment.2, color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_line(aes(linetype = sms.treatment.2, color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25, data = . %>% filter(incentive_treatment != "control-control")) +
   scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
-  facet_grid(incentive_treatment ~ dist.pot.group )
+  facet_grid(comparator ~ dist.pot.group)
 ```
 
 
