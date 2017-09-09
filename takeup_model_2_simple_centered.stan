@@ -133,6 +133,13 @@ data {
   
   int<lower = 1, upper = num_obs> treatment_id[num_obs]; // Observation indices ordered by treatment ID (from treatment map)
   
+  // Name matched
+  
+  vector<lower = 0, upper = 1>[num_obs] name_matched;
+  int<lower = 0, upper = num_obs> num_name_matched; 
+  int<lower = 1, upper = num_obs> name_matched_id;
+  int<lower = 1, upper = num_obs> monitored_id;
+  
   // Deworming outcomes
   
   int num_deworming_days;
@@ -231,7 +238,20 @@ transformed data {
   
   int non_phone_missing_treatment_cluster_id[num_missing_non_phone_owner_obs_ids] = cluster_id[missing_non_phone_owner_obs_ids];
   int phone_missing_treatment_cluster_id[num_missing_phone_owner_obs_ids] = cluster_id[missing_phone_owner_obs_ids];
-
+  
+  vector<lower = 0, upper = 1>[num_missing_non_phone_owner_obs_ids] non_phone_missing_name_matched = name_matched[missing_non_phone_owner_obs_ids];
+  vector<lower = 0, upper = 1>[num_missing_phone_owner_obs_ids] phone_missing_name_matched = name_matched[missing_phone_owner_obs_ids];
+  vector<lower = 0, upper = 1>[num_observed_non_phone_owner_obs_ids] non_phone_observed_name_matched = name_matched[observed_non_phone_owner_obs_ids];
+  vector<lower = 0, upper = 1>[num_observed_phone_owner_obs_ids] phone_observed_name_matched = name_matched[observed_phone_owner_obs_ids];
+  
+  matrix[num_obs, num_all_treatment_coef] name_matched_design_matrix;
+  
+  {
+    int name_matched_treatment[num_obs] = obs_treatment;
+    name_matched_treatment[monitored_id] = 1;
+    name_matched_design_matrix = treatment_map_design_matrix[name_matched_treatment];
+  }
+  
   {
     int dynamic_treatment_dm_pos = 1;
     
@@ -283,6 +303,11 @@ parameters {
   vector[num_census_covar_coef] hyper_census_covar_coef;
   vector[num_census_covar_coef] stratum_census_covar_coef[num_strata];
   vector<lower = 0>[num_census_covar_coef] stratum_tau_census_covar;
+ 
+  real hyper_named_matched_coef; 
+  vector[num_all_treatment_coef] hyper_treatment_name_matched_interact;
+  // matrix[num_all_treatments, num_strata] stratum_treatment_name_matching_interact;
+  // real<lower = 0> tau_stratum_treatment_name_matching_interact;
 }
 
 transformed parameters {
@@ -323,8 +348,6 @@ transformed parameters {
       matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
       
       row_vector[num_deworming_days] stratum_baseline_hazard = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
-        // rep_matrix(, curr_stratum_size) .* 
-        // rep_matrix(cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]], num_deworming_days);
       
       // print("starting stratum = ", strata_index);
       
@@ -333,7 +356,9 @@ transformed parameters {
       latent_utility[stratum_pos:stratum_end] =
           census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
           treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
-          treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
+          treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef] +
+          name_matched[stratum_pos:stratum_end] * hyper_named_matched_coef +
+          name_matched_design_matrix[stratum_pos:stratum_end] * hyper_treatment_name_matched_interact;
          
       // print("stratum = ", strata_index, ", latent_utility[1] = ", latent_utility[stratum_pos]);
       // print("stratum_beta = ", stratum_beta);
@@ -367,16 +392,6 @@ transformed parameters {
       // print("stratum ", strata_index, ": stratum_dewormed_day_dewormed[1:10] = ", stratum_dewormed_day_dewormed[1:10]);
       // print("stratum ", strata_index, ": stratum_hazard_day_triangle_map[1:100, ] = ", stratum_hazard_day_triangle_map[1:100]);
       // print("stratum ", strata_index, ": stratum_hazard_day_map[1:10, ] = ", stratum_hazard_day_map[1:10]);
-      // print("Debug value: ",
-      //   hyper_baseline_cond_takeup,
-      //   hyper_baseline_hazard,
-      //   rep_matrix(log(hyper_baseline_hazard), 10));
-        // stratum_dynamic_treatment_coef,
-        // dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end][1:(12 * 2)],
-        // to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end][1:(12 * 2)] * stratum_dynamic_treatment_coef, 2, num_deworming_days, 0));
-        // dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end][1:(12 * 10), ]);
-        // to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef, curr_stratum_size, num_deworming_days, 0)[1:10, ]);
-        // - (exp(log_sum_exp(loglog_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map))); 
         
       stratum_beta_mat[strata_index] = local_stratum_beta';
       stratum_dyn_treatment_mat[strata_index] = stratum_dynamic_treatment_coef[strata_index];
@@ -410,6 +425,9 @@ model {
   hyper_census_covar_coef ~ student_t(coef_df, 0, coef_sigma);
   stratum_tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
   stratum_census_covar_coef ~ multi_student_t(coef_df, hyper_census_covar_coef, diag_matrix(stratum_tau_census_covar));
+  
+  hyper_named_matched_coef ~ student_t(coef_df, 0, coef_sigma);
+  hyper_treatment_name_matched_interact ~ student_t(coef_df, 0, coef_sigma);
 
   target += stratum_lp;
 }
