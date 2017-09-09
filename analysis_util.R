@@ -1031,9 +1031,13 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
   prepared_analysis_data %<>% 
     left_join(treatment_map, c(treatment_col, dyn_formula_var, subgroup_col)) %>% 
-    left_join(select(census_covar_map, -n), c("age", "gender", subgroup_col)) %>% 
+    left_join(select(census_covar_map, -n), c("age", "gender", subgroup_col)) %T>% {
+      if (any(is.na(.$all_treatment_id))) warning(sprintf("%d observations with NA all treatment ID", sum(is.na(.$all_treatment_id))))
+    } %>%
+    # filter(!is.na(all_treatment_id)) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
+  
  
   if (is.null(treatment_formula)) { 
     treatment_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {

@@ -139,8 +139,8 @@ data {
   
   vector<lower = 0, upper = 1>[num_obs] name_matched;
   int<lower = 0, upper = num_obs> num_name_matched; 
-  int<lower = 1, upper = num_obs> name_matched_id;
-  int<lower = 1, upper = num_obs> monitored_id;
+  int<lower = 1, upper = num_obs> name_matched_id[num_name_matched];
+  int<lower = 1, upper = num_obs> monitored_id[num_obs - num_name_matched];
   
   // Deworming outcomes
   
@@ -250,7 +250,7 @@ transformed data {
   
   {
     int name_matched_treatment[num_obs] = obs_treatment;
-    name_matched_treatment[monitored_id] = 1;
+    name_matched_treatment[monitored_id] = rep_array(1, num_obs - num_name_matched);
     name_matched_design_matrix = treatment_map_design_matrix[name_matched_treatment];
   }
   
@@ -437,7 +437,7 @@ model {
 generated quantities {
   row_vector<lower = 0, upper = 1>[num_deworming_days] stratum_baseline_cond_takeup[num_strata];
   
-  matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 2] non_phone_deworming_days =
+  matrix<lower = 0>[num_non_phone_owner_treatments, num_deworming_days + 2] non_phone_deworming_days =
     treatment_cell_deworming_day_rng(non_phone_owner_treatments,
                                      missing_non_phone_owner_obs_ids,
                                      non_phone_missing_treatment_stratum_id,
@@ -459,7 +459,7 @@ generated quantities {
                                      stratum_dyn_treatment_mat,
                                      observed_non_phone_dewormed_day);
 
-  matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 2] phone_deworming_days =
+  matrix<lower = 0>[num_phone_owner_treatments, num_deworming_days + 2] phone_deworming_days =
     treatment_cell_deworming_day_rng(phone_owner_treatments,
                                      missing_phone_owner_obs_ids,
                                      phone_missing_treatment_stratum_id,
