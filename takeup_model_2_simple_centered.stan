@@ -41,7 +41,7 @@ functions {
     int num_deworming_days = cols(stratum_hazard);
     int missing_treatment_pos = 1;
     int observed_treatment_pos = 1;
-    matrix[num_treatment_ids, num_deworming_days + 1] cell_deworming_day = rep_matrix(0, num_treatment_ids, num_deworming_days + 1);
+    matrix[num_treatment_ids, num_deworming_days + 2] cell_deworming_day = rep_matrix(0, num_treatment_ids, num_deworming_days + 2);
     
     matrix[num_deworming_days + 1, num_deworming_days + 1] days_diag = diag_matrix(rep_vector(1, num_deworming_days + 1));
     
@@ -94,8 +94,10 @@ functions {
         missing_deworming_days_mask[missing_obs_ids_index, categorical_rng(deworming_day_prob)] = 1;
       }
       
-      cell_deworming_day[treatment_ids_index] = 
+      cell_deworming_day[treatment_ids_index, 1:(num_deworming_days + 1)] = 
         (diagonal(crossprod(missing_deworming_days_mask)) + diagonal(crossprod(observed_deworming_days_mask)))' / (curr_missing_treatment_size + curr_observed_treatment_size);
+        
+      cell_deworming_day[treatment_ids_index, num_deworming_days + 2] = curr_missing_treatment_size + curr_observed_treatment_size;
         
       missing_treatment_pos = missing_treatment_end + 1;
       observed_treatment_pos = observed_treatment_end + 1;
@@ -304,8 +306,8 @@ parameters {
   vector[num_census_covar_coef] stratum_census_covar_coef[num_strata];
   vector<lower = 0>[num_census_covar_coef] stratum_tau_census_covar;
  
-  real hyper_named_matched_coef; 
-  vector[num_all_treatment_coef] hyper_treatment_name_matched_interact;
+  // real hyper_named_matched_coef; 
+  // vector[num_all_treatment_coef] hyper_treatment_name_matched_interact;
   // matrix[num_all_treatments, num_strata] stratum_treatment_name_matching_interact;
   // real<lower = 0> tau_stratum_treatment_name_matching_interact;
 }
@@ -356,9 +358,9 @@ transformed parameters {
       latent_utility[stratum_pos:stratum_end] =
           census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
           treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
-          treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef] +
-          name_matched[stratum_pos:stratum_end] * hyper_named_matched_coef +
-          name_matched_design_matrix[stratum_pos:stratum_end] * hyper_treatment_name_matched_interact;
+          treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
+          // name_matched[stratum_pos:stratum_end] * hyper_named_matched_coef +
+          // name_matched_design_matrix[stratum_pos:stratum_end] * hyper_treatment_name_matched_interact;
          
       // print("stratum = ", strata_index, ", latent_utility[1] = ", latent_utility[stratum_pos]);
       // print("stratum_beta = ", stratum_beta);
@@ -426,8 +428,8 @@ model {
   stratum_tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
   stratum_census_covar_coef ~ multi_student_t(coef_df, hyper_census_covar_coef, diag_matrix(stratum_tau_census_covar));
   
-  hyper_named_matched_coef ~ student_t(coef_df, 0, coef_sigma);
-  hyper_treatment_name_matched_interact ~ student_t(coef_df, 0, coef_sigma);
+  // hyper_named_matched_coef ~ student_t(coef_df, 0, coef_sigma);
+  // hyper_treatment_name_matched_interact ~ student_t(coef_df, 0, coef_sigma);
 
   target += stratum_lp;
 }
@@ -435,7 +437,7 @@ model {
 generated quantities {
   row_vector<lower = 0, upper = 1>[num_deworming_days] stratum_baseline_cond_takeup[num_strata];
   
-  matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 1] non_phone_deworming_days =
+  matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, num_deworming_days + 2] non_phone_deworming_days =
     treatment_cell_deworming_day_rng(non_phone_owner_treatments,
                                      missing_non_phone_owner_obs_ids,
                                      non_phone_missing_treatment_stratum_id,
@@ -457,7 +459,7 @@ generated quantities {
                                      stratum_dyn_treatment_mat,
                                      observed_non_phone_dewormed_day);
 
-  matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 1] phone_deworming_days =
+  matrix<lower = 0, upper = 1>[num_phone_owner_treatments, num_deworming_days + 2] phone_deworming_days =
     treatment_cell_deworming_day_rng(phone_owner_treatments,
                                      missing_phone_owner_obs_ids,
                                      phone_missing_treatment_stratum_id,
@@ -487,8 +489,8 @@ generated quantities {
   vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
     phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
  
-  vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
+  // vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
+  // vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
     
   for (stratum_index in 1:num_strata) {
     stratum_baseline_cond_takeup[stratum_index] = exp(- hyper_baseline_hazard * stratum_hazard_effect[stratum_index]);

@@ -638,13 +638,14 @@ dyn_sms_control_ate <- tribble(
   )) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
+  bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
   mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
-         phone_owner = as.logical(phone_owner),
          days_sms_left = 12,
          days_sms_right = 12,
          hh.baseline.sample = FALSE, 
          reminder_info_stock_left = fct_recode(sms.treatment.2_left, control = "sms.control"),
-         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control"))
+         reminder_info_stock_right = fct_recode(sms.treatment.2_right, control = "sms.control")) %>% 
+  mutate_at(vars(phone_owner, name_matched), as.logical)
 
 dyn_phone_owners_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -692,8 +693,10 @@ dyn_phone_owners_ate <- tribble(
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE,
          hh.baseline.sample = FALSE, 
+         name_matched = FALSE,
          days_observed_left = 12,
-         days_observed_right = 12)
+         days_observed_right = 12) %>% 
+  bind_rows(filter(., sms.treatment.2_left == "sms.control" & sms.treatment.2_right == "sms.control") %>% mutate(name_matched = TRUE))
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
@@ -706,18 +709,18 @@ dyn_stan_data <- analysis.data %>%
          reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
          days_observed = 12,
          days_sms = 12) %>% 
-  filter(!name_matched) %>%
+  # filter(!name_matched) %>%
   prepare_bayesian_analysis_data(
     wtp.data, 
     
     treatment_map = 
-      data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner,
-                # days_observed = 12, days_sms = 12) %>%
+      data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner, name_matched,
                 days_observed = c(0, 12), days_sms = c(0, 12)) %>%
       filter(phone_owner | sms.treatment.2 == "sms.control",
             (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
              private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet",
+             !name_matched | sms.treatment.2 == "sms.control",
              signal_observed == social_value | signal_observed == "control",
              reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control"),
              signal_observed != "control" | days_observed == 12,
@@ -733,7 +736,7 @@ dyn_stan_data <- analysis.data %>%
                                                 reminder_info_stock = rep(0:5, each = 2))),
     
     # treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
-    treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner,
+    treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
     subgroup_col = NULL,
     
     all_ate = dyn_all_ate,
