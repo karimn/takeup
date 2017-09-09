@@ -766,15 +766,15 @@ dyn_stan_data <- analysis.data %>%
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple_centered")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-                                     chains = 8, iter = 400, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-                                     sample_file = file.path("stanfit", "basic_model_2_simple_centered_2.csv")) 
+           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           sample_file = file.path("stanfit", "basic_model_2_simple_centered_3.csv")) 
 ```
 
 ```{r basic-model-2-simple-debug, eval=FALSE}
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 2, iter = 2, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           chains = 2, iter = 20, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
            sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
