@@ -1100,6 +1100,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       str_replace("_(left|right)$", "") %>% 
       unique()
     
+    original_num_ate_rows <- nrow(all_ate)
+    
     all_ate %<>% 
       inner_join(treatment_map, 
                 c(left_right_cells_colnames %>% setNames(paste0(., "_left")), 
@@ -1108,6 +1110,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                 c(left_right_cells_colnames %>% setNames(paste0(., "_right")),
                   both_cells_colnames),
                 suffix = c("_left", "_right"))
+    
+    stopifnot(nrow(all_ate) == original_num_ate_rows)
     
     get_unique_treatments <- . %>%
       select(matches("(all|dynamic)_treatment_id_(left|right)$")) %>%
