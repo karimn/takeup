@@ -155,12 +155,17 @@ wtp_stan_data <- analysis.data %>%
 
 ```{r wtp-sim-run, eval=FALSE}
 wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
-wtp_model_0_fit <- sampling(wtp_model_0, data = wtp_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "wtp_model.csv")) 
+wtp_model_0_fit <- sampling(wtp_model_0, data = wtp_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "wtp_model_2.csv")) 
 ```
 
 ```{r}
-wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_[1-8].csv", full.names = TRUE) %>% 
+wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
+
+wtp_model_0_fit %>% 
+  get_sampler_params(inc_warmup = FALSE) %>% 
+  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
+  sum()
 ```
 
 ```{r}
