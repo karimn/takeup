@@ -16,7 +16,11 @@ functions {
       + (dyn_treat_coef * dyn_treat_dm') 
       + log(stratum_hazard .* rep_matrix(cluster_frailty, num_days));
   } 
-  
+ 
+  /**
+   * @return A (number of treatments) X (number of deworming days + 2) matrix. The last column has the total number of observed and imputed observations used to 
+   * calculate the mean daily take-up
+   */
   matrix treatment_cell_deworming_day_rng(int[] treatment_ids, 
                                           int[] missing_obs_ids, 
                                           int[] missing_stratum_id,
@@ -137,10 +141,10 @@ data {
   
   // Name matched
   
-  vector<lower = 0, upper = 1>[num_obs] name_matched;
-  int<lower = 0, upper = num_obs> num_name_matched; 
-  int<lower = 1, upper = num_obs> name_matched_id[num_name_matched];
-  int<lower = 1, upper = num_obs> monitored_id[num_obs - num_name_matched];
+  // vector<lower = 0, upper = 1>[num_obs] name_matched;
+  // int<lower = 0, upper = num_obs> num_name_matched; 
+  // int<lower = 1, upper = num_obs> name_matched_id[num_name_matched];
+  // int<lower = 1, upper = num_obs> monitored_id[num_obs - num_name_matched];
   
   // Deworming outcomes
   
@@ -241,18 +245,18 @@ transformed data {
   int non_phone_missing_treatment_cluster_id[num_missing_non_phone_owner_obs_ids] = cluster_id[missing_non_phone_owner_obs_ids];
   int phone_missing_treatment_cluster_id[num_missing_phone_owner_obs_ids] = cluster_id[missing_phone_owner_obs_ids];
   
-  vector<lower = 0, upper = 1>[num_missing_non_phone_owner_obs_ids] non_phone_missing_name_matched = name_matched[missing_non_phone_owner_obs_ids];
-  vector<lower = 0, upper = 1>[num_missing_phone_owner_obs_ids] phone_missing_name_matched = name_matched[missing_phone_owner_obs_ids];
-  vector<lower = 0, upper = 1>[num_observed_non_phone_owner_obs_ids] non_phone_observed_name_matched = name_matched[observed_non_phone_owner_obs_ids];
-  vector<lower = 0, upper = 1>[num_observed_phone_owner_obs_ids] phone_observed_name_matched = name_matched[observed_phone_owner_obs_ids];
+  // vector<lower = 0, upper = 1>[num_missing_non_phone_owner_obs_ids] non_phone_missing_name_matched = name_matched[missing_non_phone_owner_obs_ids];
+  // vector<lower = 0, upper = 1>[num_missing_phone_owner_obs_ids] phone_missing_name_matched = name_matched[missing_phone_owner_obs_ids];
+  // vector<lower = 0, upper = 1>[num_observed_non_phone_owner_obs_ids] non_phone_observed_name_matched = name_matched[observed_non_phone_owner_obs_ids];
+  // vector<lower = 0, upper = 1>[num_observed_phone_owner_obs_ids] phone_observed_name_matched = name_matched[observed_phone_owner_obs_ids];
   
-  matrix[num_obs, num_all_treatment_coef] name_matched_design_matrix;
-  
-  {
-    int name_matched_treatment[num_obs] = obs_treatment;
-    name_matched_treatment[monitored_id] = rep_array(1, num_obs - num_name_matched);
-    name_matched_design_matrix = treatment_map_design_matrix[name_matched_treatment];
-  }
+  // matrix[num_obs, num_all_treatment_coef] name_matched_design_matrix;
+  // 
+  // {
+  //   int name_matched_treatment[num_obs] = obs_treatment;
+  //   name_matched_treatment[monitored_id] = rep_array(1, num_obs - num_name_matched);
+  //   name_matched_design_matrix = treatment_map_design_matrix[name_matched_treatment];
+  // }
   
   {
     int dynamic_treatment_dm_pos = 1;
