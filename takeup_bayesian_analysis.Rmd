@@ -626,16 +626,18 @@ dyn_sms_control_ate <- tribble(
     tribble(
       ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
       "control",            "bracelet",          "control",              "control",             "control",            "control",
-      "control",            "ink",               "control",              "control",             "control",            "control"
+      "control",            "ink",               "control",              "control",             "control",            "control",
+      "control",            "bracelet",          "bracelet",             "control",             "bracelet",           "control",
+      "control",            "ink",               "ink",                  "control",             "ink",                "control"
   )) %>%
   mutate(days_observed_left = 12,
          days_observed_right = 12) %>% 
-  bind_rows(
-    tribble(
-      ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~days_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ days_observed_right,
-      "control",            "bracelet",          "control",              12,                  "control",             "control",            "control",               0,
-      "control",            "ink",               "control",              12,                  "control",             "control",            "control",               0
-  )) %>%
+  # bind_rows(
+  #   tribble(
+  #     ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~days_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ days_observed_right,
+  #     "control",            "bracelet",          "bracelet",              12,                  "control",             "control",            "control",               0,
+  #     "control",            "ink",               "control",              12,                  "control",             "control",            "control",               0
+  # )) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
@@ -669,7 +671,7 @@ dyn_phone_owners_ate <- tribble(
   "control",           "bracelet",           "social.info",          "control",             "control",            "sms.control",
   "control",           "bracelet",           "social.info",          "control",             "control",            "social.info",
   "control",           "bracelet",           "social.info",          "calendar",            "control",            "social.info",
-  "control",           "bracelet",           "social.info",          "bracelet",            "control",            "sms.control"
+  "control",           "bracelet",           "social.info",          "control",            "bracelet",            "sms.control"
 ) %>%
   mutate(signal_observed_left = social_value_left,
          signal_observed_right = social_value_right,
@@ -678,17 +680,17 @@ dyn_phone_owners_ate <- tribble(
   bind_rows(
     tribble(
       ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right,
-      "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "bracelet",            "control",    "sms.control",           "control",
+      "control",            "bracelet",         "control",               "social.info",          "control",                  "control",             "bracelet",            "control",    "sms.control",           "control",
       
       
-      "control",            "bracelet",         "control",               "social_info",          "control",                  "control",             "control",             "control",    "sms.social_info",       "control")) %>% 
+      "control",            "bracelet",         "control",               "social.info",          "control",                  "control",             "control",             "control",    "social.info",       "control")) %>% 
   mutate(days_sms_left = 12,
          days_sms_right = 12) %>% 
   bind_rows(
     tribble(
       ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ sms.treatment.2_left, ~ reminder_info_stock_left, ~ days_sms_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right, ~ sms.treatment.2_right, ~ reminder_info_stock_right, ~ days_sms_right,
-      "control",            "bracelet",         "bracelet",              "social_info",          "social_info",              12,               "control",                    "bracelet",         "bracelet",               "social_info",           "social_info",               0,
-      "control",            "bracelet",         "bracelet",              "social_info",          "social_info",              0,                "control",                    "bracelet",         "bracelet",               "sms.control",           "control",                   0
+      "control",            "bracelet",         "bracelet",              "social.info",          "social.info",              12,               "control",                    "bracelet",         "bracelet",               "social.info",           "social.info",               0,
+      "control",            "bracelet",         "bracelet",              "social.info",          "social.info",              0,                "control",                    "bracelet",         "bracelet",               "sms.control",           "control",                   0
   )) %>% 
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE,
@@ -714,17 +716,16 @@ dyn_stan_data <- analysis.data %>%
     wtp.data, 
     
     treatment_map = 
-      data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner, name_matched,
-                days_observed = c(0, 12), days_sms = c(0, 12)) %>%
+      data_grid(., private_value, social_value, signal_observed, reminder_info_stock, dist.pot.group, sms.treatment.2, 
+                days_observed = 0:12, days_sms = 0:12,
+                hh.baseline.sample, phone_owner, name_matched) %>% 
       filter(phone_owner | sms.treatment.2 == "sms.control",
             (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
              private_value != "calendar" | social_value == "control",
              private_value != "bracelet" | social_value == "bracelet",
              !name_matched | sms.treatment.2 == "sms.control",
              signal_observed == social_value | signal_observed == "control",
-             reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control"),
-             signal_observed != "control" | days_observed == 12,
-             reminder_info_stock != "control" | days_sms == 12),
+             reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control") | reminder_info_stock == "control"),
     
     # treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
     #   filter(private_value != "calendar" | social_value == "control",
