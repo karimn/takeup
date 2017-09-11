@@ -712,6 +712,7 @@ dyn_stan_data <- analysis.data %>%
          days_observed = 12,
          days_sms = 12) %>% 
   # filter(!name_matched) %>%
+  filter(!name_matched | sms.treatment.2 == "sms.control") %>% 
   prepare_bayesian_analysis_data(
     wtp.data, 
     
@@ -775,8 +776,7 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 2, iter = 20, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-           sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
+           chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r}

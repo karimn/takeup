@@ -1100,7 +1100,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       str_replace("_(left|right)$", "") %>% 
       unique()
     
-    original_num_ate_rows <- nrow(all_ate)
+    num_ate_pairs <- nrow(all_ate)
     
     all_ate %<>% 
       inner_join(treatment_map, 
@@ -1111,7 +1111,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                   both_cells_colnames),
                 suffix = c("_left", "_right"))
     
-    stopifnot(nrow(all_ate) == original_num_ate_rows)
+    stopifnot(nrow(all_ate) == num_ate_pairs)
     
     get_unique_treatments <- . %>%
       select(matches("(all|dynamic)_treatment_id_(left|right)$")) %>%
@@ -1124,56 +1124,75 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       arrange_(.dots = str_subset(names(.), "(all|dynamic)_treatment_id$")) %>% 
       mutate(rank_id = seq_len(n()))
     
-    non_phone_owner_treatments <- all_ate %>%
-      filter(!phone_owner) %>%
-      get_unique_treatments()
-
-    phone_owner_treatments <- all_ate %>%
-      filter(phone_owner) %>%
-      get_unique_treatments()
+    ate_treatments <- all_ate %>% get_unique_treatments()
     
-    non_phone_owner_missing_treatment <- non_phone_owner_treatments$all_treatment_id %>%
-      map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id != .x) %>% pull(obs_index))
-
-    non_phone_owner_observed_treatment <- non_phone_owner_treatments$all_treatment_id %>%
-      map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id == .x) %>% pull(obs_index))
+    # non_phone_owner_treatments <- all_ate %>%
+    #   filter(!phone_owner) %>%
+    #   get_unique_treatments()
+    # 
+    # phone_owner_treatments <- all_ate %>%
+    #   filter(phone_owner) %>%
+    #   get_unique_treatments()
     
-    phone_owner_missing_treatment <- phone_owner_treatments$all_treatment_id %>%
-      map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id != .x) %>% pull(obs_index))
+    missing_treatment <- ate_treatments$all_treatment_id %>%
+      map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
 
-    phone_owner_observed_treatment <- phone_owner_treatments$all_treatment_id %>%
-      map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id == .x) %>% pull(obs_index))
-
-    num_non_phone_owner_ate_pairs <- all_ate %>% filter(!phone_owner) %>% nrow()
-    num_phone_owner_ate_pairs <- all_ate %>% filter(phone_owner) %>% nrow()
+    observed_treatment <- ate_treatments$all_treatment_id %>%
+      map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
     
-    non_phone_owner_ate_pairs <- all_ate %>% 
-      filter(!phone_owner) %>% 
+    # non_phone_owner_missing_treatment <- non_phone_owner_treatments$all_treatment_id %>%
+    #   map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id != .x) %>% pull(obs_index))
+    # 
+    # non_phone_owner_observed_treatment <- non_phone_owner_treatments$all_treatment_id %>%
+    #   map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id == .x) %>% pull(obs_index))
+    # 
+    # phone_owner_missing_treatment <- phone_owner_treatments$all_treatment_id %>%
+    #   map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id != .x) %>% pull(obs_index))
+    # 
+    # phone_owner_observed_treatment <- phone_owner_treatments$all_treatment_id %>%
+    #   map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id == .x) %>% pull(obs_index))
+
+    # num_non_phone_owner_ate_pairs <- all_ate %>% filter(!phone_owner) %>% nrow()
+    # num_phone_owner_ate_pairs <- all_ate %>% filter(phone_owner) %>% nrow()
+    
+    ate_pairs <- all_ate %>% 
       select(all_treatment_id_left, all_treatment_id_right) %>%
-      left_join(non_phone_owner_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-      left_join(non_phone_owner_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+      left_join(ate_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
+      left_join(ate_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
       select(rank_id_left, rank_id_right)
     
-    phone_owner_ate_pairs <- all_ate %>% 
-      filter(phone_owner) %>% 
-      select(all_treatment_id_left, all_treatment_id_right) %>% 
-      left_join(phone_owner_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-      left_join(phone_owner_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
-      select(rank_id_left, rank_id_right)
+    # non_phone_owner_ate_pairs <- all_ate %>% 
+    #   filter(!phone_owner) %>% 
+    #   select(all_treatment_id_left, all_treatment_id_right) %>%
+    #   left_join(non_phone_owner_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
+    #   left_join(non_phone_owner_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+    #   select(rank_id_left, rank_id_right)
+    # 
+    # phone_owner_ate_pairs <- all_ate %>% 
+    #   filter(phone_owner) %>% 
+    #   select(all_treatment_id_left, all_treatment_id_right) %>% 
+    #   left_join(phone_owner_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
+    #   left_join(phone_owner_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+    #   select(rank_id_left, rank_id_right)
   } else {
-    non_phone_owner_treatments <- NULL
-    phone_owner_treatments <- NULL
+    ate_treatments <- NULL
+    # non_phone_owner_treatments <- NULL
+    # phone_owner_treatments <- NULL
     
-    non_phone_owner_missing_treatment <- NULL 
-    non_phone_owner_observed_treatment <- NULL
-    phone_owner_missing_treatment <- NULL
-    phone_owner_observed_treatment <- NULL
+    missing_treatment <- NULL 
+    observed_treatment <- NULL
+    # non_phone_owner_missing_treatment <- NULL 
+    # non_phone_owner_observed_treatment <- NULL
+    # phone_owner_missing_treatment <- NULL
+    # phone_owner_observed_treatment <- NULL
     
-    num_non_phone_owner_ate_pairs <- NULL
-    num_phone_owner_ate_pairs <- NULL
+    num_ate_pairs <- NULL
+    # num_non_phone_owner_ate_pairs <- NULL
+    # num_phone_owner_ate_pairs <- NULL
     
-    non_phone_owner_ate_pairs <- NULL
-    phone_owner_ate_pairs <- NULL
+    ate_pairs <- NULL
+    # non_phone_owner_ate_pairs <- NULL
+    # phone_owner_ate_pairs <- NULL
   }
  
   stan_data_list <- lst(
@@ -1185,10 +1204,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     all_ate,
     
-    non_phone_owner_missing_treatment,
-    non_phone_owner_observed_treatment,
-    phone_owner_missing_treatment,
-    phone_owner_observed_treatment,
+    missing_treatment,
+    observed_treatment,
+    # non_phone_owner_missing_treatment,
+    # non_phone_owner_observed_treatment,
+    # phone_owner_missing_treatment,
+    # phone_owner_observed_treatment,
     
     census_covar_map, 
     stratum_map,
@@ -1296,32 +1317,42 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     # ATE
     
-    num_non_phone_owner_treatments = nrow(non_phone_owner_treatments),
-    num_phone_owner_treatments = nrow(phone_owner_treatments),
+    num_ate_treatments = nrow(ate_treatments),
+    # num_non_phone_owner_treatments = nrow(non_phone_owner_treatments),
+    # num_phone_owner_treatments = nrow(phone_owner_treatments),
     
-    non_phone_owner_treatments = non_phone_owner_treatments$all_treatment_id,
-    phone_owner_treatments = phone_owner_treatments$all_treatment_id,
+    ate_treatments = ate_treatments$all_treatment_id,
+    # non_phone_owner_treatments = non_phone_owner_treatments$all_treatment_id,
+    # phone_owner_treatments = phone_owner_treatments$all_treatment_id,
     
-    missing_non_phone_owner_obs_ids = unlist(non_phone_owner_missing_treatment),
-    num_missing_non_phone_owner_obs_ids = length(missing_non_phone_owner_obs_ids),
-    missing_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_missing_treatment, length),
-    observed_non_phone_owner_obs_ids = unlist(non_phone_owner_observed_treatment),
-    num_observed_non_phone_owner_obs_ids = length(observed_non_phone_owner_obs_ids),
-    observed_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_observed_treatment, length),
+    missing_obs_ids = unlist(missing_treatment),
+    num_missing_obs_ids = length(missing_obs_ids),
+    missing_treatment_sizes = if (!is.null(all_ate)) map_int(missing_treatment, length),
+    observed_obs_ids = unlist(observed_treatment),
+    num_observed_obs_ids = length(observed_obs_ids),
+    observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, length),
     
-    missing_phone_owner_obs_ids = unlist(phone_owner_missing_treatment),
-    num_missing_phone_owner_obs_ids = length(missing_phone_owner_obs_ids), 
-    missing_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_missing_treatment, length),
-    observed_phone_owner_obs_ids = unlist(phone_owner_observed_treatment),
-    num_observed_phone_owner_obs_ids = length(observed_phone_owner_obs_ids),
-    observed_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_observed_treatment, length),
+    # missing_non_phone_owner_obs_ids = unlist(non_phone_owner_missing_treatment),
+    # num_missing_non_phone_owner_obs_ids = length(missing_non_phone_owner_obs_ids),
+    # missing_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_missing_treatment, length),
+    # observed_non_phone_owner_obs_ids = unlist(non_phone_owner_observed_treatment),
+    # num_observed_non_phone_owner_obs_ids = length(observed_non_phone_owner_obs_ids),
+    # observed_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_observed_treatment, length),
+    # 
+    # missing_phone_owner_obs_ids = unlist(phone_owner_missing_treatment),
+    # num_missing_phone_owner_obs_ids = length(missing_phone_owner_obs_ids), 
+    # missing_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_missing_treatment, length),
+    # observed_phone_owner_obs_ids = unlist(phone_owner_observed_treatment),
+    # num_observed_phone_owner_obs_ids = length(observed_phone_owner_obs_ids),
+    # observed_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_observed_treatment, length),
     
-    num_non_phone_owner_ate_pairs,
-    num_phone_owner_ate_pairs,
+    num_ate_pairs,
+    # num_non_phone_owner_ate_pairs,
+    # num_phone_owner_ate_pairs,
     
-    non_phone_owner_ate_pairs,
-    phone_owner_ate_pairs,
-    
+    ate_pairs,
+    # non_phone_owner_ate_pairs,
+    # phone_owner_ate_pairs,
     
     ...
   ) %>% 

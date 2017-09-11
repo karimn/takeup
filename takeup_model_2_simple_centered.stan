@@ -66,7 +66,7 @@ functions {
       matrix[curr_missing_treatment_size, num_deworming_days] missing_log_lambda_t = 
         calculate_treatment_log_lambda_t(missing_latent_utility, 
                                          dyn_treatment_map_dm[curr_all_treatment_id, 
-                                                              all_treat_signal_observed_days[curr_all_treatment_id], all_treat_reminder_info_days[curr_all_treatment_id]],
+                                                              all_treat_signal_observed_days[curr_all_treatment_id] + 1, all_treat_reminder_info_days[curr_all_treatment_id] + 1],
                                          stratum_dyn_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
                                          stratum_hazard[missing_stratum_id[missing_treatment_pos:missing_treatment_end]], 
                                          cluster_frailty[missing_cluster_id[missing_treatment_pos:missing_treatment_end]]);
@@ -189,30 +189,40 @@ data {
   
   // Counterfactuals and ATE
   
-  int<lower = 0, upper = num_all_treatments> num_non_phone_owner_treatments;
-  int<lower = 0, upper = num_all_treatments> num_phone_owner_treatments;
-  int<lower = 1, upper = num_all_treatments> non_phone_owner_treatments[num_non_phone_owner_treatments];
-  int<lower = 1, upper = num_all_treatments> phone_owner_treatments[num_phone_owner_treatments];
+  int<lower = 0, upper = num_all_treatments> num_ate_treatments;
+  // int<lower = 0, upper = num_all_treatments> num_non_phone_owner_treatments;
+  // int<lower = 0, upper = num_all_treatments> num_phone_owner_treatments;
+  int<lower = 1, upper = num_all_treatments> ate_treatments[num_ate_treatments];
+  // int<lower = 1, upper = num_all_treatments> non_phone_owner_treatments[num_non_phone_owner_treatments];
+  // int<lower = 1, upper = num_all_treatments> phone_owner_treatments[num_phone_owner_treatments];
   
-  int<lower = 0> num_missing_non_phone_owner_obs_ids;
-  int<lower = 0, upper = num_obs> missing_non_phone_owner_treatment_sizes[num_non_phone_owner_treatments];
-  int<lower = 1, upper = num_obs> missing_non_phone_owner_obs_ids[num_missing_non_phone_owner_obs_ids];
-  int<lower = 0> num_missing_phone_owner_obs_ids;
-  int<lower = 0, upper = num_obs> missing_phone_owner_treatment_sizes[num_phone_owner_treatments];
-  int<lower = 1, upper = num_obs> missing_phone_owner_obs_ids[num_missing_phone_owner_obs_ids];
+  int<lower = 0> num_missing_obs_ids;
+  // int<lower = 0> num_missing_non_phone_owner_obs_ids;
+  int<lower = 0, upper = num_obs> missing_treatment_sizes[num_ate_treatments];
+  int<lower = 1, upper = num_obs> missing_obs_ids[num_missing_obs_ids];
+  // int<lower = 0, upper = num_obs> missing_non_phone_owner_treatment_sizes[num_non_phone_owner_treatments];
+  // int<lower = 1, upper = num_obs> missing_non_phone_owner_obs_ids[num_missing_non_phone_owner_obs_ids];
+  // int<lower = 0> num_missing_phone_owner_obs_ids;
+  // int<lower = 0, upper = num_obs> missing_phone_owner_treatment_sizes[num_phone_owner_treatments];
+  // int<lower = 1, upper = num_obs> missing_phone_owner_obs_ids[num_missing_phone_owner_obs_ids];
   
-  int<lower = 0> num_observed_non_phone_owner_obs_ids;
-  int<lower = 0, upper = num_obs> observed_non_phone_owner_treatment_sizes[num_non_phone_owner_treatments];
-  int<lower = 1, upper = num_obs> observed_non_phone_owner_obs_ids[num_observed_non_phone_owner_obs_ids];
-  int<lower = 0> num_observed_phone_owner_obs_ids;
-  int<lower = 0, upper = num_obs> observed_phone_owner_treatment_sizes[num_phone_owner_treatments];
-  int<lower = 1, upper = num_obs> observed_phone_owner_obs_ids[num_observed_phone_owner_obs_ids];
+  int<lower = 0> num_observed_obs_ids;
+  int<lower = 0, upper = num_obs> observed_treatment_sizes[num_ate_treatments];
+  int<lower = 1, upper = num_obs> observed_obs_ids[num_observed_obs_ids];
+  // int<lower = 0> num_observed_non_phone_owner_obs_ids;
+  // int<lower = 0, upper = num_obs> observed_non_phone_owner_treatment_sizes[num_non_phone_owner_treatments];
+  // int<lower = 1, upper = num_obs> observed_non_phone_owner_obs_ids[num_observed_non_phone_owner_obs_ids];
+  // int<lower = 0> num_observed_phone_owner_obs_ids;
+  // int<lower = 0, upper = num_obs> observed_phone_owner_treatment_sizes[num_phone_owner_treatments];
+  // int<lower = 1, upper = num_obs> observed_phone_owner_obs_ids[num_observed_phone_owner_obs_ids];
   
-  int<lower = 0, upper = num_all_treatments> num_non_phone_owner_ate_pairs;
-  int<lower = 0, upper = num_all_treatments> num_phone_owner_ate_pairs;
+  int<lower = 0, upper = num_all_treatments> num_ate_pairs;
+  // int<lower = 0, upper = num_all_treatments> num_non_phone_owner_ate_pairs;
+  // int<lower = 0, upper = num_all_treatments> num_phone_owner_ate_pairs;
   
-  int<lower = 1, upper = num_all_treatments> non_phone_owner_ate_pairs[num_non_phone_owner_ate_pairs, 2];
-  int<lower = 1, upper = num_all_treatments> phone_owner_ate_pairs[num_phone_owner_ate_pairs, 2];
+  int<lower = 1, upper = num_all_treatments> ate_pairs[num_ate_pairs, 2];
+  // int<lower = 1, upper = num_all_treatments> non_phone_owner_ate_pairs[num_non_phone_owner_ate_pairs, 2];
+  // int<lower = 1, upper = num_all_treatments> phone_owner_ate_pairs[num_phone_owner_ate_pairs, 2];
   
   // Constants for hyperpriors 
   real<lower = 0> scale_df;
@@ -231,19 +241,23 @@ transformed data {
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
   
   matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
-  matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments, num_deworming_days, num_deworming_days];
+  matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments, num_deworming_days + 1, num_deworming_days + 1];
   
-  int observed_non_phone_dewormed_day[num_observed_non_phone_owner_obs_ids] = dewormed_day_any[observed_non_phone_owner_obs_ids];
-  int observed_phone_dewormed_day[num_observed_phone_owner_obs_ids] = dewormed_day_any[observed_phone_owner_obs_ids];
+  int observed_dewormed_day[num_observed_obs_ids] = dewormed_day_any[observed_obs_ids];
+  // int observed_non_phone_dewormed_day[num_observed_non_phone_owner_obs_ids] = dewormed_day_any[observed_non_phone_owner_obs_ids];
+  // int observed_phone_dewormed_day[num_observed_phone_owner_obs_ids] = dewormed_day_any[observed_phone_owner_obs_ids];
   
-  matrix[num_missing_non_phone_owner_obs_ids, num_census_covar_coef] non_phone_missing_census_covar_dm = census_covar_dm[missing_non_phone_owner_obs_ids];
-  matrix[num_missing_phone_owner_obs_ids, num_census_covar_coef] phone_missing_census_covar_dm = census_covar_dm[missing_phone_owner_obs_ids];
+  matrix[num_missing_obs_ids, num_census_covar_coef] missing_census_covar_dm = census_covar_dm[missing_obs_ids];
+  // matrix[num_missing_non_phone_owner_obs_ids, num_census_covar_coef] non_phone_missing_census_covar_dm = census_covar_dm[missing_non_phone_owner_obs_ids];
+  // matrix[num_missing_phone_owner_obs_ids, num_census_covar_coef] phone_missing_census_covar_dm = census_covar_dm[missing_phone_owner_obs_ids];
   
-  int non_phone_missing_treatment_stratum_id[num_missing_non_phone_owner_obs_ids] = stratum_id[missing_non_phone_owner_obs_ids];
-  int phone_missing_treatment_stratum_id[num_missing_phone_owner_obs_ids] = stratum_id[missing_phone_owner_obs_ids];
+  int missing_treatment_stratum_id[num_missing_obs_ids] = stratum_id[missing_obs_ids];
+  // int non_phone_missing_treatment_stratum_id[num_missing_non_phone_owner_obs_ids] = stratum_id[missing_non_phone_owner_obs_ids];
+  // int phone_missing_treatment_stratum_id[num_missing_phone_owner_obs_ids] = stratum_id[missing_phone_owner_obs_ids];
   
-  int non_phone_missing_treatment_cluster_id[num_missing_non_phone_owner_obs_ids] = cluster_id[missing_non_phone_owner_obs_ids];
-  int phone_missing_treatment_cluster_id[num_missing_phone_owner_obs_ids] = cluster_id[missing_phone_owner_obs_ids];
+  int missing_treatment_cluster_id[num_missing_obs_ids] = cluster_id[missing_obs_ids];
+  // int non_phone_missing_treatment_cluster_id[num_missing_non_phone_owner_obs_ids] = cluster_id[missing_non_phone_owner_obs_ids];
+  // int phone_missing_treatment_cluster_id[num_missing_phone_owner_obs_ids] = cluster_id[missing_phone_owner_obs_ids];
   
   // vector<lower = 0, upper = 1>[num_missing_non_phone_owner_obs_ids] non_phone_missing_name_matched = name_matched[missing_non_phone_owner_obs_ids];
   // vector<lower = 0, upper = 1>[num_missing_phone_owner_obs_ids] phone_missing_name_matched = name_matched[missing_phone_owner_obs_ids];
@@ -269,18 +283,18 @@ transformed data {
     }
     
     for (dyn_treatment_index in 1:num_dynamic_treatments) {
-      for (days_observed_index in 1:num_deworming_days) {
-        for (days_sms_index in 1:num_deworming_days) {
-          dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index, days_sms_index] = 
+      for (days_observed_index in 0:num_deworming_days) {
+        for (days_sms_index in 0:num_deworming_days) {
+          dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index + 1, days_sms_index + 1] = 
             rep_matrix(dynamic_treatment_mask_map[dyn_treatment_index], num_deworming_days) .* dynamic_treatment_map;
             
           if (days_observed_index < num_deworming_days) {
-            dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index, days_sms_index, (days_observed_index + 1):num_deworming_days, signal_observed_coef] =
+            dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index + 1, days_sms_index + 1, (days_observed_index + 1):num_deworming_days, signal_observed_coef] =
               rep_matrix(0, num_deworming_days - days_observed_index, num_signal_observed_coef);
           }
           
           if (days_sms_index < num_deworming_days) {
-            dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index, days_sms_index, (days_sms_index + 1):num_deworming_days, reminder_info_coef] =
+            dynamic_treatment_map_dm[dyn_treatment_index, days_observed_index + 1, days_sms_index + 1, (days_sms_index + 1):num_deworming_days, reminder_info_coef] =
               rep_matrix(0, num_deworming_days - days_sms_index, num_reminder_info_coef);
           }
         }
@@ -441,57 +455,81 @@ model {
 generated quantities {
   row_vector<lower = 0, upper = 1>[num_deworming_days] stratum_baseline_cond_takeup[num_strata];
   
-  matrix<lower = 0>[num_non_phone_owner_treatments, num_deworming_days + 2] non_phone_deworming_days =
-    treatment_cell_deworming_day_rng(non_phone_owner_treatments,
-                                     missing_non_phone_owner_obs_ids,
-                                     non_phone_missing_treatment_stratum_id,
-                                     non_phone_missing_treatment_cluster_id,
+  matrix<lower = 0>[num_ate_treatments, num_deworming_days + 2] est_deworming_days =
+    treatment_cell_deworming_day_rng(ate_treatments,
+                                     missing_obs_ids,
+                                     missing_treatment_stratum_id,
+                                     missing_treatment_cluster_id,
                                      private_value_calendar_coef,
                                      private_value_bracelet_coef,
-                                     non_phone_missing_census_covar_dm,
+                                     missing_census_covar_dm,
                                      treatment_map_design_matrix,
                                      dynamic_treatment_map_dm,
                                      all_treatment_dyn_id,
                                      all_treatment_signal_observed_days,
                                      all_treatment_reminder_info_days,
-                                     missing_non_phone_owner_treatment_sizes,
-                                     observed_non_phone_owner_treatment_sizes,
+                                     missing_treatment_sizes,
+                                     observed_treatment_sizes,
                                      stratum_hazard_mat,
                                      cluster_hazard_effect,
                                      stratum_census_covar_coef_mat,
                                      stratum_beta_mat,
                                      stratum_dyn_treatment_mat,
-                                     observed_non_phone_dewormed_day);
-
-  matrix<lower = 0>[num_phone_owner_treatments, num_deworming_days + 2] phone_deworming_days =
-    treatment_cell_deworming_day_rng(phone_owner_treatments,
-                                     missing_phone_owner_obs_ids,
-                                     phone_missing_treatment_stratum_id,
-                                     phone_missing_treatment_cluster_id,
-                                     private_value_calendar_coef,
-                                     private_value_bracelet_coef,
-                                     phone_missing_census_covar_dm,
-                                     treatment_map_design_matrix,
-                                     dynamic_treatment_map_dm,
-                                     all_treatment_dyn_id,
-                                     all_treatment_signal_observed_days,
-                                     all_treatment_reminder_info_days,
-                                     missing_phone_owner_treatment_sizes,
-                                     observed_phone_owner_treatment_sizes,
-                                     stratum_hazard_mat,
-                                     cluster_hazard_effect,
-                                     stratum_census_covar_coef_mat,
-                                     stratum_beta_mat,
-                                     stratum_dyn_treatment_mat,
-                                     observed_phone_dewormed_day);
-   
-  vector<lower = 0, upper = 1>[num_non_phone_owner_treatments] non_phone_takeup = 1 - non_phone_deworming_days[, 13]; 
-  vector<lower = 0, upper = 1>[num_phone_owner_treatments] phone_takeup = 1 - phone_deworming_days[, 13]; 
+                                     observed_dewormed_day);
   
-  vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate = 
-    non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
-    phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
+  // matrix<lower = 0>[num_non_phone_owner_treatments, num_deworming_days + 2] non_phone_deworming_days =
+  //   treatment_cell_deworming_day_rng(non_phone_owner_treatments,
+  //                                    missing_non_phone_owner_obs_ids,
+  //                                    non_phone_missing_treatment_stratum_id,
+  //                                    non_phone_missing_treatment_cluster_id,
+  //                                    private_value_calendar_coef,
+  //                                    private_value_bracelet_coef,
+  //                                    non_phone_missing_census_covar_dm,
+  //                                    treatment_map_design_matrix,
+  //                                    dynamic_treatment_map_dm,
+  //                                    all_treatment_dyn_id,
+  //                                    all_treatment_signal_observed_days,
+  //                                    all_treatment_reminder_info_days,
+  //                                    missing_non_phone_owner_treatment_sizes,
+  //                                    observed_non_phone_owner_treatment_sizes,
+  //                                    stratum_hazard_mat,
+  //                                    cluster_hazard_effect,
+  //                                    stratum_census_covar_coef_mat,
+  //                                    stratum_beta_mat,
+  //                                    stratum_dyn_treatment_mat,
+  //                                    observed_non_phone_dewormed_day);
+  // 
+  // matrix<lower = 0>[num_phone_owner_treatments, num_deworming_days + 2] phone_deworming_days =
+  //   treatment_cell_deworming_day_rng(phone_owner_treatments,
+  //                                    missing_phone_owner_obs_ids,
+  //                                    phone_missing_treatment_stratum_id,
+  //                                    phone_missing_treatment_cluster_id,
+  //                                    private_value_calendar_coef,
+  //                                    private_value_bracelet_coef,
+  //                                    phone_missing_census_covar_dm,
+  //                                    treatment_map_design_matrix,
+  //                                    dynamic_treatment_map_dm,
+  //                                    all_treatment_dyn_id,
+  //                                    all_treatment_signal_observed_days,
+  //                                    all_treatment_reminder_info_days,
+  //                                    missing_phone_owner_treatment_sizes,
+  //                                    observed_phone_owner_treatment_sizes,
+  //                                    stratum_hazard_mat,
+  //                                    cluster_hazard_effect,
+  //                                    stratum_census_covar_coef_mat,
+  //                                    stratum_beta_mat,
+  //                                    stratum_dyn_treatment_mat,
+  //                                    observed_phone_dewormed_day);
+   
+  vector<lower = 0, upper = 1>[num_ate_treatments] est_takeup = 1 - est_deworming_days[, 13]; 
+  // vector<lower = 0, upper = 1>[num_non_phone_owner_treatments] non_phone_takeup = 1 - non_phone_deworming_days[, 13]; 
+  // vector<lower = 0, upper = 1>[num_phone_owner_treatments] phone_takeup = 1 - phone_deworming_days[, 13]; 
+  
+  vector<lower = -1, upper = 1>[num_ate_pairs] est_takeup_ate = est_takeup[ate_pairs[, 1]] - est_takeup[ate_pairs[, 2]];
+  // vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate = 
+  //   non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
+  // vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
+  //   phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
  
   // vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
   // vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2]];
