@@ -626,6 +626,38 @@ analysis.data %>%
 
 The finite sample average treatment effects we are interested in estimating is similar to that of the static model; we are interested in the impact on deworming $Y_i \equiv \mathbbm{1}\{M_i \leq 12\}$. We are not interested in the timing of take-up. We use the dynamic model to analyze impute unobservable counterfactuals. For example, estimating the impact of bracelets without any learning, assuming that learning can be captured by the time-varying dynamics of bracelets (days of observable signals). We can't completely shutdown learning, but we can fix at the baseline (control) level.
 
+```{r}
+dyn_analysis_data <- analysis.data %>%
+  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+         signal_observed = social_value,
+         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
+         day_after_reminder_info = reminder_info_stock,
+         days_observed = 12,
+         days_sms = 12) %>% 
+  filter(!name_matched) # | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
+
+dyn_dyn_treatment_maps <- lst(formula = ~ (signal_observed + reminder_info_stock * day_after_reminder_info) * phone_owner, 
+                             trends = tibble(signal_observed = 0:11,
+                                             reminder_info_stock = rep(0:5, each = 2),
+                                             day_after_reminder_info = c(0, rep(0:1, 5), 0))) %>% 
+  prepare_dynamic_treatment_maps(dyn_analysis_data)
+
+dyn_static_treatment_map <- dyn_analysis_data %>% 
+  data_grid(private_value, social_value, signal_observed, reminder_info_stock, day_after_reminder_info, dist.pot.group, sms.treatment.2, 
+            days_observed = 0:12, days_sms = 0:12,
+            hh.baseline.sample, phone_owner, name_matched) %>% 
+  filter(phone_owner | sms.treatment.2 == "sms.control",
+        (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+         private_value != "calendar" | social_value == "control",
+         private_value != "bracelet" | social_value == "bracelet",
+         !name_matched | sms.treatment.2 == "sms.control",
+         signal_observed == social_value | signal_observed == "control",
+         reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control") | reminder_info_stock == "control",
+         day_after_reminder_info == reminder_info_stock) %>% 
+  prepare_treatment_map(dyn_dyn_treatment_maps)
+```
+
 ```{r dyn-param-ate, echo=TRUE, warning=FALSE}
 dyn_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
@@ -723,87 +755,115 @@ dyn_phone_owners_ate <- tribble(
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 ```
 
-```{r dyn-model-data, warning=FALSE}
-dyn_stan_data <- analysis.data %>%
-  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
-         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
-         signal_observed = social_value,
-         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
-         day_after_reminder_info = reminder_info_stock,
-         days_observed = 12,
-         days_sms = 12) %>% 
-  # filter(!name_matched) %>%
-  filter(!name_matched | sms.treatment.2 == "sms.control") %>% 
-  prepare_bayesian_analysis_data(
-    wtp.data, 
+```{r dyn-extra-treatments, eval=FALSE}
+dyn_extra_treatments <- 
+  tribble(
+    ~ private_value, ~ social_value, ~ signal_observed, ~ reminder_info_stock, ~ sms.treatment.2, ~ days_observed, ~ days_sms,
     
-    treatment_map = 
-      data_grid(., private_value, social_value, signal_observed, reminder_info_stock, day_after_reminder_info, dist.pot.group, sms.treatment.2, 
-                days_observed = 0:12, days_sms = 0:12,
-                hh.baseline.sample, phone_owner, name_matched) %>% 
-      filter(phone_owner | sms.treatment.2 == "sms.control",
-            (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-             private_value != "calendar" | social_value == "control",
-             private_value != "bracelet" | social_value == "bracelet",
-             !name_matched | sms.treatment.2 == "sms.control",
-             signal_observed == social_value | signal_observed == "control",
-             reminder_info_stock == fct_recode(sms.treatment.2, control = "sms.control") | reminder_info_stock == "control",
-             day_after_reminder_info == reminder_info_stock),
+    "control",       "control",      "control",         "control",             "reminder.only",   12,              12,
     
-    # treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
-    #   filter(private_value != "calendar" | social_value == "control",
-    #          private_value != "bracelet" | social_value == "bracelet",
-    #          signal_observed == social_value | signal_observed == "control"),
+    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              4,
+    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              6,
+    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              8,
+    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              10,
     
-    dynamic_treatment_map = lst(formula = ~ (signal_observed + reminder_info_stock * day_after_reminder_info) * phone_owner, 
-                                trends = tibble(signal_observed = 0:11,
-                                                reminder_info_stock = rep(0:5, each = 2),
-                                                day_after_reminder_info = c(0, rep(0:1, 5), 0))),
+    "control",       "control",      "control",         "social.info",         "social.info",     12,              4,
+    "control",       "control",      "control",         "social.info",         "social.info",     12,              6,
+    "control",       "control",      "control",         "social.info",         "social.info",     12,              8,
+    "control",       "control",      "control",         "social.info",         "social.info",     12,              10,
     
-    # treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
-    treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
-    subgroup_col = NULL,
+    "control",       "ink",          "control",         "social.info",         "social.info",     12,              4,
+    "control",       "ink",          "control",         "social.info",         "social.info",     12,              6,
+    "control",       "ink",          "control",         "social.info",         "social.info",     12,              8,
+    "control",       "ink",          "control",         "social.info",         "social.info",     12,              10,
     
-    all_ate = dyn_all_ate,
-    # all_ate = dyn_sms_control_ate %>% select(-contains("sms.treatment")),
+    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              4,
+    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              6,
+    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              8,
+    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              10,
     
-    # name_match_false_pos_alpha, 
-    # name_match_false_pos_beta,
+    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              4,
+    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              6,
+    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              8,
+    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              10,
     
-    scale_df = 7,
-    scale_sigma = 1,
-    scale_sigma_dynamic = 1,
-   
-    coef_df = 7,
-    coef_sigma = 1,
-    coef_sigma_dynamic = 5,
-    
-    wtp_utility_df = 3,
-    tau_mu_wtp_diff = 100,
-    mu_wtp_df_student_t = 7,
-    tau_sigma_wtp_diff = 50,
-    sigma_wtp_df_student_t = 2.5,
-    sigma_ksh_util_gamma = 5,
+    "control",       "ink",          "control",         "social.info",         "social.info",     12,              12
   )
+# expand(dist.pot.group = c("close", "far"), nesting_(names(.)))
+
+    # "control",       "ink",          "ink",             "control",             "sms.control",     0,               12,
+    # "control",       "ink",          "ink",             "control",             "sms.control",     2,               12,
+    # "control",       "ink",          "ink",             "control",             "sms.control",     4,               12,
+    # "control",       "ink",          "ink",             "control",             "sms.control",     6,               12,
+    # "control",       "ink",          "ink",             "control",             "sms.control",     8,               12,
+    # "control",       "ink",          "ink",             "control",             "sms.control",     10,              12,
+```
+
+```{r dyn-model-data, warning=FALSE}
+dyn_stan_data <- prepare_bayesian_analysis_data(
+  dyn_analysis_data,
+  wtp.data, 
+   
+  prepared_treatment_maps = TRUE, 
+  treatment_map = dyn_static_treatment_map,
+  dynamic_treatment_map = dyn_dyn_treatment_maps,
+    
+  # treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
+  #   filter(private_value != "calendar" | social_value == "control",
+  #          private_value != "bracelet" | social_value == "bracelet",
+  #          signal_observed == social_value | signal_observed == "control"),
+  
+  # dynamic_treatment_map = lst(formula = ~ (signal_observed + reminder_info_stock * day_after_reminder_info) * phone_owner, 
+  #                             trends = tibble(signal_observed = 0:11,
+  #                                             reminder_info_stock = rep(0:5, each = 2),
+  #                                             day_after_reminder_info = c(0, rep(0:1, 5), 0))),
+    
+  # treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
+  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+  subgroup_col = NULL,
+    
+  all_ate = dyn_all_ate %>% filter(!name_matched),
+  # all_ate = dyn_sms_control_ate %>% select(-contains("sms.treatment")),
+  
+  # name_match_false_pos_alpha, 
+  # name_match_false_pos_beta,
+  
+  scale_df = 7,
+  scale_sigma = 1,
+  scale_sigma_dynamic = 1,
+ 
+  coef_df = 7,
+  coef_sigma = 1,
+  coef_sigma_dynamic = 5,
+  
+  wtp_utility_df = 3,
+  tau_mu_wtp_diff = 100,
+  mu_wtp_df_student_t = 7,
+  tau_sigma_wtp_diff = 50,
+  sigma_wtp_df_student_t = 2.5,
+  sigma_ksh_util_gamma = 5,
+  
+  estimate_ate = 0
+)
+
+basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 ```
 
 ```{r basic-model-2-simple-centered, eval=FALSE}
-basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple_centered")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-           sample_file = file.path("stanfit", "basic_model_2_simple_centered_4.csv")) 
+           chains = 8, iter = 100, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")) 
 ```
 
 ```{r basic-model-2-simple-debug, eval=FALSE}
-basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
            chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_3_[1-8].csv", full.names = TRUE) %>% 
+basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_4_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 
 basic_model_2_simple_fit %>% 
