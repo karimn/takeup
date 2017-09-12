@@ -780,7 +780,7 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
 ```
 
 ```{r}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_3_[1-8].csv", full.names = TRUE) %>% 
+basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_4_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 
 basic_model_2_simple_fit %>% 
@@ -820,7 +820,7 @@ est_deworming_days %<>%
 ```{r, fig.width=12}
 summ_dyn_takeup <- est_deworming_days %>% 
   unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
-  group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment) %>% 
+  group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment, name_matched) %>% 
   summarize(mean_takeup_prop = mean(sim_outcome),
             ub_90 = quantile(sim_outcome, 0.95),
             lb_90 = quantile(sim_outcome, 0.05)) %>% 
@@ -858,7 +858,7 @@ dyn_ate %<>%
   filter(day == 13) %>% 
   mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
   group_by_at(c("day", "phone_owner", 
-                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>% 
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment", "name_matched") %>% 
                   str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
   summarize(mean_ate = mean(iter_ate),
             ub_90 = quantile(iter_ate, 0.95),
@@ -879,12 +879,12 @@ summ_dyn_takeup %>%
          sms.treatment.2 == "sms.control",
          social_value != "bracelet" | private_value == "control",
          comparator != "bracelet-bracelet") %>% 
-  ggplot(aes(x = day, y = mean_takeup_prop)) +
+  ggplot(aes(x = day, y = mean_takeup_prop, linetype = name_matched)) +
   geom_line(data = . %>% filter(incentive_treatment == "control-control")) +
   geom_point(data = . %>% filter(incentive_treatment == "control-control")) +
   geom_line(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
   geom_point(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
-  geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
+  # geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
   scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
   facet_grid(phone_owner + dist.pot.group ~ comparator,  labeller = label_both, scales = "free_y")
 ```
