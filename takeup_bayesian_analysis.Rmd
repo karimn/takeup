@@ -980,13 +980,14 @@ bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>%
             filter(incentive_treatment_left != "bracelet-bracelet", 
                    incentive_treatment_right == "control-control",
                    sms.treatment.2_left == "sms.control", sms.treatment.2_right == "sms.control") %>% 
-            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
-          .id = "model") %>% 
+            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]"), name_matched_left),
+          .id = "model") %>%
+  mutate(model = if_else(model == "Static", model, str_c(model, name_matched_left, sep = "-"))) %>% 
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
-  ggplot(aes(incentive_treatment_left, mean_ate, color = model)) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
+  ggplot(aes(incentive_treatment_left, mean_ate, group = model)) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = model), position = position_dodge(width = 0.2), size = 2) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.25) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   # geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL)) +
   geom_text(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, data = . %>% filter(model == "Dynamic")) +
