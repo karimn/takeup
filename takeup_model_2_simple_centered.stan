@@ -176,8 +176,8 @@ data {
   int<lower = 1, upper = num_obs> dynamic_treatment_id[num_obs];
   int<lower = 0> num_dynamic_treatment_col;
  
-  matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map;
-  matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
+  matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map[num_dynamic_treatments];
+  // matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
   int all_treatment_dyn_id[num_all_treatments];
   
   int<lower = 0, upper = num_dynamic_treatment_col> num_signal_observed_coef;
@@ -188,7 +188,7 @@ data {
   int<lower = 0, upper = num_deworming_days> all_treatment_signal_observed_days[num_all_treatments];
   int<lower = 0, upper = num_deworming_days> all_treatment_reminder_info_days[num_all_treatments];
   
-  matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments, num_deworming_days + 1, num_deworming_days + 1];
+  matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments, num_deworming_days, num_deworming_days];
  
   // Counterfactuals and ATE
   
@@ -239,8 +239,8 @@ transformed data {
     int dynamic_treatment_dm_pos = 1;
     
     for (obs_index in 1:num_obs) {
-      dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = 
-        rep_matrix(dynamic_treatment_mask_map[dynamic_treatment_id[obs_index]], num_deworming_days) .* dynamic_treatment_map;
+      dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = dynamic_treatment_map[dynamic_treatment_id[obs_index]];
+        // rep_matrix(dynamic_treatment_mask_map[dynamic_treatment_id[obs_index]], num_deworming_days) .* dynamic_treatment_map;
       
       dynamic_treatment_dm_pos = dynamic_treatment_dm_pos + num_deworming_days;
     }

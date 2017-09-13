@@ -633,14 +633,15 @@ dyn_analysis_data <- analysis.data %>%
          signal_observed = social_value,
          reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
          day_after_reminder_info = reminder_info_stock,
-         days_observed = 12,
-         days_sms = 12) %>% 
+         days_observed = 11,
+         days_sms = 11) %>% 
   filter(!name_matched | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
-dyn_dyn_treatment_maps <- lst(formula = ~ (signal_observed + reminder_info_stock * day_after_reminder_info) * phone_owner, 
-                             trends = tibble(signal_observed = 0:11,
-                                             reminder_info_stock = rep(0:5, each = 2),
-                                             day_after_reminder_info = c(0, rep(0:1, 5), 0))) %>% 
+dyn_dyn_treatment_maps <- 
+  lst(formula = ~ (poly(days_observed, 2, raw = TRUE)*signal_observed + poly(days_sms, 2, raw = TRUE)*reminder_info_stock + days_after_sms*day_after_reminder_info)*phone_owner, 
+      trends = tibble(days_observed = 0:11,
+                      days_sms = rep(0:5, each = 2),
+                      days_after_sms = c(0, rep(0:1, 5), 0))) %>% 
   prepare_dynamic_treatment_maps(dyn_analysis_data)
 
 dyn_static_treatment_map <- dyn_analysis_data %>% 
@@ -965,13 +966,14 @@ bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>%
             filter(incentive_treatment_left != "bracelet-bracelet", 
                    incentive_treatment_right == "control-control",
                    sms.treatment.2_left == "sms.control", sms.treatment.2_right == "sms.control") %>% 
-            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
-          .id = "model") %>% 
+            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]"), name_matched_left),
+          .id = "model") %>%
+  mutate(model = if_else(model == "Static", model, str_c(model, name_matched_left, sep = "-"))) %>% 
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
-  ggplot(aes(incentive_treatment_left, mean_ate, color = model)) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
+  ggplot(aes(incentive_treatment_left, mean_ate, group = model)) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = model), position = position_dodge(width = 0.2), size = 2) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.25) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   # geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL)) +
   geom_text(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, data = . %>% filter(model == "Dynamic")) +
