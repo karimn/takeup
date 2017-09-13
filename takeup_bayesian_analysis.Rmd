@@ -635,7 +635,7 @@ dyn_analysis_data <- analysis.data %>%
          day_after_reminder_info = reminder_info_stock,
          days_observed = 12,
          days_sms = 12) %>% 
-  filter(!name_matched) # | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
+  filter(!name_matched | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 dyn_dyn_treatment_maps <- lst(formula = ~ (signal_observed + reminder_info_stock * day_after_reminder_info) * phone_owner, 
                              trends = tibble(signal_observed = 0:11,
@@ -808,25 +808,10 @@ dyn_stan_data <- prepare_bayesian_analysis_data(
   treatment_map = dyn_static_treatment_map,
   dynamic_treatment_map = dyn_dyn_treatment_maps,
     
-  # treatment_map = data_grid(., private_value, social_value, signal_observed, dist.pot.group, hh.baseline.sample, phone_owner) %>%
-  #   filter(private_value != "calendar" | social_value == "control",
-  #          private_value != "bracelet" | social_value == "bracelet",
-  #          signal_observed == social_value | signal_observed == "control"),
-  
-  # dynamic_treatment_map = lst(formula = ~ (signal_observed + reminder_info_stock * day_after_reminder_info) * phone_owner, 
-  #                             trends = tibble(signal_observed = 0:11,
-  #                                             reminder_info_stock = rep(0:5, each = 2),
-  #                                             day_after_reminder_info = c(0, rep(0:1, 5), 0))),
-    
-  # treatment_formula = ~ (private_value + social_value * (dist.pot.group + hh.baseline.sample)) * phone_owner,
   treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
   subgroup_col = NULL,
     
-  all_ate = dyn_all_ate %>% filter(!name_matched),
-  # all_ate = dyn_sms_control_ate %>% select(-contains("sms.treatment")),
-  
-  # name_match_false_pos_alpha, 
-  # name_match_false_pos_beta,
+  all_ate = dyn_all_ate, 
   
   scale_df = 7,
   scale_sigma = 1,
@@ -852,7 +837,7 @@ basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan",
 ```{r basic-model-2-simple-centered, eval=FALSE}
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 8, iter = 100, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
            sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")) 
 ```
 
