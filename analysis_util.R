@@ -959,31 +959,38 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map, prepared_analy
   dyn_var <- names(dynamic_treatment_map$trends)
   dyn_var_re <- str_c(dyn_var, collapse = "|")
   dyn_formula_var <- all.vars(dynamic_treatment_map$formula)
+  original_dyn_var <- setdiff(dyn_formula_var, dyn_var)
   
   dynamic_treatment_mask_map <- prepared_analysis_data %>% 
-    distinct_(.dots = dyn_formula_var) %>% 
-    bind_cols(model_matrix(., dynamic_treatment_map$formula) %>% select(matches(dyn_var_re)))
-  
-  dynamic_treatment_map <- dynamic_treatment_mask_map %>%
-    select(- one_of(dyn_formula_var)) %>% 
-    map2_dfc(str_extract(names(.), dyn_var_re), ~ dynamic_treatment_map$trends %>% pull(.y)) %>% 
-    cbind(set_colnames(.^2, str_c(colnames(.), "_squared"))) %>% 
-    scale(center = FALSE, scale = rep(max(.), ncol(.)))
+    expand(crossing_(original_dyn_var), dynamic_treatment_map$trends) 
+ 
+  dynamic_treatment_map <- dynamic_treatment_mask_map %>% 
+    model_matrix(dynamic_treatment_map$formula) %>%
+    select(matches(dyn_var_re)) %>% 
+    select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
+    select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
+    scale(center = FALSE, scale = rep(max(.), ncol(.))) %>% 
+    as_tibble()
   
   dynamic_treatment_mask_map %<>% 
-    bind_cols(select(., - seq_along(dyn_formula_var)) %>% set_names(str_c(names(.), "_squared"))) %>% 
-    mutate(dynamic_treatment_id = seq_len(n()))
+    cbind(dynamic_treatment_map %>% equals(0) %>% not() %>% multiply_by(1)) %>% 
+    left_join(distinct_(., .dots = original_dyn_var) %>% 
+                mutate(dynamic_treatment_id = seq_len(n())), original_dyn_var) %>% 
+    arrange(dynamic_treatment_id)
   
+  dynamic_treatment_map %<>% bind_cols(dynamic_treatment_mask_map %>% select(dynamic_treatment_id))
+    
   lst(map = dynamic_treatment_map, 
       mask = dynamic_treatment_mask_map,
-      dyn_formula_var)
+      original_dyn_var)
 }
 
 prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) {
   static_treatment_map %>% 
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.))) %>% 
-    left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$dyn_formula_var, dynamic_treatment_id), by = dynamic_treatment_maps$dyn_formula_var)
+    left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
+              by = dynamic_treatment_maps$original_dyn_var)
 }
 
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
@@ -1039,7 +1046,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
    
     design_matrix %>%  
       scale(scale = map2_dbl(., map_means, 
-                             # function(col, col_mean) (sum(map_count * (col - col_mean))^2)/(sum(map_count) - 1) * 2) %>% 
                              function(col, col_mean) sqrt(sum(map_count * ((col - col_mean)^2))/(sum(map_count) - 1)) * 2) %>%  
               if_else(is_factor_col, 1, .),
             center = map_means) # Center and scale to have SD = 0.5
@@ -1057,28 +1063,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     dynamic_treatment_map <- dyn_treat_maps$map
     dynamic_treatment_mask_map <- dyn_treat_maps$mask
     dyn_formula_var <- dyn_treat_maps$dyn_formula_var
-      
-    # dyn_var <- names(dynamic_treatment_map$trends)
-    # dyn_var_re <- str_c(dyn_var, collapse = "|")
-    # dyn_formula_var <- all.vars(dynamic_treatment_map$formula)
-    # 
-    # dynamic_treatment_mask_map <- prepared_analysis_data %>% 
-    #   distinct_(.dots = dyn_formula_var) %>% 
-    #   bind_cols(model_matrix(., dynamic_treatment_map$formula) %>% select(matches(dyn_var_re)))
-    # 
-    # dynamic_treatment_map <- dynamic_treatment_mask_map %>%
-    #   select(- one_of(dyn_formula_var)) %>% 
-    #   map2_dfc(str_extract(names(.), dyn_var_re), ~ dynamic_treatment_map$trends %>% pull(.y)) %>% 
-    #   cbind(set_colnames(.^2, str_c(colnames(.), "_squared"))) %>% 
-    #   scale(center = FALSE, scale = rep(max(.), ncol(.)))
-    # 
-    # dynamic_treatment_mask_map %<>% 
-    #   bind_cols(select(., - seq_along(dyn_formula_var)) %>% set_names(str_c(names(.), "_squared"))) %>% 
-    #   mutate(dynamic_treatment_id = seq_len(n()))
   } else {
-    # dyn_var <- NULL
     dyn_formula_var <- NULL
-    # dynamic_treatment_col <- NULL
     dynamic_treatment_mask_map <- NULL
     dynamic_treatment_dm <- NULL
   }
@@ -1171,73 +1157,26 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     ate_treatments <- all_ate %>% get_unique_treatments()
     
-    # non_phone_owner_treatments <- all_ate %>%
-    #   filter(!phone_owner) %>%
-    #   get_unique_treatments()
-    # 
-    # phone_owner_treatments <- all_ate %>%
-    #   filter(phone_owner) %>%
-    #   get_unique_treatments()
-    
     missing_treatment <- ate_treatments$all_treatment_id %>%
       map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
 
     observed_treatment <- ate_treatments$all_treatment_id %>%
       map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
     
-    # non_phone_owner_missing_treatment <- non_phone_owner_treatments$all_treatment_id %>%
-    #   map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id != .x) %>% pull(obs_index))
-    # 
-    # non_phone_owner_observed_treatment <- non_phone_owner_treatments$all_treatment_id %>%
-    #   map(~ filter(prepared_analysis_data, !phone_owner, all_treatment_id == .x) %>% pull(obs_index))
-    # 
-    # phone_owner_missing_treatment <- phone_owner_treatments$all_treatment_id %>%
-    #   map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id != .x) %>% pull(obs_index))
-    # 
-    # phone_owner_observed_treatment <- phone_owner_treatments$all_treatment_id %>%
-    #   map(~ filter(prepared_analysis_data, phone_owner, all_treatment_id == .x) %>% pull(obs_index))
-
-    # num_non_phone_owner_ate_pairs <- all_ate %>% filter(!phone_owner) %>% nrow()
-    # num_phone_owner_ate_pairs <- all_ate %>% filter(phone_owner) %>% nrow()
-    
     ate_pairs <- all_ate %>% 
       select(all_treatment_id_left, all_treatment_id_right) %>%
       left_join(ate_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
       left_join(ate_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
       select(rank_id_left, rank_id_right)
-    
-    # non_phone_owner_ate_pairs <- all_ate %>% 
-    #   filter(!phone_owner) %>% 
-    #   select(all_treatment_id_left, all_treatment_id_right) %>%
-    #   left_join(non_phone_owner_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-    #   left_join(non_phone_owner_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
-    #   select(rank_id_left, rank_id_right)
-    # 
-    # phone_owner_ate_pairs <- all_ate %>% 
-    #   filter(phone_owner) %>% 
-    #   select(all_treatment_id_left, all_treatment_id_right) %>% 
-    #   left_join(phone_owner_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-    #   left_join(phone_owner_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
-    #   select(rank_id_left, rank_id_right)
   } else {
     ate_treatments <- NULL
-    # non_phone_owner_treatments <- NULL
-    # phone_owner_treatments <- NULL
     
     missing_treatment <- NULL 
     observed_treatment <- NULL
-    # non_phone_owner_missing_treatment <- NULL 
-    # non_phone_owner_observed_treatment <- NULL
-    # phone_owner_missing_treatment <- NULL
-    # phone_owner_observed_treatment <- NULL
     
     num_ate_pairs <- NULL
-    # num_non_phone_owner_ate_pairs <- NULL
-    # num_phone_owner_ate_pairs <- NULL
     
     ate_pairs <- NULL
-    # non_phone_owner_ate_pairs <- NULL
-    # phone_owner_ate_pairs <- NULL
   }
  
   stan_data_list <- lst(
@@ -1251,10 +1190,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     missing_treatment,
     observed_treatment,
-    # non_phone_owner_missing_treatment,
-    # non_phone_owner_observed_treatment,
-    # phone_owner_missing_treatment,
-    # phone_owner_observed_treatment,
     
     census_covar_map, 
     stratum_map,
@@ -1268,10 +1203,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
     
-    dynamic_treatment_map,
-    dynamic_treatment_mask_map = if (!is_empty(dynamic_treatment_mask_map)) dynamic_treatment_mask_map %>% select(- one_of(dyn_formula_var), -dynamic_treatment_id),
-    num_dynamic_treatments = if (is_empty(dynamic_treatment_mask_map)) 0 else nrow(dynamic_treatment_mask_map),
-    num_dynamic_treatment_col = if (is_empty(dynamic_treatment_mask_map)) 0 else ncol(dynamic_treatment_mask_map),
+    num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
+    num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),
     all_treatment_dyn_id = treatment_map$dynamic_treatment_id,
     signal_observed_coef = dynamic_treatment_map %>% colnames() %>% str_which("signal_observed"),
     reminder_info_coef = dynamic_treatment_map %>% colnames() %>% str_which("reminder_info"),
@@ -1280,28 +1213,26 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     all_treatment_signal_observed_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_observed),
     all_treatment_reminder_info_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_sms),
     
-    # matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] 
-    #[num_dynamic_treatments, num_deworming_days + 1, num_deworming_days + 1];
-    dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_mask_map)) {
-      dynamic_treatment_mask_map %>% 
-        alply(1, 
-              function(mask_row, dm) { 
-                expand.grid(days_observed = 0:num_deworming_days, days_sms = 0:num_deworming_days) %>% 
+    dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
+      dynamic_treatment_map %>% 
+        daply(.(dynamic_treatment_id),
+              function(dyn_treat) {
+                expand.grid(days_observed = 0:(num_deworming_days - 1), days_sms = 0:(num_deworming_days - 1)) %>% 
                   aaply(1, function(grid_row, temp_dm) {
-                    ret_dm <- temp_dm
+                    ret_dm <- dyn_treat %>% 
+                      select(-dynamic_treatment_id) %>% 
+                      as.matrix()
                     
-                    if (grid_row$days_observed < num_deworming_days) ret_dm[(grid_row$days_observed + 1):num_deworming_days, signal_observed_coef] <- 0
-                    if (grid_row$days_sms < num_deworming_days) ret_dm[(grid_row$days_sms + 1):num_deworming_days, reminder_info_coef] <- 0
+                    if (grid_row$days_observed < num_deworming_days - 1) ret_dm[(grid_row$days_observed + 1):num_deworming_days, signal_observed_coef] <- 0
+                    if (grid_row$days_sms < num_deworming_days - 1) ret_dm[(grid_row$days_sms + 1):num_deworming_days, reminder_info_coef] <- 0
                     
                     return(ret_dm)
-                  },
-                  temp_dm = matrix(as.numeric(mask_row), nrow = num_deworming_days, ncol = ncol(mask_row), byrow = TRUE) * dm) 
-                  # alply(1, alply, 1)
-              }, 
-              dm = dynamic_treatment_map)
-    } %>% 
-      simplify2array() %>% # Turn into an array with one more level
-      aperm(c(5, 1:4)), # Reorder the dims
+                  })
+              })
+    }, 
+    dynamic_treatment_map = if (!is_empty(dynamic_treatment_map)) {
+      dynamic_treatment_map %>% daply(.(dynamic_treatment_id), . %>% select(-dynamic_treatment_id) %>% as.matrix()) 
+    },
     
     num_private_value_calendar_coef = length(private_value_calendar_coef),
     num_private_value_bracelet_coef = length(private_value_bracelet_coef),
@@ -1337,7 +1268,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_distinct_census_covar = nrow(census_covar_map_dm),
     census_covar_id = prepared_analysis_data$census_covar_id,
     
-    # matrix[num_obs, num_census_covar_coef] 
     census_covar_dm = census_covar_map_dm[census_covar_id, ],
     
     endline_covar_dm,
@@ -1389,12 +1319,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     # ATE
     
     num_ate_treatments = nrow(ate_treatments),
-    # num_non_phone_owner_treatments = nrow(non_phone_owner_treatments),
-    # num_phone_owner_treatments = nrow(phone_owner_treatments),
     
     ate_treatments = ate_treatments$all_treatment_id,
-    # non_phone_owner_treatments = non_phone_owner_treatments$all_treatment_id,
-    # phone_owner_treatments = phone_owner_treatments$all_treatment_id,
     
     missing_obs_ids = unlist(missing_treatment),
     num_missing_obs_ids = length(missing_obs_ids),
@@ -1408,27 +1334,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     missing_census_covar_dm = census_covar_dm[missing_obs_ids, ],
     
-    # missing_non_phone_owner_obs_ids = unlist(non_phone_owner_missing_treatment),
-    # num_missing_non_phone_owner_obs_ids = length(missing_non_phone_owner_obs_ids),
-    # missing_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_missing_treatment, length),
-    # observed_non_phone_owner_obs_ids = unlist(non_phone_owner_observed_treatment),
-    # num_observed_non_phone_owner_obs_ids = length(observed_non_phone_owner_obs_ids),
-    # observed_non_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(non_phone_owner_observed_treatment, length),
-    # 
-    # missing_phone_owner_obs_ids = unlist(phone_owner_missing_treatment),
-    # num_missing_phone_owner_obs_ids = length(missing_phone_owner_obs_ids), 
-    # missing_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_missing_treatment, length),
-    # observed_phone_owner_obs_ids = unlist(phone_owner_observed_treatment),
-    # num_observed_phone_owner_obs_ids = length(observed_phone_owner_obs_ids),
-    # observed_phone_owner_treatment_sizes = if (!is.null(all_ate)) map_int(phone_owner_observed_treatment, length),
-    
     num_ate_pairs,
-    # num_non_phone_owner_ate_pairs,
-    # num_phone_owner_ate_pairs,
-    
     ate_pairs,
-    # non_phone_owner_ate_pairs,
-    # phone_owner_ate_pairs,
     
     observed_dewormed_day = dewormed_day_any[observed_obs_ids],
     ...
