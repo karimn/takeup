@@ -347,8 +347,7 @@ model {
       //     treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
       
       stratum_log_lambda_t = 
-        calculate_stratum_log_lambda_t(stratum_log_kappa, 
-                                       census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
+        calculate_stratum_log_lambda_t(census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
                                          treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta, 
                                          // treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef],
                                        dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
