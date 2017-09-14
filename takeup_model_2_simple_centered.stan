@@ -155,6 +155,7 @@ data {
   int num_dewormed; 
   int strata_dewormed_sizes[num_strata];
   int dewormed_ids[num_dewormed];
+  int<lower = 1> stratum_dewormed_index[num_dewormed];
   
   matrix[num_deworming_days, num_deworming_days] hazard_day_map;
   matrix[num_deworming_days + 1, num_deworming_days] hazard_day_triangle_map;
@@ -273,78 +274,13 @@ parameters {
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
   
-  vector[num_strata] stratum_lp;
+  // vector[num_strata] stratum_lp;
   
-  matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
-  matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
-  matrix[num_strata, num_census_covar_coef] stratum_census_covar_coef_mat;
-  matrix[num_strata, num_deworming_days] stratum_hazard_mat;
+  // matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
+  // matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
+  // matrix[num_strata, num_census_covar_coef] stratum_census_covar_coef_mat;
+  // matrix[num_strata, num_deworming_days] stratum_hazard_mat;
   
-  {
-    int stratum_pos = 1;
-    int dewormed_stratum_pos = 1;
-    int dynamic_stratum_pos = 1;
-  
-    vector[num_obs] observed_log_kappa = rep_vector(0, num_obs);
-    matrix[num_obs, num_deworming_days] observed_log_lambda_t = rep_matrix(0, num_obs, num_deworming_days);
-    // vector[num_obs] observed_log_kappa_census_covar = rep_vector(0, num_obs);
-    
-    for (strata_index in 1:num_strata) {
-      int curr_stratum_size = strata_sizes[strata_index];
-      int stratum_end = stratum_pos + curr_stratum_size - 1;
-      
-      int curr_dewormed_stratum_size = strata_dewormed_sizes[strata_index];
-      int dewormed_stratum_end = dewormed_stratum_pos + curr_dewormed_stratum_size - 1;
-      
-      int curr_dynamic_stratum_size = curr_stratum_size * num_deworming_days;  
-      int dynamic_stratum_end = dynamic_stratum_pos + curr_dynamic_stratum_size - 1;
-      
-      vector[num_all_treatment_coef] local_stratum_beta = rep_vector(0, num_all_treatment_coef);
-        
-      int stratum_dewormed_ids[curr_dewormed_stratum_size] = dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end]; 
-      int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end]; 
-      int stratum_dewormed_day_dewormed[curr_dewormed_stratum_size] = dewormed_day_any[stratum_dewormed_ids];
-      
-      matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
-      matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
-      
-      row_vector[num_deworming_days] stratum_baseline_hazard = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
-      
-      local_stratum_beta[not_private_value_bracelet_coef] = stratum_beta[strata_index];
-      
-      // observed_log_kappa_census_covar[stratum_pos:stratum_end] = census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index];
-              
-      observed_log_kappa[stratum_pos:stratum_end] =
-        census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
-          // observed_log_kappa_census_covar[stratum_pos:stratum_end] +
-          treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
-          treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
-      
-      observed_log_lambda_t[stratum_pos:stratum_end] = 
-        calculate_stratum_log_lambda_t(observed_log_kappa[stratum_pos:stratum_end], 
-                                       dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
-                                       stratum_dynamic_treatment_coef[strata_index]',
-                                       stratum_baseline_hazard,
-                                       cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]]);
-        
-      stratum_lp[strata_index] = 
-        - (exp(log_sum_exp(observed_log_lambda_t[stratum_pos:stratum_end] .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) +
-        sum(log(inv_cloglog(observed_log_lambda_t[stratum_dewormed_ids] .* stratum_hazard_day_map))) - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
-        
-      if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
-        reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);
-      }
-        
-      stratum_beta_mat[strata_index] = local_stratum_beta';
-      stratum_dyn_treatment_mat[strata_index] = stratum_dynamic_treatment_coef[strata_index];
-      stratum_census_covar_coef_mat[strata_index] = stratum_census_covar_coef[strata_index]';
-      stratum_hazard_mat[strata_index] = stratum_baseline_hazard;
-          
-      stratum_pos = stratum_end + 1;
-      dewormed_stratum_pos = dewormed_stratum_end + 1;
-      dynamic_stratum_pos = dynamic_stratum_end + 1;
-    }
-  }
 }
 
 model {
@@ -366,17 +302,91 @@ model {
   stratum_tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
   stratum_census_covar_coef ~ multi_student_t(coef_df, hyper_census_covar_coef, diag_matrix(stratum_tau_census_covar));
   
-  target += stratum_lp;
+  {
+    int stratum_pos = 1;
+    int dewormed_stratum_pos = 1;
+    int dynamic_stratum_pos = 1;
+  
+    // vector[num_obs] observed_log_kappa = rep_vector(0, num_obs);
+    // matrix[num_obs, num_deworming_days] observed_log_lambda_t = rep_matrix(0, num_obs, num_deworming_days);
+    // vector[num_obs] observed_log_kappa_census_covar = rep_vector(0, num_obs);
+    
+    for (strata_index in 1:num_strata) {
+      int curr_stratum_size = strata_sizes[strata_index];
+      int stratum_end = stratum_pos + curr_stratum_size - 1;
+      
+      int curr_dewormed_stratum_size = strata_dewormed_sizes[strata_index];
+      int dewormed_stratum_end = dewormed_stratum_pos + curr_dewormed_stratum_size - 1;
+      
+      int curr_dynamic_stratum_size = curr_stratum_size * num_deworming_days;  
+      int dynamic_stratum_end = dynamic_stratum_pos + curr_dynamic_stratum_size - 1;
+      
+      vector[num_all_treatment_coef] local_stratum_beta = rep_vector(0, num_all_treatment_coef);
+        
+      int stratum_dewormed_ids[curr_dewormed_stratum_size] = dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end];
+      int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end]; 
+      int stratum_dewormed_day_dewormed[curr_dewormed_stratum_size] = dewormed_day_any[stratum_dewormed_ids];
+      
+      matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
+      matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
+      
+      row_vector[num_deworming_days] stratum_baseline_hazard = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
+      
+      // vector[curr_stratum_size] stratum_log_kappa; // = rep_vector(0, num_obs);
+      matrix[curr_stratum_size, num_deworming_days] stratum_log_lambda_t; // = rep_matrix(0, num_obs, num_deworming_days);
+      
+      local_stratum_beta[not_private_value_bracelet_coef] = stratum_beta[strata_index];
+      local_stratum_beta[private_value_bracelet_coef] = local_stratum_beta[private_value_calendar_coef];
+      
+      // observed_log_kappa_census_covar[stratum_pos:stratum_end] = census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index];
+              
+      // stratum_log_kappa =
+      //   census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
+      //     // observed_log_kappa_census_covar[stratum_pos:stratum_end] +
+      //     treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
+      //     treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
+      
+      stratum_log_lambda_t = 
+        calculate_stratum_log_lambda_t(stratum_log_kappa, 
+                                       census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
+                                         treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta, 
+                                         // treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef],
+                                       dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
+                                       stratum_dynamic_treatment_coef[strata_index]',
+                                       stratum_baseline_hazard,
+                                       cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]]);
+        
+      // stratum_lp[strata_index] = 
+      target += - (exp(log_sum_exp(stratum_log_lambda_t .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) 
+        + sum(log(inv_cloglog(stratum_log_lambda_t[stratum_dewormed_index[dewormed_stratum_pos:dewormed_stratum_end]] .* stratum_hazard_day_map))) - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
+        
+      // if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
+      //   reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);
+      // }
+        
+      // stratum_beta_mat[strata_index] = local_stratum_beta';
+      // stratum_dyn_treatment_mat[strata_index] = stratum_dynamic_treatment_coef[strata_index];
+      // stratum_census_covar_coef_mat[strata_index] = stratum_census_covar_coef[strata_index]';
+      // stratum_hazard_mat[strata_index] = stratum_baseline_hazard;
+          
+      stratum_pos = stratum_end + 1;
+      dewormed_stratum_pos = dewormed_stratum_end + 1;
+      dynamic_stratum_pos = dynamic_stratum_end + 1;
+    }
+  }
+  
+  // target += stratum_lp;
 }
 
 generated quantities {
   row_vector<lower = 0, upper = 1>[num_deworming_days] stratum_baseline_cond_takeup[num_strata];
+  /*
   
   matrix<lower = 0>[num_ate_treatments, num_deworming_days + 2] est_deworming_days = rep_matrix(0, num_ate_treatments, num_deworming_days + 2);
   vector<lower = 0, upper = 1>[num_ate_treatments] est_takeup = rep_vector(0, num_ate_treatments);
   vector<lower = -1, upper = 1>[num_ate_pairs] est_takeup_ate = rep_vector(0, num_ate_pairs);
   
-  if (estimate_ate) {/*
+  if (estimate_ate) {
     est_deworming_days =
       treatment_cell_deworming_day_prop_rng(ate_treatments,
                                        missing_obs_ids,
@@ -402,7 +412,7 @@ generated quantities {
    
     est_takeup = 1 - est_deworming_days[, 13]; 
     est_takeup_ate = est_takeup[ate_pairs[, 1]] - est_takeup[ate_pairs[, 2]];
-  */}
+  }*/
     
   for (stratum_index in 1:num_strata) {
     stratum_baseline_cond_takeup[stratum_index] = exp(- hyper_baseline_hazard * stratum_hazard_effect[stratum_index]);
