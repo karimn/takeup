@@ -938,11 +938,6 @@ dyn_ate %<>%
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
 
-  # vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate = 
-  #   non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  # vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
-  #   phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
-
 summ_dyn_takeup %>% 
   filter(day < 13,
          sms.treatment.2 == "sms.control",
