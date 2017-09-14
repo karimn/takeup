@@ -130,10 +130,6 @@ data {
   int private_value_bracelet_coef[num_private_value_bracelet_coef];
   int not_private_value_bracelet_coef[num_all_treatment_coef - num_private_value_bracelet_coef];
   
-  int<lower = 0> num_bracelet_treated;
-  int<lower = 1, upper = num_obs> bracelet_treated_id[num_bracelet_treated];
-  int<lower = 0, upper = num_obs> strata_bracelet_sizes[num_strata];
-  
   // Below references to "maps" refer to a finite set of treatment cells that has a one-to-many relationship to actual observations
   
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
@@ -163,11 +159,6 @@ data {
   // Covariates
   
   int<lower = 1> num_census_covar_coef;
-  int<lower = 1> num_distinct_census_covar;
-  
-  matrix[num_distinct_census_covar, num_census_covar_coef] census_covar_map_dm; 
-  int census_covar_id[num_obs];
-  
   matrix[num_obs, num_census_covar_coef] census_covar_dm;
   
   // Dynamics
@@ -178,13 +169,10 @@ data {
   int<lower = 0> num_dynamic_treatment_col;
  
   matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map[num_dynamic_treatments];
-  // matrix[num_dynamic_treatments, num_dynamic_treatment_col] dynamic_treatment_mask_map;
   int all_treatment_dyn_id[num_all_treatments];
   
-  int<lower = 0, upper = num_dynamic_treatment_col> num_signal_observed_coef;
-  int<lower = 0, upper = num_dynamic_treatment_col> num_reminder_info_coef;
-  int<lower = 1, upper = num_dynamic_treatment_col> signal_observed_coef[num_signal_observed_coef];
-  int<lower = 1, upper = num_dynamic_treatment_col> reminder_info_coef[num_reminder_info_coef];
+  // int<lower = 1, upper = num_dynamic_treatment_col> signal_observed_coef[num_signal_observed_coef];
+  // int<lower = 1, upper = num_dynamic_treatment_col> reminder_info_coef[num_reminder_info_coef];
   
   int<lower = 0, upper = num_deworming_days> all_treatment_signal_observed_days[num_all_treatments];
   int<lower = 0, upper = num_deworming_days> all_treatment_reminder_info_days[num_all_treatments];
@@ -241,7 +229,6 @@ transformed data {
     
     for (obs_index in 1:num_obs) {
       dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = dynamic_treatment_map[dynamic_treatment_id[obs_index]];
-        // rep_matrix(dynamic_treatment_mask_map[dynamic_treatment_id[obs_index]], num_deworming_days) .* dynamic_treatment_map;
       
       dynamic_treatment_dm_pos = dynamic_treatment_dm_pos + num_deworming_days;
     }
@@ -330,7 +317,7 @@ model {
       matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
       matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
       
-      row_vector[num_deworming_days] stratum_baseline_hazard = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
+      // row_vector[num_deworming_days] stratum_baseline_hazard = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
       
       // vector[curr_stratum_size] stratum_log_kappa; // = rep_vector(0, num_obs);
       matrix[curr_stratum_size, num_deworming_days] stratum_log_lambda_t; // = rep_matrix(0, num_obs, num_deworming_days);
@@ -346,18 +333,30 @@ model {
       //     treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta +
       //     treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef];
       
-      stratum_log_lambda_t = 
+      stratum_log_lambda_t =
         calculate_stratum_log_lambda_t(census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] +
-                                         treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta, 
-                                         // treatment_design_matrix[stratum_pos:stratum_end, private_value_bracelet_coef] * local_stratum_beta[private_value_calendar_coef],
+                                         treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta,
                                        dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end],
                                        stratum_dynamic_treatment_coef[strata_index]',
-                                       stratum_baseline_hazard,
+                                       stratum_hazard_effect[strata_index] * hyper_baseline_hazard,
                                        cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]]);
+       //  // This is the time-invariant part of the kappa function
+       //  rep_matrix(census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index]  
+       //              + treatment_design_matrix[stratum_pos:stratum_end] * local_stratum_beta, num_deworming_days) 
+       //  
+       //  // This is the time varying part of the kappa function              
+       //  + to_matrix(dynamic_treatment_dm[dynamic_stratum_pos:dynamic_stratum_end] * stratum_dynamic_treatment_coef[strata_index]', curr_stratum_size, num_deworming_days, 0)  
+       // 
+       // // Hazard and cluster frailty (basically cluster effects) 
+       //  + log(rep_matrix(stratum_hazard_effect[strata_index] * hyper_baseline_hazard, curr_stratum_size) .* 
+       //          rep_matrix(cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]], num_deworming_days));
+          
         
       // stratum_lp[strata_index] = 
-      target += - (exp(log_sum_exp(stratum_log_lambda_t .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) 
-        + sum(log(inv_cloglog(stratum_log_lambda_t[stratum_dewormed_index[dewormed_stratum_pos:dewormed_stratum_end]] .* stratum_hazard_day_map))) - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
+      target += 
+        - (exp(log_sum_exp(stratum_log_lambda_t .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) 
+        + sum(log(inv_cloglog(stratum_log_lambda_t[stratum_dewormed_index[dewormed_stratum_pos:dewormed_stratum_end]] .* stratum_hazard_day_map))) 
+        - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
         
       // if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
       //   reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);
