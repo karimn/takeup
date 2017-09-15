@@ -948,5 +948,122 @@ summ_dyn_takeup %>%
   facet_grid(comparator ~ dist.pot.group)
 ```
 
+### Posterior Simulation
+
+```{r sim-params}
+sim_stratum_hazards <- basic_model_2_simple_fit %>% 
+  as.data.frame(pars = c("hyper_baseline_hazard", "stratum_hazard_effect")) %>% 
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(stratum_id, stratum_hazard_effect, starts_with("stratum_hazard_effect")) %>% 
+  gather(deworming_day, baseline_hazard, starts_with("hyper_baseline_hazard")) %>% 
+  mutate_at(vars(stratum_id, deworming_day), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
+  mutate(stratum_hazard = baseline_hazard * stratum_hazard_effect) 
+
+sim_cluster_hazards <- basic_model_2_simple_fit %>% 
+  as.data.frame( pars = c("cluster_hazard_effect")) %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(cluster_id, cluster_hazard_effect, starts_with("cluster_hazard_effect")) %>% 
+  mutate_at(vars(cluster_id), funs(str_extract(., "\\d+") %>% as.integer())) 
+
+sim_stratum_census_covar_coef <- basic_model_2_simple_fit %>% 
+  as.data.frame(pars = c("stratum_census_covar_coef")) %>% 
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(stratum_id, stratum_census_covar_coef, starts_with("stratum_census_covar_coef")) %>% 
+  separate(stratum_id, into = c("var", "stratum_id", "col_id"), remove = TRUE, sep = "\\[|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(col_id, stratum_id), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
+  mutate(col_id = sprintf("%s_%03d", var, col_id)) %>% # Don't use unite()
+  spread(col_id, stratum_census_covar_coef) %>% 
+  select(-var)
+
+sim_stratum_treatment_coef <- basic_model_2_simple_fit %>% 
+  as.data.frame(pars = c("stratum_beta")) %>% 
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(stratum_id, stratum_beta, starts_with("stratum_beta")) %>% 
+  separate(stratum_id, into = c("var", "stratum_id", "col_id"), remove = TRUE, sep = "\\[|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(stratum_id, col_id), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
+  mutate(col_id = sprintf("%s_%03d", var, col_id)) %>% # Don't use unite()
+  spread(col_id, stratum_beta) %>% 
+  select(-var)
+
+sim_stratum_dyn_treatment_coef <- basic_model_2_simple_fit %>% 
+  as.data.frame(pars = c("stratum_dynamic_treatment_coef")) %>% 
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(stratum_id, stratum_dynamic_treatment_coef, starts_with("stratum_dynamic_treatment_coef")) %>% 
+  separate(stratum_id, into = c("var", "stratum_id", "col_id"), remove = TRUE, sep = "\\[|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(stratum_id, col_id), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
+  mutate(col_id = sprintf("%s_%03d", var, col_id)) %>% # Don't use unite()
+  spread(col_id, stratum_dynamic_treatment_coef) %>% 
+  mutate_at(vars(stratum_id), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
+  select(-var)
+```
+
+```{r sim-inference}
+obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
+    transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
+
+dyn_day_sim <- obs_meta_data %>% 
+  distinct(stratum_id, cluster_id) %>% 
+  left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
+  left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
+  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
+  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
+  filter(iter_id %in% 1:100) %>%
+  ddply(.(iter_id), function(iter_parameters, obs_meta_data, 
+                             census_covar_dm, 
+                             treatment_dm, 
+                             full_dyn_treatment_dm, 
+                             dyn_treatment_dm = matrix(0, nrow = nrow(treatment_dm), ncol = ncol(full_dyn_treatment_dm))) {
+    dyn_treatment_dm %>% 
+      set_colnames(str_c("dyn_treatment_", 1:ncol(.))) %>% 
+      as_tibble() %>% 
+      bind_cols(treatment_dm, .) %>% 
+      ddply(.(all_treatment_id), function(dm_datarow, iter_est, full_dyn_treatment_dm) {
+        static_dm_row <- select(dm_datarow, -c(all_treatment_id, phone_owner, name_matched), -starts_with("dyn_treatment_"))
+        dyn_dm_row <- select(dm_datarow, starts_with("dyn_treatment_")) %>% 
+          unlist() %>% 
+          matrix(nrow = nrow(full_dyn_treatment_dm), ncol = ncol(full_dyn_treatment_dm), byrow = TRUE) %>% 
+          multiply_by(full_dyn_treatment_dm)
+        applicable_obs <- left_join(dm_datarow, iter_est, c("phone_owner", "name_matched"))
+        beta_params <- applicable_obs %>% 
+          select(matches("^stratum_beta_\\d+")) %>% 
+          set_names(static_dm_row %>% select(-matches("private_valuebracelet")) %>% names())
+       
+        applicable_obs %>% 
+          select(-starts_with("stratum_beta")) %>% 
+          mutate(log_kappa_static_treatment = 
+                   (as.matrix(beta_params) %*% unlist(select(static_dm_row, -matches("private_valuebracelet")))) + 
+                   (as.matrix(select(beta_params, matches("private_valuecalendar"))) %*% unlist(select(static_dm_row, matches("private_valuebracelet")))),
+                 log_kappa_static_treatment = c(log_kappa_static_treatment)) %>% 
+          left_join(sim_stratum_hazards, c("iter_id", "stratum_id")) %>% 
+          mutate(cluster_hazard = stratum_hazard * cluster_hazard_effect,
+                 log_kappa_dyn_treatment = rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+"))),
+                 alpha = exp(- exp(log_kappa_census_covar + log_kappa_static_treatment + log_kappa_dyn_treatment) * cluster_hazard),
+                 m1_alpha = 1 - alpha) %>% 
+          select(-c(cluster_hazard_effect, stratum_hazard_effect, stratum_hazard, baseline_hazard),
+                 -starts_with("stratum_dynamic_treatment_coef_")) %>% 
+          group_by(cluster_id) %>% 
+          mutate(day_prob_deworm = m1_alpha * accumulate(lag(alpha, default = 1), multiply_by)) %>% 
+          group_by(deworming_day) %>% 
+          summarize_at(vars(m1_alpha, day_prob_deworm), mean) %>% 
+          ungroup()
+      },
+      iter_est = iter_parameters %>% 
+        left_join(obs_meta_data, c("stratum_id", "cluster_id")) %>% 
+        mutate(log_kappa_census_covar = select(., starts_with("stratum_census_covar_coef")) %>% 
+                 multiply_by(census_covar_dm) %>% 
+                 rowSums()) %>% 
+        select(-starts_with("stratum_census_covar_coef")),
+      full_dyn_treatment_dm = full_dyn_treatment_dm)
+  }, .inform = TRUE, .progress = "text",  
+  obs_meta_data = obs_meta_data,
+  census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
+  treatment_dm = dyn_stan_data$treatment_map %>% 
+    filter(private_value == "control", social_value == "control", sms.treatment.2 == "sms.control", 
+           signal_observed == "control", reminder_info_stock == "control", !hh.baseline.sample) %>% 
+    select(all_treatment_id, phone_owner, name_matched) %>% 
+    bind_cols(dyn_stan_data$treatment_map_design_matrix[.$all_treatment_id, ]),
+  full_dyn_treatment_dm = dyn_stan_data$dynamic_treatment_map
+  )
+```
 
 
