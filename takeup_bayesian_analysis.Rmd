@@ -1007,7 +1007,7 @@ dyn_day_sim <- obs_meta_data %>%
   left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
   left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
   right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  filter(iter_id %in% 1:100) %>%
+  filter(iter_id %in% 1:10) %>%
   ddply(.(iter_id), function(iter_parameters, obs_meta_data, 
                              census_covar_dm, 
                              treatment_dm, 
@@ -1027,7 +1027,7 @@ dyn_day_sim <- obs_meta_data %>%
         beta_params <- applicable_obs %>% 
           select(matches("^stratum_beta_\\d+")) %>% 
           set_names(static_dm_row %>% select(-matches("private_valuebracelet")) %>% names())
-       
+        
         applicable_obs %>% 
           select(-starts_with("stratum_beta")) %>% 
           mutate(log_kappa_static_treatment = 
@@ -1041,7 +1041,7 @@ dyn_day_sim <- obs_meta_data %>%
                  m1_alpha = 1 - alpha) %>% 
           select(-c(cluster_hazard_effect, stratum_hazard_effect, stratum_hazard, baseline_hazard),
                  -starts_with("stratum_dynamic_treatment_coef_")) %>% 
-          group_by(cluster_id) %>% 
+          group_by(obs_index) %>% 
           mutate(day_prob_deworm = m1_alpha * accumulate(lag(alpha, default = 1), multiply_by)) %>% 
           group_by(deworming_day) %>% 
           summarize_at(vars(m1_alpha, day_prob_deworm), mean) %>% 
