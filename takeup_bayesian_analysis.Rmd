@@ -1045,7 +1045,8 @@ dyn_day_sim <- obs_meta_data %>%
           mutate(day_prob_deworm = m1_alpha * accumulate(lag(alpha, default = 1), multiply_by)) %>% 
           group_by(deworming_day) %>% 
           summarize_at(vars(m1_alpha, day_prob_deworm), mean) %>% 
-          ungroup()
+          ungroup() %>% 
+          add_row(deworming_day = 13, day_prob_deworm = 1 - sum(.$day_prob_deworm))
       },
       iter_est = iter_parameters %>% 
         left_join(obs_meta_data, c("stratum_id", "cluster_id")) %>% 
