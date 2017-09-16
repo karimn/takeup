@@ -51,10 +51,15 @@ library(econometr)
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
+cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1))
+# doMC::registerDoMC(max(1, parallel::detectCores() - 1))
+# doParallel::registerDoParallel(cores = config$cores)
+doParallel::registerDoParallel(cl)
+
 knitr::read_chunk("analysis_util.R", labels = "analysis-util")
 
-options(dplyr.show_progress = FALSE, digits = 4, mc.cores = max(1, parallel::detectCores()))
-rstan_options(auto_write = TRUE)
+# options(dplyr.show_progress = FALSE, digits = 4, mc.cores = max(1, parallel::detectCores()))
+# rstan_options(auto_write = TRUE)
 ```
 
 ```{r load-data, include=FALSE}
@@ -1001,70 +1006,28 @@ sim_stratum_dyn_treatment_coef <- basic_model_2_simple_fit %>%
 obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
     transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
 
+# foo <- partial(estimate_treatment_deworm_prob, treatment_summarizer = function(x) x)
+# bar <- partial(estimate_deworm_prob, treatment_estimator = foo)
+
 dyn_day_sim <- obs_meta_data %>% 
   distinct(stratum_id, cluster_id) %>% 
   left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
   left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
   left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
   right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  filter(iter_id %in% 1:10) %>%
-  ddply(.(iter_id), function(iter_parameters, obs_meta_data, 
-                             census_covar_dm, 
-                             treatment_dm, 
-                             full_dyn_treatment_dm, 
-                             dyn_treatment_dm = matrix(0, nrow = nrow(treatment_dm), ncol = ncol(full_dyn_treatment_dm))) {
-    dyn_treatment_dm %>% 
-      set_colnames(str_c("dyn_treatment_", 1:ncol(.))) %>% 
-      as_tibble() %>% 
-      bind_cols(treatment_dm, .) %>% 
-      ddply(.(all_treatment_id), function(dm_datarow, iter_est, full_dyn_treatment_dm) {
-        static_dm_row <- select(dm_datarow, -c(all_treatment_id, phone_owner, name_matched), -starts_with("dyn_treatment_"))
-        dyn_dm_row <- select(dm_datarow, starts_with("dyn_treatment_")) %>% 
-          unlist() %>% 
-          matrix(nrow = nrow(full_dyn_treatment_dm), ncol = ncol(full_dyn_treatment_dm), byrow = TRUE) %>% 
-          multiply_by(full_dyn_treatment_dm)
-        applicable_obs <- left_join(dm_datarow, iter_est, c("phone_owner", "name_matched"))
-        beta_params <- applicable_obs %>% 
-          select(matches("^stratum_beta_\\d+")) %>% 
-          set_names(static_dm_row %>% select(-matches("private_valuebracelet")) %>% names())
-        
-        applicable_obs %>% 
-          select(-starts_with("stratum_beta")) %>% 
-          mutate(log_kappa_static_treatment = 
-                   (as.matrix(beta_params) %*% unlist(select(static_dm_row, -matches("private_valuebracelet")))) + 
-                   (as.matrix(select(beta_params, matches("private_valuecalendar"))) %*% unlist(select(static_dm_row, matches("private_valuebracelet")))),
-                 log_kappa_static_treatment = c(log_kappa_static_treatment)) %>% 
-          left_join(sim_stratum_hazards, c("iter_id", "stratum_id")) %>% 
-          mutate(cluster_hazard = stratum_hazard * cluster_hazard_effect,
-                 log_kappa_dyn_treatment = rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+"))),
-                 alpha = exp(- exp(log_kappa_census_covar + log_kappa_static_treatment + log_kappa_dyn_treatment) * cluster_hazard),
-                 m1_alpha = 1 - alpha) %>% 
-          select(-c(cluster_hazard_effect, stratum_hazard_effect, stratum_hazard, baseline_hazard),
-                 -starts_with("stratum_dynamic_treatment_coef_")) %>% 
-          group_by(obs_index) %>% 
-          mutate(day_prob_deworm = m1_alpha * accumulate(lag(alpha, default = 1), multiply_by)) %>% 
-          group_by(deworming_day) %>% 
-          summarize_at(vars(m1_alpha, day_prob_deworm), mean) %>% 
-          ungroup() %>% 
-          add_row(deworming_day = 13, day_prob_deworm = 1 - sum(.$day_prob_deworm))
-      },
-      iter_est = iter_parameters %>% 
-        left_join(obs_meta_data, c("stratum_id", "cluster_id")) %>% 
-        mutate(log_kappa_census_covar = select(., starts_with("stratum_census_covar_coef")) %>% 
-                 multiply_by(census_covar_dm) %>% 
-                 rowSums()) %>% 
-        select(-starts_with("stratum_census_covar_coef")),
-      full_dyn_treatment_dm = full_dyn_treatment_dm)
-  }, .inform = TRUE, .progress = "text",  
-  obs_meta_data = obs_meta_data,
-  census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
-  treatment_dm = dyn_stan_data$treatment_map %>% 
-    filter(private_value == "control", social_value == "control", sms.treatment.2 == "sms.control", 
-           signal_observed == "control", reminder_info_stock == "control", !hh.baseline.sample) %>% 
-    select(all_treatment_id, phone_owner, name_matched) %>% 
-    bind_cols(dyn_stan_data$treatment_map_design_matrix[.$all_treatment_id, ]),
-  full_dyn_treatment_dm = dyn_stan_data$dynamic_treatment_map
-  )
+  # filter(iter_id %in% 1:7) %>%
+  ddply(.(iter_id), estimate_deworm_prob, .parallel = TRUE, .progress = "text", 
+        .paropts = lst(.packages = c("tidyverse"), 
+                       .export = c("estimate_treatment_deworm_prob")),
+        obs_meta_data = obs_meta_data,
+        sim_stratum_hazards = sim_stratum_hazards,
+        census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
+        treatment_dm = dyn_stan_data$treatment_map %>%
+          filter(private_value == "control", social_value == "control", sms.treatment.2 == "sms.control",
+                 signal_observed == "control", reminder_info_stock == "control", !hh.baseline.sample) %>%
+          select(all_treatment_id, phone_owner, name_matched) %>%
+          bind_cols(dyn_stan_data$treatment_map_design_matrix[.$all_treatment_id, ]),
+        full_dyn_treatment_dm = dyn_stan_data$dynamic_treatment_map)
 ```
 
 

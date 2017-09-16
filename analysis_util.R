@@ -1338,3 +1338,67 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   
   return(stan_data_list)
 } 
+
+estimate_treatment_deworm_prob <- function(dm_datarow, 
+                                           iter_est, 
+                                           sim_stratum_hazards,
+                                           full_dyn_treatment_dm, 
+                                           treatment_summarizer = function(obs_estimates) obs_estimates %>% 
+                                             group_by(deworming_day) %>% 
+                                             summarize_at(vars(m1_alpha, day_prob_deworm), mean) %>% 
+                                             ungroup() %>% 
+                                             add_row(deworming_day = max(.$deworming_day) + 1, 
+                                                     day_prob_deworm = 1 - sum(.$day_prob_deworm))) {
+  static_dm_row <- select(dm_datarow, -c(all_treatment_id, phone_owner, name_matched), -starts_with("dyn_treatment_"))
+  dyn_dm_row <- select(dm_datarow, starts_with("dyn_treatment_")) %>% 
+    unlist() %>% 
+    matrix(nrow = nrow(full_dyn_treatment_dm), ncol = ncol(full_dyn_treatment_dm), byrow = TRUE) %>% 
+    magrittr::multiply_by(full_dyn_treatment_dm)
+  applicable_obs <- left_join(dm_datarow, iter_est, c("phone_owner", "name_matched"))
+  beta_params <- applicable_obs %>% 
+    select(matches("^stratum_beta_\\d+")) %>% 
+    set_names(static_dm_row %>% select(-matches("private_valuebracelet")) %>% names())
+  
+  applicable_obs %>% 
+    select(-starts_with("stratum_beta")) %>% 
+    mutate(log_kappa_static_treatment = 
+             c((as.matrix(beta_params) %*% unlist(select(static_dm_row, -matches("private_valuebracelet")))) + 
+               (as.matrix(select(beta_params, matches("private_valuecalendar"))) %*% unlist(select(static_dm_row, matches("private_valuebracelet")))))) %>% 
+    left_join(sim_stratum_hazards, c("iter_id", "stratum_id")) %>% 
+    mutate(cluster_hazard = stratum_hazard * cluster_hazard_effect,
+           log_kappa_dyn_treatment = c(rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+")))),
+           alpha = exp(- exp(log_kappa_census_covar + log_kappa_static_treatment + log_kappa_dyn_treatment) * cluster_hazard),
+           m1_alpha = 1 - alpha) %>% 
+    select(-c(cluster_hazard_effect, stratum_hazard_effect, stratum_hazard, baseline_hazard),
+           -starts_with("stratum_dynamic_treatment_coef_")) %>%
+    arrange(obs_index, deworming_day) %>% 
+    group_by(obs_index) %>% 
+    dplyr::mutate(., ll = dplyr::lag(alpha, default = 1),
+           acc = purrr::accumulate(ll, `*`), 
+           day_prob_deworm = m1_alpha * acc) %>% 
+    ungroup() %>% 
+    treatment_summarizer()
+}
+
+estimate_deworm_prob <- function(iter_parameters, 
+                                 obs_meta_data, 
+                                 sim_stratum_hazards,
+                                 census_covar_dm, 
+                                 treatment_dm, 
+                                 full_dyn_treatment_dm, 
+                                 dyn_treatment_dm = matrix(0, nrow = nrow(treatment_dm), ncol = ncol(full_dyn_treatment_dm)),
+                                 treatment_estimator = estimate_treatment_deworm_prob) {
+  dyn_treatment_dm %>% 
+    magrittr::set_colnames(stringr::str_c("dyn_treatment_", 1:ncol(.))) %>% 
+    as_tibble() %>% 
+    bind_cols(treatment_dm, .) %>% 
+    plyr::ddply(.(all_treatment_id), treatment_estimator,
+          iter_est = iter_parameters %>% 
+            left_join(obs_meta_data, c("stratum_id", "cluster_id")) %>% 
+            mutate(log_kappa_census_covar = select(., starts_with("stratum_census_covar_coef")) %>% 
+                     magrittr::multiply_by(census_covar_dm) %>% 
+                     rowSums()) %>% 
+            select(-starts_with("stratum_census_covar_coef")),
+          sim_stratum_hazards = sim_stratum_hazards,
+          full_dyn_treatment_dm = full_dyn_treatment_dm)
+  }
