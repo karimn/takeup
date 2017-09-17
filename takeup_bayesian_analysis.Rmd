@@ -1018,7 +1018,7 @@ dyn_day_sim <- obs_meta_data %>%
   # filter(iter_id %in% 1:7) %>%
   ddply(.(iter_id), estimate_deworm_prob, .parallel = TRUE, .progress = "text", 
         .paropts = lst(.packages = c("tidyverse"), 
-                       .export = c("estimate_treatment_deworm_prob")),
+                       .export = c("estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm")),
         obs_meta_data = obs_meta_data,
         sim_stratum_hazards = sim_stratum_hazards,
         census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
@@ -1028,6 +1028,31 @@ dyn_day_sim <- obs_meta_data %>%
           select(all_treatment_id, phone_owner, name_matched) %>%
           bind_cols(dyn_stan_data$treatment_map_design_matrix[.$all_treatment_id, ]),
         full_dyn_treatment_dm = dyn_stan_data$dynamic_treatment_map)
+```
+
+```{r sim-ate-inference, warning=FALSE}
+obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
+    transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
+
+dyn_day_ate_sim <- obs_meta_data %>% 
+  distinct(stratum_id, cluster_id) %>% 
+  left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
+  left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
+  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
+  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
+  filter(iter_id %in% 1:640) %>%
+  ddply(.(iter_id), estimate_deworm_prob_ate, .parallel = TRUE, .progress = "text", 
+        .paropts = lst(.packages = c("magrittr", "tidyverse"),
+                       .export = c("identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm", "right_group_ate")),
+        obs_meta_data = obs_meta_data,
+        sim_stratum_hazards = sim_stratum_hazards,
+        census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
+        ate_info = dyn_all_ate[1, ],
+        treatment_map = dyn_stan_data$treatment_map,
+        treatment_map_dm = dyn_stan_data$treatment_map_design_matrix,
+        all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
+        dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
+        full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
 ```
 
 

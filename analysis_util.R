@@ -925,6 +925,77 @@ prepare_bayes_wtp_data <- function(
   ) 
 }
 
+identify_treatment_id <- function(ate_pairs, treatment_map) {
+  left_right_cells_colnames <- stringr::str_subset(names(ate_pairs), "_(left|right)$")
+  both_cells_colnames <- setdiff(names(ate_pairs), left_right_cells_colnames)
+  left_right_cells_colnames %<>% 
+    stringr::str_replace("_(left|right)$", "") %>% 
+    unique()
+  
+  ate_pairs %>% 
+    inner_join(treatment_map, 
+              c(left_right_cells_colnames %>% setNames(paste0(., "_left")), 
+                both_cells_colnames)) %>% 
+    inner_join(treatment_map, 
+              c(left_right_cells_colnames %>% setNames(paste0(., "_right")),
+                both_cells_colnames),
+              suffix = c("_left", "_right"))
+}
+
+get_unique_treatments <- function(ate_pairs) {
+  ate_pairs %>% 
+    select(matches("(all|dynamic)_treatment_id_(left|right)$")) %>%
+    mutate(row_id = seq_len(n())) %>%
+    gather(key = treatment_key, value = id, matches("_(left|right)$")) %>% 
+    separate(treatment_key, c("treatment_key", "left_right"), "_(?=left|right)") %>% 
+    unite(row_id, row_id, left_right) %>% 
+    spread(treatment_key, id) %>% 
+    distinct_(.dots = str_subset(names(.), "(all|dynamic)_treatment_id$")) %>% 
+    arrange_(.dots = str_subset(names(.), "(all|dynamic)_treatment_id$")) %>% 
+    mutate(rank_id = seq_len(n()))
+}
+
+prepare_dynamic_treatment_maps <- function(dynamic_treatment_map, prepared_analysis_data) {
+  dyn_var <- names(dynamic_treatment_map$trends)
+  dyn_var_re <- str_c(dyn_var, collapse = "|")
+  dyn_formula_var <- all.vars(dynamic_treatment_map$formula)
+  original_dyn_var <- setdiff(dyn_formula_var, dyn_var)
+  
+  dynamic_treatment_mask_map <- prepared_analysis_data %>% 
+    expand(crossing_(original_dyn_var), dynamic_treatment_map$trends) 
+ 
+  dynamic_treatment_map <- dynamic_treatment_mask_map %>% 
+    model_matrix(dynamic_treatment_map$formula) %>%
+    select(matches(dyn_var_re)) %>% 
+    select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
+    select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
+    scale(center = FALSE, scale = rep(max(.), ncol(.))) %>% 
+    as_tibble()
+  
+  dynamic_treatment_mask_map %<>% 
+    cbind(dynamic_treatment_map %>% equals(0) %>% not() %>% multiply_by(1)) %>% 
+    left_join(distinct_(., .dots = original_dyn_var) %>% 
+                mutate(dynamic_treatment_id = seq_len(n())), original_dyn_var) %>% 
+    arrange(dynamic_treatment_id)
+  
+  dynamic_treatment_map %<>% bind_cols(dynamic_treatment_mask_map %>% select(dynamic_treatment_id))
+    
+  lst(map = dynamic_treatment_map, 
+      mask = dynamic_treatment_mask_map,
+      original_dyn_var)
+}
+
+prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps = NULL) {
+  static_treatment_map %>% 
+    mutate(all_treatment_id = seq_len(n())) %>% 
+    mutate_if(is.factor, funs(id = as.integer(.))) %>% {
+      if (is.null(dynamic_treatment_maps)) 
+        return(.) 
+      else left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
+                     by = dynamic_treatment_maps$original_dyn_var)
+    }
+}
+
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
@@ -1339,6 +1410,34 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   return(stan_data_list)
 } 
 
+estimate_treatment_deworm_prob_dm <- function(applicable_obs,
+                                              static_dm_row, 
+                                              dyn_dm_row,
+                                              sim_stratum_hazards) {
+  beta_params <- applicable_obs %>% 
+    select(matches("^stratum_beta_\\d+")) %>% 
+    set_names(static_dm_row %>% select(-matches("private_valuebracelet")) %>% names())
+  
+  applicable_obs %>% 
+    mutate(log_kappa_static_treatment = 
+             c((as.matrix(beta_params) %*% unlist(select(static_dm_row, -matches("private_valuebracelet")))) + 
+               (as.matrix(select(beta_params, matches("private_valuecalendar"))) %*% unlist(select(static_dm_row, matches("private_valuebracelet")))))) %>% 
+    left_join(sim_stratum_hazards, c("iter_id", "stratum_id")) %>% 
+    mutate(cluster_hazard = stratum_hazard * cluster_hazard_effect,
+           log_kappa_dyn_treatment = c(rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+")))),
+           alpha = exp(- exp(log_kappa_census_covar + log_kappa_static_treatment + log_kappa_dyn_treatment) * cluster_hazard),
+           m1_alpha = 1 - alpha) %>% 
+    select(-c(cluster_hazard_effect, stratum_hazard_effect, stratum_hazard, baseline_hazard),
+           -starts_with("stratum_beta"),
+           -starts_with("stratum_dynamic_treatment_coef_")) %>%
+    arrange(obs_index, deworming_day) %>% 
+    group_by(obs_index) %>% 
+    dplyr::mutate(ll = dplyr::lag(alpha, default = 1),
+                  acc = purrr::accumulate(ll, `*`), 
+                  day_prob_deworm = m1_alpha * acc) %>% 
+    ungroup() 
+}
+
 estimate_treatment_deworm_prob <- function(dm_datarow, 
                                            iter_est, 
                                            sim_stratum_hazards,
@@ -1354,29 +1453,9 @@ estimate_treatment_deworm_prob <- function(dm_datarow,
     unlist() %>% 
     matrix(nrow = nrow(full_dyn_treatment_dm), ncol = ncol(full_dyn_treatment_dm), byrow = TRUE) %>% 
     magrittr::multiply_by(full_dyn_treatment_dm)
-  applicable_obs <- left_join(dm_datarow, iter_est, c("phone_owner", "name_matched"))
-  beta_params <- applicable_obs %>% 
-    select(matches("^stratum_beta_\\d+")) %>% 
-    set_names(static_dm_row %>% select(-matches("private_valuebracelet")) %>% names())
   
-  applicable_obs %>% 
-    select(-starts_with("stratum_beta")) %>% 
-    mutate(log_kappa_static_treatment = 
-             c((as.matrix(beta_params) %*% unlist(select(static_dm_row, -matches("private_valuebracelet")))) + 
-               (as.matrix(select(beta_params, matches("private_valuecalendar"))) %*% unlist(select(static_dm_row, matches("private_valuebracelet")))))) %>% 
-    left_join(sim_stratum_hazards, c("iter_id", "stratum_id")) %>% 
-    mutate(cluster_hazard = stratum_hazard * cluster_hazard_effect,
-           log_kappa_dyn_treatment = c(rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+")))),
-           alpha = exp(- exp(log_kappa_census_covar + log_kappa_static_treatment + log_kappa_dyn_treatment) * cluster_hazard),
-           m1_alpha = 1 - alpha) %>% 
-    select(-c(cluster_hazard_effect, stratum_hazard_effect, stratum_hazard, baseline_hazard),
-           -starts_with("stratum_dynamic_treatment_coef_")) %>%
-    arrange(obs_index, deworming_day) %>% 
-    group_by(obs_index) %>% 
-    dplyr::mutate(., ll = dplyr::lag(alpha, default = 1),
-           acc = purrr::accumulate(ll, `*`), 
-           day_prob_deworm = m1_alpha * acc) %>% 
-    ungroup() %>% 
+  left_join(dm_datarow, iter_est, c("phone_owner", "name_matched")) %>% 
+    estimate_treatment_deworm_prob_dm(static_dm_row, dyn_dm_row, sim_stratum_hazards) %>% 
     treatment_summarizer()
 }
 
@@ -1401,4 +1480,79 @@ estimate_deworm_prob <- function(iter_parameters,
             select(-starts_with("stratum_census_covar_coef")),
           sim_stratum_hazards = sim_stratum_hazards,
           full_dyn_treatment_dm = full_dyn_treatment_dm)
+}
+
+estimate_deworm_prob_ate <- function(iter_parameters,
+                                     obs_meta_data, 
+                                     sim_stratum_hazards,
+                                     census_covar_dm, 
+                                     ate_info,
+                                     treatment_map,
+                                     treatment_map_dm,
+                                     all_treat_dyn_id,
+                                     dyn_treatment_mask_map,
+                                     full_dyn_treatment_map_dm,
+                                     inner_parallel = FALSE) {
+  est_group_ate <- function(ate_group, iter_est, sim_stratum_hazards, treatment_map_dm, dyn_treatment_mask_map, full_dyn_treatment_map_dm,
+                              group_suffix = "right", other_group_suffix = "left") {
+    group_id_colnames <- stringr::str_c(c("all_treatment_id_", "dyn_treatment_id_"), group_suffix)
+    obs_est <- ate_group %>%
+      distinct_(.dots = group_id_colnames, .keep_all = TRUE) %>% 
+      rename_(.dots = group_id_colnames %>% setNames(stringr::str_replace(., stringr::str_interp("_${group_suffix}$"), ""))) %>% 
+      select(all_treatment_id, dyn_treatment_id, phone_owner, name_matched) %>% 
+      bind_cols(treatment_map_dm[.$all_treatment_id, ], slice(dyn_treatment_mask_map, .$dyn_treatment_id)) %>% 
+      select(-dyn_treatment_id) %>% 
+      plyr::ddply(.(all_treatment_id), estimate_treatment_deworm_prob, 
+                  iter_est = iter_est, 
+                  sim_stratum_hazards = sim_stratum_hazards,
+                  full_dyn_treatment_dm = full_dyn_treatment_map_dm,
+                  treatment_summarizer = function(d) d) %>% 
+      select(obs_index, deworming_day, alpha, day_prob_deworm, all_treatment_id) 
+    
+    if (!is.null(other_group_suffix)) {
+      other_group_fun <- partial(right_group_ate, 
+                                 iter_est = iter_est, sim_stratum_hazards = sim_stratum_hazards, 
+                                 treatment_map_dm = treatment_map_dm, dyn_treatment_mask_map = dyn_treatment_mask_map, 
+                                 full_dyn_treatment_map_dm = full_dyn_treatment_map_dm,
+                                 group_suffix = "left", other_group_suffix = NULL)
+      ate_group %>% 
+        plyr::ddply(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), stringr::str_interp("_${other_group_suffix}$"))), 
+                    other_group_fun) %>% 
+        select(obs_index, deworming_day, alpha, day_prob_deworm, all_treatment_id) %>% 
+        inner_join(obs_est, c("obs_index", "deworming_day"), suffix = c("_other", "_this")) %>% 
+        mutate(day_prob_deworm_diff = day_prob_deworm_other - day_prob_deworm_this) %>% 
+        rename_(.dots = stringr::str_subset(names(.), "_(this|other)$") %>% 
+                          setNames(., stringr::str_replace_all(., c("this$" = group_suffix, "other$" = other_group_suffix)))) %>% 
+        group_by(deworming_day) %>% 
+        summarize_at(vars(starts_with("day_prob_deworm"), starts_with("alpha")), mean) %>% 
+        ungroup() %>% 
+        add_row(deworming_day = max(.$deworming_day) + 1,
+                day_prob_deworm_diff = - sum(.$day_prob_deworm_diff))
+    } else {
+      return(obs_est)
+    }
   }
+  
+  iter_est <- iter_parameters %>% 
+    left_join(obs_meta_data, c("stratum_id", "cluster_id")) %>% 
+    mutate(log_kappa_census_covar = select(., starts_with("stratum_census_covar_coef")) %>% 
+             magrittr::multiply_by(census_covar_dm) %>% 
+             rowSums()) %>% 
+    select(-starts_with("stratum_census_covar_coef"))
+  
+  dyn_treatment_mask_map %<>% set_names(stringr::str_c("dyn_treatment_", names(.)))
+  
+  identify_treatment_id(ate_info, treatment_map) %>% 
+    mutate(dyn_treatment_id_left = all_treat_dyn_id[all_treatment_id_left],
+           dyn_treatment_id_right = all_treat_dyn_id[all_treatment_id_right]) %>% 
+    plyr::ddply(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), "_right$")), 
+                est_group_ate, 
+   .parallel = inner_parallel, 
+   .paropts = lst(.packages = c("tidyverse"),
+                  .export = c("estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm", "dyn_stan_data")),
+    iter_est = iter_est,
+    sim_stratum_hazards = sim_stratum_hazards,
+    treatment_map_dm = treatment_map_dm,
+    dyn_treatment_mask_map = dyn_treatment_mask_map,
+    full_dyn_treatment_map_dm = full_dyn_treatment_map_dm)
+}
