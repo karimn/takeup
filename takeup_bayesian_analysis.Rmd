@@ -620,8 +620,8 @@ dyn_sms_control_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
   "control",            "ink",               "control",             "control",
   "calendar",           "control",           "control",             "control",
-  "bracelet",           "bracelet",          "control",             "control",
-  "bracelet",           "bracelet",          "calendar",            "control",
+  # "bracelet",           "bracelet",          "control",             "control",
+  "control",           "bracelet",          "calendar",            "control",
   
   "control",           "bracelet",           "control",            "control" 
 ) %>% 
@@ -956,13 +956,24 @@ summ_dyn_takeup %>%
 ### Posterior Simulation
 
 ```{r sim-params}
-sim_stratum_hazards <- basic_model_2_simple_fit %>% 
+sim_stratum_hazards_wide <- basic_model_2_simple_fit %>% 
   as.data.frame(pars = c("hyper_baseline_hazard", "stratum_hazard_effect")) %>% 
   mutate(iter_id = seq_len(n())) %>% 
   gather(stratum_id, stratum_hazard_effect, starts_with("stratum_hazard_effect")) %>% 
-  gather(deworming_day, baseline_hazard, starts_with("hyper_baseline_hazard")) %>% 
-  mutate_at(vars(stratum_id, deworming_day), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
-  mutate(stratum_hazard = baseline_hazard * stratum_hazard_effect) 
+  magrittr::set_names(str_replace(names(.), "hyper_baseline_hazard\\[(\\d+)\\]", "stratum_hazard_day_\\1")) %>%
+  mutate_at(vars(num_range("stratum_hazard_day_", 1:12)), funs(. * stratum_hazard_effect)) %>% 
+  mutate_at(vars(stratum_id), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
+  select(-stratum_hazard_effect)
+
+sim_stratum_hazards <- sim_stratum_hazards_wide %>%
+# sim_stratum_hazards <- basic_model_2_simple_fit %>%
+#   as.data.frame(pars = c("hyper_baseline_hazard", "stratum_hazard_effect")) %>% 
+#   mutate(iter_id = seq_len(n())) %>% 
+#   gather(stratum_id, stratum_hazard_effect, starts_with("stratum_hazard_effect")) %>% 
+  # gather(deworming_day, baseline_hazard, starts_with("hyper_baseline_hazard")) %>% 
+  gather(deworming_day, stratum_hazard, starts_with("stratum_hazard_day")) %>% 
+  mutate_at(vars(deworming_day), funs(str_extract(., "\\d+") %>% as.integer())) 
+  # mutate(stratum_hazard = baseline_hazard * stratum_hazard_effect) 
 
 sim_cluster_hazards <- basic_model_2_simple_fit %>% 
   as.data.frame( pars = c("cluster_hazard_effect")) %>%
@@ -1015,8 +1026,8 @@ dyn_day_sim <- obs_meta_data %>%
   left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
   left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
   right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  # filter(iter_id %in% 1:7) %>%
-  ddply(.(iter_id), estimate_deworm_prob, .parallel = TRUE, .progress = "text", 
+  filter(iter_id %in% 1:1) %>%
+  ddply(.(iter_id), estimate_deworm_prob, .parallel = FALSE, .progress = "text", 
         .paropts = lst(.packages = c("tidyverse"), 
                        .export = c("estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm")),
         obs_meta_data = obs_meta_data,
@@ -1040,10 +1051,10 @@ dyn_day_ate_sim <- obs_meta_data %>%
   left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
   left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
   right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  filter(iter_id %in% 1:640) %>%
+  # filter(iter_id %in% 1:1) %>%
   ddply(.(iter_id), estimate_deworm_prob_ate, .parallel = TRUE, .progress = "text", 
-        .paropts = lst(.packages = c("magrittr", "tidyverse"),
-                       .export = c("identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm", "right_group_ate")),
+        .paropts = lst(.packages = c("magrittr", "stringr", "tidyverse"),
+                       .export = c("identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm")),
         obs_meta_data = obs_meta_data,
         sim_stratum_hazards = sim_stratum_hazards,
         census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
@@ -1053,6 +1064,56 @@ dyn_day_ate_sim <- obs_meta_data %>%
         all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
         dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
         full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
+```
+
+```{r}
+
+obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
+    transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
+
+sms_control_treatments <- tribble(
+  ~ private_value, ~ social_value, 
+  "control",            "control", 
+  "control",            "ink",     
+  "calendar",           "control", 
+  "control",            "bracelet" 
+) %>% 
+  mutate(signal_observed = social_value) %>% 
+  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+  bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
+  bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
+  mutate(sms.treatment.2 = "sms.control", 
+         hh.baseline.sample = FALSE, 
+         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
+         ) %>% 
+  mutate_at(vars(phone_owner, name_matched), as.logical)
+
+est_fun <- partial(estimate_deworm_prob, 
+                   obs_meta_data = obs_meta_data,
+                   sim_stratum_hazards = sim_stratum_hazards,
+                   census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
+                   # treatments_info = sms_control_treatments[, ],
+                   treatment_map = dyn_stan_data$treatment_map,
+                   treatment_map_dm = dyn_stan_data$treatment_map_design_matrix,
+                   all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
+                   dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
+                   full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
+                   # days_treated = 11)
+
+dyn_day_prob_sim <- obs_meta_data %>% 
+  distinct(stratum_id, cluster_id) %>% 
+  left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
+  left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
+  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
+  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
+  filter(iter_id %in% 1:100) %>%
+  ddply(.(iter_id), est_fun, 
+        .parallel = TRUE, .progress = "text", 
+        .paropts = lst(.packages = c("magrittr", "stringr", "tidyverse"),
+                       .export = c("estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
+                                   "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards")),
+        treatments_info = sms_control_treatments %>% filter(social_value == "control"),
+        days_treated = 11)
 ```
 
 
