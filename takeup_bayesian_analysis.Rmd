@@ -812,7 +812,7 @@ est_deworming_days <- basic_model_2_simple_fit %>%
   mutate(all_treatment_id = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>%
   ungroup() %>% 
   mutate(phone_owner = phone_owner == "phone") %>% 
-  left_join(dyn_stan_data$treatment_map, "all_treatment_id")
+  inner_join(dyn_stan_data$treatment_map, "all_treatment_id") 
 
 assertthat::assert_that(all(phone_owner.x == phone_owner.y), env = est_deworming_days)
 
@@ -1011,15 +1011,37 @@ sim_stratum_dyn_treatment_coef <- basic_model_2_simple_fit %>%
   spread(col_id, stratum_dynamic_treatment_coef) %>% 
   mutate_at(vars(stratum_id), funs(str_extract(., "\\d+") %>% as.integer())) %>% 
   select(-var)
-```
 
-```{r sim-inference}
 obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
     transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
 
-# foo <- partial(estimate_treatment_deworm_prob, treatment_summarizer = function(x) x)
-# bar <- partial(estimate_deworm_prob, treatment_estimator = foo)
+iter_cluster_parameters <- obs_meta_data %>% 
+  group_by_at(vars(-obs_index)) %>% 
+  summarize(subgroup_size = n()) %>% 
+  ungroup() %>% 
+  left_join(sim_stratum_treatment_coef, c("stratum_id")) %>%
+  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
+  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
+  mutate(log_kappa_census_covar = 0) 
 
+fast_treatments <- tribble(
+  ~ private_value, ~ social_value, 
+  "control",            "control", 
+  "control",            "ink",     
+  "calendar",           "control", 
+  "control",            "bracelet" 
+) %>% 
+  mutate(signal_observed = social_value,
+         days_observed = 12,
+         hh.baseline.sample = FALSE) %>% 
+  expand(nesting_(names(.)), 
+         dist.pot.group = c("close", "far"), phone_owner = c(TRUE, FALSE), name_matched = c(TRUE, FALSE), sms.treatment.2 = c("sms.control", "reminder.only", "social.info")) %>% 
+  filter(sms.treatment.2 == "sms.control" | phone_owner,
+         sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
+  mutate(reminder_info_stock = sms.treatment.2)
+```
+
+```{r sim-inference, eval=FALSE}
 dyn_day_sim <- obs_meta_data %>% 
   distinct(stratum_id, cluster_id) %>% 
   left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
@@ -1041,10 +1063,7 @@ dyn_day_sim <- obs_meta_data %>%
         full_dyn_treatment_dm = dyn_stan_data$dynamic_treatment_map)
 ```
 
-```{r sim-ate-inference, warning=FALSE}
-obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
-    transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
-
+```{r sim-ate-inference, warning=FALSE, eval=FALSE}
 dyn_day_ate_sim <- obs_meta_data %>% 
   distinct(stratum_id, cluster_id) %>% 
   left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
@@ -1066,39 +1085,16 @@ dyn_day_ate_sim <- obs_meta_data %>%
         full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
 ```
 
-```{r}
-
-obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
-    transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
-
-sms_control_treatments <- tribble(
-  ~ private_value, ~ social_value, 
-  "control",            "control", 
-  "control",            "ink",     
-  "calendar",           "control", 
-  "control",            "bracelet" 
-) %>% 
-  mutate(signal_observed = social_value) %>% 
-  bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
-  bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
-  bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
-  mutate(sms.treatment.2 = "sms.control", 
-         hh.baseline.sample = FALSE, 
-         reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"),
-         ) %>% 
-  mutate_at(vars(phone_owner, name_matched), as.logical)
-
+```{r, eval=FALSE}
 est_fun <- partial(estimate_deworm_prob, 
                    obs_meta_data = obs_meta_data,
                    sim_stratum_hazards = sim_stratum_hazards,
                    census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
-                   # treatments_info = sms_control_treatments[, ],
                    treatment_map = dyn_stan_data$treatment_map,
                    treatment_map_dm = dyn_stan_data$treatment_map_design_matrix,
                    all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
                    dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
                    full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
-                   # days_treated = 11)
 
 dyn_day_prob_sim <- obs_meta_data %>% 
   distinct(stratum_id, cluster_id) %>% 
@@ -1116,4 +1112,194 @@ dyn_day_prob_sim <- obs_meta_data %>%
         days_treated = 11)
 ```
 
+```{r, warning=FALSE, eval=FALSE}
+est_fun <- partial(fast_estimate_deworm_prob, 
+                   sim_stratum_hazards = sim_stratum_hazards,
+                   treatment_map = dyn_stan_data$treatment_map,
+                   treatment_map_dm = dyn_stan_data$treatment_map_design_matrix,
+                   all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
+                   dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
+                   full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
+
+paropts <- lst(.packages = c("magrittr", "stringr", "tidyverse"),
+               .export = c("fast_estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
+                                   "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards"))
+
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
+
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = 0:11) %>% 
+  bind_rows(fast_sim)
+
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(sms.treatment.2 != "sms.control"), days_treated = 0:11) %>% 
+  bind_rows(fast_sim)
+
+save(fast_sim, file = file.path("data", "fast_sim.RData"))
+```
+
+```{r}
+load(file.path("data", "fast_sim.RData"))
+
+fast_sim %<>%
+  filter(days_sms == 12) %>% 
+  mutate(incentive_treatment = if_else(private_value != "control", private_value, social_value) %>% 
+           fct_relevel("control", "ink", "calendar", "bracelet"),
+         sms.treatment.2 = fct_relevel(sms.treatment.2, "sms.control", "reminder.only", "social.info")) %>% 
+  select_if(~ !all(is.na(.)))
+
+fast_sim %<>% 
+  distinct_(.dots = treatment_col) %>% 
+  mutate(fast_treatment_id = seq_len(n())) %>% 
+  right_join(fast_sim, by = treatment_col) %>% 
+  bind_rows(group_by_at(., vars(iter_id, fast_treatment_id, treatment_col)) %>% 
+              # slice(1) %>% 
+              # mutate(deworming_day = 13, prob_deworm = sum(prob_deworm)) %>% 
+              summarize(deworming_day = 13, prob_deworm = sum(prob_deworm)) %>%
+              ungroup()) 
+  
+fast_sim_day13_only <- fast_sim %>% filter(deworming_day == 13) 
+```
+
+```{r}
+quants <- c(2.5, 5, 50, 95, 97.5)
+treatment_col <- c("phone_owner", "dist.pot.group", "incentive_treatment", "sms.treatment.2", "dyn_treat_days")
+
+fast_sim_mean <- fast_sim %>%  
+  group_by_at(vars(fast_treatment_id, treatment_col, "deworming_day")) %>% 
+  do(bind_cols(summarize_at(., vars(prob_deworm, alpha), mean), 
+               t(quantile(.$prob_deworm, probs = quants / 100, names = FALSE)) %>% 
+                 tidy() %>% 
+                 set_colnames(str_c("prob_deworm_quant_", quants)))) %>%  
+  ungroup() 
+```
+
+```{r}
+fast_sim %>% 
+  distinct_(.dots = c("fast_treatment_id", treatment_col)) %>% 
+  filter(dyn_treat_days == 11) %>% 
+  select(-dyn_treat_days)
+
+fast_sim_ate_pairs <- tribble(
+  ~incentive_treatment_left,  ~sms.treatment.2_left, ~incentive_treatment_right, ~sms.treatment.2_right,
+  
+  "ink",                      "sms.control",         "control",                  "sms.control",
+  "calendar",                 "sms.control",         "control",                  "sms.control",
+  "bracelet",                 "sms.control",         "control",                  "sms.control",
+  
+  "control",                  "reminder.only",       "control",                  "sms.control",
+  "control",                  "social.info",         "control",                  "sms.control",
+  "ink",                      "social.info",         "control",                  "sms.control",
+  "calendar",                 "social.info",         "control",                  "sms.control",
+  "bracelet",                 "social.info",         "control",                  "sms.control",
+  
+  "ink",                      "social.info",         "ink",                      "sms.control",
+  "calendar",                 "social.info",         "calendar",                 "sms.control",
+  "bracelet",                 "social.info",         "bracelet",                 "sms.control",
+
+  "ink",                      "social.info",         "control",                  "social.info",
+  "calendar",                 "social.info",         "control",                  "social.info",
+  "bracelet",                 "social.info",         "control",                  "social.info"
+)
+
+dyn_fast_sim_ate_pairs <- tribble(
+  ~incentive_treatment_left,  ~sms.treatment.2_left, ~incentive_treatment_right, ~sms.treatment.2_right,
+  
+  "ink",                      "sms.control",         "control",                  "sms.control",
+  "bracelet",                 "sms.control",         "control",                  "sms.control"
+) 
+  # expand(nesting_(names(.)), dyn_treat_days = 0:11)
+
+fast_sim_ate <- fast_sim_ate_pairs %>% 
+  rowwise() %>% 
+  do({
+    inner_join(filter(fast_sim_day13_only,
+                      dyn_treat_days == 11,
+                      incentive_treatment == .$incentive_treatment_left,
+                      sms.treatment.2 == .$sms.treatment.2_left),
+               filter(fast_sim_day13_only, 
+                      dyn_treat_days == 11,
+                      incentive_treatment == .$incentive_treatment_right,
+                      sms.treatment.2 == .$sms.treatment.2_right) %>% 
+                 expand, 
+               c("iter_id", "phone_owner", "dist.pot.group", "dyn_treat_days"),
+               suffix = c("_left", "_right")) %>% 
+      mutate(prob_deworm_diff = prob_deworm_left - prob_deworm_right) %>% 
+      group_by_at(vars(phone_owner, dist.pot.group, 
+                       starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
+      do(bind_cols(summarize(., prob_deworm_ate = mean(prob_deworm_diff)), 
+                   tidy(t(quantile(.$prob_deworm_diff, probs = quants / 100, names = FALSE))) %>% set_colnames(str_c("prob_deworm_diff_quant_", quants)))) %>%  
+      ungroup()
+  })
+
+dyn_fast_sim_ate <- dyn_fast_sim_ate_pairs %>% 
+  rowwise() %>% 
+  do({
+    inner_join(filter(fast_sim,
+                      incentive_treatment == .$incentive_treatment_left,
+                      sms.treatment.2 == .$sms.treatment.2_left),
+               filter(fast_sim, 
+                      incentive_treatment == .$incentive_treatment_right,
+                      sms.treatment.2 == .$sms.treatment.2_right), 
+               c("iter_id", "phone_owner", "dist.pot.group", "deworming_day"), # "dyn_treat_days"),
+               suffix = c("_left", "_right")) %>% 
+      mutate(prob_deworm_diff = prob_deworm_left - prob_deworm_right) %>% 
+      group_by_at(vars(phone_owner, dist.pot.group, deworming_day,
+                       starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
+      do(bind_cols(summarize(., prob_deworm_ate = mean(prob_deworm_diff)), 
+                   tidy(t(quantile(.$prob_deworm_diff, probs = quants / 100, names = FALSE))) %>% set_colnames(str_c("prob_deworm_diff_quant_", quants)))) %>%  
+      ungroup()
+  }) %>% 
+  ungroup()
+```
+
+```{r, fig.width=10, fig.height=8}
+fast_sim_mean %>% 
+  filter(deworming_day == 13, 
+         dyn_treat_days == 11) %>% 
+  ggplot(aes(incentive_treatment, prob_deworm, color = sms.treatment.2)) +
+  geom_pointrange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.2f", prob_deworm), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.width=10, fig.height=8}
+fast_sim_ate %>% 
+  mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
+                       "control-sms.control", 
+                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info"))) %>% 
+  ggplot(aes(incentive_treatment_left, prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), position = position_dodge(width = 0.4)) +
+  geom_text_repel(aes(label = sprintf("%.2f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.width=12, fig.height=8}
+fast_sim_mean %>%
+  filter(deworming_day <= 12, incentive_treatment %in% c("ink", "bracelet"), sms.treatment.2 == "sms.control") %>% 
+  ggplot(aes(deworming_day, prob_deworm, color = dyn_treat_days)) +
+  geom_point() +
+  geom_line(aes(group = dyn_treat_days)) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = FALSE) +
+  scale_color_continuous(breaks = seq(0, 11, 2)) +
+  facet_grid(incentive_treatment ~ dist.pot.group + phone_owner, labeller = label_both, scales = "free_y") +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.width=10, fig.height=8}
+dyn_fast_sim_ate %>%
+  filter(deworming_day <= 12) %>% 
+  ggplot(aes(deworming_day, prob_deworm_ate, color = dyn_treat_days_left)) +
+  geom_point() +
+  geom_line(aes(group = dyn_treat_days_left)) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = FALSE) +
+  facet_grid(incentive_treatment_left ~ dist.pot.group + phone_owner, labeller = label_both, scales = "free_y") +
+  theme(legend.position = "bottom")
+```
 

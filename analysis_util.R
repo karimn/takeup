@@ -17,8 +17,6 @@ name.match.monitored <- function(census.data,
                                               NA),
            dewormed.matched = !is.na(which.min.name.match.dist) & min.name.match.dist <= max.cost,
            which.min.name.match.dist = ifelse(dewormed.matched, which.min.name.match.dist, NA)) %>% 
-    # rename_(.dots = c(str_subset(names(.), "min\\.name\\.match\\.dist$"), "dewormed.matched") %>% 
-    #           setNames(paste0(., suffix))) %>% 
     select(KEY.individ, starts_with("dewormed.matched"), contains("min.name.match.dist"))
 }
 # ---- end
@@ -1449,7 +1447,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
            -starts_with("dyn_treatment_"),
            -one_of(names(beta_params)),
            -contains("private_valuebracelet")) %>% 
-    arrange(obs_index, deworming_day) %>% 
+    arrange_at(vars(c(str_subset(names(.), "obs_index"), "deworming_day"))) %>% 
     bind_cols(calculate_days_treated_matrix(.$log_kappa_dyn_treatment) %>% 
                 as_tibble() %>% 
                 magrittr::set_names(str_c("log_kappa_dyn_treat_days_", days_treated))) %>%
@@ -1498,28 +1496,38 @@ estimate_treatment_deworm_prob <- function(dm_datarow,
                                       days_treated = days_treated, treatment_summarizer = treatment_summarizer) 
 }
 
-# estimate_deworm_prob <- function(iter_parameters, 
-#                                  obs_meta_data, 
-#                                  sim_stratum_hazards,
-#                                  census_covar_dm, 
-#                                  treatment_dm, 
-#                                  full_dyn_treatment_dm, 
-#                                  dyn_treatment_dm = matrix(0, nrow = nrow(treatment_dm), ncol = ncol(full_dyn_treatment_dm)),
-#                                  treatment_estimator = estimate_treatment_deworm_prob) {
-#   dyn_treatment_dm %>% 
-#     magrittr::set_colnames(stringr::str_c("dyn_treatment_", 1:ncol(.))) %>% 
-#     as_tibble() %>% 
-#     bind_cols(treatment_dm, .) %>% 
-#     plyr::ddply(.(all_treatment_id), treatment_estimator,
-#           iter_est = iter_parameters %>% 
-#             left_join(obs_meta_data, c("stratum_id", "cluster_id")) %>% 
-#             mutate(log_kappa_census_covar = select(., starts_with("stratum_census_covar_coef")) %>% 
-#                      magrittr::multiply_by(census_covar_dm) %>% 
-#                      rowSums()) %>% 
-#             select(-starts_with("stratum_census_covar_coef")),
-#           sim_stratum_hazards = sim_stratum_hazards,
-#           full_dyn_treatment_dm = full_dyn_treatment_dm)
-# }
+fast_estimate_deworm_prob <- function(iter_cluster_parameters,
+                                      sim_stratum_hazards,
+                                      treatments_info,
+                                      treatment_map,
+                                      treatment_map_dm,
+                                      all_treat_dyn_id,
+                                      dyn_treatment_mask_map,
+                                      full_dyn_treatment_map_dm,
+                                      days_treated = 0:11) {
+  
+  dyn_treatment_mask_map %<>% set_names(stringr::str_c("dyn_treatment_", names(.)))
+  
+  fast_est_group_prob <- function(treatment_group) {
+    treatment_group %>%
+      distinct_(.dots = c("all_treatment_id", "dynamic_treatment_id"), .keep_all = TRUE) %>% 
+      select(all_treatment_id, dynamic_treatment_id, phone_owner, name_matched) %>% 
+      bind_cols(treatment_map_dm[.$all_treatment_id, ], slice(dyn_treatment_mask_map, .$dynamic_treatment_id)) %>% 
+      select(-dynamic_treatment_id) %>% 
+      plyr::ddply(.(all_treatment_id), estimate_treatment_deworm_prob, 
+                  iter_est = iter_cluster_parameters, 
+                  sim_stratum_hazards = sim_stratum_hazards,
+                  full_dyn_treatment_dm = full_dyn_treatment_map_dm,
+                  days_treated = days_treated,
+                  treatment_summarizer = function(d) d) %>% 
+      group_by(deworming_day, dyn_treat_days) %>% 
+      summarize_at(vars(prob_deworm, alpha), funs(weighted.mean(., subgroup_size))) %>% 
+      ungroup()
+  }
+  
+  identify_treatment_id(treatments_info, treatment_map) %>% 
+    plyr::ddply(setdiff(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), "(?<!_id)$")), "name_matched"), fast_est_group_prob) 
+}
 
 estimate_deworm_prob <- function(iter_parameters,
                                  obs_meta_data, 
