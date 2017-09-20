@@ -1038,7 +1038,7 @@ fast_treatments <- tribble(
          dist.pot.group = c("close", "far"), phone_owner = c(TRUE, FALSE), name_matched = c(TRUE, FALSE), sms.treatment.2 = c("sms.control", "reminder.only", "social.info")) %>% 
   filter(sms.treatment.2 == "sms.control" | phone_owner,
          sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
-  mutate(reminder_info_stock = sms.treatment.2)
+  mutate(reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"))
 ```
 
 ```{r sim-inference, eval=FALSE}
@@ -1112,7 +1112,7 @@ dyn_day_prob_sim <- obs_meta_data %>%
         days_treated = 11)
 ```
 
-```{r, warning=FALSE, eval=FALSE}
+```{r}
 est_fun <- partial(fast_estimate_deworm_prob, 
                    sim_stratum_hazards = sim_stratum_hazards,
                    treatment_map = dyn_stan_data$treatment_map,
@@ -1124,8 +1124,16 @@ est_fun <- partial(fast_estimate_deworm_prob,
 paropts <- lst(.packages = c("magrittr", "stringr", "tidyverse"),
                .export = c("fast_estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
                                    "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards"))
+```
 
-fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+```{r, warning=FALSE}
+xx <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(social_value == "bracelet" & sms.treatment.2 == "sms.control"), days_treated = 4)
+```
+
+
+```{r, eval=FALSE, warning=FALSE}
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
 
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
