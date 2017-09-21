@@ -51,7 +51,7 @@ library(econometr)
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
-cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1))
+cl <- parallel::makeCluster(max(1, parallel::detectCores()))
 # doMC::registerDoMC(max(1, parallel::detectCores() - 1))
 # doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
@@ -1023,7 +1023,7 @@ iter_cluster_parameters <- obs_meta_data %>%
 paropts <- lst(.packages = c("magrittr", "stringr", "tidyverse"),
                .export = c("estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
                            "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards"),
-               .verbose = TRUE)
+               .verbose = FALSE)
 
 fast_treatments <- tribble(
   ~ private_value, ~ social_value, 
@@ -1104,12 +1104,16 @@ covar_est_fun <- partial(estimate_deworm_prob,
                    dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
                    full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
 
-# dyn_day_prob_sim <- iter_cluster_parameters %>% 
-#   filter(iter_id == 1) %>% 
-#   ddply(.(iter_id), covar_est_fun, 
-#         .parallel = TRUE, .progress = "text", .paropts = paropts,
-#         treatments_info = fast_treatments[1, ],
-#         days_treated = 11)
+
+```
+
+```{r}
+xx <- iter_cluster_parameters %>%
+  filter(iter_id == 1) %>%
+  ddply(.(iter_id), covar_est_fun,
+        .parallel = TRUE, .progress = "text", .paropts = paropts,
+        treatments_info = fast_treatments[1, ],
+        days_treated = 11)
 ```
 
 ```{r, warning=FALSE}
@@ -1121,7 +1125,7 @@ xx <- iter_cluster_parameters %>%
 
 
 ```{r, eval=FALSE, warning=FALSE}
-fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
 
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
