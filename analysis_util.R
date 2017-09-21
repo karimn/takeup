@@ -1574,7 +1574,7 @@ estimate_deworm_prob <- function(iter_cluster_parameters,
                                  dyn_treatment_mask_map,
                                  full_dyn_treatment_map_dm,
                                  days_treated = 0:11) {
-  # tryCatch({
+  tryCatch({
   kappa_census_covar_data <- iter_cluster_parameters %>% 
     left_join(obs_meta_data, c("stratum_id", "cluster_id", "phone_owner", "name_matched")) %>% 
     transmute(obs_index, cluster_id,
@@ -1599,13 +1599,13 @@ estimate_deworm_prob <- function(iter_cluster_parameters,
                   # treatment_summarizer = function(d) d,
                   by_id = "obs_index") %>% 
       group_by(deworming_day, dyn_treat_days) %>% 
-      # summarize_at(vars(prob_deworm, log_alpha), funs(weighted.mean(., day_size))) %>% 
+      summarize_at(vars(prob_deworm, log_alpha), funs(weighted.mean(., day_size))) %>%
       ungroup()
   
   identify_treatment_id(treatments_info, treatment_map) %>% 
     plyr::ddply(setdiff(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), "(?<!_id)$")), "name_matched"), 
                 est_group_prob) 
-  # }, error = function(err) return(character(err)))
+  }, error = function(err) sprintf("Failed in iteration %d: %s", iter_cluster_parameters$iter_id[1], err))
 }
 
 estimate_deworm_prob_ate <- function(iter_parameters,
