@@ -1460,7 +1460,6 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
            -starts_with("dyn_treatment_"),
            -one_of(names(beta_params)),
            -contains("private_valuebracelet")) %>% 
-    # arrange_at(vars(c(by_id, "deworming_day"))) %>% 
     arrange(subgroup_id, deworming_day) %>% 
     bind_cols(calculate_days_treated_matrix(.$log_kappa_dyn_treatment) %>% 
                 as_tibble() %>% 
@@ -1480,7 +1479,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
             set_names(str_c("log_prod_alpha_deworming_day_", 1:12))) %>% 
     { 
       if (!is.null(kappa_census_covar_data)) {
-        right_join(., kappa_census_covar_data, "cluster_id") %>% 
+        inner_join(., kappa_census_covar_data, "cluster_id") %>% 
           cbind(multiply_by(select(., starts_with("log_prod_alpha_deworming_day")), .$kappa_census_covar) %>% 
                   log_prod_alpha_to_prob_deworm())
       } else {
@@ -1488,7 +1487,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
               select(., starts_with("log_prod_alpha_deworming_day")) %>% 
                 log_prod_alpha_to_prob_deworm())
       }
-    } %>% 
+    } %>%
     select(-starts_with("log_prod_alpha"), -starts_with("stratum_census_covar_coef"), -kappa_census_covar) %>% 
     gather(deworming_day_key, deworming_day_val, 
            log_alpha_deworming_day_01:log_alpha_deworming_day_12, 
@@ -1511,9 +1510,9 @@ estimate_treatment_deworm_prob <- function(dm_datarow,
                                              summarize_at(vars(starts_with("prob_deworm"), starts_with("log_alpha")), mean) %>% 
                                              ungroup() %>% 
                                              left_join(count(obs_estimates, deworming_day, dyn_treat_days), by = c("deworming_day", "dyn_treat_days")) %>% 
-                                             rename(day_size = n) %>% 
-                                             bind_rows(group_by(., dyn_treat_days) %>% 
-                                                         summarize(deworming_day = 13, prob_deworm = 1 - sum(prob_deworm))),
+                                             rename(day_size = n),
+                                             # bind_rows(group_by(., dyn_treat_days) %>% 
+                                             #             summarize(deworming_day = 13, prob_deworm = 1 - sum(prob_deworm))),
                                            by_id = "obs_index") {
   static_dm_row <- select(dm_datarow, -c(all_treatment_id, phone_owner, name_matched), -starts_with("dyn_treatment_"))
   dyn_dm_row <- select(dm_datarow, starts_with("dyn_treatment_")) %>% 
@@ -1604,7 +1603,8 @@ estimate_deworm_prob <- function(iter_cluster_parameters,
   
   identify_treatment_id(treatments_info, treatment_map) %>% 
     plyr::ddply(setdiff(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), "(?<!_id)$")), "name_matched"), 
-                est_group_prob) 
+                est_group_prob,
+                .progress = "text") 
   }, error = function(err) sprintf("Failed in iteration %d: %s", iter_cluster_parameters$iter_id[1], err))
 }
 
