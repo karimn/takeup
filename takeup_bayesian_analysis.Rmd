@@ -966,14 +966,8 @@ sim_stratum_hazards_wide <- basic_model_2_simple_fit %>%
   select(-stratum_hazard_effect)
 
 sim_stratum_hazards <- sim_stratum_hazards_wide %>%
-# sim_stratum_hazards <- basic_model_2_simple_fit %>%
-#   as.data.frame(pars = c("hyper_baseline_hazard", "stratum_hazard_effect")) %>% 
-#   mutate(iter_id = seq_len(n())) %>% 
-#   gather(stratum_id, stratum_hazard_effect, starts_with("stratum_hazard_effect")) %>% 
-  # gather(deworming_day, baseline_hazard, starts_with("hyper_baseline_hazard")) %>% 
   gather(deworming_day, stratum_hazard, starts_with("stratum_hazard_day")) %>% 
   mutate_at(vars(deworming_day), funs(str_extract(., "\\d+") %>% as.integer())) 
-  # mutate(stratum_hazard = baseline_hazard * stratum_hazard_effect) 
 
 sim_cluster_hazards <- basic_model_2_simple_fit %>% 
   as.data.frame( pars = c("cluster_hazard_effect")) %>%
@@ -1013,16 +1007,23 @@ sim_stratum_dyn_treatment_coef <- basic_model_2_simple_fit %>%
   select(-var)
 
 obs_meta_data <- dyn_stan_data$prepared_analysis_data %>% 
-    transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched)
+  transmute(stratum_id, cluster_id = new_cluster_id, obs_index, phone_owner, name_matched, census_covar_id) 
 
 iter_cluster_parameters <- obs_meta_data %>% 
-  group_by_at(vars(-obs_index)) %>% 
+  group_by(stratum_id, cluster_id, phone_owner, name_matched) %>% 
   summarize(subgroup_size = n()) %>% 
   ungroup() %>% 
   left_join(sim_stratum_treatment_coef, c("stratum_id")) %>%
   left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
+  left_join(sim_stratum_census_covar_coef, c("stratum_id", "iter_id")) %>%
   right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  mutate(log_kappa_census_covar = 0) 
+  mutate(log_kappa_census_covar = 0,
+         subgroup_id = seq_len(nrow(.)))
+
+paropts <- lst(.packages = c("magrittr", "stringr", "tidyverse"),
+               .export = c("estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
+                           "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards"),
+               .verbose = FALSE)
 
 fast_treatments <- tribble(
   ~ private_value, ~ social_value, 
@@ -1085,31 +1086,22 @@ dyn_day_ate_sim <- obs_meta_data %>%
         full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
 ```
 
-```{r, eval=FALSE}
-est_fun <- partial(estimate_deworm_prob, 
+```{r, eval=FALSE, warning=FALSE}
+covar_est_fun <- partial(estimate_deworm_prob, 
                    obs_meta_data = obs_meta_data,
                    sim_stratum_hazards = sim_stratum_hazards,
                    census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
                    treatment_map = dyn_stan_data$treatment_map,
                    treatment_map_dm = dyn_stan_data$treatment_map_design_matrix,
-                   all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
                    dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
                    full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
 
-dyn_day_prob_sim <- obs_meta_data %>% 
-  distinct(stratum_id, cluster_id) %>% 
-  left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
-  left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
-  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
-  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  filter(iter_id %in% 1:100) %>%
-  ddply(.(iter_id), est_fun, 
-        .parallel = TRUE, .progress = "text", 
-        .paropts = lst(.packages = c("magrittr", "stringr", "tidyverse"),
-                       .export = c("estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
-                                   "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards")),
-        treatments_info = sms_control_treatments %>% filter(social_value == "control"),
-        days_treated = 11)
+# dyn_day_prob_sim <- iter_cluster_parameters %>% 
+#   filter(iter_id == 1) %>% 
+#   ddply(.(iter_id), covar_est_fun, 
+#         .parallel = TRUE, .progress = "text", .paropts = paropts,
+#         treatments_info = fast_treatments[1, ],
+#         days_treated = 11)
 ```
 
 ```{r}
@@ -1120,19 +1112,18 @@ est_fun <- partial(fast_estimate_deworm_prob,
                    all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
                    dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
                    full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
-
-paropts <- lst(.packages = c("magrittr", "stringr", "tidyverse"),
-               .export = c("fast_estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
-                                   "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards"))
 ```
 
 ```{r, warning=FALSE}
-xx <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
+xx <- iter_cluster_parameters %>% 
+  filter(iter_id == 1) %>% 
+  ddply.(iter_id), est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value == "bracelet" & sms.treatment.2 == "sms.control"), days_treated = 4)
 ```
 
 
 ```{r, eval=FALSE, warning=FALSE}
+
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
 
@@ -1145,6 +1136,26 @@ fast_sim <- ddply(iter_cluster_parameters, .(iter_id), est_fun, .parallel = TRUE
   bind_rows(fast_sim)
 
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
+```
+
+```{r, eval=FALSE, warning=FALSE}
+  # ddply(.(iter_id), est_fun, 
+  #       .parallel = TRUE, .progress = "text", .paropts = paropts,
+  #       treatments_info = fast_treatments[1, ],
+  #       days_treated = 11)
+
+covar_sim <- ddply(iter_cluster_parameters, .(iter_id), covar_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
+
+covar_sim <- ddply(iter_cluster_parameters, .(iter_id), covar_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = 0:11) %>% 
+  bind_rows(covar_sim)
+
+covar_sim <- ddply(iter_cluster_parameters, .(iter_id), covar_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments %>% filter(sms.treatment.2 != "sms.control"), days_treated = 0:11) %>% 
+  bind_rows(covar_sim)
+
+save(covar_sim, file = file.path("data", "covar_sim.RData"))
 ```
 
 ```{r}
