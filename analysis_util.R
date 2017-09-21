@@ -1506,14 +1506,19 @@ estimate_treatment_deworm_prob <- function(dm_datarow,
                                            full_dyn_treatment_dm, 
                                            kappa_census_covar_data = NULL,
                                            days_treated = 0:11,
-                                           treatment_summarizer = function(obs_estimates) obs_estimates %>% 
-                                             group_by(deworming_day, dyn_treat_days) %>% 
-                                             summarize_at(vars(starts_with("prob_deworm"), starts_with("log_alpha")), mean) %>% 
-                                             ungroup() %>% 
-                                             left_join(count(obs_estimates, deworming_day, dyn_treat_days), by = c("deworming_day", "dyn_treat_days")) %>% 
-                                             rename(day_size = n) %>% 
-                                             bind_rows(group_by(., dyn_treat_days) %>% 
-                                                         summarize(deworming_day = 13, prob_deworm = 1 - sum(prob_deworm))),
+                                           treatment_summarizer = function(obs_estimates) tryCatch({
+                                             obs_estimates %>% 
+                                               group_by(deworming_day, dyn_treat_days) %>% 
+                                               summarize_at(vars(starts_with("prob_deworm"), starts_with("log_alpha")), mean) %>% 
+                                               ungroup() %>% 
+                                               left_join(dplyr::count(obs_estimates, deworming_day, dyn_treat_days), by = c("deworming_day", "dyn_treat_days")) %>% 
+                                               dplyr::rename(day_size = n) %>% 
+                                               bind_rows(group_by(., dyn_treat_days) %>% 
+                                                           summarize(deworming_day = 13, prob_deworm = 1 - sum(prob_deworm))) 
+                                           }, error = function(err) {
+                                             err$message %<>% sprintf("%s (colnames: %s)", ., str_c(colnames(obs_estimates), collapse = ", "))
+                                             stop(err)
+                                           }),
                                            by_id = "obs_index") {
   static_dm_row <- select(dm_datarow, -c(all_treatment_id, phone_owner, name_matched), -starts_with("dyn_treatment_"))
   dyn_dm_row <- select(dm_datarow, starts_with("dyn_treatment_")) %>% 
