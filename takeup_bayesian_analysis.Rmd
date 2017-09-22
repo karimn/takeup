@@ -1106,7 +1106,7 @@ covar_est_fun <- partial(estimate_deworm_prob,
                    full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
 ```
 
-```{r}
+```{r, eval=FALSE}
 xx <- iter_cluster_parameters %>%
   filter(iter_id == 1) %>%
   ddply(.(iter_id), covar_est_fun,
@@ -1115,7 +1115,7 @@ xx <- iter_cluster_parameters %>%
         days_treated = 11)
 ```
 
-```{r, warning=FALSE}
+```{r, eval=FALSE, warning=FALSE}
 xx <- iter_cluster_parameters %>% 
   filter(iter_id == 1) %>% 
   ddply.(iter_id), fast_est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
@@ -1356,7 +1356,7 @@ fast_sim_mean %>%
   scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
   scale_linetype_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   facet_grid(dist.pot.group ~ incentive_treatment, scales = "free_y") +
-  labs(title = "Daily Probability of Deworming Take-up with Varying Days of Signal Observation", y = "Posterior Probability of Deworming") +
+  labs(title = "Daily Probability of Deworming Take-up with Varying Days of SMS Treatment", y = "Posterior Probability of Deworming") +
   theme(legend.position = "bottom")
 ```
 
