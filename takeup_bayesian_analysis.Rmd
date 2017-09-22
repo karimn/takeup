@@ -51,7 +51,7 @@ library(econometr)
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
-cl <- parallel::makeCluster(max(1, parallel::detectCores()))
+cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1))
 # doMC::registerDoMC(max(1, parallel::detectCores() - 1))
 # doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
@@ -1134,8 +1134,10 @@ save(fast_sim, file = file.path("data", "fast_sim.RData"))
 ```
 
 ```{r, eval=FALSE, warning=FALSE}
-covar_sim <- ddply(iter_cluster_parameters, .(iter_id), covar_est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
+covar_sim <- ddply(iter_cluster_parameters, .(iter_id), covar_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
+
+save(covar_sim, file = file.path("data", "covar_sim.RData"))
 
 covar_sim <- ddply(iter_cluster_parameters, .(iter_id), covar_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = 0:11) %>% 
