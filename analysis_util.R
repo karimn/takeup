@@ -79,7 +79,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
         transmute(.endline.data, 
                   KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice, hh_cal, cal_value, hh_bracelet, number_bracelet, 
                   endline_deworm_rate = dworm_rate), "KEY.individ") %>% 
-    mutate_at(vars(age, age.census), funs(squared = (.)^2)) %>% 
+    mutate_at(vars(age, age.census), funs(squared = (.)^2, group = cut(., breaks = c(seq(18, 58, 10), 120), right = FALSE))) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.))) %>%
     unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
@@ -1014,6 +1014,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   prepared_analysis_data <- origin_prepared_analysis_data %>% 
     mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
            age = if_else(!is.na(age), age, age.census),
+           age_group = if_else(!is.na(age_group), age_group, age.census_group),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
     mutate(stratum = county) %>% 
