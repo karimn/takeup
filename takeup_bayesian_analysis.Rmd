@@ -51,7 +51,7 @@ library(econometr)
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
-cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1))
+cl <- parallel::makeCluster(max(1, parallel::detectCores()))
 # doMC::registerDoMC(max(1, parallel::detectCores() - 1))
 # doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
