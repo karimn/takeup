@@ -1233,7 +1233,7 @@ fast_sim_mean %>%
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   coord_flip() +
   facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
-  labs(title = "Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Probability of Deworming") +
+  labs(title = "Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
   theme(legend.position = "bottom")
 ```
 
@@ -1250,32 +1250,42 @@ fast_sim_ate %>%
   scale_shape_discrete("Reference", labels = c("Control, No SMS", "Control, Social Info", "Same Arm, Social Info")) +
   coord_flip() +
   facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
-  labs(title = "Treatment Effect on Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Difference in Probability of Deworming") +
+  labs(title = "Treatment Effect on Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Difference in Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
   theme(legend.position = "bottom")
 ```
 
 ##### Daily Take-up
 
+In the below plots we look at how the daily probability of take-up responds to shutting down the dynamic component of the duration analysis model in the hope of being able to shut down learning.  
+
+In the first two plots we look at how observation of signals over time might have impacted take-up.
+
 ```{r, fig.width=12, fig.height=8}
 fast_sim_mean %>%
   filter(deworming_day <= 12, 
-         incentive_treatment %in% c("control", "ink", "bracelet"), 
+         incentive_treatment %in% c("control", "ink", "bracelet"),
          sms.treatment.2 == "sms.control",
          dyn_treat_days %in% c(0, 11)) %>% 
+  mutate(obs_type = ifelse(incentive_treatment == "control", 0, dyn_treat_days) %>% 
+           factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
+           # fct_explicit_na(na_level = "control")) %>% 
   ggplot(aes(x = deworming_day)) +
-  geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, incentive_treatment), color = dyn_treat_days, linetype = fct_relabel(incentive_treatment, str_to_title))) +
-  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = incentive_treatment), alpha = 0.2,
+  geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, incentive_treatment), linetype = obs_type, color = fct_relabel(incentive_treatment, str_to_title))) +
+  geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = incentive_treatment), #fill = fct_relabel(incentive_treatment, str_to_title)), 
+              alpha = 0.2,
               data = . %>%
                 filter(incentive_treatment != "control") %>%
-                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment, dyn_treat_days, prob_deworm) %>%
-                spread(dyn_treat_days, prob_deworm)) +
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment, obs_type, prob_deworm) %>%
+                spread(obs_type, prob_deworm)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
-  scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
-  scale_linetype_discrete("Incentive/Signal Treatment") +
+  scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
+  scale_color_discrete("Incentive/Signal Treatment") +
   facet_grid(phone_owner ~ dist.pot.group, labeller = label_both, scales = "free_y") +
   labs(title = "Daily Probability of Deworming Take-up with Varying Days of Signal Observation", y = "Posterior Probability of Deworming") +
   theme(legend.position = "bottom")
 ```
+
+In the below plot we look at the difference in the probablity (in comparison to the control arm with no SMS treatment) in response to signal observation.
 
 ```{r, fig.width=12, fig.height=8}
 dyn_fast_sim_ate %>%
@@ -1283,37 +1293,44 @@ dyn_fast_sim_ate %>%
          incentive_treatment_left %in% c("control", "ink", "bracelet"), 
          sms.treatment.2_left == "sms.control",
          dyn_treat_days_left %in% c(0, 11)) %>% 
+  mutate(obs_type = ifelse(incentive_treatment_left == "control", 0, dyn_treat_days_left) %>% 
+           factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
   ggplot(aes(x = deworming_day)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = alpha("black", 0.5)) +
-  geom_line(aes(y = prob_deworm_ate, color = dyn_treat_days_left, group = str_c(dyn_treat_days_left, incentive_treatment_left), linetype = fct_relabel(incentive_treatment_left, str_to_title))) +
-  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = incentive_treatment_left), alpha = 0.2,
+  geom_line(aes(y = prob_deworm_ate, linetype = obs_type, group = str_c(dyn_treat_days_left, incentive_treatment_left), color = fct_relabel(incentive_treatment_left, str_to_title))) +
+  geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = incentive_treatment_left), alpha = 0.2,
               data = . %>%
-                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, dyn_treat_days_left, prob_deworm_ate) %>%
-                spread(dyn_treat_days_left, prob_deworm_ate)) +
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, prob_deworm_ate, obs_type) %>%
+                spread(obs_type, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
-  scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
-  scale_linetype_discrete("Incentive/Signal Treatment") +
+  scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
+  scale_color_discrete("Incentive/Signal Treatment") +
   facet_grid(phone_owner ~ dist.pot.group, labeller = label_both, scales = "free_y") +
   labs(title = "Daily Treatment Effect with Varying Days of Signal Observation", 
        subtitle = "With no SMS treatment and the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
   theme(legend.position = "bottom") 
 ```
 
+In the two below plots we look at how the daily probability of take-up evolves over time in response to SMS and signal observation treatments. As done above, we try to shut down the learning aspect of SMS treatment.
+
 ```{r, fig.width=12, fig.height=8}
 fast_sim_mean %>%
   filter(deworming_day <= 12, 
          phone_owner,
          dyn_treat_days %in% c(0, 11)) %>% 
+  mutate(obs_type = ifelse(incentive_treatment == "control", 0, dyn_treat_days) %>% 
+           factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
   ggplot(aes(x = deworming_day)) +
-  geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, sms.treatment.2), color = dyn_treat_days, linetype = sms.treatment.2)) +
-  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = sms.treatment.2), alpha = 0.2,
+  geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, sms.treatment.2), linetype = obs_type, color = sms.treatment.2)) +
+  geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = sms.treatment.2),
+              alpha = 0.2,
               data = . %>%
                 filter(incentive_treatment != "control") %>%
-                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment, sms.treatment.2, dyn_treat_days, prob_deworm) %>%
-                spread(dyn_treat_days, prob_deworm)) +
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment, sms.treatment.2, obs_type, prob_deworm) %>%
+                spread(obs_type, prob_deworm)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
-  scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
-  scale_linetype_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   facet_grid(dist.pot.group ~ incentive_treatment, scales = "free_y") +
   labs(title = "Daily Probability of Deworming Take-up with Varying Days of SMS Treatment", y = "Posterior Probability of Deworming") +
   theme(legend.position = "bottom")
@@ -1322,18 +1339,20 @@ fast_sim_mean %>%
 ```{r, fig.width=12, fig.height=8}
 dyn_fast_sim_ate %>%
   filter(deworming_day <= 12,
-         sms.treatment.2_left != "sms.control",
+         phone_owner,
+         sms.treatment.2_left != "sms.control" | incentive_treatment_left %in% c("ink", "bracelet"),
          dyn_treat_days_left %in% c(0, 11)) %>% 
+  mutate(obs_type = ifelse(incentive_treatment_left %in% c("control", "calendar") & sms.treatment.2_left == "sms.control", 0, dyn_treat_days_left) %>% 
+           factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
   ggplot(aes(x = deworming_day)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = alpha("black", 0.5)) +
-  geom_line(aes(y = prob_deworm_ate, color = dyn_treat_days_left, group = str_c(dyn_treat_days_left, sms.treatment.2_left), linetype = sms.treatment.2_left)) +
-  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = sms.treatment.2_left), alpha = 0.2,
+  geom_line(aes(y = prob_deworm_ate, linetype = obs_type, group = str_c(dyn_treat_days_left, sms.treatment.2_left), color = sms.treatment.2_left)) +
+  geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = sms.treatment.2_left), alpha = 0.2,
               data = . %>%
-                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, sms.treatment.2_left, dyn_treat_days_left, prob_deworm_ate) %>%
-                spread(dyn_treat_days_left, prob_deworm_ate)) +
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, sms.treatment.2_left, obs_type, prob_deworm_ate) %>%
+                spread(obs_type, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
-  scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
-  scale_linetype_discrete("SMS Treatment", labels = c("Reminders Only", "Social Information")) +
+  scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   facet_grid(dist.pot.group ~ incentive_treatment_left, scales = "free_y") +
   labs(title = "Daily Treatment Effect with Varying Days of SMS Treatment", 
        subtitle = "with the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
