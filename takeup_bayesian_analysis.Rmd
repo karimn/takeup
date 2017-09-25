@@ -819,7 +819,11 @@ dyn_ate <- bind_rows(non_phone = dyn_stan_data$non_phone_owner_ate_pairs,
                      phone = dyn_stan_data$phone_owner_ate_pairs, .id = "phone_owner") %>% 
   group_by(phone_owner) %>% 
   mutate(all_treatment_id_left = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
-         all_treatment_id_right = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right]) %>%
+         all_treatment_id_right = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right],
+         all_treatment_size_left = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left] +
+           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left],
+         all_treatment_size_right = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right] +
+           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right]) %>% 
   ungroup() %>% 
   mutate(ate_id = seq_len(n()),
          phone_owner = phone_owner == "phone") %>% 
@@ -838,9 +842,15 @@ assertthat::assert_that(all(dist.pot.group_left == dist.pot.group_right), env = 
 dyn_ate %<>% 
   select(-contains("phone_owner.")) %>% 
   filter(day == 13) %>% 
-  mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
+  group_by_at(c("day", "phone_owner", "iter_id", "all_treatment_size_left", "all_treatment_size_right",
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
+                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
+  summarize(iter_ate = weighted.mean(1 - sim_outcome_left, all_treatment_size_left) - weighted.mean(1 - sim_outcome_right, all_treatment_size_right)) %>% 
+  # summarize_at(vars(mean_ate))
+  # mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
   group_by_at(c("day", "phone_owner", 
-                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment", "name_matched") %>% 
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
+                # c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment", "name_matched") %>%
                   str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
   summarize(mean_ate = mean(iter_ate),
             ub_90 = quantile(iter_ate, 0.95),
@@ -929,6 +939,13 @@ summ_dyn_takeup %>%
 ```
 
 ### Posterior Simulation
+
+In this section we're carrying out our analysis based on the Bayesian simulated parameters. Here we are estimating the posterior distribution of the _finite sample mean of the probability of deworming take-up_.
+
+$$
+\frac{1}{N} \sum_i \Pr[Y_{im}(t') = 1|\theta] - \Pr[Y_{im}(t) = 1|\theta], \forall m
+$$
+where $\theta$ are the model parameters.
 
 ```{r sim-params}
 sim_stratum_hazards_wide <- basic_model_2_simple_fit %>% 
