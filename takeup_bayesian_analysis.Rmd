@@ -59,35 +59,11 @@ doParallel::registerDoParallel(cl)
 knitr::read_chunk("analysis_util.R", labels = "analysis-util")
 
 # options(dplyr.show_progress = FALSE, digits = 4, mc.cores = max(1, parallel::detectCores()))
-# rstan_options(auto_write = TRUE)
+rstan_options(auto_write = TRUE)
 ```
 
 ```{r load-data, include=FALSE}
 load(file.path("data", "analysis.RData"))
-```
-
-# Priors
-
-Just some plots to visualize what some prior distributions look like. Not very exciting.
-
-```{r name-match-priors}
-name_match_false_pos_alpha <- 1
-name_match_false_pos_beta <- 15
-
-ggplot(tibble(x = c(0, 1)), aes(x)) + 
-  stat_function(fun = . %>% dbeta(shape1 = name_match_false_pos_alpha, shape2 = name_match_false_pos_beta)) + 
-  labs(x = "Probability of False Positive", y = "Density", title = "Prior Distribution for the Name Matching Model") +
-  scale_x_continuous(breaks = seq(0, 1, 0.1))
-```
-
-```{r scale-prior-plots}
-ggplot(tibble(x = c(0, 20)), aes(x)) + 
-  stat_function(aes(color = "Cauchy"), fun = . %>% dcauchy(0, 2.5)) + 
-  stat_function(aes(color = "Student t(2)"), fun = . %>% dt(2)) + 
-  stat_function(aes(color = "Student t(4)"), fun = . %>% dt(4)) + 
-  stat_function(aes(color = "Student t(7)"), fun = . %>% dt(7)) + 
-  stat_function(aes(color = "N(0, 5)"), fun = . %>% dnorm(0, 5)) + 
-  scale_x_continuous(breaks = seq(0, 50, 1))
 ```
 
 # Common Notation
@@ -143,7 +119,7 @@ $$
 \mathcal{L}_i = \left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma) - F_V(0|\mu, \mu_{j[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i M_i|\mu, \mu_{j[i]}, \sigma)\right\}^{(1 - W_i)} 
 $$
 
-```{r, warning=FALSE}
+```{r wtp-stan-data, warning=FALSE}
 wtp_stan_data <- analysis.data %>% 
   mutate(stratum = county) %>% 
   prepare_bayes_wtp_data(
@@ -389,7 +365,7 @@ num_raw_takeup_ate <- nrow(est_deworming_takeup_ate)
 est_deworming_takeup_ate %<>% 
   mutate(phone_owner = phone_owner == "phone") %>% 
   left_join(param_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-  left_join(param_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right"))
+  left_join(param_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) 
 
 assertthat::assert_that(num_raw_takeup_ate == nrow(est_deworming_takeup_ate) & all(phone_owner.x == phone_owner.y) & all(phone_owner.y == phone_owner), 
                         env = est_deworming_takeup_ate)
@@ -419,6 +395,7 @@ sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>%
 ```{r, fig.height=6}
 sms_ctrl_est_deworming_takeup_ate %>% 
   filter(incentive_treatment_left != "bracelet-bracelet") %>% 
+  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
   ggplot(aes(incentive_treatment_left, mean_ate)) +
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75) +
@@ -471,6 +448,7 @@ sms_ctrl_est_deworming_takeup <- est_deworming_takeup %>%
 ```{r, fig.width=10}
 sms_ctrl_est_deworming_takeup %>%
   filter(incentive_treatment != "bracelet-bracelet") %>% 
+  mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
   ggplot(aes(incentive_treatment, mean_takeup_prop, color = monitored)) + 
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
@@ -821,7 +799,6 @@ est_deworming_days %<>%
   select(-matches("phone_owner\\.[xy]"))
 ```
 
-
 ```{r, fig.width=12}
 summ_dyn_takeup <- est_deworming_days %>% 
   unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
@@ -874,11 +851,6 @@ dyn_ate %<>%
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
 
-  # vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate = 
-  #   non_phone_takeup[non_phone_owner_ate_pairs[, 1]] - non_phone_takeup[non_phone_owner_ate_pairs[, 2]];
-  # vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate = 
-  #   phone_takeup[phone_owner_ate_pairs[, 1]] - phone_takeup[phone_owner_ate_pairs[, 2]];
-
 summ_dyn_takeup %>% 
   filter(day < 13,
          sms.treatment.2 == "sms.control",
@@ -906,13 +878,14 @@ bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>%
           .id = "model") %>% 
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
+  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
   ggplot(aes(incentive_treatment_left, mean_ate, color = model)) +
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
   geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   # geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL)) +
-  geom_text(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, data = . %>% filter(model == "Dynamic")) +
-  geom_text(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.25, data = . %>% filter(model == "Static")) +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, segment.colour = NA, data = . %>% filter(model == "Dynamic")) +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.25, segment.colour = NA, data = . %>% filter(model == "Static")) +
   scale_x_discrete("Comparator Incentive Treatment") +
   scale_y_continuous("Average Difference in Deworming Proportion") +
   scale_color_discrete("Model") +
@@ -927,16 +900,18 @@ summ_dyn_takeup %>%
          sms.treatment.2 == "sms.control",
          social_value != "bracelet" | private_value == "control",
          incentive_treatment == comparator | (comparator == "control-ink" & incentive_treatment == "control-control")) %>% 
-  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet")) %>% 
-  mutate(mean_takeup_prop = 1 - mean_takeup_prop) %>% 
+  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet"),
+         incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace( "-?control-?", "") %>% str_to_title()),
+         mean_takeup_prop = 1 - mean_takeup_prop) %>% 
   ggplot(aes(x = incentive_treatment, y = mean_takeup_prop)) +
   geom_pointrange(aes(ymin = 1 - lb_90, ymax = 1 - ub_90)) +
   theme(axis.text.x = element_text(angle = 25, hjust = 1)) +
   scale_y_continuous(limits = c(0, 0.75)) +
+  labs(x = "", y = "Posterior Deworming Take-up Probability") +
   facet_grid(phone_owner ~ dist.pot.group, labeller = label_both)
 ```
 
-```{r, fig.width=10, fig.height=10}
+```{r, fig.width=10, fig.height=10, eval=FALSE}
 summ_dyn_takeup %>% 
   filter(phone_owner,
          social_value != "bracelet" | private_value == "bracelet",
@@ -1021,7 +996,7 @@ iter_cluster_parameters <- obs_meta_data %>%
          subgroup_id = seq_len(nrow(.)))
 
 paropts <- lst(.packages = c("magrittr", "stringr", "tidyverse"),
-               .export = c("estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
+               .export = c("estimate_deworm_prob", "fast_estimate_deworm_prob", "identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm",
                            "obs_meta_data", "dyn_stan_data", "sim_stratum_hazards"),
                .verbose = FALSE)
 
@@ -1031,7 +1006,7 @@ fast_treatments <- tribble(
   "control",            "ink",     
   "calendar",           "control", 
   "control",            "bracelet", 
-  "bracelet",            "bracelet" 
+  "bracelet",           "bracelet" 
 ) %>% 
   mutate(signal_observed = social_value,
          days_observed = 12,
@@ -1043,51 +1018,7 @@ fast_treatments <- tribble(
   mutate(reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"))
 ```
 
-```{r sim-inference, eval=FALSE}
-dyn_day_sim <- obs_meta_data %>% 
-  distinct(stratum_id, cluster_id) %>% 
-  left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
-  left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
-  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
-  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  filter(iter_id %in% 1:1) %>%
-  ddply(.(iter_id), estimate_deworm_prob, .parallel = FALSE, .progress = "text", 
-        .paropts = lst(.packages = c("tidyverse"), 
-                       .export = c("estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm")),
-        obs_meta_data = obs_meta_data,
-        sim_stratum_hazards = sim_stratum_hazards,
-        census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
-        treatment_dm = dyn_stan_data$treatment_map %>%
-          filter(private_value == "control", social_value == "control", sms.treatment.2 == "sms.control",
-                 signal_observed == "control", reminder_info_stock == "control", !hh.baseline.sample) %>%
-          select(all_treatment_id, phone_owner, name_matched) %>%
-          bind_cols(dyn_stan_data$treatment_map_design_matrix[.$all_treatment_id, ]),
-        full_dyn_treatment_dm = dyn_stan_data$dynamic_treatment_map)
-```
-
-```{r sim-ate-inference, warning=FALSE, eval=FALSE}
-dyn_day_ate_sim <- obs_meta_data %>% 
-  distinct(stratum_id, cluster_id) %>% 
-  left_join(sim_stratum_census_covar_coef, c("stratum_id")) %>%
-  left_join(sim_stratum_treatment_coef, c("stratum_id", "iter_id")) %>%
-  left_join(sim_stratum_dyn_treatment_coef, c("stratum_id", "iter_id")) %>%
-  right_join(sim_cluster_hazards, c("cluster_id", "iter_id")) %>% 
-  # filter(iter_id %in% 1:1) %>%
-  ddply(.(iter_id), estimate_deworm_prob_ate, .parallel = TRUE, .progress = "text", 
-        .paropts = lst(.packages = c("magrittr", "stringr", "tidyverse"),
-                       .export = c("identify_treatment_id", "estimate_treatment_deworm_prob", "estimate_treatment_deworm_prob_dm")),
-        obs_meta_data = obs_meta_data,
-        sim_stratum_hazards = sim_stratum_hazards,
-        census_covar_dm = dyn_stan_data %$% census_covar_map_dm[census_covar_id, ],
-        ate_info = dyn_all_ate[1, ],
-        treatment_map = dyn_stan_data$treatment_map,
-        treatment_map_dm = dyn_stan_data$treatment_map_design_matrix,
-        all_treat_dyn_id = dyn_stan_data$all_treatment_dyn_id,
-        dyn_treatment_mask_map = dyn_stan_data$dynamic_treatment_mask_map,
-        full_dyn_treatment_map_dm = dyn_stan_data$dynamic_treatment_map)
-```
-
-```{r, eval=FALSE, warning=FALSE}
+```{r, warning=FALSE}
 fast_est_fun <- partial(fast_estimate_deworm_prob, 
                    sim_stratum_hazards = sim_stratum_hazards,
                    treatment_map = dyn_stan_data$treatment_map,
@@ -1118,8 +1049,8 @@ xx <- iter_cluster_parameters %>%
 ```{r, eval=FALSE, warning=FALSE}
 xx <- iter_cluster_parameters %>% 
   filter(iter_id == 1) %>% 
-  ddply.(iter_id), fast_est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
-                  treatments_info = fast_treatments %>% filter(social_value == "bracelet" & sms.treatment.2 == "sms.control"), days_treated = 4)
+  ddply(.(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  treatments_info = fast_treatments[1, ], days_treated = c(0, 11))
 ```
 
 
@@ -1127,8 +1058,10 @@ xx <- iter_cluster_parameters %>%
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), days_treated = 11)
 
+save(fast_sim, file = file.path("data", "fast_sim.RData"))
+
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
-                  treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = 0:11) %>% 
+                  treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = c(0, 11)) %>% 
   bind_rows(fast_sim)
 
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
@@ -1312,8 +1245,13 @@ fast_sim_mean %>%
          incentive_treatment %in% c("control", "ink", "bracelet"), 
          sms.treatment.2 == "sms.control",
          dyn_treat_days %in% c(0, 11)) %>% 
-  ggplot(aes(deworming_day, prob_deworm, group = str_c(dyn_treat_days, incentive_treatment))) +
-  geom_line(aes(color = dyn_treat_days, linetype = fct_relabel(incentive_treatment, str_to_title))) +
+  ggplot(aes(x = deworming_day)) +
+  geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, incentive_treatment), color = dyn_treat_days, linetype = fct_relabel(incentive_treatment, str_to_title))) +
+  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = incentive_treatment), alpha = 0.2,
+              data = . %>%
+                filter(incentive_treatment != "control") %>%
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment, dyn_treat_days, prob_deworm) %>%
+                spread(dyn_treat_days, prob_deworm)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
   scale_linetype_discrete("Incentive/Signal Treatment") +
@@ -1328,17 +1266,16 @@ dyn_fast_sim_ate %>%
          incentive_treatment_left %in% c("control", "ink", "bracelet"), 
          sms.treatment.2_left == "sms.control",
          dyn_treat_days_left %in% c(0, 11)) %>% 
-  # ggplot(aes(deworming_day, prob_deworm_ate, color = dyn_treat_days_left)) +
-  ggplot(aes(deworming_day, prob_deworm_ate, group = str_c(dyn_treat_days_left, incentive_treatment_left))) +
-  # geom_point() +
-  # geom_ribbon(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), alpha = 0.15) +
+  ggplot(aes(x = deworming_day)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = alpha("black", 0.5)) +
-  geom_line(aes(color = dyn_treat_days_left, linetype = fct_relabel(incentive_treatment_left, str_to_title))) +
+  geom_line(aes(y = prob_deworm_ate, color = dyn_treat_days_left, group = str_c(dyn_treat_days_left, incentive_treatment_left), linetype = fct_relabel(incentive_treatment_left, str_to_title))) +
+  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = incentive_treatment_left), alpha = 0.2,
+              data = . %>%
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, dyn_treat_days_left, prob_deworm_ate) %>%
+                spread(dyn_treat_days_left, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
-  # scale_color_continuous("Days Observing Signal", breaks = seq(0, 11, 2)) +
   scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
   scale_linetype_discrete("Incentive/Signal Treatment") +
-  # facet_grid(incentive_treatment_left ~ dist.pot.group + phone_owner, labeller = label_both, scales = "free_y") +
   facet_grid(phone_owner ~ dist.pot.group, labeller = label_both, scales = "free_y") +
   labs(title = "Daily Treatment Effect with Varying Days of Signal Observation", 
        subtitle = "With no SMS treatment and the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
@@ -1350,8 +1287,13 @@ fast_sim_mean %>%
   filter(deworming_day <= 12, 
          phone_owner,
          dyn_treat_days %in% c(0, 11)) %>% 
-  ggplot(aes(deworming_day, prob_deworm, group = str_c(dyn_treat_days, sms.treatment.2))) +
-  geom_line(aes(color = dyn_treat_days, linetype = sms.treatment.2)) +
+  ggplot(aes(x = deworming_day)) +
+  geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, sms.treatment.2), color = dyn_treat_days, linetype = sms.treatment.2)) +
+  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = sms.treatment.2), alpha = 0.2,
+              data = . %>%
+                filter(incentive_treatment != "control") %>%
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment, sms.treatment.2, dyn_treat_days, prob_deworm) %>%
+                spread(dyn_treat_days, prob_deworm)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
   scale_linetype_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
@@ -1365,10 +1307,13 @@ dyn_fast_sim_ate %>%
   filter(deworming_day <= 12,
          sms.treatment.2_left != "sms.control",
          dyn_treat_days_left %in% c(0, 11)) %>% 
-  # ggplot(aes(deworming_day, prob_deworm_ate, group = str_c(dyn_treat_days_left, incentive_treatment_left))) +
-  ggplot(aes(deworming_day, prob_deworm_ate, group = str_c(dyn_treat_days_left, sms.treatment.2_left))) +
+  ggplot(aes(x = deworming_day)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = alpha("black", 0.5)) +
-  geom_line(aes(color = dyn_treat_days_left, linetype = sms.treatment.2_left)) +
+  geom_line(aes(y = prob_deworm_ate, color = dyn_treat_days_left, group = str_c(dyn_treat_days_left, sms.treatment.2_left), linetype = sms.treatment.2_left)) +
+  geom_ribbon(aes(ymin = `0`, ymax = `11`, group = sms.treatment.2_left), alpha = 0.2,
+              data = . %>%
+                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, sms.treatment.2_left, dyn_treat_days_left, prob_deworm_ate) %>%
+                spread(dyn_treat_days_left, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_color_distiller("Days Observing Signal", breaks = seq(0, 11, 2), palette = "Spectral") +
   scale_linetype_discrete("SMS Treatment", labels = c("Reminders Only", "Social Information")) +
@@ -1376,4 +1321,32 @@ dyn_fast_sim_ate %>%
   labs(title = "Daily Treatment Effect with Varying Days of SMS Treatment", 
        subtitle = "with the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
   theme(legend.position = "bottom") 
+```
+
+# Random Stuff
+
+It's safe to ignore everything in this section.
+
+## Priors
+
+Just some plots to visualize what some prior distributions look like. Not very exciting.
+
+```{r name-match-priors}
+name_match_false_pos_alpha <- 1
+name_match_false_pos_beta <- 15
+
+ggplot(tibble(x = c(0, 1)), aes(x)) + 
+  stat_function(fun = . %>% dbeta(shape1 = name_match_false_pos_alpha, shape2 = name_match_false_pos_beta)) + 
+  labs(x = "Probability of False Positive", y = "Density", title = "Prior Distribution for the Name Matching Model") +
+  scale_x_continuous(breaks = seq(0, 1, 0.1))
+```
+
+```{r scale-prior-plots}
+ggplot(tibble(x = c(0, 20)), aes(x)) + 
+  stat_function(aes(color = "Cauchy"), fun = . %>% dcauchy(0, 2.5)) + 
+  stat_function(aes(color = "Student t(2)"), fun = . %>% dt(2)) + 
+  stat_function(aes(color = "Student t(4)"), fun = . %>% dt(4)) + 
+  stat_function(aes(color = "Student t(7)"), fun = . %>% dt(7)) + 
+  stat_function(aes(color = "N(0, 5)"), fun = . %>% dnorm(0, 5)) + 
+  scale_x_continuous(breaks = seq(0, 50, 1))
 ```
