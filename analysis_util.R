@@ -79,7 +79,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
         transmute(.endline.data, 
                   KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice, hh_cal, cal_value, hh_bracelet, number_bracelet, 
                   endline_deworm_rate = dworm_rate), "KEY.individ") %>% 
-    mutate_at(vars(age, age.census), funs(squared = (.)^2)) %>% 
+    mutate_at(vars(age, age.census), funs(squared = (.)^2, group = cut(., breaks = c(seq(18, 58, 10), 120), right = FALSE))) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.))) %>%
     unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
@@ -1014,6 +1014,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   prepared_analysis_data <- origin_prepared_analysis_data %>% 
     mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
            age = if_else(!is.na(age), age, age.census),
+           age_group = if_else(!is.na(age_group), age_group, age.census_group),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
     mutate(stratum = county) %>% 
@@ -1453,7 +1454,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
                (as.matrix(select(beta_params, matches("private_valuecalendar"))) %*% unlist(select(static_dm_row, matches("private_valuebracelet")))))) %>% 
     left_join(sim_stratum_hazards, c("iter_id", "stratum_id")) %>% 
     mutate(cluster_hazard = stratum_hazard * cluster_hazard_effect,
-           log_kappa_dyn_treatment = c(rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+"))))) %>%
+           log_kappa_dyn_treat = c(rowSums(dyn_dm_row[deworming_day, ] * select(., matches("^stratum_dynamic_treatment_coef_\\d+"))))) %>%
     select(-c(cluster_hazard_effect, stratum_hazard),
            -starts_with("stratum_beta"),
            -starts_with("stratum_dynamic_treatment_coef_"),
@@ -1461,19 +1462,34 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
            -one_of(names(beta_params)),
            -contains("private_valuebracelet")) %>% 
     arrange(subgroup_id, deworming_day) %>% 
-    bind_cols(calculate_days_treated_matrix(.$log_kappa_dyn_treatment) %>% 
+    bind_cols(calculate_days_treated_matrix(.$log_kappa_dyn_treat) %>% 
                 as_tibble() %>% 
                 magrittr::set_names(str_c("log_kappa_dyn_treat_days_", days_treated))) %>% 
     mutate_at(vars(num_range("log_kappa_dyn_treat_days_", days_treated)), 
-              funs(log_alpha = - exp(log_kappa_census_covar + log_kappa_static_treatment + .) * cluster_hazard)) %>% {
+              funs(log_alpha = - exp(log_kappa_census_covar + log_kappa_static_treatment + .) * cluster_hazard)) %>% 
+    {
       if (num_days_treated > 1) {
-        gather(., dyn_treat_days, log_alpha, matches("^log_kappa_dyn_treat_days_\\d+_alpha$")) %>% 
-          mutate(dyn_treat_days = as.integer(str_extract(dyn_treat_days, "\\d+"))) 
+        gather(., log_key, log_val, matches("^log_kappa_dyn_treat_days_\\d+(_log_alpha)?$")) %>% 
+          mutate(dyn_treat_days = as.integer(str_extract(log_key, "\\d+")),
+                 log_key = str_replace_all(log_key, c(".+(log_alpha)$" = "\\1", "(.+)(_days_\\d+)$" = "\\1"))) %>% 
+          select(-log_kappa_dyn_treat) %>% 
+          spread(log_key, log_val) 
       } else mutate(., dyn_treat_days = days_treated)
     } %>% 
-    select_at(vars(-cluster_hazard, -starts_with("log_kappa"))) %>% 
-    mutate(deworming_day = sprintf("log_alpha_deworming_day_%02d", deworming_day)) %>% 
-    spread(deworming_day, log_alpha) %>% 
+    select_at(vars(-cluster_hazard, 
+                   -starts_with("log_kappa_static"), 
+                   -starts_with("log_kappa_census"), 
+                   -starts_with("log_kappa_dyn_treat_days"),
+                   -starts_with("stratum_census_covar_coef"))) %>% 
+    { 
+      inner_join(select(., -log_alpha) %>% 
+                   mutate(deworming_day = sprintf("log_alpha_deworming_day_%02d", deworming_day)) %>% 
+                   spread(deworming_day, log_kappa_dyn_treat), 
+                 select(., -log_kappa_dyn_treat) %>% 
+                   mutate(deworming_day = sprintf("log_kappa_dyn_treat_deworming_day_%02d", deworming_day)) %>% 
+                   spread(deworming_day, log_alpha),
+                 by = setdiff(names(.), c("deworming_day", "log_alpha", "log_kappa_dyn_treat"))) 
+    } %>% 
     cbind(select(., log_alpha_deworming_day_01:log_alpha_deworming_day_12) %>% 
             accumulate(`+`) %>% 
             set_names(str_c("log_prod_alpha_deworming_day_", 1:12))) %>% 
@@ -1481,16 +1497,18 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
       if (!is.null(kappa_census_covar_data)) {
         inner_join(., kappa_census_covar_data, "cluster_id") %>% 
           cbind(multiply_by(select(., starts_with("log_prod_alpha_deworming_day")), .$kappa_census_covar) %>% 
-                  log_prod_alpha_to_prob_deworm())
+                  log_prod_alpha_to_prob_deworm()) %>% 
+          select(-kappa_census_covar)
       } else {
         cbind(., 
               select(., starts_with("log_prod_alpha_deworming_day")) %>% 
                 log_prod_alpha_to_prob_deworm())
       }
-    } %>%
-    select(-starts_with("log_prod_alpha"), -starts_with("stratum_census_covar_coef"), -kappa_census_covar) %>% 
+    } %>% 
+    select(-starts_with("log_prod_alpha")) %>% 
     gather(deworming_day_key, deworming_day_val, 
            log_alpha_deworming_day_01:log_alpha_deworming_day_12, 
+           log_kappa_dyn_treat_deworming_day_01:log_kappa_dyn_treat_deworming_day_12, 
            prob_deworm_deworming_day_1:prob_deworm_deworming_day_12) %>% 
     separate(deworming_day_key, c("deworming_day_key", "deworming_day"), sep = "_(?=\\d+)") %>%  
     mutate(deworming_day = as.integer(deworming_day)) %>% 
@@ -1556,8 +1574,8 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                   days_treated = days_treated,
                   treatment_summarizer = function(d) d,
                   by_id = "subgroup_id") %>% 
-      group_by(deworming_day, dyn_treat_days) %>% 
-      summarize_at(vars(prob_deworm, alpha), funs(weighted.mean(., subgroup_size))) %>% 
+      dplyr::group_by(deworming_day, dyn_treat_days) %>% 
+      summarize_at(vars(prob_deworm, log_alpha, log_kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
       ungroup()
   }
   
