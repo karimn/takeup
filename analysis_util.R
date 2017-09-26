@@ -1483,10 +1483,10 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
                    -starts_with("stratum_census_covar_coef"))) %>% 
     { 
       inner_join(select(., -log_alpha) %>% 
-                   mutate(deworming_day = sprintf("log_alpha_deworming_day_%02d", deworming_day)) %>% 
+                   mutate(deworming_day = sprintf("log_kappa_dyn_treat_deworming_day_%02d", deworming_day)) %>% 
                    spread(deworming_day, log_kappa_dyn_treat), 
                  select(., -log_kappa_dyn_treat) %>% 
-                   mutate(deworming_day = sprintf("log_kappa_dyn_treat_deworming_day_%02d", deworming_day)) %>% 
+                   mutate(deworming_day = sprintf("log_alpha_deworming_day_%02d", deworming_day)) %>% 
                    spread(deworming_day, log_alpha),
                  by = setdiff(names(.), c("deworming_day", "log_alpha", "log_kappa_dyn_treat"))) 
     } %>% 
