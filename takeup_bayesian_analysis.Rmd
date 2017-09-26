@@ -58,7 +58,7 @@ doParallel::registerDoParallel(cl)
 
 knitr::read_chunk("analysis_util.R", labels = "analysis-util")
 
-# options(dplyr.show_progress = FALSE, digits = 4, mc.cores = max(1, parallel::detectCores()))
+options(dplyr.show_progress = FALSE, digits = 4) #, mc.cores = max(1, parallel::detectCores()))
 rstan_options(auto_write = TRUE)
 ```
 
@@ -1066,7 +1066,7 @@ xx <- iter_cluster_parameters %>%
 ```{r, eval=FALSE, warning=FALSE}
 xx <- iter_cluster_parameters %>% 
   filter(iter_id == 1) %>% 
-  ddply(.(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+  ddply(.(iter_id), fast_est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments[1, ], days_treated = c(0, 11))
 ```
 
@@ -1106,20 +1106,23 @@ load(file.path("data", "fast_sim.RData"))
 
 fast_sim %<>%
   filter(days_sms == 12) %>% 
-  group_by_at(vars(-c(deworming_day, prob_deworm, alpha, days_observed, days_sms))) %>% 
-  distinct(deworming_day, .keep_all = TRUE) %>% 
-  ungroup() %>% 
-  mutate(incentive_treatment = if_else(private_value != "control", private_value, social_value) %>% 
-           fct_relevel("control", "ink", "calendar", "bracelet"),
+  select(-c(days_sms, days_observed, signal_observed, reminder_info_stock)) %>% 
+  unite(incentive_treatment, c("private_value", "social_value"), remove = FALSE, sep = "-") %>% 
+  mutate(incentive_treatment = str_replace_all(incentive_treatment, 
+                                               c("control-bracelet" = "bracelet social", 
+                                                 "bracelet-bracelet" = "bracelet",
+                                                 "control-control" = "control", 
+                                                 "(-control)|(control-)" = "")) %>% 
+           fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet"),
          sms.treatment.2 = fct_relevel(sms.treatment.2, "sms.control", "reminder.only", "social.info"),
          iter_obs_id = seq_len(n())) %>% 
-  select_if(~ !all(is.na(.)))
+  select_if(~ !all(is.na(.))) 
 
 fast_sim %<>% 
   distinct_(.dots = treatment_col) %>% 
   mutate(fast_treatment_id = seq_len(n())) %>% 
   right_join(fast_sim, by = treatment_col) %>% 
-  bind_rows(group_by_at(., vars(-c(deworming_day, prob_deworm, alpha, days_observed, days_sms, iter_obs_id))) %>% 
+  bind_rows(group_by_at(., vars(-c(deworming_day, prob_deworm, log_alpha, log_kappa_dyn_treat, iter_obs_id))) %>% 
               summarize(deworming_day = 13, prob_deworm = sum(prob_deworm)) %>% #, group_size = n()) %>%
               ungroup()) 
   
@@ -1131,7 +1134,7 @@ quants <- c(2.5, 5, 50, 95, 97.5)
 
 fast_sim_mean <- fast_sim %>%  
   group_by_at(vars(fast_treatment_id, treatment_col, "deworming_day")) %>% 
-  do(bind_cols(summarize_at(., vars(prob_deworm, alpha), mean), 
+  do(bind_cols(summarize_at(., vars(prob_deworm, log_alpha, log_kappa_dyn_treat), mean), 
                t(quantile(.$prob_deworm, probs = quants / 100, names = FALSE)) %>% 
                  tidy() %>% 
                  set_colnames(str_c("prob_deworm_quant_", quants)))) %>%  
@@ -1149,20 +1152,24 @@ fast_sim_ate_pairs <- tribble(
   
   "ink",                      "sms.control",         "control",                  "sms.control",
   "calendar",                 "sms.control",         "control",                  "sms.control",
+  "bracelet social",          "sms.control",         "control",                  "sms.control",
   "bracelet",                 "sms.control",         "control",                  "sms.control",
   
   "control",                  "reminder.only",       "control",                  "sms.control",
   "control",                  "social.info",         "control",                  "sms.control",
   "ink",                      "social.info",         "control",                  "sms.control",
   "calendar",                 "social.info",         "control",                  "sms.control",
+  "bracelet social",          "social.info",         "control",                  "sms.control",
   "bracelet",                 "social.info",         "control",                  "sms.control",
   
   "ink",                      "social.info",         "ink",                      "sms.control",
   "calendar",                 "social.info",         "calendar",                 "sms.control",
+  "bracelet social",          "social.info",         "bracelet social",          "sms.control",
   "bracelet",                 "social.info",         "bracelet",                 "sms.control",
 
   "ink",                      "social.info",         "control",                  "social.info",
   "calendar",                 "social.info",         "control",                  "social.info",
+  "bracelet social",          "social.info",         "control",                  "social.info",
   "bracelet",                 "social.info",         "control",                  "social.info"
 )
 
@@ -1172,9 +1179,11 @@ dyn_fast_sim_ate_pairs <- tribble(
   "control",                  "reminder.only",       "control",                  "sms.control",
   "control",                  "social.info",         "control",                  "sms.control",
   "ink",                      "sms.control",         "control",                  "sms.control",
+  "bracelet social",          "sms.control",         "control",                  "sms.control",
   "bracelet",                 "sms.control",         "control",                  "sms.control",
   "ink",                      "social.info",         "control",                  "sms.control",
   "calendar",                 "social.info",         "control",                  "sms.control",
+  "bracelet social",          "social.info",         "control",                  "sms.control",
   "bracelet",                 "social.info",         "control",                  "sms.control"
 ) 
   # expand(nesting_(names(.)), dyn_treat_days = 0:11)
@@ -1263,6 +1272,7 @@ In the first two plots we look at how observation of signals over time might hav
 ```{r, fig.width=12, fig.height=8}
 fast_sim_mean %>%
   filter(deworming_day <= 12, 
+         # incentive_treatment %in% c("control", "ink", "bracelet social", "bracelet"),
          incentive_treatment %in% c("control", "ink", "bracelet"),
          sms.treatment.2 == "sms.control",
          dyn_treat_days %in% c(0, 11)) %>% 
@@ -1285,12 +1295,37 @@ fast_sim_mean %>%
   theme(legend.position = "bottom")
 ```
 
+The below plot shows the evolution of the exponential function of the quadratic dynamic component of the model (a value of one means no change).  
+
+```{r, fig.width=12, fig.height=8}
+fast_sim_mean %>%
+  filter(deworming_day <= 12, 
+         incentive_treatment %in% c("ink", "bracelet"),
+         sms.treatment.2 == "sms.control",
+         dyn_treat_days %in% c(0, 11)) %>% 
+  mutate(obs_type = ifelse(incentive_treatment == "control", 0, dyn_treat_days) %>% 
+           factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
+  filter(obs_type == "full_obs") %>% 
+  ggplot(aes(x = deworming_day)) +
+  geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = exp(log_kappa_dyn_treat), 
+                group = str_c(dyn_treat_days, incentive_treatment), 
+                color = fct_relabel(incentive_treatment, str_to_title))) +
+  scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
+  scale_color_discrete("Incentive/Signal Treatment") +
+  facet_grid(phone_owner ~ dist.pot.group, labeller = label_both, scales = "free_y") +
+  labs(title = expression(paste("Daily Change in Dynamic Component of ", kappa, " Function")),
+       y = expression(paste("Posterior Mean of Dynamic ", kappa))) +
+  theme(legend.position = "bottom")
+```
+
+
 In the below plot we look at the difference in the probablity (in comparison to the control arm with no SMS treatment) in response to signal observation.
 
 ```{r, fig.width=12, fig.height=8}
 dyn_fast_sim_ate %>%
   filter(deworming_day <= 12,
-         incentive_treatment_left %in% c("control", "ink", "bracelet"), 
+         incentive_treatment_left %in% c("control", "ink", "bracelet social", "bracelet"), 
          sms.treatment.2_left == "sms.control",
          dyn_treat_days_left %in% c(0, 11)) %>% 
   mutate(obs_type = ifelse(incentive_treatment_left == "control", 0, dyn_treat_days_left) %>% 
@@ -1318,7 +1353,9 @@ fast_sim_mean %>%
   filter(deworming_day <= 12, 
          phone_owner,
          dyn_treat_days %in% c(0, 11)) %>% 
-  mutate(obs_type = ifelse(incentive_treatment == "control", 0, dyn_treat_days) %>% 
+  mutate(obs_type = case_when(incentive_treatment == "control" & sms.treatment.2 == "sms.control" ~ 0, 
+                              incentive_treatment == "calendar" & sms.treatment.2 == "sms.control" ~ 0,
+                              TRUE ~ dyn_treat_days) %>% 
            factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
   ggplot(aes(x = deworming_day)) +
   geom_line(aes(y = prob_deworm, group = str_c(dyn_treat_days, sms.treatment.2), linetype = obs_type, color = sms.treatment.2)) +
@@ -1336,13 +1373,39 @@ fast_sim_mean %>%
   theme(legend.position = "bottom")
 ```
 
+The below plot shows the evolution of the exponential function of the quadratic dynamic component of the model (a value of one means no change).  
+
+```{r, fig.width=12, fig.height=8}
+fast_sim_mean %>%
+  filter(deworming_day <= 12, 
+         phone_owner,
+         dyn_treat_days %in% c(0, 11)) %>% 
+  mutate(obs_type = case_when(incentive_treatment == "control" & sms.treatment.2 == "sms.control" ~ 0, 
+                              incentive_treatment == "calendar" & sms.treatment.2 == "sms.control" ~ 0,
+                              TRUE ~ dyn_treat_days) %>% 
+           factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
+  filter(obs_type == "full_obs") %>% 
+  ggplot(aes(x = deworming_day)) +
+  geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = exp(log_kappa_dyn_treat), 
+                group = str_c(dyn_treat_days, sms.treatment.2), 
+                color = sms.treatment.2)) +
+  scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  facet_grid(incentive_treatment ~ dist.pot.group, scales = "free_y") +
+  labs(title = "Daily Probability of Deworming Take-up with Varying Days of SMS Treatment", y = "Posterior Probability of Deworming") +
+  theme(legend.position = "bottom")
+```
+
 ```{r, fig.width=12, fig.height=8}
 dyn_fast_sim_ate %>%
   filter(deworming_day <= 12,
          phone_owner,
-         sms.treatment.2_left != "sms.control" | incentive_treatment_left %in% c("ink", "bracelet"),
+         sms.treatment.2_left != "sms.control" | incentive_treatment_left %in% c("ink", "bracelet social", "bracelet"),
          dyn_treat_days_left %in% c(0, 11)) %>% 
-  mutate(obs_type = ifelse(incentive_treatment_left %in% c("control", "calendar") & sms.treatment.2_left == "sms.control", 0, dyn_treat_days_left) %>% 
+  mutate(obs_type = case_when(incentive_treatment_left == "control" & sms.treatment.2_left == "sms.control" ~ 0, 
+                              incentive_treatment_left == "calendar" & sms.treatment.2_left == "sms.control" ~ 0,
+                              TRUE ~ dyn_treat_days_left) %>% 
            factor(levels = c(0, 11), labels = c("no_obs", "full_obs"))) %>% 
   ggplot(aes(x = deworming_day)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = alpha("black", 0.5)) +
@@ -1353,6 +1416,7 @@ dyn_fast_sim_ate %>%
                 spread(obs_type, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   facet_grid(dist.pot.group ~ incentive_treatment_left, scales = "free_y") +
   labs(title = "Daily Treatment Effect with Varying Days of SMS Treatment", 
        subtitle = "with the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
