@@ -1230,39 +1230,6 @@ dyn_fast_sim_ate <- dyn_fast_sim_ate_pairs %>%
   ungroup()
 ```
 
-##### Overall Take-up
-
-```{r, fig.width=10, fig.height=8}
-fast_sim_mean %>% 
-  filter(deworming_day == 13, 
-         dyn_treat_days == 11) %>% 
-  ggplot(aes(fct_relabel(incentive_treatment, str_to_title), prob_deworm, color = sms.treatment.2)) +
-  geom_pointrange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), position = position_dodge(width = 0.5)) +
-  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
-  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  coord_flip() +
-  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
-  labs(title = "Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
-  theme(legend.position = "bottom")
-```
-
-```{r, fig.width=10, fig.height=8}
-fast_sim_ate %>% 
-  mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
-                       "control-sms.control", 
-                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info"))) %>% 
-  ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
-  geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), position = position_dodge(width = 0.4)) +
-  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
-  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  scale_shape_discrete("Reference", labels = c("Control, No SMS", "Control, Social Info", "Same Arm, Social Info")) +
-  coord_flip() +
-  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
-  labs(title = "Treatment Effect on Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Difference in Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
-  theme(legend.position = "bottom")
-```
-
 ##### Daily Take-up
 
 In the below plots we look at how the daily probability of take-up responds to shutting down the dynamic component of the duration analysis model in the hope of being able to shut down learning.  
@@ -1296,6 +1263,13 @@ fast_sim_mean %>%
 ```
 
 The below plot shows the evolution of the exponential function of the quadratic dynamic component of the model (a value of one means no change).  
+
+Recall that our model of take-up can roughly be presented as
+
+$$
+\Pr[Y_{im}(t) = 1|\theta] = 1 - \exp\left[-\kappa^\text{static effect}(t)\cdot\kappa^\text{dynamic effect}(t)\cdot\lambda_m\right]
+$$
+so we can "shutdown" learning/observation by forcing $\kappa^\text{dynamic effect} = 1$. 
 
 ```{r, fig.width=12, fig.height=8}
 fast_sim_mean %>%
@@ -1421,6 +1395,70 @@ dyn_fast_sim_ate %>%
   labs(title = "Daily Treatment Effect with Varying Days of SMS Treatment", 
        subtitle = "with the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
   theme(legend.position = "bottom") 
+```
+
+##### Overall Take-up
+
+```{r, fig.width=12, fig.height=8}
+fast_sim_mean %>% 
+  filter(deworming_day == 13, 
+         dyn_treat_days == 11) %>% 
+  ggplot(aes(fct_relabel(incentive_treatment, str_to_title), prob_deworm, color = sms.treatment.2)) +
+  geom_pointrange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
+  labs(title = "Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.width=12, fig.height=8}
+# no_obs_ate <- dyn_fast_sim_ate %>% 
+#   filter(deworming_day == 13, dyn_treat_days_left == 0)
+
+fast_sim_ate %>%
+  # bind_rows(observe = ., no_observe = no_obs_ate, .id = "obs_type") %>% 
+  mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
+                       "control-sms.control", 
+                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info"))) %>% 
+  ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
+  # ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref, linetype = obs_type)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), position = position_dodge(width = 0.4)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  scale_shape_discrete("Reference", labels = c("Control, No SMS", "Control, Social Info", "Same Arm, Social Info")) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
+  labs(title = "Treatment Effect on Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Difference in Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.width=12, fig.height=10, warning=FALSE}
+bind_rows(observe = fast_sim_ate %>% filter(incentive_treatment_right == "control", sms.treatment.2_right == "sms.control"),
+          no_observe = dyn_fast_sim_ate %>% 
+            filter(deworming_day == 13, 
+                   dyn_treat_days_left == 0, 
+                   incentive_treatment_left %in% c("ink", "bracelet") | sms.treatment.2_left != "sms.control"),
+          .id = "obs_type") %>% 
+  mutate(obs_type = fct_relevel(obs_type, "no_observe", "observe")) %>% 
+  ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, linetype = obs_type)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), 
+                  position = position_dodge(width = 0.6)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA, 
+                  data = . %>% filter(obs_type == "observe")) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  scale_linetype_manual("", values = c("dashed", "solid")) + #, labels = c("No Observation", "Normal Observation")) +
+  # scale_shape_discrete("Reference", labels = c("Control, No SMS", "Control, Social Info", "Same Arm, Social Info")) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", labeller = label_both, ncol = 1, strip.position = "right") +
+  labs(title = "Comparing Treatment Effects With and Without Observation", 
+       x = "Incentive/Signal Treatment", 
+       y = "Posterior Difference in Probability of Deworming", 
+       caption = "Points show the mean while line ranges show the 90% probability interval.\nDashed lines show treatment effects with no observation.") +
+  theme(legend.position = "bottom")
 ```
 
 # Random Stuff
