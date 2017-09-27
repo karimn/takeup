@@ -382,7 +382,7 @@ multi.know.bel.cat.plot <- function(question.info,
   stopifnot(is.data.frame(question.info))
   
   list(Census = .census.data, 
-       Baseline = .baseline.data %>% { if (!empty(.)) mutate(., KEY.individ = KEY) else return(.) }, 
+       Baseline = .baseline.data %>% { if (!plyr::empty(.)) mutate(., KEY.individ = KEY) else return(.) }, 
        Endline = .endline.data) %>% 
     compact %>% 
     map_df(~ select_(.x, .dots = c(intersect(names(.x), question.info$col.name), "KEY.individ")), .id = "survey.type") %>% 
@@ -717,7 +717,7 @@ print.reg.table <- function(.reg.table.data,
  
   cat(cmidrules)
   
-  d_ply(all.pt.est, .(term), function(term.rows) {
+  plyr::d_ply(all.pt.est, .(term), function(term.rows) {
     term.rows %>% 
       select(ref.pt, estimate, p.value) %>% 
       pmap(function(ref.pt, estimate, p.value) {
@@ -793,7 +793,7 @@ print.reg.table <- function(.reg.table.data,
   linear.tests <- .reg.table.data %>%
     select(spec, num.col, joint.tests.res) %>%
     unnest(joint.tests.res) %>%
-    d_ply(.(joint.test.type), 
+    plyr::d_ply(.(joint.test.type), 
           . %$% 
             str_c(first(joint.test.type), 
                   str_c(map2(p.value, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)), collapse = " "),
@@ -853,14 +853,14 @@ print.sms.interact.table <- function(.reg.table.data,
     cat
  
   all.pt.est %>% 
-    d_ply(.(linear.test), function(test.df) {
+    plyr::d_ply(.(linear.test), function(test.df) {
       sprintf("%s %s \\\\\n", 
               test.df$linear.test[1], 
-              alply(test.df, 1, . %$% sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))) %>% 
+              plyr::alply(test.df, 1, . %$% sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))) %>% 
                 str_c(collapse = " "), collapse = " ") %>% 
         cat
       
-      alply(test.df, 1, . %$% sprintf("& (%.4f)", std.error)) %>% 
+      plyr::alply(test.df, 1, . %$% sprintf("& (%.4f)", std.error)) %>% 
         c(rep("\\\\\n", 1 + 1*(estimate.buffer))) %>% 
         str_c(collapse = " ") %>% 
         cat
@@ -1437,7 +1437,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
   
   calculate_days_treated_matrix <- function(log_kappa) {
     upper <- matrix(log_kappa, nrow = length(log_kappa), ncol = num_days_treated) * upper_mask_mat
-    lower <- (t(aaply(matrix(rep(log_kappa, num_days_treated), nrow = length(log_kappa)/num_days_treated, ncol = num_days_treated, byrow = TRUE), 
+    lower <- (t(plyr::aaply(matrix(rep(log_kappa, num_days_treated), nrow = length(log_kappa)/num_days_treated, ncol = num_days_treated, byrow = TRUE), 
                       2, rep, each = num_days_treated, .drop = FALSE)) * lower_mask_mat) 
     
     return(upper + lower)
