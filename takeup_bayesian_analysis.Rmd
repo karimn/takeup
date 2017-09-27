@@ -25,7 +25,7 @@ date: "`r format(Sys.time(), '%B %d, %Y')`"
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r setup, include=FALSE}
+```{r bayes-setup, include=FALSE}
 library(magrittr)
 library(purrr)
 library(plyr)
@@ -51,18 +51,24 @@ library(econometr)
 source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
+knitr::read_chunk("analysis_util.R", labels = "analysis-util")
+
+options(dplyr.show_progress = FALSE, digits = 4) #, mc.cores = max(1, parallel::detectCores()))
+```
+
+```{r parallel-setup}
 cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1))
 # doMC::registerDoMC(max(1, parallel::detectCores() - 1))
 # doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
+```
 
-knitr::read_chunk("analysis_util.R", labels = "analysis-util")
-
-options(dplyr.show_progress = FALSE, digits = 4) #, mc.cores = max(1, parallel::detectCores()))
+```{r rstan-setup}
+options(mc.cores = max(1, parallel::detectCores()))
 rstan_options(auto_write = TRUE)
 ```
 
-```{r load-data, include=FALSE}
+```{r load-bayes-data, include=FALSE}
 load(file.path("data", "analysis.RData"))
 ```
 
@@ -1267,9 +1273,9 @@ The below plot shows the evolution of the exponential function of the quadratic 
 Recall that our model of take-up can roughly be presented as
 
 $$
-\Pr[Y_{im}(t) = 1|\theta] = 1 - \exp\left[-\kappa^\text{static effect}(t)\cdot\kappa^\text{dynamic effect}(t)\cdot\lambda_m\right]
+\Pr[Y_{im}(t) = 1| Y_{i,m-1} = 0, \theta] = 1 - \exp\left[-\kappa^\text{static effect}(t)\cdot\kappa^\text{dynamic effect}(t)\cdot\lambda_m\right]
 $$
-so we can "shutdown" learning/observation by forcing $\kappa^\text{dynamic effect} = 1$. 
+so we can "shutdown" learning/observation by forcing $\kappa^\text{dynamic effect}(t) = 1$. 
 
 ```{r, fig.width=12, fig.height=8}
 fast_sim_mean %>%
