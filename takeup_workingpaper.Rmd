@@ -60,6 +60,7 @@ options(dplyr.show_progress = FALSE, digits = 4)
 opts_chunk$set(echo = FALSE, warning = FALSE, 
                cache = TRUE, cache.path = "takeup_workingpaper-cache/", 
                fig.path = "takeup_workingpaper-fig/", fig.align = "center")
+
 ```
 
 ```{r proj4}
@@ -87,7 +88,7 @@ load(file.path("data", "analysis.RData"))
 
 # Introduction
 
-<!-- This research has broader relevance than just deworming. We should move reference to deworming a few paragraphs down. -->
+<!-- TODO This research has broader relevance than just deworming. We should move reference to deworming a few paragraphs down. -->
 
 Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of soil transmitted helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs [@Anderson2012]. Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
 
@@ -98,6 +99,8 @@ Different to previous MDA, this study is focused on deworming treatment at a cen
 In this study we focus the program's message on social returns, emphasizing the benefit of taking treatment to reduce reinfection of community members, especially school-aged children. The community deworming program could therefore be viewed as a voluntary collective action game, where an individual's treatment compliance decision can be modeled as the decision to contribute to a pool shared by all community members. One approach to increase contribution in such a setting is to allow for signaling, thus introducing social approval/disapproval as a reward/punishment [@Benabou2006; -@Benabou2012a]. Our aim is to test how social signaling can be leveraged to increase demand for deworming treatment among adults, by introducing two signals in the form of colorful ink (similar to that used for voting) and bracelets. Both allow individuals to show to others that they have taken deworming treatment. 
 
 To test the effectiveness of social signals and to investigate the behavioral and social mechanisms driving their influence on deworming take-up, we conducted a cluster randomized trial in western Kenya, stratified over three counties. Our main experimental manipulation was the provision of private incentives (simple wall calendars) and social incentives/signals (voting ink or bracelets).  In addition, we manipulated the distance community members would have to travel to receive deworming treatment; and provided reminders or social information (on peer deworming take-up) using text messaging, randomly assigned to a subset of individuals in each community.
+
+<!-- TODO update results in intro with new Bayesian model results -->
 
 ```{r, ref.label="basic-reg-covar"}
 ```
@@ -171,8 +174,8 @@ The remainder of the report is organized as follows: In section \ref{the-interve
 
 Working with the Government of Kenya we offered free deworming treatment to adults at central locations in 3 counties in Western Kenya: Busia, Kakamega and Siaya County. Central locations were selected to be easily locatable by targeted community members by being in close proximity of a primary school and either located in their own villages or in neighboring villages.^[We initially selected treatment locations to be adjacent to primary schools because of their prominence and ubiquity. However, the Ministry of Education did not permit us to operate in such close proximity to schools to prevent cheating in exams. We therefore used alternative locations (such as churches) that were not too far from the originally selected schools.] Community Health Volunteers (CHVs) led the implementation of the community deworming program and provided the treatment at central locations and informed households about the upcoming deworming treatment.^[CHVs were trained in drug administration by their supervising Community Health Extension Workers (CHEWs), who also handled the distribution and recovery of deworming drugs. The research team worked closely with national and local health officials but was not involved in the medical aspects of deworming.] One week prior to the start of the deworming treatment CHVs conducted a door-to-door sensitization, informing households about the community-wide benefits of deworming and risk of infection through others, when and where free treatment will be available and if applicable what type of incentive will be given to adults coming for treatment. CHVs further worked with community stakeholders to spread the information through established channels (e.g. community meetings/barazas) and placed posters in prominent locations. 
 
-<!-- (ADD CHV script in Appendix) -->
-<!-- (ADD Poster Example in Appendix) -->
+<!-- TODO Add CHV script in Appendix -->
+<!-- TODO Add Poster Example in Appendix -->
 
 Deworming treatment was subsequently offered at central locations, from 8am to 5pm, for a period of 12 days. For logistical reasons, we split the intervention into two waves: from October 3 to 14 we offered deworming treatment to communities in Busia and Siaya County, and from October 24 to November 4 we offered treatment in Kakamega County. Depending on the treatment location a community was assigned to, adults who came for deworming were dewormed or were dewormed and also the first deworming wave was from October 3 to 14 in Busia and Siaya County, and the second wave was from October 24 to November 4 in Kakamega County. Depending on the a cluster's assigned treatment, individuals who came for deworming were either only dewormed or were dewormed and either 
 
@@ -192,16 +195,17 @@ We randomly selected 158 clusters in the three study counties, of which 144 were
 
 To select our clusters from the pool of a total of 1,451 primary schools in our study area, we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius _catchment circle_ and 3-4 kilometer radius _buffer circle_. A cluster was considered acceptable if its _buffer circle_ did not leave any of the already selected clusters' non-overlapping _catchment circles_ smaller than an a pre-specified size.
 
-<!-- ^[Buffer sizes were randomly assigned -  EXPLAIN MORE?]  -->
-<!-- ^[EXPLAIN OR DELETE: with about one primary school nonoverlapped. ALSO ADD pre-specified size = X] -->
+<!-- TODO ^[Buffer sizes were randomly assigned -  EXPLAIN MORE?]  -->
+<!-- TODO ^[EXPLAIN OR DELETE: with about one primary school nonoverlapped. ALSO ADD pre-specified size = X] -->
 
 ```{r all-clusters-map, message=FALSE, fig.width=6, fig.height=6, fig.cap="Map of Initial Cluster Selection. Black crosses (+) indicate the selected treatment locations, while the grey regions indicate the nonoverlapped catchment circles from which we selected village(s) to target."}
 ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner") 
 ```
 
 After all clusters were selected, we randomly assigned^[Randomization was stratified within counties to increase statistical power.] each cluster to be either a "close" or "far" cluster: whether its targeted community would be less or more than 1.25 kilometers away from the the treatment location, respectively. We then selected for each cluster, from its non-overlapping _catchment circle_ and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted community^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan [@Karing2016].]. Figure \ref{fig:dist-to-pot} shows the distribution of targeted communities' distances (in meters) to their own treatment locations and to the closest other treatment locations.
-<!--I struggle to interpret: first graph shows almost zero overlap, second graph shows that for 25% of communities closest other treatment loc was 2.5km or less away. DELETED 2nd graph (for now). -->
-<!-- Add further detail about what learn from graph e.g. (?) cluster selection algorithm was successful in that for almost all clusters own treatment location was closer than closest other treatment location -->
+
+<!-- TODO I struggle to interpret: first graph shows almost zero overlap, second graph shows that for 25% of communities closest other treatment loc was 2.5km or less away. DELETED 2nd graph (for now). -->
+<!-- TODO Add further detail about what learn from graph e.g. (?) cluster selection algorithm was successful in that for almost all clusters own treatment location was closer than closest other treatment location -->
 
 ```{r dist-to-pot, echo=FALSE, fig.width=6, fig.height=3, fig.cap="Distance to Treatment Locations"}
 verify.vill.pot.dist %>% 
@@ -249,14 +253,16 @@ To finalize the cluster selection process, we surveyed the treatment location an
 
 Using the census lists we randomly sampled individuals to be surveyed at base- and/or endline and to be part of the text messaging intervention. The sampling of individuals who did not receive any text messages was stratified over phone ownership. For all sampled individuals, we monitored the decision to take-up deworming treatment and obtained their consent to having observed their take-up status and using their data.^[Except for individuals who were surveyed at baseline, the majority were not informed about their participation in the study and therefore needed to be re-consented.] 
 
-<!-- Strange bit since we state above that all individuals who came for treatment, were asked about their name, age, gender and community. So saying "All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment." does not quite make sense and makes it sound like as if we did not monitor other people's treatment status which we did though.-->
+<!-- TODO Strange bit since we state above that all individuals who came for treatment, were asked about their name, age, gender and community. So saying "All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment." does not quite make sense and makes it sound like as if we did not monitor other people's treatment status which we did though.-->
+
+<!-- TODO Add experiment design and survey timeline diagram -->
 
 ### Baseline survey {-}
 
-<!-- should later replace intended number of people surveyed with actual avrg. number of adults surveyed-->
+<!-- TODO should later replace intended number of people surveyed with actual avrg. number of adults surveyed-->
 
 Before implementing the information campaign, we aimed to conduct baseline surveys with 15 individuals from unique households in each cluster^[The actual number of individuals that were located varied for all the samples.]. 
-<!-- ADD WHY WE DID THIS?-->
+<!-- TODO ADD WHY WE DID THIS?-->
 The baseline survey included questions on:
 
 a) Demographics, such as ethnicity, religion, language, age, phone ownership, education, and what material the floors in their homes are made of.
@@ -292,7 +298,7 @@ d) Questions testing knowledge of others' deworming choices:
     i. Respondents were incentivized to estimate how many of their community members got dewormed.
     ii. Respondents were explicitly asked about their relationship with and their knowledge of deworming status of ten other individuals or pairs of individuals in their community^[We randomly asked respondents about individuals or pairs of individuals, with the objective to reduce potential aversion to disclosing negative information about peers.].
     
-<!--Note according to IRB WTP was part of endline survey, just a different survey part. I think we should treat it that way. -->
+<!-- TODO Note according to IRB WTP was part of endline survey, just a different survey part. I think we should treat it that way. -->
 
 As part of the endline survey, we implemented a discrete choice experiment to elicit individuals' private valuation for the calendar and bracelet incentives. We conducted a willingness-to-pay survey with a sample of subjects in the control arm who were neither part of the endline survey nor were they part of the text messaging treatment. We randomly selected 24 control communities and sampled 25 individuals from each. Respondents were given the choice to receive either the calendar or the bracelet for free, revealing their preferred choice. We then offered a random cash amount for respondents to switch to the incentive that they had not chosen, which allows us to estimate the utility difference in monetary terms. 
 
@@ -572,7 +578,7 @@ plot(reported.gift.pref.dewormed.plot)
 
 As described in the [Experiment Design](#experiment-design) section, communities were randomly assigned to be either located _close_ or _far_ from the treatment locations. The distance assignment is key for us to estimate individuals' response to changes in treatment (travel) cost and quantify the utility from social signaling. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances to points of treatments were distributed as shown in Figure \ref{fig:actual-distance}. While there does appear to be some slight overlap between _close_ and _far_ clusters (i.e. non-compliance with assigned treatment), this does not affect the intention-to-treat analysis carried out in this report.
 
-```{r, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
+```{r act-dist, fig.width=8, fig.cap="Distribution of actual distance from targeted villages and their assigned treatment location."}
 analysis.data %>%  
   mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
   ggplot(aes(dist.to.pot)) +
@@ -588,10 +594,9 @@ analysis.data %>%
   facet_wrap(~ assigned.treatment)
 ```
 
-<!--  -->
 
 We can see in Table \ref{tab:mean-assigned-dist} that individuals from _far_ communities had to travel more than twice the distance to treatment locations compared to individuals from _close_ communities. 
-<!-- Elaborate on point that "treatment cost" assignment was successful. Sadly, though least difference for bracelets... -->
+<!-- TODO Elaborate on point that "treatment cost" assignment was successful. Sadly, though least difference for bracelets... -->
 
 ```{r mean-assigned-dist, warning=FALSE}
 analysis.data %>%  
@@ -632,7 +637,8 @@ takeup.data %>%
   plot.aggreg.takeup 
 ```
 
-# Analysis
+
+# Statistical Models
 
 ### Model subscripts {-}
 
@@ -671,22 +677,243 @@ Let
 
 \begin{align*}
   V_i \equiv V^c_i - V^b_i &\sim \mathtt{StudentT}(\nu_v, \mu_{j[i]}, \sigma) \\
-  \mu_j &\sim \mathtt{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
+  \mu_k &\sim \mathtt{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
   \mu &\sim \mathtt{StudentT}(\nu_\mu, 0, \tau_\mu) \\
-  \sigma &\sim \mathtt{StudentT}[0, \infty](\nu_\sigma, 0, \tau_\sigma)
+  \sigma &\sim \mathtt{StudentT}[0, \infty)(\nu_\sigma, 0, \tau_\sigma)
 \end{align*}
 
 with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
 
+<!-- TODO Specify fixed hyperparameter values -->
+
 We estimate these model parameters using the likelihood probability:
 
 \begin{equation*}
-\mathcal{L}_i = \left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{j[i]}, \sigma) - F_V(0|\mu, \mu_{j[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{j[i]}, \sigma)\right\}^{(1 - W_i)} 
+\mathcal{L}_i = \left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{k[i]}, \sigma) - F_V(0|\mu, \mu_{k[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{k[i]}, \sigma)\right\}^{(1 - W_i)} 
 \end{equation*}
 
 ## Static Model
 
+We model the probability of take-up as
+\[ \Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i] \]
+
+and the latent utility is modeled as
+
+\begin{align*}
+Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
+U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
+               &= \sum_{w\in\widetilde{Z}^p} Z^p_w(z^p)\times\beta^p_{wh} \\
+            {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{wh1} + Z^r_w(z^r)\times d \times \beta^r_{wh2} + Z^r_w(z^r)\times b \times \beta^r_{wh3}\right\} \\
+            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{wh1} + S_w(s)\times d \times \beta^s_{wh2} + S_w(S)\times b \times \beta^s_{wh3}\right\} \\
+            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uwh1} + S_w(s)\times d \times \beta^{rs}_{uwh2} + S_w(s)\times b \times \beta^{rs}_{uwh3}\right\} \\
+            {} &+ \beta_h + \beta^d_h + \beta^b_h 
+\end{align*}
+where for convenience we define the following indicator functions:
+
+* $Z^p_w(z^p) \equiv \mathbbm{1}(z^p = w)$ 
+* $Z^r_w(z^r) \equiv \mathbbm{1}(z^r = w)$ 
+* $S_w(s) \equiv \mathbbm{1}(s = w)$
+
+We conducted our analysis using the following priors on the model's parameters and hyperparmeters:
+
+\begin{align*}
+\alpha_0 &\sim \mathtt{Uniform}(0, 1) \\
+\alpha^{clust}_j &\sim \mathtt{StudentT}(\nu^{coef}, 0, \tau^{clust}) \\
+\alpha^{strat}_k &\sim \mathtt{StudentT}(\nu^{coef}, 0, \tau^{strat}) \\
+\delta &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\beta &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\beta_k &\sim \mathtt{StudentT}\left(\nu^{coef}, \beta, \begin{pmatrix} \tau_1 & 0             & \cdots & 0  \\
+                                                     0             & \tau_2 & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        &  \end{pmatrix}\right) \\\\
+\tau^{clust} &\sim \mathtt{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\ 
+\tau^{strat} &\sim \mathtt{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\
+\tau &\sim \mathtt{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) 
+\end{align*}
+
+With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
+<!-- TODO Specify values for fixed hyper parameters -->
+
+We carried out our estimation using a logit model using the above parameteric latent function.
+
 ## Dynamic Model
+
+In this model we introduce time-invariant and time varying treatments. The former is the same as in the static model, while the later allows us to model changes in take-up over time, compared to the baseline probability of take-up (no variation). We thus capture any accumulated effect of the deworming intervention in the presence of observable social signals and/or a flow of SMS reminders. This allows us to model the effect of social learning and salience on take-up. 
+
+The time-varying treatments we introduced are modeled as a quadratic function of 
+
+* the number of days observing an ink or bracelet signal
+* the number of reminders
+* the number of social information messages
+
+and we add two more possible random treatments
+
+* $Z^{dyn}_j \in \{\text{control, ink, bracelet}\}$, the observable social signals.
+* $S^{dyn}_i \in \{\text{control, reminders-only, social-info}\}$, the SMS treatment received.
+
+In this model, the outcome variables studies are
+
+* $Y_{im}(t, m) \in \{0, 1\}$, an indicator of deworming on day $m \in \{0, 1, \ldots, 13\}$, in response to time-invariant and time-varying treatments. We define $Y_{i0}(t, m) = 0, \forall i, t, m$, and we use $Y_{i,13} = 1$ to indicate failure to deworm during the 12 day deworming intervention.
+* $M_i \in \{1, \ldots, 13\}$ is the day an individual got dewormed. As above, we reserved day 13 for those who did not get dewormed at all ($Y_i = 0$).
+
+We conducted our duration analysis using a piecewise-constant proportional hazard model [@Wooldridge2010].
+
+\begin{align*}
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 0, H_i = h] &= 1 - \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m})  \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 0, H_i = h] &= \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) \\
+\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 1, H_i = h] &= 1 \\
+\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 1, H_i = h] &= 0 \\\\
+\alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) &= \exp[-\kappa^{static}(t, h;\beta_{j[i]})\cdot\kappa^{dyn}(t, m, h;\gamma_{j[i]})\cdot\lambda_{j[i],m}] \\
+\kappa^{static}(t,h;\beta) &= \exp\left[U(t,h;\beta)\right] \\
+\kappa^{dyn}(t,m,h;\gamma) &= \exp\left[M(t,m,h;\gamma)\right] \\
+\lambda_{jm} &= v_j v_{k[j]} \lambda_m
+\end{align*}
+
+where $U(t,h;\beta)$ is the same as in the basic model. The dynamic component of the model is defined as
+\begin{align*}
+M(t, m, h; \gamma) &= M(z^{dyn}, s^{dyn}, d, s, b, m, h; \gamma) \\
+                   &= \sum_{q = 1}^2\left\{\sum_{w\in\widetilde{Z}^r} (m - 1)^q\times Z^r_w(z^{dyn})\times\gamma^r_{qwh} + \sum_{w\in\widetilde{S}} \lfloor (m - 1)/2 \rfloor^q\times S_w(s^{dyn})\times\gamma^s_{qwh}\right\} 
+\end{align*}
+
+In addition to the priors defined in the static model above, we define the following priors on the dynamic model's parameters and hyperparameters
+\begin{align*}
+-\exp(\lambda_m) &\sim \mathtt{Uniform}[0, 1] \\
+v^{clust}_j &\sim \mathtt{Gamma}(\delta^{clust}, \delta^{clust}) \\
+v^{strat}_k &\sim \mathtt{Gamma}(\delta^{strat}, \delta^{strat}) \\
+\gamma &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
+                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+\gamma_k &\sim \mathtt{StudentT}\left(\nu^{coef}, \gamma, \begin{pmatrix} \tau^{dyn}_{1} & 0             & \cdots & 0  \\
+                                                     0             & \tau^{dyn}_2 & \cdots & 0 \\ 
+                                                     \vdots        &               & \ddots &   \\
+                                                     0            &               &        &  \end{pmatrix}\right) \\
+\delta^{clust} &\sim \mathtt{StudentT}[0, \infty)(\nu^{scale}, 0, \tau^{scale}) \\
+\delta^{strat} &\sim \mathtt{StudentT}[0, \infty)(\nu^{scale}, 0, \tau^{scale}) 
+\end{align*}
+
+To estimate this model we use the likelihood probability:
+
+\[ \mathcal{L}_i = \prod_{m = 1}^{M_i - 1} \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) \cdot (1 - \alpha_{M_i}(t, M_i, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m})^{Y_i} \]
+
+# Results
+
+## Willingness-to-Pay
+
+```{r, ref.label="wtp-stan-data"}
+```
+
+```{r, ref.label="load-wtp-fit"}
+```
+
+```{r, ref.label="prepare-wtp-sim-data"}
+```
+
+Table \ref{tab:wtp} shows the summary of the posterior distribution of the willingness-to-pay model. As shown, the posterior probability of preferring calendar to bracelets quite high with an average of 42-53 Ksh difference in valuation. 
+
+```{r wtp-table, results="asis"}
+wtp_model_0_fit %>% 
+  summary(par = c("hyper_mu_wtp_diff", "sigma_wtp_diff", "mu_wtp_diff", "hyper_prob_prefer_calendar", "prob_prefer_calendar"), 
+          probs = c(0.025, 0.05, 0.5, 0.95, 0.975)) %$% 
+  summary %>% 
+  xtable::xtable(caption = "Posterior Estimates for Willing-to-Pay Parameters\\label{tab:wtp}",
+                 align = "lrrrrrrrrrr") %>% 
+  print(sanitize.colnames.function = . %>% 
+          str_replace_all(c("se\\_mean" = "$SE_{Mean}$",
+                            "mean" = "Mean",
+                            "sd" = "SD",
+                            "%" = "\\\\%",
+                            "n_eff" = "$N_{eff}$",
+                            "Rhat" = "$\\\\hat{R}$")),
+        sanitize.rownames.function = . %>% 
+          str_replace_all(c("hyper_mu_wtp_diff" = "$\\\\mu$",
+                            "sigma_wtp_diff" = "$\\\\sigma$",
+                            "mu_wtp_diff\\[(\\d)\\]" = "$\\\\mu_\\1$",
+                            "hyper_prob_prefer_calendar" = "$\\\\Pr[V^c_i > V^b_i]$",
+                            "prob_prefer_calendar\\[(\\d)\\]" = "$\\\\Pr[V^c_i > V^b_i|k = \\1]$")),
+        booktabs = TRUE,
+        comment = FALSE)
+```
+
+## Static Model
+
+```{r, ref.label="static-model-ate"}
+```
+
+```{r, ref.label="static-model-stan-data"}
+```
+
+```{r, ref.label="load-static-model-fit", include=FALSE}
+```
+
+```{r, ref.label="basic-model-1-prep-data", include=FALSE}
+```
+
+```{r, ref.label="static-model-ate-plot", fig.width=8}
+```
+
+## Dynamic Model
+
+```{r, ref.label="dyn-model-ate"}
+```
+
+```{r, ref.label="dyn-stan-data"}
+```
+
+```{r, ref.label="load-dyn-model-fit", include=FALSE}
+```
+
+```{r, ref.label="dyn-model-sim-params"}
+```
+
+```{r, ref.label="prep-fast-sim"}
+```
+
+```{r, ref.label="fast-sim-ate"}
+```
+
+```{r, ref.label="fast-sim-daily-obs-plot", fig.width=9, fig.height=7}
+```
+
+```{r, ref.label="fast-sim-daily-dyn-kappa", fig.width=8}
+```
+
+```{r, ref.label="fast-sim-daily-ate-obs-plot", fig.width=8, fig.height=7}
+```
+
+```{r, ref.label="fast-sim-daily-sms-plot", fig.width=9}
+```
+
+```{r, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=7}
+```
+
+```{r, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=7}
+```
+
+```{r, ref.label="sim-fast-take-up", fig.width=10, fig.height=7}
+```
+
+```{r, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=7}
+```
+
+```{r, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=7}
+```
+
+
+# Robustness Checks
+
+## Willingness-to-Pay
+
+<!-- TODO Clean up this plot and make it useful  -->
+
+```{r, ref.label="wtp-model-check-plot"}
+```
 
 # Conclusion
 
