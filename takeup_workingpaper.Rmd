@@ -855,10 +855,32 @@ wtp_model_0_fit %>%
 ```{r, ref.label="basic-model-1-prep-data", include=FALSE}
 ```
 
-```{r, ref.label="static-model-ate-plot", fig.width=8}
+```{r, ref.label="static-model-takeup", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the probability of deworming take-up."}
+```
+
+```{r, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)"}
 ```
 
 ## Dynamic Model
+
+In this section we report the distributions of 
+
+* the finite sample average probability of take-up
+  \begin{align*}
+    \frac{1}{N}\sum_{i=1}^N& \Pr[Y_i(t) = 1|\hat{\theta}_{j[i]}] \\
+    \frac{1}{N}\sum_{i=1}^N& \Pr[Y_{im}(t, m') = 1|\hat{\theta}_{j[i]}] 
+  \end{align*}
+* the finite sample average treatment effect on take-up
+  \begin{align*}
+    \frac{1}{N}\sum_{i=1}^N& \Pr[Y_i(t') = 1|\hat{\theta}_{j[i]}] - \Pr[Y_i(t) = 1|\hat{\theta}_{j[i]}] \\
+    \frac{1}{N}\sum_{i=1}^N& \Pr[Y_{im}(t', m'') = 1|\hat{\theta}_{j[i]}] - \Pr[Y_{im}(t, m') = 1|\hat{\theta}_{j[i]}] 
+  \end{align*}
+* the finite sample average dynamic effect of signals and SMS treatment
+  \begin{equation*}
+    \exp\left\{\frac{1}{N}\sum_{i=1}^N \log[\kappa^{dyn}(t,m,H_i;\hat{\gamma}_{j[i]})]\right\}
+  \end{equation*}
+
+In the below analysis, we isolate the social effect of bracelets by controling for its private value. We do this by assuming the private value of bracelets is equal to calendars (a conservative assumption given the greater preference for calendars shown in our willingness-to-pay analysis above): $\beta^p_{calendar,h} = \beta^p_{bracelet,h}$for all $h$ and all strata. We present both the combined social and private (consumption) effect as the treatment arm "Bracelet" and the social value only imputed treatment arm as "Bracelet Social".
 
 ```{r, ref.label="dyn-model-ate"}
 ```
@@ -878,31 +900,37 @@ wtp_model_0_fit %>%
 ```{r, ref.label="fast-sim-ate"}
 ```
 
-```{r, ref.label="fast-sim-daily-obs-plot", fig.width=9, fig.height=7}
+<!-- TODO Turn this plot (and the one below for SMS) on after fixing the name-matched/monitored issue for take-up level estimates -->
+
+```{r, ref.label="sim-fast-take-up", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups.", eval=FALSE}
 ```
 
-```{r, ref.label="fast-sim-daily-dyn-kappa", fig.width=8}
+```{r, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
 ```
 
-```{r, ref.label="fast-sim-daily-ate-obs-plot", fig.width=8, fig.height=7}
+```{r, ref.label="fast-sim-daily-obs-plot", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."}
 ```
 
-```{r, ref.label="fast-sim-daily-sms-plot", fig.width=9}
+```{r, ref.label="fast-sim-daily-dyn-kappa", fig.width=8, fig.cap="Posterior distribution of the finite sample dynamic effect of signal observation."}
 ```
 
-```{r, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=7}
+```{r, ref.label="fast-sim-daily-ate-obs-plot", fig.width=8, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
 ```
 
-```{r, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=7}
+```{r, ref.label="fast-sim-daily-sms-plot", fig.width=9, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with SMS treatment).", eval=FALSE}
 ```
 
-```{r, ref.label="sim-fast-take-up", fig.width=10, fig.height=7}
+```{r, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=7, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."}
 ```
 
-```{r, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=7}
+```{r, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."}
 ```
 
-```{r, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=7}
+```{r, ref.label="fast-sim-day-one", fig.width=8, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one."}
+```
+
+
+```{r, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=7, , fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups (comparing treatment with signal and SMS observation with imputed outcomes with no observation)."}
 ```
 
 
@@ -912,7 +940,7 @@ wtp_model_0_fit %>%
 
 <!-- TODO Clean up this plot and make it useful  -->
 
-```{r, ref.label="wtp-model-check-plot"}
+```{r, ref.label="wtp-model-check-plot", fig.cap="Comparing observed choices with those predicted by the model."}
 ```
 
 # Conclusion
