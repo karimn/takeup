@@ -1556,6 +1556,7 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                                       all_treat_dyn_id,
                                       dyn_treatment_mask_map,
                                       full_dyn_treatment_map_dm,
+                                      average_over_name_match_monitored = TRUE,
                                       days_treated = 0:11) {
   
   dyn_treatment_mask_map %<>% set_names(stringr::str_c("dyn_treatment_", names(.)))
@@ -1573,14 +1574,22 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                   full_dyn_treatment_dm = full_dyn_treatment_map_dm,
                   days_treated = days_treated,
                   treatment_summarizer = function(d) d,
-                  by_id = "subgroup_id") %>% 
+                  by_id = "subgroup_id") %>%
+      mutate(alpha = exp(log_alpha), kappa_dyn_treat = exp(log_kappa_dyn_treat)) %>% 
       dplyr::group_by(deworming_day, dyn_treat_days) %>% 
-      summarize_at(vars(prob_deworm, log_alpha, log_kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
+      summarize_at(vars(prob_deworm, alpha, kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
       ungroup()
   }
   
-  identify_treatment_id(treatments_info, treatment_map) %>% 
-    plyr::ddply(setdiff(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), "(?<!_id)$")), "name_matched"), fast_est_group_prob) 
+  treatments_to_eval <- identify_treatment_id(treatments_info, treatment_map) 
+  
+  treatment_col <- c("phone_owner", "dist.pot.group", stringr::str_subset(names(treatments_to_eval), "(?<!_id)$"))
+  
+  if (average_over_name_match_monitored) {
+    treatment_col %<>% setdiff("name_matched")
+  }
+  
+  plyr::ddply(treatments_to_eval, treatment_col, fast_est_group_prob) 
 }
 
 estimate_deworm_prob <- function(iter_cluster_parameters,

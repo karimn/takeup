@@ -1049,10 +1049,15 @@ fast_treatments <- tribble(
   "bracelet",           "bracelet" 
 ) %>% 
   mutate(signal_observed = social_value,
-         days_observed = 12,
-         hh.baseline.sample = FALSE) %>% 
+         hh.baseline.sample = FALSE,
+         # These are old columns that we're no longer using, but to avoid redundant simulation we set them to a single value
+         days_observed = 12, 
+         days_sms = 12) %>% 
   expand(nesting_(names(.)), 
-         dist.pot.group = c("close", "far"), phone_owner = c(TRUE, FALSE), name_matched = c(TRUE, FALSE), sms.treatment.2 = c("sms.control", "reminder.only", "social.info")) %>% 
+         dist.pot.group = c("close", "far"), 
+         phone_owner = c(TRUE, FALSE), 
+         name_matched = c(TRUE, FALSE), 
+         sms.treatment.2 = c("sms.control", "reminder.only", "social.info")) %>% 
   filter(sms.treatment.2 == "sms.control" | phone_owner,
          sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
   mutate(reminder_info_stock = fct_recode(sms.treatment.2, control = "sms.control"))
@@ -1090,7 +1095,8 @@ xx <- iter_cluster_parameters %>%
 xx <- iter_cluster_parameters %>% 
   filter(iter_id == 1) %>% 
   ddply(.(iter_id), fast_est_fun, .parallel = FALSE, .progress = "text", .paropts = paropts,
-                  treatments_info = fast_treatments[1, ], days_treated = c(0, 11))
+                  average_over_name_match_monitored = FALSE,
+                  treatments_info = fast_treatments %>% filter(!name_matched), days_treated = 11) 
 ```
 
 
@@ -1102,6 +1108,13 @@ save(fast_sim, file = file.path("data", "fast_sim.RData"))
 
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
                   treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = c(0, 11)) %>% 
+  bind_rows(fast_sim)
+
+save(fast_sim, file = file.path("data", "fast_sim.RData"))
+
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  average_over_name_match_monitored = FALSE,
+                  treatments_info = fast_treatments %>% filter(!name_matched), days_treated = 11) %>% 
   bind_rows(fast_sim)
 
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
