@@ -57,7 +57,13 @@ options(dplyr.show_progress = FALSE, digits = 4) #, mc.cores = max(1, parallel::
 ```
 
 ```{r parallel-setup}
-cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1))
+num_cores <- tryCatch({
+  config <- yaml::yaml.load_file("../local_config.yaml")
+  
+  return(config$cores)
+}, error = function(err) parallel::detectCores())
+
+cl <- parallel::makeCluster(max(1, num_cores))
 # doMC::registerDoMC(max(1, parallel::detectCores() - 1))
 # doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
