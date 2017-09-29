@@ -382,7 +382,7 @@ multi.know.bel.cat.plot <- function(question.info,
   stopifnot(is.data.frame(question.info))
   
   list(Census = .census.data, 
-       Baseline = .baseline.data %>% { if (!empty(.)) mutate(., KEY.individ = KEY) else return(.) }, 
+       Baseline = .baseline.data %>% { if (!plyr::empty(.)) mutate(., KEY.individ = KEY) else return(.) }, 
        Endline = .endline.data) %>% 
     compact %>% 
     map_df(~ select_(.x, .dots = c(intersect(names(.x), question.info$col.name), "KEY.individ")), .id = "survey.type") %>% 
@@ -717,7 +717,7 @@ print.reg.table <- function(.reg.table.data,
  
   cat(cmidrules)
   
-  d_ply(all.pt.est, .(term), function(term.rows) {
+  plyr::d_ply(all.pt.est, .(term), function(term.rows) {
     term.rows %>% 
       select(ref.pt, estimate, p.value) %>% 
       pmap(function(ref.pt, estimate, p.value) {
@@ -793,7 +793,7 @@ print.reg.table <- function(.reg.table.data,
   linear.tests <- .reg.table.data %>%
     select(spec, num.col, joint.tests.res) %>%
     unnest(joint.tests.res) %>%
-    d_ply(.(joint.test.type), 
+    plyr::d_ply(.(joint.test.type), 
           . %$% 
             str_c(first(joint.test.type), 
                   str_c(map2(p.value, num.col, ~ sprintf("& \\multicolumn{%d}{c}{%.4f}", .y, .x)), collapse = " "),
@@ -853,14 +853,14 @@ print.sms.interact.table <- function(.reg.table.data,
     cat
  
   all.pt.est %>% 
-    d_ply(.(linear.test), function(test.df) {
+    plyr::d_ply(.(linear.test), function(test.df) {
       sprintf("%s %s \\\\\n", 
               test.df$linear.test[1], 
-              alply(test.df, 1, . %$% sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))) %>% 
+              plyr::alply(test.df, 1, . %$% sprintf("& $%.4f^{%s}$", estimate, pval.stars(p.value))) %>% 
                 str_c(collapse = " "), collapse = " ") %>% 
         cat
       
-      alply(test.df, 1, . %$% sprintf("& (%.4f)", std.error)) %>% 
+      plyr::alply(test.df, 1, . %$% sprintf("& (%.4f)", std.error)) %>% 
         c(rep("\\\\\n", 1 + 1*(estimate.buffer))) %>% 
         str_c(collapse = " ") %>% 
         cat
@@ -1437,7 +1437,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
   
   calculate_days_treated_matrix <- function(log_kappa) {
     upper <- matrix(log_kappa, nrow = length(log_kappa), ncol = num_days_treated) * upper_mask_mat
-    lower <- (t(aaply(matrix(rep(log_kappa, num_days_treated), nrow = length(log_kappa)/num_days_treated, ncol = num_days_treated, byrow = TRUE), 
+    lower <- (t(plyr::aaply(matrix(rep(log_kappa, num_days_treated), nrow = length(log_kappa)/num_days_treated, ncol = num_days_treated, byrow = TRUE), 
                       2, rep, each = num_days_treated, .drop = FALSE)) * lower_mask_mat) 
     
     return(upper + lower)
@@ -1483,10 +1483,10 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
                    -starts_with("stratum_census_covar_coef"))) %>% 
     { 
       inner_join(select(., -log_alpha) %>% 
-                   mutate(deworming_day = sprintf("log_alpha_deworming_day_%02d", deworming_day)) %>% 
+                   mutate(deworming_day = sprintf("log_kappa_dyn_treat_deworming_day_%02d", deworming_day)) %>% 
                    spread(deworming_day, log_kappa_dyn_treat), 
                  select(., -log_kappa_dyn_treat) %>% 
-                   mutate(deworming_day = sprintf("log_kappa_dyn_treat_deworming_day_%02d", deworming_day)) %>% 
+                   mutate(deworming_day = sprintf("log_alpha_deworming_day_%02d", deworming_day)) %>% 
                    spread(deworming_day, log_alpha),
                  by = setdiff(names(.), c("deworming_day", "log_alpha", "log_kappa_dyn_treat"))) 
     } %>% 
@@ -1556,6 +1556,7 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                                       all_treat_dyn_id,
                                       dyn_treatment_mask_map,
                                       full_dyn_treatment_map_dm,
+                                      average_over_name_match_monitored = TRUE,
                                       days_treated = 0:11) {
   
   dyn_treatment_mask_map %<>% set_names(stringr::str_c("dyn_treatment_", names(.)))
@@ -1573,14 +1574,22 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                   full_dyn_treatment_dm = full_dyn_treatment_map_dm,
                   days_treated = days_treated,
                   treatment_summarizer = function(d) d,
-                  by_id = "subgroup_id") %>% 
+                  by_id = "subgroup_id") %>%
+      mutate(alpha = exp(log_alpha), kappa_dyn_treat = exp(log_kappa_dyn_treat)) %>% 
       dplyr::group_by(deworming_day, dyn_treat_days) %>% 
-      summarize_at(vars(prob_deworm, log_alpha, log_kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
+      summarize_at(vars(prob_deworm, alpha, kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
       ungroup()
   }
   
-  identify_treatment_id(treatments_info, treatment_map) %>% 
-    plyr::ddply(setdiff(c("phone_owner", "dist.pot.group", stringr::str_subset(names(.), "(?<!_id)$")), "name_matched"), fast_est_group_prob) 
+  treatments_to_eval <- identify_treatment_id(treatments_info, treatment_map) 
+  
+  treatment_col <- c("phone_owner", "dist.pot.group", stringr::str_subset(names(treatments_to_eval), "(?<!_id)$"))
+  
+  if (average_over_name_match_monitored) {
+    treatment_col %<>% setdiff("name_matched")
+  }
+  
+  plyr::ddply(treatments_to_eval, treatment_col, fast_est_group_prob) 
 }
 
 estimate_deworm_prob <- function(iter_cluster_parameters,
