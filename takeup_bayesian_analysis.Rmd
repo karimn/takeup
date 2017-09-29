@@ -1113,14 +1113,25 @@ fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel =
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
 
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
-                  treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), days_treated = c(0, 11)) %>% 
+                  treatments_info = fast_treatments %>% filter(social_value != "control" & sms.treatment.2 == "sms.control"), days_treated = c(0, 11)) %>% 
   bind_rows(fast_sim)
 
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
 
 fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
                   average_over_name_match_monitored = FALSE,
-                  treatments_info = fast_treatments %>% filter(!name_matched), days_treated = 11) %>% 
+                  treatments_info = fast_treatments %>% 
+                    filter(!name_matched & social_value == "control"), 
+                  days_treated = 11) %>% 
+  bind_rows(fast_sim)
+
+save(fast_sim, file = file.path("data", "fast_sim.RData"))
+
+fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
+                  average_over_name_match_monitored = FALSE,
+                  treatments_info = fast_treatments %>% 
+                    filter(!name_matched & social_value != "control"), 
+                  days_treated = c(0, 11)) %>% 
   bind_rows(fast_sim)
 
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
