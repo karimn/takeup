@@ -1533,14 +1533,15 @@ estimate_treatment_deworm_prob <- function(dm_datarow,
                                                bind_rows(group_by(., dyn_treat_days) %>% 
                                                            summarize(deworming_day = 13, prob_deworm = 1 - sum(prob_deworm))) 
                                            },
+                                           subgroup_col = c("phone_owner", "name_matched"),
                                            by_id = "obs_index") {
-  static_dm_row <- select(dm_datarow, -c(all_treatment_id, phone_owner, name_matched), -starts_with("dyn_treatment_"))
+  static_dm_row <- select(dm_datarow, -all_treatment_id, -one_of(subgroup_col), -starts_with("dyn_treatment_"))
   dyn_dm_row <- select(dm_datarow, starts_with("dyn_treatment_")) %>% 
     unlist() %>% 
     matrix(nrow = nrow(full_dyn_treatment_dm), ncol = ncol(full_dyn_treatment_dm), byrow = TRUE) %>% 
     magrittr::multiply_by(full_dyn_treatment_dm)
   
-  left_join(dm_datarow, iter_est, c("phone_owner", "name_matched")) %>% 
+  left_join(dm_datarow, iter_est, subgroup_col) %>% 
     estimate_treatment_deworm_prob_dm(static_dm_row, dyn_dm_row, sim_stratum_hazards, 
                                       days_treated = days_treated, 
                                       treatment_summarizer = treatment_summarizer,
@@ -1556,15 +1557,15 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                                       all_treat_dyn_id,
                                       dyn_treatment_mask_map,
                                       full_dyn_treatment_map_dm,
-                                      average_over_name_match_monitored = TRUE,
-                                      days_treated = 0:11) {
-  
+                                      average_over = NULL,
+                                      days_treated = c(0, 11),
+                                      subgroup_col = "phone_owner") {
   dyn_treatment_mask_map %<>% set_names(stringr::str_c("dyn_treatment_", names(.)))
   
   fast_est_group_prob <- function(treatment_group) {
     treatment_group %>%
       distinct_(.dots = c("all_treatment_id", "dynamic_treatment_id"), .keep_all = TRUE) %>% 
-      select(all_treatment_id, dynamic_treatment_id, phone_owner, name_matched) %>% 
+      select(all_treatment_id, dynamic_treatment_id, one_of(subgroup_col)) %>% 
       bind_cols(treatment_map_dm[.$all_treatment_id, ], slice(dyn_treatment_mask_map, .$dynamic_treatment_id)) %>% 
       select(-dynamic_treatment_id) %>% 
       plyr::ddply(.(all_treatment_id), estimate_treatment_deworm_prob, 
@@ -1574,20 +1575,21 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
                   full_dyn_treatment_dm = full_dyn_treatment_map_dm,
                   days_treated = days_treated,
                   treatment_summarizer = function(d) d,
-                  by_id = "subgroup_id") %>%
-      mutate(alpha = exp(log_alpha), kappa_dyn_treat = exp(log_kappa_dyn_treat)) %>% 
+                  by_id = "subgroup_id",
+                  subgroup_col = subgroup_col) %>% 
+      mutate(alpha = exp(log_alpha), 
+             kappa_dyn_treat = exp(log_kappa_dyn_treat)) %>%
       dplyr::group_by(deworming_day, dyn_treat_days) %>% 
+      mutate(treatment_group_size = sum(subgroup_size)) %>% 
+      dplyr::group_by(deworming_day, dyn_treat_days, treatment_group_size) %>% 
       summarize_at(vars(prob_deworm, alpha, kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
-      ungroup()
+      ungroup() 
   }
   
   treatments_to_eval <- identify_treatment_id(treatments_info, treatment_map) 
   
-  treatment_col <- c("phone_owner", "dist.pot.group", stringr::str_subset(names(treatments_to_eval), "(?<!_id)$"))
-  
-  if (average_over_name_match_monitored) {
-    treatment_col %<>% setdiff("name_matched")
-  }
+  treatment_col <- c("phone_owner", "dist.pot.group", stringr::str_subset(names(treatments_to_eval), "(?<!_id)$")) %>% 
+    setdiff(average_over)
   
   plyr::ddply(treatments_to_eval, treatment_col, fast_est_group_prob) 
 }

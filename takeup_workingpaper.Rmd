@@ -3,7 +3,7 @@ title: |
     | Evidence from a Field Experiment in Kenya
     | The Role of Social Signaling in Community Mass Deworming^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
 subtitle: "Internal Working Paper -- Do Not Cite or Distribute"
-date: "September 2017"
+date: "October 2017"
 author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`. Corresponding author.]
@@ -68,6 +68,8 @@ wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 ```
 
+```{r wp-parallel-setup, ref.label="parallel-setup", eval=FALSE}
+```
 
 ```{r ggplot-theme, cache=FALSE}
 theme_set(theme_minimal() +
@@ -894,7 +896,9 @@ In the below analysis, we isolate the social effect of bracelets by controling f
 ```{r, ref.label="dyn-model-sim-params"}
 ```
 
-```{r, ref.label="prep-fast-sim"}
+```{r load-prepared-fast-sim}
+load(file.path("data", "prepared_fast_sim.RData"))
+
 ```
 
 ```{r, ref.label="fast-sim-ate"}
@@ -902,7 +906,7 @@ In the below analysis, we isolate the social effect of bracelets by controling f
 
 <!-- TODO Turn this plot (and the one below for SMS) on after fixing the name-matched/monitored issue for take-up level estimates -->
 
-```{r, ref.label="sim-fast-take-up", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups.", eval=FALSE}
+```{r, ref.label="sim-fast-take-up", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups."}
 ```
 
 ```{r, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
@@ -926,9 +930,11 @@ In the below analysis, we isolate the social effect of bracelets by controling f
 ```{r, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."}
 ```
 
-```{r, ref.label="fast-sim-day-one", fig.width=8, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one."}
+```{r, ref.label="fast-sim-takeup-day-one", fig.width=8, fig.cap="Posterior distribution of the finite sample average probability of take-up on deworming day one, for phone owners only and with no SMS treatment."}
 ```
 
+```{r, ref.label="fast-sim-ate-day-one", fig.width=8, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one, for phone owners only."}
+```
 
 ```{r, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=7, , fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups (comparing treatment with signal and SMS observation with imputed outcomes with no observation)."}
 ```
@@ -954,6 +960,27 @@ Finally, our analysis of SMS treatment combined with incentives does show high l
 # References
 
 <div id="refs"></div>
+
+# Appendix: Bayesian Analysis Stratified by Phone Ownership { - }
+
+
+```{r, ref.label="sim-fast-take-up-phone-owner", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups."}
+```
+
+```{r, ref.label="fast-sim-ate-plot-phone-owner", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
+```
+
+```{r, ref.label="fast-sim-daily-obs-plot-phone-owner", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."}
+```
+
+```{r, ref.label="fast-sim-daily-dyn-kappa-phone-owner", fig.width=8, fig.cap="Posterior distribution of the finite sample dynamic effect of signal observation."}
+```
+
+```{r, ref.label="fast-sim-daily-ate-obs-plot-phone-owner", fig.width=8, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
+```
+
+```{r, ref.label="fast-sim-no-obs-plot-phone-owner", fig.width=10, fig.height=7, , fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups (comparing treatment with signal and SMS observation with imputed outcomes with no observation)."}
+```
 
 # Appendix: Regression Analysis { - }
 
