@@ -26,6 +26,7 @@ bibliography: ~/Documents/library.bib
 ---
 
 \doublespacing
+\newtheorem{assumption}{Assumption}
 
 ```{r workingpaper-setup, include=FALSE}
 library(plyr)
@@ -189,7 +190,52 @@ All adults who came to a given treatment location were provided with deworming t
 
 Prior to the start of deworming treatment, we also recruited a random sample of individuals to receive informational text messages about the MDA (see the [Experiment Design](#experiment-design) section). The text messages reminded adults of the availability of deworming treatment and their treatment location, and provided information about deworming treatment take-up in their communities. Messages were sent the day before the MDA started and after that every other day (on the second, fourth, sixth, eight and tenth deworming day). 
 
-# Theoretical Model
+# Structural Model
+
+We model the binary decision to take-up deworming, conditional on not having already done so, as
+\[ y_{im} = \mathbbm{1}(\widetilde{U}_{im} > 0) \]
+where
+
+\begin{equation}
+\begin{split}
+\widetilde{U}_{im} &= u_i^c(z) + u_i^n(\bar{a}_i(z, s, m), s, m) - c_i(z, d) \\
+                   &{} + \int \int \left(u^h + u^s v_i + \lambda_i \omega u^r\right)\,\mathrm{d}F(u^h, u^s, \omega, u^r|\bar{a}_i(z, s, m), z, d, \theta)\,\mathrm{d}F_i(\theta) \label{eqn:structural-model}
+\end{split} 
+\end{equation}
+
+* $z \in \mathcal{Z} = \{\text{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
+* $s \in \mathcal{S} = \{\text{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
+* $d \in \{0, 1\}$, is an indicator for $i$'s community being assigned to be _far_ from the treatment location.
+* $m \in \{1,\ldots, 12\}$, is the deworming day.
+* $\bar{a}_i(z, s, m) \in [0, 1]$, is a measure of observed peer deworming take-up.
+* $u_i^c(z)$ is the private consumption value of $z$ and is known to $i$.
+* $u_i^n(\bar{a}_i, s, m)$ captures the effect of deworming salience from observation and information provided by SMS, as well as the reminder/nudge effects of SMS treatment. This is also known to $i$.
+* $c_i(z, d)$ is the cost of deworming at distance $d$ and with assigned signal/incentive $z$. This is also known to $i$.
+* $u^h$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown.
+* $u^s$ is the social health benefit of deworming, assumed to be uniform for all communities but is unknown. This term combines intrinsic motivation and externality/coordination/conditional cooperation effects.
+* $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
+* $\lambda_i$ is a measure of how image motivated $i$ is.
+* $omega$ is a measure of the social desireability of deworming.
+* $u^r \equiv \Pr_{-i}[v_i = 1|y_{im} = 1] - \Pr_i[v_i = 1|y_{im} = 0]$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming. This is a random variable due to $i$'s uncertainty about others' inference.
+* $\theta$ is a vector of parameters relevant to $i$'s updating of beliefs about $u^h$, $u^s$, $\omega$, and $u^r$.
+
+We can view $i$'s type to be \[(\bar{a}_i(z, s, m), u^c_i(z), u_i^n(\bar{a}_i, s, m), c_i(z, d), v_i, \lambda_i, p_i(\theta)),\] where $p_i(\theta)$ is $i$'s prior on parameters $\theta$. 
+
+\begin{assumption}[Private Consumption Value of Signals/Incentives]
+For all $i$, 
+\begin{enumerate}
+\item $u^c_i(\text{control}) = u^c_i(\text{ink}) = 0$: ink has no consumption value.
+\item $u^c_i(\text{bracelet}) \geq 0$ and $u^c_i(\text{calendar}) \geq 0$: these are voluntary signals/incentive so they cannot cause disutility.
+\end{enumerate}
+\end{assumption}
+
+\begin{assumption}[Private Cost of Deworming]
+For all $i$,
+\begin{enumerate}
+\item $c_i(z, d) \geq c_i(z, d') \geq 0, \forall d > d'$
+\item $c_i(z, d) = c_i(z', d), \forall z, z' \in \{\text{control, calendar, braclet}\}$: only ink can introduce disutility since it is mandatory.
+\end{enumerate}
+\end{assumption}
 
 # Experiment Design
 
@@ -640,7 +686,7 @@ takeup.data %>%
 ```
 
 
-# Statistical Models
+# Empirical Models
 
 ### Model subscripts {-}
 
