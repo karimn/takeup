@@ -991,19 +991,19 @@ load(file.path("data", "prepared_fast_sim.RData"))
 ```{r, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
 ```
 
-```{r, ref.label="fast-sim-daily-obs-plot", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."}
+```{r, ref.label="fast-sim-daily-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."}
 ```
 
 ```{r, ref.label="fast-sim-daily-dyn-kappa", fig.width=8, fig.cap="Posterior distribution of the finite sample dynamic effect of signal observation."}
 ```
 
-```{r, ref.label="fast-sim-daily-ate-obs-plot", fig.width=8, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
+```{r, ref.label="fast-sim-daily-ate-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
 ```
 
 ```{r, ref.label="fast-sim-daily-sms-plot", fig.width=9, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with SMS treatment).", eval=FALSE}
 ```
 
-```{r, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=7, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."}
+```{r, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=4, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."}
 ```
 
 ```{r, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."}

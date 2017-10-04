@@ -1379,7 +1379,7 @@ In the first two plots we look at how observation of signals over time might hav
 ```{r fast-sim-daily-obs-plot, fig.width=12, fig.height=6}
 fast_sim_mean_monitored %>%
   filter(deworming_day <= 12, 
-         incentive_treatment %in% c("control", "ink", "bracelet"),
+         incentive_treatment %in% c("control", "ink", "bracelet", "bracelet social"),
          sms.treatment.2 == "sms.control",
          dyn_treat_days %in% c(0, 11)) %>% 
   mutate(obs_type = ifelse(incentive_treatment == "control", 0, dyn_treat_days) %>% 
@@ -1595,12 +1595,12 @@ fast_sim_mean_phone_owner %>%
                 group = str_c(dyn_treat_days, sms.treatment.2), 
                 color = sms.treatment.2)) +
                 # fill = sms.treatment.2), alpha = 0.25, position = "identity") +
-  scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
+  scale_x_continuous("Deworming Day", breaks = seq(1, 12, 2), minor_breaks = FALSE) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   # coord_cartesian(ylim = c(0.9)) +
-  facet_grid(incentive_treatment ~ dist.pot.group, scales = "free_y",
-             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-                                 .rows = as_labeller(. %>% str_to_title()))) +
+  # facet_grid(incentive_treatment ~ dist.pot.group, scales = "free_y",
+  facet_wrap(~ incentive_treatment, nrow = 1,
+             labeller = as_labeller(. %>% str_to_title())) +
   labs(title = expression(paste("Daily Change in Dynamic Component of ", kappa, " Function")), subtitle = "In response to signal observation and SMS treatment.",
        y = expression(paste("Posterior Mean of ", kappa^dyn))) +
   theme(legend.position = "bottom")
