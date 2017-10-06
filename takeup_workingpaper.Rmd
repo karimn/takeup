@@ -195,41 +195,41 @@ Prior to the start of deworming treatment, we also recruited a random sample of 
 We model the individuals' utility function as
 \begin{equation}
 \begin{split}
-\widetilde{U}_{im} &= u_i^c(z) + u_{im}^n(\bar{a}_{im}, s) - c_i(z, d) + u^h + u^s v_i + \rho_i\omega u^r \label{eqn:structural-utility}
+U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}, s) + u^h + u^s v_i + \rho_i\omega u^r - c_i(z, d) \label{eqn:structural-utility}
 \end{split} 
 \end{equation}
 where
 
-* $z \in \mathcal{Z} = \{\text{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
-* $s \in \mathcal{S} = \{\text{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
+* $z \in \mathcal{Z} = \{\mathrm{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
+* $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
 * $d \in \{0, 1\}$, is an indicator for $i$'s community being assigned to be _far_ from the treatment location.
 * $m \in \{1,\ldots, 12\}$, is the deworming day.
-* $\bar{a}_{im} = \bar{a}_{im}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up.
+* $\bar{y}_{-i,m} = \bar{y}_{-i,m}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up.
 * $u_i^c(z)$ is the private consumption value of $z$ and is known to $i$.
-* $u_{im}^n(\bar{a}_i, s, m)$ captures the effect of deworming salience from observation and information provided by SMS, as well as the reminder/nudge effects of SMS treatment, on day $m$. This is also known to $i$.
+* $u_{im}^n(\bar{y}_{-i}, s, m)$ captures the effect of deworming salience from observation and information provided by SMS, as well as the reminder/nudge effects of SMS treatment, on day $m$. This is also known to $i$.
 * $c_i(z, d)$ is the cost of deworming at distance $d$ and with assigned signal/incentive $z$. This is also known to $i$.
 * $u^h$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown.
 * $u^s$ is the social health benefit of deworming, assumed to be uniform for all communities but is unknown. This term combines intrinsic motivation and externality/coordination/conditional cooperation effects.
 * $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
 * $\rho_i$ is a measure of how image motivated $i$ is.
-* $u^r \equiv \omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1] - \Pr_i[v_i = 1|y_{im} = 0]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming. This is a random variable due to $i$'s uncertainty about others' inference.
+* $u^r \equiv \omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1] - \Pr_{-i}[v_i = 1|y_{im} = 0]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming. This is a random variable due to $i$'s uncertainty about others' inference.
 * $\omega$ is a measure of the social desireability of deworming.
-* $\theta$ is a vector of parameters relevant to $i$'s updating of beliefs about $u^h$, $u^s$, and $u^r$.
 
 We model the binary decision to take-up deworming, conditional on not having already done so, as
-\[ y_{im} = \mathbbm{1}(E_i[\widetilde{U}_{im}|z,s,d,\theta] > 0), \]
-where
+\[ y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)|\theta] > 0 \lor y_{i,m-1} = 1), \]
+where $\theta_i$ is a vector of parameters relevant to $i$'s beliefs about $u^h$, $u^s$, and $u^r$,
 \begin{equation}
-E_i[\widetilde{U}_{im}|z,s,d,\theta] = u_i^c(z) + u_{im}^n(\bar{a}_{im}, s) - c_i(z, d) + E_i[u^h + u^s v_i + \rho_i u^r|\bar{a}_{im}, z, s, d, \theta] \label{eqn:structural-expected-utility} 
+E_i[U_{im}(z,s,d)|\theta] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}, s) + E_i[u^h + u^s v_i + \rho_i u^r|\bar{y}_{-i,m}, z, s, d, \theta_i]}^{L_{im}(z,s,d)} - c_i(z, d),  \label{eqn:structural-expected-utility} 
 \end{equation}
+and $E_i[\cdot]$ is $i$'s subjective expectation. For convenience, we have defined $L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}, s) + E_i[u^h + u^s v_i + \rho_i u^r|\bar{y}_{-i,m}, z, s, d, \theta_i]$, a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
 
-We can view $i$'s type to be $(\bar{a}_{im}, u^c_i, u_{im}^n, c_i, v_i, \rho_i, \theta)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
+We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i, \theta_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
 
 \begin{assumption}[Private Consumption Value of Signals/Incentives]
 For all $i$, 
 \begin{enumerate}
-\item $u^c_i(\text{control}) = u^c_i(\text{ink}) = 0$: ink has no consumption value.
-\item $u^c_i(\text{bracelet}) \geq 0$ and $u^c_i(\text{calendar}) \geq 0$: these are voluntary signals/incentive so they cannot cause disutility.
+\item $u^c_i(\mathrm{control}) = u^c_i(\mathrm{ink}) = 0$: ink has no consumption value.
+\item $u^c_i(\mathrm{bracelet}) \geq 0$ and $u^c_i(\mathrm{calendar}) \geq 0$: these are voluntary signals/incentive so they cannot cause disutility.
 \end{enumerate}
 \end{assumption}
 
@@ -237,23 +237,24 @@ For all $i$,
 For all $i$,
 \begin{enumerate}
 \item $c_i(z, d) \geq c_i(z, d') \geq 0, \forall d > d'$
-\item $c_i(z, d) = c_i(z', d), \forall z, z' \in \{\text{control, calendar, braclet}\}$: only ink can introduce disutility since it is mandatory.
+\item $c_i(z, d) = c_i(z', d), \forall z, z' \in \{\mathrm{control, calendar, braclet}\}$: only ink can introduce disutility since it is mandatory.
 \end{enumerate}
 \end{assumption}
 
 <!-- Below assumption assumes fixed conformity effect. Is this reasonable given that individuals might have different priors on others' take-up based on their signal/incentive treatment? -->
 
-\begin{assumption}[Constant Day One Salience]
-For all $i$, $u^n_{i0}(\bar{a}, \text{control}) = u^n_{i0}(\bar{a}', \text{control}), \forall \bar{a}, \bar{a}'$: on the first day salience/nudge effects are constant across signal/incentive arms. 
+\begin{assumption}[Constant Day One Salience]\label{assume:day-one-salience}
+For all $i$, $u^n_{i1}(\bar{y}, s) = u^n_{i1}(\bar{y}', s), \forall \bar{y}, \bar{y}', s$: on the first day salience/nudge effects are constant across signal/incentive arms. 
 \end{assumption}
 
 \begin{assumption}[Constant Prior Beliefs About Health Benefits]
 For all $i$,
 \begin{enumerate}
-\item $E_i[u^h|\bar{a}_{i0}(z, s, d), z, d] = E_i[u^h|\bar{a}_{i0}(z', s, d), z', d], \forall z,z' \in \mathcal{Z}$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
-\item $E_i[u^s|\bar{a}_{i0}(z, s, d), z, d] = E_i[u^s|\bar{a}_{i0}(z', s, d), z', d], \forall z,z' \in \mathcal{Z}$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
+\item $E_i[u^h|\bar{y}_{-i,1}(z, s, d), z, d] = E_i[u^h|\bar{y}_{-i,1}(z', s, d), z', d], \forall z,z' \in \mathcal{Z}$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
+\item $E_i[u^s|\bar{y}_{-i,1}(z, s, d), z, d] = E_i[u^s|\bar{y}_{-i,1}(z', s, d), z', d], \forall z,z' \in \mathcal{Z}$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
 \end{enumerate}
 \end{assumption}
+
 
 # Experiment Design
 
@@ -715,22 +716,24 @@ takeup.data %>%
 ### Randomized treatment variables {-}
 
 * Incentives/signals are split into
-    - Private incentives: $Z^p_j \in \mathcal{Z}^p = \{\text{control, calendar, bracelet}\}$
-    - Social incentives: $Z^r_j \in \mathcal{Z}^r = \{\text{control, ink, bracelet}\}$
+    - Private incentives: $Z^p_j \in \mathcal{Z}^p = \{\mathrm{control, calendar, bracelet}\}$
+    - Social incentives: $Z^r_j \in \mathcal{Z}^r = \{\mathrm{control, ink, bracelet}\}$
 * Assigned distance to treatment location: $D_j \in \{0, 1\}$ is an indicator of being assigned _far_ treatment (vs. _close_).
-* SMS treatment: $S_i \in \mathcal{S} = \{\text{control, reminders-only, social-info}\}$ 
-* Baseline survey indicator: $B_i = \{0, 1\}$.
+* SMS treatment: $S_i \in \mathcal{S}$.
 
-For convenience, define:
+For convenience, we define 
 
-* $T_i \equiv (Z^p_{j[i]}, Z^r_{j[i]}, D_{j[i]}, S_i, B_i)',$ a vector of all randomly assigned treatments. 
-* $\widetilde{\mathcal{Z}}^p \equiv \mathcal{Z}^p \setminus \{control\}$, $\widetilde{\mathcal{Z}}^r \equiv \mathcal{Z}^r \setminus \{control\}$, and $\widetilde{\mathcal{S}} \equiv \mathcal{S} \setminus \{control\}$
+* $\widetilde{\mathcal{Z}}^p \equiv \mathcal{Z}^p \setminus \{control\}$ 
+* $\widetilde{\mathcal{Z}}^r \equiv \mathcal{Z}^r \setminus \{control\}$ 
+* $\widetilde{\mathcal{S}} \equiv \mathcal{S} \setminus \{control\}$
+* $Z_w(z) \equiv \mathbbm{1}(z = w)$ 
+* $S_w(s) \equiv \mathbbm{1}(s = w)$
 
 ### Other variables {-}
 
 * Phone ownership subgroup: $H_i = \{0, 1\}$.
 * Controls/covariates vector: $X_i$.
-* Deworming outcome: $Y_i(t) \in \{0, 1\}$, in response to randomly assigned treatment.
+* Deworming outcome on day $m$: $Y_{im}(z, s, d) \in \{0, 1\}$ and $Y_i(z, s, d) = \prod_{h = 1}^{12} Y_{ih}(z, s, d)$.
 
 ## Willingness-to-Pay Model
 
@@ -745,7 +748,7 @@ Let
   V_i \equiv V^c_i - V^b_i &\sim \mathtt{StudentT}(\nu_v, \mu_{j[i]}, \sigma) \\
   \mu_k &\sim \mathtt{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
   \mu &\sim \mathtt{StudentT}(\nu_\mu, 0, \tau_\mu) \\
-  \sigma &\sim \mathtt{StudentT}[0, \infty)(\nu_\sigma, 0, \tau_\sigma)
+  \sigma &\sim \mathtt{HalfStudentT}(\nu_\sigma, 0, \tau_\sigma)
 \end{align*}
 
 with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
@@ -758,38 +761,72 @@ We estimate these model parameters using the likelihood probability:
 \mathcal{L}_i = \left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{k[i]}, \sigma) - F_V(0|\mu, \mu_{k[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{k[i]}, \sigma)\right\}^{(1 - W_i)} 
 \end{equation*}
 
-## Static Model
+## Deworming Take-up Model
 
-We model the probability of take-up as
-\[ \Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i] \]
-
-and the latent utility is modeled as
-
+To evaluate the structural model outlined in Section \ref{structural-model}, we need to construct a parametric empirical model. First we parameterize the latent expected utility function in \eqref{eqn:structural-expected-utility} to have the following form with additive error terms: $\tilde{\eta}$ to capture preferences for deworming on particular days and $\varepsilon$ to capture individual heterogeneity in other utility terms.
+\begin{equation*}
+E_i[U_{im}(z,s,d)|\theta] = \tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_m + \varepsilon_{im}. 
+\end{equation*}
+We then model the probability to deworm, conditional on not having already been dewormed, as
+\begin{equation}
+\begin{split}
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] &= \Pr[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m} + \varepsilon_{im} > 0] \\
+                                              &= \Pr[\varepsilon_{im} > -(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m})] \\
+                                              &= 1 - F\left(-(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m})\right) \\
+                                              &= F\left(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m}\right), \label{eqn:latent-var-model} 
+\end{split}
+\end{equation}
+where $F$ is the c.d.f. function for $\varepsilon$. We model $\varepsilon$ as having a reverse extreme value (standard Gumbel) distribution and define $\tilde{\eta}_m \equiv \log \lambda_m$, to easily build a duration analysis model based on our structural model. In other words, we are adopting a complementary log-log link for our binomial model of take-up. The c.d.f. of $\varepsilon$ is therefore $F(z) = 1 - \exp\left[-\exp[z]\right]$ and
 \begin{align*}
-Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
-U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
-               &= \sum_{w\in\widetilde{Z}^p} Z^p_w(z^p)\times\beta^p_{wh} \\
-            {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{wh1} + Z^r_w(z^r)\times d \times \beta^r_{wh2} + Z^r_w(z^r)\times b \times \beta^r_{wh3}\right\} \\
-            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{wh1} + S_w(s)\times d \times \beta^s_{wh2} + S_w(S)\times b \times \beta^s_{wh3}\right\} \\
-            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uwh1} + S_w(s)\times d \times \beta^{rs}_{uwh2} + S_w(s)\times b \times \beta^{rs}_{uwh3}\right\} \\
-            {} &+ \beta_h + \beta^d_h + \beta^b_h 
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] &= 1 - \exp\left[-\exp[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \log \lambda_m]\right] \\
+                                              &= 1 - \exp\left[-\exp[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d)]\lambda_m\right],
 \end{align*}
-where for convenience we define the following indicator functions:
+which results in a piecewise-constant proportional hazard model [@Wooldridge2010] with $\lambda_m$ as the baseline hazard for deworming day $m$, and with both static (time invariant) and dynamic (time-varying) effects: $(\tilde{u}^c(z) + \tilde{c}(z,s,d))$ and $\tilde{L}_m(z,s,d)$, respectively.
 
-* $Z^p_w(z^p) \equiv \mathbbm{1}(z^p = w)$ 
-* $Z^r_w(z^r) \equiv \mathbbm{1}(z^r = w)$ 
-* $S_w(s) \equiv \mathbbm{1}(s = w)$
+In place of structural terms we introduce the following linear parameters
+\begin{align}
+\left[\tilde{u}^c(z) - \tilde{c}(z, d)\right] - \left[\tilde{u}^c(\mathrm{control}) - \tilde{c}(\mathrm{control}, 0)\right] = \sum_{w\in\widetilde{\mathcal{Z}}^p} Z_w(z) \times \beta^p_w + \beta^d \label{eqn:private-benefits-costs-param}
+\end{align}
+and
+\begin{equation}
+\begin{split}
+\tilde{L}_m(z, s, d) - \tilde{L}_m(\mathrm{control}, \mathrm{control}, 0) &= \tilde{L}_1(z, s, d) - \tilde{L}_1(\mathrm{control, control}, 0) + \gamma_m(z, s) \\
+\tilde{L}_1(z, s, d) - \tilde{L}_1(\mathrm{control, control}, 0) &= \sum_{w\in\widetilde{Z}^r} \left\{Z_w(z)\times\beta^r_{w1} + Z_w(z)\times d \times \beta^r_{w2} \right\} \\
+            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{w1} + S_w(s)\times d \times \beta^s_{w2} \right\} \\
+            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z_u(z) \times \left\{S_w(s)\times\beta^{rs}_{uw1} + S_w(s)\times d \times \beta^{rs}_{uw2}\right\} \label{eqn:learned-params} 
+\end{split}
+\end{equation}
+We assume that for deworming days $m > 1$, $\tilde{L}_m(z, ,s, d)$ evolves by a additive change $\gamma_m(z, s)$, which we parameterize to be a quadratic function of (a) the number of dayssocial signals had been observed and (b) the number of SMS messages received
+\begin{equation} 
+\gamma_m(z, s) = \sum_{q = 1}^2\left\{\sum_{w\in\widetilde{Z}^r} (m - 1)^q\times Z_w(z)\times\gamma^r_{qw} + \sum_{w\in\widetilde{S}} \lfloor (m - 1)/2 \rfloor^q\times S_w(s)\times\gamma^s_{qw}\right\}.
+\end{equation}
+
+Finally, we will use the above terms identifying our structural model's parameters in the model 
+\begin{align*}
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] &= 1 - \exp\left[-\kappa_m(z,s,d)\lambda_m\right] \equiv 1 - \alpha_m(z, s, d) \\
+\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 0, z,s,d] &= \exp\left[\kappa_m(z,s,d)\lambda_m\right] \equiv \alpha_m(z, s, d) \\
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 1, z,s,d] &= 1 \\
+\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 1, z,s,d] &= 0, 
+\end{align*}
+where we sum the right-hand terms of \eqref{eqn:private-benefits-costs-param} and \eqref{eqn:learned-params} and use as the exponent of exponential function $\kappa(z,s,d)$.
+
+### Hierarchical Model
+
+We further enrich our model to be hierarchical (by county) and add covariates so our model becomes
+\begin{align*}
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, X_i, z,s,d] &= 1 - \exp\left[-\kappa_{k[i],m}(z,s,d;X_i)\lambda_{j[i],m}\right] \equiv 1 - \alpha_{k[i],m}(z, s, d; X_i) \\
+\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 0, X_i, z,s,d] &= \exp\left[\kappa_{k[i],m}(z,s,d;X_i)\lambda_{j[i],m}\right] \equiv \alpha_{k[i],m}(z, s, d; X_i) \\
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 1, X_i, z,s,d] &= 1 \\
+\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 1, X_i, z,s,d] &= 0, 
+\end{align*}
+and
+\[ \lambda_{jm} = v^{clust}_j\cdot v^{strat}_{k[j]}\cdot \lambda_m \]
 
 We conducted our analysis using the following priors on the model's parameters and hyperparmeters:
-
 \begin{align*}
-\alpha_0 &\sim \mathtt{Uniform}(0, 1) \\
-\alpha^{clust}_j &\sim \mathtt{StudentT}(\nu^{coef}, 0, \tau^{clust}) \\
-\alpha^{strat}_k &\sim \mathtt{StudentT}(\nu^{coef}, 0, \tau^{strat}) \\
-\delta &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
-                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
-                                                     \vdots        &               & \ddots &   \\
-                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
+-\exp(\lambda_m) &\sim \mathtt{Uniform}[0, 1] \\
+v^{clust}_j &\sim \mathtt{Gamma}(\delta^{clust}, \delta^{clust}) \\
+v^{strat}_k &\sim \mathtt{Gamma}(\delta^{strat}, \delta^{strat}) \\
 \beta &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
                                                      0             & \sigma^{coef} & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
@@ -798,75 +835,6 @@ We conducted our analysis using the following priors on the model's parameters a
                                                      0             & \tau_2 & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
                                                      0             &               &        &  \end{pmatrix}\right) \\\\
-\tau^{clust} &\sim \mathtt{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\ 
-\tau^{strat} &\sim \mathtt{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) \\
-\tau &\sim \mathtt{StudentT}[0,\infty](\nu^{scale}, 0, \sigma^{scale}) 
-\end{align*}
-
-With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
-<!-- TODO Specify values for fixed hyper parameters -->
-
-We carried out our estimation using a logit model using the above parameteric latent function.
-
-## Dynamic Model
-
-We parameterize the structural model described in section \ref{structural-model}, by modeling the private consumption benefits and costs as
-\begin{equation*}
-E\left[\left(u_i^c(z) - c_i(z, d)\right) - \left(u_i^c(\mathrm{control}) - c_i(\mathrm{control}, 0)\right)\right] = \sum_{w\in\widetilde{\mathcal{Z}}^p} Z^p_w(z) \times \beta^p_w + \beta^d 
-\end{equation*}
-
-To simplify our notation, we define $L_m(z, s, d) \equiv E[u^n_{im}(\bar{a}_{im}(z, s, d), s) + E_i[u^h + u^s v_i + \rho_i u^r|\bar{a}_{im}(z, s, d), z, s, d, \theta]]$, the function of the learned component of individuals' expected utility function.
-
-\begin{align*}
-L_0(z, s, d) - L_0(\mathrm{control, control}, 0) &= \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z)\times\beta^r_{w1} + Z^r_w(z)\times d \times \beta^r_{w2} \right\} \\
-            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{w1} + S_w(s)\times d \times \beta^s_{w2} \right\} \\
-            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z) \times \left\{S_w(s)\times\beta^{rs}_{uw1} + S_w(s)\times d \times \beta^{rs}_{uw2}\right\} \\\\
-L_m(z, s, d) - L_m(\mathrm{control}, \mathrm{control}, 0) &= L_0(z, s, d) - L_0(\mathrm{control, control}, 0) \\
-                                {}&+ \sum_{q = 1}^2\left\{\sum_{w\in\widetilde{Z}^r} (m - 1)^q\times Z^r_w(z)\times\gamma^r_{qw} + \sum_{w\in\widetilde{S}} \lfloor (m - 1)/2 \rfloor^q\times S_w(s)\times\gamma^s_{qw}\right\}
-\end{align*}
-
-In this model we introduce time-invariant and time varying treatments. The former is the same as in the static model, while the later allows us to model changes in take-up over time, compared to the baseline probability of take-up (no variation). We thus capture any accumulated effect of the deworming intervention in the presence of observable social signals and/or a flow of SMS reminders. This allows us to model the effect of social learning and salience on take-up. 
-
-The time-varying treatments we introduced are modeled as a quadratic function of 
-
-* the number of days observing an ink or bracelet signal
-* the number of reminders
-* the number of social information messages
-
-and we add two more possible random treatments
-
-* $Z^{dyn}_j \in \{\text{control, ink, bracelet}\}$, the observable social signals.
-* $S^{dyn}_i \in \{\text{control, reminders-only, social-info}\}$, the SMS treatment received.
-
-In this model, the outcome variables studies are
-
-* $Y_{im}(t, m) \in \{0, 1\}$, an indicator of deworming on day $m \in \{0, 1, \ldots, 13\}$, in response to time-invariant and time-varying treatments. We define $Y_{i0}(t, m) = 0, \forall i, t, m$, and we use $Y_{i,13} = 1$ to indicate failure to deworm during the 12 day deworming intervention.
-* $M_i \in \{1, \ldots, 13\}$ is the day an individual got dewormed. As above, we reserved day 13 for those who did not get dewormed at all ($Y_i = 0$).
-
-We conducted our duration analysis using a piecewise-constant proportional hazard model [@Wooldridge2010].
-
-\begin{align*}
-\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 0, H_i = h] &= 1 - \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m})  \\
-\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 0, H_i = h] &= \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) \\
-\Pr[Y_{im}(t, m) = 1 | Y_{i,m-1} = 1, H_i = h] &= 1 \\
-\Pr[Y_{im}(t, m) = 0 | Y_{i,m-1} = 1, H_i = h] &= 0 \\\\
-\alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) &= \exp[-\kappa^{static}(t, h;\beta_{j[i]})\cdot\kappa^{dyn}(t, m, h;\gamma_{j[i]})\cdot\lambda_{j[i],m}] \\
-\kappa^{static}(t,h;\beta) &= \exp\left[U(t,h;\beta)\right] \\
-\kappa^{dyn}(t,m,h;\gamma) &= \exp\left[M(t,m,h;\gamma)\right] \\
-\lambda_{jm} &= v_j v_{k[j]} \lambda_m
-\end{align*}
-
-where $U(t,h;\beta)$ is the same as in the basic model. The dynamic component of the model is defined as
-\begin{align*}
-M(t, m, h; \gamma) &= M(z^{dyn}, s^{dyn}, d, s, b, m, h; \gamma) \\
-                   &= \sum_{q = 1}^2\left\{\sum_{w\in\widetilde{Z}^r} (m - 1)^q\times Z^r_w(z^{dyn})\times\gamma^r_{qwh} + \sum_{w\in\widetilde{S}} \lfloor (m - 1)/2 \rfloor^q\times S_w(s^{dyn})\times\gamma^s_{qwh}\right\} 
-\end{align*}
-
-In addition to the priors defined in the static model above, we define the following priors on the dynamic model's parameters and hyperparameters
-\begin{align*}
--\exp(\lambda_m) &\sim \mathtt{Uniform}[0, 1] \\
-v^{clust}_j &\sim \mathtt{Gamma}(\delta^{clust}, \delta^{clust}) \\
-v^{strat}_k &\sim \mathtt{Gamma}(\delta^{strat}, \delta^{strat}) \\
 \gamma &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
                                                      0             & \sigma^{coef} & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
@@ -875,13 +843,19 @@ v^{strat}_k &\sim \mathtt{Gamma}(\delta^{strat}, \delta^{strat}) \\
                                                      0             & \tau^{dyn}_2 & \cdots & 0 \\ 
                                                      \vdots        &               & \ddots &   \\
                                                      0            &               &        &  \end{pmatrix}\right) \\
-\delta^{clust} &\sim \mathtt{StudentT}[0, \infty)(\nu^{scale}, 0, \tau^{scale}) \\
-\delta^{strat} &\sim \mathtt{StudentT}[0, \infty)(\nu^{scale}, 0, \tau^{scale}) 
+\delta^{clust} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \tau^{scale}) \\
+\delta^{strat} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \tau^{scale}) \\
+\tau^{clust} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \sigma^{scale}) \\ 
+\tau^{strat} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \sigma^{scale}) \\
+\tau &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \sigma^{scale}) 
 \end{align*}
+
+With constant hyperparameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
+<!-- TODO Specify values for fixed hyper parameters -->
 
 To estimate this model we use the likelihood probability:
 
-\[ \mathcal{L}_i = \prod_{m = 1}^{M_i - 1} \alpha_m(t, m, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m}) \cdot (1 - \alpha_{M_i}(t, M_i, h;\beta_{j[i]}, \gamma_{j[i]}, \lambda_{j[i],m})^{Y_i} \]
+\[ \mathcal{L}_i = \prod_{m = 1}^{M_i - 1} \alpha_{k[i],m}(z, s, d; X_i) \cdot \left(1 - \alpha_{k[i],M_i}(z, s, d;X_i)\right)^{Y_i} \]
 
 # Results
 
@@ -922,27 +896,8 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
-## Static Model
 
-```{r, ref.label="static-model-ate"}
-```
-
-```{r, ref.label="static-model-stan-data"}
-```
-
-```{r, ref.label="load-static-model-fit", include=FALSE}
-```
-
-```{r, ref.label="basic-model-1-prep-data", include=FALSE}
-```
-
-```{r, ref.label="static-model-takeup", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the probability of deworming take-up."}
-```
-
-```{r, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)"}
-```
-
-## Dynamic Model
+## Deworming Take-up
 
 In this section we report the distributions of 
 
@@ -1039,6 +994,51 @@ Finally, our analysis of SMS treatment combined with incentives does show high l
 # References
 
 <div id="refs"></div>
+
+# Appendix: Static Bayesian Model {-}
+
+We model the probability of take-up as
+\[ \Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i] \]
+
+and the latent utility is modeled as
+
+\begin{align*}
+Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
+U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
+               &= \sum_{w\in\widetilde{Z}^p} Z^p_w(z^p)\times\beta^p_{wh} \\
+            {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{wh1} + Z^r_w(z^r)\times d \times \beta^r_{wh2} + Z^r_w(z^r)\times b \times \beta^r_{wh3}\right\} \\
+            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{wh1} + S_w(s)\times d \times \beta^s_{wh2} + S_w(S)\times b \times \beta^s_{wh3}\right\} \\
+            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uwh1} + S_w(s)\times d \times \beta^{rs}_{uwh2} + S_w(s)\times b \times \beta^{rs}_{uwh3}\right\} \\
+            {} &+ \beta_h + \beta^d_h + \beta^b_h 
+\end{align*}
+where for convenience we define the following indicator functions:
+
+* $Z^p_w(z^p) \equiv \mathbbm{1}(z^p = w)$ 
+* $Z^r_w(z^r) \equiv \mathbbm{1}(z^r = w)$ 
+* $S_w(s) \equiv \mathbbm{1}(s = w)$
+
+
+We carried out our estimation using a logit model using the above parameteric latent function.
+
+## Results
+
+```{r, ref.label="static-model-ate"}
+```
+
+```{r, ref.label="static-model-stan-data"}
+```
+
+```{r, ref.label="load-static-model-fit", include=FALSE}
+```
+
+```{r, ref.label="basic-model-1-prep-data", include=FALSE}
+```
+
+```{r, ref.label="static-model-takeup", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the probability of deworming take-up."}
+```
+
+```{r, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)"}
+```
 
 # Appendix: Bayesian Analysis Stratified by Phone Ownership { - }
 
