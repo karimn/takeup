@@ -1397,8 +1397,8 @@ fast_sim_mean_monitored %>%
   scale_color_discrete("Incentive/Signal Treatment") +
   facet_wrap(~ dist.pot.group, nrow = 1,  
              labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
-  labs(title = "Daily Probability of Deworming Take-up with Varying Days of Signal Observation", y = "Posterior Probability of Deworming") +
-  theme(legend.position = "bottom")
+  labs(title = "Daily Mean Probability of Deworming Take-up with Varying Days of Signal Observation", y = "Posterior Mean Probability of Deworming") +
+  theme(legend.position = "right")
 ```
 
 ```{r fast-sim-daily-obs-plot-phone-owner, fig.width=12, fig.height=8}
@@ -1439,6 +1439,7 @@ so we can "shutdown" learning/observation by forcing $\kappa^\text{dynamic effec
 ```{r fast-sim-daily-dyn-kappa, fig.width=12, fig.height=6}
 fast_sim_mean %>%
   filter(deworming_day <= 12, 
+         dist.pot.group == "close", # Until we add distance to dynamic kappa
          incentive_treatment %in% c("ink", "bracelet"),
          sms.treatment.2 == "sms.control",
          dyn_treat_days %in% c(0, 11)) %>% 
@@ -1450,16 +1451,17 @@ fast_sim_mean %>%
   geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
   geom_line(aes(y = kappa_dyn_treat, 
                 group = str_c(dyn_treat_days, incentive_treatment, dist.pot.group), 
-                linetype = dist.pot.group,
+                # linetype = dist.pot.group,
                 color = incentive_treatment)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_color_discrete("Incentive/Signal Treatment") +
   scale_fill_discrete("Incentive/Signal Treatment") +
+  # scale_linetype_discrete("Distance") +
   # facet_wrap (~ dist.pot.group, nrow = 1, labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = expression(paste("Daily Change in Dynamic Component of ", kappa, " Function")), 
        subtitle = "In response to signal observation only",
        y = expression(paste("Posterior Mean of ", kappa^dyn))) +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right")
 ```
 
 ```{r fast-sim-daily-dyn-kappa-phone-owner, fig.width=12, fig.height=8}
@@ -1516,8 +1518,9 @@ dyn_fast_sim_ate %>%
   facet_wrap(~ dist.pot.group, nrow = 1,
              labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = "Daily Treatment Effect with Varying Days of Signal Observation", 
-       subtitle = "With no SMS treatment and the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
-  theme(legend.position = "bottom") 
+       subtitle = "With no SMS treatment and the control (no SMS) arm as reference", 
+       y = "Posterior Mean Difference in Probability of Deworming") +
+  theme(legend.position = "right") 
 ```
 
 ```{r fast-sim-daily-ate-obs-plot-phone-owner, fig.width=12, fig.height=8}
@@ -1553,6 +1556,7 @@ In the two below plots we look at how the daily probability of take-up evolves o
 ```{r fast-sim-daily-sms-plot, fig.width=12, fig.height=8}
 fast_sim_mean_phone_owner_monitored %>%
   filter(deworming_day <= 12, 
+         dist.pot.group == "close",
          phone_owner,
          dyn_treat_days %in% c(0, 11)) %>% 
   mutate(obs_type = case_when(incentive_treatment == "control" & sms.treatment.2 == "sms.control" ~ 0, 
@@ -1570,11 +1574,10 @@ fast_sim_mean_phone_owner_monitored %>%
   scale_x_continuous("Deworming Day", breaks = seq(2, 12, 2), minor_breaks = TRUE) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
-  facet_grid(dist.pot.group ~ incentive_treatment, scales = "free_y",
-             labeller = labeller(.rows = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-                                 .cols = as_labeller(. %>% str_to_title()))) +
+  facet_wrap(~ incentive_treatment, 
+             labeller = as_labeller(. %>% str_to_title())) +
   labs(title = "Daily Probability of Deworming Take-up with Varying Days of SMS Treatment", y = "Posterior Probability of Deworming") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right")
 ```
 
 The below plot shows the evolution of the exponential function of the quadratic dynamic component of the model (a value of one means no change).  
@@ -1702,7 +1705,7 @@ fast_sim_mean_monitored %>%
        x = "Incentive/Signal Treatment", 
        y = "Posterior Probability of Deworming", 
        caption = "Points show the mean while line ranges show the 90% probability interval.") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right")
 ```
 
 ```{r sim-fast-take-up-phone-owner, fig.width=12, fig.height=8}
@@ -1744,7 +1747,7 @@ fast_sim_ate %>%
        x = "Incentive/Signal Treatment", 
        y = "Posterior Difference in Probability of Deworming", 
        caption = "Points show the mean while line ranges show the 90% probability interval.") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right", legend.direction = "vertical")
 ```
 
 ```{r fast-sim-ate-plot-phone-owner, fig.width=12, fig.height=8}
