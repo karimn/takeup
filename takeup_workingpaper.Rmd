@@ -908,7 +908,7 @@ wtp_model_0_fit %>%
 
 ## Deworming Take-up
 
-In this section we report the posterior distributions of 
+In this section we report the posterior distributions of^[Keep in mind that shown estimators are random functions of $\hat{\theta}$.]
 
 * The finite sample average of the probability of take-up on each deworming day and the probability of take-up on any day
   \begin{align}
@@ -977,22 +977,31 @@ In Figure \ref{fig:fast-sim-daily-ate-obs-plot}, we report the daily posterior m
 ```{r fast-sim-daily-ate-obs-plot, ref.label="fast-sim-daily-ate-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
 ```
 
-```{r, ref.label="fast-sim-daily-sms-plot", fig.width=9, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with SMS treatment)."}
+In Figure \ref{fig:fast-sim-daily-sms-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by signal/incentive treatment and SMS treatment. We also report the predicted counterfactual of SMS recruitment and one pre-MDA reminder SMS message.
+
+```{r fast-sim-daily-sms-plot, ref.label="fast-sim-daily-sms-plot", fig.width=9, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with SMS treatment)."}
 ```
 
-```{r, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=4, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."}
+<!-- TODO We are not showing the dynamics of SMS with no signal observation. -->
+
+In Figure \ref{fig:sim-fast-daily-sms-dyn-kappa}, we show the shape of the $\kappa^{dyn}_m$ quadratic functions, as defined in \eqref{eqn:dyn-kappa}, for all arms and SMS treatment.
+
+```{r sim-fast-daily-sms-dyn-kappa, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=4, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."}
 ```
 
-```{r, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."}
+In Figure \ref{fig:fast-sim-daily-ate-sms-plot}, we report the daily posterior mean difference in the probability of deworming take-up compared to the control arm, as defined in \eqref{eqn:daily-ate}, and separately by signal/incentive and distance from treatment location. We also report the "no salience" predicted counterfactual difference.
+
+```{r fast-sim-daily-ate-sms-plot, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=8, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."}
 ```
 
-```{r, ref.label="fast-sim-takeup-day-one", fig.width=8, fig.cap="Posterior distribution of the finite sample average probability of take-up on deworming day one, for phone owners only and with no SMS treatment."}
+In Figure \ref{fig:fast-sim-ate-day-one}, we focus our analysis on the first deworming day. We report posterior mean treatment effects on deworming take-up of SMS treatment, compared to take-up levels in the same signal/incentive arm with no SMS treatment. For reference, we also show the baseline take-up level.
+
+```{r fast-sim-ate-day-one, ref.label="fast-sim-ate-day-one", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one, for phone owners only."}
 ```
 
-```{r, ref.label="fast-sim-ate-day-one", fig.width=8, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one, for phone owners only."}
-```
+In Figure \ref{fig:fast-sim-no-obs-plot}, we show how treatment effects on deworming differ with (solid line) and without (dashed line) dynamic salience/learning.
 
-```{r, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=7, , fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups (comparing treatment with signal and SMS observation with imputed outcomes with no observation)."}
+```{r fast-sim-no-obs-plot, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=9, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
 ```
 
 

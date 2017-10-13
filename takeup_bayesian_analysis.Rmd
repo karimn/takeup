@@ -1602,11 +1602,11 @@ fast_sim_mean_phone_owner %>%
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   # coord_cartesian(ylim = c(0.9)) +
   # facet_grid(incentive_treatment ~ dist.pot.group, scales = "free_y",
-  facet_wrap(~ incentive_treatment, nrow = 1,
-             labeller = as_labeller(. %>% str_to_title())) +
-  labs(title = expression(paste("Daily Change in Dynamic Component of ", kappa, " Function")), subtitle = "In response to signal observation and SMS treatment.",
+  facet_wrap(~ incentive_treatment, ncol = 3, labeller = as_labeller(. %>% str_to_title())) +
+  labs(title = expression(paste("Daily Change in Dynamic Component of ", kappa, " Function")), 
+       subtitle = "In response to signal observation and SMS treatment.",
        y = expression(paste("Posterior Mean of ", kappa^dyn))) +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right")
 ```
 
 ```{r fast-sim-daily-ate-sms-plot, fig.width=12, fig.height=8}
@@ -1631,16 +1631,17 @@ dyn_fast_sim_ate %>%
   scale_x_continuous("Deworming Day", breaks = seq(2, 12, 2), minor_breaks = TRUE) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  facet_grid(dist.pot.group ~ incentive_treatment_left, scales = "free_y",
-             labeller = labeller(.rows = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-                                 .cols = as_labeller(. %>% str_to_title()))) +
+  facet_grid(incentive_treatment_left ~ dist.pot.group,  #scales = "free_y",
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
+                                 .rows = as_labeller(. %>% str_to_title()))) +
   labs(title = "Daily Treatment Effect with Varying Days of SMS Treatment", 
-       subtitle = "with the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
-  theme(legend.position = "bottom") 
+       subtitle = "with the control (no SMS) arm as reference", 
+       y = "Posterior Mean Difference in Probability of Deworming") +
+  theme(legend.position = "right") 
 ```
 
 ```{r fast-sim-takeup-day-one}
-fast_sim_mean_phone_owner_monitored %>% 
+sms_ctrl_day_one_takeup_plot <- fast_sim_mean_phone_owner_monitored %>% 
   filter(deworming_day == 1,
          phone_owner,
          dyn_treat_days == 11,
@@ -1661,8 +1662,18 @@ fast_sim_mean_phone_owner_monitored %>%
   theme(legend.position = "bottom")
 ```
 
+```{r}
+plot(sms_ctrl_day_one_takeup_plot)
+```
+
 ```{r fast-sim-ate-day-one}
-dyn_fast_sim_ate %>%
+sms_ctrl_takeup <- fast_sim_mean_phone_owner_monitored %>% 
+  filter(deworming_day == 1,
+         phone_owner,
+         dyn_treat_days == 11,
+         sms.treatment.2 == "sms.control") 
+
+sms_day_one_ate_plot <- dyn_fast_sim_ate %>%
   unnest(ate_phone_owner) %>% 
   filter(deworming_day == 1,
          phone_owner,
@@ -1671,19 +1682,29 @@ dyn_fast_sim_ate %>%
          incentive_treatment_left == incentive_treatment_right,
          sms.treatment.2_left != "sms.control",
          sms.treatment.2_right == "sms.control") %>% 
-  mutate(sms.treatment.2_left = fct_recode(sms.treatment.2_left, "Reminders Only" = "reminder.only", "Social Information" = "social.info"),
-         incentive_treatment_left = fct_relabel(incentive_treatment_left, str_to_title)) %>% 
-  ggplot(aes(x = incentive_treatment_left, y = prob_deworm_ate)) +
+  rename(incentive_treatment = incentive_treatment_left,
+         sms.treatment.2 = sms.treatment.2_left,
+         prob_deworm = prob_deworm_ate,
+         prob_deworm_quant_5 = prob_deworm_diff_quant_5, 
+         prob_deworm_quant_95 = prob_deworm_diff_quant_95) %>% 
+  bind_rows(ate = ., sms_ctrl = sms_ctrl_takeup, .id = "estimate_type") %>% 
+  mutate(sms.treatment.2 = fct_recode(sms.treatment.2, "None" = "sms.control", "Reminders Only" = "reminder.only", "Social Information" = "social.info"),
+         incentive_treatment = fct_relabel(incentive_treatment, str_to_title)) %>% 
+  ggplot(aes(x = incentive_treatment, y = prob_deworm)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = alpha("black", 0.5)) +
-  geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95, color = sms.treatment.2_left), position = position_dodge(width = 0.4)) +
-  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  geom_pointrange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95, color = sms.treatment.2, shape = estimate_type), 
+                  position = position_dodge(width = 0.4)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
   scale_color_discrete("SMS Treatment") +
+  scale_shape_discrete("Estimate", labels = c("Treatment Effect", "No SMS Take-up Level")) +
   coord_flip() +
-  facet_wrap(~ dist.pot.group, scales = "free_y", labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)), ncol = 1, strip.position = "right") +
+  facet_wrap(~ dist.pot.group, scales = "free_y", labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)), ncol = 1, strip.position = "top") +
   labs(title = "Treatment Effect of SMS Treatment on Day One",
-       subtitle = "For phone owners only and with the same arm (no SMS) as reference", 
-       x = "Signal/Incentive Treatment", y = "Posterior Difference in Probability of Deworming") +
-  theme(legend.position = "bottom") 
+       subtitle = "For phone owners only", 
+       x = "Signal/Incentive Treatment", y = "") +
+  theme(legend.position = "right") 
+
+plot(sms_day_one_ate_plot)
 ```
 
 ##### Overall Take-up
@@ -1790,15 +1811,15 @@ bind_rows(observe = fast_sim_ate %>%
   geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
                   # data = . %>% filter(obs_type == "observe")) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  scale_linetype_manual("", values = c("dashed", "solid")) + #, labels = c("No Observation", "Normal Observation")) +
+  scale_linetype_manual("", values = c("dashed", "solid"), guide = "none") + #, labels = c("No Observation", "Normal Observation")) +
   coord_flip() +
   facet_wrap(~ dist.pot.group, ncol = 1, strip.position = "right",
              labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = "Comparing Treatment Effects With and Without Observation", 
        x = "Incentive/Signal Treatment", 
-       y = "Posterior Difference in Probability of Deworming", 
+       y = "Posterior Mean Difference in the Probability of Deworming", 
        caption = "Points show the mean while line ranges show the 90% probability interval.\nDashed lines show treatment effects with no observation.") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right")
 ```
 
 ```{r fast-sim-no-obs-plot-phone-owner, fig.width=12, fig.height=10, warning=FALSE}
