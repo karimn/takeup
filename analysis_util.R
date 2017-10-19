@@ -939,7 +939,7 @@ identify_treatment_id <- function(ate_pairs, treatment_map) {
     inner_join(treatment_map, 
               c(left_right_cells_colnames %>% setNames(paste0(., "_right")),
                 both_cells_colnames),
-              suffix = c("_left", "_right"))
+              suffix = c("_left", "_right")) %>% glimpse()
 }
 
 get_unique_treatments <- function(ate_pairs) {
@@ -986,11 +986,17 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map, prepared_analy
 }
 
 prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) {
-  static_treatment_map %>% 
+  prepared <- static_treatment_map %>% 
     mutate(all_treatment_id = seq_len(n())) %>% 
-    mutate_if(is.factor, funs(id = as.integer(.))) %>% 
-    left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
-              by = dynamic_treatment_maps$original_dyn_var)
+    mutate_if(is.factor, funs(id = as.integer(.))) 
+  
+  if (!missing(dynamic_treatment_maps)) {
+    prepared %<>% 
+      left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
+                by = dynamic_treatment_maps$original_dyn_var)
+  }
+  
+  return(prepared)
 }
 
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
@@ -1054,7 +1060,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   
   remove_dup_treatment_dm_cols <- TRUE
   
-  if (!is.null(dynamic_treatment_map)) {
+  is_dynamic_model <- !is.null(dynamic_treatment_map)
+  
+  if (is_dynamic_model) {
     if (prepared_treatment_maps) {
       dyn_treat_maps <- dynamic_treatment_map
     } else {
@@ -1079,7 +1087,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   }
   
   if (!prepared_treatment_maps) {
-    treatment_map %<>% prepare_treatment_map(dyn_treat_maps)
+    if (is_dynamic_model) treatment_map %<>% prepare_treatment_map(dyn_treat_maps) else treatment_map %<>% prepare_treatment_map()
   }
   
   census_covar_map <- count_(prepared_analysis_data, c("age", "gender", subgroup_col)) %>% 
