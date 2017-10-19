@@ -1,7 +1,7 @@
 ---
 title: |
-    | Evidence from a Field Experiment in Kenya
-    | The Role of Social Signaling in Community Mass Deworming^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
+    | The Role of Social Signaling in Community Mass Deworming
+    | Evidence from a Field Experiment in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
 subtitle: "Internal Working Paper -- Do Not Cite or Distribute"
 date: "October 2017"
 author:
@@ -195,7 +195,7 @@ Prior to the start of deworming treatment, we also recruited a random sample of 
 We model the individuals' utility on deciding to take-up deworming as a function of assigned signal/incentive, SMS, and distance treatment, as
 \begin{equation}
 \begin{split}
-U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}, s) + u^h + u^s(\bar{y}_{-i,m}) v_i + \rho_i\omega u^r - c_i(z, d) \label{eqn:structural-utility}
+U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}; s) + u^h(\bar{y}_{-i,m}; v_i) + u^s(\bar{y}_{-i,m};v_i) + u^r(\bar{y}_{-i,m};\rho_i, z) - c_i(d) \label{eqn:structural-utility}
 \end{split} 
 \end{equation}
 where
@@ -204,58 +204,54 @@ where
 * $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
 * $d \in \{0, 1\}$, is an indicator for $i$'s community being assigned to be _far_ from the treatment location.
 * $m \in \{1,\ldots, 12\}$, is the deworming day.
-* $\bar{y}_{-i,m} = \bar{y}_{-i,m}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up. This is $i$'s subjective belief about deworming in their community, potentially influenced by experimental treatment.
-* $u_i^c(z)$ is the private consumption value of $z$ which is known to $i$.
-* $u_{im}^n(\bar{y}_{-i}, s, m)$ captures the effect of deworming salience^[We use this term broadly to refer to any "nudge" or reminder effects.] from observation and information provided by SMS on day $m$. This is also known to $i$.
-* $c_i(z, d)$ is the cost of deworming at distance $d$ and with assigned signal/incentive $z$. This is also known to $i$.
-<!-- TODO we should explore heterogeneity here with mixtures models -->
-* $u^h$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown.
-* $u^s(\bar{y}_{-i,m})$ is the social health benefit of deworming, assumed to be the same for all communities but is unknown. This term combines intrinsic motivation and externality, coordination, or conditional cooperation effects, and hence potentially responds directly to the level of community takeup, $\bar{y}_{-i,m}$.
 * $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
+* $\bar{y}_{-i,m} = \bar{y}_{-i,m}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up. This is $i$'s subjective belief about deworming in their community, potentially influenced by experimental treatment.
+* $u^c_i(z)$ is the private consumption value of $z$ which is known to $i$.
+* $u^n_{im}(\bar{y}_{-i}; s)$ captures the effect of deworming salience^[We use this term broadly to refer to any "nudge" or reminder effects, as well as conformity and herding effects.] from observation and information provided by SMS on day $m$. This is also known to $i$.
+* $c_i(d)$ is the cost of deworming at distance $d$. This is also known to $i$.
+<!-- TODO we should explore heterogeneity here with mixtures models -->
+* $u^h(\bar{y}_{-i,m};v_i)$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown, conditional on prosocial type type $v_i$. Health returns can differ in response to inferred peer take-up due to positive externalities, a response that potentially differs between prosocial and non-prosocial individuals.
+* $u^s(\bar{y}_{-i,m};v_i)$ is the social health benefit of deworming, assumed to be the same for all communities but is unknown. This term combines intrinsic motivation and externality, coordination, or conditional cooperation effects, and hence potentially responds directly to the level of community takeup, $\bar{y}_{-i,m}$.
 * $\rho_i$ is a measure of how image motivated $i$ is.
-* $u^r \equiv \omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1] - \Pr_{-i}[v_i = 1|y_{im} = 0]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming. This is a random variable due to $i$'s uncertainty about others' inference.
+* $u^r(\bar{y}_{-i,m};\rho_i, z) \equiv \rho_i\omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1, \bar{y}_{im}, z] - \Pr_{-i}[v_i = 1|y_{im} = 0, \bar{y}_{im}, z]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming, given signal/incentive treatment $z$. This is a random variable due to $i$'s uncertainty about others' inference.
 * $\omega$ is a measure of the social desireability of deworming.
 
 We model the binary decision to take-up deworming, conditional on not having already done so, as
-\[ y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)|\theta] > 0) \lor y_{i,m-1}, \]
-where $\theta_i$ is a vector of parameters relevant to $i$'s beliefs about $u^h$, $u^s$, and $u^r$,
+\[ y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)] > 0) \lor y_{i,m-1}, \]
+hence,
 \begin{equation}
-E_i[U_{im}(z,s,d)|\theta] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}, s) + E_i[u^h + u^s(\bar{y}_{-i,m}) v_i + \rho_i u^r|\bar{y}_{-i,m}, z, s, d, \theta_i]}^{L_{im}(z,s,d)} - c_i(z, d),  \label{eqn:structural-expected-utility} 
+E_i[U_{im}(z,s,d)] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};v_i) + u^s(\bar{y}_{-i,m};v_i) + u^r(\bar{y}_{-i,m};\rho_i, z)]}^{L_{im}(z,s,d)} - c_i(d), \label{eqn:structural-expected-utility} 
 \end{equation}
-and $E_i[\cdot]$ is $i$'s subjective expectation. For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}, s) + E_i[u^h + u^s(\bar{y}_{-i,m}) v_i + \rho_i u^r|\bar{y}_{-i,m}, z, s, d, \theta_i],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
+and $E_i[\cdot]$ is $i$'s subjective expectation reflecting uncertainty about $\bar{y}_{-i,m}$ and functions $u^h, u^s$, and $u^r$ (the later with uncertainty about $\omega$ and $\Pr_{-i}[v|y,z]$). 
 
-We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i, \theta_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
+For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};v_i) + u^s(\bar{y}_{-i,m};v_i) + u^r(\bar{y}_{-i,m};\rho_i,z)],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
+We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
 
 \begin{assumption}[Private Consumption Value of Signals/Incentives]
 For all $i$, 
 \begin{enumerate}
-\item $u^c_i(\mathrm{control}) = u^c_i(\mathrm{ink}) = 0$: ink has no consumption value.
+\item $u^c_i(\mathrm{control}) = 0$ and $u^c_i(\mathrm{ink}) \leq 0$: ink has no consumption value.
 \item $u^c_i(\mathrm{bracelet}) \geq 0$ and $u^c_i(\mathrm{calendar}) \geq 0$: these are voluntary signals/incentive so they cannot cause disutility.
 \end{enumerate}
 \end{assumption}
 
 \begin{assumption}[Private Cost of Deworming]
-For all $i$,
-\begin{enumerate}
-\item $c_i(z, d) \geq c_i(z, d') \geq 0, \forall d > d'$
-\item $c_i(z, d) = c_i(z', d), \forall z, z' \in \{\mathrm{control, calendar, braclet}\}$: only ink can introduce disutility since it is mandatory.
-\end{enumerate}
+For all $i$, $c_i(d) \geq c_i(d') \geq 0, \forall d > d'$.
 \end{assumption}
 
-<!-- Below assumption assumes fixed conformity effect. Is this reasonable given that individuals might have different priors on others' take-up based on their signal/incentive treatment? Perhaps we can weaken this by using strong priors on this equality and make use of reported beliefs on community take-up (in the baseline survey). This allows the data to overwhelm this assumption if needed. -->
+<!-- Below assumption assumes fixed conformity effect. Is this reasonable given that individuals might have different priors on others' take-up based on their community's signal/incentive treatment? Perhaps we can weaken this by using strong priors on this equality and make use of reported beliefs on community take-up (in the baseline survey). This allows the data to overwhelm this assumption if needed. -->
 
 \begin{assumption}[Constant Day One Salience]\label{assume:day-one-salience}
-For all $i$, $u^n_{i1}(\bar{y}, s) = u^n_{i1}(\bar{y}', s), \forall \bar{y}, \bar{y}', s$: on the first day salience/nudge effects are constant across signal/incentive arms. 
+For all $i$, $u^n_{i1}(\bar{y}; s) = u^n_{i1}(\bar{y}'; s), \forall \bar{y}, \bar{y}', s$: on the first day salience/nudge effects are constant across signal/incentive arms. 
 \end{assumption}
 
 \begin{assumption}[Constant Prior Beliefs About Health Benefits]
 For all $i$,
 \begin{enumerate}
-\item $E_i[u^h|\bar{y}_{-i,1}(z, s, d), z, d] = E_i[u^h|\bar{y}_{-i,1}(z', s, d), z', d], \forall z,z' \in \mathcal{Z}$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
-\item $E_i[u^s|\bar{y}_{-i,1}(z, s, d), z, d] = E_i[u^s|\bar{y}_{-i,1}(z', s, d), z', d], \forall z,z' \in \mathcal{Z}$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
+\item $E_i[u^h(\bar{y}_{-i,m};v_i)|z,d] = E_i[u^h(\bar{y}_{-i,m};v_i)| z',d'], \forall i \text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
+\item $E_i[u^s(\bar{y}_{-i,m};v_i)|z,d] = E_i[u^s(\bar{y}_{-i,m};v_i)|z', d'], \forall i\text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
 \end{enumerate}
 \end{assumption}
-
 
 # Experiment Design
 
@@ -765,9 +761,9 @@ We estimate these model parameters using the likelihood probability:
 ## Deworming Take-up Model
 
 To evaluate the structural model outlined in Section \ref{structural-model}, we need to construct a parametric empirical model. First we parameterize the latent expected utility function in \eqref{eqn:structural-expected-utility} to have the following form with additive error terms: $\tilde{\eta}$ to capture preferences for deworming on particular days and $\varepsilon$ to capture individual heterogeneity in other utility terms.
-\begin{equation*}
-E_i[U_{im}(z,s,d)|\theta] = \tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_m + \varepsilon_{im}. 
-\end{equation*}
+\begin{equation}
+E_i[U_{im}(z,s,d)] = \tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(d) + \tilde{\eta}_m + \varepsilon_{im}. 
+\end{equation}
 We then model the probability to deworm, conditional on not having already been dewormed, as
 <!-- &= \Pr[\varepsilon_{im} > -(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m})] \\ -->
 <!-- &= 1 - F\left(-(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m})\right) \\ -->
@@ -778,22 +774,22 @@ We then model the probability to deworm, conditional on not having already been 
 \end{split}
 \end{equation}
 where $F$ is the c.d.f. function for $\varepsilon$. We model $\varepsilon$ as having a reverse extreme value (standard Gumbel) distribution and define $\tilde{\eta}_m \equiv \log \lambda_m$, to easily build a duration analysis model based on our structural model. In other words, we are adopting a complementary log-log link for our binomial model of take-up. The c.d.f. of $\varepsilon$ is therefore $F(z) = 1 - \exp\left\{-\exp[z]\right\}$ and
-\begin{align*}
-\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] &= 1 - \exp\left\{-\exp[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \log \lambda_m]\right\} \\
-                                              &= 1 - \exp\left\{-\exp[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d)]\cdot\lambda_m\right\},
-\end{align*}
+<!-- &= 1 - \exp\left\{-\exp[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \log \lambda_m]\right\} \\ -->
+\begin{equation}
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] = 1 - \exp\left\{-\exp[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d)]\cdot\lambda_m\right\},
+\end{equation}
 which results in a piecewise-constant proportional hazard model [@Wooldridge2010] with $\lambda_m$ as the baseline hazard for deworming day $m$, and with both static (time invariant) and dynamic (time-varying) effects: $(\tilde{u}^c(z) + \tilde{c}(z,s,d))$ and $\tilde{L}_m(z,s,d)$, respectively.
 
 
 
 In place of structural terms we introduce the following linear parameters
 \begin{align}
-\left[\tilde{u}^c(z) - \tilde{c}(z, d)\right] - \left[\tilde{u}^c(\mathrm{control}) - \tilde{c}(\mathrm{control}, 0)\right] = \sum_{w\in\widetilde{\mathcal{Z}}^p} Z_w(z) \times \beta^p_w + \beta^d \times d \label{eqn:private-benefits-costs-param}
+\left[\tilde{u}^c(z) - \tilde{c}(d)\right] - \left[\tilde{u}^c(\mathrm{control}) - \tilde{c}(0)\right] = \sum_{w\in\widetilde{\mathcal{Z}}^p} Z_w(z) \times \beta^p_w + \beta^d \times d \label{eqn:private-benefits-costs-param}
 \end{align}
 and
 \begin{equation}
 \begin{split}
-\tilde{L}_m(z, s, d) - \tilde{L}_m(\mathrm{control}, \mathrm{control}, 0) &= \Delta \tilde{L}_m(z, s, d) \\
+\Delta \tilde{L}_m(z, s, d) &= \tilde{L}_m(z, s, d) - \tilde{L}_m(\mathrm{control}, \mathrm{control}, 0) \\
                                                                  &= \Delta \tilde{L}_1(z, s, d) + \gamma_m(z, s) \\
 \Delta \tilde{L}_1(z, s, d) &= \sum_{w\in\widetilde{Z}^r} \left\{Z_w(z)\times\beta^r_{w1} + Z_w(z)\times d \times \beta^r_{w2} \right\} \\
             {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{w1} + S_w(s)\times d \times \beta^s_{w2} \right\} \\
