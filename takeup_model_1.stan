@@ -1,6 +1,7 @@
 functions {
   vector treatment_cell_takeup_rng(int[] treatment_ids, 
                                    int[] missing_obs_ids, 
+                                   int[] observed_obs_ids, 
                                    int[] missing_stratum_id,
                                    int[] missing_cluster_id,
                                    int[] private_value_calendar_coef,
@@ -32,7 +33,7 @@ functions {
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]';
       
       vector[curr_missing_treatment_size] all_takeup;
-      real all_observed_takeup_total = sum(observed_dewormed_any[observed_treatment_pos:observed_treatment_end]); 
+      real all_observed_takeup_total = sum(observed_dewormed_any[observed_obs_ids[observed_treatment_pos:observed_treatment_end]]); 
           
       real all_cell_num_obs = curr_missing_treatment_size + curr_observed_treatment_size;
       
@@ -215,6 +216,7 @@ generated quantities {
   if (estimate_ate) {
     treatment_cell_takeup = treatment_cell_takeup_rng(ate_treatments,
                                                       missing_obs_ids,
+                                                      observed_obs_ids,
                                                       missing_treatment_stratum_id,
                                                       missing_treatment_cluster_id,
                                                       private_value_calendar_coef,
@@ -227,7 +229,7 @@ generated quantities {
                                                       cluster_effects,
                                                       hyper_census_covar_coef,
                                                       stratum_beta_mat,
-                                                      to_vector(observed_dewormed_day));
+                                                      to_vector(dewormed_any));
                                                       
     treatment_cell_ate = treatment_cell_takeup[ate_pairs[, 1]] - treatment_cell_takeup[ate_pairs[, 2]]; 
   }
