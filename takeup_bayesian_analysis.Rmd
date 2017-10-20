@@ -341,7 +341,7 @@ basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8,
 ```
 
 ```{r load-static-model-fit, echo=TRUE}
-basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_12_[1-8].csv", full.names = TRUE) %>% 
+basic_model_1_fit <- dir("stanfit", pattern = "basic_model_1_13_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 
 basic_model_1_fit %>% 
@@ -351,21 +351,18 @@ basic_model_1_fit %>%
 ```
 
 ```{r, eval=FALSE}
-print(basic_model_1_fit, pars = c("non_phone_takeup", "phone_takeup", "non_phone_takeup_ate", "phone_takeup_ate"))
-```
-
-```{r, eval=FALSE}
-print(basic_model_1_fit, pars = "hyper_ksh_util_gamma_raw", digits_summary = 10)
+print(basic_model_1_fit, pars = c("treatment_cell_takeup"))
 ```
 
 ```{r basic-model-1-prep-data}
 est_deworming_takeup_ate <- basic_model_1_fit %>% 
-  as.data.frame(pars = c("non_phone_takeup_ate", "phone_takeup_ate")) %>% 
-  imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
+  as.data.frame(pars = c("treatment_cell_ate")) %>% 
+  gather(ate_pair_rank, sim_outcome) %>% 
+  mutate(ate_pair_rank = str_extract(ate_pair_rank, "[(\\d+)]") %>% as.integer()) %>% 
+  # group_by(phone_owner) %>% 
+  do(bind_cols(., param_stan_data[[str_interp("${first(.$phone_owner)}_owner_ate_pairs")]][.$ate_pair_rank, ])) %>%
   separate(outcome_id, c("phone_owner", "ate_pair_rank"), "(_takeup_ate\\[)|,|\\]", extra = "drop") %>% 
   mutate_at(vars(ate_pair_rank), as.integer) %>% 
-  group_by(phone_owner) %>% 
-  do(bind_cols(., param_stan_data[[str_interp("${first(.$phone_owner)}_owner_ate_pairs")]][.$ate_pair_rank, ])) %>%
   mutate(all_treatment_id_left = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
          all_treatment_id_right = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right]) %>%
   ungroup() 
