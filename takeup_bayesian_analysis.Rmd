@@ -365,7 +365,11 @@ est_deworming_takeup_ate <- basic_model_1_fit %>%
   mutate(ate_pair_rank = str_extract(ate_pair_rank, "[(\\d+)]") %>% as.integer()) %>% 
   bind_cols(param_stan_data$ate_pairs[.$ate_pair_rank, ]) %>%
   mutate(all_treatment_id_left = param_stan_data$ate_treatments[rank_id_left],
-         all_treatment_id_right = param_stan_data$ate_treatments[rank_id_right]) 
+         all_treatment_id_right = param_stan_data$ate_treatments[rank_id_right],
+         treatment_size_left = treatment_cell_size[rank_id_left],
+         treatment_size_right = treatment_cell_size[rank_id_right]) 
+
+assertthat::assert_that(all(treatment_size_left == treatment_size_right), env = est_deworming_takeup_ate)
 
 num_raw_takeup_ate <- nrow(est_deworming_takeup_ate)
 
@@ -383,7 +387,8 @@ sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>%
          private_value_right == "control",
          social_value_right == "control",
          private_value_left != "control" | social_value_left != "control") %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)_(left|right)"), phone_owner)) %>% 
+  # group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)_(left|right)"), phone_owner)) %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2ot.group)_(left|right)"), phone_owner)) %>% 
   summarize(mean_ate = mean(sim_outcome),
             ub_90 = quantile(sim_outcome, 0.95),
             ub_95 = quantile(sim_outcome, 0.975),
