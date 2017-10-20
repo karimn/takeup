@@ -348,6 +348,8 @@ basic_model_1_fit %>%
   get_sampler_params(inc_warmup = FALSE) %>% 
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
+
+load(file.path("stan_analysis_data", "model_1_13.RData"))
 ```
 
 ```{r, eval=FALSE}
@@ -355,30 +357,25 @@ print(basic_model_1_fit, pars = c("treatment_cell_takeup"))
 ```
 
 ```{r basic-model-1-prep-data}
+treatment_cell_size <- with(param_stan_data, missing_treatment_sizes + observed_treatment_sizes)
+
 est_deworming_takeup_ate <- basic_model_1_fit %>% 
   as.data.frame(pars = c("treatment_cell_ate")) %>% 
   gather(ate_pair_rank, sim_outcome) %>% 
   mutate(ate_pair_rank = str_extract(ate_pair_rank, "[(\\d+)]") %>% as.integer()) %>% 
-  # group_by(phone_owner) %>% 
-  do(bind_cols(., param_stan_data[[str_interp("${first(.$phone_owner)}_owner_ate_pairs")]][.$ate_pair_rank, ])) %>%
-  separate(outcome_id, c("phone_owner", "ate_pair_rank"), "(_takeup_ate\\[)|,|\\]", extra = "drop") %>% 
-  mutate_at(vars(ate_pair_rank), as.integer) %>% 
-  mutate(all_treatment_id_left = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
-         all_treatment_id_right = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right]) %>%
-  ungroup() 
+  bind_cols(param_stan_data$ate_pairs[.$ate_pair_rank, ]) %>%
+  mutate(all_treatment_id_left = param_stan_data$ate_treatments[rank_id_left],
+         all_treatment_id_right = param_stan_data$ate_treatments[rank_id_right]) 
 
 num_raw_takeup_ate <- nrow(est_deworming_takeup_ate)
 
 est_deworming_takeup_ate %<>% 
-  mutate(phone_owner = phone_owner == "phone") %>% 
   left_join(param_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-  left_join(param_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) 
+  left_join(param_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+  select(-matches("_id_(left|right)$"))
 
-assertthat::assert_that(num_raw_takeup_ate == nrow(est_deworming_takeup_ate) & all(phone_owner.x == phone_owner.y) & all(phone_owner.y == phone_owner), 
+assertthat::assert_that(num_raw_takeup_ate == nrow(est_deworming_takeup_ate),
                         env = est_deworming_takeup_ate)
-
-est_deworming_takeup_ate %<>% 
-  select(-matches("phone_owner\\.[xy]"))
 
 sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% 
   filter(sms.treatment.2_left == "sms.control", 
