@@ -138,12 +138,6 @@ transformed data {
   matrix[num_all_treatments, num_all_treatments] diag_treatment_map_dm = diag_matrix(rep_vector(1, num_all_treatments));
   
   int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
-  
-  int ate_treatment_total_size[num_ate_treatments];
-  
-  for (ate_treatment_index in 1:num_ate_treatments) {
-    ate_treatment_total_size[ate_treatment_index] = missing_treatment_sizes[ate_treatment_index] + observed_treatment_sizes[ate_treatment_index];
-  }
 }
 
 parameters {
@@ -233,67 +227,4 @@ generated quantities {
                                                       
     treatment_cell_ate = treatment_cell_takeup[ate_pairs[, 1]] - treatment_cell_takeup[ate_pairs[, 2]]; 
   }
-  
-  // matrix<lower = 0, upper = 1>[num_non_phone_owner_treatments, 2] non_phone_takeup; 
-  // matrix<lower = 0, upper = 1>[num_phone_owner_treatments, 2] phone_takeup; 
-  // vector<lower = -1, upper = 1>[num_non_phone_owner_ate_pairs] non_phone_takeup_ate;
-  // vector<lower = -1, upper = 1>[num_phone_owner_ate_pairs] phone_takeup_ate;
-  // vector[num_non_phone_owner_ate_pairs] non_phone_takeup_ate_percent;
-  // vector[num_phone_owner_ate_pairs] phone_takeup_ate_percent;
-  // 
-  // {
-  //   // vector[num_missing_non_phone_owner_obs_ids] missing_non_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_non_phone_owner_obs_ids];
-  //   // vector[num_missing_phone_owner_obs_ids] missing_phone_bracelet_util_diff = latent_bracelet_util_diff[missing_phone_owner_obs_ids];
-  //   
-  //   non_phone_takeup = treatment_cell_takeup_rng(non_phone_owner_treatments,
-  //                                            missing_non_phone_owner_obs_ids,
-  //                                            non_phone_missing_treatment_stratum_id,
-  //                                            non_phone_missing_treatment_cluster_id,
-  //                                            // missing_non_phone_bracelet_util_diff,
-  //                                            private_value_calendar_coef,
-  //                                            private_value_bracelet_coef,
-  //                                            non_phone_missing_census_covar_dm,
-  //                                            non_phone_missing_name_matched,
-  //                                            non_phone_observed_name_matched,
-  //                                            treatment_map_design_matrix,
-  //                                            diag_treatment_dm,
-  //                                            private_value_bracelet_indicator,
-  //                                            missing_non_phone_owner_treatment_sizes,
-  //                                            observed_non_phone_owner_treatment_sizes,
-  //                                            stratum_intercept,
-  //                                            cluster_effects,
-  //                                            hyper_census_covar_coef,
-  //                                            // stratum_name_matching_effect,
-  //                                            stratum_treatment_name_matching_interact,
-  //                                            stratum_beta_mat,
-  //                                            to_vector(observed_non_phone_dewormed_any));
-  //                                            
-  //   phone_takeup = treatment_cell_takeup_rng(phone_owner_treatments,
-  //                                            missing_phone_owner_obs_ids,
-  //                                            phone_missing_treatment_stratum_id,
-  //                                            phone_missing_treatment_cluster_id,
-  //                                            // missing_phone_bracelet_util_diff,
-  //                                            private_value_calendar_coef,
-  //                                            private_value_bracelet_coef,
-  //                                            phone_missing_census_covar_dm,
-  //                                            phone_missing_name_matched,
-  //                                            phone_observed_name_matched,
-  //                                            treatment_map_design_matrix,
-  //                                            diag_treatment_dm,
-  //                                            private_value_bracelet_indicator,
-  //                                            missing_phone_owner_treatment_sizes,
-  //                                            observed_phone_owner_treatment_sizes,
-  //                                            stratum_intercept,
-  //                                            cluster_effects,
-  //                                            hyper_census_covar_coef,
-  //                                            // stratum_name_matching_effect,
-  //                                            stratum_treatment_name_matching_interact,
-  //                                            stratum_beta_mat,
-  //                                            to_vector(observed_phone_dewormed_any));
-  // }
-  //                                          
-  // non_phone_takeup_ate = non_phone_takeup[non_phone_owner_ate_pairs[, 1], 1] - non_phone_takeup[non_phone_owner_ate_pairs[, 2], 1];
-  // phone_takeup_ate = phone_takeup[phone_owner_ate_pairs[, 1], 1] - phone_takeup[phone_owner_ate_pairs[, 2], 1];
-  // non_phone_takeup_ate_percent = non_phone_takeup_ate ./ non_phone_takeup[non_phone_owner_ate_pairs[, 2], 2];
-  // phone_takeup_ate_percent = phone_takeup_ate ./ phone_takeup[phone_owner_ate_pairs[, 2], 2];
 }

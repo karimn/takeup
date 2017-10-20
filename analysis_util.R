@@ -1007,7 +1007,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            treatment_map = NULL,
                                            dynamic_treatment_map = NULL,
                                            treatment_formula = NULL,
-                                           subgroup_col = "phone_owner",
+                                           subgroup_col = c("phone_owner", "name_matched"),
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
@@ -1090,12 +1090,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     if (is_dynamic_model) treatment_map %<>% prepare_treatment_map(dyn_treat_maps) else treatment_map %<>% prepare_treatment_map()
   }
   
-  census_covar_map <- count_(prepared_analysis_data, c("age", "gender", subgroup_col)) %>% 
+  census_covar_map <- count_(prepared_analysis_data, c("age", "gender")) %>% 
     mutate(census_covar_id = seq_len(n())) 
     
   prepared_analysis_data %<>% 
-    left_join(treatment_map, c(treatment_col, dyn_formula_var, subgroup_col)) %>% 
-    left_join(select(census_covar_map, -n), c("age", "gender", subgroup_col)) %T>% {
+    left_join(treatment_map, unique(c(treatment_col, dyn_formula_var, subgroup_col))) %>% 
+    left_join(select(census_covar_map, -n), c("age", "gender")) %T>% {
       if (any(is.na(.$all_treatment_id))) warning(sprintf("%d observations with NA all treatment ID", sum(is.na(.$all_treatment_id))))
     } %>%
     # filter(!is.na(all_treatment_id)) %>% 
@@ -1166,11 +1166,29 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     ate_treatments <- all_ate %>% get_unique_treatments()
     
-    missing_treatment <- ate_treatments$all_treatment_id %>%
-      map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
-
-    observed_treatment <- ate_treatments$all_treatment_id %>%
-      map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
+    if (!is.null(subgroup_col)) {
+      ate_treatments %<>% left_join(select(treatment_map, all_treatment_id, subgroup_col), "all_treatment_id")
+      
+      missing_treatment <- ate_treatments %>%
+        plyr::alply(1, function(treat_row) {
+          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
+            filter(all_treatment_id != treat_row$all_treatment_id) %>% 
+            pull(obs_index)
+        })
+      
+      observed_treatment <- ate_treatments %>%
+        plyr::alply(1, function(treat_row) {
+          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
+            filter(all_treatment_id == treat_row$all_treatment_id) %>% 
+            pull(obs_index)
+        })
+    } else {
+      missing_treatment <- ate_treatments$all_treatment_id %>%
+        map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
+  
+      observed_treatment <- ate_treatments$all_treatment_id %>%
+        map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
+    }
     
     ate_pairs <- all_ate %>% 
       select(all_treatment_id_left, all_treatment_id_right) %>%
