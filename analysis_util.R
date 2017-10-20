@@ -939,7 +939,7 @@ identify_treatment_id <- function(ate_pairs, treatment_map) {
     inner_join(treatment_map, 
               c(left_right_cells_colnames %>% setNames(paste0(., "_right")),
                 both_cells_colnames),
-              suffix = c("_left", "_right")) %>% glimpse()
+              suffix = c("_left", "_right")) 
 }
 
 get_unique_treatments <- function(ate_pairs) {
