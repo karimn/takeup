@@ -364,7 +364,7 @@ param_stan_data <- static_analysis_data %>%
 
 ```{r basic-model-1, eval=FALSE}
 basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 2, iter = 800, sample_file = file.path("stanfit", "basic_model_1_13.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "basic_model_1_13.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
 ```
 
 ```{r, echo=TRUE}
