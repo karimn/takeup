@@ -1237,8 +1237,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     reminder_info_coef = dynamic_treatment_map %>% colnames() %>% str_which("reminder_info"),
     num_signal_observed_coef = length(signal_observed_coef),
     num_reminder_info_coef = length(reminder_info_coef),
-    all_treatment_signal_observed_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_observed),
-    all_treatment_reminder_info_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_sms),
+    # all_treatment_signal_observed_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_observed),
+    # all_treatment_reminder_info_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_sms),
     
     dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
       dynamic_treatment_map %>% 
