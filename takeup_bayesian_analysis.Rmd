@@ -634,7 +634,7 @@ analysis.data %>%
 
 The finite sample average treatment effects we are interested in estimating is similar to that of the static model; we are interested in the impact on deworming $Y_i \equiv \mathbbm{1}\{M_i \leq 12\}$. We are not interested in the timing of take-up. We use the dynamic model to analyze impute unobservable counterfactuals. For example, estimating the impact of bracelets without any learning, assuming that learning can be captured by the time-varying dynamics of bracelets (days of observable signals). We can't completely shutdown learning, but we can fix at the baseline (control) level.
 
-```{r}
+```{r dyn-analysis-data}
 dyn_analysis_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, 
                                       control = c("control", "ink"), 
@@ -645,7 +645,8 @@ dyn_analysis_data <- analysis.data %>%
          incentive_shift = private_value,
          dyn_dist_pot = dist.pot.group,
          reminder_info_stock = sms.treatment.2) %>% 
-  filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
+  filter(!name_matched, !hh.baseline.sample)
+  # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 dyn_dyn_treatment_maps <- lst(formula = ~ (poly(days_observed, 2, raw = TRUE) * (signal_observed + incentive_shift) + 
                                              poly(days_sms, 2, raw = TRUE) * reminder_info_stock) * dyn_dist_pot * phone_owner,
@@ -706,10 +707,11 @@ dyn_sms_control_ate <- tribble(
   ) %>% 
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
-  bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
+  # bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
   mutate(sms.treatment.2_left = "control", 
          sms.treatment.2_right = "control",
-         hh.baseline.sample = FALSE, 
+         name_matched = FALSE,
+         # hh.baseline.sample = FALSE, 
          reminder_info_stock_left =  sms.treatment.2_left,
          reminder_info_stock_right = sms.treatment.2_right) %>% 
   mutate_at(vars(phone_owner, name_matched), as.logical) %>%
@@ -807,13 +809,15 @@ dyn_phone_owners_ate <- tribble(
     )
   ) %>% 
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
-  mutate(phone_owner = TRUE,
-         incentive_shift_left = "control",
-         incentive_shift_right = "control",
-         hh.baseline.sample = FALSE, 
-         name_matched = FALSE) %>%
-  mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) %>% 
-  bind_rows(filter(., sms.treatment.2_left == "control" & sms.treatment.2_right == "control") %>% mutate(name_matched = TRUE))
+  mutate(
+    phone_owner = TRUE,
+    incentive_shift_left = "control",
+    incentive_shift_right = "control",
+    # hh.baseline.sample = FALSE, 
+    name_matched = FALSE
+  ) %>%
+  mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) 
+  # bind_rows(filter(., sms.treatment.2_left == "control" & sms.treatment.2_right == "control") %>% mutate(name_matched = TRUE))
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 
@@ -873,7 +877,8 @@ dyn_stan_data <- prepare_bayesian_analysis_data(
   treatment_map = dyn_static_treatment_map,
   dynamic_treatment_map = dyn_dyn_treatment_maps,
     
-  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+  # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
     
   all_ate = dyn_all_ate, 
   
@@ -892,7 +897,7 @@ dyn_stan_data <- prepare_bayesian_analysis_data(
   sigma_wtp_df_student_t = 2.5,
   sigma_ksh_util_gamma = 5,
   
-  estimate_ate = 0
+  estimate_ate = 1
 )
 
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
@@ -910,7 +915,7 @@ save(dyn_stan_data, file = file.path("stan_analysis_data", "model_2_5.RData"))
 ```{r basic-model-2-simple-debug, eval=FALSE}
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+           chains = 8, iter = 100, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
 ```{r}
