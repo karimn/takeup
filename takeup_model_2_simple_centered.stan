@@ -132,12 +132,6 @@ data {
   int<lower = 1> num_clusters;
   int<lower = 1> num_strata;
   
-  // int num_private_value_calendar_coef;
-  // int num_private_value_bracelet_coef;
-  // int private_value_calendar_coef[num_private_value_calendar_coef];
-  // int private_value_bracelet_coef[num_private_value_bracelet_coef];
-  // int not_private_value_bracelet_coef[num_all_treatment_coef - num_private_value_bracelet_coef];
-  
   // Below references to "maps" refer to a finite set of treatment cells that has a one-to-many relationship to actual observations
   
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
@@ -178,14 +172,6 @@ data {
  
   matrix[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map[num_dynamic_treatments];
   int all_treatment_dyn_id[num_all_treatments];
-  
-  // int<lower = 1, upper = num_dynamic_treatment_col> signal_observed_coef[num_signal_observed_coef];
-  // int<lower = 1, upper = num_dynamic_treatment_col> reminder_info_coef[num_reminder_info_coef];
-  
-  // int<lower = 0, upper = num_deworming_days> all_treatment_signal_observed_days[num_all_treatments];
-  // int<lower = 0, upper = num_deworming_days> all_treatment_reminder_info_days[num_all_treatments];
-  // 
-  // matrix<lower = 0>[num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_map_dm[num_dynamic_treatments, num_deworming_days, num_deworming_days];
  
   // Counterfactuals and ATE
   
@@ -227,20 +213,100 @@ data {
 
 transformed data {
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
-  
-  // int num_not_private_value_bracelet_coef = num_all_treatment_coef - num_private_value_bracelet_coef;
-  
   matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+  
+  // int num_daily_obs = sum(dewormed_day_any) - (num_obs - sum(dewormed_any));
+
+  // vector<lower = 0, upper = 1>[num_daily_obs] obs_daily_dewormed = rep_vector(0, num_daily_obs);
+  
+  // matrix[num_daily_obs, num_census_covar_coef] full_census_covar_dm;
+  // matrix[num_daily_obs, num_all_treatment_coef] full_static_treatment_dm;
+  // matrix[num_daily_obs, num_dynamic_treatment_col] full_dyn_treatment_dm;
+  // matrix[num_daily_obs, num_deworming_days] full_day_dm;
+  
+  // int num_full_not_dewormed = sum(dewormed_day_any) - num_obs;
+  // int num_full_dewormed = sum(dewormed_any);
+  // 
+  // matrix[num_full_not_dewormed, num_census_covar_coef] full_not_dewormed_census_covar_dm;
+  // matrix[num_full_not_dewormed, num_all_treatment_coef] full_not_dewormed_static_treatment_dm;
+  // matrix[num_full_not_dewormed, num_dynamic_treatment_col] full_not_dewormed_dyn_treatment_dm;
+  // matrix[num_full_not_dewormed, num_deworming_days] full_not_dewormed_day_dm;
+  // int full_not_dewormed_cluster_id[num_full_not_dewormed];
+  // matrix[num_full_dewormed, num_census_covar_coef] full_dewormed_census_covar_dm;
+  // matrix[num_full_dewormed, num_all_treatment_coef] full_dewormed_static_treatment_dm;
+  // matrix[num_full_dewormed, num_dynamic_treatment_col] full_dewormed_dyn_treatment_dm;
+  // matrix[num_full_dewormed, num_deworming_days] full_dewormed_day_dm;
+  // int full_dewormed_cluster_id[num_full_dewormed];
+  // 
+  // // int full_treatment_stratum_sizes[num_strata];
+  // int full_not_dewormed_treatment_stratum_sizes[num_strata];
+  // int full_dewormed_treatment_stratum_sizes[num_strata];
   
   {
     int dynamic_treatment_dm_pos = 1;
+    // int full_treatment_dm_pos = 1;
+    // int full_not_dewormed_treatment_dm_pos = 1;
+    // int full_dewormed_treatment_dm_pos = 1;
+    
+    // matrix[num_deworming_days, num_deworming_days] days_diag = diag_matrix(rep_vector(1, num_deworming_days));
     
     for (obs_index in 1:num_obs) {
+      // int days_not_dewormed = dewormed_day_any[obs_index] - 1;
+      // int dewormed_obs_days = min(12, dewormed_day_any[obs_index]);
+      // int full_dewormed_treatment_dm_end = full_dewormed_treatment_dm_pos + dewormed_obs_days - 1;
+      // int full_not_dewormed_treatment_dm_end = full_not_dewormed_treatment_dm_pos + days_not_dewormed - 1;
+      
+      // matrix[num_deworming_days, num_dynamic_treatment_col] all_days_dyn_treatment_map = dynamic_treatment_map[dynamic_treatment_id[obs_index]];
+      
+      // dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = all_days_dyn_treatment_map;
       dynamic_treatment_dm[dynamic_treatment_dm_pos:(dynamic_treatment_dm_pos + num_deworming_days - 1)] = dynamic_treatment_map[dynamic_treatment_id[obs_index]];
+     
+      // if (days_not_dewormed > 0) { 
+      //   full_not_dewormed_census_covar_dm[full_not_dewormed_treatment_dm_pos:full_not_dewormed_treatment_dm_end] = 
+      //     rep_matrix(census_covar_dm[obs_index], days_not_dewormed);
+      //     
+      //   full_not_dewormed_static_treatment_dm[full_not_dewormed_treatment_dm_pos:full_not_dewormed_treatment_dm_end] = 
+      //     rep_matrix(treatment_design_matrix[obs_index], days_not_dewormed);
+      //     
+      //   full_not_dewormed_dyn_treatment_dm[full_not_dewormed_treatment_dm_pos:full_not_dewormed_treatment_dm_end] = 
+      //     all_days_dyn_treatment_map[1:days_not_dewormed];
+      //     
+      //   full_not_dewormed_day_dm[full_not_dewormed_treatment_dm_pos:full_not_dewormed_treatment_dm_end] = days_diag[1:days_not_dewormed];
+      //   
+      //   full_not_dewormed_cluster_id[full_not_dewormed_treatment_dm_pos:full_not_dewormed_treatment_dm_end] = rep_array(cluster_id[obs_index], days_not_dewormed);
+      // }
+      // 
+      // if (dewormed_any[obs_index]) {
+      //   // obs_daily_dewormed[dewormed_obs_days] = 1;
+      //   
+      //   full_dewormed_census_covar_dm[full_dewormed_treatment_dm_pos] = census_covar_dm[obs_index];
+      //   full_dewormed_static_treatment_dm[full_dewormed_treatment_dm_pos] = treatment_design_matrix[obs_index];
+      //   full_dewormed_dyn_treatment_dm[full_dewormed_treatment_dm_pos] = all_days_dyn_treatment_map[days_not_dewormed + 1];
+      //   full_dewormed_day_dm[full_dewormed_treatment_dm_pos] = days_diag[days_not_dewormed + 1];
+      //   full_dewormed_cluster_id[full_dewormed_treatment_dm_pos] = cluster_id[obs_index];
+      //   
+      //   full_dewormed_treatment_dm_pos = full_dewormed_treatment_dm_pos + 1;
+      // }
       
       dynamic_treatment_dm_pos = dynamic_treatment_dm_pos + num_deworming_days;
+      // full_treatment_dm_pos = full_treatment_dm_end + 1;
+      // full_not_dewormed_treatment_dm_pos = full_not_dewormed_treatment_dm_end + 1;
     }
   }
+    
+  // {  
+  //   int stratum_pos = 1;
+  //   
+  //   for (stratum_index in 1:num_strata) {
+  //     int curr_stratum_size = strata_sizes[stratum_index];
+  //     int stratum_end = stratum_pos + curr_stratum_size - 1;
+  //     
+  //     full_not_dewormed_treatment_stratum_sizes[stratum_index] = sum(dewormed_day_any[stratum_pos:stratum_end]) - curr_stratum_size;
+  //     full_dewormed_treatment_stratum_sizes[stratum_index] = sum(dewormed_any[stratum_pos:stratum_end]);
+  //     
+  //     stratum_pos = stratum_end + 1;
+  //   }
+  // }
 }
 
 parameters {
@@ -270,8 +336,6 @@ parameters {
 
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
-  
-  // vector[num_strata] stratum_lp;
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
@@ -309,6 +373,12 @@ model {
     int stratum_pos = 1;
     int dewormed_stratum_pos = 1;
     int dynamic_stratum_pos = 1;
+    
+    // int full_not_dewormed_stratum_pos = 1;
+    // int full_dewormed_stratum_pos = 1;
+    // 
+    // vector[num_full_not_dewormed] full_not_dewormed_index = rep_vector(0, num_full_not_dewormed);
+    // vector[num_full_dewormed] full_dewormed_index = rep_vector(0, num_full_dewormed);
   
     // vector[num_obs] observed_log_kappa = rep_vector(0, num_obs);
     // matrix[num_obs, num_deworming_days] observed_log_lambda_t = rep_matrix(0, num_obs, num_deworming_days);
@@ -318,18 +388,35 @@ model {
       int curr_stratum_size = strata_sizes[strata_index];
       int stratum_end = stratum_pos + curr_stratum_size - 1;
       
+      // int curr_full_not_dewormed_stratum_size = full_not_dewormed_treatment_stratum_sizes[strata_index];
+      // int curr_full_dewormed_stratum_size = full_dewormed_treatment_stratum_sizes[strata_index];
+      // int full_not_dewormed_stratum_end = full_not_dewormed_stratum_pos + curr_full_not_dewormed_stratum_size - 1;
+      // int full_dewormed_stratum_end = full_dewormed_stratum_pos + curr_full_dewormed_stratum_size - 1;
+      
+      // full_not_dewormed_index[full_not_dewormed_stratum_pos:full_not_dewormed_stratum_end] =
+      //   full_not_dewormed_census_covar_dm[full_not_dewormed_stratum_pos:full_not_dewormed_stratum_end] * stratum_census_covar_coef[strata_index] +
+      //   full_not_dewormed_static_treatment_dm[full_not_dewormed_stratum_pos:full_not_dewormed_stratum_end] * stratum_beta[strata_index] +
+      //   full_not_dewormed_dyn_treatment_dm[full_not_dewormed_stratum_pos:full_not_dewormed_stratum_end] * stratum_dynamic_treatment_coef[strata_index]' +
+      //   full_not_dewormed_day_dm[full_not_dewormed_stratum_pos:full_not_dewormed_stratum_end] * log(stratum_hazard_mat[strata_index]');
+      //   
+      // full_dewormed_index[full_dewormed_stratum_pos:full_dewormed_stratum_end] =
+      //   full_dewormed_census_covar_dm[full_dewormed_stratum_pos:full_dewormed_stratum_end] * stratum_census_covar_coef[strata_index] +
+      //   full_dewormed_static_treatment_dm[full_dewormed_stratum_pos:full_dewormed_stratum_end] * stratum_beta[strata_index] +
+      //   full_dewormed_dyn_treatment_dm[full_dewormed_stratum_pos:full_dewormed_stratum_end] * stratum_dynamic_treatment_coef[strata_index]' +
+      //   full_dewormed_day_dm[full_dewormed_stratum_pos:full_dewormed_stratum_end] * log(stratum_hazard_mat[strata_index]');
+      
       int curr_dewormed_stratum_size = strata_dewormed_sizes[strata_index];
       int dewormed_stratum_end = dewormed_stratum_pos + curr_dewormed_stratum_size - 1;
-      
-      int curr_dynamic_stratum_size = curr_stratum_size * num_deworming_days;  
+
+      int curr_dynamic_stratum_size = curr_stratum_size * num_deworming_days;
       int dynamic_stratum_end = dynamic_stratum_pos + curr_dynamic_stratum_size - 1;
       
       // vector[num_all_treatment_coef] local_stratum_beta = rep_vector(0, num_all_treatment_coef);
         
       int stratum_dewormed_ids[curr_dewormed_stratum_size] = dewormed_ids[dewormed_stratum_pos:dewormed_stratum_end];
-      int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end]; 
+      int stratum_dewormed_day_all[curr_stratum_size] = dewormed_day_any[stratum_pos:stratum_end];
       int stratum_dewormed_day_dewormed[curr_dewormed_stratum_size] = dewormed_day_any[stratum_dewormed_ids];
-      
+
       matrix[curr_stratum_size, num_deworming_days] stratum_hazard_day_triangle_map = hazard_day_triangle_map[stratum_dewormed_day_all];
       matrix[curr_dewormed_stratum_size, num_deworming_days] stratum_hazard_day_map = hazard_day_map[stratum_dewormed_day_dewormed];
       
@@ -366,12 +453,11 @@ model {
        // // Hazard and cluster frailty (basically cluster effects) 
        //  + log(rep_matrix(stratum_hazard_effect[strata_index] * hyper_baseline_hazard, curr_stratum_size) .* 
        //          rep_matrix(cluster_hazard_effect[cluster_id[stratum_pos:stratum_end]], num_deworming_days));
-          
         
       // stratum_lp[strata_index] = 
-      target += 
-        gumbel_lcdf(to_vector(stratum_log_lambda_t .* stratum_hazard_day_triangle_map) | 0, 1) + 
-        gumbel_lccdf(to_vector(stratum_log_lambda_t[stratum_dewormed_index[dewormed_stratum_pos:dewormed_stratum_end]] .* stratum_hazard_day_map) | 0, 1); 
+      target +=
+        gumbel_lcdf(to_vector(stratum_log_lambda_t .* stratum_hazard_day_triangle_map) | 0, 1) +
+        gumbel_lccdf(to_vector(stratum_log_lambda_t[stratum_dewormed_index[dewormed_stratum_pos:dewormed_stratum_end]] .* stratum_hazard_day_map) | 0, 1);
         // - (exp(log_sum_exp(stratum_log_lambda_t .* stratum_hazard_day_triangle_map)) - sum(1 - stratum_hazard_day_triangle_map)) 
         // + sum(log(inv_cloglog(stratum_log_lambda_t[stratum_dewormed_index[dewormed_stratum_pos:dewormed_stratum_end]] .* stratum_hazard_day_map))) 
         // - curr_dewormed_stratum_size * (num_deworming_days - 1) * log1m_exp(-1);
@@ -379,12 +465,18 @@ model {
       // if (is_nan(stratum_lp[strata_index]) || is_inf(stratum_lp[strata_index])) {
       //   reject("Stratum ", strata_index, ": log probability is ", stratum_lp[strata_index]);
       // }
-        
           
       stratum_pos = stratum_end + 1;
       dewormed_stratum_pos = dewormed_stratum_end + 1;
       dynamic_stratum_pos = dynamic_stratum_end + 1;
+      
+      // full_not_dewormed_stratum_pos = full_not_dewormed_stratum_end + 1;
+      // full_dewormed_stratum_pos = full_dewormed_stratum_end + 1;
     }
+    
+    // target += 
+    //   gumbel_lcdf(full_not_dewormed_index + log(cluster_hazard_effect[full_not_dewormed_cluster_id])| 0, 1) + 
+    //   gumbel_lccdf(full_dewormed_index + log(cluster_hazard_effect[full_dewormed_cluster_id])| 0, 1); 
   }
   
   // target += stratum_lp;
