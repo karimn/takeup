@@ -1117,15 +1117,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns
     }
   
-  private_value_calendar_coef <- treatment_map_design_matrix %>% 
-    names() %>% 
-    str_detect("private_valuecalendar") %>% 
-    which()
-  
-  private_value_bracelet_coef <- treatment_map_design_matrix %>% 
-    names() %>% 
-    str_detect("private_valuebracelet") %>% 
-    which()
   
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
@@ -1205,6 +1196,23 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     ate_pairs <- NULL
   }
+  
+  treatment_map_design_matrix %<>%
+    magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
+                        map_lgl(~ n_distinct(.) > 1))
+ 
+  # valid_dm_col <- treatment_map_design_matrix[c(unique(prepared_analysis_data$all_treatment_id), ate_treatments), ] %>% 
+  #   map_lgl(~ n_distinct(.) > 1)
+  
+  private_value_calendar_coef <- treatment_map_design_matrix %>% 
+    names() %>% 
+    str_detect("private_valuecalendar") %>% 
+    which()
+  
+  private_value_bracelet_coef <- treatment_map_design_matrix %>% 
+    names() %>% 
+    str_detect("private_valuebracelet") %>% 
+    which()
  
   stan_data_list <- lst(
     # Save meta data 
