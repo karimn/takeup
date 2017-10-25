@@ -829,15 +829,6 @@ dyn_stan_data <- analysis.data %>%
   )
 ```
 
-```{r load-dyn-model-fit}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_4_[1-8].csv", full.names = TRUE) %>% 
-  read_stan_csv()
-
-basic_model_2_simple_fit %>% 
-  get_sampler_params(inc_warmup = FALSE) %>% 
-  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
-  sum()
-```
 
 ```{r basic-model-2-simple-centered, eval=FALSE}
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple_centered")
@@ -855,94 +846,6 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
            sample_file = file.path("stanfit", "basic_model_2_simple_debug.csv")) 
 ```
 
-```{r}
-basic_model_2_simple_fit %>% 
-  print(pars = c("hyper_baseline_cond_takeup", "hyper_baseline_hazard", 
-                 "stratum_hazard_effect", "stratum_hazard_frailty_var", 
-                 sprintf("cluster_hazard_effect[%d]", 1:10), "cluster_hazard_frailty_var"))
-```
-
-```{r dyn-model-prep-data}
-est_deworming_days <- basic_model_2_simple_fit %>% 
-  as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>%
-  mutate(iter_id = seq_len(n())) %>% 
-  gather(outcome_id, sim_outcome, -iter_id) %>% 
-  separate(outcome_id, c("phone_owner", "all_treatment_rank", "day"), "(_deworming_days\\[)|,|\\]", extra = "drop") %>% 
-  mutate_at(vars(day, all_treatment_rank), as.integer) %>% 
-  group_by(phone_owner) %>% 
-  mutate(all_treatment_id = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>%
-  ungroup() %>% 
-  mutate(phone_owner = phone_owner == "phone") %>% 
-  inner_join(dyn_stan_data$treatment_map, "all_treatment_id") 
-
-assertthat::assert_that(all(phone_owner.x == phone_owner.y), env = est_deworming_days)
-
-est_deworming_days %<>% 
-  mutate(phone_owner = phone_owner.x) %>% 
-  select(-matches("phone_owner\\.[xy]"))
-
-summ_dyn_takeup <- est_deworming_days %>% 
-  unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
-  group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment, name_matched) %>% 
-  summarize(mean_takeup_prop = mean(sim_outcome),
-            ub_90 = quantile(sim_outcome, 0.95),
-            lb_90 = quantile(sim_outcome, 0.05)) %>% 
-  ungroup() %>% {
-    treated <- filter(., incentive_treatment != "control-control") %>% 
-      mutate(comparator = incentive_treatment)
-    baseline <- filter(., incentive_treatment == "control-control") %>% 
-      left_join(select(treated, day, phone_owner, dist.pot.group, comparator), c("day", "phone_owner", "dist.pot.group"))
-    
-    bind_rows(treated, baseline)
-  }
-
-dyn_ate <- bind_rows(non_phone = dyn_stan_data$non_phone_owner_ate_pairs,
-                     phone = dyn_stan_data$phone_owner_ate_pairs, .id = "phone_owner") %>% 
-  group_by(phone_owner) %>% 
-  mutate(all_treatment_id_left = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
-         all_treatment_id_right = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right],
-         all_treatment_size_left = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left] +
-           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left],
-         all_treatment_size_right = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right] +
-           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right]) %>% 
-  ungroup() %>% 
-  mutate(ate_id = seq_len(n()),
-         phone_owner = phone_owner == "phone") %>% 
-  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>%
-  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
-  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), c("all_treatment_id_left" = "all_treatment_id")) %>% 
-  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), 
-            c("all_treatment_id_right" = "all_treatment_id", "iter_id", "day"),
-            suffix = c("_left", "_right")) %>% 
-  unite(incentive_treatment_left, private_value_left, social_value_left, sep = "-", remove = FALSE) %>% 
-  unite(incentive_treatment_right, private_value_right, social_value_right, sep = "-", remove = FALSE) 
-
-assertthat::assert_that(all(phone_owner.x == phone_owner.y) && all(phone_owner.x.x == phone_owner.y.y) & all(phone_owner == phone_owner.y.y), env = dyn_ate)
-assertthat::assert_that(all(dist.pot.group_left == dist.pot.group_right), env = dyn_ate)
-
-dyn_ate %<>% 
-  select(-contains("phone_owner.")) %>% 
-  filter(day == 13) %>% 
-  group_by_at(c("day", "phone_owner", "iter_id", "all_treatment_size_left", "all_treatment_size_right",
-                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
-                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
-  summarize(iter_ate = weighted.mean(1 - sim_outcome_left, all_treatment_size_left) - weighted.mean(1 - sim_outcome_right, all_treatment_size_right)) %>% 
-  # summarize_at(vars(mean_ate))
-  # mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
-  group_by_at(c("day", "phone_owner", 
-                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
-                # c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment", "name_matched") %>%
-                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
-  summarize(mean_ate = mean(iter_ate),
-            ub_90 = quantile(iter_ate, 0.95),
-            ub_95 = quantile(iter_ate, 0.975),
-            lb_90 = quantile(iter_ate, 0.05),
-            lb_95 = quantile(iter_ate, 0.025)) %>% 
-  ungroup() %>% 
-  mutate_at(vars(matches("incentive_treatment")), 
-            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
-
-```
 
 ```{r, fig.width=12}
 summ_dyn_takeup %>% 
@@ -1023,6 +926,16 @@ summ_dyn_takeup %>%
 ```
 
 ### Posterior Simulation
+
+```{r old-load-dyn-model-fit}
+basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_4_[1-8].csv", full.names = TRUE) %>% 
+  read_stan_csv()
+
+basic_model_2_simple_fit %>% 
+  get_sampler_params(inc_warmup = FALSE) %>% 
+  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
+  sum()
+```
 
 In this section we're carrying out our analysis based on the Bayesian simulated parameters. Here we are estimating the posterior distribution of the _finite sample mean of the probability of deworming take-up_.
 
@@ -1910,6 +1823,113 @@ bind_rows(observe = fast_sim_ate %>%
        y = "Posterior Difference in Probability of Deworming", 
        caption = "Points show the mean while line ranges show the 90% probability interval.\nDashed lines show treatment effects with no observation.") +
   theme(legend.position = "bottom")
+```
+
+
+### Finite Sample Treatment Effects 
+
+```{r load-dyn-model-fit}
+dyn_model_version <- 5
+
+basic_model_2_simple_fit <- dir("stanfit", pattern = str_interp("basic_model_2_simple_centered_${dyn_model_version}_[1-8].csv"), full.names = TRUE) %>% 
+  read_stan_csv()
+
+basic_model_2_simple_fit %>% 
+  get_sampler_params(inc_warmup = FALSE) %>% 
+  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
+  sum()
+
+load(file.path("stan_analysis_data", str_interp("model_2_${dyn_model_version}.RData")))
+```
+
+```{r}
+basic_model_2_simple_fit %>% 
+  print(pars = c("hyper_baseline_cond_takeup", "hyper_baseline_hazard", 
+                 "stratum_hazard_effect", "stratum_hazard_frailty_var", 
+                 sprintf("cluster_hazard_effect[%d]", 1:10), "cluster_hazard_frailty_var"))
+```
+
+```{r dyn-model-prep-data}
+est_deworming_days <- basic_model_2_simple_fit %>% 
+  # as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>%
+  as.data.frame( pars = "treatment_cell_takeup") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, sim_outcome, -iter_id) %>% 
+  separate(outcome_id, c("phone_owner", "all_treatment_rank", "day"), "(_deworming_days\\[)|,|\\]", extra = "drop") %>% 
+  mutate_at(vars(day, all_treatment_rank), as.integer) %>% 
+  group_by(phone_owner) %>% 
+  mutate(all_treatment_id = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>%
+  ungroup() %>% 
+  mutate(phone_owner = phone_owner == "phone") %>% 
+  inner_join(dyn_stan_data$treatment_map, "all_treatment_id") 
+
+assertthat::assert_that(all(phone_owner.x == phone_owner.y), env = est_deworming_days)
+
+est_deworming_days %<>% 
+  mutate(phone_owner = phone_owner.x) %>% 
+  select(-matches("phone_owner\\.[xy]"))
+
+summ_dyn_takeup <- est_deworming_days %>% 
+  unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
+  group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment, name_matched) %>% 
+  summarize(mean_takeup_prop = mean(sim_outcome),
+            ub_90 = quantile(sim_outcome, 0.95),
+            lb_90 = quantile(sim_outcome, 0.05)) %>% 
+  ungroup() %>% {
+    treated <- filter(., incentive_treatment != "control-control") %>% 
+      mutate(comparator = incentive_treatment)
+    baseline <- filter(., incentive_treatment == "control-control") %>% 
+      left_join(select(treated, day, phone_owner, dist.pot.group, comparator), c("day", "phone_owner", "dist.pot.group"))
+    
+    bind_rows(treated, baseline)
+  }
+
+dyn_ate <- bind_rows(non_phone = dyn_stan_data$non_phone_owner_ate_pairs,
+                     phone = dyn_stan_data$phone_owner_ate_pairs, .id = "phone_owner") %>% 
+  group_by(phone_owner) %>% 
+  mutate(all_treatment_id_left = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
+         all_treatment_id_right = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right],
+         all_treatment_size_left = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left] +
+           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left],
+         all_treatment_size_right = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right] +
+           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right]) %>% 
+  ungroup() %>% 
+  mutate(ate_id = seq_len(n()),
+         phone_owner = phone_owner == "phone") %>% 
+  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>%
+  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), c("all_treatment_id_left" = "all_treatment_id")) %>% 
+  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), 
+            c("all_treatment_id_right" = "all_treatment_id", "iter_id", "day"),
+            suffix = c("_left", "_right")) %>% 
+  unite(incentive_treatment_left, private_value_left, social_value_left, sep = "-", remove = FALSE) %>% 
+  unite(incentive_treatment_right, private_value_right, social_value_right, sep = "-", remove = FALSE) 
+
+assertthat::assert_that(all(phone_owner.x == phone_owner.y) && all(phone_owner.x.x == phone_owner.y.y) & all(phone_owner == phone_owner.y.y), env = dyn_ate)
+assertthat::assert_that(all(dist.pot.group_left == dist.pot.group_right), env = dyn_ate)
+
+dyn_ate %<>% 
+  select(-contains("phone_owner.")) %>% 
+  filter(day == 13) %>% 
+  group_by_at(c("day", "phone_owner", "iter_id", "all_treatment_size_left", "all_treatment_size_right",
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
+                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
+  summarize(iter_ate = weighted.mean(1 - sim_outcome_left, all_treatment_size_left) - weighted.mean(1 - sim_outcome_right, all_treatment_size_right)) %>% 
+  # summarize_at(vars(mean_ate))
+  # mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
+  group_by_at(c("day", "phone_owner", 
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
+                # c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment", "name_matched") %>%
+                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
+  summarize(mean_ate = mean(iter_ate),
+            ub_90 = quantile(iter_ate, 0.95),
+            ub_95 = quantile(iter_ate, 0.975),
+            lb_90 = quantile(iter_ate, 0.05),
+            lb_95 = quantile(iter_ate, 0.025)) %>% 
+  ungroup() %>% 
+  mutate_at(vars(matches("incentive_treatment")), 
+            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+
 ```
 
 # Random Stuff
