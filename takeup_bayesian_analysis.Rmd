@@ -389,37 +389,28 @@ est_deworming_takeup_ate %<>%
          social_value_right == "control",
          private_value_left != "control" | social_value_left != "control" | sms.treatment.2_left != "sms.control") 
 
-phone_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), phone_owner_left, iter_id)) %>% 
-  summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size_left)) %>% 
-  ungroup() %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), phone_owner_left)) %>% 
-  summarize(mean_ate = mean(wtd_sim_outcome),
-            ub_90 = quantile(wtd_sim_outcome, 0.95),
-            ub_95 = quantile(wtd_sim_outcome, 0.975),
-            lb_90 = quantile(wtd_sim_outcome, 0.05),
-            lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
-  ungroup() %>% 
-  unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
-  unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
-  mutate_at(vars(matches("incentive_treatment_left")), 
-            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+prepare_est_ate <- function(est_data, subgroups = NULL) { 
+  est_data %>% 
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), iter_id), subgroups)) %>% 
+    summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size_left)) %>% 
+    ungroup() %>% 
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)")), subgroups)) %>% 
+    summarize(mean_ate = mean(wtd_sim_outcome),
+              ub_90 = quantile(wtd_sim_outcome, 0.95),
+              ub_95 = quantile(wtd_sim_outcome, 0.975),
+              lb_90 = quantile(wtd_sim_outcome, 0.05),
+              lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
+    ungroup() %>% 
+    unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
+    unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
+    mutate_at(vars(matches("incentive_treatment_left")), 
+              funs(fct_relevel(factor(.), "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+}
+
+phone_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_ate("phone_owner_left")
+dist_pot_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_ate("dist.pot.group_left")
   
-est_deworming_takeup_ate %<>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), iter_id)) %>% 
-  summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size_left)) %>% 
-  ungroup() %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"))) %>% 
-  summarize(mean_ate = mean(wtd_sim_outcome),
-            ub_90 = quantile(wtd_sim_outcome, 0.95),
-            ub_95 = quantile(wtd_sim_outcome, 0.975),
-            lb_90 = quantile(wtd_sim_outcome, 0.05),
-            lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
-  ungroup() %>% 
-  unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
-  unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
-  mutate_at(vars(matches("incentive_treatment_left")), 
-            funs(fct_relevel(factor(.), "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+est_deworming_takeup_ate %<>% prepare_est_ate()
 
 est_deworming_takeup <- basic_model_1_fit %>% 
   as.data.frame(pars = "treatment_cell_takeup") %>% 
@@ -452,7 +443,7 @@ est_deworming_takeup %<>%
 ```
 
 ```{r static-model-ate-plot, fig.height=5, fig.width=10}
-sms_ctrl_est_deworming_takeup_ate %>%
+est_deworming_takeup_ate %>%
   mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
   ggplot(aes(incentive_treatment_left, mean_ate, color = sms.treatment.2_left)) +
   geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.3)) +
@@ -470,6 +461,23 @@ sms_ctrl_est_deworming_takeup_ate %>%
   theme(axis.text.x = element_text(angle = 25, hjust = 1))
 ```
 
+```{r static-model-dist-ate-plot, fig.height=5, fig.width=10}
+dist_pot_est_deworming_takeup_ate %>%
+  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
+  ggplot(aes(incentive_treatment_left, mean_ate, color = sms.treatment.2_left)) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.3)) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75, position = position_dodge(width = 0.3)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.3, size = 3, segment.colour = NA) +
+  scale_x_discrete("Signal/Incentive Treatment") +
+  scale_y_continuous("Posterior Treatment Effect on Deworming") +
+  labs(title = "Signal/Incentive Treatment Effect", subtitle = "Compared with the control arm and with no SMS treatment", 
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
+  coord_flip() +
+  facet_grid(~ dist.pot.group_left,
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
 ```{r static-model-takeup, fig.height=4, fig.width=8}
 sms_ctrl_est_deworming_takeup %>%
   mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace_all(c("control-bracelet" = "bracelet social", 
