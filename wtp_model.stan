@@ -18,19 +18,14 @@ data {
 }
 
 parameters {
-  real hyper_mu_wtp_diff_raw;
-  vector[num_strata] mu_wtp_diff_raw;
+  real hyper_mu_wtp_diff;
+  vector[num_strata] mu_wtp_diff;
   real<lower = 0> sigma_wtp_diff;
 }
 
-transformed parameters {
-  real hyper_mu_wtp_diff = hyper_mu_wtp_diff_raw * tau_mu_wtp_diff;
-  vector[num_strata] mu_wtp_diff = hyper_mu_wtp_diff + mu_wtp_diff_raw * tau_mu_wtp_diff;
-}
-
 model {
-  hyper_mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
-  mu_wtp_diff_raw ~ student_t(mu_wtp_df_student_t, 0, 1);
+  hyper_mu_wtp_diff ~ student_t(mu_wtp_df_student_t, 0, tau_mu_wtp_diff);
+  mu_wtp_diff ~ student_t(mu_wtp_df_student_t, 0, tau_mu_wtp_diff);
   sigma_wtp_diff ~ student_t(sigma_wtp_df_student_t, 0, tau_sigma_wtp_diff); 
  
   {
