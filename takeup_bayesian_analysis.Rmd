@@ -361,14 +361,16 @@ treatment_cell_size <- with(param_stan_data, missing_treatment_sizes + observed_
 
 est_deworming_takeup_ate <- basic_model_1_fit %>% 
   as.data.frame(pars = c("treatment_cell_ate")) %>% 
-  gather(ate_pair_rank, sim_outcome) %>% 
-  mutate(ate_pair_rank = str_extract(ate_pair_rank, "[(\\d+)]") %>% as.integer()) %>% 
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(ate_pair_rank, sim_outcome, -iter_id) %>% 
+  mutate(ate_pair_rank = str_extract(ate_pair_rank, "\\d+") %>% as.integer()) %>% 
   bind_cols(param_stan_data$ate_pairs[.$ate_pair_rank, ]) %>%
   mutate(all_treatment_id_left = param_stan_data$ate_treatments[rank_id_left],
          all_treatment_id_right = param_stan_data$ate_treatments[rank_id_right],
          treatment_size_left = treatment_cell_size[rank_id_left],
          treatment_size_right = treatment_cell_size[rank_id_right]) 
 
+assertthat::assert_that(is_empty(setdiff(c(all_treatment_id_left, all_treatment_id_right), param_stan_data$ate_treatments)), env = est_deworming_takeup_ate)
 assertthat::assert_that(all(treatment_size_left == treatment_size_right), env = est_deworming_takeup_ate)
 
 num_raw_takeup_ate <- nrow(est_deworming_takeup_ate)
@@ -381,107 +383,110 @@ est_deworming_takeup_ate %<>%
 assertthat::assert_that(num_raw_takeup_ate == nrow(est_deworming_takeup_ate),
                         env = est_deworming_takeup_ate)
 
-sms_ctrl_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% 
-  filter(sms.treatment.2_left == "sms.control", 
-         sms.treatment.2_right == "sms.control",
+est_deworming_takeup_ate %<>% 
+  filter(sms.treatment.2_right == "sms.control",
          private_value_right == "control",
          social_value_right == "control",
-         private_value_left != "control" | social_value_left != "control") %>% 
-  # group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)_(left|right)"), phone_owner)) %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2ot.group)_(left|right)"), phone_owner)) %>% 
-  summarize(mean_ate = mean(sim_outcome),
-            ub_90 = quantile(sim_outcome, 0.95),
-            ub_95 = quantile(sim_outcome, 0.975),
-            lb_90 = quantile(sim_outcome, 0.05),
-            lb_95 = quantile(sim_outcome, 0.025)) %>% 
+         private_value_left != "control" | social_value_left != "control" | sms.treatment.2_left != "sms.control") 
+
+phone_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), phone_owner_left, iter_id)) %>% 
+  summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size_left)) %>% 
+  ungroup() %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), phone_owner_left)) %>% 
+  summarize(mean_ate = mean(wtd_sim_outcome),
+            ub_90 = quantile(wtd_sim_outcome, 0.95),
+            ub_95 = quantile(wtd_sim_outcome, 0.975),
+            lb_90 = quantile(wtd_sim_outcome, 0.05),
+            lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
   ungroup() %>% 
   unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
   unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
   mutate_at(vars(matches("incentive_treatment_left")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+  
+est_deworming_takeup_ate %<>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"), iter_id)) %>% 
+  summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size_left)) %>% 
+  ungroup() %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)_(left|right)"))) %>% 
+  summarize(mean_ate = mean(wtd_sim_outcome),
+            ub_90 = quantile(wtd_sim_outcome, 0.95),
+            ub_95 = quantile(wtd_sim_outcome, 0.975),
+            lb_90 = quantile(wtd_sim_outcome, 0.05),
+            lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
+  ungroup() %>% 
+  unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
+  unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
+  mutate_at(vars(matches("incentive_treatment_left")), 
+            funs(fct_relevel(factor(.), "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
 
 est_deworming_takeup <- basic_model_1_fit %>% 
-  as.data.frame(pars = c("non_phone_takeup", "phone_takeup")) %>% 
-  imap_dfr(~ tibble(outcome_id = .y, sim_outcome = .x)) %>% 
-  separate(outcome_id, c("phone_owner", "all_treatment_rank", "monitored"), "(_takeup\\[)|,|\\]", extra = "drop") %>% 
-  mutate_at(vars(all_treatment_rank, monitored), as.integer) %>% 
-  mutate(monitored = monitored == 2) %>% 
-  group_by(phone_owner) %>% 
-  mutate(all_treatment_id = param_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>% 
-  ungroup() 
+  as.data.frame(pars = "treatment_cell_takeup") %>% 
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(treatment_rank, sim_outcome, -iter_id) %>% 
+  mutate(treatment_rank = str_extract(treatment_rank, "\\d+") %>% as.integer()) %>% 
+  mutate(all_treatment_id = param_stan_data$ate_treatments[treatment_rank],
+         treatment_size = treatment_cell_size[treatment_rank])
 
 num_raw_takeup <- nrow(est_deworming_takeup)
 
 est_deworming_takeup %<>% 
-  mutate(phone_owner = phone_owner == "phone") %>% 
-  left_join(param_stan_data$treatment_map, c("all_treatment_id" = "all_treatment_id")) 
+  left_join(param_stan_data$treatment_map, "all_treatment_id") 
 
-assertthat::assert_that(num_raw_takeup == nrow(est_deworming_takeup) & all(phone_owner.x == phone_owner.y), 
-                        env = est_deworming_takeup)
+assertthat::assert_that(num_raw_takeup == nrow(est_deworming_takeup), env = est_deworming_takeup)
 
 est_deworming_takeup %<>% 
-  mutate(phone_owner = phone_owner.x) %>% 
-  select(-matches("phone_owner\\.[xy]"))
-
-sms_ctrl_est_deworming_takeup <- est_deworming_takeup %>% 
-  filter(sms.treatment.2 == "sms.control") %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2|dist.pot.group)"), phone_owner, monitored)) %>% 
-  summarize(mean_takeup_prop = mean(sim_outcome),
-            ub_90 = quantile(sim_outcome, 0.95),
-            ub_95 = quantile(sim_outcome, 0.975),
-            lb_90 = quantile(sim_outcome, 0.05),
-            lb_95 = quantile(sim_outcome, 0.025)) %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)"), iter_id)) %>% 
+  summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size)) %>% 
+  ungroup() %>% 
+  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)"))) %>% 
+  summarize(mean_takeup_prop = mean(wtd_sim_outcome),
+            ub_90 = quantile(wtd_sim_outcome, 0.95),
+            ub_95 = quantile(wtd_sim_outcome, 0.975),
+            lb_90 = quantile(wtd_sim_outcome, 0.05),
+            lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
   ungroup() %>% 
   unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
   mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
 ```
 
-```{r static-model-ate-plot, fig.height=6}
-sms_ctrl_est_deworming_takeup_ate %>% 
-  filter(incentive_treatment_left != "bracelet-bracelet") %>% 
+```{r static-model-ate-plot, fig.height=5, fig.width=10}
+sms_ctrl_est_deworming_takeup_ate %>%
   mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
-  ggplot(aes(incentive_treatment_left, mean_ate)) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75) +
+  ggplot(aes(incentive_treatment_left, mean_ate, color = sms.treatment.2_left)) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.3)) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75, position = position_dodge(width = 0.3)) +
   geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_text(aes(label = sprintf("%.2f", mean_ate)), nudge_x = 0.2, size = 3) +
-  # geom_text_repel(aes(label = sprintf("%.3f", mean_ate), nudge_x = 0.2, size = 3, segment.color = NA) +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.3, size = 3, segment.colour = NA) +
   scale_x_discrete("Signal/Incentive Treatment") +
   scale_y_continuous("Posterior Treatment Effect on Deworming") +
   labs(title = "Signal/Incentive Treatment Effect", subtitle = "Compared with the control arm and with no SMS treatment", 
        caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
-  facet_grid(phone_owner ~ dist.pot.group_left, 
-             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-                                 .rows = as_labeller(function(row_val) str_c(case_when(row_val == "TRUE" ~ "", TRUE ~ "Non-"), "Phone Owners")))) +
+  coord_flip() +
+  # facet_grid(phone_owner ~ dist.pot.group_left, 
+  #            labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
+  #                                .rows = as_labeller(function(row_val) str_c(case_when(row_val == "TRUE" ~ "", TRUE ~ "Non-"), "Phone Owners")))) +
   theme(axis.text.x = element_text(angle = 25, hjust = 1))
 ```
 
-```{r static-model-takeup, fig.width=8}
+```{r static-model-takeup, fig.height=4, fig.width=8}
 sms_ctrl_est_deworming_takeup %>%
-  # filter(incentive_treatment != "bracelet-bracelet") %>% 
-  # mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
   mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace_all(c("control-bracelet" = "bracelet social", 
                                                  "bracelet-bracelet" = "bracelet",
                                                  "control-control" = "control", 
                                                  "(-control)|(control-)" = "")) %>% 
-                                             str_to_title()),
-         phone_owner = if_else(phone_owner, "Phone Owners", "Non-Phone Owners")) %>% 
-  ggplot(aes(incentive_treatment, mean_takeup_prop, color = monitored)) + 
-  # geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
-  # geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.5)) +
-  geom_text_repel(aes(label = sprintf("%.3f", mean_takeup_prop), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+                                             str_to_title())) %>% 
+  ggplot(aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + #, color = monitored)) + 
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.5)) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75, position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
   scale_x_discrete("Signal/Incentive Treatment") +
   scale_y_continuous("Posterior Probability of Deworming") + #, breaks = seq(0, 1, 0.1)) +
   labs(title = "Deworming Take-up by Signal/Incentive Treatment Arm", 
        caption = "Points show the mean while line ranges show the 90% probability interval.") +
   scale_color_discrete("", labels = c("Name Matched", "Monitored")) +
   coord_flip() +
-  # facet_grid(phone_owner ~ dist.pot.group, labeller = labeller(.cols = . %>% str_to_title() %>% str_c("Distance: ", .))) +
-  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", 
-             labeller = labeller(dist.pot.group = . %>% str_to_title() %>% str_c("Distance: ", .)),
-             ncol = 1, strip.position = "right") +
-  # theme(axis.text.x = element_text(angle = 25, hjust = 1))
   theme(legend.position = "bottom")
 ```
 
