@@ -384,9 +384,9 @@ assertthat::assert_that(num_raw_takeup_ate == nrow(est_deworming_takeup_ate),
                         env = est_deworming_takeup_ate)
 
 est_deworming_takeup_ate %<>% 
-  filter(sms.treatment.2_right == "sms.control",
-         private_value_right == "control",
-         social_value_right == "control",
+  filter(sms.treatment.2_right %in% c("sms.control", "social.info"),
+         private_value_right == "control" | (private_value_right == private_value_left & social_value_right == social_value_left & sms.treatment.2_left == "social.info" & sms.treatment.2_right == "sms.control"),
+         social_value_right == "control" | (private_value_right == private_value_left & social_value_right == social_value_left & sms.treatment.2_left == "social.info" & sms.treatment.2_right == "sms.control"),
          private_value_left != "control" | social_value_left != "control" | sms.treatment.2_left != "sms.control") 
 
 prepare_est_ate <- function(est_data, subgroups = NULL) { 
@@ -409,7 +409,7 @@ prepare_est_ate <- function(est_data, subgroups = NULL) {
 
 phone_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_ate("phone_owner_left")
 dist_pot_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_ate("dist.pot.group_left")
-  
+phone_dist_pot_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_ate(c("phone_owner_left", "dist.pot.group_left"))
 est_deworming_takeup_ate %<>% prepare_est_ate()
 
 est_deworming_takeup <- basic_model_1_fit %>% 
@@ -427,75 +427,120 @@ est_deworming_takeup %<>%
 
 assertthat::assert_that(num_raw_takeup == nrow(est_deworming_takeup), env = est_deworming_takeup)
 
-est_deworming_takeup %<>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)"), iter_id)) %>% 
-  summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size)) %>% 
-  ungroup() %>% 
-  group_by_at(vars(matches("((private|social)_value|sms.treatment.2)"))) %>% 
-  summarize(mean_takeup_prop = mean(wtd_sim_outcome),
-            ub_90 = quantile(wtd_sim_outcome, 0.95),
-            ub_95 = quantile(wtd_sim_outcome, 0.975),
-            lb_90 = quantile(wtd_sim_outcome, 0.05),
-            lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
-  ungroup() %>% 
-  unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
-  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
+prepare_est_takeup <- function(est_data, subgroups = NULL) { 
+  est_data %>%
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)"), iter_id), subgroups)) %>% 
+    summarize(wtd_sim_outcome = weighted.mean(sim_outcome, treatment_size)) %>% 
+    ungroup() %>% 
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    summarize(mean_takeup_prop = mean(wtd_sim_outcome),
+              ub_90 = quantile(wtd_sim_outcome, 0.95),
+              ub_95 = quantile(wtd_sim_outcome, 0.975),
+              lb_90 = quantile(wtd_sim_outcome, 0.05),
+              lb_95 = quantile(wtd_sim_outcome, 0.025)) %>% 
+    ungroup() %>% 
+    unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
+    mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
+}
+
+phone_est_deworming_takeup <- est_deworming_takeup %>% prepare_est_takeup("phone_owner")
+dist_pot_est_deworming_takeup <- est_deworming_takeup %>% prepare_est_takeup("dist.pot.group")
+phone_dist_pot_est_deworming_takeup <- est_deworming_takeup %>% prepare_est_takeup(c("phone_owner", "dist.pot.group"))
+est_deworming_takeup %<>% prepare_est_takeup()
 ```
 
-```{r static-model-ate-plot, fig.height=5, fig.width=10}
-est_deworming_takeup_ate %>%
-  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
-  ggplot(aes(incentive_treatment_left, mean_ate, color = sms.treatment.2_left)) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.3)) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75, position = position_dodge(width = 0.3)) +
-  geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.3, size = 3, segment.colour = NA) +
-  scale_x_discrete("Signal/Incentive Treatment") +
-  scale_y_continuous("Posterior Treatment Effect on Deworming") +
-  labs(title = "Signal/Incentive Treatment Effect", subtitle = "Compared with the control arm and with no SMS treatment", 
-       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
-  coord_flip() +
-  # facet_grid(phone_owner ~ dist.pot.group_left, 
-  #            labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-  #                                .rows = as_labeller(function(row_val) str_c(case_when(row_val == "TRUE" ~ "", TRUE ~ "Non-"), "Phone Owners")))) +
-  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```{r static-model-ate-plot, fig.height=6, fig.width=12}
+plot_static_est_ate <- . %>% 
+  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title()),
+         ref = if_else(incentive_treatment_right == "control-control" & sms.treatment.2_right == "sms.control", 
+                       "control-sms.control", 
+                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
+         ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>% {
+    ggplot(., aes(incentive_treatment_left, mean_ate, color = sms.treatment.2_left, shape = ref)) +
+      geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, fatten = 6, position = position_dodge(width = 0.4)) +
+      geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.25, position = position_dodge(width = 0.4)) +
+      geom_hline(yintercept = 0, linetype = "dotted") +
+      geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.3, size = 3, segment.colour = NA) +
+      scale_shape_discrete("Reference", labels = c("Control, No SMS", "Same Arm, No SMS", "Control, Social Info")) +
+      scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+      labs(title = "Treatment Effect on Deworming Take-up", 
+           x = "Incentive/Signal Treatment", 
+           y = "Posterior Difference in Probability of Deworming", 
+           caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
+      coord_flip() +
+      theme(axis.text.x = element_text(angle = 25, hjust = 1))
+  }
+
+plot_static_est_ate(est_deworming_takeup_ate) 
 ```
 
-```{r static-model-dist-ate-plot, fig.height=5, fig.width=10}
+```{r static-model-phone-ate-plot, fig.height=10, fig.width=10}
+phone_est_deworming_takeup_ate %>%
+  mutate(phone_owner_left = if_else(phone_owner_left, "Phone Owners", "Non-Phone Owners")) %>% 
+  plot_static_est_ate() +
+  facet_wrap(~ phone_owner_left, ncol = 1, scales = "free_y", drop = TRUE)
+```
+
+```{r static-model-dist-ate-plot, fig.height=10, fig.width=10}
 dist_pot_est_deworming_takeup_ate %>%
-  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
-  ggplot(aes(incentive_treatment_left, mean_ate, color = sms.treatment.2_left)) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.3)) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75, position = position_dodge(width = 0.3)) +
-  geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.3, size = 3, segment.colour = NA) +
-  scale_x_discrete("Signal/Incentive Treatment") +
-  scale_y_continuous("Posterior Treatment Effect on Deworming") +
-  labs(title = "Signal/Incentive Treatment Effect", subtitle = "Compared with the control arm and with no SMS treatment", 
-       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
-  coord_flip() +
-  facet_grid(~ dist.pot.group_left,
-             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) +
-  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+  plot_static_est_ate() +
+  facet_wrap(~ dist.pot.group_left, ncol = 1,
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
 ```
-```{r static-model-takeup, fig.height=4, fig.width=8}
-sms_ctrl_est_deworming_takeup %>%
+
+```{r static-model-phone-dist-ate-plot, fig.height=15, fig.width=10}
+phone_dist_pot_est_deworming_takeup_ate %>%
+  mutate(phone_owner_left = if_else(phone_owner_left, "Phone Owners", "Non-Phone Owners")) %>% 
+  plot_static_est_ate() +
+  facet_wrap(~ dist.pot.group_left + phone_owner_left, ncol = 1, scales = "free_y",
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
+```
+
+```{r static-model-takeup-plot, fig.height=4, fig.width=12}
+plot_static_est_takeup <- . %>% 
   mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace_all(c("control-bracelet" = "bracelet social", 
                                                  "bracelet-bracelet" = "bracelet",
                                                  "control-control" = "control", 
                                                  "(-control)|(control-)" = "")) %>% 
-                                             str_to_title())) %>% 
-  ggplot(aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + #, color = monitored)) + 
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, position = position_dodge(width = 0.5)) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.75, position = position_dodge(width = 0.5)) +
-  geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
-  scale_x_discrete("Signal/Incentive Treatment") +
-  scale_y_continuous("Posterior Probability of Deworming") + #, breaks = seq(0, 1, 0.1)) +
-  labs(title = "Deworming Take-up by Signal/Incentive Treatment Arm", 
-       caption = "Points show the mean while line ranges show the 90% probability interval.") +
-  scale_color_discrete("", labels = c("Name Matched", "Monitored")) +
-  coord_flip() +
-  theme(legend.position = "bottom")
+                                             str_to_title())) %>% {
+  ggplot(., aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + #, color = monitored)) + 
+    geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, fatten = 5, position = position_dodge(width = 0.5)) +
+    geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
+    geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+    scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+    coord_flip(ylim = c(0, 1)) +
+    scale_x_discrete("Signal/Incentive Treatment") +
+    scale_y_continuous("Posterior Probability of Deworming") + #, breaks = seq(0, 1, 0.1)) +
+    labs(title = "Deworming Take-up", 
+         subtitle = "Across all treatments", 
+         x = "Incentive/Signal Treatment", 
+         y = "Posterior Probability of Deworming", 
+         caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.")
+  }
+
+plot_static_est_takeup(est_deworming_takeup)
+```
+
+```{r static-model-phone-takeup-plot, fig.height=7, fig.width=10}
+phone_est_deworming_takeup %>%
+  mutate(phone_owner = if_else(phone_owner, "Phone Owners", "Non-Phone Owners")) %>% 
+  plot_static_est_takeup() +
+  facet_wrap(~ phone_owner, ncol = 1, scales = "free_y", drop = TRUE)
+```
+
+```{r static-model-dist-takeup-plot, fig.height=7, fig.width=10}
+dist_pot_est_deworming_takeup %>%
+  plot_static_est_takeup() +
+  facet_wrap(~ dist.pot.group, ncol = 1,
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
+```
+
+```{r static-model-phone-dist-takeup-plot, fig.height=15, fig.width=10}
+phone_dist_pot_est_deworming_takeup %>%
+  mutate(phone_owner = if_else(phone_owner, "Phone Owners", "Non-Phone Owners")) %>% 
+  plot_static_est_takeup() +
+  facet_wrap(~ dist.pot.group + phone_owner, ncol = 1, scales = "free_y",
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
 ```
 
 # Dynamic Model
@@ -1721,23 +1766,24 @@ plot(sms_day_one_ate_plot)
 
 ##### Overall Take-up
 
-```{r sim-fast-take-up, fig.width=12, fig.height=6}
+```{r sim-fast-take-up, fig.width=12, fig.height=7}
 fast_sim_mean_monitored %>% 
   filter(deworming_day == 13, 
-         dyn_treat_days == 11) %>%
+         dyn_treat_days == 11) %>% 
   ggplot(aes(fct_relabel(incentive_treatment, str_to_title), prob_deworm, color = sms.treatment.2)) +
-  geom_pointrange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), position = position_dodge(width = 0.5)) +
-  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  geom_pointrange(aes(ymin = prob_deworm_quant_2.5, ymax = prob_deworm_quant_97.5), size = 0.5, position = position_dodge(width = 0.5)) +
+  geom_linerange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), size = 1.5, position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -1, size = 3, segment.color = NA) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   coord_flip(ylim = c(0, 1)) +
   facet_wrap(~ dist.pot.group,  
              labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
              ncol = 1) +
   labs(title = "Deworming Take-up", 
-       subtitle = "Across all treatments and subgroups", 
+       subtitle = "Across all treatments", 
        x = "Incentive/Signal Treatment", 
        y = "Posterior Probability of Deworming", 
-       caption = "Points show the mean while line ranges show the 90% probability interval.") +
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
   theme(legend.position = "right")
 ```
 
@@ -1766,20 +1812,21 @@ fast_sim_ate %>%
   unnest(ate_all) %>% 
   mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
                        "control-sms.control", 
-                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info"))) %>% 
+                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
+         ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>%
   ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), position = position_dodge(width = 0.4)) +
   geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  scale_shape_discrete("Reference", labels = c("Control, No SMS", "Control, Social Info", "Same Arm, No SMS")) +
+  scale_shape_discrete("Reference", labels = c("Control, No SMS", "Same Arm, No SMS", "Control, Social Info")) +
   coord_flip() +
   facet_wrap(~ dist.pot.group, ncol = 1, 
              labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = "Treatment Effect on Deworming Take-up", 
        x = "Incentive/Signal Treatment", 
        y = "Posterior Difference in Probability of Deworming", 
-       caption = "Points show the mean while line ranges show the 90% probability interval.") +
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
   theme(legend.position = "right", legend.direction = "vertical")
 ```
 
