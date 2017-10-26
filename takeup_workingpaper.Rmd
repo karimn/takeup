@@ -953,6 +953,17 @@ wtp_model_0_fit %>%
 ```{r static-model-phone-dist-takeup-plot, ref.label="static-model-phone-dist-takeup-plot", fig.width=10, fig.height=11, fig.cap="Posterior distribution of the probability of deworming take-up, split by phone ownership and distance from treatment location."}
 ```
 
+```{r static-model-ate-percent-plot, ref.label="static-model-ate-percent-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment)"}
+```
+
+```{r static-model-phone-ate-percent-plot, ref.label="static-model-phone-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type."}
+```
+
+```{r static-model-phone-dist-ate-percent-plot, ref.label="static-model-phone-dist-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location."}
+```
+
+```{r static-model-non-phone-dist-ate-percent-plot, ref.label="static-model-non-phone-dist-ate-percent-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location."}
+```
 
 ## Deworming Take-up
 
