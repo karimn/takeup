@@ -1367,7 +1367,6 @@ fast_sim %>%
 load(file.path("data", "prepared_fast_sim.RData"))
 ```
 
-
 ```{r fast-sim-ate}
 fast_sim_ate_pairs <- tribble(
   ~incentive_treatment_left,  ~sms.treatment.2_left, ~incentive_treatment_right, ~sms.treatment.2_right,
@@ -1978,25 +1977,64 @@ basic_model_2_simple_fit %>%
 ```
 
 ```{r dyn-model-prep-data}
-est_deworming_days <- basic_model_2_simple_fit %>% 
-  # as.data.frame( pars = c("non_phone_deworming_days", "phone_deworming_days")) %>%
-  as.data.frame( pars = "treatment_cell_takeup") %>%
+dyn_treatment_cell_size <- tibble(treatment_size = with(dyn_stan_data, missing_treatment_sizes + observed_treatment_sizes)) %>% 
+  mutate(treatment_rank = seq_len(n()))
+
+est_deworming_takeup_dyn <- basic_model_2_simple_fit %>% 
+  as.data.frame( pars = "est_takeup") %>%
   mutate(iter_id = seq_len(n())) %>% 
-  gather(outcome_id, sim_outcome, -iter_id) %>% 
-  separate(outcome_id, c("phone_owner", "all_treatment_rank", "day"), "(_deworming_days\\[)|,|\\]", extra = "drop") %>% 
-  mutate_at(vars(day, all_treatment_rank), as.integer) %>% 
-  group_by(phone_owner) %>% 
-  mutate(all_treatment_id = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][all_treatment_rank]) %>%
-  ungroup() %>% 
-  mutate(phone_owner = phone_owner == "phone") %>% 
+  gather(treatment_rank, iter_takeup, -iter_id) %>% 
+  mutate(treatment_rank = str_extract(treatment_rank, "\\d+") %>% as.integer()) %>% 
+  mutate(all_treatment_id = dyn_stan_data$ate_treatments[treatment_rank]) %>%
+  inner_join(dyn_treatment_cell_size, "treatment_rank")
+
+num_raw_deworming_takeup_dyn <- nrow(est_deworming_takeup_dyn)
+
+est_deworming_takeup_dyn %<>% 
   inner_join(dyn_stan_data$treatment_map, "all_treatment_id") 
 
-assertthat::assert_that(all(phone_owner.x == phone_owner.y), env = est_deworming_days)
+est_deworming_days <- basic_model_2_simple_fit %>% 
+  as.data.frame( pars = "est_deworming_days") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, iter_takeup, -iter_id) %>% 
+  mutate(outcome_id = str_extract(outcome_id, "\\d+,\\d+")) %>% 
+  separate(outcome_id, c("treatment_rank", "day"), ",", extra = "drop") %>% 
+  mutate_at(vars(day, treatment_rank), as.integer) %>% 
+  mutate(all_treatment_id = dyn_stan_data$ate_treatments[treatment_rank]) %>%
+  inner_join(dyn_treatment_cell_size, "treatment_rank")
+
+num_raw_deworming_days <- nrow(est_deworming_days)
 
 est_deworming_days %<>% 
-  mutate(phone_owner = phone_owner.x) %>% 
-  select(-matches("phone_owner\\.[xy]"))
+  inner_join(dyn_stan_data$treatment_map, "all_treatment_id") 
 
+prepare_est_deworming_takeup_dyn <- function(est_data, daily = FALSE, subgroups = NULL) { 
+  subgroups <- if (daily) c(subgroups, "day") else subgroups
+  
+  est_data %>%
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)"), iter_id), subgroups)) %>% 
+    summarize(wtd_takeup = weighted.mean(iter_takeup, treatment_size)) %>% 
+    ungroup() %>% 
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    summarize(mean_takeup_prop = mean(wtd_takeup),
+              ub_90 = quantile(wtd_takeup, 0.95),
+              ub_95 = quantile(wtd_takeup, 0.975),
+              lb_90 = quantile(wtd_takeup, 0.05),
+              lb_95 = quantile(wtd_takeup, 0.025)) %>% 
+    ungroup() %>% 
+    unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
+    mutate(incentive_treatment = str_replace_all(incentive_treatment, 
+                                                 c("control-bracelet" = "bracelet social", 
+                                                   "calendar-bracelet" = "bracelet",
+                                                   "control-control" = "control", 
+                                                   "(-control)|(control-)" = "")) %>% 
+             fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet"))
+}
+
+est_deworming_takeup_dyn %<>% prepare_est_deworming_takeup_dyn() 
+```
+
+```{r}
 summ_dyn_takeup <- est_deworming_days %>% 
   unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
   group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment, name_matched) %>% 
@@ -2057,7 +2095,6 @@ dyn_ate %<>%
   ungroup() %>% 
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
-
 ```
 
 ```{r, fig.width=12}
@@ -2074,6 +2111,26 @@ summ_dyn_takeup %>%
   # geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
   scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
   facet_grid(phone_owner + dist.pot.group ~ comparator,  labeller = label_both, scales = "free_y")
+```
+
+```{r dyn-take-up, fig.width=12, fig.height=7}
+est_deworming_takeup_dyn %>% 
+  ggplot(aes(fct_relabel(incentive_treatment, str_to_title), mean_takeup_prop, color = sms.treatment.2)) +
+  geom_pointrange(aes(ymin = lb_90, ymax = ub_90), size = 0.5, position = position_dodge(width = 0.5)) +
+  geom_linerange(aes(ymin = lb_95, ymax = ub_95), size = 1.5, position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.3f", mean_takeup_prop), color = NULL), nudge_x = -1, size = 3, segment.color = NA) +
+  # scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  # coord_flip(ylim = c(0, 1)) +
+  # facet_wrap(~ dist.pot.group,  
+  #            labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
+  #            ncol = 1) +
+  coord_flip() +
+  labs(title = "Deworming Take-up", 
+       subtitle = "Across all treatments", 
+       x = "Incentive/Signal Treatment", 
+       y = "Posterior Probability of Deworming", 
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
+  theme(legend.position = "right")
 ```
 
 ```{r plot-dyn-ate, fig.height=6}
@@ -2136,6 +2193,30 @@ summ_dyn_takeup %>%
   geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25, data = . %>% filter(incentive_treatment != "control-control")) +
   scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
   facet_grid(comparator ~ dist.pot.group)
+```
+
+
+```{r daily-obs-plot, fig.width=12, fig.height=6}
+est_deworming_days %>%
+  filter(day <= 12, 
+         incentive_treatment %in% c("control", "ink", "bracelet", "bracelet social"),
+         sms.treatment.2 == "control") %>% 
+  ggplot(aes(x = day)) +
+  geom_line(aes(y = mean_takeup_prop, 
+                group = incentive_treatment, color = fct_relabel(incentive_treatment, str_to_title))) +
+  geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = incentive_treatment), 
+              alpha = 0.2,
+              data = . %>%
+                filter(incentive_treatment != "control") %>%
+                select(deworming_day, dist.pot.group, incentive_treatment, obs_type, prob_deworm) %>%
+                spread(obs_type, prob_deworm)) +
+  scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
+  scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
+  scale_color_discrete("Incentive/Signal Treatment") +
+  facet_wrap(~ dist.pot.group, nrow = 1,  
+             labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
+  labs(title = "Daily Mean Probability of Deworming Take-up with Varying Days of Signal Observation", y = "Posterior Mean Probability of Deworming") +
+  theme(legend.position = "right")
 ```
 
 # Random Stuff
