@@ -149,7 +149,7 @@ wtp_model_0 <- stan_model(file = "wtp_model.stan", model_name = "wtp_model_0")
 wtp_model_0_fit <- sampling(wtp_model_0, data = wtp_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "wtp_model_2.csv")) 
 ```
 
-```{r}
+```{r load-wtp-fit}
 wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 
@@ -985,84 +985,6 @@ basic_model_2_simple_fit <- dyn_stan_data %>%
            chains = 8, iter = 100, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
 ```
 
-
-```{r, fig.width=12}
-summ_dyn_takeup %>% 
-  filter(day < 13,
-         sms.treatment.2 == "sms.control",
-         social_value != "bracelet" | private_value == "control",
-         comparator != "bracelet-bracelet") %>% 
-  ggplot(aes(x = day, y = mean_takeup_prop, linetype = name_matched)) +
-  geom_line(data = . %>% filter(incentive_treatment == "control-control")) +
-  geom_point(data = . %>% filter(incentive_treatment == "control-control")) +
-  geom_line(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
-  geom_point(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
-  # geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
-  scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
-  facet_grid(phone_owner + dist.pot.group ~ comparator,  labeller = label_both, scales = "free_y")
-```
-
-```{r plot-dyn-ate, fig.height=6}
-bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>% 
-            filter(incentive_treatment_left != "bracelet-bracelet") %>% 
-            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
-          Dynamic = dyn_ate %>% 
-            filter(incentive_treatment_left != "bracelet-bracelet", 
-                   incentive_treatment_right == "control-control",
-                   sms.treatment.2_left == "sms.control", sms.treatment.2_right == "sms.control") %>% 
-            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
-          .id = "model") %>% 
-  mutate_at(vars(matches("incentive_treatment")), 
-            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
-  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
-  ggplot(aes(incentive_treatment_left, mean_ate, color = model)) +
-  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
-  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
-  geom_hline(yintercept = 0, linetype = "dotted") +
-  # geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL)) +
-  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, segment.colour = NA, data = . %>% filter(model == "Dynamic")) +
-  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.25, segment.colour = NA, data = . %>% filter(model == "Static")) +
-  scale_x_discrete("Comparator Incentive Treatment") +
-  scale_y_continuous("Average Difference in Deworming Proportion") +
-  scale_color_discrete("Model") +
-  labs(title = "Incentive Average Treatment Effect", subtitle = "Compared with the control arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
-  facet_grid(phone_owner ~ dist.pot.group_left, labeller = label_both) +
-  theme(axis.text.x = element_text(angle = 25, hjust = 1))
-```
-
-```{r}
-summ_dyn_takeup %>% 
-  filter(day == 13, 
-         sms.treatment.2 == "sms.control",
-         social_value != "bracelet" | private_value == "control",
-         incentive_treatment == comparator | (comparator == "control-ink" & incentive_treatment == "control-control")) %>% 
-  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet"),
-         incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace( "-?control-?", "") %>% str_to_title()),
-         mean_takeup_prop = 1 - mean_takeup_prop) %>% 
-  ggplot(aes(x = incentive_treatment, y = mean_takeup_prop)) +
-  geom_pointrange(aes(ymin = 1 - lb_90, ymax = 1 - ub_90)) +
-  theme(axis.text.x = element_text(angle = 25, hjust = 1)) +
-  scale_y_continuous(limits = c(0, 0.75)) +
-  labs(x = "", y = "Posterior Deworming Take-up Probability") +
-  facet_grid(phone_owner ~ dist.pot.group, labeller = label_both)
-```
-
-```{r, fig.width=10, fig.height=10, eval=FALSE}
-summ_dyn_takeup %>% 
-  filter(phone_owner,
-         social_value != "bracelet" | private_value == "bracelet",
-         comparator != "control-bracelet",
-         incentive_treatment != "control-control" | sms.treatment.2 == "sms.control",
-         day < 13) %>% 
-  ggplot(aes(x = day, y = mean_takeup_prop)) +
-  geom_line(aes(group = sms.treatment.2), data = . %>% filter(incentive_treatment == "control-control")) +
-  # geom_point(aes(group = sms.treatment.2), data = . %>% filter(incentive_treatment == "control-control")) +
-  geom_point(aes(group = sms.treatment.2, color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
-  geom_line(aes(linetype = sms.treatment.2, color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
-  geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25, data = . %>% filter(incentive_treatment != "control-control")) +
-  scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
-  facet_grid(comparator ~ dist.pot.group)
-```
 
 ### Posterior Simulation
 
@@ -2069,6 +1991,84 @@ dyn_ate %<>%
   mutate_at(vars(matches("incentive_treatment")), 
             funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
 
+```
+
+```{r, fig.width=12}
+summ_dyn_takeup %>% 
+  filter(day < 13,
+         sms.treatment.2 == "sms.control",
+         social_value != "bracelet" | private_value == "control",
+         comparator != "bracelet-bracelet") %>% 
+  ggplot(aes(x = day, y = mean_takeup_prop, linetype = name_matched)) +
+  geom_line(data = . %>% filter(incentive_treatment == "control-control")) +
+  geom_point(data = . %>% filter(incentive_treatment == "control-control")) +
+  geom_line(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_point(aes(color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  # geom_ribbon(aes(group = incentive_treatment, ymin = lb_90, ymax = ub_90), alpha = 0.2) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
+  facet_grid(phone_owner + dist.pot.group ~ comparator,  labeller = label_both, scales = "free_y")
+```
+
+```{r plot-dyn-ate, fig.height=6}
+bind_rows(Static = sms_ctrl_est_deworming_takeup_ate %>% 
+            filter(incentive_treatment_left != "bracelet-bracelet") %>% 
+            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
+          Dynamic = dyn_ate %>% 
+            filter(incentive_treatment_left != "bracelet-bracelet", 
+                   incentive_treatment_right == "control-control",
+                   sms.treatment.2_left == "sms.control", sms.treatment.2_right == "sms.control") %>% 
+            select(incentive_treatment_left, phone_owner, dist.pot.group_left, mean_ate, matches("[lu]b_9[05]")),
+          .id = "model") %>% 
+  mutate_at(vars(matches("incentive_treatment")), 
+            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
+  mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title())) %>% 
+  ggplot(aes(incentive_treatment_left, mean_ate, color = model)) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), position = position_dodge(width = 0.2), size = 0.75) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), position = position_dodge(width = 0.2), size = 1.75) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  # geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL)) +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = -0.25, segment.colour = NA, data = . %>% filter(model == "Dynamic")) +
+  geom_text_repel(aes(label = sprintf("%.2f", mean_ate), color = NULL), nudge_x = 0.25, segment.colour = NA, data = . %>% filter(model == "Static")) +
+  scale_x_discrete("Comparator Incentive Treatment") +
+  scale_y_continuous("Average Difference in Deworming Proportion") +
+  scale_color_discrete("Model") +
+  labs(title = "Incentive Average Treatment Effect", subtitle = "Compared with the control arm", caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
+  facet_grid(phone_owner ~ dist.pot.group_left, labeller = label_both) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+```
+
+```{r}
+summ_dyn_takeup %>% 
+  filter(day == 13, 
+         sms.treatment.2 == "sms.control",
+         social_value != "bracelet" | private_value == "control",
+         incentive_treatment == comparator | (comparator == "control-ink" & incentive_treatment == "control-control")) %>% 
+  mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet"),
+         incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace( "-?control-?", "") %>% str_to_title()),
+         mean_takeup_prop = 1 - mean_takeup_prop) %>% 
+  ggplot(aes(x = incentive_treatment, y = mean_takeup_prop)) +
+  geom_pointrange(aes(ymin = 1 - lb_90, ymax = 1 - ub_90)) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1)) +
+  scale_y_continuous(limits = c(0, 0.75)) +
+  labs(x = "", y = "Posterior Deworming Take-up Probability") +
+  facet_grid(phone_owner ~ dist.pot.group, labeller = label_both)
+```
+
+```{r, fig.width=10, fig.height=10, eval=FALSE}
+summ_dyn_takeup %>% 
+  filter(phone_owner,
+         social_value != "bracelet" | private_value == "bracelet",
+         comparator != "control-bracelet",
+         incentive_treatment != "control-control" | sms.treatment.2 == "sms.control",
+         day < 13) %>% 
+  ggplot(aes(x = day, y = mean_takeup_prop)) +
+  geom_line(aes(group = sms.treatment.2), data = . %>% filter(incentive_treatment == "control-control")) +
+  # geom_point(aes(group = sms.treatment.2), data = . %>% filter(incentive_treatment == "control-control")) +
+  geom_point(aes(group = sms.treatment.2, color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_line(aes(linetype = sms.treatment.2, color = incentive_treatment), data = . %>% filter(incentive_treatment != "control-control")) +
+  geom_ribbon(aes(group = sms.treatment.2, ymin = lb_90, ymax = ub_90), alpha = 0.25, data = . %>% filter(incentive_treatment != "control-control")) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL) +
+  facet_grid(comparator ~ dist.pot.group)
 ```
 
 # Random Stuff

@@ -869,7 +869,7 @@ To estimate this model we use the likelihood probability:
 ```{r, ref.label="wtp-stan-data"}
 ```
 
-```{r, ref.label="load-wtp-fit"}
+```{r, ref.label="load-wtp-fit", include=FALSE}
 ```
 
 ```{r, ref.label="prepare-wtp-sim-data"}
