@@ -486,7 +486,7 @@ plot_static_est_ate <- . %>%
            y = "Posterior Difference in Probability of Deworming", 
            caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") +
       coord_flip() +
-      theme(axis.text.x = element_text(angle = 25, hjust = 1))
+      theme(axis.text.x = element_text(angle = 25, hjust = 1), legend.position = "right")
   }
 
 plot_static_est_ate(est_deworming_takeup_ate) 
@@ -502,19 +502,30 @@ phone_est_deworming_takeup_ate %>%
 ```{r static-model-dist-ate-plot, fig.height=10, fig.width=10}
 dist_pot_est_deworming_takeup_ate %>%
   plot_static_est_ate() +
+  labs(subtitle = "Split by distance from treatment location") +
   facet_wrap(~ dist.pot.group_left, ncol = 1,
              labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
 ```
 
 ```{r static-model-phone-dist-ate-plot, fig.height=15, fig.width=10}
 phone_dist_pot_est_deworming_takeup_ate %>%
-  mutate(phone_owner_left = if_else(phone_owner_left, "Phone Owners", "Non-Phone Owners")) %>% 
+  filter(phone_owner_left) %>% 
   plot_static_est_ate() +
-  facet_wrap(~ dist.pot.group_left + phone_owner_left, ncol = 1, scales = "free_y",
+  labs(subtitle = "Phone owners only, split by distance from treatment location") +
+  facet_wrap(~ dist.pot.group_left, ncol = 1,
              labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
 ```
 
-```{r static-model-takeup-plot, fig.height=4, fig.width=12}
+```{r static-model-non-phone-dist-ate-plot, fig.height=15, fig.width=10}
+phone_dist_pot_est_deworming_takeup_ate %>%
+  filter(!phone_owner_left) %>% 
+  plot_static_est_ate() +
+  labs(subtitle = "Non phone owners only, split by distance from treatment location") +
+  facet_wrap(~ dist.pot.group_left, ncol = 1,
+             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
+```
+
+```{r static-est-takeup-plotter}
 plot_static_est_takeup <- . %>% 
   mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace_all(c("control-bracelet" = "bracelet social", 
                                                  "bracelet-bracelet" = "bracelet",
@@ -522,9 +533,9 @@ plot_static_est_takeup <- . %>%
                                                  "(-control)|(control-)" = "")) %>% 
                                              str_to_title())) %>% {
   ggplot(., aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + #, color = monitored)) + 
-    geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, fatten = 5, position = position_dodge(width = 0.5)) +
-    geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
-    geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+    geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, fatten = 5, position = position_dodge(width = 0.6)) +
+    geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.6)) +
+    geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.4, size = 3, segment.color = NA) +
     scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
     coord_flip(ylim = c(0, 1)) +
     scale_x_discrete("Signal/Incentive Treatment") +
@@ -535,6 +546,9 @@ plot_static_est_takeup <- . %>%
          y = "Posterior Probability of Deworming", 
          caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.")
   }
+```
+
+```{r static-model-takeup-plot, fig.height=4, fig.width=12}
 
 plot_static_est_takeup(est_deworming_takeup)
 ```
@@ -558,8 +572,9 @@ phone_dist_pot_est_deworming_takeup %>%
   mutate(phone_owner = if_else(phone_owner, "Phone Owners", "Non-Phone Owners")) %>% 
   plot_static_est_takeup() +
   facet_wrap(~ dist.pot.group + phone_owner, ncol = 1, scales = "free_y",
-             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
+             labeller = labeller(dist.pot.group = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) 
 ```
+
 
 # Dynamic Model
 

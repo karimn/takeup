@@ -195,10 +195,12 @@ Prior to the start of deworming treatment, we also recruited a random sample of 
 We model the individuals' utility on deciding to take-up deworming as a function of assigned signal/incentive, SMS, and distance treatment, as
 \begin{equation}
 \begin{split}
-U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}; s) + u^h(\bar{y}_{-i,m}; v_i) + u^s(\bar{y}_{-i,m};v_i) + u^r(\bar{y}_{-i,m};\rho_i, z) - c_i(d) \label{eqn:structural-utility}
+U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}; s) + u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i, z, d) + u^r(\bar{y}_{-i,m};\rho_i, z, d) - c_i(d) \label{eqn:structural-utility}
 \end{split} 
 \end{equation}
 where
+
+<!-- , conditional on prosocial type type $v_i$. Health returns can differ in response to inferred peer take-up due to positive externalities, a response that potentially differs between prosocial and non-prosocial individuals. -->
 
 * $z \in \mathcal{Z} = \{\mathrm{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
 * $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
@@ -210,21 +212,21 @@ where
 * $u^n_{im}(\bar{y}_{-i}; s)$ captures the effect of deworming salience^[We use this term broadly to refer to any "nudge" or reminder effects, as well as conformity and herding effects.] from observation and information provided by SMS on day $m$. This is also known to $i$.
 * $c_i(d)$ is the cost of deworming at distance $d$. This is also known to $i$.
 <!-- TODO we should explore heterogeneity here with mixtures models -->
-* $u^h(\bar{y}_{-i,m};v_i)$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown, conditional on prosocial type type $v_i$. Health returns can differ in response to inferred peer take-up due to positive externalities, a response that potentially differs between prosocial and non-prosocial individuals.
-* $u^s(\bar{y}_{-i,m};v_i)$ is the social health benefit of deworming, assumed to be the same for all communities but is unknown. This term combines intrinsic motivation and externality, coordination, or conditional cooperation effects, and hence potentially responds directly to the level of community takeup, $\bar{y}_{-i,m}$.
+* $u^h(\bar{y}_{-i,m};z,d)$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown.
+* $u^s(\bar{y}_{-i,m};v_i,z,d)$ is the social health benefit of deworming, assumed to be the same for all communities but is unknown. This term combines intrinsic motivation and externality, coordination, or conditional cooperation effects, and hence potentially responds directly to the level of community takeup, $\bar{y}_{-i,m}$.
 * $\rho_i$ is a measure of how image motivated $i$ is.
-* $u^r(\bar{y}_{-i,m};\rho_i, z) \equiv \rho_i\omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1, \bar{y}_{im}, z] - \Pr_{-i}[v_i = 1|y_{im} = 0, \bar{y}_{im}, z]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming, given signal/incentive treatment $z$. This is a random variable due to $i$'s uncertainty about others' inference.
 * $\omega$ is a measure of the social desireability of deworming.
+* $u^r(\bar{y}_{-i,m};\rho_i,z,d) \equiv \rho_i\omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1, \bar{y}_{-i,m}, z,d] - \Pr_{-i}[v_i = 1|y_{im} = 0, \bar{y}_{-i,m}, z,d]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming, given signal/incentive treatment $z$. This is a random variable due to $i$'s uncertainty about others' inference.
 
 We model the binary decision to take-up deworming, conditional on not having already done so, as
 \[ y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)] > 0) \lor y_{i,m-1}, \]
 hence,
 \begin{equation}
-E_i[U_{im}(z,s,d)] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};v_i) + u^s(\bar{y}_{-i,m};v_i) + u^r(\bar{y}_{-i,m};\rho_i, z)]}^{L_{im}(z,s,d)} - c_i(d), \label{eqn:structural-expected-utility} 
+E_i[U_{im}(z,s,d)] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i, z,d)]}^{L_{im}(z,s,d)} - c_i(d), \label{eqn:structural-expected-utility} 
 \end{equation}
 and $E_i[\cdot]$ is $i$'s subjective expectation reflecting uncertainty about $\bar{y}_{-i,m}$ and functions $u^h, u^s$, and $u^r$ (the later with uncertainty about $\omega$ and $\Pr_{-i}[v|y,z]$). 
 
-For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};v_i) + u^s(\bar{y}_{-i,m};v_i) + u^r(\bar{y}_{-i,m};\rho_i,z)],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
+For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i,z,d)],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
 We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
 
 \begin{assumption}[Private Consumption Value of Signals/Incentives]
@@ -248,8 +250,8 @@ For all $i$, $u^n_{i1}(\bar{y}; s) = u^n_{i1}(\bar{y}'; s), \forall \bar{y}, \ba
 \begin{assumption}[Constant Prior Beliefs About Health Benefits]
 For all $i$,
 \begin{enumerate}
-\item $E_i[u^h(\bar{y}_{-i,m};v_i)|z,d] = E_i[u^h(\bar{y}_{-i,m};v_i)| z',d'], \forall i \text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
-\item $E_i[u^s(\bar{y}_{-i,m};v_i)|z,d] = E_i[u^s(\bar{y}_{-i,m};v_i)|z', d'], \forall i\text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
+\item $E_i[u^h(\bar{y}_{-i,m};z,d)] = E_i[u^h(\bar{y}_{-i,m};z',d')], \forall i \text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
+\item $E_i[u^s(\bar{y}_{-i,m};v_i,z,d)] = E_i[u^s(\bar{y}_{-i,m};v_i,z',d')|], \forall i\text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
 \end{enumerate}
 \end{assumption}
 
@@ -758,7 +760,31 @@ We estimate these model parameters using the likelihood probability:
 \mathcal{L}_i = \left\{\widetilde{G}\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{k[i]}, \sigma) - F_V(0|\mu, \mu_{k[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{k[i]}, \sigma)\right\}^{(1 - W_i)} 
 \end{equation*}
 
-## Deworming Take-up Model
+## Static Deworming Take-up Model 
+
+We model the probability of take-up as
+\[ \Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i] \]
+
+and the latent utility is modeled as
+
+\begin{align*}
+Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
+U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
+               &= \sum_{w\in\widetilde{Z}^p} Z^p_w(z^p)\times\beta^p_{wh} \\
+            {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{wh1} + Z^r_w(z^r)\times d \times \beta^r_{wh2} + Z^r_w(z^r)\times b \times \beta^r_{wh3}\right\} \\
+            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{wh1} + S_w(s)\times d \times \beta^s_{wh2} + S_w(S)\times b \times \beta^s_{wh3}\right\} \\
+            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uwh1} + S_w(s)\times d \times \beta^{rs}_{uwh2} + S_w(s)\times b \times \beta^{rs}_{uwh3}\right\} \\
+            {} &+ \beta_h + \beta^d_h + \beta^b_h 
+\end{align*}
+where for convenience we define the following indicator functions:
+
+* $Z^p_w(z^p) \equiv \mathbbm{1}(z^p = w)$ 
+* $Z^r_w(z^r) \equiv \mathbbm{1}(z^r = w)$ 
+* $S_w(s) \equiv \mathbbm{1}(s = w)$
+
+We carried out our estimation using a logit model using the above parameteric latent function.
+
+## Dynamic Deworming Take-up Model
 
 To evaluate the structural model outlined in Section \ref{structural-model}, we need to construct a parametric empirical model. First we parameterize the latent expected utility function in \eqref{eqn:structural-expected-utility} to have the following form with additive error terms: $\tilde{\eta}$ to capture preferences for deworming on particular days and $\varepsilon$ to capture individual heterogeneity in other utility terms.
 \begin{equation}
@@ -901,6 +927,32 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
+## Static Model 
+
+```{r load-static-model-fit, ref.label="load-static-model-fit", include=FALSE}
+```
+
+```{r basic-model-1-prep-data, ref.label="basic-model-1-prep-data", include=FALSE}
+```
+
+```{r static-model-ate-plot, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)"}
+```
+
+```{r static-model-phone-ate-plot, ref.label="static-model-phone-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type."}
+```
+
+```{r static-model-phone-dist-ate-plot, ref.label="static-model-phone-dist-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location."}
+```
+
+```{r static-model-non-phone-dist-ate-plot, ref.label="static-model-non-phone-dist-ate-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location."}
+```
+
+```{r static-est-takeup-plotter, ref.label="static-est-takeup-plotter"}
+```
+
+```{r static-model-phone-dist-takeup-plot, ref.label="static-model-phone-dist-takeup-plot", fig.width=10, fig.height=11, fig.cap="Posterior distribution of the probability of deworming take-up, split by phone ownership and distance from treatment location."}
+```
+
 
 ## Deworming Take-up
 
@@ -1021,51 +1073,6 @@ Finally, our analysis of SMS treatment combined with incentives does show high l
 # References
 
 <div id="refs"></div>
-
-# Appendix: Static Bayesian Model {-}
-
-We model the probability of take-up as
-\[ \Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i] \]
-
-and the latent utility is modeled as
-
-\begin{align*}
-Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
-U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
-               &= \sum_{w\in\widetilde{Z}^p} Z^p_w(z^p)\times\beta^p_{wh} \\
-            {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{wh1} + Z^r_w(z^r)\times d \times \beta^r_{wh2} + Z^r_w(z^r)\times b \times \beta^r_{wh3}\right\} \\
-            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{wh1} + S_w(s)\times d \times \beta^s_{wh2} + S_w(S)\times b \times \beta^s_{wh3}\right\} \\
-            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uwh1} + S_w(s)\times d \times \beta^{rs}_{uwh2} + S_w(s)\times b \times \beta^{rs}_{uwh3}\right\} \\
-            {} &+ \beta_h + \beta^d_h + \beta^b_h 
-\end{align*}
-where for convenience we define the following indicator functions:
-
-* $Z^p_w(z^p) \equiv \mathbbm{1}(z^p = w)$ 
-* $Z^r_w(z^r) \equiv \mathbbm{1}(z^r = w)$ 
-* $S_w(s) \equiv \mathbbm{1}(s = w)$
-
-
-We carried out our estimation using a logit model using the above parameteric latent function.
-
-## Results
-
-```{r static-model-ate, ref.label="static-model-ate"}
-```
-
-```{r static-model-stan-data, ref.label="static-model-stan-data"}
-```
-
-```{r load-static-model-fit, ref.label="load-static-model-fit", include=FALSE}
-```
-
-```{r basic-model-1-prep-data, ref.label="basic-model-1-prep-data", include=FALSE}
-```
-
-```{r static-model-takeup, ref.label="static-model-takeup", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the probability of deworming take-up."}
-```
-
-```{r static-model-ate-plot, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)"}
-```
 
 # Appendix: Bayesian Analysis Stratified by Phone Ownership { - }
 
