@@ -204,7 +204,7 @@ where
 
 * $z \in \mathcal{Z} = \{\mathrm{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
 * $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
-* $d \in \{0, 1\}$, is an indicator for $i$'s community being assigned to be _far_ from the treatment location.
+* $d \in \mathcal{D} = \{\text{close}, \text{far}\}$, is the distance to treatment location assigned to $i$'s community.
 * $m \in \{1,\ldots, 12\}$, is the deworming day.
 * $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
 * $\bar{y}_{-i,m} = \bar{y}_{-i,m}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up. This is $i$'s subjective belief about deworming in their community, potentially influenced by experimental treatment.
@@ -219,12 +219,14 @@ where
 * $u^r(\bar{y}_{-i,m};\rho_i,z,d) \equiv \rho_i\omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1, \bar{y}_{-i,m}, z,d] - \Pr_{-i}[v_i = 1|y_{im} = 0, \bar{y}_{-i,m}, z,d]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming, given signal/incentive treatment $z$. This is a random variable due to $i$'s uncertainty about others' inference.
 
 We model the binary decision to take-up deworming, conditional on not having already done so, as
-\[ y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)] > 0) \lor y_{i,m-1}, \]
+\begin{equation} 
+  y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)] > 0) \lor y_{i,m-1}, \label{eqn:dynamic-decision-rule}
+\end{equation}
 hence,
 \begin{equation}
 E_i[U_{im}(z,s,d)] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i, z,d)]}^{L_{im}(z,s,d)} - c_i(d), \label{eqn:structural-expected-utility} 
 \end{equation}
-and $E_i[\cdot]$ is $i$'s subjective expectation reflecting uncertainty about $\bar{y}_{-i,m}$ and functions $u^h, u^s$, and $u^r$ (the later with uncertainty about $\omega$ and $\Pr_{-i}[v|y,z]$). 
+and $E_i[\cdot]$ is $i$'s subjective expectation reflecting uncertainty about $\bar{y}_{-i,m}$ and functions $u^h, u^s$, and $u^r$ (the later with uncertainty about $\omega$ and $\Pr_{-i}[v|y,z,d]$). 
 
 For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i,z,d)],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
 We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
@@ -252,6 +254,24 @@ For all $i$,
 \begin{enumerate}
 \item $E_i[u^h(\bar{y}_{-i,m};z,d)] = E_i[u^h(\bar{y}_{-i,m};z',d')], \forall i \text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
 \item $E_i[u^s(\bar{y}_{-i,m};v_i,z,d)] = E_i[u^s(\bar{y}_{-i,m};v_i,z',d')|], \forall i\text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
+\end{enumerate}
+\end{assumption}
+
+\begin{assumption}[Baseline Observation for Calendar Incentive]\label{assume:calendar-baseline-observation}
+For all $i$, $m$, $s, s', d$ and $d'$, calendars are assumed not to increase observability: 
+\begin{enumerate}
+\item $\bar{y}_{-i,m}(\text{calendar}, s, d) = \bar{y}_{-i,m}(\text{control}, s, d)$. 
+\item $u^r(\bar{y}_{-i,m}(\text{calendar}, s, d); \rho_i, \text{calendar}, d) = u^r(\bar{y}_{-i,m}(\text{control}, s', d'); \rho_i, \text{control}, d')$.
+\item $u^h(\bar{y}_{-i,m}(\text{calendar}, s, d); \text{calendar}, d) = u^h(\bar{y}_{-i,m}(\text{control};s, d); \text{control}, d)$. 
+\item $u^s(\bar{y}_{-i,m}(\text{calendar}, s, d);v_i, \text{calendar}, d) = u^s(\bar{y}_{-i,m}(\text{control};s, d);v_i, \text{control}, d)$.
+\end{enumerate}
+\end{assumption}
+
+\begin{assumption}[Social Information and Reminder Effects]\label{assume:social-info-reminders-only}
+For all $i$,
+\begin{enumerate}
+\item $u^n_{im}(\bar{y}_{-i,m}(z,\text{social-info}, d); \text{social-info}) = u^n_{im}(\bar{y}_{-i,m}(z,\text{reminders-only}, d); \text{reminders-only}), \forall z, d$. 
+\item $u^r(\bar{y}_{-i,m}(z,\text{social-info}, d); \rho_i, z, d) = u^r(\bar{y}_{-i,m}(z,\text{reminders-only}, d); \rho_i, z, d), \forall z \in \{\text{control}, \text{calendar}\}, d$.
 \end{enumerate}
 \end{assumption}
 
@@ -722,17 +742,12 @@ takeup.data %>%
 
 For convenience, we define 
 
-* $\widetilde{\mathcal{Z}}^p \equiv \mathcal{Z}^p \setminus \{control\}$ 
-* $\widetilde{\mathcal{Z}}^r \equiv \mathcal{Z}^r \setminus \{control\}$ 
-* $\widetilde{\mathcal{S}} \equiv \mathcal{S} \setminus \{control\}$
+* $\widetilde{\mathcal{Z}}^p \equiv \mathcal{Z}^p \setminus \{\text{control}\}$ 
+* $\widetilde{\mathcal{Z}}^r \equiv \mathcal{Z}^r \setminus \{\text{control}\}$ 
+* $\widetilde{\mathcal{S}} \equiv \mathcal{S} \setminus \{\text{control}\}$
 * $Z_w(z) \equiv \mathbbm{1}(z = w)$ 
 * $S_w(s) \equiv \mathbbm{1}(s = w)$
-
-### Other variables {-}
-
-* Phone ownership subgroup: $H_i = \{0, 1\}$.
-* Controls/covariates vector: $X_i$.
-* Deworming outcome on day $m$: $Y_{im}(z, s, d) \in \{0, 1\}$ and $Y_i(z, s, d) = \prod_{h = 1}^{12} Y_{ih}(z, s, d)$.
+* $D_w(d) \equiv \mathbbm{1}(d = w)$
 
 ## Willingness-to-Pay Model
 
@@ -762,27 +777,89 @@ We estimate these model parameters using the likelihood probability:
 
 ## Static Deworming Take-up Model 
 
-We model the probability of take-up as
-\[ \Pr[Y_i = 1 | T_i = t, H_i, X_i] = \Pr[Y_i(t) = 1 |H_i, X_i] = \Pr[Y^*_i(t) > 0 |H_i, X_i] \]
+In this section, we modified the structural model outlined in Section \ref{structural-model} to accommodate a static binary outcome model. We thus modify \eqref{eqn:dynamic-decision-rule} to be 
+\[ y_i(z,s,d) = \mathbbm{1}(E_i[U_i(z,s,d)] > 0), \]
+where 
+\begin{equation}
+E_i[U_i(z,s,d)] \equiv \max_m E_i[U_{im}(z,s,d)] = \tilde{u}^c(z) + \overbrace{\max_m\left\{\tilde{L}_m(z,s,d) + \tilde{\eta}_m\right\}}^{\tilde{L}(z,s,d)} - \tilde{c}(d) + \varepsilon_i. 
+\end{equation}
 
-and the latent utility is modeled as
+We then model the probability to deworm
+\begin{equation}
+\begin{split}
+\Pr[Y_i(z,s,d) = 1 | z,s,d] &= \Pr[\tilde{u}^c(z) + \tilde{L}(z,s,d) - \tilde{c}(d) + \varepsilon_i > 0] \\
+                            &= F\left(\tilde{u}^c(z) + \tilde{L}(z,s,d) - \tilde{c}(d)\right), \label{eqn:static-latent-var-model} 
+\end{split}
+\end{equation}
+where $F$ is the c.d.f. function for $\varepsilon$. We model $\varepsilon$ as having a standard logistic distribution. 
 
+In place of structural terms we introduce the following linear parameters
+\begin{align}
+\left[\tilde{u}^c(z) - \tilde{c}(d)\right] - \left[\tilde{u}^c(\mathrm{control}) - \tilde{c}(\text{close})\right] = \sum_{w\in\widetilde{\mathcal{Z}}^p} Z_w(z) \times \beta^p_w + D_{\text{far}}(d) \times \beta^d \label{eqn:private-benefits-costs-param}
+\end{align}
+and
+\begin{equation}
+\begin{split}
+\Delta \tilde{L}(z, s, d) &= \tilde{L}(z, s, d) - \tilde{L}(\mathrm{control}, \mathrm{control}, \text{close}) \\
+                          &= \sum_{w\in\widetilde{Z}^r} \left\{Z_w(z)\times\beta^r_{w1} + Z_w(z)\times D_{\text{far}}(d) \times \beta^r_{w2} \right\} \\
+            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{w1} + S_w(s)\times D_{\text{far}}(d) \times \beta^s_{w2} \right\} \\
+            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z_u(z) \times \left\{S_w(s)\times\beta^{rs}_{uw1} + S_w(s)\times D_{\text{far}}(d) \times \beta^{rs}_{uw2}\right\} \label{eqn:static-learned-params} 
+\end{split}
+\end{equation}
+
+The main outcome of our analysis is to estimate the posterior distributions of the finite sample treatment effects defined by
+\[ \Delta\tau[(z,s,d),(z', s', d')] \equiv \frac{1}{N}\sum_i \Delta\tau_i[(z,s,d),(z', s', d')] = \frac{1}{N}\sum_i Y_i(z,s,d) - Y_i(z',s',d') \]
+and
+\[ \Delta\tau[(z,s),(z', s')] \equiv \frac{1}{N}\sum_i \Delta\tau_i[(z,s,D_{j[i]}),(z', s', D_{j[i]})]  \]
+\[ \tau[(z,s),(z', s')] \equiv \frac{1}{N}\sum_i Y_i(z,s,D_{j[i]}) - Y_i(z',s',D_{j[i]}), \]
+using our estimated model to impute unobservable counterfactual outcomes for all $i$. In particular, we are interested in estimating:
+
+1. $\tau[(\text{ink}, \text{control}), (\text{control}, \text{control})]$, the impact of the combined private and social benefits of the _ink_ signal, since the partial effects captured are 
+\[F\left(\tilde{u}^c(\text{ink}) + \tilde{L}(\text{ink},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right). \] 
+
+2. $\tau[(\text{calendar}, \text{control}), (\text{control}, \text{control})]$, the impact of the private benefit of the _calendar_ incentive, since the partial effects captured are 
 \begin{align*}
-Y^*_i(t | H_i = h, X_i = x) &= \alpha_0 + \alpha^{clust}_{j[i]} + \alpha^{strat}_{k[i]} + U(t, h;\beta_{k[i]}) + x'\delta + \varepsilon_i \\\\
-U(t, h; \beta) &= U(z^p, z^r, d, s, b, h; \beta) \\
-               &= \sum_{w\in\widetilde{Z}^p} Z^p_w(z^p)\times\beta^p_{wh} \\
-            {} &+ \sum_{w\in\widetilde{Z}^r} \left\{Z^r_w(z^r)\times\beta^r_{wh1} + Z^r_w(z^r)\times d \times \beta^r_{wh2} + Z^r_w(z^r)\times b \times \beta^r_{wh3}\right\} \\
-            {} &+ \sum_{w\in\widetilde{S}} \left\{S_w(s)\times\beta^s_{wh1} + S_w(s)\times d \times \beta^s_{wh2} + S_w(S)\times b \times \beta^s_{wh3}\right\} \\
-            {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z^r_u(z^r) \times \left\{S_w(s)\times\beta^{rs}_{uwh1} + S_w(s)\times d \times \beta^{rs}_{uwh2} + S_w(s)\times b \times \beta^{rs}_{uwh3}\right\} \\
-            {} &+ \beta_h + \beta^d_h + \beta^b_h 
+F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{calendar},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) =\\ 
+F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right). 
 \end{align*}
-where for convenience we define the following indicator functions:
+Since we maintain assumption \ref{assume:calendar-baseline-observation}, $\tilde{L}(\text{calendar},\text{control},D_{j[i]}) = \tilde{L}(\text{control},\text{control},D_{j[i]})$. 
 
-* $Z^p_w(z^p) \equiv \mathbbm{1}(z^p = w)$ 
-* $Z^r_w(z^r) \equiv \mathbbm{1}(z^r = w)$ 
-* $S_w(s) \equiv \mathbbm{1}(s = w)$
+3. $\tau[(\text{bracelet}, \text{control}), (\text{calendar}, \text{control})]$, the impact of the social benefit of the _bracelet_ signal/incentive, since the partial effects captured are 
+\begin{align*}
+F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{bracelet},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{calendar},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) = \\
+F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{bracelet},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right). 
+\end{align*}
+By social benefit, we refer to all the components of $\tilde{L}$: $\tilde{u}^n, \tilde{u}^h, \tilde{u}^s$, and $\tilde{u}^r$.
 
-We carried out our estimation using a logit model using the above parameteric latent function.
+4. $\tau[(\text{control}, \text{social-info}), (\text{control}, \text{control})]$, the impact of the social benefit of _social-info_ SMS treatment, since the partial effects captured are 
+\begin{align*}
+F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control},\text{social-info},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right)
+\end{align*}
+
+5. $\tau[(\text{ink}, \text{social-info}), (\text{ink}, \text{control})]$, the impact of the social benefit of _social-info_ SMS treatment with _ink_ available as a social signal, since the partial effects captured are 
+\begin{align*}
+F\left(\tilde{u}^c(\text{ink}) + \tilde{L}(\text{ink},\text{social-info},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{ink}) + \tilde{L}(\text{ink},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right)
+\end{align*}
+
+6. $\tau[(\text{calendar}, \text{social-info}), (\text{calendar}, \text{control})]$, the impact of the social benefit (excluding reputational returns, $u^r$) of _social-info_ SMS treatment with _calendars_ provided as incentives, since the partial effects captured are 
+\begin{align*}
+F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{calendar},\text{social-info},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{calendar},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right).
+\end{align*}
+Assumption \ref{assume:calendar-baseline-observation} allows us to cancel out the impact of social signaling.
+
+7. $\tau[(\text{bracelet}, \text{social-info}), (\text{calendar}, \text{control})]$, the impact of the social benefit (excluding reputational returns, $u^r$) of _social-info_ SMS treatment with _calendars_ provided as incentives, since the partial effects captured are 
+\begin{align*}
+F\left(\tilde{u}^c(\text{bracelet}) + \tilde{L}(\text{bracelet},\text{social-info},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{calendar},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) =\\
+F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{bracelet},\text{social-info},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{calendar}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right).
+\end{align*}
+Assumption \ref{assume:calendar-baseline-observation} allows us to cancel out the impact of social signaling.
+
+8. $\tau[(\text{control}, \text{social-info}), (\text{control}, \text{reminders-only})]$, the impact of social learning from _social-info_ SMS treatment, since the partial effects captured are 
+\begin{align*}
+F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control}, \text{social-info},D_{j[i]}) - \tilde{c}(D_{j[i]})\right) - F\left(\tilde{u}^c(\text{control}) + \tilde{L}(\text{control},\text{control},D_{j[i]}) - \tilde{c}(D_{j[i]})\right),
+\end{align*}
+and we maintain assumption \ref{assume:social-info-reminders-only}.  Social learning refers to they increased information from SMS treatment on $u^h$ and $u^s$.
+
 
 ## Dynamic Deworming Take-up Model
 
@@ -791,12 +868,10 @@ To evaluate the structural model outlined in Section \ref{structural-model}, we 
 E_i[U_{im}(z,s,d)] = \tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(d) + \tilde{\eta}_m + \varepsilon_{im}. 
 \end{equation}
 We then model the probability to deworm, conditional on not having already been dewormed, as
-<!-- &= \Pr[\varepsilon_{im} > -(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m})] \\ -->
-<!-- &= 1 - F\left(-(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m})\right) \\ -->
 \begin{equation}
 \begin{split}
-\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] &= \Pr[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m} + \varepsilon_{im} > 0] \\
-                                              &= F\left(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(z, d) + \tilde{\eta}_{m}\right), \label{eqn:latent-var-model} 
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, z,s,d] &= \Pr[\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(d) + \tilde{\eta}_{m} + \varepsilon_{im} > 0] \\
+                                              &= F\left(\tilde{u}^c(z) + \tilde{L}_m(z,s,d) - \tilde{c}(d) + \tilde{\eta}_{m}\right), \label{eqn:latent-var-model} 
 \end{split}
 \end{equation}
 where $F$ is the c.d.f. function for $\varepsilon$. We model $\varepsilon$ as having a reverse extreme value (standard Gumbel) distribution and define $\tilde{\eta}_m \equiv \log \lambda_m$, to easily build a duration analysis model based on our structural model. In other words, we are adopting a complementary log-log link for our binomial model of take-up. The c.d.f. of $\varepsilon$ is therefore $F(z) = 1 - \exp\left\{-\exp[z]\right\}$ and
@@ -806,13 +881,7 @@ where $F$ is the c.d.f. function for $\varepsilon$. We model $\varepsilon$ as ha
 \end{equation}
 which results in a piecewise-constant proportional hazard model [@Wooldridge2010] with $\lambda_m$ as the baseline hazard for deworming day $m$, and with both static (time invariant) and dynamic (time-varying) effects: $(\tilde{u}^c(z) + \tilde{c}(z,s,d))$ and $\tilde{L}_m(z,s,d)$, respectively.
 
-
-
-In place of structural terms we introduce the following linear parameters
-\begin{align}
-\left[\tilde{u}^c(z) - \tilde{c}(d)\right] - \left[\tilde{u}^c(\mathrm{control}) - \tilde{c}(0)\right] = \sum_{w\in\widetilde{\mathcal{Z}}^p} Z_w(z) \times \beta^p_w + \beta^d \times d \label{eqn:private-benefits-costs-param}
-\end{align}
-and
+In place of structural terms we introduce the linear parameters in \eqref{eqn:private-benefits-costs-param} and
 \begin{equation}
 \begin{split}
 \Delta \tilde{L}_m(z, s, d) &= \tilde{L}_m(z, s, d) - \tilde{L}_m(\mathrm{control}, \mathrm{control}, 0) \\
@@ -927,45 +996,51 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
-## Static Model 
+## Static Deworming Take-up Model 
+
+\begin{assumption}[Private Consumption Value of Bracelets]\label{assume:calendar-bracelet-private-value}
+We assume the private value of bracelets is equal to calendars : $\beta^p_{calendar} = \beta^p_{bracelet}$ for all strata. 
+\end{assumption}
+ 
+ (a conservative assumption given the greater preference for calendars shown in our willingness-to-pay analysis above) We present both the combined social and private (consumption) effect as the treatment arm "Bracelet" and the social value only imputed treatment arm as "Bracelet Social".
 
 ```{r load-static-model-fit, ref.label="load-static-model-fit", include=FALSE}
 ```
 
-```{r basic-model-1-prep-data, ref.label="basic-model-1-prep-data", include=FALSE}
+```{r basic-model-1-prep-data, ref.label="basic-model-1-prep-data", include=FALSE, dependson="load-static-model-fit"}
 ```
 
-```{r static-model-ate-plot, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)"}
+```{r static-model-ate-plot, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-phone-ate-plot, ref.label="static-model-phone-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type."}
+```{r static-model-phone-ate-plot, ref.label="static-model-phone-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type.", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-phone-dist-ate-plot, ref.label="static-model-phone-dist-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location."}
+```{r static-model-phone-dist-ate-plot, ref.label="static-model-phone-dist-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-non-phone-dist-ate-plot, ref.label="static-model-non-phone-dist-ate-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location."}
+```{r static-model-non-phone-dist-ate-plot, ref.label="static-model-non-phone-dist-ate-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
 ```
 
 ```{r static-est-takeup-plotter, ref.label="static-est-takeup-plotter"}
 ```
 
-```{r static-model-phone-dist-takeup-plot, ref.label="static-model-phone-dist-takeup-plot", fig.width=10, fig.height=11, fig.cap="Posterior distribution of the probability of deworming take-up, split by phone ownership and distance from treatment location."}
+```{r static-model-phone-dist-takeup-plot, ref.label="static-model-phone-dist-takeup-plot", fig.width=10, fig.height=11, fig.cap="Posterior distribution of the probability of deworming take-up, split by phone ownership and distance from treatment location.", dependson=c("basic-model-1-prep-data", "static-est-takeup-plotter")}
 ```
 
-```{r static-model-ate-percent-plot, ref.label="static-model-ate-percent-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment)"}
+```{r static-model-ate-percent-plot, ref.label="static-model-ate-percent-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment)", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-phone-ate-percent-plot, ref.label="static-model-phone-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type."}
+```{r static-model-phone-ate-percent-plot, ref.label="static-model-phone-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type.", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-phone-dist-ate-percent-plot, ref.label="static-model-phone-dist-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location."}
+```{r static-model-phone-dist-ate-percent-plot, ref.label="static-model-phone-dist-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-non-phone-dist-ate-percent-plot, ref.label="static-model-non-phone-dist-ate-percent-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location."}
+```{r static-model-non-phone-dist-ate-percent-plot, ref.label="static-model-non-phone-dist-ate-percent-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
 ```
 
-## Deworming Take-up
+## Dynamic Deworming Take-up
 
 In this section we report the posterior distributions of^[Keep in mind that shown estimators are random functions of $\hat{\theta}$.]
 
@@ -985,7 +1060,6 @@ In this section we report the posterior distributions of^[Keep in mind that show
     \frac{1}{N}\sum_{i=1}^N \kappa_m^{dyn}(z,s;\hat{\theta}_{k[i]}) \label{eqn:dyn-kappa}.
   \end{equation}
 
-In the below analysis, we isolate the social effect of bracelets by controling for its private value. We do this by assuming the private value of bracelets is equal to calendars (a conservative assumption given the greater preference for calendars shown in our willingness-to-pay analysis above): $\beta^p_{calendar,h} = \beta^p_{bracelet,h}$for all $h$ and all strata. We present both the combined social and private (consumption) effect as the treatment arm "Bracelet" and the social value only imputed treatment arm as "Bracelet Social".
 
 ```{r, ref.label="dyn-model-ate"}
 ```
@@ -1001,6 +1075,7 @@ In the below analysis, we isolate the social effect of bracelets by controling f
 
 ```{r load-prepared-fast-sim}
 load(file.path("data", "prepared_fast_sim.RData"))
+
 ```
 
 ```{r, ref.label="fast-sim-ate"}
@@ -1009,7 +1084,7 @@ load(file.path("data", "prepared_fast_sim.RData"))
 
 In Figure \ref{fig:sim-fast-take-up}, we are reporting the posterior distribution of deworming take-up levels as defined in \eqref{eqn:any-day-takeup-level}, separately by distance from treatment location and SMS cross treatment.
 
-```{r sim-fast-take-up, ref.label="sim-fast-take-up", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups."}
+```{r sim-fast-take-up, ref.label="sim-fast-take-up", fig.width=9, fig.height=5, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups (dynamic model)."}
 ```
 
 In Figure \ref{fig:fast-sim-ate-plot}, we report the posterior distribution of treatment effects as defined in \eqref{eqn:any-day-ate}, separately by distance from treatment location and SMS cross treatment. We report treatment effect in comparison with
@@ -1018,7 +1093,10 @@ i. The control arm, with no SMS treatment, and with the same distance from treat
 ii. The control arm, with social information SMS treatment, and with the same distance from treatment location
 iii. The same arm, with no SMS treatment, and with the same distance from treatment location
 
-```{r fast-sim-ate-plot, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=8, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
+```{r fast-sim-ate-plot, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=8, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups, split by phone ownership (dynamic model)."}
+```
+
+```{r fast-sim-ate-phone-plot, ref.label="fast-sim-ate-phone-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
 ```
 
 In Figure \ref{fig:fast-sim-daily-obs-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by distance from treatment location. We also report the "no observation" predicted counterfactual showing how the impact of signals would differ had there been no difference in salience/learning dynamics from the baseline level in the the control arm.

@@ -440,8 +440,14 @@ prepare_est_ate <- function(est_ate_data, subgroups = NULL) {
     ungroup() %>% 
     unite(incentive_treatment_left, str_c(c("private", "social"), "_value_left"), sep = "-", remove = FALSE) %>% 
     unite(incentive_treatment_right, str_c(c("private", "social"), "_value_right"), sep = "-", remove = FALSE) %>% 
-    mutate_at(vars(matches("incentive_treatment_left")), 
-              funs(fct_relevel(factor(.), "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(.,  
+                                                                             c("control-bracelet" = "bracelet social", 
+                                                                               "(calendar|bracelet)-bracelet" = "bracelet",
+                                                                               "control-control" = "control", 
+                                                                               "(-control)|(control-)" = "")) %>% 
+                                                               fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet"))) %>% 
+    # mutate_at(vars(matches("incentive_treatment_left")), 
+    #           funs(fct_relevel(factor(.), "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))) %>% 
     select(-matches("_id_(left|right)$"))
 }
 
@@ -465,7 +471,14 @@ prepare_est_takeup <- function(est_data, subgroups = NULL) {
               lb_95 = quantile(wtd_takeup, 0.025)) %>% 
     ungroup() %>% 
     unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
-    mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
+    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(.,  
+                                                                             c("control-bracelet" = "bracelet social", 
+                                                                               "calendar-bracelet" = "bracelet",
+                                                                               "(calendar|bracelet)-bracelet" = "bracelet",
+                                                                               "control-control" = "control", 
+                                                                               "(-control)|(control-)" = "")) %>% 
+                                                               fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet"))) 
+    # mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
 }
 
 phone_est_deworming_takeup <- est_deworming_takeup %>% prepare_est_takeup("phone_owner")
@@ -477,8 +490,8 @@ est_deworming_takeup %<>% prepare_est_takeup()
 ```{r static-model-ate-plot, fig.height=6, fig.width=12}
 plot_static_est_ate <- function(est_ate_data, outcome_name = "ate") { 
   est_ate_data %>% 
-    mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_replace( "-?control-?", "") %>% str_to_title()),
-           ref = if_else(incentive_treatment_right == "control-control" & sms.treatment.2_right == "sms.control", 
+    mutate(incentive_treatment_left = fct_relabel(incentive_treatment_left, . %>% str_to_title()),
+           ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
                          "control-sms.control", 
                          if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
            ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>% {
@@ -544,12 +557,8 @@ phone_dist_pot_est_deworming_takeup_ate %>%
 
 ```{r static-est-takeup-plotter}
 plot_static_est_takeup <- . %>% 
-  mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_replace_all(c("control-bracelet" = "bracelet social", 
-                                                 "bracelet-bracelet" = "bracelet",
-                                                 "control-control" = "control", 
-                                                 "(-control)|(control-)" = "")) %>% 
-                                             str_to_title())) %>% {
-  ggplot(., aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + #, color = monitored)) + 
+  mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_to_title())) %>% {
+  ggplot(., aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + 
     geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, fatten = 5, position = position_dodge(width = 0.6)) +
     geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.6)) +
     geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.4, size = 3, segment.color = NA) +
@@ -566,7 +575,6 @@ plot_static_est_takeup <- . %>%
 ```
 
 ```{r static-model-takeup-plot, fig.height=4, fig.width=12}
-
 plot_static_est_takeup(est_deworming_takeup)
 ```
 
@@ -1220,40 +1228,6 @@ fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel =
   bind_rows(fast_sim)
 
 save(fast_sim, file = file.path("data", "fast_sim.RData"))
-
-# fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
-#                   treatments_info = fast_treatments %>% filter(social_value == "control" & sms.treatment.2 == "sms.control"), 
-#                   average_over = "phone_owner",
-#                   days_treated = 11) %>% 
-#   bind_rows(fast_sim)
-# 
-# save(fast_sim, file = file.path("data", "fast_sim.RData"))
-# 
-# fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
-#                   treatments_info = fast_treatments %>% filter(social_value != "control" | sms.treatment.2 != "sms.control"), 
-#                   average_over = "phone_owner",
-#                   days_treated = c(0, 11)) %>% 
-#   bind_rows(fast_sim)
-# 
-# save(fast_sim, file = file.path("data", "fast_sim.RData"))
-
-# fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
-#                   average_over_name_match_monitored = FALSE,
-#                   treatments_info = fast_treatments %>% 
-#                     filter(!name_matched & social_value == "control"), 
-#                   days_treated = 11) %>% 
-#   bind_rows(fast_sim)
-# 
-# save(fast_sim, file = file.path("data", "fast_sim.RData"))
-# 
-# fast_sim <- ddply(iter_cluster_parameters, .(iter_id), fast_est_fun, .parallel = TRUE, .progress = "text", .paropts = paropts,
-#                   average_over_name_match_monitored = FALSE,
-#                   treatments_info = fast_treatments %>% 
-#                     filter(!name_matched & social_value != "control"), 
-#                   days_treated = c(0, 11)) %>% 
-#   bind_rows(fast_sim)
-# 
-# save(fast_sim, file = file.path("data", "fast_sim.RData"))
 ```
 
 ```{r, eval=FALSE, warning=FALSE}
@@ -1346,6 +1320,10 @@ fast_sim_mean_phone_owner <- fast_sim %>%
 
 fast_sim_mean_monitored <- fast_sim %>% 
   filter(!name_matched) %>% 
+  combine_treatment_group(c("phone_owner", "dist.pot.group"))
+
+fast_sim_mean_dist_monitored <- fast_sim %>% 
+  filter(!name_matched) %>% 
   combine_treatment_group("phone_owner")
 
 fast_sim_mean <- fast_sim %>% 
@@ -1433,13 +1411,20 @@ fast_sim_ate <- fast_sim_ate_pairs %>%
                             c("iter_id", "phone_owner", "name_matched", "dist.pot.group", "dyn_treat_days"),
                             suffix = c("_left", "_right")) %>%
        mutate(prob_deworm_diff = prob_deworm_left - prob_deworm_right)) %>% 
-  do(ate_phone_owner = group_by_at(.$diff_data, 
+  do(ate_phone_owner_dist = group_by_at(.$diff_data, 
                                    vars(phone_owner, dist.pot.group, 
                                         starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
        do(summarize_ate_diff(.)) %>%  
        ungroup(),
-     ate_all = group_by_at(.$diff_data, vars(dist.pot.group, 
+     ate_phone = group_by_at(.$diff_data, vars(phone_owner,
                                            starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
+       do(summarize_ate_diff(.)) %>%  
+       ungroup(),
+     ate_dist = group_by_at(.$diff_data, vars(dist.pot.group, 
+                                           starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
+       do(summarize_ate_diff(.)) %>%  
+       ungroup(),
+     ate_all = group_by_at(.$diff_data, vars(starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
        do(summarize_ate_diff(.)) %>%  
        ungroup()) %>% 
   ungroup()
@@ -1455,12 +1440,12 @@ dyn_fast_sim_ate <- dyn_fast_sim_ate_pairs %>%
                             c("iter_id", "phone_owner", "name_matched", "dist.pot.group", "deworming_day"), 
                             suffix = c("_left", "_right")) %>% 
        mutate(prob_deworm_diff = prob_deworm_left - prob_deworm_right)) %>% 
-  do(ate_phone_owner = group_by_at(.$diff_data, 
+  do(ate_phone_owner_dist = group_by_at(.$diff_data, 
                                    vars(phone_owner, dist.pot.group, deworming_day,
                                         starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
        do(summarize_ate_diff(.)) %>%  
        ungroup(),
-     ate_all = group_by_at(.$diff_data, vars(dist.pot.group, deworming_day, 
+     ate_dist = group_by_at(.$diff_data, vars(dist.pot.group, deworming_day, 
                                            starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
        do(summarize_ate_diff(.)) %>%  
        ungroup()) %>% 
@@ -1813,12 +1798,13 @@ fast_sim_mean_monitored %>%
   ggplot(aes(fct_relabel(incentive_treatment, str_to_title), prob_deworm, color = sms.treatment.2)) +
   geom_pointrange(aes(ymin = prob_deworm_quant_2.5, ymax = prob_deworm_quant_97.5), size = 0.5, position = position_dodge(width = 0.5)) +
   geom_linerange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), size = 1.5, position = position_dodge(width = 0.5)) +
-  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -1, size = 3, segment.color = NA) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  coord_flip(ylim = c(0, 1)) +
-  facet_wrap(~ dist.pot.group,  
-             labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-             ncol = 1) +
+  coord_flip() +
+  # coord_flip(ylim = c(0, 1)) +
+  # facet_wrap(~ dist.pot.group,  
+  #            labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
+  #            ncol = 1) +
   labs(title = "Deworming Take-up", 
        subtitle = "Across all treatments", 
        x = "Incentive/Signal Treatment", 
@@ -1856,13 +1842,14 @@ fast_sim_ate %>%
          ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>%
   ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
   geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), position = position_dodge(width = 0.4)) +
+  geom_pointrange(aes(ymin = prob_deworm_diff_quant_2.5, ymax = prob_deworm_diff_quant_97.5), fatten = 6, position = position_dodge(width = 0.4)) +
+  geom_linerange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), size = 1.5, position = position_dodge(width = 0.4)) +
   geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   scale_shape_discrete("Reference", labels = c("Control, No SMS", "Same Arm, No SMS", "Control, Social Info")) +
   coord_flip() +
-  facet_wrap(~ dist.pot.group, ncol = 1, 
-             labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
+  # facet_wrap(~ dist.pot.group, ncol = 1, 
+  #            labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = "Treatment Effect on Deworming Take-up", 
        x = "Incentive/Signal Treatment", 
        y = "Posterior Difference in Probability of Deworming", 
@@ -1870,7 +1857,32 @@ fast_sim_ate %>%
   theme(legend.position = "right", legend.direction = "vertical")
 ```
 
-```{r fast-sim-ate-plot-phone-owner, fig.width=12, fig.height=8}
+```{r fast-sim-ate-phone-plot, fig.width=12, fig.height=8}
+fast_sim_ate %>%
+  unnest(ate_phone) %>% 
+  mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
+                       "control-sms.control", 
+                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
+         ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info"),
+         phone_owner = if_else(phone_owner, "Phone Owners", "Non Phone Owners")) %>%
+  ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_pointrange(aes(ymin = prob_deworm_diff_quant_2.5, ymax = prob_deworm_diff_quant_97.5), fatten = 6, position = position_dodge(width = 0.4)) +
+  geom_linerange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), size = 1.5, position = position_dodge(width = 0.4)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  scale_shape_discrete("Reference", labels = c("Control, No SMS", "Same Arm, No SMS", "Control, Social Info")) +
+  coord_flip() +
+  facet_wrap(~ phone_owner, ncol = 1) +
+  labs(title = "Treatment Effect on Deworming Take-up", 
+       subtitle = "Split by phone ownership",
+       x = "Incentive/Signal Treatment", 
+       y = "Posterior Difference in Probability of Deworming", 
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
+  theme(legend.position = "right", legend.direction = "vertical")
+```
+
+```{r fast-sim-ate-plot-phone-owner-dist, fig.width=12, fig.height=8}
 fast_sim_ate %>%
   unnest(ate_phone_owner) %>% 
   mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
@@ -1893,10 +1905,10 @@ fast_sim_ate %>%
 
 ```{r fast-sim-no-obs-plot, fig.width=12, fig.height=10, warning=FALSE}
 bind_rows(observe = fast_sim_ate %>% 
-            unnest(ate_all) %>% 
+            unnest(ate_dist) %>% 
             filter(incentive_treatment_right == "control", sms.treatment.2_right == "sms.control"),
           no_observe = dyn_fast_sim_ate %>% 
-            unnest(ate_all) %>% 
+            unnest(ate_dist) %>% 
             filter(deworming_day == 13, 
                    dyn_treat_days_left == 0, 
                    incentive_treatment_left %in% c("ink", "bracelet", "bracelet social") | sms.treatment.2_left != "sms.control"),
@@ -1923,10 +1935,10 @@ bind_rows(observe = fast_sim_ate %>%
 
 ```{r fast-sim-no-obs-plot-phone-owner, fig.width=12, fig.height=10, warning=FALSE}
 bind_rows(observe = fast_sim_ate %>% 
-            unnest(ate_phone_owner) %>% 
+            unnest(ate_phone_owner_dist) %>% 
             filter(incentive_treatment_right == "control", sms.treatment.2_right == "sms.control"),
           no_observe = dyn_fast_sim_ate %>% 
-            unnest(ate_phone_owner) %>% 
+            unnest(ate_phone_owner_dist) %>% 
             filter(deworming_day == 13, 
                    dyn_treat_days_left == 0, 
                    incentive_treatment_left %in% c("ink", "bracelet", "bracelet social") | sms.treatment.2_left != "sms.control"),

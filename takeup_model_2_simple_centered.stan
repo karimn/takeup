@@ -303,7 +303,6 @@ model {
       dynamic_stratum_pos = dynamic_stratum_end + 1;
     }
   }
-  
 }
 
 generated quantities {
@@ -339,5 +338,4 @@ generated quantities {
     est_takeup = 1 - est_deworming_days[, 13]; 
     est_takeup_ate = est_takeup[ate_pairs[, 1]] - est_takeup[ate_pairs[, 2]];
   }
-    
 }
