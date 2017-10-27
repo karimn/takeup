@@ -1882,6 +1882,31 @@ fast_sim_ate %>%
   theme(legend.position = "right", legend.direction = "vertical")
 ```
 
+```{r fast-sim-ate-dist-plot, fig.width=12, fig.height=8}
+fast_sim_ate %>%
+  unnest(ate_dist) %>% 
+  mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
+                       "control-sms.control", 
+                       if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
+         ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>% 
+  ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_pointrange(aes(ymin = prob_deworm_diff_quant_2.5, ymax = prob_deworm_diff_quant_97.5), fatten = 6, position = position_dodge(width = 0.4)) +
+  geom_linerange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), size = 1.5, position = position_dodge(width = 0.4)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  scale_shape_discrete("Reference", labels = c("Control, No SMS", "Same Arm, No SMS", "Control, Social Info")) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group, ncol = 1, 
+             labeller = labeller(dist.pot.group = . %>% str_to_title() %>% str_c("Distance: ", .))) +
+  labs(title = "Treatment Effect on Deworming Take-up", 
+       subtitle = "Split by phone ownership",
+       x = "Incentive/Signal Treatment", 
+       y = "Posterior Difference in Probability of Deworming", 
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
+  theme(legend.position = "right", legend.direction = "vertical")
+```
+
 ```{r fast-sim-ate-plot-phone-owner-dist, fig.width=12, fig.height=8}
 fast_sim_ate %>%
   unnest(ate_phone_owner) %>% 
