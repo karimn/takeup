@@ -1329,7 +1329,7 @@ fast_sim_mean_dist_monitored <- fast_sim %>%
 fast_sim_mean <- fast_sim %>% 
   combine_treatment_group(c("phone_owner", "name_matched"))
 
-save(fast_sim, fast_sim_day13_only, fast_sim_mean, fast_sim_mean_monitored, fast_sim_mean_phone_owner, fast_sim_mean_phone_owner_monitored, 
+save(fast_sim, fast_sim_day13_only, fast_sim_mean, fast_sim_mean_dist_monitored, fast_sim_mean_monitored, fast_sim_mean_phone_owner, fast_sim_mean_phone_owner_monitored, 
      fast_sim_mean_treatment_group, fast_sim, quants, 
      file = file.path("data", "prepared_fast_sim.RData"))
 ```
@@ -1832,6 +1832,27 @@ fast_sim_mean_phone_owner_monitored %>%
   theme(legend.position = "bottom")
 ```
 
+
+```{r sim-fast-take-up-dist, fig.width=12, fig.height=8}
+fast_sim_mean_dist_monitored %>% 
+  filter(deworming_day == 13, 
+         dyn_treat_days == 11) %>%
+  ggplot(aes(fct_relabel(incentive_treatment, str_to_title), prob_deworm, color = sms.treatment.2)) +
+  geom_pointrange(aes(ymin = prob_deworm_quant_2.5, ymax = prob_deworm_quant_97.5), size = 0.5, position = position_dodge(width = 0.5)) +
+  geom_linerange(aes(ymin = prob_deworm_quant_5, ymax = prob_deworm_quant_95), size = 1.5, position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.3f", prob_deworm), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  coord_flip() +
+  facet_wrap(~ dist.pot.group, scales = "free_y", 
+             labeller = labeller(dist.pot.group = . %>% str_to_title() %>% str_c("Distance: ", .)),
+             ncol = 1) +
+  labs(title = "Deworming Take-up", 
+       subtitle = "Split by distance to treatment location", 
+       x = "Incentive/Signal Treatment", 
+       y = "Posterior Probability of Deworming", 
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
+  theme(legend.position = "right")
+```
 
 ```{r fast-sim-ate-plot, fig.width=12, fig.height=8}
 fast_sim_ate %>%

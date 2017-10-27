@@ -1,6 +1,6 @@
 ---
 title: |
-    | The Role of Social Signaling in Community Mass Deworming
+    | The Role of Social Signaling in Community Deworming 
     | Evidence from a Field Experiment in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley.]
 subtitle: "Internal Working Paper -- Do Not Cite or Distribute"
 date: "October 2017"
@@ -10,8 +10,6 @@ author:
 output: 
   pdf_document:
     number_sections: yes
-    toc: true
-    toc_depth: 2
 header-includes:
    - \usepackage{pxfonts}
    - \usepackage{bbm}
@@ -21,7 +19,7 @@ header-includes:
    - \usepackage{pdflscape}
    - \usepackage{threeparttable}
    - \usepackage{todonotes}
-abstract: "We present findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. We found that bracelets strongly incentivized deworming take-up, and our results point to this being a social rather than a private motivation. In addition, we found that informational text messages amplified this effect." 
+abstract: "This paper provides field-experimental evidence on the role of social signaling in community deworming. Working with the Kenyan Government, we implement a new community deworming program that offers free deworming treatment to 200,000 adults over a period of twelve days. The program explicitly emphasizes the public good aspect of deworming. We introduce two types of social incentives in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink make the decision to deworm or abstain from treatment observable and allow adults to signal to others that they contributed to protecting their community from worms. We further introduce a private incentive, in the form of a calendar, that is comparable in its consumption value to the bracelet. Treatment points and their catchment communities are randomized into being eligible for the ink, bracelet or calendar incentive or a control group where no incentive is offered. The cluster randomization identifies the combined effect of social signaling, learning and reminders. To separately identify the extent to which deworming decisions are driven by a desire to signal, we offer free text messages to a random subset of adults, reminding them of the availability of deworming treatment and providing information about deworming take-up in their community. To exogenously vary the information, we randomly assign communities to far or close walking distances to the treatment points, thus randomizing the average level of take-up in their community. We estimate a static and dynamic hierarchical Bayesian model to identify the average partial effect of social signaling on deworming take-up. Bracelets as signals increased deworming take-up by 4 percentage points, a 15% increase compared to the control group. We find a close to zero average treatment effect for the ink incentive, with substantial heterogeneity in the impact across close (-4pp) and far communities (+1pp). The results suggest that mandatory signaling as in the case of inking people’s thumb, can dissuade marginal individuals if the private valuation of the signal is negative. We find no evidence that visibility in actions, through ink or bracelets, affects take-up decision’s through social learning or reminders. The text message treatment led to large increases (13-17pp) in deworming take-up across all groups, supporting existing evidence on the power of personal nudges."
 bibliography: ~/Documents/library.bib
 ---
 
@@ -91,87 +89,18 @@ load(file.path("data", "analysis.RData"))
 
 # Introduction
 
-<!-- TODO This research has broader relevance than just deworming. We should move reference to deworming a few paragraphs down. -->
+How do social signals affect adults’ willingness to contribute to public goods? The role of social signaling and image concerns has been widely studied in the theoretical literature in economics, including motives for pro-social behavior [@Benabou2006; -@Benabou2012a] and norms [@Bernheim1994; Benabou2012]. Recent field experiments have found that social image concerns affect important behaviors, such as  consumption, the decision to vote, and student effort [@Dellavigna2017; @Bursztyn2017a; @Bursztyn2015]. However, there is a lack of empirical evidence on social signaling in individuals’ decisions to contribute to public goods and whether social image concerns can be influenced in empirically relevant settings [@Bursztyn2017]. We choose an important empirical application, community deworming, to manipulate social signaling concerns and test their relevance to individual’s decision to take-up deworming treatment. 
 
-Over the last decade there has been important progress in the treatment of neglected tropical diseases (NTDs), as a result of unprecedented attention by governments, funders, and the private sector. The enduring prevalence of soil transmitted helminths (STHs), however, still constitutes a massive development burden for both children and adults in many developing countries, including Kenya. Recent efforts to reduce contamination rates in the country have focused on deworming school-aged children, but the remaining reservoir of worms among the adult population fosters reinfection. Epidemiologists have recently postulated that it may be scientifically feasible to reach a transmission breakpoint for STHs [@Anderson2012]. Preventing transmission and eliminating STHs using mass drug administration (MDA) covering the entire population, including children and adults, might be a viable strategy to eliminate worms moving forward. 
+According to the World Health Organization approximately 1.5 billion people are infected with soil-transmitted helminths (STH) worldwide.^[World Health Organization, Fact Sheet Soil-transmitted helminth infections, September 2017
+http://www.who.int/mediacentre/factsheets/fs366/en/]. Intestinal worms are a development burden to children and adults in many developing countries. While mild infections are asymptomatic, more severe infections lead to abdominal pain, iron-deficiency, anemia, malnutrition, and stunting. There is a strong case to be made for community mass deworming: Deworming drugs are safe and have no side effects for uninfected individuals. The cost of screening for worm infections is 4 to 10 times that of deworming treatment. Further, deworming treatment leads to health improvements in the short term and productivity increases in the long term. @Kremer2011a showed that deworming is one of the most cost-effective ways to increase school attendance and has positive externalities on the untreated. Since most of its social benefits come through reduced diseases transmission, deworming qualifies as a public good. Epidemiologists postulate that it might be feasible to eliminate worms using mass drug administration covering the entire population, including children and adults. While significant progress has been made in deworming children through school-based deworming programs, the remaining infectious reservoir among adult populations fosters reinfection. An important empirical questions is therefore, whether high take-up of deworming treatment among adults can be achieved cost effectively and within a short time. Social incentives, whose main attribute is to make actions observable, may be less expensive than consumption incentives and through their visibility can influence social image concerns. 
 
-This study explores cost-effective ways to achieve high deworming take-up among adults by offering free deworming treatment at central locations and incentives. The evaluation of the incentivized community deworming program relates four separate strands of the literature: compliance with mass drug administration (MDA), incentives, voluntary good contributions, and pro-social signaling. 
+In this paper, we (i) provide experimental evidence on the effectiveness of making actions observable through social incentives and (ii) build a hierarchical Bayesian model to identify the average partial effect of social signaling on individuals’ probability to get dewormed. Working with the Kenyan Government, we implement a large-scale randomized control trial in Western Kenya, stratified over three counties. We introduce a new community deworming program, where community health volunteers offer free worming treatment to adults at central locations (instead of through door-to-door treatment). Adults are informed about the private and community-wide health benefits of deworming prior to the start of the program. Our main experimental manipulation is to alter the observability of deworming treatment take-up. We introduce two social incentives in the form of colorful bracelets and ink applied to people’s thumb. To control for the consumption value of bracelets, we introduce a private incentive in the form of a one-page calendar. In a separate willingness to pay experiment we show that adults who had no prior exposure to either incentive, strictly prefer the calendar over the bracelets. 150 treatment locations and their catchment communities are randomized into the ink, bracelet or calendar incentive or a control group where no incentive is offered. The cluster randomization identifies the combined effect of social signaling, learning and reminders. To separately identify the extent to which deworming decisions are driven by a desire to signal, we offer free text messages to a random subset of 25 adults in each of the study communities. The text messages remind individuals of the availability of deworming (starting the day before the deworming program starts) and provide information about the share of people that have come for deworming treatment in their community (provided on day 2, 4, 6, 8 and 10 of the 12 days where treatment is available). To exogenously vary the information, we randomly assign communities to far or close walking distances to the treatment points, thus randomizing the average level of take-up in their community. To exogenously vary the information, we randomly assign communities to close (less than 1.25 kilometer) or far (between 1.25-2.5 kilometers) walking distances to the treatment points, thus randomizing the average level of take-up in their community.
 
-Different to previous MDA, this study is focused on deworming treatment at a central location, not through door-to-door visits. @Kremer2011a observe that for preventive and non-acute care such as deworming, insecticide-treated bednet use and water chlorination there is a dramatic drop in demand at non-zero prices. Since a large number of people have such an abrupt cutoff at the same point, they conclude that they are not likely motivated by a simple cost-benefit analysis, but instead have a strong present bias; future benefits are heavily discounted compared to immediate benefits. One approach that has been widely tested and shown to be successful, is to provide a small reward when coming for treatment to offset any inconvenience costs individuals might face, as well as to address present bias. @Kremer2011a review a wide number of studies on the use for incentives to increase education and health service take-up. They find strong evidence in favor of incentives compared to education only interventions.
+We estimate a static and dynamic hierarchical Bayesian model to create the necessary counterfactuals to identify the partial effect of social signaling on deworming take-up. The dynamic model allows us to control for social learning and reminder or salience effects that are introduced as individuals can observe other people’s deworming decisions in the bracelet and ink incentive treatments. Bracelets as signals increased deworming take-up by 4 percentage points, a 15% increase compared to the control group. We find a zero average treatment effect for the ink incentive, with substantial heterogeneity in the impact across close (-4pp) and far communities (+1pp). The results suggest that “forced” signaling as in the case of inking people’s thumb, can dissuade marginal individuals if the private valuation of the signal is negative. We find no evidence that visibility in actions, through ink or bracelets, affects take-up decision’s through social learning or reminders. The text message treatment led to large increases (13-17pp) in deworming take-up across all groups, supporting existing evidence on the power of personal nudges. 
 
-In this study we focus the program's message on social returns, emphasizing the benefit of taking treatment to reduce reinfection of community members, especially school-aged children. The community deworming program could therefore be viewed as a voluntary collective action game, where an individual's treatment compliance decision can be modeled as the decision to contribute to a pool shared by all community members. One approach to increase contribution in such a setting is to allow for signaling, thus introducing social approval/disapproval as a reward/punishment [@Benabou2006; -@Benabou2012a]. Our aim is to test how social signaling can be leveraged to increase demand for deworming treatment among adults, by introducing two signals in the form of colorful ink (similar to that used for voting) and bracelets. Both allow individuals to show to others that they have taken deworming treatment. 
+Our work contributes to the literature of social signaling and social image concerns in three ways. First, we provide direct evidence of the effectiveness of making actions observable through a low-cost signal. Recent empirical studies have highlighted the negative effects of visibility like in the case of consumption or student effort. This study shows how social welfare can be improved through social signaling. Second, we show that the type of signal offered can drastically influence its effectiveness. I “looser” signal that does not force all individuals to signal can be more effective in increasing take-up despite weakening the type inference. Third, we are overcoming the identification challenge of social signaling in the presence of dynamics where individuals can not only signal but also observe other individuals’ take-up decisions and might hence be nudged or reminded of deworming or update their beliefs about the value of deworming. We do so by moving beyond reduced form estimations and build a dynamic hierarchical Bayesian model. This work further contributes to the literature on incentives. There is limited field-experimental evidence on social incentives and the mechanisms through with they affect behavior. 
 
-To test the effectiveness of social signals and to investigate the behavioral and social mechanisms driving their influence on deworming take-up, we conducted a cluster randomized trial in western Kenya, stratified over three counties. Our main experimental manipulation was the provision of private incentives (simple wall calendars) and social incentives/signals (voting ink or bracelets).  In addition, we manipulated the distance community members would have to travel to receive deworming treatment; and provided reminders or social information (on peer deworming take-up) using text messaging, randomly assigned to a subset of individuals in each community.
-
-<!-- TODO update results in intro with new Bayesian model results -->
-
-```{r, ref.label="basic-reg-covar"}
-```
-
-```{r, ref.label="sms-reg-covar"}
-```
-
-```{r basic-ate}
-tidy.reg.res <- tidy(reg.output.sms.ctrl.covar) %>% mutate(estimate = estimate * 100)
-tidy.reg.res.calendar <- tidy(reg.output.sms.ctrl.calendar.covar) %>% mutate(estimate = estimate * 100)
-
-basic.control.takeup <- tidy.reg.res %>% 
-  filter(term == "(intercept)") %$% 
-  estimate
-
-basic.calendar.takeup <- tidy.reg.res.calendar %>% 
-  filter(term == "(intercept)") %$% 
-  estimate
-
-basic.bracelet.takeup <- tidy.reg.res %>% 
-  filter(term %in% c("(intercept)", "bracelet")) %$% 
-  sum(estimate)
-
-basic.ink.takeup <- tidy.reg.res %>% 
-  filter(term %in% c("(intercept)", "ink")) %$% 
-  sum(estimate)
-
-bracelet.vs.control.ate <- tidy.reg.res %>% 
-  filter(term == "bracelet") %$% 
-  estimate
-
-bracelet.vs.calendar.ate <- tidy.reg.res.calendar %>% 
-  filter(term == "bracelet") %$% 
-  estimate
-
-bracelet.vs.control.pval <- tidy.reg.res %>% 
-  filter(term == "bracelet") %$% 
-  p.value
-
-bracelet.vs.calendar.pval <- tidy.reg.res.calendar %>% 
-  filter(term == "bracelet") %$% 
-  p.value
-```
-
-```{r sms-ate}
-bracelet.sms.res <- linear_tester(reg.output.sms.treat.covar, 
-                                  c("social.info + bracelet:social.info + bracelet",
-                                    "(intercept) + social.info + bracelet:social.info + bracelet")) %>% 
-  mutate(estimate = estimate * 100)
-
-bracelet.sms.vs.control.ate <- bracelet.sms.res[1, "estimate"]
-bracelet.sms.vs.control.pval <- bracelet.sms.res[1, "p.value"]
-
-bracelet.sms.takeup <- bracelet.sms.res[2, "estimate"]
-
-phone.owner.control.takeup <- tidy(reg.output.sms.treat.covar) %>% 
-  filter(term == "(intercept)") %$% 
-  estimate %>% 
-  multiply_by(100)
-```
-
-~~Of the three incentive we found the bracelets to be the most effective, with a `r sprintf("%.2f", bracelet.vs.control.ate)` percentage point increase in deworming take-up, compared to the control arm (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.control.takeup, bracelet.vs.control.pval)`), a `r sprintf("%.2f", bracelet.vs.control.ate/basic.control.takeup * 100)`% change. When compared to the calendar incentive arm --- to control for the private valuation bracelets might have --- we found that bracelets increased deworming take-up by `r sprintf("%.2f", bracelet.vs.calendar.ate)` percentage point (`r sprintf("%.2f%% vs %.2f%%, $P < %.3f$", basic.bracelet.takeup, basic.calendar.takeup, bracelet.vs.calendar.pval)`), a `r sprintf("%.2f", bracelet.vs.calendar.ate/basic.calendar.takeup * 100)`% change. Other incentives did not have a statistically significant impact on take-up.~~
-
-~~Text messages reporting peer take-up were also found to have a strong impact on deworming take-up, in particular when combined with the bracelet incentives. Take-up in response to bracelet and text messaging treatment increased take-up by `r sprintf("%.2f", bracelet.sms.vs.control.ate)` percentage points when compared to the control arm without text messaging treatment (`r sprintf("%.2f%% vs %.2f%%, $P < %.2e$", bracelet.sms.takeup, phone.owner.control.takeup, bracelet.sms.vs.control.pval)`), a `r sprintf("%.2f", bracelet.sms.vs.control.ate/phone.owner.control.takeup * 100)`% increase.~~
-
-Based on our preliminary reduced form analysis, we conclude that the use of bracelets as social incentives is a promising instrument to motivate the take-up of health-related behaviors of low private value--but with some social value--such as adult deworming treatment. This is especially true when combined with an informational intervention such as text messages. While this report delves further in how distance affects take-up and how it interacts with the other experimental treatments, and what private value the study's population places on the incentives we are testing, we are not as of yet able to identify the different potential mechanisms influencing take-up. For example, while evidence points to social mechanisms, broadly speaking, as being the main influence, we are not able to distinguish between social learning (receiving information from others), social signaling (broadcasting information to other), or even if our treatments simply function as reminders or "nudges". We will consider these issues elsewhere. 
-
-The remainder of the report is organized as follows: In section \ref{the-intervention} we describe the design of the intervention and the motivation behind it; in section \ref{experiment-design} we describe the design of the experiment; in section \ref{descriptive-statistics} we provide descriptive statistics from the experiment; in section \ref{analysis} we conduct our analysis; in section \ref{cost-effectiveness} we compare the cost effectiveness of the incentives/signals tested; and finally, in section \ref{conclusion} we present our conclusions.
+The remainder of this paper is organized as follows. In Section \ref{the-intervention}, we describe the setting of the intervention. In Section \ref{experiment-design}, we describe the experimental design to identify social signaling concerns. Section \ref{descriptive-statistics}, provides descriptive statistics from the experiment. In Section \ref{structural-model}, we present the structural model to describe individual decision-making in the presence of observability of actions.  In Section \ref{empirical-models}, we present the empirical Bayesian model, which is based of the structural model outlined in \ref{structural-model} and the experimental variations described in \ref{experiment-design}. In Section \ref{results} we show the results. Section \ref{conclusion} concludes.
 
 # The Intervention
 
@@ -190,90 +119,6 @@ All adults who came to a given treatment location were provided with deworming t
 
 Prior to the start of deworming treatment, we also recruited a random sample of individuals to receive informational text messages about the MDA (see the [Experiment Design](#experiment-design) section). The text messages reminded adults of the availability of deworming treatment and their treatment location, and provided information about deworming treatment take-up in their communities. Messages were sent the day before the MDA started and after that every other day (on the second, fourth, sixth, eight and tenth deworming day). 
 
-# Structural Model
-
-We model the individuals' utility on deciding to take-up deworming as a function of assigned signal/incentive, SMS, and distance treatment, as
-\begin{equation}
-\begin{split}
-U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}; s) + u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i, z, d) + u^r(\bar{y}_{-i,m};\rho_i, z, d) - c_i(d) \label{eqn:structural-utility}
-\end{split} 
-\end{equation}
-where
-
-<!-- , conditional on prosocial type type $v_i$. Health returns can differ in response to inferred peer take-up due to positive externalities, a response that potentially differs between prosocial and non-prosocial individuals. -->
-
-* $z \in \mathcal{Z} = \{\mathrm{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
-* $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
-* $d \in \mathcal{D} = \{\text{close}, \text{far}\}$, is the distance to treatment location assigned to $i$'s community.
-* $m \in \{1,\ldots, 12\}$, is the deworming day.
-* $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
-* $\bar{y}_{-i,m} = \bar{y}_{-i,m}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up. This is $i$'s subjective belief about deworming in their community, potentially influenced by experimental treatment.
-* $u^c_i(z)$ is the private consumption value of $z$ which is known to $i$.
-* $u^n_{im}(\bar{y}_{-i}; s)$ captures the effect of deworming salience^[We use this term broadly to refer to any "nudge" or reminder effects, as well as conformity and herding effects.] from observation and information provided by SMS on day $m$. This is also known to $i$.
-* $c_i(d)$ is the cost of deworming at distance $d$. This is also known to $i$.
-<!-- TODO we should explore heterogeneity here with mixtures models -->
-* $u^h(\bar{y}_{-i,m};z,d)$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown.
-* $u^s(\bar{y}_{-i,m};v_i,z,d)$ is the social health benefit of deworming, assumed to be the same for all communities but is unknown. This term combines intrinsic motivation and externality, coordination, or conditional cooperation effects, and hence potentially responds directly to the level of community takeup, $\bar{y}_{-i,m}$.
-* $\rho_i$ is a measure of how image motivated $i$ is.
-* $\omega$ is a measure of the social desireability of deworming.
-* $u^r(\bar{y}_{-i,m};\rho_i,z,d) \equiv \rho_i\omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1, \bar{y}_{-i,m}, z,d] - \Pr_{-i}[v_i = 1|y_{im} = 0, \bar{y}_{-i,m}, z,d]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming, given signal/incentive treatment $z$. This is a random variable due to $i$'s uncertainty about others' inference.
-
-We model the binary decision to take-up deworming, conditional on not having already done so, as
-\begin{equation} 
-  y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)] > 0) \lor y_{i,m-1}, \label{eqn:dynamic-decision-rule}
-\end{equation}
-hence,
-\begin{equation}
-E_i[U_{im}(z,s,d)] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i, z,d)]}^{L_{im}(z,s,d)} - c_i(d), \label{eqn:structural-expected-utility} 
-\end{equation}
-and $E_i[\cdot]$ is $i$'s subjective expectation reflecting uncertainty about $\bar{y}_{-i,m}$ and functions $u^h, u^s$, and $u^r$ (the later with uncertainty about $\omega$ and $\Pr_{-i}[v|y,z,d]$). 
-
-For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i,z,d)],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
-We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
-
-\begin{assumption}[Private Consumption Value of Signals/Incentives]
-For all $i$, 
-\begin{enumerate}
-\item $u^c_i(\mathrm{control}) = 0$ and $u^c_i(\mathrm{ink}) \leq 0$: ink has no consumption value.
-\item $u^c_i(\mathrm{bracelet}) \geq 0$ and $u^c_i(\mathrm{calendar}) \geq 0$: these are voluntary signals/incentive so they cannot cause disutility.
-\end{enumerate}
-\end{assumption}
-
-\begin{assumption}[Private Cost of Deworming]
-For all $i$, $c_i(d) \geq c_i(d') \geq 0, \forall d > d'$.
-\end{assumption}
-
-<!-- Below assumption assumes fixed conformity effect. Is this reasonable given that individuals might have different priors on others' take-up based on their community's signal/incentive treatment? Perhaps we can weaken this by using strong priors on this equality and make use of reported beliefs on community take-up (in the baseline survey). This allows the data to overwhelm this assumption if needed. -->
-
-\begin{assumption}[Constant Day One Salience]\label{assume:day-one-salience}
-For all $i$, $u^n_{i1}(\bar{y}; s) = u^n_{i1}(\bar{y}'; s), \forall \bar{y}, \bar{y}', s$: on the first day salience/nudge effects are constant across signal/incentive arms. 
-\end{assumption}
-
-\begin{assumption}[Constant Prior Beliefs About Health Benefits]
-For all $i$,
-\begin{enumerate}
-\item $E_i[u^h(\bar{y}_{-i,m};z,d)] = E_i[u^h(\bar{y}_{-i,m};z',d')], \forall i \text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
-\item $E_i[u^s(\bar{y}_{-i,m};v_i,z,d)] = E_i[u^s(\bar{y}_{-i,m};v_i,z',d')|], \forall i\text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
-\end{enumerate}
-\end{assumption}
-
-\begin{assumption}[Baseline Observation for Calendar Incentive]\label{assume:calendar-baseline-observation}
-For all $i$, $m$, $s, s', d$ and $d'$, calendars are assumed not to increase observability: 
-\begin{enumerate}
-\item $\bar{y}_{-i,m}(\text{calendar}, s, d) = \bar{y}_{-i,m}(\text{control}, s, d)$. 
-\item $u^r(\bar{y}_{-i,m}(\text{calendar}, s, d); \rho_i, \text{calendar}, d) = u^r(\bar{y}_{-i,m}(\text{control}, s', d'); \rho_i, \text{control}, d')$.
-\item $u^h(\bar{y}_{-i,m}(\text{calendar}, s, d); \text{calendar}, d) = u^h(\bar{y}_{-i,m}(\text{control};s, d); \text{control}, d)$. 
-\item $u^s(\bar{y}_{-i,m}(\text{calendar}, s, d);v_i, \text{calendar}, d) = u^s(\bar{y}_{-i,m}(\text{control};s, d);v_i, \text{control}, d)$.
-\end{enumerate}
-\end{assumption}
-
-\begin{assumption}[Social Information and Reminder Effects]\label{assume:social-info-reminders-only}
-For all $i$,
-\begin{enumerate}
-\item $u^n_{im}(\bar{y}_{-i,m}(z,\text{social-info}, d); \text{social-info}) = u^n_{im}(\bar{y}_{-i,m}(z,\text{reminders-only}, d); \text{reminders-only}), \forall z, d$. 
-\item $u^r(\bar{y}_{-i,m}(z,\text{social-info}, d); \rho_i, z, d) = u^r(\bar{y}_{-i,m}(z,\text{reminders-only}, d); \rho_i, z, d), \forall z \in \{\text{control}, \text{calendar}\}, d$.
-\end{enumerate}
-\end{assumption}
 
 # Experiment Design
 
@@ -723,6 +568,90 @@ takeup.data %>%
   plot.aggreg.takeup 
 ```
 
+# Structural Model
+
+We model the individuals' utility on deciding to take-up deworming as a function of assigned signal/incentive, SMS, and distance treatment, as
+\begin{equation}
+\begin{split}
+U_{im}(z,s,d) &= u_i^c(z) + u_{im}^n(\bar{y}_{-i,m}; s) + u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i, z, d) + u^r(\bar{y}_{-i,m};\rho_i, z, d) - c_i(d) \label{eqn:structural-utility}
+\end{split} 
+\end{equation}
+where
+
+<!-- , conditional on prosocial type type $v_i$. Health returns can differ in response to inferred peer take-up due to positive externalities, a response that potentially differs between prosocial and non-prosocial individuals. -->
+
+* $z \in \mathcal{Z} = \{\mathrm{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
+* $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
+* $d \in \mathcal{D} = \{\text{close}, \text{far}\}$, is the distance to treatment location assigned to $i$'s community.
+* $m \in \{1,\ldots, 12\}$, is the deworming day.
+* $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
+* $\bar{y}_{-i,m} = \bar{y}_{-i,m}(z, s, d) \in [0, 1]$, is a measure of observed/inferred peer deworming take-up. This is $i$'s subjective belief about deworming in their community, potentially influenced by experimental treatment.
+* $u^c_i(z)$ is the private consumption value of $z$ which is known to $i$.
+* $u^n_{im}(\bar{y}_{-i}; s)$ captures the effect of deworming salience^[We use this term broadly to refer to any "nudge" or reminder effects, as well as conformity and herding effects.] from observation and information provided by SMS on day $m$. This is also known to $i$.
+* $c_i(d)$ is the cost of deworming at distance $d$. This is also known to $i$.
+<!-- TODO we should explore heterogeneity here with mixtures models -->
+* $u^h(\bar{y}_{-i,m};z,d)$ is the private health benefit of deworming, assumed to be uniform for all $i$ but is unknown.
+* $u^s(\bar{y}_{-i,m};v_i,z,d)$ is the social health benefit of deworming, assumed to be the same for all communities but is unknown. This term combines intrinsic motivation and externality, coordination, or conditional cooperation effects, and hence potentially responds directly to the level of community takeup, $\bar{y}_{-i,m}$.
+* $\rho_i$ is a measure of how image motivated $i$ is.
+* $\omega$ is a measure of the social desireability of deworming.
+* $u^r(\bar{y}_{-i,m};\rho_i,z,d) \equiv \rho_i\omega\cdot\left(\Pr_{-i}[v_i = 1|y_{im} = 1, \bar{y}_{-i,m}, z,d] - \Pr_{-i}[v_i = 1|y_{im} = 0, \bar{y}_{-i,m}, z,d]\right)$ is $i$'s belief about how others will infer $v_i$ based on $i$'s deworming, given signal/incentive treatment $z$. This is a random variable due to $i$'s uncertainty about others' inference.
+
+We model the binary decision to take-up deworming, conditional on not having already done so, as
+\begin{equation} 
+  y_{im}(z,s,d) = \mathbbm{1}(E_i[U_{im}(z,s,d)] > 0) \lor y_{i,m-1}, \label{eqn:dynamic-decision-rule}
+\end{equation}
+hence,
+\begin{equation}
+E_i[U_{im}(z,s,d)] = u_i^c(z) + \overbrace{u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i, z,d)]}^{L_{im}(z,s,d)} - c_i(d), \label{eqn:structural-expected-utility} 
+\end{equation}
+and $E_i[\cdot]$ is $i$'s subjective expectation reflecting uncertainty about $\bar{y}_{-i,m}$ and functions $u^h, u^s$, and $u^r$ (the later with uncertainty about $\omega$ and $\Pr_{-i}[v|y,z,d]$). 
+
+For convenience, we have defined \[L_{im}(z, s, d) \equiv u_{im}^n(\bar{y}_{-i,m}; s) + E_i[u^h(\bar{y}_{-i,m};z,d) + u^s(\bar{y}_{-i,m};v_i,z,d) + u^r(\bar{y}_{-i,m};\rho_i,z,d)],\] a function of $i$'s evolving utility over the intervention's twelve deworming days, driven by observed changes in others' take-up, $\bar{y}_{-i,m}$.  
+We can view $i$'s type to be $(\bar{y}_{-i,m}, u^c_i, u_{im}^n, c_i, v_i, \rho_i)$. So far, we have kept our model agnostic about the distribution of types in the population and individuals' priors and learning models (how their beliefs are updated).
+
+\begin{assumption}[Private Consumption Value of Signals/Incentives]
+For all $i$, 
+\begin{enumerate}
+\item $u^c_i(\mathrm{control}) = 0$ and $u^c_i(\mathrm{ink}) \leq 0$: ink has no consumption value.
+\item $u^c_i(\mathrm{bracelet}) \geq 0$ and $u^c_i(\mathrm{calendar}) \geq 0$: these are voluntary signals/incentive so they cannot cause disutility.
+\end{enumerate}
+\end{assumption}
+
+\begin{assumption}[Private Cost of Deworming]
+For all $i$, $c_i(d) \geq c_i(d') \geq 0, \forall d > d'$.
+\end{assumption}
+
+<!-- Below assumption assumes fixed conformity effect. Is this reasonable given that individuals might have different priors on others' take-up based on their community's signal/incentive treatment? Perhaps we can weaken this by using strong priors on this equality and make use of reported beliefs on community take-up (in the baseline survey). This allows the data to overwhelm this assumption if needed. -->
+
+\begin{assumption}[Constant Day One Salience]\label{assume:day-one-salience}
+For all $i$, $u^n_{i1}(\bar{y}; s) = u^n_{i1}(\bar{y}'; s), \forall \bar{y}, \bar{y}', s$: on the first day salience/nudge effects are constant across signal/incentive arms. 
+\end{assumption}
+
+\begin{assumption}[Constant Prior Beliefs About Health Benefits]
+For all $i$,
+\begin{enumerate}
+\item $E_i[u^h(\bar{y}_{-i,m};z,d)] = E_i[u^h(\bar{y}_{-i,m};z',d')], \forall i \text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about private health benefits are constant and not influenced by beliefs about others' take-up.
+\item $E_i[u^s(\bar{y}_{-i,m};v_i,z,d)] = E_i[u^s(\bar{y}_{-i,m};v_i,z',d')|], \forall i\text{ and }\forall z,z',d,d'$: on the first day of deworming prior beliefs about social health benefits and externalities are constant and not influenced by beliefs about others' take-up. 
+\end{enumerate}
+\end{assumption}
+
+\begin{assumption}[Baseline Observation for Calendar Incentive]\label{assume:calendar-baseline-observation}
+For all $i$, $m$, $s, s', d$ and $d'$, calendars are assumed not to increase observability: 
+\begin{enumerate}
+\item $\bar{y}_{-i,m}(\text{calendar}, s, d) = \bar{y}_{-i,m}(\text{control}, s, d)$. 
+\item $u^r(\bar{y}_{-i,m}(\text{calendar}, s, d); \rho_i, \text{calendar}, d) = u^r(\bar{y}_{-i,m}(\text{control}, s', d'); \rho_i, \text{control}, d')$.
+\item $u^h(\bar{y}_{-i,m}(\text{calendar}, s, d); \text{calendar}, d) = u^h(\bar{y}_{-i,m}(\text{control};s, d); \text{control}, d)$. 
+\item $u^s(\bar{y}_{-i,m}(\text{calendar}, s, d);v_i, \text{calendar}, d) = u^s(\bar{y}_{-i,m}(\text{control};s, d);v_i, \text{control}, d)$.
+\end{enumerate}
+\end{assumption}
+
+\begin{assumption}[Social Information and Reminder Effects]\label{assume:social-info-reminders-only}
+For all $i$,
+\begin{enumerate}
+\item $u^n_{im}(\bar{y}_{-i,m}(z,\text{social-info}, d); \text{social-info}) = u^n_{im}(\bar{y}_{-i,m}(z,\text{reminders-only}, d); \text{reminders-only}), \forall z, d$. 
+\item $u^r(\bar{y}_{-i,m}(z,\text{social-info}, d); \rho_i, z, d) = u^r(\bar{y}_{-i,m}(z,\text{reminders-only}, d); \rho_i, z, d), \forall z \in \{\text{control}, \text{calendar}\}, d$.
+\end{enumerate}
+\end{assumption}
 
 # Empirical Models
 
@@ -808,10 +737,13 @@ and
 \end{equation}
 
 The main outcome of our analysis is to estimate the posterior distributions of the finite sample treatment effects defined by
-\[ \Delta\tau[(z,s,d),(z', s', d')] \equiv \frac{1}{N}\sum_i \Delta\tau_i[(z,s,d),(z', s', d')] = \frac{1}{N}\sum_i Y_i(z,s,d) - Y_i(z',s',d') \]
+\begin{equation} 
+\Delta\tau[(z,s,d),(z', s', d')] \equiv \frac{1}{N}\sum_i \Delta\tau_i[(z,s,d),(z', s', d')] = \frac{1}{N}\sum_i Y_i(z,s,d) - Y_i(z',s',d') \label{eqn:static-ate-dist}
+\end{equation}
 and
-\[ \Delta\tau[(z,s),(z', s')] \equiv \frac{1}{N}\sum_i \Delta\tau_i[(z,s,D_{j[i]}),(z', s', D_{j[i]})]  \]
-\[ \tau[(z,s),(z', s')] \equiv \frac{1}{N}\sum_i Y_i(z,s,D_{j[i]}) - Y_i(z',s',D_{j[i]}), \]
+\begin{equation}
+\Delta\tau[(z,s),(z', s')] \equiv \frac{1}{N}\sum_i \Delta\tau_i[(z,s,D_{j[i]}),(z', s', D_{j[i]})] \label{eqn:static-ate}
+\end{equation}
 using our estimated model to impute unobservable counterfactual outcomes for all $i$. In particular, we are interested in estimating:
 
 1. $\tau[(\text{ink}, \text{control}), (\text{control}, \text{control})]$, the impact of the combined private and social benefits of the _ink_ signal, since the partial effects captured are 
@@ -961,6 +893,8 @@ To estimate this model we use the likelihood probability:
 
 ## Willingness-to-Pay
 
+The WTP experiment was implemented with a random subsample of adults in the no incentive i.e. control group after the end of the community deworming program. The adults had therefore no prior exposure to the bracelet or calendar incentive.
+
 ```{r, ref.label="wtp-stan-data"}
 ```
 
@@ -970,7 +904,7 @@ To estimate this model we use the likelihood probability:
 ```{r, ref.label="prepare-wtp-sim-data"}
 ```
 
-Table \ref{tab:wtp} shows the summary of the posterior distribution of the willingness-to-pay model. As shown, the posterior probability of preferring calendar to bracelets quite high with an average of 42-53 Ksh difference in valuation. 
+Table \ref{tab:wtp} shows the summary of the posterior distribution of the willingness-to-pay model. As shown, the posterior probability of preferring calendar to bracelets is high with an average of 42-53 Ksh difference in valuation. 
 
 ```{r wtp-table, results="asis"}
 wtp_model_0_fit %>% 
@@ -999,10 +933,10 @@ wtp_model_0_fit %>%
 ## Static Deworming Take-up Model 
 
 \begin{assumption}[Private Consumption Value of Bracelets]\label{assume:calendar-bracelet-private-value}
-We assume the private value of bracelets is equal to calendars : $\beta^p_{calendar} = \beta^p_{bracelet}$ for all strata. 
+We assume the private value of bracelets is equal to calendars : $\beta^p_{calendar} = \beta^p_{bracelet}$ for all strata. This is a conservative assumption given the greater preference for calendars shown in our willingness-to-pay analysis above. 
 \end{assumption}
- 
- (a conservative assumption given the greater preference for calendars shown in our willingness-to-pay analysis above) We present both the combined social and private (consumption) effect as the treatment arm "Bracelet" and the social value only imputed treatment arm as "Bracelet Social".
+
+In the results of the static and dynamic model, we present both the combined social and private consumption effect of the bracelet incentive as the treatment arm “Bracelet” and the social value only imputed treatment arm as “Bracelet Social”.
 
 ```{r load-static-model-fit, ref.label="load-static-model-fit", include=FALSE}
 ```
@@ -1013,31 +947,40 @@ We assume the private value of bracelets is equal to calendars : $\beta^p_{calen
 ```{r static-model-ate-plot, ref.label="static-model-ate-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-phone-ate-plot, ref.label="static-model-phone-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type.", dependson="basic-model-1-prep-data"}
+```{r static-model-dist-ate-plot, ref.label="static-model-dist-ate-plot", fig.width=10, fig.height=12, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), split by distance.", dependson="basic-model-1-prep-data"}
 ```
 
-```{r static-model-phone-dist-ate-plot, ref.label="static-model-phone-dist-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
+```{r static-model-phone-ate-plot, ref.label="static-model-phone-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type.", dependson="basic-model-1-prep-data", eval=FALSE}
 ```
 
-```{r static-model-non-phone-dist-ate-plot, ref.label="static-model-non-phone-dist-ate-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
+```{r static-model-phone-dist-ate-plot, ref.label="static-model-phone-dist-ate-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data", eval=FALSE}
+```
+
+```{r static-model-non-phone-dist-ate-plot, ref.label="static-model-non-phone-dist-ate-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data", eval=FALSE}
 ```
 
 ```{r static-est-takeup-plotter, ref.label="static-est-takeup-plotter"}
 ```
 
-```{r static-model-phone-dist-takeup-plot, ref.label="static-model-phone-dist-takeup-plot", fig.width=10, fig.height=11, fig.cap="Posterior distribution of the probability of deworming take-up, split by phone ownership and distance from treatment location.", dependson=c("basic-model-1-prep-data", "static-est-takeup-plotter")}
+```{r static-model-takeup-plot, ref.label="static-model-takeup-plot", fig.width=10, fig.height=4, fig.cap="Posterior distribution of the probability of deworming take-up.", dependson=c("basic-model-1-prep-data", "static-est-takeup-plotter")}
 ```
 
-```{r static-model-ate-percent-plot, ref.label="static-model-ate-percent-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment)", dependson="basic-model-1-prep-data"}
+```{r static-model-dist-takeup-plot, ref.label="static-model-dist-takeup-plot", fig.width=10, fig.height=8, fig.cap="Posterior distribution of the probability of deworming take-up, split by distance.", dependson=c("basic-model-1-prep-data", "static-est-takeup-plotter")}
 ```
 
-```{r static-model-phone-ate-percent-plot, ref.label="static-model-phone-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type.", dependson="basic-model-1-prep-data"}
+```{r static-model-phone-dist-takeup-plot, ref.label="static-model-phone-dist-takeup-plot", fig.width=10, fig.height=11, fig.cap="Posterior distribution of the probability of deworming take-up, split by phone ownership and distance from treatment location.", dependson=c("basic-model-1-prep-data", "static-est-takeup-plotter"), eval=FALSE}
 ```
 
-```{r static-model-phone-dist-ate-percent-plot, ref.label="static-model-phone-dist-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
+```{r static-model-ate-percent-plot, ref.label="static-model-ate-percent-plot", fig.width=10, fig.height=7, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment)", dependson="basic-model-1-prep-data", eval=FALSE}
 ```
 
-```{r static-model-non-phone-dist-ate-percent-plot, ref.label="static-model-non-phone-dist-ate-percent-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data"}
+```{r static-model-phone-ate-percent-plot, ref.label="static-model-phone-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), split by phone-ownership type.", dependson="basic-model-1-prep-data", eval=FALSE}
+```
+
+```{r static-model-phone-dist-ate-percent-plot, ref.label="static-model-phone-dist-ate-percent-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data", eval=FALSE}
+```
+
+```{r static-model-non-phone-dist-ate-percent-plot, ref.label="static-model-non-phone-dist-ate-percent-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of percentage change in take-up compared with the control arm take-up (with no SMS treatment), for non-phone-owners only, split by distance from treatment location.", dependson="basic-model-1-prep-data", eval=FALSE}
 ```
 
 ## Dynamic Deworming Take-up
@@ -1082,12 +1025,15 @@ load(file.path("data", "prepared_fast_sim.RData"))
 ```
 
 
-In Figure \ref{fig:sim-fast-take-up}, we are reporting the posterior distribution of deworming take-up levels as defined in \eqref{eqn:any-day-takeup-level}, separately by distance from treatment location and SMS cross treatment.
+In Figure \ref{fig:sim-fast-take-up}, we are reporting the posterior distribution of deworming take-up levels as defined in \eqref{eqn:any-day-takeup-level}, separately by SMS cross treatment. Figure \ref{fig:sim-fast-take-up-dist} reports the same but split by distance to treatment location.
 
 ```{r sim-fast-take-up, ref.label="sim-fast-take-up", fig.width=9, fig.height=5, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups (dynamic model)."}
 ```
 
-In Figure \ref{fig:fast-sim-ate-plot}, we report the posterior distribution of treatment effects as defined in \eqref{eqn:any-day-ate}, separately by distance from treatment location and SMS cross treatment. We report treatment effect in comparison with
+```{r sim-fast-take-up-dist, ref.label="sim-fast-take-up-dist", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments, split by distance (dynamic model)."}
+```
+
+In Figure \ref{fig:fast-sim-ate-plot}, we report the posterior distribution of treatment effects as defined in \eqref{eqn:any-day-ate}, separately by SMS cross treatment. Figure \ref{fig:fast-sim-ate-dist-plot} reports the same split by distance to treatment location. We report treatment effect in comparison with
 
 i. The control arm, with no SMS treatment, and with the same distance from treatment location
 ii. The control arm, with social information SMS treatment, and with the same distance from treatment location
@@ -1096,7 +1042,7 @@ iii. The same arm, with no SMS treatment, and with the same distance from treatm
 ```{r fast-sim-ate-plot, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=8, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups, split by phone ownership (dynamic model)."}
 ```
 
-```{r fast-sim-ate-phone-plot, ref.label="fast-sim-ate-phone-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
+```{r fast-sim-ate-dist-plot, ref.label="fast-sim-ate-dist-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
 ```
 
 In Figure \ref{fig:fast-sim-daily-obs-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by distance from treatment location. We also report the "no observation" predicted counterfactual showing how the impact of signals would differ had there been no difference in salience/learning dynamics from the baseline level in the the control arm.
@@ -1141,419 +1087,8 @@ In Figure \ref{fig:fast-sim-no-obs-plot}, we show how treatment effects on dewor
 ```{r fast-sim-no-obs-plot, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=9, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
 ```
 
-
-# Robustness Checks
-
-## Willingness-to-Pay
-
-<!-- TODO Clean up this plot and make it useful  -->
-
-```{r, ref.label="wtp-model-check-plot", fig.cap="Comparing observed choices with those predicted by the model."}
-```
-
 # Conclusion
-
-While the estimated absolute take-up rates in response to incentives are potentially lower than the very high take-up proportions that might be needed to achieve STH infection transmission breakpoint^[This is still an open research question.], the estimated average treatment effects are high. Thus, as an incentive for the take-up of a health-related treatment with low private valuation (such as deworming or vaccination), bracelets are remarkably effective. They were also found to be the most cost-effective approach even if it was not the lowest in cost. 
-
-It is worth noting that the deworming take-up data collected is based on a monitoring activity more likely to suffer from false negatives than false positives. In other words, we are more likely to miss the treatment of compliers than to incorrectly record the treatment of non-compliers, and therefore, the absolute take-up rates estimates are likely to be a lower bound.
-
-Finally, our analysis of SMS treatment combined with incentives does show high levels of absolute take-up. Since social incentives potentially activate different mechanisms such as social signaling and social learning, it is important for us to conduct more in-depth model-based analysis (which the goal of the academic paper we plan to produce). Even if SMS social information treatment is not scalable it would be very useful to know why it was so effective, in order to find more practical approaches to replicate its effect. For example, if social information caused a upward updating of beliefs about others take-up and thus increased the returns from signaling, we should consider other approaches to improve social knowledge of community take-up.
 
 # References
 
 <div id="refs"></div>
-
-# Appendix: Bayesian Analysis Stratified by Phone Ownership { - }
-
-
-```{r, ref.label="sim-fast-take-up-phone-owner", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups."}
-```
-
-```{r, ref.label="fast-sim-ate-plot-phone-owner", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
-```
-
-```{r, ref.label="fast-sim-daily-obs-plot-phone-owner", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."}
-```
-
-```{r, ref.label="fast-sim-daily-dyn-kappa-phone-owner", fig.width=8, fig.cap="Posterior distribution of the finite sample dynamic effect of signal observation."}
-```
-
-```{r, ref.label="fast-sim-daily-ate-obs-plot-phone-owner", fig.width=8, fig.height=7, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
-```
-
-```{r, ref.label="fast-sim-no-obs-plot-phone-owner", fig.width=10, fig.height=7, , fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups (comparing treatment with signal and SMS observation with imputed outcomes with no observation)."}
-```
-
-# Appendix: Regression Analysis { - }
-
-In this appendix we conduct a reduced form regression analysis in order identify the causal impact of cluster assigned incentive treatments; cluster assigned distance to treatment location i.e. exogenous variation in travel cost; and individually assigned text message reminder and social information treatment. We use the regression approach proposed by @Imbens2015 to analyze stratified experiments:
-
-\begin{equation*}
-Y_{ij} = m_K(Z_j, D_j, M_{ij}, B_j, X_{ij};\theta_K) \cdot \frac{B_{j}(K)}{N(K)/N} + \sum_{k=1}^{K-1} m_k(Z_j, D_j, M_{ij}, B_j, X_{ij};\theta_k) \cdot \left( B_{j}(k) - B_{j}(K)\cdot\frac{N(k)}{N(K)} \right) + \varepsilon_{ij},
-\end{equation*}
-where the stratum specific model is
-\begin{align*}
-m_k(Z_j, D_j, M_{ij}, B_j; \theta) &= \alpha_k + X_{ij}\cdot \beta_k + \delta_k \cdot D_j \\
-&+ \sum_{z \in \mathcal{Z}\setminus \{control\}} Z_{j}(z) \cdot \left\{\tau_k(z) + \lambda_k(z) \cdot D_j + \sum_{s \in \mathcal{M}\setminus \{none\}} M_{ij}(s) \cdot \left[ \gamma_k(z, s) + \rho_k(z, s) \cdot D_j \right] \right\} \\ 
-&+ \sum_{s\in\mathcal{M}\setminus \{none\}}  M_{ij}(s) \left\{\psi_k(s) + \pi_k(s) \cdot D_j \right\}  
-\end{align*}
-
-* $i$ indexes individuals, $j$ clusters
-* $Z_j \in \mathcal{Z} = \{ control, ink, calendar, bracelet \}$
-* $M_{ij} \in \mathcal{M} = \{ none, reminders, socialinfo \}$
-* $Z_{j}(z) = \mathbf{1}\{Z_j = z\}$ is an indicator for whether cluster $j$ was assigned treatment $z$.
-* $B_{j}(k) = \mathbf{1}\{B_j = k\}$ is an indicator for whether cluster $j$ is in stratum $k$.
-* $X_{ij}$ is a vector of covariates
-* $N(k)$ is the size of stratum $k$.
-* $N$ is the total number of observations
-
-A typical parameter $\theta_k(z, s)$ captures the effect of $Z_j = z$ and $M_{ij} = s$ in stratum $k$. The super-population average treatment effects are estimated by the stratum $K$ parameters. Since this is linear probability model, average treatment effects are interpreted as the change in an individual's probability of deworming (or the proportion of the super-population doing so).
-
-```{r basic-reg, ref.label="unmon-basic-reg", warning=FALSE}
-```
-
-```{r dist-reg, ref.label="unmon-dist-reg", warning=FALSE}
-```
-
-```{r dist-reg-covar, ref.label="dist-reg-covar", warning=FALSE}
-```
-
-```{r sms-reg, ref.label="unmon-sms-reg", warning=FALSE}
-```
-
-```{r dist-sms-reg, ref.label="unmon-dist-sms-reg", warning=FALSE}
-```
-
-```{r sms-dist-reg-covar, ref.label="sms-dist-reg-covar", warning=FALSE}
-```
-
-```{r reg-tab-data, include=FALSE}
-reg.table.data <- list(#"Monitored, No SMS" = reg.output.sms.ctrl, 
-                       "All, No SMS" = restrict.unmon.reg.output.sms.ctrl, 
-                       "Endline, No SMS" = reg.output.sms.ctrl.covar) %>% 
-  map_df(function(reg.res) {
-    joint.tests.res <- list("Any Treatment" = c("ink", "calendar", "bracelet"),
-                            "Signaling Treatment" = c("ink", "bracelet")) %>% 
-      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
-      select(-starts_with("linear.test")) %>% 
-      mutate(joint.test.type = forcats::as_factor(joint.test.type))
-    
-    tidy(reg.res) %>% 
-      bind_rows(control = .,
-                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar")) %>% 
-                  mutate(term = c("calendar", "bracelet")),
-                .id = "ref.type") %>% 
-      mutate(term = fct_recode(factor(term), control = "(intercept)"),
-             ref.pt = term == ref.type) %>% 
-      list %>% 
-      tibble(pt.est = .,
-             num.col = n_distinct(.[[1]]$ref.type),
-             joint.tests.res = list(joint.tests.res),
-             num.obs = length(reg.res$fitted.values),
-             num.clusters = length(unique(reg.res$cluster)),
-             average.cluster.num.obs = mean(table(reg.res$cluster)),
-             r.squared = r_squared(reg.res, adjusted = FALSE),
-             adj.r.squared = r_squared(reg.res))
-    
-  }, .id = "spec") 
- 
-dist.reg.table.data <- list("All, No SMS" = restrict.unmon.reg.output.sms.ctrl.dist,
-                            "Endline, No SMS" = reg.output.sms.ctrl.dist.covar) %>% 
-  map_df(function(reg.res) {
-    joint.tests.res <- list("Any Treatment" = c("ink", "calendar", "bracelet", "ink:far", "calendar:far", "bracelet:far"),
-                            "Signaling Treatment" = c("ink", "bracelet", "ink:far", "bracelet:far")) %>% 
-      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
-      select(-starts_with("linear.test")) %>% 
-      mutate(joint.test.type = forcats::as_factor(joint.test.type))
-    
-    tidy(reg.res) %>% 
-      filter(!str_detect(term, ":")) %>%
-      bind_rows(linear_tester(reg.res, c("ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far")) %>% 
-                  mutate(term = c("ink:far", "calendar:far", "bracelet:far"))) %>% 
-      bind_rows(control = .,
-                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar")) %>% 
-                  mutate(term = c("calendar", "bracelet")),
-                far = linear_tester(reg.res, c("(intercept) + far",
-                                               "ink + ink:far", "calendar + calendar:far", 
-                                               "bracelet + bracelet:far")) %>% 
-                  mutate(term = c("far", "ink:far", "calendar:far", "bracelet:far")),
-                "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", 
-                                                          "bracelet + bracelet:far - calendar - calendar:far")) %>% 
-                  mutate(term = c("calendar:far", "bracelet:far")),
-                .id = "ref.type") %>% 
-      mutate(term = fct_recode(factor(term), control = "(intercept)"),
-             ref.pt = term == ref.type) %>% 
-      list %>% 
-      tibble(pt.est = .,
-             num.col = n_distinct(.[[1]]$ref.type),
-             joint.tests.res = list(joint.tests.res),
-             num.obs = length(reg.res$fitted.values),
-             num.clusters = length(unique(reg.res$cluster)),
-             average.cluster.num.obs = mean(table(reg.res$cluster)),
-             r.squared = r_squared(reg.res, adjusted = FALSE),
-             adj.r.squared = r_squared(reg.res))
-    
-  }, .id = "spec") 
-
-sms.reg.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat,
-                           "Endline, SMS" = reg.output.sms.treat.covar) %>% 
-  map_df(function(reg.res) {
-    joint.tests.res <- list("Any Incentive Treatment" = c("ink", "calendar", "bracelet", 
-                                                          "ink:social.info", "calendar:social.info", "bracelet:social.info"),
-                            "Any SMS Treatment" = c("reminder.only", "social.info",
-                                                    "ink:social.info", "calendar:social.info", "bracelet:social.info"),
-                            "Signaling Treatment" = c("ink", "bracelet", "ink:social.info", "bracelet:social.info")) %>% 
-      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
-      select(-starts_with("linear.test")) %>% 
-      mutate(joint.test.type = forcats::as_factor(joint.test.type))
-    
-    tidy(reg.res) %>% 
-      filter(!str_detect(term, ":")) %>% 
-      bind_rows(linear_tester(reg.res, c("ink", "calendar", "bracelet") %>% paste(., paste0(., ":social.info"), sep = " + ")) %>% 
-                  mutate(term = paste0(c("ink", "calendar", "bracelet"), ":social.info"))) %>% 
-      bind_rows(control = .,
-                calendar = linear_tester(reg.res, c("(intercept) + calendar", "bracelet - calendar", "social.info + calendar:social.info")) %>% 
-                  mutate(term = c("calendar", "bracelet", "calendar:social.info")),
-                reminder.only = linear_tester(reg.res, c("(intercept) + reminder.only", "social.info - reminder.only")) %>% 
-                  mutate(term = c("reminder.only", "social.info")),
-                ink = linear_tester(reg.res, c("(intercept) + ink", "social.info + ink:social.info")) %>% 
-                  mutate(term = c("ink", "ink:social.info")),
-                bracelet = linear_tester(reg.res, c("(intercept) + bracelet", "social.info + bracelet:social.info")) %>% 
-                  mutate(term = c("bracelet", "bracelet:social.info")),
-                .id = "ref.type") %>% 
-      mutate(term = fct_recode(factor(term), control = "(intercept)"),
-             ref.pt = term == ref.type) %>% 
-      list %>% 
-      tibble(pt.est = .,
-             num.col = n_distinct(.[[1]]$ref.type),
-             joint.tests.res = list(joint.tests.res),
-             num.obs = length(reg.res$fitted.values),
-             num.clusters = length(unique(reg.res$cluster)),
-             average.cluster.num.obs = mean(table(reg.res$cluster)),
-             r.squared = r_squared(reg.res, adjusted = FALSE),
-             adj.r.squared = r_squared(reg.res))
-    
-  }, .id = "spec") 
-
-dist.sms.reg.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat.dist,
-                           "Endline, SMS" = reg.output.sms.treat.dist.covar) %>% 
-  map_df(function(reg.res) {
-    joint.tests.res <- list("Any Incentive Treatment" = c("ink", "calendar", "bracelet", 
-                                                          "ink:far", "calendar:far", "bracelet:far",
-                                                          "ink:social.info", "calendar:social.info", "bracelet:social.info",
-                                                          "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far"),
-                            "Any SMS Treatment" = c("reminder.only", "social.info",
-                                                    "reminder.only:far", "social.info:far",
-                                                    "ink:social.info", "calendar:social.info", "bracelet:social.info",
-                                                    "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far"),
-                            "Signaling Treatment" = c("ink", "bracelet", 
-                                                      "ink:far", "bracelet:far", 
-                                                      "ink:social.info", "bracelet:social.info",
-                                                      "ink:social.info:far", "bracelet:social.info:far")) %>% 
-      map_df(~ linear_tester(reg.res, .x, joint = TRUE), .id = "joint.test.type") %>% 
-      select(-starts_with("linear.test")) %>% 
-      mutate(joint.test.type = forcats::as_factor(joint.test.type))
-    
-    tidy(reg.res) %>% 
-      filter(!str_detect(term, ":")) %>%
-      bind_rows(linear_tester(reg.res, c("ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far")) %>% 
-                  mutate(term = c("ink:far", "calendar:far", "bracelet:far"))) %>% 
-      bind_rows(linear_tester(reg.res, c("ink", "calendar", "bracelet") %>% paste(., paste0(., ":social.info"), sep = " + ")) %>% 
-                  mutate(term = paste0(c("ink", "calendar", "bracelet"), ":social.info"))) %>% 
-      bind_rows(linear_tester(reg.res, c("ink", "calendar", "bracelet") %>% 
-                                paste(., paste0(., ":social.info"), paste0(., ":far"), sep = " + ") %>% 
-                                paste("social.info", sep = " + ") %>% 
-                                paste("far", sep = " + ") %>% c("reminder.only:far + far", "social.info:far + far")) %>% 
-                  mutate(term = c("ink", "calendar", "bracelet") %>% sprintf("%s:social.info:far", .) %>%  
-                           c("reminder.only:far", "social.info:far"))) %>% 
-      bind_rows(control = .,
-                calendar = linear_tester(reg.res, c("(intercept) + calendar", 
-                                                    "bracelet - calendar", 
-                                                    "social.info + calendar:social.info")) %>% 
-                  mutate(term = c("calendar", 
-                                  "bracelet", 
-                                  "calendar:social.info")),
-                far = linear_tester(reg.res, c("(intercept) + far", 
-                                               "reminder.only + reminder.only:far",
-                                               "social.info + social.info:far",
-                                               "ink + ink:far", "calendar + calendar:far", "bracelet + bracelet:far",
-                                               "ink + ink:far + social.info + ink:social.info + ink:social.info:far", 
-                                               "calendar + calendar:far + social.info + calendar:social.info + calendar:social.info:far",
-                                               "bracelet + bracelet:far + social.info + bracelet:social.info + bracelet:social.info:far")) %>% 
-                  mutate(term = c("far", "reminder.only:far", "social.info:far", 
-                                  "ink:far", "calendar:far", "bracelet:far",
-                                  "ink:social.info:far", "calendar:social.info:far", "bracelet:social.info:far")),
-                "calendar:far" = linear_tester(reg.res, c("(intercept) + far + calendar + calendar:far", 
-                                                          "bracelet + bracelet:far - calendar - calendar:far",
-                                                          "social.info + calendar:social.info + calendar:social.info:far")) %>% 
-                  mutate(term = c("calendar:far", 
-                                  "bracelet:far",
-                                  "calendar:social.info:far")),
-                reminder.only = linear_tester(reg.res, c("(intercept) + reminder.only", 
-                                                         "social.info - reminder.only")) %>% 
-                  mutate(term = c("reminder.only", 
-                                  "social.info")),
-                "reminder.only:far" = linear_tester(reg.res, c("(intercept) + reminder.only + far + reminder.only:far", 
-                                                               "social.info + social.info:far - reminder.only + reminder.only:far")) %>% 
-                  mutate(term = c("reminder.only:far", "social.info:far")),
-                ink = linear_tester(reg.res, c("(intercept) + ink", 
-                                               "social.info + ink:social.info")) %>% 
-                  mutate(term = c("ink", "ink:social.info")),
-                bracelet = linear_tester(reg.res, c("(intercept) + bracelet", 
-                                                    "social.info + bracelet:social.info")) %>% 
-                  mutate(term = c("bracelet", "bracelet:social.info")),
-                "ink:far" = linear_tester(reg.res, c("(intercept) + ink + far + ink:far", 
-                                                     "social.info + ink:social.info + social.info:far + ink:social.info:far")) %>% 
-                  mutate(term = c("ink:far", "ink:social.info:far")),
-                
-                "bracelet:far" = linear_tester(reg.res, c("(intercept) + bracelet + far + bracelet:far", 
-                                                          "social.info + bracelet:social.info + social.info:far + bracelet:social.info:far")) %>% 
-                  mutate(term = c("bracelet:far", "bracelet:social.info:far")),
-                
-                .id = "ref.type") %>% 
-      mutate(term = fct_recode(factor(term), control = "(intercept)"),
-             ref.pt = term == ref.type) %>% 
-      list %>% 
-      tibble(pt.est = .,
-             num.col = n_distinct(.[[1]]$ref.type),
-             joint.tests.res = list(joint.tests.res),
-             num.obs = length(reg.res$fitted.values),
-             num.clusters = length(unique(reg.res$cluster)),
-             average.cluster.num.obs = mean(table(reg.res$cluster)),
-             r.squared = r_squared(reg.res, adjusted = FALSE),
-             adj.r.squared = r_squared(reg.res))
-    
-  }, .id = "spec") 
-```
-
-We will report results for four specifications identifying:
-
-1. The average treatment effects of incentives on deworming take-up, excluding individuals assigned to any SMS treatment.
-2. The average treatment effects of incentives and distance to treatment location on deworming take-up, excluding individuals assigned to any SMS treatment.
-3. The average treatment effects of incentives and SMS treatment on deworming take-up, excluding individuals who do not own a mobile phone.
-4. The average treatment effects of incentives, distance to treatment location and SMS treatment on deworming take-up, excluding individuals who do not own a mobile phone.
-
-For each specification we present a table with point estimates and their standard errors, $P$-values for tests of joint significance, other regression related information, as well as a plot showing take-up rates and 90\% confidence intervals for tests of significance against the reference treatment, for the regression controlling for covariates. The number of clusters included in each specification vary because we dropped outlier clusters.
-
-The first results we look at are reported in Table \ref{tab:reg-basic} and Figure \ref{fig:reg-basic-covar-plot}. The impact of incentives appears to be progressively stronger going from ink, calendars, to bracelets. Bracelets' impact is statistically significant compared to the control and calendar arms: bracelets increase the probability of take-up by 8 to 12 percentage points, with a baseline level of between 37 to 34 percent take-up. Evidence on the preference for calendars over bracelets and the statistical significance between the impact of calendar and bracelets, lead us to conclude that bracelets did not prove effective solely as a private/consumption incentive.
-
-```{r reg-basic-table, results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(reg.table.data, caption = "Incentive treatment effects, without SMS treatment.", label = "tab:reg-basic")
-```
-
-```{r reg-basic-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive treatments (without controls)."}
-prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl) %>% 
-  plot.sms.ctrl.takeup() 
-```
-
-```{r reg-basic-covar-plot, fig.width=8, fig.cap="Plot of regression results comparing incentive treatments (with control)."}
-prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% 
-  plot.sms.ctrl.takeup() 
-```
-
-To investigate how the distance between targeted communities and the treatment location affects deworming take-up, we conduct our regression analysis interacting incentive treatments with distance (categorized according to their randomly assigned distance of _close_ and _far_). Results are presented in Table \ref{tab:reg-dist} and Figure \ref{fig:dist-reg-covar-plot}. From columns 1 and 5, we see that distance has strong negative effect on take-up, dropping between 17 to 20 percentage points in response to an approximate mean difference in distance of one kilometer (see Table \ref{tab:mean-assigned-dist}). We also note a big change in the impact of incentives with distance: their impact is strongly diminished for those close to the treatment location, and is no longer statistically significant compared to the control arm. The pattern of incentives' impact is similar across specification, although only the bracelets have a statistically significant impact in _far_ communities: deworming take-up increases by 11 to 17 percentage points, compared to the control arm, and by 9 to 12 percentage points compared to the calendar arm. 
-
-
-```{r reg-dist-table, results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(dist.reg.table.data, 
-                caption = "Incentive treatment effects, split by assigned distance to treatment location, without SMS treatment.",
-                label = "tab:reg-dist")
-```
-
-```{r dist-reg-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive treatments with distance from treatment location interactions (without controls)."}
-prep.sms.ctrl.plot.data(restrict.unmon.reg.output.sms.ctrl.dist, .interact.with = "far") %>% 
-  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% 
-  plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) 
-```
-
-```{r dist-reg-covar-plot, fig.width=8, fig.height=7, fig.cap="Plot of regression results comparing incentive treatments with distance from treatment location interactions (with controls)."}
-prep.sms.ctrl.plot.data(reg.output.sms.ctrl.dist.covar, .interact.with = "far") %>% 
-  mutate(grp = factor(grp, levels = c("ref.grp", "compare.grp"), labels = c("Close", "Far"))) %>% 
-  plot.sms.ctrl.takeup(.facet.formula = grp ~ ref.treatment) 
-```
-
-In the last two specifications, we consider the impact of text message reminders and social information messages, combined with incentives and distance to treatment location, on deworming take-up. Hence, we limit our analysis to the population of phone owners. As shown in Figure \ref{fig:general-desc-stats}, this encompasses between 2/3 to 3/4 of the population.
-
-First, the impact of SMS treatment on deworming is estimated in Figure \ref{fig:sms-reg-covar-plot} and Tables \ref{tab:reg-sms} and \ref{tab:sms-interact}. There appears to be a big difference in the estimated take-up of deworming in the control arm (refer to columns 1 and 6 in Table \ref{tab:reg-sms}). Including controls results in an increase in the impact of SMS treatment combined with calendars and bracelets, as well as becoming statistically significant (see Table \ref{tab:sms-interact}). 
-
-```{r sms-reg-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive treatment with SMS treatment interactions (without controls)."}
-prep.sms.treat.plot.data(restrict.unmon.reg.output.sms.treat) %>% 
-  plot.sms.treat.takeup() 
-```
-
-```{r sms-reg-covar-plot, fig.width=8, fig.height=6, fig.cap="Plot of regreession results comparing incentive treatment with SMS treatment interactions (with controls)."}
-prep.sms.treat.plot.data(reg.output.sms.treat.covar) %>% 
-  plot.sms.treat.takeup() 
-```
-
-```{r reg-sms, results="asis", cache=FALSE, warning=FALSE}
-print.reg.table(sms.reg.table.data, 
-                font.size = "scriptsize",
-                caption = "Incentive treatment and SMS treatment effects.", label = "tab:reg-sms",
-                estimate.buffer = TRUE, landscape = FALSE)
-```
-
-Considering the difference between the reminder only treatment (only tested in the control arm) and the reminder plus social information treatment (tested in all arms), we see an almost six percentage point difference in take-up (columns 5 and 10), although only statistically significant when not controlling for covariates. This is a surprising outcome, considering that the social information messages included the same message as the reminder only texts. 
-
-<!--i am not sure how much i trust these results GIVEN how thin we are cutting the sample here, i.e. how few obs we have in individual cells... but I assume CIFF won't care-->
-
-Overall, the text message treatment had a dramatic effect on deworming take-up, in particular when combined with incentives. In columns 2-4 and 7-9, we observe an increase in the social information interaction effects, but only consistently statistically significant when comparing the bracelet and social information take-up with the ink and social information take-up (see Table \ref{tab:sms-interact}).
-
-```{r compare-sms-interact-reg}
-sms.interact.diff.lh <- c(paste(c("ink:social.info",
-                                  "calendar:social.info",
-                                  "bracelet:social.info"), "= social.info"),
-                          paste(c("calendar:social.info",
-                                  "bracelet:social.info"), "= ink:social.info"),
-                          "bracelet:social.info = calendar:social.info") %>% 
-  c(str_replace_all(., "(\\S*social.info)", "\\1 + \\1:far"))
-
-sms.interact.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat,
-                                "Endline, SMS" = reg.output.sms.treat.covar) %>% 
-  map(linear_tester, sms.interact.diff.lh %>% magrittr::extract(!str_detect(., "far")))
-
-sms.dist.interact.table.data <- list("All, SMS" = restrict.unmon.reg.output.sms.treat.dist,
-                                     "Endline, SMS" = reg.output.sms.treat.dist.covar) %>% 
-  map(linear_tester, sms.interact.diff.lh)
-```
-
-```{r sms-interact-tab, results="asis", warning=FALSE}
-print.sms.interact.table(sms.interact.table.data, 
-                         caption = "Comparing the social information SMS treatment across incentive/signal treatment arms.",
-                         label = "tab:sms-interact")
-```
-
-Finally, regression analysis results for the impact of incentive treatment, text message reminders and social information treatment, and assigned distance to treatment location, are presented in Figure \ref{fig:sms-dist-plot} and Tables \ref{tab:reg-sms-dist-monitored}, \ref{tab:reg-sms-dist-endline}, and \ref{tab:sms-dist-interact}. The impact of incentives and text message treatment is very similar to that discussed above. In particular, the impact is strengthened when looking at the social information treatment interactions with incentives in _far_ communities; we see the highest impact on deworming where it almost triples comparing going from the pure control arm to the bracelets with social information treatment (based on the endline sample analysis). 
-
-Evidence from this analysis does point to a multiplier effect of social information treatment when combined with the bracelet signal. As shown in Table \ref{tab:sms-dist-interact}, the difference between social information interaction is big in magnitude and statistically significant when comparing the bracelet interaction with the calendar and ink interactions. This multiplier effect, however, seems to disappear when considering _close_ communities, which points to another interesting pattern: there does appear to be a ceiling in proportion of deworming take-up across treatments and assigned distances. The take-up ceiling appears to be around 74 percent (absolute) take-up rate.
-
-```{r reg-sms-dist, results="asis", cache=FALSE, warning=FALSE}
-dist.sms.reg.table.data %>% 
-  mutate(spec.simple = str_extract(spec, "[^,]+") %>% str_to_lower) %>% 
-  plyr::a_ply(1, . %>% 
-          print.reg.table(caption = "Incentive/signal treatment and SMS treatment effects, split by assigned distance to treatment location.",
-                          label = paste0("tab:reg-sms-dist-", .$spec.simple), 
-                          font.size = "scriptsize",
-                          estimate.buffer = FALSE, landscape = FALSE))
-```
-
-```{r sms-dist-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions (without controls)."}
-prep.sms.treat.dist.plot.data(restrict.unmon.reg.output.sms.treat.dist) %>% 
-  plot.sms.treat.takeup +
-  facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
-  labs(subtitle = "Split by distance to treatment location")
-```
-
-```{r sms-dist-covar-plot, fig.width=8, fig.height=8, fig.cap="Plot of regression results comparing incentive/signal treatment with SMS and distance from treatment location interactions (with controls)."}
-prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% 
-  plot.sms.treat.takeup +
-  facet_grid(dist ~ ., labeller = as_labeller(. %>% paste0("Distance: ", .))) +
-  labs(subtitle = "Split by distance to treatment location")
-```
-
-```{r sms-dist-interact-tab, results="asis", cache=FALSE, warning=FALSE}
-print.sms.interact.table(sms.dist.interact.table.data,
-                         landscape = TRUE,
-                         caption = "Comparing the social information SMS treatment across incentive/signal treatment arms, split by distance to treatment location.",
-                         label = "tab:sms-dist-interact")
-```
