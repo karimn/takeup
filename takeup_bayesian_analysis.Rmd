@@ -1445,7 +1445,16 @@ dyn_fast_sim_ate <- dyn_fast_sim_ate_pairs %>%
                                         starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
        do(summarize_ate_diff(.)) %>%  
        ungroup(),
+    ate_phone_owner = group_by_at(.$diff_data, 
+                                   vars(phone_owner, deworming_day,
+                                        starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
+       do(summarize_ate_diff(.)) %>%  
+       ungroup(),
      ate_dist = group_by_at(.$diff_data, vars(dist.pot.group, deworming_day, 
+                                           starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
+       do(summarize_ate_diff(.)) %>%  
+       ungroup(),
+     ate_all = group_by_at(.$diff_data, vars(deworming_day, 
                                            starts_with("incentive_treatment"), starts_with("sms.treatment.2"), starts_with("dyn_treat_days"))) %>% 
        do(summarize_ate_diff(.)) %>%  
        ungroup()) %>% 
@@ -1472,13 +1481,14 @@ fast_sim_mean_monitored %>%
               alpha = 0.2,
               data = . %>%
                 filter(incentive_treatment != "control") %>%
-                select(deworming_day, dist.pot.group, incentive_treatment, obs_type, prob_deworm) %>%
+                # select(deworming_day, dist.pot.group, incentive_treatment, obs_type, prob_deworm) %>%
+                select(deworming_day, incentive_treatment, obs_type, prob_deworm) %>%
                 spread(obs_type, prob_deworm)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   scale_color_discrete("Incentive/Signal Treatment") +
-  facet_wrap(~ dist.pot.group, nrow = 1,  
-             labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
+  # facet_wrap(~ dist.pot.group, nrow = 1,  
+  #            labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = "Daily Mean Probability of Deworming Take-up with Varying Days of Signal Observation", y = "Posterior Mean Probability of Deworming") +
   theme(legend.position = "right")
 ```
@@ -1592,13 +1602,14 @@ dyn_fast_sim_ate %>%
   geom_line(aes(y = prob_deworm_ate, linetype = obs_type, group = str_c(dyn_treat_days_left, incentive_treatment_left), color = fct_relabel(incentive_treatment_left, str_to_title))) +
   geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = incentive_treatment_left), alpha = 0.2,
               data = . %>%
-                select(deworming_day, dist.pot.group,incentive_treatment_left, prob_deworm_ate, obs_type) %>%
+                # select(deworming_day, dist.pot.group,incentive_treatment_left, prob_deworm_ate, obs_type) %>%
+                select(deworming_day, incentive_treatment_left, prob_deworm_ate, obs_type) %>%
                 spread(obs_type, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   scale_color_discrete("Incentive/Signal Treatment") +
-  facet_wrap(~ dist.pot.group, nrow = 1,
-             labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
+  # facet_wrap(~ dist.pot.group, nrow = 1,
+  #            labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .))) +
   labs(title = "Daily Treatment Effect with Varying Days of Signal Observation", 
        subtitle = "With no SMS treatment and the control (no SMS) arm as reference", 
        y = "Posterior Mean Difference in Probability of Deworming") +
@@ -1621,13 +1632,13 @@ dyn_fast_sim_ate %>%
   geom_line(aes(y = prob_deworm_ate, linetype = obs_type, group = str_c(dyn_treat_days_left, incentive_treatment_left), color = fct_relabel(incentive_treatment_left, str_to_title))) +
   geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = incentive_treatment_left), alpha = 0.2,
               data = . %>%
-                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, prob_deworm_ate, obs_type) %>%
+                # select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, prob_deworm_ate, obs_type) %>%
+                select(deworming_day, phone_owner, incentive_treatment_left, prob_deworm_ate, obs_type) %>%
                 spread(obs_type, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   scale_color_discrete("Incentive/Signal Treatment") +
-  facet_grid(phone_owner ~ dist.pot.group, scales = "free_y",
-             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)))) +
+  facet_wrap(~ phone_owner) +
   labs(title = "Daily Treatment Effect with Varying Days of Signal Observation", 
        subtitle = "With no SMS treatment and the control (no SMS) arm as reference", y = "Posterior Difference in Probability of Deworming") +
   theme(legend.position = "bottom") 
@@ -1708,14 +1719,14 @@ dyn_fast_sim_ate %>%
   geom_line(aes(y = prob_deworm_ate, linetype = obs_type, group = str_c(dyn_treat_days_left, sms.treatment.2_left), color = sms.treatment.2_left)) +
   geom_ribbon(aes(ymin = no_obs, ymax = full_obs, group = sms.treatment.2_left), alpha = 0.2,
               data = . %>%
-                select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, sms.treatment.2_left, obs_type, prob_deworm_ate) %>%
+                # select(deworming_day, dist.pot.group, phone_owner, incentive_treatment_left, sms.treatment.2_left, obs_type, prob_deworm_ate) %>%
+                select(deworming_day, phone_owner, incentive_treatment_left, sms.treatment.2_left, obs_type, prob_deworm_ate) %>%
                 spread(obs_type, prob_deworm_ate)) +
   scale_x_continuous("Deworming Day", breaks = seq(2, 12, 2), minor_breaks = TRUE) +
   scale_linetype_discrete("Days Observing Signal", labels = c("No Observation", "Full Observation")) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
-  facet_grid(incentive_treatment_left ~ dist.pot.group,  #scales = "free_y",
-             labeller = labeller(.cols = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
-                                 .rows = as_labeller(. %>% str_to_title()))) +
+  facet_wrap(~ incentive_treatment_left,
+             labeller = labeller(incentive_treatment_left = as_labeller(. %>% str_to_title()))) +
   labs(title = "Daily Treatment Effect with Varying Days of SMS Treatment", 
        subtitle = "with the control (no SMS) arm as reference", 
        y = "Posterior Mean Difference in Probability of Deworming") +
@@ -1930,21 +1941,19 @@ fast_sim_ate %>%
 
 ```{r fast-sim-ate-plot-phone-owner-dist, fig.width=12, fig.height=8}
 fast_sim_ate %>%
-  unnest(ate_phone_owner) %>% 
+  unnest(ate_phone) %>% 
   mutate(ref = if_else(incentive_treatment_right == "control" & sms.treatment.2_right == "sms.control", 
                        "control-sms.control", 
                        if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
          phone_owner = if_else(phone_owner, "Phone Owners", "Non-Phone Owners")) %>% 
   ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref)) +
-  # ggplot(aes(fct_relabel(incentive_treatment_left, str_to_title), prob_deworm_ate, color = sms.treatment.2_left, shape = ref, linetype = obs_type)) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   geom_pointrange(aes(ymin = prob_deworm_diff_quant_5, ymax = prob_deworm_diff_quant_95), position = position_dodge(width = 0.4)) +
   geom_text_repel(aes(label = sprintf("%.3f", prob_deworm_ate), color = NULL), nudge_x = -0.5, size = 3, segment.color = NA) +
   scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
   scale_shape_discrete("Reference", labels = c("Control, No SMS", "Control, Social Info", "Same Arm, No SMS")) +
   coord_flip() +
-  facet_wrap(~ dist.pot.group + phone_owner, scales = "free_y", ncol = 1,
-             labeller = labeller(dist.pot.group = . %>% str_to_title() %>% str_c("Distance: ", .))) +
+  facet_wrap(~  phone_owner, scales = "free_y", ncol = 1) +
   labs(title = "Treatment Effect on Deworming Take-up", x = "Incentive/Signal Treatment", y = "Posterior Difference in Probability of Deworming", caption = "Points show the mean while line ranges show the 90% probability interval.") +
   theme(legend.position = "bottom")
 ```
@@ -2096,9 +2105,9 @@ est_deworming_takeup_dyn %<>% prepare_est_deworming_takeup_dyn()
 summ_dyn_takeup <- est_deworming_days %>% 
   unite(incentive_treatment, private_value, social_value, sep = "-", remove = FALSE) %>% 
   group_by(day, phone_owner, dist.pot.group, private_value, social_value, sms.treatment.2, incentive_treatment, name_matched) %>% 
-  summarize(mean_takeup_prop = mean(sim_outcome),
-            ub_90 = quantile(sim_outcome, 0.95),
-            lb_90 = quantile(sim_outcome, 0.05)) %>% 
+  summarize(mean_takeup_prop = mean(iter_takeup),
+            ub_90 = quantile(iter_takeup, 0.95),
+            lb_90 = quantile(iter_takeup, 0.05)) %>% 
   ungroup() %>% {
     treated <- filter(., incentive_treatment != "control-control") %>% 
       mutate(comparator = incentive_treatment)
