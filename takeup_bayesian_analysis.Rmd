@@ -415,12 +415,15 @@ est_deworming_takeup <- basic_model_1_fit %>%
   gather(treatment_rank, takeup, -iter_id) %>% 
   mutate(treatment_rank = str_extract(treatment_rank, "\\d+") %>% as.integer()) %>% 
   mutate(all_treatment_id = param_stan_data$ate_treatments[treatment_rank],
-         treatment_size = treatment_cell_size[treatment_rank])
+         treatment_size = treatment_cell_size[treatment_rank],
+         observed_treatment_size = param_stan_data$observed_treatment_sizes[treatment_rank], 
+         observed_takeup_prop = param_stan_data$observed_takeup_total[treatment_rank] / observed_treatment_size) 
 
-num_raw_takeup <- nrow(est_deworming_takeup)
+# num_raw_takeup <- nrow(est_deworming_takeup)
 
 est_deworming_takeup %<>% 
-  left_join(param_stan_data$treatment_map, "all_treatment_id") 
+  left_join(param_stan_data$treatment_map, "all_treatment_id") %>% 
+  filter(!name_matched)
 
 est_deworming_takeup_ate %<>% 
   left_join(select(est_deworming_takeup, all_treatment_id, iter_id, takeup), c("monitored_all_treatment_id_right" = "all_treatment_id", "iter_id"))
@@ -456,14 +459,15 @@ dist_pot_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_at
 phone_dist_pot_est_deworming_takeup_ate <- est_deworming_takeup_ate %>% prepare_est_ate(c("phone_owner_left", "dist.pot.group_left"))
 est_deworming_takeup_ate %<>% prepare_est_ate()
 
-assertthat::assert_that(num_raw_takeup == nrow(est_deworming_takeup), env = est_deworming_takeup)
+# assertthat::assert_that(num_raw_takeup == nrow(est_deworming_takeup), env = est_deworming_takeup)
 
 prepare_est_takeup <- function(est_data, subgroups = NULL) { 
   est_data %>%
     group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)"), iter_id), subgroups)) %>% 
-    summarize(wtd_takeup = weighted.mean(takeup, treatment_size)) %>% 
+    summarize(wtd_takeup = weighted.mean(takeup, treatment_size),
+              observed_takeup_prop = weighted.mean(observed_takeup_prop, observed_treatment_size)) %>% 
     ungroup() %>% 
-    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)")), subgroups, "observed_takeup_prop")) %>% 
     summarize(mean_takeup_prop = mean(wtd_takeup),
               ub_90 = quantile(wtd_takeup, 0.95),
               ub_95 = quantile(wtd_takeup, 0.975),
@@ -478,7 +482,6 @@ prepare_est_takeup <- function(est_data, subgroups = NULL) {
                                                                                "control-control" = "control", 
                                                                                "(-control)|(control-)" = "")) %>% 
                                                                fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet"))) 
-    # mutate(incentive_treatment = fct_relevel(incentive_treatment, "control-control", "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet"))
 }
 
 phone_est_deworming_takeup <- est_deworming_takeup %>% prepare_est_takeup("phone_owner")
@@ -559,6 +562,7 @@ phone_dist_pot_est_deworming_takeup_ate %>%
 plot_static_est_takeup <- . %>% 
   mutate(incentive_treatment = fct_relabel(incentive_treatment, . %>% str_to_title())) %>% {
   ggplot(., aes(incentive_treatment, mean_takeup_prop, color = sms.treatment.2)) + 
+    geom_point(aes(y = observed_takeup_prop), shape = 9, size = 5, position = position_dodge(width = 0.6)) +
     geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, fatten = 5, position = position_dodge(width = 0.6)) +
     geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.6)) +
     geom_text_repel(aes(label = sprintf("%.2f", mean_takeup_prop), color = NULL), nudge_x = -0.4, size = 3, segment.color = NA) +
