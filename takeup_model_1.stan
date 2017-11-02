@@ -14,7 +14,7 @@ functions {
                                    vector cluster_effects,
                                    vector census_covar_coef,
                                    matrix stratum_treatment_coef,
-                                   vector observed_dewormed_any) {
+                                   int[] observed_takeup_total) { 
     int num_treatment_ids = size(treatment_ids);
     vector[num_treatment_ids] cell_takeup_prop;
     int missing_treatment_pos = 1;
@@ -33,15 +33,14 @@ functions {
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]';
       
       vector[curr_missing_treatment_size] all_takeup;
-      real all_observed_takeup_total = sum(observed_dewormed_any[observed_obs_ids[observed_treatment_pos:observed_treatment_end]]); 
-          
-      real all_cell_num_obs = curr_missing_treatment_size + curr_observed_treatment_size;
+      // real all_observed_takeup_total = sum(observed_dewormed_any[observed_obs_ids[observed_treatment_pos:observed_treatment_end]]); 
+      // real all_cell_num_obs = curr_missing_treatment_size + curr_observed_treatment_size;
       
       for (missing_obs_ids_index in 1:curr_missing_treatment_size) {
         all_takeup[missing_obs_ids_index] = bernoulli_logit_rng(missing_latent_utility[missing_obs_ids_index]);  
       }
      
-      cell_takeup_prop[treatment_ids_index] = (sum(all_takeup) + all_observed_takeup_total) / all_cell_num_obs;
+      cell_takeup_prop[treatment_ids_index] = (sum(all_takeup) + observed_takeup_total[treatment_ids_index]) / (curr_missing_treatment_size + curr_observed_treatment_size);
         
       missing_treatment_pos = missing_treatment_end + 1;
       observed_treatment_pos = observed_treatment_end + 1;
@@ -95,6 +94,7 @@ data {
   
   int<lower = 0, upper = num_all_treatments> num_ate_treatments;
   int<lower = 1, upper = num_all_treatments> ate_treatments[num_ate_treatments];
+  int<lower = 0, upper = num_obs> observed_takeup_total[num_ate_treatments];
   
   int<lower = 0> num_missing_obs_ids;
   int<lower = 0, upper = num_obs> missing_treatment_sizes[num_ate_treatments];
@@ -223,7 +223,7 @@ generated quantities {
                                                       cluster_effects,
                                                       hyper_census_covar_coef,
                                                       stratum_beta_mat,
-                                                      to_vector(dewormed_any));
+                                                      observed_takeup_total);
                                                       
     treatment_cell_ate = treatment_cell_takeup[ate_pairs[, 1]] - treatment_cell_takeup[ate_pairs[, 2]]; 
   }

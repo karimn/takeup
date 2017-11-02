@@ -1184,6 +1184,16 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       left_join(ate_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
       left_join(ate_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
       select(rank_id_left, rank_id_right)
+    
+    # real all_observed_takeup_total = sum(observed_dewormed_any[observed_obs_ids[observed_treatment_pos:observed_treatment_end]]); 
+    observed_takeup_total <- prepared_analysis_data %>% 
+      group_by(all_treatment_id) %>% 
+      summarize(takeup_total = sum(dewormed.any)) %>% 
+      ungroup() 
+    
+    ate_treatments %<>% 
+      left_join(observed_takeup_total, "all_treatment_id") %>% 
+      mutate(takeup_total = coalesce(takeup_total, 0L))
   } else {
     ate_treatments <- NULL
     
@@ -1359,6 +1369,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     num_ate_treatments = nrow(ate_treatments),
     
+    observed_takeup_total = ate_treatments$takeup_total,
     ate_treatments = ate_treatments$all_treatment_id,
     
     missing_obs_ids = unlist(missing_treatment),
@@ -1367,6 +1378,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_obs_ids = unlist(observed_treatment),
     num_observed_obs_ids = length(observed_obs_ids),
     observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, length),
+    
     
     missing_treatment_stratum_id = stratum_id[missing_obs_ids], 
     missing_treatment_cluster_id = cluster_id[missing_obs_ids],
