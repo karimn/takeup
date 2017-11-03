@@ -974,50 +974,6 @@ dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate)
 assertthat::assert_that(all(map_lgl(dyn_all_ate, ~ !any(is.na(.)))))
 ```
 
-```{r dyn-extra-treatments, eval=FALSE}
-dyn_extra_treatments <- 
-  tribble(
-    ~ private_value, ~ social_value, ~ signal_observed, ~ reminder_info_stock, ~ sms.treatment.2, ~ days_observed, ~ days_sms,
-    
-    "control",       "control",      "control",         "control",             "reminder.only",   12,              12,
-    
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              4,
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              6,
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              8,
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              10,
-    
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              4,
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              6,
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              8,
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              10,
-    
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              4,
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              6,
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              8,
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              10,
-    
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              4,
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              6,
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              8,
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              10,
-    
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              4,
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              6,
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              8,
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              10,
-    
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              12
-  )
-# expand(dist.pot.group = c("close", "far"), nesting_(names(.)))
-
-    # "control",       "ink",          "ink",             "control",             "sms.control",     0,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     2,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     4,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     6,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     8,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     10,              12,
-```
-
 ```{r dyn-model-data, warning=FALSE}
 dyn_stan_data <- prepare_bayesian_analysis_data(
   dyn_analysis_data,
