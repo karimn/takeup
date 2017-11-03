@@ -1266,6 +1266,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
     num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),
     all_treatment_dyn_id = treatment_map$dynamic_treatment_id,
+    signal_observed_coef = dynamic_treatment_map %>% colnames() %>% str_which("signal_observed"),
+    reminder_info_coef = dynamic_treatment_map %>% colnames() %>% str_which("reminder_info"),
+    num_signal_observed_coef = length(signal_observed_coef),
+    num_reminder_info_coef = length(reminder_info_coef), 
     
     dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
       dynamic_treatment_map %>% 
