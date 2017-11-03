@@ -73,8 +73,6 @@ data {
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
   
-  vector<lower = 0, upper = 1>[num_obs] name_matched;
-  
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs];
   int<lower = 1, upper = num_obs> strata_sizes[num_strata]; 

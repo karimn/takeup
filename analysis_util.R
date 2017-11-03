@@ -1115,7 +1115,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns
     }
   
-  
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
     select(-census_covar_id) %>% 
@@ -1140,11 +1139,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
            true.monitored | !monitored) # using only true monitored and those not monitored because they weren't in a study sample
      
   stratum_map <- distinct(prepared_analysis_data, stratum_id, stratum)
-  
-  bracelet_treated_obs <- prepared_analysis_data %>%
-    filter(assigned.treatment == "bracelet") %>%
-    arrange(stratum_id, obs_index)
-
  
   if (!is.null(all_ate)) {
     num_ate_pairs <- nrow(all_ate)
@@ -1165,19 +1159,35 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             pull(obs_index)
         })
       
-      observed_treatment <- ate_treatments %>%
-        plyr::alply(1, function(treat_row) {
+      observed_stratum_treatment <- ate_treatments %>%
+        plyr::adply(1, function(treat_row) {
           semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
             filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-            pull(obs_index)
+            select(stratum, obs_index)
         })
+      
+      # observed_treatment <- ate_treatments %>%
+      #   plyr::alply(1, function(treat_row) {
+      #     semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
+      #       filter(all_treatment_id == treat_row$all_treatment_id) %>% 
+      #       pull(obs_index)
+      #   })
     } else {
       missing_treatment <- ate_treatments$all_treatment_id %>%
         map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
+      
+      observed_stratum_treatment <- ate_treatments$all_treatment_id %>%
+        map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% select(stratum, obs_index))
   
-      observed_treatment <- ate_treatments$all_treatment_id %>%
-        map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
+      # observed_treatment <- ate_treatments$all_treatment_id %>%
+      #   map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
     }
+    
+    observed_treatment <- observed_stratum_treatment %>% 
+      group_by(all_treatment_id) %>% 
+      do(treatment_ids = .$obs_index) %>% 
+      ungroup() %>% 
+      pull(treatment_ids)
     
     ate_pairs <- all_ate %>% 
       select(all_treatment_id_left, all_treatment_id_right) %>%
@@ -1185,7 +1195,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       left_join(ate_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
       select(rank_id_left, rank_id_right)
     
-    # real all_observed_takeup_total = sum(observed_dewormed_any[observed_obs_ids[observed_treatment_pos:observed_treatment_end]]); 
     observed_takeup_total <- prepared_analysis_data %>% 
       group_by(all_treatment_id) %>% 
       summarize(takeup_total = sum(dewormed.any)) %>% 
@@ -1194,6 +1203,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     ate_treatments %<>% 
       left_join(observed_takeup_total, "all_treatment_id") %>% 
       mutate(takeup_total = coalesce(takeup_total, 0L))
+    
+    observed_stratum_takeup_total <- prepared_analysis_data %>% 
+      group_by(stratum, all_treatment_id) %>% 
+      summarize(takeup_total = sum(dewormed.any)) %>% 
+      ungroup() 
   } else {
     ate_treatments <- NULL
     
@@ -1208,9 +1222,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   treatment_map_design_matrix %<>%
     magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
                         map_lgl(~ n_distinct(.) > 1))
- 
-  # valid_dm_col <- treatment_map_design_matrix[c(unique(prepared_analysis_data$all_treatment_id), ate_treatments), ] %>% 
-  #   map_lgl(~ n_distinct(.) > 1)
   
   private_value_calendar_coef <- treatment_map_design_matrix %>% 
     names() %>% 
@@ -1238,6 +1249,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     stratum_map,
     cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
     
+    observed_stratum_takeup_total,
+    observed_stratum_takeup_prop = observed_stratum_takeup_total %>% 
+      left_join(count(observed_stratum_treatment, all_treatment_id, stratum), c("all_treatment_id", "stratum")) %>% 
+      transmute(all_treatment_id, stratum, takeup_prop = takeup_total / n),
+    observed_stratum_treatment,
+    
     # Data passed to model
     
     num_deworming_days = 12L, 
@@ -1249,12 +1266,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
     num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),
     all_treatment_dyn_id = treatment_map$dynamic_treatment_id,
-    signal_observed_coef = dynamic_treatment_map %>% colnames() %>% str_which("signal_observed"),
-    reminder_info_coef = dynamic_treatment_map %>% colnames() %>% str_which("reminder_info"),
-    num_signal_observed_coef = length(signal_observed_coef),
-    num_reminder_info_coef = length(reminder_info_coef),
-    # all_treatment_signal_observed_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_observed),
-    # all_treatment_reminder_info_days = if (!is_empty(dynamic_treatment_mask_map)) treatment_map %>% pull(days_sms),
     
     dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
       dynamic_treatment_map %>% 
@@ -1273,6 +1284,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                   })
               })
     }, 
+    
     dynamic_treatment_map = if (!is_empty(dynamic_treatment_map)) {
       dynamic_treatment_map %>% daply(.(dynamic_treatment_id), . %>% select(-dynamic_treatment_id) %>% as.matrix()) 
     },
@@ -1283,28 +1295,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     private_value_bracelet_coef,
     private_value_bracelet_indicator = colnames(treatment_map_design_matrix) %>% str_detect("^private_valuebracelet$") %>% which,
     not_private_value_bracelet_coef = seq_len(num_all_treatment_coef) %>% setdiff(private_value_bracelet_coef),
-   
-    bracelet_treated = prepared_analysis_data$assigned.treatment == "bracelet",
-    num_bracelet_treated = nrow(bracelet_treated_obs),
-    bracelet_treated_id = bracelet_treated_obs$obs_index,
-    strata_bracelet_sizes = if (num_bracelet_treated > 0) {
-      bracelet_treated_obs %>% count(stratum_id) %>% arrange(stratum_id) %>% pull(n)
-    } else {
-      rep(0, num_strata)
-    },
-    
-    name_matched = prepared_analysis_data$name_matched,
-    num_name_matched = sum(name_matched),
-    name_matched_id = name_matched_data %>% pull(obs_index), 
-    monitored_id = monitored_data %>% pull(obs_index), 
-    name_matched_strata_sizes = count(name_matched_data, stratum_id) %>% arrange(stratum_id) %$% n,
-    name_matched_dewormed_strata_sizes = filter(name_matched_data, dewormed.any) %>% 
-      count(stratum_id) %>% 
-      arrange(stratum_id) %$% n,
-    name_matching_error_ids = matching_error_data %>% arrange(obs_index) %$% obs_index,
-    num_name_matching_errors_ids = length(name_matching_error_ids),
-    
-    phone_owner_indices = prepared_analysis_data$phone_owner + 1,
     
     census_covar_map_dm,
     num_census_covar_coef = ncol(census_covar_map_dm),
@@ -1378,7 +1368,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_obs_ids = unlist(observed_treatment),
     num_observed_obs_ids = length(observed_obs_ids),
     observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, length),
-    
     
     missing_treatment_stratum_id = stratum_id[missing_obs_ids], 
     missing_treatment_cluster_id = cluster_id[missing_obs_ids],

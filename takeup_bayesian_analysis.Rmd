@@ -184,7 +184,7 @@ wtp_sim_data %>%
   theme(legend.position = "bottom")
 ```
 
-# Private/Social Value Parameterized Model
+# Static Model
 
 The probability of take-up is
 $$
@@ -354,6 +354,11 @@ basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1"
 basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "basic_model_1_13.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
 
 save(param_stan_data, file = file.path("stan_analysis_data", "model_1_13.RData"))
+```
+
+```{r basic-model-1-debug, eval=FALSE}
+basic_model_1_debug <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
+basic_model_1_fit_debug <- sampling(basic_model_1_debug, data = param_stan_data, chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
 ```
 
 ```{r load-static-model-fit, echo=TRUE}
