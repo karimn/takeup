@@ -953,21 +953,23 @@ get_unique_treatments <- function(ate_pairs) {
     mutate(rank_id = seq_len(n()))
 }
 
-prepare_dynamic_treatment_maps <- function(dynamic_treatment_map, prepared_analysis_data) {
-  dyn_var <- names(dynamic_treatment_map$trends)
+prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepared_analysis_data) {
+  dyn_var <- names(dynamic_treatment_map_config$trends)
   dyn_var_re <- str_c(dyn_var, collapse = "|")
-  dyn_formula_var <- all.vars(dynamic_treatment_map$formula)
+  dyn_formula_var <- all.vars(dynamic_treatment_map_config$formula)
   original_dyn_var <- setdiff(dyn_formula_var, dyn_var)
   
   dynamic_treatment_mask_map <- prepared_analysis_data %>% 
-    expand(crossing_(original_dyn_var), dynamic_treatment_map$trends) 
+    expand(crossing_(original_dyn_var), dynamic_treatment_map_config$trends) 
  
   dynamic_treatment_map <- dynamic_treatment_mask_map %>% 
-    model_matrix(dynamic_treatment_map$formula) %>%
+    model_matrix(dynamic_treatment_map_config$formula) %>%
     select(matches(dyn_var_re)) %>% 
     select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
     select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
-    scale(center = FALSE, scale = rep(max(.), ncol(.))) %>% 
+    {
+      if (dynamic_treatment_map_config$scale %||% FALSE) scale(., center = FALSE, scale = rep(max(.), ncol(.))) else return(.)
+    } %>% 
     as_tibble()
   
   dynamic_treatment_mask_map %<>% 
@@ -1217,6 +1219,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_ate_pairs <- NULL
     
     ate_pairs <- NULL
+    
+    observed_stratum_takeup_total <- NULL
+    observed_stratum_treatment <- NULL
   }
   
   treatment_map_design_matrix %<>%
@@ -1250,7 +1255,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
     
     observed_stratum_takeup_total,
-    observed_stratum_takeup_prop = observed_stratum_takeup_total %>% 
+    observed_stratum_takeup_prop = if (!is_null(observed_stratum_takeup_total)) observed_stratum_takeup_total %>% 
       left_join(count(observed_stratum_treatment, all_treatment_id, stratum), c("all_treatment_id", "stratum")) %>% 
       transmute(all_treatment_id, stratum, takeup_prop = takeup_total / n),
     observed_stratum_treatment,
@@ -1350,13 +1355,14 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       count(stratum_id) %>% 
       arrange(stratum_id) %>% 
       pull(n),
+    
     stratum_dewormed_index = strata_sizes[-num_strata] %>% 
       accumulate(add, .init = 0) %>% 
       map2(strata_dewormed_sizes, ~ rep(.x, each = .y)) %>% 
       unlist() %>% 
       subtract(dewormed_ids, .),
     
-    hazard_day_map = diag(num_deworming_days),
+    hazard_day_map = diag(c(rep(1, num_deworming_days), 0))[, 1:num_deworming_days],
     hazard_day_triangle_map = lower.tri(diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)]) * 1,
     
     # ATE

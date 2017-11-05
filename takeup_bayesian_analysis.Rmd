@@ -1984,6 +1984,64 @@ bind_rows(observe = fast_sim_ate %>%
   theme(legend.position = "bottom")
 ```
 
+## Non-parameteric Model
+
+```{r nonparam-dyn-analysis-data}
+nonparam_dyn_analysis_data <- analysis.data %>%
+  mutate(private_value = fct_collapse(assigned.treatment, 
+                                      control = c("control", "ink"), 
+                                      "calendar" = c("calendar", "bracelet")), 
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control"),
+         signal_observed = social_value,
+         incentive_shift = private_value,
+         dyn_dist_pot = dist.pot.group,
+         reminder_info_stock = sms.treatment.2) %>% 
+  filter(!name_matched, !hh.baseline.sample)
+  # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
+
+nonparam_dyn_treatment_maps <- lst(formula = ~ (days_observed : (signal_observed + incentive_shift + reminder_info_stock)) : dyn_dist_pot,
+                                   trends = tibble(days_observed = 1:12),
+                                   scale = FALSE) %>% 
+  prepare_dynamic_treatment_maps(nonparam_dyn_analysis_data)
+
+nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
+  data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2, 
+            hh.baseline.sample, phone_owner, name_matched) %>% 
+  prepare_treatment_map(nonparam_dyn_treatment_maps)
+```
+
+
+```{r nonparam-dyn-model-data, warning=FALSE}
+nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
+  nonparam_dyn_analysis_data,
+  wtp.data, 
+   
+  prepared_treatment_maps = TRUE, 
+  treatment_map = nonparam_dyn_static_treatment_map,
+  dynamic_treatment_map = nonparam_dyn_treatment_maps,
+    
+  # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  
+  scale_df = 7,
+  scale_sigma = 1,
+  scale_sigma_dynamic = 1,
+ 
+  coef_df = 7,
+  coef_sigma = 1,
+  coef_sigma_dynamic = 5,
+  
+  wtp_utility_df = 3,
+  tau_mu_wtp_diff = 100,
+  mu_wtp_df_student_t = 7,
+  tau_sigma_wtp_diff = 50,
+  sigma_wtp_df_student_t = 2.5,
+  sigma_ksh_util_gamma = 5,
+  
+  estimate_ate = 1
+)
+```
 
 ### Finite Sample Treatment Effects 
 
