@@ -33,8 +33,6 @@ functions {
         stratum_treatment_coef[missing_stratum_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]';
       
       vector[curr_missing_treatment_size] all_takeup;
-      // real all_observed_takeup_total = sum(observed_dewormed_any[observed_obs_ids[observed_treatment_pos:observed_treatment_end]]); 
-      // real all_cell_num_obs = curr_missing_treatment_size + curr_observed_treatment_size;
       
       for (missing_obs_ids_index in 1:curr_missing_treatment_size) {
         all_takeup[missing_obs_ids_index] = bernoulli_logit_rng(missing_latent_utility[missing_obs_ids_index]);  
