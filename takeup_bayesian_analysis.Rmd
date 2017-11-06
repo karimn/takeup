@@ -833,7 +833,7 @@ dyn_sms_control_ate <- tribble(
   bind_rows(
     tribble(
       ~ private_value_left, ~ incentive_shift_left,  ~ private_value_right, ~ incentive_shift_right,
-      "calendar",  "calendar",     "calendar",   "control" 
+      "calendar",           "calendar",              "calendar",            "control" 
     ) %>% 
     mutate(social_value_left = "control",
            social_value_right = "control",
@@ -2022,6 +2022,8 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
     
   # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
   treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  
+  all_ate = dyn_all_ate, 
   
   scale_df = 7,
   scale_sigma = 1,
