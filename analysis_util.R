@@ -1184,7 +1184,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_treatment <- observed_stratum_treatment %>% 
       group_by(all_treatment_id) %>% 
       do(treatment_ids = .$obs_index) %>% 
-      ungroup() %>% 
+      ungroup() %>%
+      right_join(select(ate_treatments, all_treatment_id), "all_treatment_id") %>% 
       pull(treatment_ids)
     
     ate_pairs <- all_ate %>% 
