@@ -1009,7 +1009,6 @@ dyn_stan_data <- prepare_bayesian_analysis_data(
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 ```
 
-
 ```{r basic-model-2-simple-centered, eval=FALSE}
 basic_model_2_simple_fit <- dyn_stan_data %>% 
   sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
@@ -2041,6 +2040,17 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   
   estimate_ate = 1
 )
+
+model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
+```
+
+```{r model-3-gp-nonparam, eval=FALSE}
+model_3_fit <- nonparam_dyn_stan_data %>% 
+  sampling(model_3_gp_nonparam, data = ., 
+           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           sample_file = file.path("stanfit", "model_3_gp_nonparam.csv")) 
+
+save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", "model_3_1.RData"))
 ```
 
 ### Finite Sample Treatment Effects 
@@ -2060,7 +2070,7 @@ load(file.path("stan_analysis_data", str_interp("model_2_${dyn_model_version}.RD
 ```
 
 ```{r}
-basic_model_2_simple_fit %>% 
+basic_model_3_simple_fit %>% 
   print(pars = c("hyper_baseline_cond_takeup", "hyper_baseline_hazard", 
                  "stratum_hazard_effect", "stratum_hazard_frailty_var", 
                  sprintf("cluster_hazard_effect[%d]", 1:10), "cluster_hazard_frailty_var"))

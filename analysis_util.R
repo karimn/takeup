@@ -1216,7 +1216,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     missing_treatment <- NULL 
     observed_treatment <- NULL
     
-    num_ate_pairs <- NULL
+    num_ate_pairs <- 0
     
     ate_pairs <- NULL
     
@@ -1364,10 +1364,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     hazard_day_map = diag(c(rep(1, num_deworming_days), 0))[, 1:num_deworming_days],
     hazard_day_triangle_map = lower.tri(diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)]) * 1,
+    relevant_latent_var_map = hazard_day_map + hazard_day_triangle_map,
     
     # ATE
     
-    num_ate_treatments = nrow(ate_treatments),
+    num_ate_treatments = if (!is.null(ate_treatments)) nrow(ate_treatments) else 0,
     
     observed_takeup_total = ate_treatments$takeup_total,
     ate_treatments = ate_treatments$all_treatment_id,
