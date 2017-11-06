@@ -985,7 +985,7 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
       original_dyn_var)
 }
 
-prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) {
+prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) { #, ate) {
   prepared <- static_treatment_map %>% 
     mutate(all_treatment_id = seq_len(n())) %>% 
     mutate_if(is.factor, funs(id = as.integer(.))) 
@@ -995,6 +995,12 @@ prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) 
       left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
                 by = dynamic_treatment_maps$original_dyn_var)
   }
+  
+  # if (!missing(ate)) {
+  #   ate_treatments <- ate %>% 
+  #     identify_treatment_id(static_treatment_map) %>% 
+  #     get_unique_treatments()
+  # }
   
   return(prepared)
 }
@@ -1167,22 +1173,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             filter(all_treatment_id == treat_row$all_treatment_id) %>% 
             select(stratum, obs_index)
         })
-      
-      # observed_treatment <- ate_treatments %>%
-      #   plyr::alply(1, function(treat_row) {
-      #     semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
-      #       filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-      #       pull(obs_index)
-      #   })
     } else {
       missing_treatment <- ate_treatments$all_treatment_id %>%
         map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
       
       observed_stratum_treatment <- ate_treatments$all_treatment_id %>%
         map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% select(stratum, obs_index))
-  
-      # observed_treatment <- ate_treatments$all_treatment_id %>%
-      #   map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% pull(obs_index))
     }
     
     observed_treatment <- observed_stratum_treatment %>% 
