@@ -2055,6 +2055,12 @@ model_3_fit <- nonparam_dyn_stan_data %>%
 save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", "model_3_1.RData"))
 ```
 
+```{r model-3-gp-nonparam-debug, eval=FALSE}
+model_3_fit <- nonparam_dyn_stan_data %>% 
+  sampling(model_3_gp_nonparam, data = ., 
+           chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+```
+
 ### Finite Sample Treatment Effects 
 
 ```{r load-dyn-model-fit}
