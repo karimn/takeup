@@ -206,6 +206,10 @@ transformed data {
 }
 
 parameters {
+  real<lower = 0, upper = 1> hyper_baseline_takeup; // Completely uninformed prior
+  vector[num_strata] stratum_intercept;
+  real<lower = 0> tau_stratum_intercept;
+  
   vector[num_all_treatment_coef] hyper_beta; 
   vector[num_all_treatment_coef] stratum_beta[num_strata];
   vector<lower = 0>[num_all_treatment_coef] stratum_tau_treatment;
@@ -225,6 +229,7 @@ parameters {
 }
 
 transformed parameters {
+  real hyper_intercept = logit(hyper_baseline_takeup);
   matrix[num_dynamic_treatments, num_deworming_days] hyper_dyn_latent_var;
   
   matrix[num_all_treatment_coef, num_strata] stratum_beta_mat;
@@ -244,6 +249,9 @@ transformed parameters {
 }
 
 model {
+  tau_stratum_intercept ~ student_t(scale_df, 0, scale_sigma);
+  stratum_intercept ~ student_t(coef_df, hyper_intercept, tau_stratum_intercept); 
+  
   hyper_beta ~ student_t(coef_df, 0, coef_sigma); 
   stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
   stratum_beta ~ multi_student_t(coef_df, hyper_beta, diag_matrix(stratum_tau_treatment));
@@ -271,6 +279,7 @@ model {
       matrix[curr_stratum_size, num_deworming_days] stratum_relevant_latent_var_map = relevant_latent_var_map_mat[stratum_dewormed_day_all];
       
       matrix[curr_stratum_size, num_deworming_days] day_constant_latent_var = 
+        stratum_intercept[strata_index] +
         rep_matrix(census_covar_dm[stratum_pos:stratum_end] * stratum_census_covar_coef[strata_index] + 
                      treatment_design_matrix[stratum_pos:stratum_end] * stratum_beta[strata_index] +
                      cluster_effects[cluster_id[stratum_pos:stratum_end]], 
@@ -297,7 +306,7 @@ generated quantities {
   vector<lower = -1, upper = 1>[num_ate_pairs] est_takeup_ate = rep_vector(0, num_ate_pairs);
   
   if (estimate_ate) {
-    day_constant_latent_var = treatment_map_design_matrix[ate_treatments] * stratum_beta_mat;
+    day_constant_latent_var = treatment_map_design_matrix[ate_treatments] * stratum_beta_mat + rep_matrix(stratum_intercept', num_ate_treatments);
     day_varying_latent_var = hyper_dyn_latent_var[all_treatment_dyn_id[ate_treatments]];
     
     est_deworming_days =
