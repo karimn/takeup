@@ -1995,7 +1995,7 @@ nonparam_dyn_analysis_data <- analysis.data %>%
   # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 nonparam_dyn_treatment_maps <- lst(formula = ~ (days_observed : (signal_observed + incentive_shift + reminder_info_stock)) : dyn_dist_pot,
-                                   trends = tibble(days_observed = 1:12),
+                                   trends = tibble(days_observed = 0:11),
                                    scale = FALSE) %>% 
   prepare_dynamic_treatment_maps(nonparam_dyn_analysis_data)
 
