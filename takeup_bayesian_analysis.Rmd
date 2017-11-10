@@ -1035,6 +1035,8 @@ basic_model_2_simple_fit %>%
   get_sampler_params(inc_warmup = FALSE) %>% 
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
+
+load(file.path("stan_analysis_data", "model_2_4.RData"))
 ```
 
 In this section we're carrying out our analysis based on the Bayesian simulated parameters. Here we are estimating the posterior distribution of the _finite sample mean of the probability of deworming take-up_.
