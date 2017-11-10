@@ -2042,14 +2042,14 @@ model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
-nonparam_dyn_model_version <- 1
+nonparam_dyn_fit_version <- 1
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
            chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-           sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_model_version}.csv")))
+           sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.csv")))
 
-save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${nonparam_dyn_model_version}.RData")))
+save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${nonparam_dyn_fit_version}.RData")))
 ```
 
 ```{r model-3-gp-nonparam-debug, eval=FALSE}
@@ -2059,7 +2059,7 @@ model_3_fit_debug <- nonparam_dyn_stan_data %>%
 ```
 
 ```{r load-nonparam-dyn-model-fit}
-model_3_fit <- dir("stanfit", pattern = str_interp("model_3_gp_nonparam_${nonparam_dyn_model_version}_[1-8].csv"), full.names = TRUE) %>% 
+model_3_fit <- dir("stanfit", pattern = str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}_[1-8].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
 model_3_fit %>% 
@@ -2067,7 +2067,7 @@ model_3_fit %>%
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
 
-load(file.path("stan_analysis_data", str_interp("model_3_${nonparam_dyn_model_version}.RData")))
+load(file.path("stan_analysis_data", str_interp("model_3_${nonparam_dyn_fit_version}.RData")))
 ```
 
 ### Finite Sample Treatment Effects 
