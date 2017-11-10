@@ -138,7 +138,6 @@ transformed data {
 
 parameters {
   // Modelled parameters
-  
   real<lower = 0, upper = 1> hyper_baseline_takeup; // Completely uninformed prior
   vector[num_strata] stratum_intercept;
   real<lower = 0> tau_stratum_intercept;
