@@ -292,6 +292,7 @@ model {
     int dynamic_stratum_pos = 1;
     
     matrix[num_obs, num_deworming_days] log_lambda_t;
+    vector[num_obs * num_deworming_days] log_lambda_t_vec;
     
     for (strata_index in 1:num_strata) {
       int curr_stratum_size = strata_sizes[strata_index];
@@ -311,8 +312,10 @@ model {
       stratum_pos = stratum_end + 1;
       dynamic_stratum_pos = dynamic_stratum_end + 1;
     }
+   
+    log_lambda_t_vec = to_vector(log_lambda_t); 
     
-    target += gumbel_lcdf(to_vector(log_lambda_t[not_dewormed_days_ids]) | 0, 1) + gumbel_lccdf(to_vector(log_lambda_t[dewormed_days_ids]) | 0, 1);
+    target += gumbel_lcdf(log_lambda_t_vec[not_dewormed_days_ids] | 0, 1) + gumbel_lccdf(log_lambda_t_vec[dewormed_days_ids] | 0, 1);
   }
 }
 

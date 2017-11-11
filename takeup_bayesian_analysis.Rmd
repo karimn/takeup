@@ -1011,8 +1011,8 @@ basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan",
 
 ```{r basic-model-2-simple-centered, eval=FALSE}
 basic_model_2_simple_fit <- dyn_stan_data %>% 
-  sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+  sampling(basic_model_2_simple, data = ., 
+           chains = 8, iter = 800, control = lst(max_treedepth = 15), 
            sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")) 
 
 save(dyn_stan_data, file = file.path("stan_analysis_data", "model_2_5.RData"))
