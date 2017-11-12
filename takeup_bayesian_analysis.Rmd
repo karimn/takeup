@@ -801,7 +801,8 @@ dyn_analysis_data <- analysis.data %>%
 dyn_dyn_treatment_maps <- lst(formula = ~ (poly(days_observed, 2, raw = TRUE) * (signal_observed + incentive_shift) + 
                                              poly(days_sms, 2, raw = TRUE) * reminder_info_stock) * dyn_dist_pot * phone_owner,
                               trends = tibble(days_observed = 0:11,
-                                              days_sms = rep(0:5, each = 2))) %>% 
+                                              days_sms = rep(0:5, each = 2)),
+                              scale = TRUE) %>% 
   prepare_dynamic_treatment_maps(dyn_analysis_data)
 
 dyn_static_treatment_map <- dyn_analysis_data %>% 
@@ -1010,18 +1011,18 @@ basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan",
 ```
 
 ```{r basic-model-2-simple-centered, eval=FALSE}
-basic_model_2_simple_fit <- dyn_stan_data %>% 
-  sampling(basic_model_2_simple, data = ., 
-           chains = 8, iter = 800, control = lst(max_treedepth = 15), 
-           sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")) 
+basic_model_2_simple_fit <- sampling(
+  basic_model_2_simple, data = dyn_stan_data, 
+  chains = 8, iter = 800, control = lst(max_treedepth = 15), 
+  sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")
+) 
 
 save(dyn_stan_data, file = file.path("stan_analysis_data", "model_2_5.RData"))
 ```
 
 ```{r basic-model-2-simple-debug, eval=FALSE}
-basic_model_2_simple_fit <- dyn_stan_data %>% 
-  sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 8, iter = 100, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
+basic_model_2_simple_fit_debug <- sampling(basic_model_2_simple, data = dyn_stan_data, chains = 1, iter = 1, control = lst(max_treedepth = 15)) 
 ```
 
 

@@ -256,7 +256,7 @@ transformed parameters {
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
   matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
   matrix[num_strata, num_census_covar_coef] stratum_census_covar_coef_mat;
-  matrix[num_strata, num_deworming_days] stratum_hazard_mat;
+  matrix<lower = 0>[num_strata, num_deworming_days] stratum_hazard_mat;
  
   for (strata_index in 1:num_strata) {
     stratum_hazard_mat[strata_index] = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
@@ -288,11 +288,11 @@ model {
   stratum_census_covar_coef ~ multi_student_t(coef_df, hyper_census_covar_coef, diag_matrix(stratum_tau_census_covar));
   
   {
-    int stratum_pos = 1;
-    int dynamic_stratum_pos = 1;
-    
     matrix[num_obs, num_deworming_days] log_lambda_t;
     vector[num_obs * num_deworming_days] log_lambda_t_vec;
+  
+    int stratum_pos = 1;
+    int dynamic_stratum_pos = 1;
     
     for (strata_index in 1:num_strata) {
       int curr_stratum_size = strata_sizes[strata_index];
@@ -312,9 +312,9 @@ model {
       stratum_pos = stratum_end + 1;
       dynamic_stratum_pos = dynamic_stratum_end + 1;
     }
-   
-    log_lambda_t_vec = to_vector(log_lambda_t); 
     
+    log_lambda_t_vec = to_vector(log_lambda_t); 
+  
     target += gumbel_lcdf(log_lambda_t_vec[not_dewormed_days_ids] | 0, 1) + gumbel_lccdf(log_lambda_t_vec[dewormed_days_ids] | 0, 1);
   }
 }
