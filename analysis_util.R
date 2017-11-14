@@ -1014,6 +1014,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            dynamic_treatment_map = NULL,
                                            treatment_formula = NULL,
                                            subgroup_col = c("phone_owner", "name_matched"),
+                                           drop_intercept_from_dm = TRUE,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
@@ -1117,8 +1118,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   }
   
   treatment_map_design_matrix <- treatment_map %>%  
-    model_matrix(treatment_formula) %>% 
-    magrittr::extract(, -1) %>% # get rid of intercept column
+    model_matrix(treatment_formula) %>% {
+      # get rid of intercept column if requested (default)
+      if (drop_intercept_from_dm) magrittr::extract(., , -1) else (.)
+    } %>% 
     magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% {
       if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns
     }
