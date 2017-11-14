@@ -60,8 +60,6 @@ num_cores <- tryCatch({
 }, error = function(err) parallel::detectCores())
 
 cl <- parallel::makeCluster(max(1, num_cores))
-# doMC::registerDoMC(max(1, parallel::detectCores() - 1))
-# doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
 ```
 
@@ -73,6 +71,11 @@ rstan_options(auto_write = TRUE)
 ```{r load-bayes-data, include=FALSE}
 load(file.path("data", "analysis.RData"))
 ```
+
+```{r, model-versions}
+dyn_param_fit_ver <- 5
+```
+
 
 # Common Notation
 
@@ -1014,10 +1017,10 @@ basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan",
 basic_model_2_simple_fit <- sampling(
   basic_model_2_simple, data = dyn_stan_data, 
   chains = 8, iter = 800, control = lst(max_treedepth = 15), 
-  sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")
+  sample_file = file.path("stanfit", str_interp("basic_model_2_simple_centered_${dyn_param_fit_ver}.csv"))
 ) 
 
-save(dyn_stan_data, file = file.path("stan_analysis_data", "model_2_5.RData"))
+save(dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_2_${dyn_param_fit_ver}.RData")))
 ```
 
 ```{r basic-model-2-simple-debug, eval=FALSE}
@@ -1029,7 +1032,7 @@ basic_model_2_simple_fit_debug <- sampling(basic_model_2_simple, data = dyn_stan
 ### Posterior Simulation
 
 ```{r old-load-dyn-model-fit}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_4_[1-8].csv", full.names = TRUE) %>% 
+basic_model_2_simple_fit <- dir("stanfit", pattern = str_interp("basic_model_2_simple_centered_${dyn_param_fit_ver}_[1-8].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
 basic_model_2_simple_fit %>% 
@@ -1037,8 +1040,17 @@ basic_model_2_simple_fit %>%
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
 
-load(file.path("stan_analysis_data", "model_2_4.RData"))
+load(file.path("stan_analysis_data", str_interp("model_2_${dyn_param_fit_ver}.RData")))
 ```
+
+```{r}
+print(basic_model_2_simple_fit, par = c("hyper_baseline_cond_takeup"))
+print(basic_model_2_simple_fit, par = c("stratum_baseline_cond_takeup"))
+print(basic_model_2_simple_fit, par = c("stratum_hazard_effect"))
+print(basic_model_2_simple_fit, par = c("stratum_hazard_frailty_var"))
+print(basic_model_2_simple_fit, par = c("est_takeup"))
+```
+
 
 In this section we're carrying out our analysis based on the Bayesian simulated parameters. Here we are estimating the posterior distribution of the _finite sample mean of the probability of deworming take-up_.
 
