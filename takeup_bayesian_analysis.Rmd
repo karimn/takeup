@@ -74,6 +74,7 @@ load(file.path("data", "analysis.RData"))
 
 ```{r, model-versions}
 dyn_param_fit_ver <- 5
+static_fit_ver <- 13
 ```
 
 
@@ -260,7 +261,8 @@ param_sms_control_ate <- tribble(
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
   mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
          hh.baseline.sample = FALSE) %>% 
-  mutate_at(vars(name_matched, phone_owner), as.logical)
+  mutate_at(vars(name_matched, phone_owner), as.logical) %>% 
+  mutate_at(vars(starts_with("private_value")), funs(fct_collapse(., calendar = c("calendar", "bracelet"))))
 
 param_phone_owners_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -287,7 +289,8 @@ param_phone_owners_ate <- tribble(
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE,
          name_matched = FALSE,
-         hh.baseline.sample = FALSE) 
+         hh.baseline.sample = FALSE) %>%  
+  mutate_at(vars(starts_with("private_value")), funs(fct_collapse(., calendar = c("calendar", "bracelet"))))
 
 param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) 
 ```
@@ -308,17 +311,17 @@ param_all_ate %>%
 
 ```{r param-model-data, warning=FALSE}
 static_analysis_data <- analysis.data %>%
-  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
+  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink"), calendar = c("calendar", "bracelet")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
   filter(!name_matched | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 static_treatment_map <- static_analysis_data %>% 
   data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner, name_matched) %>% 
   filter(phone_owner | sms.treatment.2 == "sms.control",
-        (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-         private_value != "calendar" | social_value == "control",
-         private_value != "bracelet" | social_value == "bracelet",
-         !name_matched | sms.treatment.2 == "sms.control") %>% 
+  #       (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+  #        private_value != "calendar" | social_value == "control",
+  #        # private_value != "bracelet" | social_value == "bracelet",
+         !name_matched | sms.treatment.2 == "sms.control") %>%
   prepare_treatment_map()
 
 param_stan_data <- static_analysis_data %>%  
@@ -328,6 +331,7 @@ param_stan_data <- static_analysis_data %>%
     prepared_treatment_maps = TRUE, 
     treatment_map = static_treatment_map,
     treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+    drop_intercept_from_dm = FALSE,
     
     all_ate = param_all_ate,
     
@@ -348,20 +352,43 @@ param_stan_data <- static_analysis_data %>%
     sigma_wtp_df_student_t = 2.5,
     sigma_ksh_util_gamma = 5,
     
+    lkj_df = 2,
+    
     estimate_ate = 1
   )
+
+gen_lkj_initializer <- function(stan_data_list) {
+  function() {
+    lst(
+      stratum_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+      cluster_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+      stratum_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
+      cluster_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df))
+    )
+  }
+}
+
+# basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
+basic_model_1 <- stan_model(file = "takeup_model_1_deep_multilevel.stan", model_name = "model_1_deep_multilevel")
 ```
 
 ```{r basic-model-1, eval=FALSE}
-basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "basic_model_1_13.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
+basic_model_1_fit <- param_stan_data %>% 
+  sampling(basic_model_1, 
+           data = ., 
+           chains = 8, iter = 800, control = lst(max_treedepth = 15),
+           init = gen_lkj_initializer(.), 
+           sample_file = file.path("stanfit", str_interp("basic_model_1_${static_fit_ver}.csv"))) 
 
-save(param_stan_data, file = file.path("stan_analysis_data", "model_1_13.RData"))
+save(param_stan_data, file = file.path("stan_analysis_data", str_interp("model_1_${static_fit_ver}.RData")))
 ```
 
 ```{r basic-model-1-debug, eval=FALSE}
-basic_model_1_debug <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1_fit_debug <- sampling(basic_model_1_debug, data = param_stan_data, chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
+basic_model_1_fit_debug <- param_stan_data %>% 
+  sampling(basic_model_1, 
+           data = ., 
+           chains = 2, iter = 10, control = lst(max_treedepth = 15), 
+           init = gen_lkj_initializer(.)) 
 ```
 
 ```{r load-static-model-fit, echo=TRUE}

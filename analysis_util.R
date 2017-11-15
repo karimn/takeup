@@ -1345,7 +1345,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     num_strata = n_distinct(stratum_id),
     strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
-    # cluster_sizes = count(prepared_analysis_data, stratum_id, new_cluster_id) %>% arrange(stratum_id, new_cluster_id) %>% pull(n),
     cluster_sizes = count(prepared_analysis_data, new_cluster_id) %>% arrange(new_cluster_id) %>% pull(n),
     strata_num_clusters = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
       count(stratum_id) %>% 
@@ -1357,6 +1356,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     cluster_obs_ids = prepared_analysis_data %>% 
       arrange(new_cluster_id) %>% 
       pull(obs_index),
+    cluster_stratum_ids = prepared_analysis_data %>% 
+      distinct(new_cluster_id, stratum_id) %>% 
+      arrange(new_cluster_id) %>% 
+      pull(stratum_id),
     
     strata_dewormed_sizes = prepared_analysis_data %>% 
       filter(dewormed.any) %>% 
@@ -1401,18 +1404,18 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   ) %>% 
     modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
   
-  stan_data_list$dynamic_initializer <- function() { 
-    num_not_private_value_bracelet_coef <- with(stan_data_list, num_all_treatment_coef - num_private_value_bracelet_coef)
-    
-    lst(
-      hyper_beta_raw = rep(0, num_not_private_value_bracelet_coef),
-      stratum_beta_raw = array(rep(0, num_not_private_value_bracelet_coef * stan_data_list$num_strata),
-                               dim = c(stan_data_list$num_strata, num_not_private_value_bracelet_coef)),
-      hyper_dynamic_treatment_coef_raw = rep(0, stan_data_list$num_dynamic_treatment_col),
-      stratum_dynamic_treatment_coef_raw = with(stan_data_list, array(rep(0, num_dynamic_treatment_col * num_strata),
-                                                                      dim = c(num_strata, num_dynamic_treatment_col)))
-    )
-  }
+  # stan_data_list$dynamic_initializer <- function() { 
+  #   num_not_private_value_bracelet_coef <- with(stan_data_list, num_all_treatment_coef - num_private_value_bracelet_coef)
+  #   
+  #   lst(
+  #     hyper_beta_raw = rep(0, num_not_private_value_bracelet_coef),
+  #     stratum_beta_raw = array(rep(0, num_not_private_value_bracelet_coef * stan_data_list$num_strata),
+  #                              dim = c(stan_data_list$num_strata, num_not_private_value_bracelet_coef)),
+  #     hyper_dynamic_treatment_coef_raw = rep(0, stan_data_list$num_dynamic_treatment_col),
+  #     stratum_dynamic_treatment_coef_raw = with(stan_data_list, array(rep(0, num_dynamic_treatment_col * num_strata),
+  #                                                                     dim = c(num_strata, num_dynamic_treatment_col)))
+  #   )
+  # }
   
   return(stan_data_list)
 } 
