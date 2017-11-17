@@ -83,12 +83,11 @@ village.centers %<>%
 
 # Core data prep --------------------------------------------------------------
 
+baseline.data %<>% prepare.baseline.data(cluster.strat.data) 
 endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.strat.data)
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
-analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, consent.dewormed.reports, cluster.strat.data, max.name.match.cost = 1)
+analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, baseline.data, consent.dewormed.reports, cluster.strat.data, max.name.match.cost = 1)
 
-old.baseline.data <- baseline.data
-baseline.data %<>% prepare.baseline.data(cluster.strat.data) 
 
 # Outliers ----------------------------------------------------------------
 
@@ -100,7 +99,6 @@ outlier.cells <- cell.takeup.data %>% filter(outlier)
 # WTP prep ----------------------------------------------------------------
 
 wtp.data %<>% 
-  # mutate_at(vars(cal_plus_ksh, bra_plus_ksh), funs(factor(., levels = 1:2, labels = c("switch", "keep")))) %>% 
   mutate(first_choice = factor(first_choice, levels = 1:2, labels = c("bracelet", "calendar")),
          second_choice = if_else(first_choice == "bracelet", cal_plus_ksh, bra_plus_ksh) %>% 
            factor(levels = 1:2, labels = c("switch", "keep"))) %>% 
