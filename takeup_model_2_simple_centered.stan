@@ -196,7 +196,7 @@ data {
 
 transformed data {
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
-  matrix<lower = 0>[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
+  matrix[num_obs * num_deworming_days, num_dynamic_treatment_col] dynamic_treatment_dm;
   
   int<lower = 1> dewormed_days_ids[num_dewormed];
   int<lower = 1> not_dewormed_days_ids[sum(dewormed_day_any) - num_obs];
@@ -315,7 +315,7 @@ model {
     
     log_lambda_t_vec = to_vector(log_lambda_t); 
   
-    target += gumbel_lcdf(log_lambda_t_vec[not_dewormed_days_ids] | 0, 1) + gumbel_lccdf(log_lambda_t_vec[dewormed_days_ids] | 0, 1);
+    target += gumbel_lcdf(- log_lambda_t_vec[not_dewormed_days_ids] | 0, 1) + gumbel_lccdf(- log_lambda_t_vec[dewormed_days_ids] | 0, 1);
   }
 }
 
