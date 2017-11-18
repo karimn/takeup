@@ -34,7 +34,7 @@ functions {
       
       for (day_index in 1:num_deworming_days) {
         cumul_prod_alphas[day_index] = prev_not_deworm_prob; 
-        deworming_day_prob[day_index] = 1 - gumbel_cdf(log_lambda_t[obs_ids_index, day_index], 0, 1); 
+        deworming_day_prob[day_index] = 1 - gumbel_cdf(- log_lambda_t[obs_ids_index, day_index], 0, 1); 
         prev_not_deworm_prob = prev_not_deworm_prob * (1 - deworming_day_prob[day_index]);
       }
       
@@ -327,7 +327,7 @@ generated quantities {
   vector<lower = -1, upper = 1>[num_ate_pairs] est_takeup_ate = rep_vector(0, num_ate_pairs);
   
   for (stratum_index in 1:num_strata) {
-    stratum_baseline_cond_takeup[stratum_index] = exp(- hyper_baseline_hazard * stratum_hazard_effect[stratum_index]);
+    stratum_baseline_cond_takeup[stratum_index] = 1 - exp(- hyper_baseline_hazard * stratum_hazard_effect[stratum_index]);
   }
   
   if (estimate_ate) {
