@@ -286,7 +286,6 @@ transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
   
   matrix[num_strata, num_all_treatment_coef] stratum_beta_mat;
-  matrix[num_strata, num_dynamic_treatment_col] stratum_dyn_treatment_mat;
   matrix[num_strata, num_census_covar_coef] stratum_census_covar_coef_mat;
   matrix<lower = 0>[num_strata, num_deworming_days] stratum_hazard_mat;
   
