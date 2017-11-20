@@ -36,7 +36,7 @@ prepare.consent.dewormed.data <- function(.all.endline.data, .reconsent.data) {
     ungroup
 }
 
-prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .consent.dewormed.reports, .cluster.strat.data,
+prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .baseline.data, .consent.dewormed.reports, .cluster.strat.data,
                                   max.name.match.cost = 1) {
   dewormed.day.data <- .takeup.data %>% 
     filter(!is.na(KEY.individ)) %>% 
@@ -50,6 +50,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     left_join(.consent.dewormed.reports, "KEY.individ") %>% 
     mutate(dewormed = KEY.individ %in% discard(.takeup.data$KEY.individ, is.na), # TRUE if individual found in take-up data
            dewormed = ifelse(monitored, dewormed, NA),
+           # hh.baseline.sample = KEY %in% .baseline.data$KEY, # We don't have a clear link between baseline surveys and the census. See the field notebook
            monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
            sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control") %>% fct_relevel("sms.control"),
@@ -65,13 +66,11 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .co
     group_by(cluster.id) %>% 
     do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost)) %>% 
     ungroup %>% 
-    # select(KEY.individ, starts_with("dewormed.matched"), contains("min.name.match.dist")) %>% 
     right_join(analysis.data, c("cluster.id", "KEY.individ")) %>% 
     left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day, dewormed.date.matched = dewormed.date), 
               c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
     mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
-           # dewormed.any_0 = (!is.na(dewormed) & dewormed) | dewormed.matched_0,
            dewormed.day.any = if_else(!is.na(dewormed.day), as.integer(dewormed.day), dewormed.day.matched), 
            dewormed.date.any = if_else(!is.na(dewormed.date), dewormed.date, dewormed.date.matched),
            gender = factor(gender, levels = 1:2, labels = c("male", "female"))) %>% 
@@ -194,7 +193,7 @@ prepare.cluster.takeup.data <- function(.data,
  .data %>% 
    filter(monitored | !monitored.only, 
           monitor.consent | !consented.only, 
-          !(hh.baseline.sample & exclude.baseline.sample)) %>% 
+          !(hh.baseline.sample.pool & exclude.baseline.sample)) %>% 
    transmute(county, dist.pot.group, county_dist_stratum, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any, mon_status, phone_owner) %>% 
    # unite(stratum, county, dist.pot.group, sep = " ") %>% 
    group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", "cluster.id", add_group_by)) %>% 
@@ -426,7 +425,7 @@ multi.know.bel.cat.plot <- function(question.info,
 
 plot.pref.unfaceted <- function(.data, .second.group.by = NULL) {
   .data %>% 
-    filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample, !is.na(sms.treatment)) %>% 
+    filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample.pool, !is.na(sms.treatment)) %>% 
     group_by_(.dots = c("assigned.treatment", .second.group.by)) %>% 
     mutate(arm.size = n()) %>% 
     group_by(gift_choice, add = TRUE) %>%
@@ -964,11 +963,12 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
  
   dynamic_treatment_map <- dynamic_treatment_mask_map %>% 
     model_matrix(dynamic_treatment_map_config$formula) %>%
-    select(matches(dyn_var_re)) %>% 
+    select(matches(dyn_var_re), -contains("control")) %>% 
     select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
     select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
     {
       if (dynamic_treatment_map_config$scale %||% FALSE) scale(., center = FALSE, scale = rep(max(.), ncol(.))) else return(.)
+      # if (dynamic_treatment_map_config$scale %||% FALSE) map_dfc(., ~ scale(.x, center = FALSE, scale = max(.x))) else return(.)
     } %>% 
     as_tibble()
   
@@ -1008,7 +1008,7 @@ prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) 
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
-                                           treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample"),
+                                           treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample.pool"),
                                            prepared_treatment_maps = FALSE, 
                                            treatment_map = NULL,
                                            dynamic_treatment_map = NULL,
@@ -1157,29 +1157,27 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     ate_treatments <- all_ate %>% get_unique_treatments()
     
-    if (!is.null(subgroup_col)) {
+    if (!is_empty(subgroup_col)) {
       ate_treatments %<>% left_join(select(treatment_map, all_treatment_id, subgroup_col), "all_treatment_id")
-      
-      missing_treatment <- ate_treatments %>%
-        plyr::alply(1, function(treat_row) {
-          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
-            filter(all_treatment_id != treat_row$all_treatment_id) %>% 
-            pull(obs_index)
-        })
-      
-      observed_stratum_treatment <- ate_treatments %>%
-        plyr::adply(1, function(treat_row) {
-          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) %>% 
-            filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-            select(stratum, obs_index)
-        })
-    } else {
-      missing_treatment <- ate_treatments$all_treatment_id %>%
-        map(~ filter(prepared_analysis_data, all_treatment_id != .x) %>% pull(obs_index))
-      
-      observed_stratum_treatment <- ate_treatments$all_treatment_id %>%
-        map(~ filter(prepared_analysis_data, all_treatment_id == .x) %>% select(stratum, obs_index))
     }
+      
+    missing_treatment <- ate_treatments %>%
+      plyr::alply(1, function(treat_row) {
+        (if (!is_empty(subgroup_col)) {
+          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+        } else { prepared_analysis_data }) %>% 
+          filter(all_treatment_id != treat_row$all_treatment_id) %>% 
+          pull(obs_index)
+      })
+    
+    observed_stratum_treatment <- ate_treatments %>%
+      plyr::adply(1, function(treat_row) {
+        (if (!is_empty(subgroup_col)) {
+          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+        } else { prepared_analysis_data }) %>% 
+          filter(all_treatment_id == treat_row$all_treatment_id) %>% 
+          select(stratum, obs_index)
+      })
     
     observed_treatment <- observed_stratum_treatment %>% 
       group_by(all_treatment_id) %>% 
