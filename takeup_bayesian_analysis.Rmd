@@ -2080,7 +2080,8 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   estimate_ate = 1
 )
 
-model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
+# model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
+model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_hazard.stan", model_name = "model_3_gp_hazard")
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
