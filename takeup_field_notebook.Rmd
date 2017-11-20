@@ -329,7 +329,7 @@ tu.data.reader <- function(file.name, submit.datetime.type = NULL, .other.types 
     filter(deviceid != "(web)") %>% 
     mutate(lon = ifelse(is.na(lon), manual_long, lon),
            lat = ifelse(is.na(lat), manual_lat, lat)) %>% 
-    validate.coords
+    validate.coords()
 }
 
 hh.census.data.pre24th <- tu.data.reader("data/census_gps_util23.csv", 
@@ -1569,8 +1569,8 @@ census.data <- list(wave.1.baseline.individuals,
   filter(individual.sample.order <= 2) %>% 
   right_join(census.data, "KEY.individ") %>% 
   left_join(select(hh.census.data, KEY, baseline.sample.wave), "KEY") %>% 
-  mutate(individ.baseline.sample = !is.na(individual.sample.order),
-         hh.baseline.sample = !is.na(baseline.sample.wave))
+  mutate(individ.baseline.sample.pool = !is.na(individual.sample.order),
+         hh.baseline.sample.pool = !is.na(baseline.sample.wave))
 ```
 
 
@@ -1891,7 +1891,7 @@ census.data %<>%
   right_join(combined.sms.sample, ., "KEY.individ", suffix = c(".sms.recruit", ".census")) %>% 
   mutate(phone = ifelse(nchar(phone) == 10 & str_sub(phone, 1, 1) == "0", str_sub(phone, 2), phone),
          phone = ifelse(!is.na(phone), paste0("+254", phone), NA),
-         monitored = (!is.na(sms.treatment) & (sms.treatment == "sms.control" | (!is.na(sms.consent) & sms.consent))) | individ.baseline.sample,
+         monitored = (!is.na(sms.treatment) & (sms.treatment == "sms.control" | (!is.na(sms.consent) & sms.consent))) | individ.baseline.sample.pool,
          true.monitored = (wave == 2 & monitored) | KEY.individ %in% takeup.dict$KEY.individ)
 ```
 
@@ -2332,15 +2332,85 @@ is.out.of.boundary <- function(cluster.hh.data, boundary.data) tryCatch({
 })
 ```
 
-
 ```{r baseline-data}
+census_dict <- census.data %>% 
+  mutate_at(vars(name1st, name_mid, name2nd, hhh_name2nd, hhh_full_name), . %>% coalesce("") %>% str_trim() %>% str_to_upper()) %>% 
+  transmute(
+    cluster.id, village, KEY, KEY.individ, hhh_name1st, hhh_name2nd, name1st, age.census,
+    name_census = sprintf("%s %s %s", name1st, name_mid, name2nd) %>% str_replace_all("\\s+", " "),
+    hhh_name = hhh_full_name %>% str_replace_all("\\s+", " "))
+
+baseline_sample_list_0 <- read_csv(file.path("data", "baseline_sample_list.csv")) 
+
+baseline_sample_list <- baseline_sample_list_0 %>% 
+  mutate(name = str_replace_all(name, "\\s+", " "),
+         hhh_last_name = hhh_name %>% str_trim() %>% str_extract("\\S+$") %>% str_to_upper()) %>% 
+  left_join(select(census_dict, cluster.id, village, name_census, hhh_name2nd, KEY.individ, KEY), c("name" = "name_census", "cluster_key" = "cluster.id", "village_code" = "village", "hhh_last_name" = "hhh_name2nd"))
+
+# Up to this point, 15 with duplicate households (count(person_key) %>% filter(n > 1)) and 191 unidentified
+
+baseline_sample_list %<>% {
+  bind_rows(filter(., !is.na(KEY.individ)),
+            filter(., is.na(KEY.individ)) %>%
+              select(-KEY) %>% 
+              left_join(distinct(census_dict, cluster.id, hhh_name2nd, KEY), c("cluster_key" = "cluster.id", "hhh_last_name" = "hhh_name2nd")))
+}
+
+# Up to this point, 31 with duplicate households (count(person_key) %>% filter(n > 1)) and 160 unidentified
+
 baseline.data <- tu.data.reader(raw.data.path("Baseline Survey.csv")) %>% 
   filter(SubmissionDate >= "2016-09-05", 
          !is.na(present) & present == 1, 
          !is.na(consent) & consent == 1) %>% 
   select(-county) %>% 
-  left_join(filter(., !invalid.coord) %>% identify.closest.cluster, "KEY") %>% 
-  left_join(cluster.wave.county.data, "cluster.id")
+  left_join(filter(., !invalid.coord) %>% identify.closest.cluster, "KEY") %>%
+  left_join(cluster.wave.county.data, "cluster.id") %>% 
+  filter(!is.na(wave)) 
+```
+
+```{r, eval=FALSE}
+baseline.data %<>% 
+  rename(KEY.survey = KEY) %>% 
+  mutate(name_census = str_replace_all(name_census, "\\s+", " ") %>% str_trim(),
+         hhh_name = str_replace_all(hhh_name, "\\s+", " ") %>% str_to_upper() %>% str_trim(),
+         hhh_first_name = str_extract(hhh_name, "^\\w+"),
+         hhh_last_name = str_extract(hhh_name, "\\S+$")) 
+
+baseline.data.w2 <- baseline.data %>% 
+  filter(wave == 2) %>% 
+  left_join(select(baseline_sample_list, person_key, person_id, KEY, KEY.individ), c("person" = "person_key"))
+
+# Wave 2: 5 duplicates (KEY.survey) and 23 unidentified
+
+baseline.data.w1 <- baseline.data %>% 
+  filter(wave == 1) %>% 
+  left_join(distinct(baseline_sample_list, cluster_key, village_code, KEY, hhh_last_name), 
+            c("cluster.id" = "cluster_key", "village" = "village_code", "hhh_last_name" = "hhh_last_name"))
+
+# Wave 1: 94 duplicates and 139 unidentified
+
+baseline.data.w1.dup <- baseline.data.w1 %>% 
+  filter(!is.na(KEY)) %>% 
+  add_count(KEY.survey) %>% 
+  filter(n > 1) %>%
+  select(-c(KEY, n)) %>% 
+  left_join(select(baseline_sample_list, cluster_key, village_code, name, KEY, hhh_last_name), 
+            c("cluster.id" = "cluster_key", "village" = "village_code", "hhh_last_name" = "hhh_last_name")) %>% 
+  mutate(namesearch_match = str_detect(name, regex(sprintf("^%s", namesearch), ignore_case = TRUE))) %>% 
+  group_by(KEY.survey) %>% 
+  filter(!any(namesearch_match) | namesearch_match) %>% 
+  ungroup() %>%
+  add_count(KEY.survey) %>% {
+    bind_rows(filter(., n == 1),
+              filter(., n > 1) %>% 
+                select(-c(name)) %>% 
+                distinct(KEY.survey, KEY, .keep_all = TRUE))
+  }
+
+# Down to 16 duplicates
+
+baseline.data.w1.unmatched <- baseline.data.w1 %>% 
+  filter(is.na(KEY))
 ```
 
 ```{r}

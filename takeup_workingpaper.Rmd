@@ -37,7 +37,6 @@ library(ggmap)
 library(gridExtra)
 library(rgeos)
 library(sp)
-library(stringr)
 library(knitr)
 library(modelr)
 library(car)
@@ -59,7 +58,6 @@ options(dplyr.show_progress = FALSE, digits = 4)
 opts_chunk$set(echo = FALSE, warning = FALSE, 
                cache = TRUE, cache.path = "takeup_workingpaper-cache/", 
                fig.path = "takeup_workingpaper-fig/", fig.align = "center")
-
 ```
 
 ```{r proj4}
@@ -1024,7 +1022,7 @@ In this section we report the posterior distributions of^[Keep in mind that show
 ```{r, ref.label="dyn-stan-data"}
 ```
 
-```{r, ref.label="load-dyn-model-fit", include=FALSE}
+```{r, ref.label="old-load-dyn-model-fit", include=FALSE}
 ```
 
 ```{r, ref.label="dyn-model-sim-params"}

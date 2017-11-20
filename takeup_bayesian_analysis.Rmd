@@ -60,8 +60,6 @@ num_cores <- tryCatch({
 }, error = function(err) parallel::detectCores())
 
 cl <- parallel::makeCluster(max(1, num_cores))
-# doMC::registerDoMC(max(1, parallel::detectCores() - 1))
-# doParallel::registerDoParallel(cores = config$cores)
 doParallel::registerDoParallel(cl)
 ```
 
@@ -73,6 +71,11 @@ rstan_options(auto_write = TRUE)
 ```{r load-bayes-data, include=FALSE}
 load(file.path("data", "analysis.RData"))
 ```
+
+```{r, model-versions}
+dyn_param_fit_ver <- 5
+```
+
 
 # Common Notation
 
@@ -255,8 +258,8 @@ param_sms_control_ate <- tribble(
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
-  mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control",
-         hh.baseline.sample = FALSE) %>% 
+  mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control") %>% 
+         # hh.baseline.sample = FALSE) %>% 
   mutate_at(vars(name_matched, phone_owner), as.logical)
 
 param_phone_owners_ate <- tribble(
@@ -283,8 +286,8 @@ param_phone_owners_ate <- tribble(
 ) %>%
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
   mutate(phone_owner = TRUE,
-         name_matched = FALSE,
-         hh.baseline.sample = FALSE) 
+         name_matched = FALSE)
+         # hh.baseline.sample = FALSE) 
 
 param_all_ate <- bind_rows(param_sms_control_ate, param_phone_owners_ate) 
 ```
@@ -310,7 +313,8 @@ static_analysis_data <- analysis.data %>%
   filter(!name_matched | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 static_treatment_map <- static_analysis_data %>% 
-  data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner, name_matched) %>% 
+  # data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner, name_matched) %>% 
+  data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, phone_owner, name_matched) %>% 
   filter(phone_owner | sms.treatment.2 == "sms.control",
         (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
          private_value != "calendar" | social_value == "control",
@@ -324,7 +328,8 @@ param_stan_data <- static_analysis_data %>%
     
     prepared_treatment_maps = TRUE, 
     treatment_map = static_treatment_map,
-    treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+    # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+    treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner * name_matched,
     
     all_ate = param_all_ate,
     
@@ -795,18 +800,36 @@ dyn_analysis_data <- analysis.data %>%
          incentive_shift = private_value,
          dyn_dist_pot = dist.pot.group,
          reminder_info_stock = sms.treatment.2) %>% 
-  filter(!name_matched, !hh.baseline.sample)
+  # filter(!name_matched, !hh.baseline.sample, sms.treatment.2 == "control", !phone_owner)
+  filter(!name_matched)
   # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
-dyn_dyn_treatment_maps <- lst(formula = ~ (poly(days_observed, 2, raw = TRUE) * (signal_observed + incentive_shift) + 
-                                             poly(days_sms, 2, raw = TRUE) * reminder_info_stock) * dyn_dist_pot * phone_owner,
-                              trends = tibble(days_observed = 0:11,
-                                              days_sms = rep(0:5, each = 2))) %>% 
+dyn_dyn_treatment_maps <- lst(
+  formula = ~ (poly(days_observed, 2, raw = TRUE) * (signal_observed + incentive_shift) - poly(days_observed, 2, raw = TRUE) +
+                 poly(days_sms, 2, raw = TRUE) * reminder_info_stock - poly(days_sms, 2, raw = TRUE)) * dyn_dist_pot * phone_owner - dyn_dist_pot * phone_owner,
+  trends = tibble(days_observed = drop(scale(0:11)),
+                  days_sms = rep(drop(scale(0:5)), each = 2)),
+                  scale = FALSE) %>%
   prepare_dynamic_treatment_maps(dyn_analysis_data)
 
+# dyn_dyn_treatment_maps <- lst(
+#   formula = ~ (poly(days_observed, 1, raw = TRUE) * (signal_observed + incentive_shift) - poly(days_observed, 1, raw = TRUE) +
+#                  poly(days_sms, 1, raw = TRUE) * reminder_info_stock - poly(days_sms, 1, raw = TRUE)) * dyn_dist_pot * phone_owner - dyn_dist_pot * phone_owner,
+#   trends = tibble(days_observed = drop(scale(0:11)),
+#                   days_sms = rep(drop(scale(0:5)), each = 2)),
+#                   scale = FALSE) %>%
+#   prepare_dynamic_treatment_maps(dyn_analysis_data)
+
+# dyn_dyn_treatment_maps <- lst(
+#   formula = ~ (poly(days_observed, 2, raw = TRUE) * (signal_observed + incentive_shift) - poly(days_observed, 2, raw = TRUE)) * dyn_dist_pot - dyn_dist_pot,
+#   trends = tibble(days_observed = drop(scale(0:11)),
+#                   scale = FALSE)) %>%
+#   prepare_dynamic_treatment_maps(dyn_analysis_data)
+
 dyn_static_treatment_map <- dyn_analysis_data %>% 
-  data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2, 
-            hh.baseline.sample, phone_owner, name_matched) %>% 
+  data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2,
+            phone_owner) %>% #, name_matched) %>%
+  # data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, dist.pot.group) %>% 
   prepare_treatment_map(dyn_dyn_treatment_maps)
 ```
 
@@ -833,7 +856,7 @@ dyn_sms_control_ate <- tribble(
   bind_rows(
     tribble(
       ~ private_value_left, ~ incentive_shift_left,  ~ private_value_right, ~ incentive_shift_right,
-      "calendar",  "calendar",     "calendar",   "control" 
+      "calendar",           "calendar",              "calendar",            "control" 
     ) %>% 
     mutate(social_value_left = "control",
            social_value_right = "control",
@@ -857,15 +880,16 @@ dyn_sms_control_ate <- tribble(
   ) %>% 
   bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
   bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
-  # bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
+  bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
   mutate(sms.treatment.2_left = "control", 
          sms.treatment.2_right = "control",
          name_matched = FALSE,
-         # hh.baseline.sample = FALSE, 
+         # hh.baseline.sample = FALSE,
          reminder_info_stock_left =  sms.treatment.2_left,
          reminder_info_stock_right = sms.treatment.2_right) %>% 
   mutate_at(vars(phone_owner, name_matched), as.logical) %>%
-  mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group)))
+  mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) %>% 
+  filter(!name_matched) %>% select(-name_matched)
 
 dyn_phone_owners_ate <- tribble(
   ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -966,56 +990,13 @@ dyn_phone_owners_ate <- tribble(
     # hh.baseline.sample = FALSE, 
     name_matched = FALSE
   ) %>%
-  mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) 
+  mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) %>% 
+  select(-name_matched)
   # bind_rows(filter(., sms.treatment.2_left == "control" & sms.treatment.2_right == "control") %>% mutate(name_matched = TRUE))
 
 dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
 
 assertthat::assert_that(all(map_lgl(dyn_all_ate, ~ !any(is.na(.)))))
-```
-
-```{r dyn-extra-treatments, eval=FALSE}
-dyn_extra_treatments <- 
-  tribble(
-    ~ private_value, ~ social_value, ~ signal_observed, ~ reminder_info_stock, ~ sms.treatment.2, ~ days_observed, ~ days_sms,
-    
-    "control",       "control",      "control",         "control",             "reminder.only",   12,              12,
-    
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              4,
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              6,
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              8,
-    "control",       "control",      "control",         "reminder.only",       "reminder.only",   12,              10,
-    
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              4,
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              6,
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              8,
-    "control",       "control",      "control",         "social.info",         "social.info",     12,              10,
-    
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              4,
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              6,
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              8,
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              10,
-    
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              4,
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              6,
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              8,
-    "calendar",      "control",      "control",         "social.info",         "social.info",     12,              10,
-    
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              4,
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              6,
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              8,
-    "control",       "bracelet",     "control",         "social.info",         "social.info",     12,              10,
-    
-    "control",       "ink",          "control",         "social.info",         "social.info",     12,              12
-  )
-# expand(dist.pot.group = c("close", "far"), nesting_(names(.)))
-
-    # "control",       "ink",          "ink",             "control",             "sms.control",     0,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     2,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     4,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     6,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     8,               12,
-    # "control",       "ink",          "ink",             "control",             "sms.control",     10,              12,
 ```
 
 ```{r dyn-model-data, warning=FALSE}
@@ -1029,8 +1010,11 @@ dyn_stan_data <- prepare_bayesian_analysis_data(
     
   # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
   treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  # treatment_formula = ~ (private_value + social_value * dist.pot.group),
+  subgroup_col = "phone_owner",
     
-  all_ate = dyn_all_ate, 
+  all_ate = dyn_all_ate,
+  # all_ate = select(dyn_sms_control_ate, -contains("sms.treatment.2"), -contains("reminder_info_stock"), -contains("phone_owner")),
   
   scale_df = 7,
   scale_sigma = 1,
@@ -1047,40 +1031,52 @@ dyn_stan_data <- prepare_bayesian_analysis_data(
   sigma_wtp_df_student_t = 2.5,
   sigma_ksh_util_gamma = 5,
   
-  estimate_ate = 1
+  estimate_ate = 0
 )
 
 basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
 ```
 
-
 ```{r basic-model-2-simple-centered, eval=FALSE}
-basic_model_2_simple_fit <- dyn_stan_data %>% 
-  sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
-           sample_file = file.path("stanfit", "basic_model_2_simple_centered_5.csv")) 
+dyn_param_fit_ver <- "testing"
 
-save(dyn_stan_data, file = file.path("stan_analysis_data", "model_2_5.RData"))
+basic_model_2_simple_fit <- sampling(
+  basic_model_2_simple, data = dyn_stan_data, 
+  chains = 8, iter = 800, 
+  sample_file = file.path("stanfit", str_interp("basic_model_2_simple_centered_${dyn_param_fit_ver}.csv"))
+) 
+
+save(dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_2_${dyn_param_fit_ver}.RData")))
 ```
 
 ```{r basic-model-2-simple-debug, eval=FALSE}
-basic_model_2_simple_fit <- dyn_stan_data %>% 
-  sampling(basic_model_2_simple, data = ., #init = .$dynamic_initializer,
-           chains = 8, iter = 100, control = lst(max_treedepth = 15)) # adapt_delta = 0.99, 
+basic_model_2_simple <- stan_model(file = "takeup_model_2_simple_centered.stan", model_name = "model_2_simple")
+basic_model_2_simple_fit_debug <- sampling(basic_model_2_simple, data = dyn_stan_data, chains = 1, iter = 1, control = lst(max_treedepth = 15)) 
 ```
 
 
 ### Posterior Simulation
 
 ```{r old-load-dyn-model-fit}
-basic_model_2_simple_fit <- dir("stanfit", pattern = "basic_model_2_simple_centered_4_[1-8].csv", full.names = TRUE) %>% 
+basic_model_2_simple_fit <- dir("stanfit", pattern = str_interp("basic_model_2_simple_centered_${dyn_param_fit_ver}_[1-8].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
 basic_model_2_simple_fit %>% 
   get_sampler_params(inc_warmup = FALSE) %>% 
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
+
+load(file.path("stan_analysis_data", str_interp("model_2_${dyn_param_fit_ver}.RData")))
 ```
+
+```{r}
+print(basic_model_2_simple_fit, par = c("hyper_baseline_cond_takeup"))
+print(basic_model_2_simple_fit, par = c("stratum_baseline_cond_takeup"))
+print(basic_model_2_simple_fit, par = c("stratum_hazard_effect"))
+print(basic_model_2_simple_fit, par = c("stratum_hazard_frailty_var"))
+print(basic_model_2_simple_fit, par = c("est_takeup"))
+```
+
 
 In this section we're carrying out our analysis based on the Bayesian simulated parameters. Here we are estimating the posterior distribution of the _finite sample mean of the probability of deworming take-up_.
 
@@ -1168,7 +1164,7 @@ fast_treatments <- tribble(
   "bracelet",           "bracelet" 
 ) %>% 
   mutate(signal_observed = social_value,
-         hh.baseline.sample = FALSE,
+         # hh.baseline.sample = FALSE,
          # These are old columns that we're no longer using, but to avoid redundant simulation we set them to a single value
          days_observed = 12, 
          days_sms = 12) %>% 
@@ -2028,28 +2024,111 @@ bind_rows(observe = fast_sim_ate %>%
   theme(legend.position = "bottom")
 ```
 
+## Non-parameteric Model
 
-### Finite Sample Treatment Effects 
+```{r nonparam-dyn-analysis-data}
+nonparam_dyn_analysis_data <- analysis.data %>%
+  mutate(private_value = fct_collapse(assigned.treatment, 
+                                      control = c("control", "ink"), 
+                                      "calendar" = c("calendar", "bracelet")), 
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control"),
+         signal_observed = social_value,
+         incentive_shift = private_value,
+         dyn_dist_pot = dist.pot.group,
+         reminder_info_stock = sms.treatment.2) %>% 
+  filter(!name_matched) #, !hh.baseline.sample)
+  # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
-```{r load-dyn-model-fit}
-dyn_model_version <- 5
+nonparam_dyn_treatment_maps <- lst(formula = ~ (days_observed : (signal_observed + incentive_shift + reminder_info_stock)) : dyn_dist_pot,
+                                   trends = tibble(days_observed = 1:12),
+                                   scale = FALSE) %>% 
+  prepare_dynamic_treatment_maps(nonparam_dyn_analysis_data)
 
-basic_model_2_simple_fit <- dir("stanfit", pattern = str_interp("basic_model_2_simple_centered_${dyn_model_version}_[1-8].csv"), full.names = TRUE) %>% 
+nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
+  data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2, 
+            # hh.baseline.sample, phone_owner, name_matched) %>% 
+            phone_owner, name_matched) %>% 
+  prepare_treatment_map(nonparam_dyn_treatment_maps)
+```
+
+
+```{r nonparam-dyn-model-data, warning=FALSE}
+nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
+  nonparam_dyn_analysis_data,
+  wtp.data, 
+   
+  prepared_treatment_maps = TRUE, 
+  treatment_map = nonparam_dyn_static_treatment_map,
+  dynamic_treatment_map = nonparam_dyn_treatment_maps,
+    
+  # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
+  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  
+  all_ate = dyn_all_ate, 
+  
+  scale_df = 7,
+  scale_sigma = 1,
+  scale_sigma_dynamic = 1,
+ 
+  coef_df = 7,
+  coef_sigma = 1,
+  coef_sigma_dynamic = 5,
+  
+  wtp_utility_df = 3,
+  tau_mu_wtp_diff = 100,
+  mu_wtp_df_student_t = 7,
+  tau_sigma_wtp_diff = 50,
+  sigma_wtp_df_student_t = 2.5,
+  sigma_ksh_util_gamma = 5,
+  
+  estimate_ate = 1
+)
+
+model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
+```
+
+```{r model-3-gp-nonparam, eval=FALSE}
+model_3_fit <- nonparam_dyn_stan_data %>% 
+  sampling(model_3_gp_nonparam, data = ., 
+           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           sample_file = file.path("stanfit", "model_3_gp_nonparam.csv")) 
+
+save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", "model_3_1.RData"))
+```
+
+```{r model-3-gp-nonparam-debug, eval=FALSE}
+model_3_fit_debug <- nonparam_dyn_stan_data %>% 
+  sampling(model_3_gp_nonparam, data = ., 
+           chains = 2, iter = 20, control = lst(max_treedepth = 15))
+```
+
+```{r load-nonparam-dyn-model-fit}
+dyn_model_version <- 1
+
+model_3_fit <- dir("stanfit", pattern = str_interp("model_3_gp_nonparam_${dyn_model_version}_[1-8].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
-basic_model_2_simple_fit %>% 
+model_3_fit %>% 
   get_sampler_params(inc_warmup = FALSE) %>% 
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
 
-load(file.path("stan_analysis_data", str_interp("model_2_${dyn_model_version}.RData")))
+load(file.path("stan_analysis_data", str_interp("model_3_${dyn_model_version}.RData")))
+```
+
+### Finite Sample Treatment Effects 
+
+
+```{r}
+model_3_fit %>% print(pars = c("hyper_dyn_rho", "hyper_dyn_alpha"))
 ```
 
 ```{r}
-basic_model_2_simple_fit %>% 
-  print(pars = c("hyper_baseline_cond_takeup", "hyper_baseline_hazard", 
-                 "stratum_hazard_effect", "stratum_hazard_frailty_var", 
-                 sprintf("cluster_hazard_effect[%d]", 1:10), "cluster_hazard_frailty_var"))
+model_3_fit@model_pars
+model_3_fit %>% print(pars = c("est_takeup"))
+model_3_fit %>% print(pars = c("day_constant_latent_var"))
+model_3_fit %>% print(pars = c("est_deworming_days"))
 ```
 
 ```{r dyn-model-prep-data}
