@@ -1,31 +1,11 @@
 functions {
-  
-    // treatment_cell_takeup = treatment_cell_takeup_rng(ate_treatments,
-    //                                                   missing_obs_ids,
-    //                                                   observed_obs_ids,
-    //                                                   missing_treatment_stratum_id,
-    //                                                   missing_treatment_cluster_id,
-    //                                                   // private_value_calendar_coef,
-    //                                                   // private_value_bracelet_coef,
-    //                                                   missing_census_covar_dm,
-    //                                                   treatment_map_design_matrix,
-    //                                                   missing_treatment_sizes,
-    //                                                   observed_treatment_sizes,
-    //                                                   // cluster_effects,
-    //                                                   // hyper_census_covar_coef,
-    //                                                   cluster_beta_mat,
-    //                                                   cluster_census_covar_coef_mat,
-    //                                                   observed_takeup_total);
   vector treatment_cell_takeup_rng(int[] treatment_ids, 
                                    int[] missing_obs_ids, 
-                                   int[] observed_obs_ids, 
                                    int[] missing_cluster_id,
-                                   matrix missing_census_covar_dm,
-                                   matrix treatment_map_dm,
                                    int[] missing_treatment_sizes,
                                    int[] observed_treatment_sizes,
-                                   matrix cluster_treatment_coef,
-                                   matrix cluster_census_covar_coef,
+                                   matrix cluster_treat_latent_utility,
+                                   vector census_covar_latent_utility,
                                    int[] observed_takeup_total) { 
     int num_treatment_ids = size(treatment_ids);
     vector[num_treatment_ids] cell_takeup_prop;
@@ -39,8 +19,8 @@ functions {
       int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
       
       vector[curr_missing_treatment_size] missing_latent_utility =
-        cluster_treatment_coef[missing_cluster_id[missing_treatment_pos:missing_treatment_end]] * treatment_map_dm[treatment_ids[treatment_ids_index]]' +
-        rows_dot_product(cluster_census_covar_coef[missing_cluster_id[missing_treatment_pos:missing_treatment_end]], missing_census_covar_dm[missing_treatment_pos:missing_treatment_end]);
+        cluster_treat_latent_utility[treatment_ids_index, missing_cluster_id[missing_treatment_pos:missing_treatment_end]]' +
+        census_covar_latent_utility[missing_obs_ids[missing_treatment_pos:missing_treatment_end]];
       
       vector[curr_missing_treatment_size] all_takeup;
       
@@ -167,8 +147,8 @@ parameters {
 transformed parameters {
   real hyper_intercept = logit(hyper_baseline_takeup);
 
-  matrix[num_clusters, num_all_treatment_coef] cluster_beta_mat;
-  matrix[num_clusters, num_census_covar_coef] cluster_census_covar_coef_mat;
+  matrix[num_all_treatment_coef, num_clusters] cluster_beta_mat;
+  vector[num_obs] census_covar_latent_utility = rep_vector(0, num_obs);
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
   
   {
@@ -180,16 +160,23 @@ transformed parameters {
 
       vector[num_all_treatment_coef] combined_cluster_beta = 
         stratum_beta[cluster_stratum_ids[cluster_index]] + cluster_beta[cluster_index];
+        
       vector[num_census_covar_coef] combined_cluster_census_covar_coef = 
         stratum_census_covar_coef[cluster_stratum_ids[cluster_index]] + cluster_census_covar_coef[cluster_index];
 
+      census_covar_latent_utility[cluster_obs_ids[cluster_pos:cluster_end]] =
+        census_covar_dm[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_census_covar_coef;
+        
       latent_utility[cluster_obs_ids[cluster_pos:cluster_end]] =
-        census_covar_dm[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_census_covar_coef +
+        census_covar_latent_utility[cluster_obs_ids[cluster_pos:cluster_end]] +
+        census_covar_dm[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_census_covar_coef + 
         treatment_design_matrix[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_beta; 
 
       cluster_pos = cluster_end + 1;
-      cluster_beta_mat[cluster_index] = combined_cluster_beta';
-      cluster_census_covar_coef_mat[cluster_index] = combined_cluster_census_covar_coef';
+      
+      if (estimate_ate) {
+        cluster_beta_mat[, cluster_index] = combined_cluster_beta;
+      }
     }
   }
 }
@@ -232,16 +219,15 @@ generated quantities {
   vector<lower = -1, upper = 1>[num_ate_pairs] treatment_cell_ate;
   
   if (estimate_ate) {
+    matrix[num_ate_treatments, num_clusters] cluster_treat_latent_utility = treatment_map_design_matrix[ate_treatments] * cluster_beta_mat;
+    
     treatment_cell_takeup = treatment_cell_takeup_rng(ate_treatments,
                                                       missing_obs_ids,
-                                                      observed_obs_ids,
                                                       missing_treatment_cluster_id,
-                                                      missing_census_covar_dm,
-                                                      treatment_map_design_matrix,
                                                       missing_treatment_sizes,
                                                       observed_treatment_sizes,
-                                                      cluster_beta_mat,
-                                                      cluster_census_covar_coef_mat,
+                                                      cluster_treat_latent_utility,
+                                                      census_covar_latent_utility,
                                                       observed_takeup_total);
 
     treatment_cell_ate = treatment_cell_takeup[ate_pairs[, 1]] - treatment_cell_takeup[ate_pairs[, 2]];
