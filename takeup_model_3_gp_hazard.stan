@@ -310,7 +310,6 @@ transformed parameters {
       stratum_census_covar_coef_mat[, strata_index] = stratum_census_covar_coef[strata_index];
     } 
   }
- 
 }
 
 model {

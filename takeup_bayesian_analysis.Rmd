@@ -2108,7 +2108,7 @@ model_3_fit %>%
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
 
-load(file.path("stan_analysis_data", str_interp("model_3_${nonparam_dyn_fit_version}.RData")))
+load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
 ```
 
 ### Finite Sample Treatment Effects 
