@@ -121,95 +121,94 @@ transformed data {
 }
 
 parameters {
-  // Modelled parameters
-  real<lower = 0, upper = 1> hyper_baseline_takeup; // Completely uninformed prior
+  // Hyper parameters
+  real<lower = 0, upper = 1> hyper_baseline_takeup; // Uniform[0, 1] prior 
 
   vector[num_all_treatment_coef - 1] hyper_beta; // Non intercept hyperparameters
   vector[num_census_covar_coef] hyper_census_covar_coef;
-
-  vector[num_all_treatment_coef] stratum_beta[num_strata];
-  vector<lower = 0>[num_all_treatment_coef] stratum_tau_treatment;
-  corr_matrix[num_all_treatment_coef] stratum_beta_corr_mat;
-
-  vector[num_all_treatment_coef] cluster_beta[num_clusters];
-  vector<lower = 0>[num_all_treatment_coef] cluster_tau_treatment;
-  corr_matrix[num_all_treatment_coef] cluster_beta_corr_mat;
-
-  vector[num_census_covar_coef] stratum_census_covar_coef[num_strata];
-  vector<lower = 0>[num_census_covar_coef] stratum_tau_census_covar;
-  corr_matrix[num_census_covar_coef] stratum_census_covar_corr_mat;
   
-  vector[num_census_covar_coef] cluster_census_covar_coef[num_clusters];
+  // Stratum level parameters
+
+  vector<lower = 0>[num_all_treatment_coef] stratum_tau_treatment;
+  matrix[num_all_treatment_coef, num_strata] stratum_beta_z;
+  cholesky_factor_corr[num_all_treatment_coef] L_stratum_beta_corr_mat;
+
+  vector<lower = 0>[num_census_covar_coef] stratum_tau_census_covar;
+  matrix[num_census_covar_coef, num_strata] stratum_census_covar_z;
+  cholesky_factor_corr[num_census_covar_coef] L_stratum_census_covar_corr_mat;
+  
+  // Cluster level parameters
+  
+  vector<lower = 0>[num_all_treatment_coef] cluster_tau_treatment;
+  matrix[num_all_treatment_coef, num_clusters] cluster_beta_z;
+  cholesky_factor_corr[num_all_treatment_coef] L_cluster_beta_corr_mat;
+  
   vector<lower = 0>[num_census_covar_coef] cluster_tau_census_covar;
-  corr_matrix[num_census_covar_coef] cluster_census_covar_corr_mat;
+  matrix[num_census_covar_coef, num_clusters] cluster_census_covar_z;
+  cholesky_factor_corr[num_census_covar_coef] L_cluster_census_covar_corr_mat;
 }
 
 transformed parameters {
   real hyper_intercept = logit(hyper_baseline_takeup);
+  
+  matrix[num_all_treatment_coef, num_strata] stratum_beta = 
+    rep_matrix(append_row(hyper_intercept, hyper_beta), num_strata) + (diag_pre_multiply(stratum_tau_treatment, L_stratum_beta_corr_mat) * stratum_beta_z);
+    
+  matrix[num_all_treatment_coef, num_clusters] cluster_beta =  
+    stratum_beta[, cluster_stratum_ids] + (diag_pre_multiply(cluster_tau_treatment, L_cluster_beta_corr_mat) * cluster_beta_z);
 
-  matrix[num_all_treatment_coef, num_clusters] cluster_beta_mat;
   vector[num_obs] census_covar_latent_utility = rep_vector(0, num_obs);
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
   
   {
+    matrix[num_census_covar_coef, num_strata] stratum_census_covar_coef =
+      rep_matrix(hyper_census_covar_coef, num_strata) + (diag_pre_multiply(stratum_tau_census_covar, L_stratum_census_covar_corr_mat) * stratum_census_covar_z);
+    matrix[num_census_covar_coef, num_clusters] cluster_census_covar_coef =
+        stratum_census_covar_coef[, cluster_stratum_ids] + (diag_pre_multiply(cluster_tau_census_covar, L_cluster_census_covar_corr_mat) * cluster_census_covar_z);
+    
     int cluster_pos = 1;
 
     for (cluster_index in 1:num_clusters) {
       int curr_cluster_size = cluster_sizes[cluster_index];
       int cluster_end = cluster_pos + curr_cluster_size - 1;
 
-      vector[num_all_treatment_coef] combined_cluster_beta = 
-        stratum_beta[cluster_stratum_ids[cluster_index]] + cluster_beta[cluster_index];
-        
-      vector[num_census_covar_coef] combined_cluster_census_covar_coef = 
-        stratum_census_covar_coef[cluster_stratum_ids[cluster_index]] + cluster_census_covar_coef[cluster_index];
-
       census_covar_latent_utility[cluster_obs_ids[cluster_pos:cluster_end]] =
-        census_covar_dm[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_census_covar_coef;
+        census_covar_dm[cluster_obs_ids[cluster_pos:cluster_end]] * cluster_census_covar_coef[, cluster_index];
         
       latent_utility[cluster_obs_ids[cluster_pos:cluster_end]] =
         census_covar_latent_utility[cluster_obs_ids[cluster_pos:cluster_end]] +
-        census_covar_dm[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_census_covar_coef + 
-        treatment_design_matrix[cluster_obs_ids[cluster_pos:cluster_end]] * combined_cluster_beta; 
+        treatment_design_matrix[cluster_obs_ids[cluster_pos:cluster_end]] * cluster_beta[, cluster_index]; 
 
       cluster_pos = cluster_end + 1;
-      
-      if (estimate_ate) {
-        cluster_beta_mat[, cluster_index] = combined_cluster_beta;
-      }
     }
   }
 }
 
 model {
+  // Hyper parameter sampling
+  
   hyper_beta ~ student_t(coef_df, 0, coef_sigma); 
   hyper_census_covar_coef ~ student_t(coef_df, 0, coef_sigma);
   
-  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
-  stratum_beta_corr_mat ~ lkj_corr(lkj_df);
+  // Stratum level parameter sampling
   
-  cluster_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
-  cluster_beta_corr_mat ~ lkj_corr(lkj_df);
+  stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
+  to_vector(stratum_beta_z) ~ normal(0, 1);
+  L_stratum_beta_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
   stratum_tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
-  stratum_census_covar_corr_mat ~ lkj_corr(lkj_df);
+  to_vector(stratum_census_covar_z) ~ normal(0, 1);
+  L_stratum_census_covar_corr_mat ~ lkj_corr_cholesky(lkj_df);
+  
+  // Cluster level parameter sampling
+  
+  cluster_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
+  to_vector(cluster_beta_z) ~ normal(0, 1);
+  L_cluster_beta_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
   cluster_tau_census_covar ~ student_t(scale_df, 0, scale_sigma);
-  cluster_census_covar_corr_mat ~ lkj_corr(lkj_df);
-
-  {
-    matrix[num_all_treatment_coef, num_all_treatment_coef] stratum_beta_vcov_mat = quad_form_diag(stratum_beta_corr_mat, stratum_tau_treatment);
-    matrix[num_all_treatment_coef, num_all_treatment_coef] cluster_beta_vcov_mat = quad_form_diag(cluster_beta_corr_mat, cluster_tau_treatment);
-    
-    matrix[num_census_covar_coef, num_census_covar_coef] stratum_census_covar_vcov_mat = quad_form_diag(stratum_census_covar_corr_mat, stratum_tau_census_covar);
-    matrix[num_census_covar_coef, num_census_covar_coef] cluster_census_covar_vcov_mat = quad_form_diag(cluster_census_covar_corr_mat, cluster_tau_census_covar);
-
-    stratum_beta ~ multi_student_t(coef_df, append_row(hyper_intercept, hyper_beta), stratum_beta_vcov_mat);
-    cluster_beta ~ multi_student_t(coef_df, rep_vector(0, num_all_treatment_coef), cluster_beta_vcov_mat);
-    
-    stratum_census_covar_coef ~ multi_student_t(coef_df, hyper_census_covar_coef, stratum_census_covar_vcov_mat);
-    cluster_census_covar_coef ~ multi_student_t(coef_df, rep_vector(0, num_census_covar_coef), cluster_census_covar_vcov_mat);
-  }
+  to_vector(cluster_census_covar_z) ~ normal(0, 1);
+  L_cluster_census_covar_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
   dewormed_any ~ bernoulli_logit(latent_utility);
 }
@@ -219,7 +218,7 @@ generated quantities {
   vector<lower = -1, upper = 1>[num_ate_pairs] treatment_cell_ate;
   
   if (estimate_ate) {
-    matrix[num_ate_treatments, num_clusters] cluster_treat_latent_utility = treatment_map_design_matrix[ate_treatments] * cluster_beta_mat;
+    matrix[num_ate_treatments, num_clusters] cluster_treat_latent_utility = treatment_map_design_matrix[ate_treatments] * cluster_beta;
     
     treatment_cell_takeup = treatment_cell_takeup_rng(ate_treatments,
                                                       missing_obs_ids,
