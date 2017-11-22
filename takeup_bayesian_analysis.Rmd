@@ -365,7 +365,7 @@ gen_lkj_initializer <- function(stan_data_list) {
       stratum_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
       cluster_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
       
-      L_stratum_beta_corr_mat = t(chol(stratum_beta_corr_mat)),
+      L_stratum_beta_corr_mat = t(chol(stratum_beta_corr_mat)), # chol() returns the upper triangle while Stan uses the lower
       L_cluster_beta_corr_mat = t(chol(cluster_beta_corr_mat)),
       L_stratum_census_covar_corr_mat = t(chol(stratum_census_covar_corr_mat)),
       L_cluster_census_covar_corr_mat = t(chol(cluster_census_covar_corr_mat))

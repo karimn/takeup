@@ -212,6 +212,8 @@ model {
   to_vector(cluster_census_covar_z) ~ normal(0, 1);
   L_cluster_census_covar_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
+  // Likelihood
+  
   dewormed_any ~ bernoulli_logit(latent_utility);
 }
 
