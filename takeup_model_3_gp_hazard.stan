@@ -146,8 +146,6 @@ data {
   int dewormed_ids[num_dewormed];
   int<lower = 1> stratum_dewormed_index[num_dewormed];
   
-  int relevant_latent_var_map[num_deworming_days + 1, num_deworming_days];
-  
   // Covariates
   
   int<lower = 1> num_census_covar_coef;
@@ -205,7 +203,6 @@ transformed data {
   real delta = 1e-9; 
   
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
-  matrix[num_deworming_days + 1, num_deworming_days] relevant_latent_var_map_mat = to_matrix(relevant_latent_var_map);
   row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatments * num_deworming_days]; 
   
   matrix[num_obs * num_deworming_days, num_census_covar_coef] census_covar_dm_long;
