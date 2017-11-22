@@ -150,23 +150,25 @@ parameters {
 
 transformed parameters {
   real hyper_intercept = logit(hyper_baseline_takeup);
-  
-  matrix[num_all_treatment_coef, num_strata] stratum_beta = 
-    rep_matrix(append_row(hyper_intercept, hyper_beta), num_strata) + (diag_pre_multiply(stratum_tau_treatment, L_stratum_beta_corr_mat) * stratum_beta_z);
     
-  matrix[num_all_treatment_coef, num_clusters] cluster_beta =  
-    stratum_beta[, cluster_stratum_ids] + (diag_pre_multiply(cluster_tau_treatment, L_cluster_beta_corr_mat) * cluster_beta_z);
+  matrix[num_all_treatment_coef, num_clusters] cluster_beta;
 
   vector[num_obs] census_covar_latent_utility = rep_vector(0, num_obs);
   vector[num_obs] latent_utility = rep_vector(0, num_obs);
   
   {
+    matrix[num_all_treatment_coef, num_strata] stratum_beta = 
+      rep_matrix(append_row(hyper_intercept, hyper_beta), num_strata) + (diag_pre_multiply(stratum_tau_treatment, L_stratum_beta_corr_mat) * stratum_beta_z);
+      
     matrix[num_census_covar_coef, num_strata] stratum_census_covar_coef =
       rep_matrix(hyper_census_covar_coef, num_strata) + (diag_pre_multiply(stratum_tau_census_covar, L_stratum_census_covar_corr_mat) * stratum_census_covar_z);
+      
     matrix[num_census_covar_coef, num_clusters] cluster_census_covar_coef =
         stratum_census_covar_coef[, cluster_stratum_ids] + (diag_pre_multiply(cluster_tau_census_covar, L_cluster_census_covar_corr_mat) * cluster_census_covar_z);
-    
+        
     int cluster_pos = 1;
+    
+    cluster_beta = stratum_beta[, cluster_stratum_ids] + (diag_pre_multiply(cluster_tau_treatment, L_cluster_beta_corr_mat) * cluster_beta_z);
 
     for (cluster_index in 1:num_clusters) {
       int curr_cluster_size = cluster_sizes[cluster_index];
