@@ -232,7 +232,7 @@ transformed data {
       
       census_covar_dm_long[dynamic_treatment_dm_pos:dynamic_treatment_dm_end] = rep_matrix(census_covar_dm[obs_index], num_deworming_days);
       
-      treatment_design_matrix_long[dynamic_treatment_dm_pos:dynamic_treatment_dm_end] = - rep_matrix(treatment_map_design_matrix[obs_treatment[obs_index]], num_deworming_days);
+      treatment_design_matrix_long[dynamic_treatment_dm_pos:dynamic_treatment_dm_end] = rep_matrix(treatment_map_design_matrix[obs_treatment[obs_index]], num_deworming_days);
         
       cluster_id_long[dynamic_treatment_dm_pos:dynamic_treatment_dm_end] = rep_array(cluster_id[obs_index], num_deworming_days);
      
@@ -342,16 +342,16 @@ model {
       int dynamic_stratum_end = dynamic_stratum_pos + curr_dynamic_stratum_size - 1;
       
       latent_var[dynamic_stratum_pos:dynamic_stratum_end] = 
-        treatment_design_matrix_long[dynamic_stratum_pos:dynamic_stratum_end] * stratum_beta[strata_index] -
-        cluster_effects[cluster_id_long[dynamic_stratum_pos:dynamic_stratum_end]] -
-        census_covar_dm_long[dynamic_stratum_pos:dynamic_stratum_end] * stratum_census_covar_coef[strata_index] -
+        treatment_design_matrix_long[dynamic_stratum_pos:dynamic_stratum_end] * stratum_beta[strata_index] +
+        cluster_effects[cluster_id_long[dynamic_stratum_pos:dynamic_stratum_end]] +
+        census_covar_dm_long[dynamic_stratum_pos:dynamic_stratum_end] * stratum_census_covar_coef[strata_index] +
         to_vector(log(rep_matrix(stratum_hazard_mat[strata_index], curr_stratum_size)) + hyper_dyn_latent_var[dynamic_treatment_id[stratum_pos:stratum_end]]); 
           
       stratum_pos = stratum_end + 1;
       dynamic_stratum_pos = dynamic_stratum_end + 1;
     }
     
-    target += gumbel_lcdf(latent_var[not_dewormed_days_ids] | 0, 1) + gumbel_lccdf(latent_var[dewormed_days_ids] | 0, 1);
+    target += gumbel_lcdf(- latent_var[not_dewormed_days_ids] | 0, 1) + gumbel_lccdf(- latent_var[dewormed_days_ids] | 0, 1);
   }
 }
 
