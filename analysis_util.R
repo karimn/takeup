@@ -1014,6 +1014,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            dynamic_treatment_map = NULL,
                                            treatment_formula = NULL,
                                            subgroup_col = c("phone_owner", "name_matched"),
+                                           drop_intercept_from_dm = TRUE,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
@@ -1116,11 +1117,14 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       as.formula()
   }
   
+  # Find redundant columns, excluding the intercept if we are required to keep it
+  detect_redund_col <- . %>% { map_lgl(., ~ n_distinct(.) > 1) | (str_detect(names(.), fixed("intercept")) & !drop_intercept_from_dm) }
+  
   treatment_map_design_matrix <- treatment_map %>%  
     model_matrix(treatment_formula) %>% 
-    magrittr::extract(, -1) %>% # get rid of intercept column
-    magrittr::extract(, map_lgl(., ~ n_distinct(.) > 1)) %>% {
-      if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns
+    rename(intercept = `(Intercept)`) %>% 
+    magrittr::extract(, detect_redund_col(.)) %>% {
+      if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?)
     }
   
   census_covar_map_dm <- census_covar_map %>% 
@@ -1221,7 +1225,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   
   treatment_map_design_matrix %<>%
     magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
-                        map_lgl(~ n_distinct(.) > 1))
+                        detect_redund_col())
   
   private_value_calendar_coef <- treatment_map_design_matrix %>% 
     names() %>% 
@@ -1339,11 +1343,21 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     num_strata = n_distinct(stratum_id),
     strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
-    cluster_sizes = count(prepared_analysis_data, stratum_id, new_cluster_id) %>% arrange(stratum_id, new_cluster_id) %>% pull(n),
+    cluster_sizes = count(prepared_analysis_data, new_cluster_id) %>% arrange(new_cluster_id) %>% pull(n),
     strata_num_clusters = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
       count(stratum_id) %>% 
       arrange(stratum_id) %>% 
       pull(n),
+    strata_cluster_ids = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
+      arrange(stratum_id) %>% 
+      pull(new_cluster_id),
+    cluster_obs_ids = prepared_analysis_data %>% 
+      arrange(new_cluster_id) %>% 
+      pull(obs_index),
+    cluster_stratum_ids = prepared_analysis_data %>% 
+      distinct(new_cluster_id, stratum_id) %>% 
+      arrange(new_cluster_id) %>% 
+      pull(stratum_id),
     
     strata_dewormed_sizes = prepared_analysis_data %>% 
       filter(dewormed.any) %>% 
@@ -1388,18 +1402,18 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   ) %>% 
     modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
   
-  stan_data_list$dynamic_initializer <- function() { 
-    num_not_private_value_bracelet_coef <- with(stan_data_list, num_all_treatment_coef - num_private_value_bracelet_coef)
-    
-    lst(
-      hyper_beta_raw = rep(0, num_not_private_value_bracelet_coef),
-      stratum_beta_raw = array(rep(0, num_not_private_value_bracelet_coef * stan_data_list$num_strata),
-                               dim = c(stan_data_list$num_strata, num_not_private_value_bracelet_coef)),
-      hyper_dynamic_treatment_coef_raw = rep(0, stan_data_list$num_dynamic_treatment_col),
-      stratum_dynamic_treatment_coef_raw = with(stan_data_list, array(rep(0, num_dynamic_treatment_col * num_strata),
-                                                                      dim = c(num_strata, num_dynamic_treatment_col)))
-    )
-  }
+  # stan_data_list$dynamic_initializer <- function() { 
+  #   num_not_private_value_bracelet_coef <- with(stan_data_list, num_all_treatment_coef - num_private_value_bracelet_coef)
+  #   
+  #   lst(
+  #     hyper_beta_raw = rep(0, num_not_private_value_bracelet_coef),
+  #     stratum_beta_raw = array(rep(0, num_not_private_value_bracelet_coef * stan_data_list$num_strata),
+  #                              dim = c(stan_data_list$num_strata, num_not_private_value_bracelet_coef)),
+  #     hyper_dynamic_treatment_coef_raw = rep(0, stan_data_list$num_dynamic_treatment_col),
+  #     stratum_dynamic_treatment_coef_raw = with(stan_data_list, array(rep(0, num_dynamic_treatment_col * num_strata),
+  #                                                                     dim = c(num_strata, num_dynamic_treatment_col)))
+  #   )
+  # }
   
   return(stan_data_list)
 } 
