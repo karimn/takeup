@@ -1380,22 +1380,22 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_ate_treatments = if (!is.null(ate_treatments)) nrow(ate_treatments) else 0,
     
     observed_takeup_total = ate_treatments$takeup_total,
-    ate_treatments = ate_treatments$all_treatment_id,
+    ate_treatments = if (!is.null(ate_treatments)) ate_treatments$all_treatment_id else 1,
     
-    missing_obs_ids = unlist(missing_treatment),
-    num_missing_obs_ids = length(missing_obs_ids),
-    missing_treatment_sizes = if (!is.null(all_ate)) map_int(missing_treatment, length),
-    observed_obs_ids = unlist(observed_treatment),
-    num_observed_obs_ids = length(observed_obs_ids),
-    observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, length),
+    missing_obs_ids = if (num_ate_treatments > 0) unlist(missing_treatment) else 1,
+    num_missing_obs_ids = if (num_ate_treatments > 0) length(missing_obs_ids) else 0,
+    missing_treatment_sizes = if (!is.null(all_ate)) map_int(missing_treatment, length) else 1,
+    observed_obs_ids = if (num_ate_treatments > 0) unlist(observed_treatment) else 1,
+    num_observed_obs_ids = if (num_ate_treatments > 0) length(observed_obs_ids) else 0,
+    observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, length) else 1,
     
     missing_treatment_stratum_id = stratum_id[missing_obs_ids], 
     missing_treatment_cluster_id = cluster_id[missing_obs_ids],
     
     missing_census_covar_dm = census_covar_dm[missing_obs_ids, ],
     
-    num_ate_pairs,
-    ate_pairs,
+    num_ate_pairs = if (num_ate_treatments > 0) num_ate_pairs else 0,
+    ate_pairs = if (num_ate_pairs > 0) ate_pairs else c(1, 1),
     
     observed_dewormed_day = dewormed_day_any[observed_obs_ids],
     ...
