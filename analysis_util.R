@@ -952,7 +952,7 @@ get_unique_treatments <- function(ate_pairs) {
     mutate(rank_id = seq_len(n()))
 }
 
-prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepared_analysis_data) {
+prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepared_analysis_data, drop_intercept = TRUE) {
   dyn_var <- names(dynamic_treatment_map_config$trends)
   dyn_var_re <- str_c(dyn_var, collapse = "|")
   dyn_formula_var <- all.vars(dynamic_treatment_map_config$formula)
@@ -962,23 +962,30 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
     expand(crossing_(original_dyn_var), dynamic_treatment_map_config$trends) 
  
   dynamic_treatment_map <- dynamic_treatment_mask_map %>% 
-    model_matrix(dynamic_treatment_map_config$formula) %>%
-    select(matches(dyn_var_re), -contains("control")) %>% 
-    select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
-    select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
+    model_matrix(dynamic_treatment_map_config$formula) %>% {
+      if (drop_intercept) {
+        select(., matches(dyn_var_re), -contains("control")) 
+      } else {
+        select(., matches(dyn_var_re), -contains("control"), "(Intercept)") 
+      }
+    } %>% 
+    # select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
+    select(one_of(dyn_var), which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
     {
       if (dynamic_treatment_map_config$scale %||% FALSE) scale(., center = FALSE, scale = rep(max(.), ncol(.))) else return(.)
       # if (dynamic_treatment_map_config$scale %||% FALSE) map_dfc(., ~ scale(.x, center = FALSE, scale = max(.x))) else return(.)
     } %>% 
     as_tibble()
   
-  dynamic_treatment_mask_map %<>% 
-    cbind(dynamic_treatment_map %>% equals(0) %>% not() %>% multiply_by(1)) %>% 
-    left_join(distinct_(., .dots = original_dyn_var) %>% 
-                mutate(dynamic_treatment_id = seq_len(n())), original_dyn_var) %>% 
+  dynamic_treatment_mask_map %<>%
+    cbind(dynamic_treatment_map %>% select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% equals(0) %>% not() %>% multiply_by(1)) %>%
+    left_join(distinct_(., .dots = original_dyn_var) %>%
+                mutate(dynamic_treatment_id = seq_len(n())), original_dyn_var) %>%
     arrange(dynamic_treatment_id)
   
-  dynamic_treatment_map %<>% bind_cols(dynamic_treatment_mask_map %>% select(dynamic_treatment_id))
+  dynamic_treatment_map %<>% 
+    # mutate(dynamic_treatment_id = seq_len(n()))
+    bind_cols(dynamic_treatment_mask_map %>% select(dynamic_treatment_id))
     
   lst(map = dynamic_treatment_map, 
       mask = dynamic_treatment_mask_map,
