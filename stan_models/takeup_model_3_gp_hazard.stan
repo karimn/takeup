@@ -324,8 +324,8 @@ parameters {
   row_vector<lower = 0, upper = 1>[num_deworming_days] hyper_baseline_cond_takeup; // Uniform[0, 1] prior
   
   // vector[num_strata]<lower = 0> stratum_hazard_effect;
-  // real stratum_hazard_effect[num_strata];
-  real<lower = 0> stratum_hazard_effect[num_strata];
+  real stratum_log_hazard_effect[num_strata];
+  // real<lower = 0> stratum_hazard_effect[num_strata];
   real<lower = 0> stratum_hazard_frailty_var;
   
   // vector[num_clusters] cluster_effects;
@@ -377,7 +377,8 @@ transformed parameters {
       int long_stratum_end = long_stratum_pos + curr_long_stratum_size - 1;
       
       // stratum_hazard_mat[strata_index] = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
-      stratum_log_hazard_mat[strata_index] = hyper_baseline_log_hazard + log(stratum_hazard_effect[strata_index]);
+      // stratum_log_hazard_mat[strata_index] = hyper_baseline_log_hazard + log(stratum_hazard_effect[strata_index]);
+      stratum_log_hazard_mat[strata_index] = hyper_baseline_log_hazard + stratum_log_hazard_effect[strata_index];
       
       stratum_beta_mat[, strata_index] = stratum_beta[strata_index];
       
@@ -389,8 +390,8 @@ transformed parameters {
 
 model {
   stratum_hazard_frailty_var ~ student_t(scale_df, 0, scale_sigma);
-  stratum_hazard_effect ~ gamma(1 / stratum_hazard_frailty_var, 1 / stratum_hazard_frailty_var);
-  // stratum_hazard_effect ~ normal(0, hyper_coef_sigma);
+  // stratum_hazard_effect ~ gamma(1 / stratum_hazard_frailty_var, 1 / stratum_hazard_frailty_var);
+  stratum_log_hazard_effect ~ normal(0, stratum_hazard_frailty_var);
   // stratum_hazard_effect ~ normal(0, 1);
   
   hyper_beta ~ student_t(coef_df, 0, hyper_coef_sigma); 
