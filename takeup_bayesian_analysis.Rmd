@@ -2100,7 +2100,7 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
   # treatment_formula = ~ private_value + dist.pot.group, subgroup_col = NULL,
   subgroup_col = "phone_owner",
-  drop_intercept_from_dm = TRUE,
+  drop_intercept_from_dm = FALSE,
   
   # all_ate = dyn_all_ate, 
   # all_ate = dyn_sms_control_ate %>% select(-starts_with("reminder_info_stock"), -starts_with("sms.treatment")) %>% distinct(),
@@ -2159,7 +2159,7 @@ nonparam_dyn_fit_version <- "testing_2"
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
-           chains = 8, iter = 300, control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
+           chains = 7, iter = 400, control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
            # init = gen_nonparam_initializer(.), 
            sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.csv")))
 
