@@ -2065,18 +2065,23 @@ nonparam_dyn_analysis_data <- analysis.data %>%
          incentive_shift = private_value,
          dyn_dist_pot = dist.pot.group,
          reminder_info_stock = sms.treatment.2) %>% 
-  filter(!name_matched) #, !hh.baseline.sample)
+  filter(!name_matched, sms.treatment.2 == "control") #, !hh.baseline.sample)
+  # filter(!name_matched, sms.treatment.2 == "control", phone_owner, assigned.treatment %in% c("control", "calendar")) #, !hh.baseline.sample)
   # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
-nonparam_dyn_treatment_maps <- lst(formula = ~ (days_observed : (signal_observed + incentive_shift + reminder_info_stock)) : dyn_dist_pot,
-                                   trends = tibble(days_observed = 0:11),
+# nonparam_dyn_treatment_maps <- lst(formula = ~ (days_observed : (signal_observed + incentive_shift + reminder_info_stock)) : dyn_dist_pot,
+# nonparam_dyn_treatment_maps <- lst(formula = ~ days_observed * (signal_observed + incentive_shift) * dyn_dist_pot * phone_owner,
+nonparam_dyn_treatment_maps <- lst(formula = ~ days_observed * incentive_shift * dyn_dist_pot,
+                                   trends = tibble(days_observed = (0:11)/11),
                                    scale = FALSE) %>% 
   prepare_dynamic_treatment_maps(nonparam_dyn_analysis_data)
 
 nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
-  data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2, 
-            # hh.baseline.sample, phone_owner, name_matched) %>% 
-            phone_owner, name_matched) %>% 
+  # data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2, 
+            # phone_owner, name_matched) %>% 
+  # data_grid(private_value, social_value, signal_observed, incentive_shift, dist.pot.group, dyn_dist_pot, phone_owner) %>%
+  data_grid(private_value, social_value, incentive_shift, dist.pot.group, dyn_dist_pot, phone_owner) %>%
+  # data_grid(private_value, incentive_shift, dist.pot.group, dyn_dist_pot) %>% 
   prepare_treatment_map(nonparam_dyn_treatment_maps)
 ```
 
@@ -2091,17 +2096,26 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   dynamic_treatment_map = nonparam_dyn_treatment_maps,
     
   # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
-  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
+  # treatment_formula = ~ private_value + dist.pot.group, subgroup_col = NULL,
+  subgroup_col = "phone_owner",
+  drop_intercept_from_dm = TRUE,
   
-  all_ate = dyn_all_ate, 
+  # all_ate = dyn_all_ate, 
+  # all_ate = dyn_sms_control_ate %>% select(-starts_with("reminder_info_stock"), -starts_with("sms.treatment")) %>% distinct(),
+  all_ate = dyn_sms_control_ate %>% 
+    select(starts_with("private_value"), starts_with("social_value"), starts_with("phone_owner"), starts_with("incentive_shift"), contains("dist.pot.group"), contains("dyn_dist")) %>% slice(2),
+  # %>% 
+  #   select(starts_with("private_value"), starts_with("social_value"), starts_with("signal_observed"), starts_with("incentive_shift"), contains("dist.pot.group"), contains("dyn_dist")) %>% slice(c(2, 9, 14, 21)),
   
   scale_df = 7,
   scale_sigma = 1,
-  scale_sigma_dynamic = 1,
  
   coef_df = 7,
-  coef_sigma = 1,
-  coef_sigma_dynamic = 5,
+  hyper_coef_sigma = 1,
+  
+  lkj_df = 2,
   
   wtp_utility_df = 3,
   tau_mu_wtp_diff = 100,
@@ -2110,25 +2124,52 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   sigma_wtp_df_student_t = 2.5,
   sigma_ksh_util_gamma = 5,
   
-  estimate_ate = 1
+  estimate_ate = 0,
+  use_logit = 0,
+  first_dynamics_day = 2
 )
 
+gen_nonparam_initializer <- function(stan_data_list) {
+  function() {
+    lst(
+      hyper_beta = with(stan_data_list, rep(0, num_all_treatment_coef - 1)),
+      stratum_beta_z = with(stan_data_list, matrix(0, num_all_treatment_coef, num_strata)),
+      stratum_census_covar_z = with(stan_data_list, matrix(0, num_census_covar_coef, num_strata)),
+      
+      stratum_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+      # cluster_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+      stratum_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
+      # cluster_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
+      
+      L_stratum_beta_corr_mat = t(chol(stratum_beta_corr_mat)), # chol() returns the upper triangle while Stan uses the lower
+      # L_cluster_beta_corr_mat = t(chol(cluster_beta_corr_mat)),
+      L_stratum_census_covar_corr_mat = t(chol(stratum_census_covar_corr_mat)),
+      # L_cluster_census_covar_corr_mat = t(chol(cluster_census_covar_corr_mat))
+    )
+  }
+}
+
 # model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
-model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_hazard.stan", model_name = "model_3_gp_hazard")
+model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_hazard.stan"), model_name = "model_3_gp_hazard")
+# model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_gumbel.stan"), model_name = "model_3_gp_gumbel")
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
+nonparam_dyn_fit_version <- "testing_2"
+
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
-           chains = 8, iter = 800, control = lst(max_treedepth = 15), # adapt_delta = 0.99, 
+           chains = 8, iter = 300, control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
+           # init = gen_nonparam_initializer(.), 
            sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.csv")))
 
-save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
+# save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
 ```
 
 ```{r model-3-gp-nonparam-debug, eval=FALSE}
 model_3_fit_debug <- nonparam_dyn_stan_data %>% 
-  sampling(model_3_gp_nonparam, data = ., chains = 2, iter = 20) # , control = lst(max_treedepth = 15))
+  sampling(model_3_gp_nonparam, data = ., chains = 2, iter = 20, # , control = lst(max_treedepth = 15))
+           init = gen_nonparam_initializer(.)) 
 ```
 
 ```{r load-nonparam-dyn-model-fit}
@@ -2149,12 +2190,49 @@ load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_
 model_3_fit@model_pars
 model_3_fit %>% print(pars = c("hyper_dyn_rho", "hyper_dyn_alpha"))
 model_3_fit %>% print(pars = c("hyper_dyn_latent_var"))
-model_3_fit %>% print(pars = c("hyper_baseline_cond_takeup"))
-model_3_fit %>% print(pars = c("stratum_baseline_cond_takeup"))
+model_3_fit %>% print(pars = c("hyper_intercept"))
+model_3_fit %>% print(pars = c("hyper_beta"))
+# model_3_fit %>% print(pars = c("hyper_baseline_cond_takeup"))
+# model_3_fit %>% print(pars = c("stratum_baseline_cond_takeup"))
 model_3_fit %>% print(pars = c("est_takeup"))
 model_3_fit %>% print(pars = c("day_constant_latent_var"))
 model_3_fit %>% print(pars = c("est_deworming_days"))
 ```
+
+```{r}
+baseline_dyn_latent_var <- model_3_fit %>% 
+  tidy(pars = "hyper_dyn_latent_var") %>% 
+  separate(term, c("term", "dyn_treat_index", "day"), sep = "[\\[,\\]]") %>% 
+  mutate_at(vars(dyn_treat_index, day), as.integer) %>% 
+  rename(est_dyn = estimate) %>% 
+  filter(dyn_treat_index == 1)
+
+model_3_fit %>% 
+  tidy(pars = "stratum_beta_mat") %>% 
+  separate(term, c("term", "param_index", "stratum_id"), sep = "[\\[,\\]]") %>% 
+  mutate_at(vars(stratum_id, param_index), as.integer) %>% 
+  rename(est_intercept = estimate) %>% 
+  filter(param_index == 1) %>% 
+  group_by(stratum_id) %>% 
+  do({
+    intercept <- .$est_intercept
+    
+    baseline_dyn_latent_var %>% 
+      mutate(est = est_dyn + intercept)
+  }) %>% 
+  ungroup() %>% 
+  select(-c(term, dyn_treat_index)) %>% 
+  mutate(prob = VGAM::pgumbel(- est, lower.tail = FALSE)) %>% kable()
+
+model_3_fit@model_pars
+
+model_3_fit %>% 
+  tidy(par = "est_deworming_days") %>% 
+  separate(term, c("term", "treatment_index", "day"), sep = "[\\[,\\]]") %>% 
+  filter(treatment_index == 1)  
+  
+```
+
 
 ```{r dyn-model-prep-data}
 dyn_treatment_cell_size <- tibble(treatment_size = with(dyn_stan_data, missing_treatment_sizes + observed_treatment_sizes)) %>% 
