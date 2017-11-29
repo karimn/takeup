@@ -351,15 +351,15 @@ parameters {
 
 transformed parameters {
   row_vector<lower = 0>[num_deworming_days] hyper_baseline_hazard = - log(1 - hyper_baseline_cond_takeup);
-  // row_vector[num_deworming_days] hyper_baseline_log_hazard = log(hyper_baseline_hazard);
+  row_vector[num_deworming_days] hyper_baseline_log_hazard = log(hyper_baseline_hazard);
   
   matrix[num_all_treatment_coef, num_strata] stratum_beta_mat;
   //   rep_matrix(hyper_beta, num_strata) + (diag_pre_multiply(stratum_tau_treatment, L_stratum_beta_corr_mat) * stratum_beta_z);
     
   // matrix[num_census_covar_coef, num_strata] stratum_census_covar_coef_mat;
   
-  matrix<lower = 0>[num_strata, num_deworming_days] stratum_hazard_mat;
-  // matrix[num_strata, num_deworming_days] stratum_log_hazard_mat;
+  // matrix<lower = 0>[num_strata, num_deworming_days] stratum_hazard_mat;
+  matrix[num_strata, num_deworming_days] stratum_log_hazard_mat;
   
   // matrix[num_dynamic_treatments, num_deworming_days] hyper_dyn_latent_var;
   
@@ -376,8 +376,8 @@ transformed parameters {
       int curr_long_stratum_size = curr_stratum_size * num_deworming_days;
       int long_stratum_end = long_stratum_pos + curr_long_stratum_size - 1;
       
-      stratum_hazard_mat[strata_index] = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
-      // stratum_log_hazard_mat[strata_index] = hyper_baseline_log_hazard + stratum_hazard_effect[strata_index];
+      // stratum_hazard_mat[strata_index] = stratum_hazard_effect[strata_index] * hyper_baseline_hazard;
+      stratum_log_hazard_mat[strata_index] = hyper_baseline_log_hazard + log(stratum_hazard_effect[strata_index]);
       
       stratum_beta_mat[, strata_index] = stratum_beta[strata_index];
       
@@ -391,6 +391,7 @@ model {
   stratum_hazard_frailty_var ~ student_t(scale_df, 0, scale_sigma);
   stratum_hazard_effect ~ gamma(1 / stratum_hazard_frailty_var, 1 / stratum_hazard_frailty_var);
   // stratum_hazard_effect ~ normal(0, hyper_coef_sigma);
+  // stratum_hazard_effect ~ normal(0, 1);
   
   hyper_beta ~ student_t(coef_df, 0, hyper_coef_sigma); 
   stratum_tau_treatment ~ student_t(scale_df, 0, scale_sigma);
@@ -416,8 +417,8 @@ model {
     
     // vector[num_obs * num_deworming_days] latent_var;
     vector[num_relevant_obs_days] latent_var;
-    // vector[num_obs * num_deworming_days] all_days_log_hazard = to_vector(stratum_log_hazard_mat[stratum_id]);
-    vector[num_obs * num_deworming_days] all_days_log_hazard = log(to_vector(stratum_hazard_mat[stratum_id]));
+    vector[num_obs * num_deworming_days] all_days_log_hazard = to_vector(stratum_log_hazard_mat[stratum_id]);
+    // vector[num_obs * num_deworming_days] all_days_log_hazard = log(to_vector(stratum_hazard_mat[stratum_id]));
     
     matrix[num_all_treatment_coef, num_all_treatment_coef] stratum_Sigma_treatment = quad_form_diag(stratum_beta_corr_mat, stratum_tau_treatment);
     
