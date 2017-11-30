@@ -2131,20 +2131,23 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
 
 gen_nonparam_initializer <- function(stan_data_list) {
   function() {
+    num_dynamic_treatment_days <-  with(stan_data_list, (num_deworming_days - first_dynamics_day + 1) * num_dynamic_treatments);
     lst(
-      hyper_beta = with(stan_data_list, rep(0, num_all_treatment_coef - 1)),
-      stratum_beta_z = with(stan_data_list, matrix(0, num_all_treatment_coef, num_strata)),
-      stratum_census_covar_z = with(stan_data_list, matrix(0, num_census_covar_coef, num_strata)),
+      # hyper_beta = with(stan_data_list, rep(0, num_all_treatment_coef - 1)),
+      # stratum_beta_z = with(stan_data_list, matrix(0, num_all_treatment_coef, num_strata)),
+      # stratum_census_covar_z = with(stan_data_list, matrix(0, num_census_covar_coef, num_strata)),
+      # 
+      # stratum_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+      # # cluster_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+      # stratum_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
+      # # cluster_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
+      # 
+      # L_stratum_beta_corr_mat = t(chol(stratum_beta_corr_mat)), # chol() returns the upper triangle while Stan uses the lower
+      # # L_cluster_beta_corr_mat = t(chol(cluster_beta_corr_mat)),
+      # L_stratum_census_covar_corr_mat = t(chol(stratum_census_covar_corr_mat)),
+      # # L_cluster_census_covar_corr_mat = t(chol(cluster_census_covar_corr_mat))
       
-      stratum_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
-      # cluster_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
-      stratum_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
-      # cluster_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
-      
-      L_stratum_beta_corr_mat = t(chol(stratum_beta_corr_mat)), # chol() returns the upper triangle while Stan uses the lower
-      # L_cluster_beta_corr_mat = t(chol(cluster_beta_corr_mat)),
-      L_stratum_census_covar_corr_mat = t(chol(stratum_census_covar_corr_mat)),
-      # L_cluster_census_covar_corr_mat = t(chol(cluster_census_covar_corr_mat))
+      hyper_dyn_latent_var = rep(0, num_dynamic_treatment_days)
     )
   }
 }
