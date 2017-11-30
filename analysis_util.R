@@ -952,7 +952,7 @@ get_unique_treatments <- function(ate_pairs) {
     mutate(rank_id = seq_len(n()))
 }
 
-prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepared_analysis_data, drop_intercept = TRUE) {
+prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepared_analysis_data, drop_intercept = TRUE, day_interactions_only = TRUE) {
   dyn_var <- names(dynamic_treatment_map_config$trends)
   dyn_var_re <- str_c(dyn_var, collapse = "|")
   dyn_formula_var <- all.vars(dynamic_treatment_map_config$formula)
@@ -968,10 +968,10 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
       } else {
         select(., matches(dyn_var_re), -contains("control"), "(Intercept)") 
       }
-    } %>% 
-    # select(matches(str_c(original_dyn_var, collapse = "|"))) %>% 
-    select(one_of(dyn_var), which(str_detect(names(.), ":(?!phone_owner)"))) %>% 
-    {
+    } %>% {
+      if (day_interactions_only) select(., matches(str_c(original_dyn_var, collapse = "|"))) else return(.) 
+    } %>%
+    select(one_of(dyn_var), which(str_detect(names(.), ":(?!phone_owner)"))) %>% {
       if (dynamic_treatment_map_config$scale %||% FALSE) scale(., center = FALSE, scale = rep(max(.), ncol(.))) else return(.)
       # if (dynamic_treatment_map_config$scale %||% FALSE) map_dfc(., ~ scale(.x, center = FALSE, scale = max(.x))) else return(.)
     } %>% 
