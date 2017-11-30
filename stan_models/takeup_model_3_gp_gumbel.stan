@@ -390,7 +390,7 @@ model {
   // // cluster_effects ~ student_t(coef_df, 0, tau_cluster_effect); 
   // cluster_effects ~ normal(0, tau_cluster_effect); 
  
-  // hyper_dyn_rho ~ gamma(4, 4); 
+  // hyper_dyn_rho ~ inv_gamma(5, 5); 
   // hyper_dyn_alpha ~ normal(0, 1);
   // hyper_dyn_eta ~ normal(0, 1);
   
