@@ -373,7 +373,7 @@ model {
   // tau_cluster_effect ~ student_t(scale_df, 0, scale_sigma);
   // cluster_effects ~ student_t(coef_df, 0, tau_cluster_effect); 
 
-  hyper_dyn_rho ~ gamma(4, 4);
+  hyper_dyn_rho ~ inv_gamma(5, 5);
   hyper_dyn_alpha ~ normal(0, 1);
   // hyper_dyn_eta ~ normal(0, 1);
 
@@ -382,8 +382,9 @@ model {
     
     matrix[num_dynamic_treatments, num_deworming_days] full_hyper_dyn_latent_var = rep_matrix(0, num_dynamic_treatments, num_deworming_days);
     
-    matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] hyper_dyn_K =
-      cov_exp_quad_ARD(nonparam_dyn_treatment_map, hyper_dyn_alpha, hyper_dyn_rho, delta, 0); // Don't decompose
+    matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] L_hyper_dyn_K =
+      cov_exp_quad_ARD(nonparam_dyn_treatment_map, hyper_dyn_alpha, hyper_dyn_rho, delta, 1); 
+      // cov_exp_quad_ARD(nonparam_dyn_treatment_map, hyper_dyn_alpha, hyper_dyn_rho, delta, 0); // Don't decompose
       
     vector[num_obs * num_deworming_days] all_dyn_var_vec;
     
@@ -394,7 +395,7 @@ model {
     
     matrix[num_all_treatment_coef, num_all_treatment_coef] stratum_Sigma_treatment = quad_form_diag(stratum_beta_corr_mat, stratum_tau_treatment);
     
-    hyper_dyn_latent_var ~ multi_normal(rep_vector(0, num_dynamic_treatment_days), hyper_dyn_K);
+    hyper_dyn_latent_var ~ multi_normal_cholesky(rep_vector(0, num_dynamic_treatment_days), L_hyper_dyn_K);
     
     full_hyper_dyn_latent_var[, first_dynamics_day:num_deworming_days] = 
       to_matrix(hyper_dyn_latent_var, num_dynamic_treatments, num_dynamics_days, 0); // Row-major order
