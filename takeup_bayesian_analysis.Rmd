@@ -2065,22 +2065,25 @@ nonparam_dyn_analysis_data <- analysis.data %>%
          incentive_shift = private_value,
          dyn_dist_pot = dist.pot.group,
          reminder_info_stock = sms.treatment.2) %>% 
-  filter(!name_matched, sms.treatment.2 == "control") #, !hh.baseline.sample)
+  filter(!name_matched, assigned.treatment == "control", sms.treatment.2 == "control") #, !hh.baseline.sample)
   # filter(!name_matched, sms.treatment.2 == "control", phone_owner, assigned.treatment %in% c("control", "calendar")) #, !hh.baseline.sample)
   # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 # nonparam_dyn_treatment_maps <- lst(formula = ~ (days_observed : (signal_observed + incentive_shift + reminder_info_stock)) : dyn_dist_pot,
 # nonparam_dyn_treatment_maps <- lst(formula = ~ days_observed * (signal_observed + incentive_shift) * dyn_dist_pot * phone_owner,
-nonparam_dyn_treatment_maps <- lst(formula = ~ days_observed * incentive_shift * dyn_dist_pot,
+# nonparam_dyn_treatment_maps <- lst(formula = ~ days_observed * (incentive_shift + signal_observed) * dyn_dist_pot,
+nonparam_dyn_treatment_maps <- lst(formula = ~ days_observed, # * dyn_dist_pot,
                                    trends = tibble(days_observed = (0:11)/11),
                                    scale = FALSE) %>% 
-  prepare_dynamic_treatment_maps(nonparam_dyn_analysis_data)
+  prepare_dynamic_treatment_maps(nonparam_dyn_analysis_data, day_interactions_only = FALSE)
+
+nonparam_dyn_treatment_maps$map %<>% select(-contains(":"))
 
 nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
   # data_grid(private_value, social_value, signal_observed, incentive_shift, dyn_dist_pot, reminder_info_stock, dist.pot.group, sms.treatment.2, 
             # phone_owner, name_matched) %>% 
   # data_grid(private_value, social_value, signal_observed, incentive_shift, dist.pot.group, dyn_dist_pot, phone_owner) %>%
-  data_grid(private_value, social_value, incentive_shift, dist.pot.group, dyn_dist_pot, phone_owner) %>%
+  data_grid(private_value, dyn_dist_pot) %>% #, social_value, incentive_shift, signal_observed, dist.pot.group, phone_owner) %>%
   # data_grid(private_value, incentive_shift, dist.pot.group, dyn_dist_pot) %>% 
   prepare_treatment_map(nonparam_dyn_treatment_maps)
 ```
@@ -2097,15 +2100,22 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
     
   # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
   # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
-  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
-  # treatment_formula = ~ private_value + dist.pot.group, subgroup_col = NULL,
-  subgroup_col = "phone_owner",
+  # treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
+  treatment_formula = ~ 1, # private_value, 
+  subgroup_col = NULL,
+  # subgroup_col = "phone_owner",
   drop_intercept_from_dm = FALSE,
   
   # all_ate = dyn_all_ate, 
   # all_ate = dyn_sms_control_ate %>% select(-starts_with("reminder_info_stock"), -starts_with("sms.treatment")) %>% distinct(),
   all_ate = dyn_sms_control_ate %>% 
-    select(starts_with("private_value"), starts_with("social_value"), starts_with("phone_owner"), starts_with("incentive_shift"), contains("dist.pot.group"), contains("dyn_dist")) %>% slice(2),
+    select(starts_with("private_value"), 
+           # starts_with("social_value"), 
+           # starts_with("phone_owner"), 
+           # starts_with("incentive_shift"), 
+           # starts_with("signal_observed"),
+           # contains("dist.pot.group"), 
+           contains("dyn_dist")) %>% slice(2),
   # %>% 
   #   select(starts_with("private_value"), starts_with("social_value"), starts_with("signal_observed"), starts_with("incentive_shift"), contains("dist.pot.group"), contains("dyn_dist")) %>% slice(c(2, 9, 14, 21)),
   
@@ -2124,8 +2134,11 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   sigma_wtp_df_student_t = 2.5,
   sigma_ksh_util_gamma = 5,
   
+  hyper_dyn_rho_shape = 4,
+  hyper_dyn_rho_scale = 4,
+  
   estimate_ate = 0,
-  use_logit = 0,
+  use_logit = 1,
   first_dynamics_day = 2
 )
 
@@ -2153,8 +2166,8 @@ gen_nonparam_initializer <- function(stan_data_list) {
 }
 
 # model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
-model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_hazard.stan"), model_name = "model_3_gp_hazard")
-# model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_gumbel.stan"), model_name = "model_3_gp_gumbel")
+# model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_hazard.stan"), model_name = "model_3_gp_hazard")
+model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_gumbel.stan"), model_name = "model_3_gp_gumbel")
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
@@ -2162,8 +2175,8 @@ nonparam_dyn_fit_version <- "testing_2"
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
-           chains = 7, iter = 400, control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
-           # init = gen_nonparam_initializer(.), 
+           chains = 8, iter = 300, control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
+           init = gen_nonparam_initializer(.),
            sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.csv")))
 
 # save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))

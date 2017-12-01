@@ -977,15 +977,34 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
     } %>% 
     as_tibble()
   
-  dynamic_treatment_mask_map %<>%
-    cbind(dynamic_treatment_map %>% select(which(str_detect(names(.), ":(?!phone_owner)"))) %>% equals(0) %>% not() %>% multiply_by(1)) %>%
-    left_join(distinct_(., .dots = original_dyn_var) %>%
-                mutate(dynamic_treatment_id = seq_len(n())), original_dyn_var) %>%
-    arrange(dynamic_treatment_id)
+  trend_length <- nrow(dynamic_treatment_map_config$trends)
   
-  dynamic_treatment_map %<>% 
+  dynamic_treatment_mask_map %<>% 
+    mutate(dynamic_treatment_id = rep(seq_len(nrow(.) %/% trend_length), each = trend_length))
+  #   {
+  #   mask <- select(., which(!str_detect(names(.), fixed("phone_owner")) & str_detect(names(.), fixed(original_dyn_var)))) 
+  #   
+  #   if (!is_empty(mask)) {
+  #     mask %<>% equals(0) %>% not() %>% multiply_by(1)
+  #     
+  #     cbind(select(., -one_of(colnames(mask))), mask) %>%
+  #       left_join(distinct_(., .dots = original_dyn_var) %>%
+  #                   mutate(dynamic_treatment_id = seq_len(n())), original_dyn_var) %>%
+  #       arrange(dynamic_treatment_id)
+  #   } else {
+  #     return(NULL)
+  #   }
+  # }
+  
+  dynamic_treatment_map %<>% {
+    if (is_null(dynamic_treatment_mask_map)) {
+      stop("Dynamic IDs are wrong.")
+      mutate(., dynamic_treatment_id = seq_len(n()))
+    } else {
+      bind_cols(., dynamic_treatment_mask_map %>% select(dynamic_treatment_id))
+    }
+  }
     # mutate(dynamic_treatment_id = seq_len(n()))
-    bind_cols(dynamic_treatment_mask_map %>% select(dynamic_treatment_id))
     
   lst(map = dynamic_treatment_map, 
       mask = dynamic_treatment_mask_map,
@@ -998,16 +1017,15 @@ prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) 
     mutate_if(is.factor, funs(id = as.integer(.))) 
   
   if (!missing(dynamic_treatment_maps)) {
-    prepared %<>% 
-      left_join(select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
-                by = dynamic_treatment_maps$original_dyn_var)
+    prepared %<>% {
+      if (!is_empty(dynamic_treatment_maps$original_dyn_var)) {
+        left_join(., select(dynamic_treatment_maps$mask, dynamic_treatment_maps$original_dyn_var, dynamic_treatment_id) %>% distinct(), 
+                  by = dynamic_treatment_maps$original_dyn_var) 
+      } else { # This means there is only one dynamic treatment
+        mutate(., dynamic_treatment_id = 1) 
+      }
+    }
   }
-  
-  # if (!missing(ate)) {
-  #   ate_treatments <- ate %>% 
-  #     identify_treatment_id(static_treatment_map) %>% 
-  #     get_unique_treatments()
-  # }
   
   return(prepared)
 }
@@ -1282,26 +1300,26 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_signal_observed_coef = length(signal_observed_coef),
     num_reminder_info_coef = length(reminder_info_coef), 
     
-    dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
-      dynamic_treatment_map %>% 
-        daply(.(dynamic_treatment_id),
-              function(dyn_treat) {
-                expand.grid(days_observed = 0:(num_deworming_days - 1), days_sms = 0:(num_deworming_days - 1)) %>% 
-                  aaply(1, function(grid_row, temp_dm) {
-                    ret_dm <- dyn_treat %>% 
-                      select(-dynamic_treatment_id) %>% 
-                      as.matrix()
-                    
-                    if (grid_row$days_observed < num_deworming_days - 1) ret_dm[(grid_row$days_observed + 1):num_deworming_days, signal_observed_coef] <- 0
-                    if (grid_row$days_sms < num_deworming_days - 1) ret_dm[(grid_row$days_sms + 1):num_deworming_days, reminder_info_coef] <- 0
-                    
-                    return(ret_dm)
-                  })
-              })
-    }, 
+    # dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
+    #   dynamic_treatment_map %>% 
+    #     daply(.(dynamic_treatment_id),
+    #           function(dyn_treat) {
+    #             expand.grid(days_observed = 0:(num_deworming_days - 1), days_sms = 0:(num_deworming_days - 1)) %>% 
+    #               aaply(1, function(grid_row, temp_dm) {
+    #                 ret_dm <- dyn_treat %>% 
+    #                   select(-dynamic_treatment_id) %>% 
+    #                   as.matrix()
+    #                 
+    #                 if (grid_row$days_observed < num_deworming_days - 1) ret_dm[(grid_row$days_observed + 1):num_deworming_days, signal_observed_coef] <- 0
+    #                 if (grid_row$days_sms < num_deworming_days - 1) ret_dm[(grid_row$days_sms + 1):num_deworming_days, reminder_info_coef] <- 0
+    #                 
+    #                 return(ret_dm)
+    #               })
+    #           })
+    # }, 
     
     dynamic_treatment_map = if (!is_empty(dynamic_treatment_map)) {
-      dynamic_treatment_map %>% daply(.(dynamic_treatment_id), . %>% select(-dynamic_treatment_id) %>% as.matrix()) 
+      dynamic_treatment_map %>% dlply(.(dynamic_treatment_id), . %>% select(-dynamic_treatment_id) %>% as.matrix()) 
     },
     
     num_private_value_calendar_coef = length(private_value_calendar_coef),
