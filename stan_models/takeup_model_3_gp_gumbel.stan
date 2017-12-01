@@ -218,7 +218,7 @@ transformed data {
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
   // row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatment_days];
   row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatments, num_dynamics_days];
-  row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_dm[num_relevant_obs_days];
+  row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_dm[num_relevant_dyn_obs_days];
   
   matrix[num_relevant_obs_days, num_census_covar_coef] census_covar_dm_long;
   matrix[num_relevant_obs_days, num_all_treatment_coef] treatment_design_matrix_long;
