@@ -2119,27 +2119,16 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   # %>% 
   #   select(starts_with("private_value"), starts_with("social_value"), starts_with("signal_observed"), starts_with("incentive_shift"), contains("dist.pot.group"), contains("dyn_dist")) %>% slice(c(2, 9, 14, 21)),
   
-  scale_df = 7,
   scale_sigma = 1,
- 
-  coef_df = 7,
   hyper_coef_sigma = 1,
+  hyper_intercept_sigma = 5,
   
   lkj_df = 2,
   
-  wtp_utility_df = 3,
-  tau_mu_wtp_diff = 100,
-  mu_wtp_df_student_t = 7,
-  tau_sigma_wtp_diff = 50,
-  sigma_wtp_df_student_t = 2.5,
-  sigma_ksh_util_gamma = 5,
-  
-  hyper_dyn_rho_shape = 1,
-  hyper_dyn_rho_scale = 1,
-  
-  estimate_ate = 0,
   use_logit = 1,
-  first_dynamics_day = 1
+  first_dynamics_day = 1,
+  
+  estimate_ate = 0
 )
 
 gen_nonparam_initializer <- function(stan_data_list) {
@@ -2178,7 +2167,7 @@ model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
-nonparam_dyn_fit_version <- "testing_3"
+nonparam_dyn_fit_version <- "testing_5"
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
