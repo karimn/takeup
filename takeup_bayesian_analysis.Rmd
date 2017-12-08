@@ -2161,8 +2161,6 @@ gen_nonparam_initializer <- function(stan_data_list) {
   }
 }
 
-# model_3_gp_nonparam <- stan_model(file = "takeup_model_3_gp_dynamic.stan", model_name = "model_3_gp_nonparam")
-# model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_hazard.stan"), model_name = "model_3_gp_hazard")
 model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_gumbel_fe.stan"), model_name = "model_3_gp_gumbel_fe")
 ```
 
@@ -2171,7 +2169,7 @@ nonparam_dyn_fit_version <- "testing_5"
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
-           chains = 8, iter = 300, control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
+           chains = 8, iter = 300, control = lst(max_treedepth = 15, adapt_delta = 0.99), 
            # init = gen_nonparam_initializer(.),
            sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.csv")))
 
@@ -2185,7 +2183,7 @@ model_3_fit_debug <- nonparam_dyn_stan_data %>%
 ```
 
 ```{r load-nonparam-dyn-model-fit}
-model_3_fit <- dir("stanfit", pattern = str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}_[1-8].csv"), full.names = TRUE) %>% 
+model_3_fit <- dir("stanfit/azure", pattern = str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}_[1-8].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
 model_3_fit %>% 
@@ -2200,7 +2198,8 @@ load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_
 
 ```{r}
 model_3_fit@model_pars
-model_3_fit %>% print(pars = c("hyper_dyn_rho", "hyper_dyn_alpha"))
+model_3_fit %>% print(pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw"))
+
 model_3_fit %>% print(pars = c("hyper_dyn_latent_var"))
 model_3_fit %>% print(pars = c("hyper_intercept"))
 model_3_fit %>% print(pars = c("hyper_beta"))
@@ -2209,6 +2208,49 @@ model_3_fit %>% print(pars = c("hyper_beta"))
 model_3_fit %>% print(pars = c("est_takeup"))
 model_3_fit %>% print(pars = c("day_constant_latent_var"))
 model_3_fit %>% print(pars = c("est_deworming_days"))
+```
+
+```{r, fig.width=15}
+posterior_data <- as.data.frame(model_3_fit)
+model_3_posterior_array <- as.array(model_3_fit)
+model_3_np <- nuts_params(model_3_fit)
+model_3_lp <- log_posterior(model_3_fit)
+
+# mcmc_trace(posterior_data, pars = c("strata_beta_day1_tau_raw[1]"), np = model_3_np)
+
+mcmc_nuts_divergence(model_3_np, model_3_lp)
+
+color_scheme_set("darkgray")
+mcmc_parcoord(posterior_data, np = model_3_np, 
+              regex_pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw",
+                             "strata_beta\\[1,"))
+```
+
+```{r}
+mcmc_scatter(posterior_data, pars = c("strata_beta[1,1,1]", "strata_beta_day1_tau_raw[1]"), transform = lst("strata_beta_day1_tau_raw[1]" = "log"), np = model_3_np)
+
+mcmc_scatter(posterior_data, pars = c("strata_beta[1,1,2]", "strata_beta_day1_tau_raw[2]"), transform = lst("strata_beta_day1_tau_raw[2]" = "log"), np = model_3_np)
+```
+
+```{r, fig.width=15}
+mcmc_pairs(model_3_posterior_array, 
+           regex_pars = c(
+             #"hyper_intercept_raw", #"hyper_treat_beta_day1\\[1", "hyper_beta_dyn\\[1,1",
+              "strata_beta\\[1,1,[1-6]",
+              "strata_beta_day1_tau_raw\\[[1-6]" 
+              # "strata_beta_dyn_tau_raw\\[[1-2],1\\]"
+             ),
+           transform = lst(
+             "strata_beta_day1_tau_raw[1]" = "log", 
+             "strata_beta_day1_tau_raw[2]" = "log",
+             "strata_beta_day1_tau_raw[3]" = "log", 
+             "strata_beta_day1_tau_raw[4]" = "log",
+             "strata_beta_day1_tau_raw[5]" = "log", 
+             "strata_beta_day1_tau_raw[6]" = "log"
+             # "strata_beta_dyn_tau_raw[1,1]" = "log", 
+             # "strata_beta_dyn_tau_raw[2,1]" = "log"
+             ), 
+           np = model_3_np)
 ```
 
 ```{r}

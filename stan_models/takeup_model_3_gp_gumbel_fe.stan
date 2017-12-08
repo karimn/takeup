@@ -178,6 +178,9 @@ transformed data {
   real delta = 1e-9; 
   // matrix<lower = 0>[num_deworming_days - 1, num_all_treatment_coef] scale_sigma_mat = rep_matrix(scale_sigma, num_deworming_days - 1, num_all_treatment_coef);
   
+  vector[num_deworming_days - 1] mu_dyn_zero = rep_vector(0, num_deworming_days - 1);
+  matrix[num_deworming_days - 1, num_deworming_days - 1] dyn_identity_mat = diag_matrix(rep_vector(1, num_deworming_days - 1));
+  
   int<lower = 1, upper = num_obs * num_deworming_days> num_relevant_obs_days = sum(to_array_1d(relevant_latent_var_map[dewormed_day_any]));
   
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
@@ -237,28 +240,41 @@ parameters {
   // real<lower = 0, upper = 1> baseline_takeup;
   real hyper_intercept_raw;
   row_vector[num_all_treatment_coef - 1] hyper_treat_beta_day1; 
-  matrix[num_deworming_days - 1, num_all_treatment_coef] hyper_beta_dyn; 
- 
-  corr_matrix[num_all_treatment_coef] strata_beta_day1_corr_mat;
+  matrix[num_deworming_days - 1, num_all_treatment_coef] hyper_beta_dyn_effect; 
+  
   vector<lower = 0>[num_all_treatment_coef] strata_beta_day1_tau_raw;
-  corr_matrix[num_deworming_days - 1] strata_beta_dyn_corr_mat[num_all_treatment_coef];
   vector<lower = 0>[num_deworming_days - 1] strata_beta_dyn_tau_raw[num_all_treatment_coef];
-  // matrix<lower = 0>[num_deworming_days - 1, num_all_treatment_coef] strata_beta_dyn_tau_raw;
-  matrix[num_deworming_days, num_all_treatment_coef] strata_beta[num_strata]; 
+ 
+  // corr_matrix[num_all_treatment_coef] strata_beta_day1_corr_mat;
+  cholesky_factor_corr[num_all_treatment_coef] strata_beta_day1_L_corr_mat;
+  // corr_matrix[num_deworming_days - 1] strata_beta_dyn_corr_mat[num_all_treatment_coef];
+  cholesky_factor_corr[num_deworming_days - 1] strata_beta_dyn_L_corr_mat[num_all_treatment_coef];
+  
+  row_vector[num_all_treatment_coef] strata_beta_day1[num_strata]; 
+  matrix[num_deworming_days - 1, num_all_treatment_coef] strata_beta_dyn_effect[num_strata]; 
+  // matrix[num_deworming_days, num_all_treatment_coef] strata_beta[num_strata]; 
 }
 
 transformed parameters {
   real hyper_intercept = hyper_intercept_raw * hyper_intercept_sigma;
+  row_vector[num_all_treatment_coef] hyper_beta_day1 = append_col(hyper_intercept, hyper_treat_beta_day1); 
+  matrix[num_deworming_days, num_all_treatment_coef] hyper_beta = rep_matrix(hyper_beta_day1, num_deworming_days); 
+  
   vector<lower = 0>[num_all_treatment_coef] strata_beta_day1_tau = strata_beta_day1_tau_raw * scale_sigma;
   vector<lower = 0>[num_deworming_days - 1] strata_beta_dyn_tau[num_all_treatment_coef];
-  // matrix<lower = 0>[num_deworming_days - 1, num_all_treatment_coef] strata_beta_dyn_tau = strata_beta_dyn_tau_raw * scale_sigma;
- 
-  row_vector[num_all_treatment_coef] hyper_beta_day1; 
-  matrix[num_deworming_days, num_all_treatment_coef] hyper_beta; 
+  
+  matrix[num_deworming_days, num_all_treatment_coef] strata_beta[num_strata];
+  
+  hyper_beta[2:num_deworming_days] = hyper_beta[2:num_deworming_days] + hyper_beta_dyn_effect;
   
   for (beta_index in 1:num_all_treatment_coef) {
     strata_beta_dyn_tau[beta_index] = strata_beta_dyn_tau_raw[beta_index] * scale_sigma;
   }
+ 
+  for (stratum_index in 1:num_strata) {
+    strata_beta[stratum_index] = rep_matrix(strata_beta_day1[stratum_index], num_deworming_days);
+    strata_beta[stratum_index, 2:num_deworming_days] = strata_beta[stratum_index, 2:num_deworming_days] + strata_beta_dyn_effect[stratum_index];
+  } 
  
   // if (use_logit) { 
   //   hyper_intercept = logit(baseline_takeup);
@@ -266,8 +282,8 @@ transformed parameters {
   //   hyper_intercept = log(- log(1 - baseline_takeup));
   // }
   
-  hyper_beta_day1 = append_col(hyper_intercept, hyper_treat_beta_day1);
-  hyper_beta = append_row(hyper_beta_day1, hyper_beta_dyn); 
+  // hyper_beta_day1 = append_col(hyper_intercept, hyper_treat_beta_day1);
+  // hyper_beta = append_row(hyper_beta_day1, hyper_beta_dyn); 
 }
 
 model {
@@ -275,43 +291,55 @@ model {
   
   hyper_treat_beta_day1 ~ normal(0, hyper_coef_sigma);
   
-  for (deworming_day_index in 1:(num_deworming_days - 1)) {
-    hyper_beta_dyn[deworming_day_index] ~ normal(hyper_beta_day1, hyper_coef_sigma); 
-  }
+  to_vector(hyper_beta_dyn_effect) ~ normal(0, hyper_coef_sigma);
+  
+  // for (deworming_day_index in 1:(num_deworming_days - 1)) {
+  //   hyper_beta_dyn[deworming_day_index] ~ normal(hyper_beta_day1, hyper_coef_sigma);
+  // }
  
-  strata_beta_day1_corr_mat ~ lkj_corr(lkj_df);
   // strata_beta_day1_tau ~ normal(0, scale_sigma);
   // strata_beta_dyn_tau ~ normal(0, scale_sigma);
   strata_beta_day1_tau_raw ~ normal(0, 1);
   // strata_beta_dyn_tau_raw ~ normal(0, 1);
-  strata_beta_dyn_tau_raw ~ multi_normal(rep_vector(0, num_deworming_days - 1), diag_matrix(rep_vector(1, num_deworming_days - 1)));
+  strata_beta_dyn_tau_raw ~ multi_normal(mu_dyn_zero, dyn_identity_mat);
+  
+  // strata_beta_day1_corr_mat ~ lkj_corr(lkj_df);
+  strata_beta_day1_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
   {
-    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_day1_vcov = quad_form_diag(strata_beta_day1_corr_mat, strata_beta_day1_tau);
-    matrix[num_deworming_days - 1, num_deworming_days - 1] strata_beta_dyn_vcov[num_all_treatment_coef];
+    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_day1_L_vcov = diag_pre_multiply(strata_beta_day1_tau, strata_beta_day1_L_corr_mat);
+    // matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_day1_vcov = quad_form_diag(strata_beta_day1_corr_mat, strata_beta_day1_tau);
+    // matrix[num_deworming_days - 1, num_deworming_days - 1] strata_beta_dyn_vcov[num_all_treatment_coef];
+    matrix[num_deworming_days - 1, num_deworming_days - 1] strata_beta_dyn_L_vcov[num_all_treatment_coef];
     
     vector[num_relevant_obs_days] latent_var = rep_vector(0, num_relevant_obs_days);
     
     int relevant_daily_stratum_pos = 1;
     
     for (beta_index in 1:num_all_treatment_coef) {
-      strata_beta_dyn_corr_mat[beta_index] ~ lkj_corr(lkj_df);
+      // strata_beta_dyn_corr_mat[beta_index] ~ lkj_corr(lkj_df);
+      strata_beta_dyn_L_corr_mat[beta_index] ~ lkj_corr_cholesky(lkj_df);
 
-      strata_beta_dyn_vcov[beta_index] = quad_form_diag(strata_beta_dyn_corr_mat[beta_index], strata_beta_dyn_tau[beta_index]);
+      strata_beta_dyn_L_vcov[beta_index] = diag_pre_multiply(strata_beta_dyn_tau[beta_index], strata_beta_dyn_L_corr_mat[beta_index]);
+      // strata_beta_dyn_vcov[beta_index] = quad_form_diag(strata_beta_dyn_corr_mat[beta_index], strata_beta_dyn_tau[beta_index]);
     }
     
     for (stratum_index in 1:num_strata) {
       int curr_relevant_daily_stratum_size = relevant_daily_strata_sizes[stratum_index];
       int relevant_daily_stratum_end = relevant_daily_stratum_pos + curr_relevant_daily_stratum_size - 1;
       
-      strata_beta[stratum_index, 1] ~ multi_normal(hyper_beta_day1, strata_beta_day1_vcov);
+      strata_beta_day1[stratum_index] ~ multi_normal_cholesky(hyper_beta_day1, strata_beta_day1_L_vcov);
+      // strata_beta[stratum_index, 1] ~ multi_normal_cholesky(hyper_beta_day1, strata_beta_day1_L_vcov);
+      // strata_beta[stratum_index, 1] ~ multi_normal(hyper_beta_day1, strata_beta_day1_vcov);
       // strata_beta[stratum_index, 1] ~ multi_normal(hyper_beta_day1, diag_matrix(strata_beta_day1_tau));
       
       for (beta_index in 1:num_all_treatment_coef) {
-        vector[num_deworming_days - 1] strata_beta_dyn_mean = 
-          rep_vector(strata_beta[stratum_index, 1, beta_index], num_deworming_days - 1) + hyper_beta_dyn[, beta_index];
+        // vector[num_deworming_days - 1] strata_beta_dyn_mean = 
+        //   rep_vector(strata_beta[stratum_index, 1, beta_index], num_deworming_days - 1) + hyper_beta_dyn[, beta_index];
         
-        strata_beta[stratum_index, 2:num_deworming_days, beta_index] ~ multi_normal(strata_beta_dyn_mean, strata_beta_dyn_vcov[beta_index]);
+        strata_beta_dyn_effect[stratum_index, , beta_index] ~ multi_normal_cholesky(mu_dyn_zero, strata_beta_dyn_L_vcov[beta_index]);
+        // strata_beta[stratum_index, 2:num_deworming_days, beta_index] ~ multi_normal_cholesky(strata_beta_dyn_mean, strata_beta_dyn_L_vcov[beta_index]);
+        // strata_beta[stratum_index, 2:num_deworming_days, beta_index] ~ multi_normal(strata_beta_dyn_mean, strata_beta_dyn_vcov[beta_index]);
         // strata_beta[stratum_index, 2:num_deworming_days, beta_index] ~ multi_normal(strata_beta_dyn_mean, diag_matrix(strata_beta_dyn_tau));
       }
       
