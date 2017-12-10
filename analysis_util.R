@@ -1040,6 +1040,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            treatment_formula = NULL,
                                            subgroup_col = c("phone_owner", "name_matched"),
                                            drop_intercept_from_dm = TRUE,
+                                           nonparam_dynamics = FALSE,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
@@ -1180,55 +1181,121 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   if (!is.null(all_ate)) {
     num_ate_pairs <- nrow(all_ate)
     
-    all_ate %<>% identify_treatment_id(treatment_map) 
-    
-    stopifnot(nrow(all_ate) == num_ate_pairs)
-    
-    ate_treatments <- all_ate %>% get_unique_treatments()
-    
-    if (!is_empty(subgroup_col)) {
-      ate_treatments %<>% left_join(select(treatment_map, all_treatment_id, subgroup_col), "all_treatment_id")
-    }
-      
-    missing_treatment <- ate_treatments %>%
-      plyr::alply(1, function(treat_row) {
-        (if (!is_empty(subgroup_col)) {
-          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
-        } else { prepared_analysis_data }) %>% 
-          filter(all_treatment_id != treat_row$all_treatment_id) %>% 
-          pull(obs_index)
-      })
-    
-    observed_stratum_treatment <- ate_treatments %>%
-      plyr::adply(1, function(treat_row) {
-        (if (!is_empty(subgroup_col)) {
-          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
-        } else { prepared_analysis_data }) %>% 
-          filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-          select(stratum, obs_index)
-      })
-    
-    observed_treatment <- observed_stratum_treatment %>% 
-      group_by(all_treatment_id) %>% 
-      do(treatment_ids = .$obs_index) %>% 
-      ungroup() %>%
-      right_join(select(ate_treatments, all_treatment_id), "all_treatment_id") %>% 
-      pull(treatment_ids)
-    
-    ate_pairs <- all_ate %>% 
-      select(all_treatment_id_left, all_treatment_id_right) %>%
-      left_join(ate_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
-      left_join(ate_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
-      select(rank_id_left, rank_id_right)
-    
     observed_takeup_total <- prepared_analysis_data %>% 
       group_by(all_treatment_id) %>% 
       summarize(takeup_total = sum(dewormed.any)) %>% 
       ungroup() 
     
-    ate_treatments %<>% 
-      left_join(observed_takeup_total, "all_treatment_id") %>% 
-      mutate(takeup_total = coalesce(takeup_total, 0L))
+    if (nonparam_dynamics) {
+      static_ate <- all_ate %>% 
+        select(-one_of(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot"), each = 2), c("_left", "_right")))) %>% 
+        identify_treatment_id(treatment_map) 
+      
+      dyn_ate <- all_ate %>% 
+        select(-one_of(c(str_c(rep(c("private_value", "social_value"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
+        rename_(.dots = setNames(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot"), each = 2), c("_left", "_right")), 
+                                 str_c(rep(c("private_value", "social_value", "dist.pot.group"), each = 2), c("_left", "_right")))) %>% 
+        identify_treatment_id(treatment_map) 
+      
+      stopifnot(nrow(static_ate) == num_ate_pairs & nrow(static_ate) == nrow(dyn_ate))
+      
+      combined_ate <- imap_dfc(lst(static = static_ate, dynamic = dyn_ate), 
+                               ~ select(.x, starts_with("all_treatment_id")) %>% set_colnames(str_c(.y, names(.), sep = "_")))
+      
+      ate_treatments <- combined_ate %>% 
+        get_unique_treatments()
+      
+      if (!is_empty(subgroup_col)) {
+        ate_treatments %<>% 
+          left_join(select(treatment_map, all_treatment_id, subgroup_col), c("static_all_treatment_id" = "all_treatment_id")) 
+      }
+      
+      missing_treatment <- ate_treatments %>%
+        plyr::alply(1, function(treat_row) {
+          (if (!is_empty(subgroup_col)) {
+            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+          } else { prepared_analysis_data }) %>% 
+            filter(all_treatment_id != treat_row$static_all_treatment_id | all_treatment_id != treat_row$dynamic_all_treatment_id) %>% 
+            pull(obs_index)
+        })
+      
+      observed_stratum_treatment <- ate_treatments %>%
+        plyr::adply(1, function(treat_row) {
+          (if (!is_empty(subgroup_col)) {
+            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+          } else { prepared_analysis_data }) %>% 
+            filter(all_treatment_id == treat_row$static_all_treatment_id & all_treatment_id == treat_row$dynamic_all_treatment_id) %>% 
+            select(stratum, obs_index)
+        }) 
+      
+      observed_treatment <- observed_stratum_treatment %>% 
+        group_by_at(vars(ends_with("all_treatment_id"))) %>% 
+        do(treatment_ids = .$obs_index) %>% 
+        ungroup() %>%
+        right_join(select(ate_treatments, static_all_treatment_id, dynamic_all_treatment_id), 
+                   str_c(c("static", "dynamic"), "_all_treatment_id")) %>% 
+        pull(treatment_ids)
+      
+      ate_pairs <- combined_ate %>% 
+        select(matches("(static|dynamic)_all_treatment_id_(left|right)")) %>% 
+        left_join(ate_treatments, c("static_all_treatment_id_left" = "static_all_treatment_id",
+                                    "dynamic_all_treatment_id_left" = "dynamic_all_treatment_id")) %>% 
+        left_join(ate_treatments, c("static_all_treatment_id_right" = "static_all_treatment_id",
+                                    "dynamic_all_treatment_id_right" = "dynamic_all_treatment_id"), suffix = c("_left", "_right")) %>% 
+        select(rank_id_left, rank_id_right)
+      
+      ate_treatments %<>% 
+        left_join(observed_takeup_total, c("static_all_treatment_id" = "all_treatment_id")) %>% 
+        mutate(takeup_total = coalesce(takeup_total, 0L))
+      
+      observed_stratum_treatment %<>% 
+        rename(all_treatment_id = static_all_treatment_id)
+    } else {
+      all_ate %<>% identify_treatment_id(treatment_map) 
+      
+      stopifnot(nrow(all_ate) == num_ate_pairs)
+      
+      ate_treatments <- all_ate %>% get_unique_treatments()
+      
+      if (!is_empty(subgroup_col)) {
+        ate_treatments %<>% left_join(select(treatment_map, all_treatment_id, subgroup_col), "all_treatment_id")
+      }
+      
+      missing_treatment <- ate_treatments %>%
+        plyr::alply(1, function(treat_row) {
+          (if (!is_empty(subgroup_col)) {
+            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+          } else { prepared_analysis_data }) %>% 
+            filter(all_treatment_id != treat_row$all_treatment_id) %>% 
+            pull(obs_index)
+        })
+      
+      observed_stratum_treatment <- ate_treatments %>%
+        plyr::adply(1, function(treat_row) {
+          (if (!is_empty(subgroup_col)) {
+            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+          } else { prepared_analysis_data }) %>% 
+            filter(all_treatment_id == treat_row$all_treatment_id) %>% 
+            select(stratum, obs_index)
+        })
+      
+      observed_treatment <- observed_stratum_treatment %>% 
+        group_by(all_treatment_id) %>% 
+        do(treatment_ids = .$obs_index) %>% 
+        ungroup() %>%
+        right_join(select(ate_treatments, all_treatment_id), "all_treatment_id") %>% 
+        pull(treatment_ids)
+      
+      ate_pairs <- all_ate %>% 
+        select(all_treatment_id_left, all_treatment_id_right) %>%
+        left_join(ate_treatments, c("all_treatment_id_left" = "all_treatment_id")) %>% 
+        left_join(ate_treatments, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+        select(rank_id_left, rank_id_right)
+      
+      ate_treatments %<>% 
+        left_join(observed_takeup_total, "all_treatment_id") %>% 
+        mutate(takeup_total = coalesce(takeup_total, 0L))
+    }
     
     observed_stratum_takeup_total <- prepared_analysis_data %>% 
       group_by(stratum, all_treatment_id) %>% 
@@ -1299,24 +1366,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     reminder_info_coef = dynamic_treatment_map %>% colnames() %>% str_which("reminder_info"),
     num_signal_observed_coef = length(signal_observed_coef),
     num_reminder_info_coef = length(reminder_info_coef), 
-    
-    # dynamic_treatment_map_dm = if (!is_empty(dynamic_treatment_map)) {
-    #   dynamic_treatment_map %>% 
-    #     daply(.(dynamic_treatment_id),
-    #           function(dyn_treat) {
-    #             expand.grid(days_observed = 0:(num_deworming_days - 1), days_sms = 0:(num_deworming_days - 1)) %>% 
-    #               aaply(1, function(grid_row, temp_dm) {
-    #                 ret_dm <- dyn_treat %>% 
-    #                   select(-dynamic_treatment_id) %>% 
-    #                   as.matrix()
-    #                 
-    #                 if (grid_row$days_observed < num_deworming_days - 1) ret_dm[(grid_row$days_observed + 1):num_deworming_days, signal_observed_coef] <- 0
-    #                 if (grid_row$days_sms < num_deworming_days - 1) ret_dm[(grid_row$days_sms + 1):num_deworming_days, reminder_info_coef] <- 0
-    #                 
-    #                 return(ret_dm)
-    #               })
-    #           })
-    # }, 
     
     dynamic_treatment_map = if (!is_empty(dynamic_treatment_map)) {
       dynamic_treatment_map %>% dlply(.(dynamic_treatment_id), . %>% select(-dynamic_treatment_id) %>% as.matrix()) 
@@ -1405,7 +1454,13 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_ate_treatments = if (!is.null(ate_treatments)) nrow(ate_treatments) else 0,
     
     observed_takeup_total = ate_treatments$takeup_total,
-    ate_treatments = if (!is.null(ate_treatments)) ate_treatments$all_treatment_id else 1,
+    ate_treatments = if (!is.null(ate_treatments)) { 
+        if (nonparam_dynamics) {
+          ate_treatments %>% select(static_all_treatment_id, dynamic_all_treatment_id)
+        } else {
+          ate_treatments$all_treatment_id 
+        } 
+      }else 1,
     
     missing_obs_ids = if (num_ate_treatments > 0) unlist(missing_treatment) else 1,
     num_missing_obs_ids = if (num_ate_treatments > 0) length(missing_obs_ids) else 0,

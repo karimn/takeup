@@ -56,7 +56,7 @@ functions {
                                                int[] observed_dewormed_any,
                                                int use_logit) {
     int num_treatment_ids = size(treatment_ids);
-    int num_deworming_days = rows(latent_var_map[1]);
+    int num_deworming_days = cols(latent_var_map[1]);
     // int num_deworming_days = cols(census_covar_latent_var);
     int missing_treatment_pos = 1;
     int observed_treatment_pos = 1;
@@ -144,7 +144,7 @@ data {
   
   // int<lower = 0, upper = num_all_treatments> num_static_ate_treatments;
   // int<lower = 0, upper = num_all_treatments> num_dyn_ate_treatments;
-  int<lower = 0, upper = num_all_treatments> num_ate_treatments;
+  int<lower = 0, upper = num_all_treatments * num_all_treatments> num_ate_treatments;
   // int<lower = 1, upper = num_all_treatments> static_ate_treatments[num_static_ate_treatments]; 
   // int<lower = 1, upper = num_all_treatments> dyn_ate_treatments[num_dyn_ate_treatments]; 
   int<lower = 1, upper = num_all_treatments> ate_treatments[num_ate_treatments, 2]; 
@@ -157,9 +157,9 @@ data {
   int<lower = 0, upper = num_obs> observed_treatment_sizes[num_ate_treatments];
   int<lower = 1, upper = num_obs> observed_obs_ids[num_observed_obs_ids];
   
-  int<lower = 0, upper = num_all_treatments> num_ate_pairs;
+  int<lower = 0, upper = num_all_treatments * num_all_treatments> num_ate_pairs;
   
-  int<lower = 1, upper = num_all_treatments> ate_pairs[num_ate_pairs, 2];
+  int<lower = 1, upper = num_all_treatments * num_all_treatments> ate_pairs[num_ate_pairs, 2];
   
   int missing_treatment_stratum_id[num_missing_obs_ids]; 
   int missing_treatment_cluster_id[num_missing_obs_ids]; 
