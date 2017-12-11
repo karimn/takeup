@@ -190,6 +190,7 @@ data {
   int observed_dewormed_day[num_observed_obs_ids];
   
   // Constants for hyperpriors 
+  
   real<lower = 0> scale_df;
   real<lower = 0> scale_sigma;
   // real<lower = 0> scale_sigma_dynamic;
@@ -199,6 +200,9 @@ data {
   // real<lower = 0> coef_sigma_dynamic;
   
   real<lower = 0> lkj_df;
+  
+  real<lower = 0> hyper_dyn_rho_shape; // alpha
+  real<lower = 0> hyper_dyn_rho_scale; // beta
   
   // Configuration
   
@@ -373,7 +377,7 @@ model {
   // tau_cluster_effect ~ student_t(scale_df, 0, scale_sigma);
   // cluster_effects ~ student_t(coef_df, 0, tau_cluster_effect); 
 
-  hyper_dyn_rho ~ inv_gamma(5, 5);
+  hyper_dyn_rho ~ inv_gamma(hyper_dyn_rho_shape, hyper_dyn_rho_scale);
   hyper_dyn_alpha ~ normal(0, 1);
   // hyper_dyn_eta ~ normal(0, 1);
 

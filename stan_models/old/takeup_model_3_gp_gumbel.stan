@@ -216,9 +216,9 @@ transformed data {
   int<lower = 0, upper = num_dynamic_treatments * num_deworming_days> num_dynamic_treatment_days = num_dynamic_treatments * num_dynamics_days;
   
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[obs_treatment];
-  // row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatment_days];
-  row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatments, num_dynamics_days];
-  row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_dm[num_relevant_dyn_obs_days];
+  row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatment_days];
+  // row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_map[num_dynamic_treatments, num_dynamics_days];
+  // row_vector[num_dynamic_treatment_col] nonparam_dyn_treatment_dm[num_relevant_dyn_obs_days];
   
   matrix[num_relevant_obs_days, num_census_covar_coef] census_covar_dm_long;
   matrix[num_relevant_obs_days, num_all_treatment_coef] treatment_design_matrix_long;
@@ -231,18 +231,18 @@ transformed data {
   
   {
     int dynamic_treatment_dm_pos = 1;
-    // int non_param_dyn_treat_pos = 1;
+    int non_param_dyn_treat_pos = 1;
     int stratum_pos = 1;
     int relevant_day_obs_pos = 1;
     int relevant_dyn_day_obs_pos = 1;
     
     for (dyn_treat_index in 1:num_dynamic_treatments) {
       for (dyn_day_index in 1:num_dynamics_days) {
-        // nonparam_dyn_treatment_map[non_param_dyn_treat_pos + dyn_day_index - 1] = dynamic_treatment_map[dyn_treat_index, dyn_day_index + first_dynamics_day - 1];
-        nonparam_dyn_treatment_map[dyn_treat_index, dyn_day_index] = dynamic_treatment_map[dyn_treat_index, dyn_day_index + first_dynamics_day - 1];
+        nonparam_dyn_treatment_map[non_param_dyn_treat_pos + dyn_day_index - 1] = dynamic_treatment_map[dyn_treat_index, dyn_day_index + first_dynamics_day - 1];
+        // nonparam_dyn_treatment_map[dyn_treat_index, dyn_day_index] = dynamic_treatment_map[dyn_treat_index, dyn_day_index + first_dynamics_day - 1];
       }
      
-      // non_param_dyn_treat_pos = non_param_dyn_treat_pos + num_dynamics_days;
+      non_param_dyn_treat_pos = non_param_dyn_treat_pos + num_dynamics_days;
     }
    
     for (stratum_index in 1:num_strata) {
@@ -278,7 +278,7 @@ transformed data {
         if (obs_rel_day_index >= first_dynamics_day) {
           int curr_dyn_obs_day_pos = relevant_dyn_day_obs_pos + obs_rel_day_index - first_dynamics_day;
           
-          nonparam_dyn_treatment_dm[curr_dyn_obs_day_pos] = nonparam_dyn_treatment_map[dynamic_treatment_id[obs_index], obs_rel_day_index - first_dynamics_day + 1];
+          // nonparam_dyn_treatment_dm[curr_dyn_obs_day_pos] = nonparam_dyn_treatment_map[dynamic_treatment_id[obs_index], obs_rel_day_index - first_dynamics_day + 1];
           relevant_dyn_daily_ids[curr_dyn_obs_day_pos] = curr_obs_day_pos;
         }
       }
@@ -324,12 +324,12 @@ parameters {
   
   //  Dynamics
   
-  // vector[num_dynamic_treatment_days] hyper_dyn_latent_var;
+  vector[num_dynamic_treatment_days] hyper_dyn_latent_var;
   
   // row_vector<lower=0>[num_dynamic_treatment_col] hyper_dyn_rho;
   real<lower=0> hyper_dyn_rho;
   real<lower=0> hyper_dyn_alpha;
-  vector[num_relevant_dyn_obs_days] hyper_dyn_eta;
+  // vector[num_relevant_dyn_obs_days] hyper_dyn_eta;
 }
 
 transformed parameters {
@@ -421,22 +421,25 @@ model {
  
   hyper_dyn_rho ~ inv_gamma(hyper_dyn_rho_shape, hyper_dyn_rho_scale);
   hyper_dyn_alpha ~ normal(0, 1);
-  hyper_dyn_eta ~ normal(0, 1);
+  // hyper_dyn_eta ~ normal(0, 1);
   
   {
     // int relevant_daily_stratum_pos = 1;
     
-    // matrix[num_dynamic_treatments, num_deworming_days] full_hyper_dyn_latent_var = rep_matrix(0, num_dynamic_treatments, num_deworming_days);
+    matrix[num_dynamic_treatments, num_deworming_days] full_hyper_dyn_latent_var = rep_matrix(0, num_dynamic_treatments, num_deworming_days);
     
     // matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] L_hyper_dyn_K =
       // cov_exp_quad_ARD(nonparam_dyn_treatment_map, hyper_dyn_alpha, hyper_dyn_rho, delta, 1); 
-    // matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] hyper_dyn_K =
-    matrix[num_relevant_dyn_obs_days, num_relevant_dyn_obs_days] hyper_dyn_K = cov_exp_quad(nonparam_dyn_treatment_dm, hyper_dyn_alpha, hyper_dyn_rho); 
+    matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] hyper_dyn_K =
+      cov_exp_quad(nonparam_dyn_treatment_map, hyper_dyn_alpha, hyper_dyn_rho); 
       
-    // matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] L_hyper_dyn_K;
-    matrix[num_relevant_dyn_obs_days, num_relevant_dyn_obs_days] L_hyper_dyn_K;
+    // matrix[num_relevant_dyn_obs_days, num_relevant_dyn_obs_days] hyper_dyn_K = 
+      // cov_exp_quad(nonparam_dyn_treatment_dm, hyper_dyn_alpha, hyper_dyn_rho); 
       
-    // vector[num_obs * num_deworming_days] all_dyn_var_vec;
+    matrix[num_dynamic_treatment_days, num_dynamic_treatment_days] L_hyper_dyn_K;
+    // matrix[num_relevant_dyn_obs_days, num_relevant_dyn_obs_days] L_hyper_dyn_K;
+      
+    vector[num_obs * num_deworming_days] all_dyn_var_vec;
     
     vector[num_relevant_obs_days] latent_var;
     vector[num_relevant_obs_days] dyn_latent_var = rep_vector(0, num_relevant_obs_days);
@@ -447,27 +450,33 @@ model {
     // vector[num_all_treatment_coef] full_hyper_beta = append_row(hyper_intercept, hyper_beta);
     // vector[num_all_treatment_coef] full_hyper_beta = append_row(hyper_intercept, hyper_beta_raw * hyper_coef_sigma);
     
-    // for (dyn_K_index in 1:num_dynamic_treatment_days) {
-    for (dyn_K_index in 1:num_relevant_dyn_obs_days) {
+    for (dyn_K_index in 1:num_dynamic_treatment_days) {
+    // for (dyn_K_index in 1:num_relevant_dyn_obs_days) {
       hyper_dyn_K[dyn_K_index, dyn_K_index] = hyper_dyn_K[dyn_K_index, dyn_K_index] + delta;
     }
     
     L_hyper_dyn_K = cholesky_decompose(hyper_dyn_K);
     
-    // hyper_dyn_latent_var ~ multi_normal_cholesky(rep_vector(0, num_dynamic_treatment_days), L_hyper_dyn_K);
+    hyper_dyn_latent_var ~ multi_normal_cholesky(rep_vector(0, num_dynamic_treatment_days), L_hyper_dyn_K);
     // hyper_dyn_latent_var ~ multi_normal(rep_vector(0, num_dynamic_treatment_days), hyper_dyn_K);
     
-    // full_hyper_dyn_latent_var[, first_dynamics_day:num_deworming_days] = 
-    //   // to_matrix(hyper_dyn_latent_var, num_dynamic_treatments, num_dynamics_days, 0); // Row-major order
+    full_hyper_dyn_latent_var[, first_dynamics_day:num_deworming_days] =
+      to_matrix(hyper_dyn_latent_var, num_dynamic_treatments, num_dynamics_days, 0); // Row-major order
     //   to_matrix(L_hyper_dyn_K * hyper_dyn_eta, num_dynamic_treatments, num_dynamics_days, 0); // Row-major order
     //   
-    // all_dyn_var_vec = to_vector(full_hyper_dyn_latent_var[dynamic_treatment_id]);
+    all_dyn_var_vec = to_vector(full_hyper_dyn_latent_var[dynamic_treatment_id]'); // Very important: transpose first because to_vector() is column-major!
+  
+    // print(hyper_intercept); 
+    // print(all_dyn_var_vec[180:212]);
+    // print(relevant_daily_ids[180:212]);
+    // print(dynamic_treatment_id[180:212]);
+    // print(full_hyper_dyn_latent_var);
     
-    dyn_latent_var[relevant_dyn_daily_ids] = L_hyper_dyn_K * hyper_dyn_eta;
+    // dyn_latent_var[relevant_dyn_daily_ids] = L_hyper_dyn_K * hyper_dyn_eta;
     
     // latent_var = hyper_intercept + (treatment_design_matrix_long * full_hyper_beta) + all_dyn_var_vec[relevant_daily_ids];
-    // latent_var = hyper_intercept + all_dyn_var_vec[relevant_daily_ids];
-    latent_var = hyper_intercept + dyn_latent_var;
+    latent_var = hyper_intercept + all_dyn_var_vec[relevant_daily_ids];
+    // latent_var = hyper_intercept + dyn_latent_var;
     
     // for (strata_index in 1:num_strata) {
     //   int curr_relevant_daily_stratum_size = relevant_daily_strata_sizes[strata_index];
