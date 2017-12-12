@@ -2064,13 +2064,13 @@ nonparam_dyn_analysis_data <- analysis.data %>%
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
          sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
   filter(!name_matched, sms.treatment.2 == "control") #, !hh.baseline.sample)
-  # filter(!name_matched, sms.treatment.2 == "control", phone_owner, assigned.treatment %in% c("control", "calendar")) #, !hh.baseline.sample)
-  # filter(!name_matched | sms.treatment.2 == "control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
 nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
   data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
   prepare_treatment_map()
+```
 
+```{r old-ate-cleanup, eval=FALSE}
 nonparam_ate <- dyn_all_ate %>% 
   select(-starts_with("sms.treatment.2"), -starts_with("reminder_info")) %>%
   distinct() %>% { 
@@ -2098,7 +2098,6 @@ nonparam_ate_treatments <- nonparam_ate_pairs %>%
   spread(dyn_static, val) %>% 
   select(pair_index, dyn, static)  
 ```
-
 
 ```{r nonparam-dyn-model-data, warning=FALSE}
 nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
