@@ -1188,13 +1188,13 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     if (nonparam_dynamics) {
       static_ate <- all_ate %>% 
-        select(-one_of(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot"), each = 2), c("_left", "_right")))) %>% 
+        select(-one_of(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), each = 2), c("_left", "_right")))) %>% 
         identify_treatment_id(treatment_map) 
       
       dyn_ate <- all_ate %>% 
-        select(-one_of(c(str_c(rep(c("private_value", "social_value"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
-        rename_(.dots = setNames(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot"), each = 2), c("_left", "_right")), 
-                                 str_c(rep(c("private_value", "social_value", "dist.pot.group"), each = 2), c("_left", "_right")))) %>% 
+        select(-one_of(c(str_c(rep(c("private_value", "social_value", "sms.treatment.2"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
+        rename_(.dots = setNames(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), each = 2), c("_left", "_right")), 
+                                 str_c(rep(c("private_value", "social_value", "dist.pot.group", "sms.treatment.2"), each = 2), c("_left", "_right")))) %>% 
         identify_treatment_id(treatment_map) 
       
       stopifnot(nrow(static_ate) == num_ate_pairs & nrow(static_ate) == nrow(dyn_ate))
