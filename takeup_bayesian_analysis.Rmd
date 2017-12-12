@@ -2107,7 +2107,7 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   prepared_treatment_maps = TRUE, 
   treatment_map = nonparam_dyn_static_treatment_map,
     
-  treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
+  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2,
   subgroup_col = "phone_owner",
   drop_intercept_from_dm = FALSE, 
   nonparam_dynamics = TRUE,
