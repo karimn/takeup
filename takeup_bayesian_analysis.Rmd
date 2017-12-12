@@ -2165,7 +2165,7 @@ model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
-nonparam_dyn_fit_version <- "testing_5"
+nonparam_dyn_fit_version <- "testing_6"
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_gp_nonparam, data = ., 
@@ -2209,7 +2209,6 @@ model_3_fit %>% print(pars = c("hyper_beta"))
 # model_3_fit %>% print(pars = c("hyper_baseline_cond_takeup"))
 # model_3_fit %>% print(pars = c("stratum_baseline_cond_takeup"))
 model_3_fit %>% print(pars = c("est_takeup"))
-model_3_fit %>% print(pars = c("day_constant_latent_var"))
 model_3_fit %>% print(pars = c("est_deworming_days"))
 ```
 

@@ -35,7 +35,8 @@ functions {
   
   matrix treatment_cell_deworming_day_prop_rng(int[,] treatment_ids, 
                                                int[] missing_obs_ids, 
-                                               int[] missing_cluster_id,
+                                               // int[] missing_cluster_id,
+                                               int[] missing_level_id, // Either stratum or cluster
                                                int[] missing_treatment_sizes,
                                                int[] observed_treatment_sizes,
                                                // matrix census_covar_latent_var,
@@ -56,7 +57,7 @@ functions {
       int curr_observed_treatment_size = observed_treatment_sizes[treatment_ids_index];
       
       matrix[curr_missing_treatment_size, num_deworming_days + 1] missing_deworming_days_mask = 
-        treatment_deworming_day_rng(latent_var_map[treatment_ids_index, missing_cluster_id[missing_treatment_pos:missing_treatment_end]], use_logit);
+        treatment_deworming_day_rng(latent_var_map[treatment_ids_index, missing_level_id[missing_treatment_pos:missing_treatment_end]], use_logit);
                                     
       if (curr_observed_treatment_size > 0) {
         int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
