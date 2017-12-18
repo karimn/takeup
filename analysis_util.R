@@ -1153,6 +1153,50 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?)
     }
   
+  if (!is_null(subgroup_col)) {
+    subgroup_treatment_map_dm <- treatment_map %>% 
+      distinct_(.dots = subgroup_col) %>% 
+      mutate(subgroup_id = seq_len(n())) %>% 
+      left_join(treatment_map, ., subgroup_col) %>% 
+      select(subgroup_id) %>% 
+      bind_cols(treatment_map_design_matrix, .) %>% 
+      group_by(subgroup_id) %>% 
+      summarize_all(~ 1 * (sum(.) > 1)) %>% 
+      ungroup() 
+    
+    omitted_subgroup_treatment_col <- subgroup_treatment_map_dm %>% 
+      select(-subgroup_id) %>% 
+      select_if(~ sum(.) > 1) %>% 
+      names()
+    
+    omitted_subgroup_id <- subgroup_treatment_map_dm %>% 
+      select(-one_of(omitted_subgroup_treatment_col)) %>% 
+      filter_at(vars(-subgroup_id), all_vars(. == 0)) %>% 
+      pull(subgroup_id)
+   
+    omitted_subgroup <- tibble(subgroup_treatment_col = omitted_subgroup_treatment_col) %>% 
+      mutate(subgroup_id = omitted_subgroup_id)
+    
+    subgroup_treatment_col_map <- subgroup_treatment_map_dm %>% 
+      select(-one_of(omitted_subgroup_treatment_col)) %>% 
+      anti_join(omitted_subgroup, "subgroup_id") %>%
+      gather(subgroup_treatment_col, col_mask, -subgroup_id) %>% 
+      group_by(subgroup_id) %>% 
+      filter(col_mask == 1) %>% 
+      ungroup() %>% 
+      select(-col_mask) %>% 
+      bind_rows(omitted_subgroup) %>% 
+      arrange(subgroup_id)
+    
+    treatment_map_design_matrix %<>% select(subgroup_treatment_col_map$subgroup_treatment_col)
+    
+    subgroup_treatment_col_sizes <- subgroup_treatment_col_map %>% 
+      count(subgroup_id) %>% 
+      pull(n)
+  } else {
+    subgroup_treatment_col_sizes <- ncol(treatment_map_design_matrix)
+  }
+  
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
     select(-census_covar_id) %>% 
@@ -1187,14 +1231,20 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       ungroup() 
     
     if (nonparam_dynamics) {
+      ate_names <- str_replace(names(all_ate), "_(left|right)", "")
+      # static_ate_names <- intersect(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), ate_names)
+      # dyn_ate_names <- intersect(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), ate_names)
+      static_ate_names <- c("private_value", "social_value", "dist.pot.group", "sms.treatment.2")
+      dyn_ate_names <- c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock")
+      
       static_ate <- all_ate %>% 
-        select(-one_of(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), each = 2), c("_left", "_right")))) %>% 
+        select(-one_of(str_c(rep(dyn_ate_names, each = 2), c("_left", "_right")))) %>% 
         identify_treatment_id(treatment_map) 
       
       dyn_ate <- all_ate %>% 
         select(-one_of(c(str_c(rep(c("private_value", "social_value", "sms.treatment.2"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
-        rename_(.dots = setNames(str_c(rep(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), each = 2), c("_left", "_right")), 
-                                 str_c(rep(c("private_value", "social_value", "dist.pot.group", "sms.treatment.2"), each = 2), c("_left", "_right")))) %>% 
+        rename_(.dots = setNames(str_c(rep(intersect(dyn_ate_names, ate_names), each = 2), c("_left", "_right")), 
+                                 str_c(rep(intersect(static_ate_names, ate_names), each = 2), c("_left", "_right")))) %>% 
         identify_treatment_id(treatment_map) 
       
       stopifnot(nrow(static_ate) == num_ate_pairs & nrow(static_ate) == nrow(dyn_ate))
@@ -1315,9 +1365,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_stratum_treatment <- NULL
   }
   
-  treatment_map_design_matrix %<>%
-    magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
-                        detect_redund_col())
+  # treatment_map_design_matrix %<>%
+  #   magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
+  #                       detect_redund_col())
   
   private_value_calendar_coef <- treatment_map_design_matrix %>% 
     names() %>% 
@@ -1358,6 +1408,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     treatment_map_design_matrix,
     num_all_treatments = nrow(treatment_map_design_matrix),
     num_all_treatment_coef = ncol(treatment_map_design_matrix), 
+    num_subgroups = length(subgroup_treatment_col_sizes),
+    subgroup_treatment_col_sizes,
     
     num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
     num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),

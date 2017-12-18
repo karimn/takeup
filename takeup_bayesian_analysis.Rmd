@@ -2067,6 +2067,7 @@ nonparam_dyn_analysis_data <- analysis.data %>%
 
 nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
   data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, phone_owner) %>% 
+  filter(sms.treatment.2 == "control" | phone_owner) %>% 
   prepare_treatment_map()
 ```
 
@@ -2121,7 +2122,7 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   lkj_df = 2,
   
   use_logit = 1,
-  first_dynamics_day = 1,
+  param_poly_order = 2,
   
   estimate_ate = 1
 )
@@ -2155,21 +2156,22 @@ gen_nonparam_initializer <- function(stan_data_list) {
     )
   }
 }
-
-model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe.stan"), model_name = "model_3_nonparma_fe")
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
-nonparam_dyn_fit_version <- "fe_1"
+nonparam_dyn_fit_version <- "param_testing_1"
+
+model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe_centered.stan"), model_name = "model_3_param")
+# model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe.stan"), model_name = "model_3_nonparam_fe")
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
   sampling(model_3_nonparam, data = ., 
-           chains = 4, iter = 400,
-           control = lst(max_treedepth = 15), #, adapt_delta = 0.99), 
+           chains = 2, iter = 300,
+           control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
            # init = gen_nonparam_initializer(.),
            sample_file = file.path("stanfit", str_interp("model_3_nonparam_${nonparam_dyn_fit_version}.csv")))
 
-save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
+# save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
 ```
 
 ```{r model-3-gp-nonparam-debug, eval=FALSE}
@@ -2196,7 +2198,8 @@ load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_
 
 ```{r}
 model_3_fit@model_pars
-model_3_fit %>% print(pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw"))
+# model_3_fit %>% print(pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw"))
+model_3_fit %>% print(pars = c("hyper_beta_day1", "strata_beta_day1_tau"))
 
 model_3_fit %>% print(pars = c("hyper_dyn_latent_var"))
 model_3_fit %>% print(pars = c("hyper_intercept"))
@@ -2234,13 +2237,13 @@ mcmc_pairs(model_3_posterior_array,
            regex_pars = c(
              "hyper_intercept_raw", "hyper_treat_beta_day1\\[[1-2],", "hyper_beta_dyn_effect\\[[1-2],[1-3]\\]",
               "strata_beta\\[1,1,[1-3]\\]",
-              "strata_beta_day1_tau_raw\\[[1-3]\\]" 
+              "strata_beta_day1_tau\\[[1-3]\\]" 
               # "strata_beta_dyn_tau_raw\\[[1-2],1\\]"
              ),
            transform = lst(
-             "strata_beta_day1_tau_raw[1]" = "log", 
-             "strata_beta_day1_tau_raw[2]" = "log",
-             "strata_beta_day1_tau_raw[3]" = "log",
+             "strata_beta_day1_tau[1]" = "log", 
+             "strata_beta_day1_tau[2]" = "log",
+             "strata_beta_day1_tau[3]" = "log",
              # "strata_beta_day1_tau_raw[4]" = "log",
              # "strata_beta_day1_tau_raw[5]" = "log", 
              # "strata_beta_day1_tau_raw[6]" = "log"
