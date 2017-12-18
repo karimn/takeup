@@ -604,7 +604,8 @@ plot(reported.gift.pref.dewormed.plot)
 
 ```{r other-incentive-plot}
 other.have.incentive.plot <- analysis.data %>% 
-  filter(!is.na(gift_choice), monitored, !hh.baseline.sample, !is.na(hh_cal) | !is.na(hh_bracelet), 
+  # filter(!is.na(gift_choice), monitored, !hh.baseline.sample, !is.na(hh_cal) | !is.na(hh_bracelet), 
+  filter(!is.na(gift_choice), monitored, !is.na(hh_cal) | !is.na(hh_bracelet), 
          assigned.treatment %in% c("calendar", "bracelet")) %>% 
   anti_join(outlier.cells, c("assigned.treatment","sms.treatment", "mon_status", "cluster.id")) %>% 
   gather(hh.incentive, hh_switch, hh_cal, hh_bracelet) %>% 
