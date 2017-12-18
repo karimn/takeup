@@ -2063,10 +2063,11 @@ nonparam_dyn_analysis_data <- analysis.data %>%
                                       "calendar" = c("calendar", "bracelet")), 
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
          sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-  filter(!name_matched, sms.treatment.2 == "control") #, !hh.baseline.sample)
+  filter(!name_matched) #, !hh.baseline.sample)
 
 nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>% 
-  data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
+  data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, phone_owner) %>% 
+  filter(sms.treatment.2 == "control" | phone_owner) %>% 
   prepare_treatment_map()
 ```
 
@@ -2107,17 +2108,12 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   prepared_treatment_maps = TRUE, 
   treatment_map = nonparam_dyn_static_treatment_map,
     
-  # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
-  # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner,
-  # treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
-  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
+  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2,
   subgroup_col = "phone_owner",
   drop_intercept_from_dm = FALSE, 
   nonparam_dynamics = TRUE,
   
-  all_ate = dyn_all_ate %>% 
-    select(-starts_with("sms.treatment.2"), -starts_with("reminder_info")) %>%
-    distinct(), 
+  all_ate = dyn_all_ate,
   
   scale_sigma = 1,
   hyper_coef_sigma = 1,
@@ -2126,7 +2122,7 @@ nonparam_dyn_stan_data <- prepare_bayesian_analysis_data(
   lkj_df = 2,
   
   use_logit = 1,
-  first_dynamics_day = 1,
+  param_poly_order = 2,
   
   estimate_ate = 1
 )
@@ -2160,19 +2156,20 @@ gen_nonparam_initializer <- function(stan_data_list) {
     )
   }
 }
-
-model_3_gp_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_gp_gumbel_fe.stan"), model_name = "model_3_gp_gumbel_fe")
 ```
 
 ```{r model-3-gp-nonparam, eval=FALSE}
-nonparam_dyn_fit_version <- "testing_6"
+nonparam_dyn_fit_version <- "param_testing_1"
+
+model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe_centered.stan"), model_name = "model_3_param")
+# model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe.stan"), model_name = "model_3_nonparam_fe")
 
 model_3_fit <- nonparam_dyn_stan_data %>% 
-  sampling(model_3_gp_nonparam, data = ., 
-           chains = 4, iter = 400,
-           control = lst(max_treedepth = 15), #, adapt_delta = 0.99), 
+  sampling(model_3_nonparam, data = ., 
+           chains = 2, iter = 300,
+           control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
            # init = gen_nonparam_initializer(.),
-           sample_file = file.path("stanfit", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.csv")))
+           sample_file = file.path("stanfit", str_interp("model_3_nonparam_${nonparam_dyn_fit_version}.csv")))
 
 # save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
 ```
@@ -2201,7 +2198,8 @@ load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_
 
 ```{r}
 model_3_fit@model_pars
-model_3_fit %>% print(pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw"))
+# model_3_fit %>% print(pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw"))
+model_3_fit %>% print(pars = c("hyper_beta_day1", "strata_beta_day1_tau"))
 
 model_3_fit %>% print(pars = c("hyper_dyn_latent_var"))
 model_3_fit %>% print(pars = c("hyper_intercept"))
@@ -2239,13 +2237,13 @@ mcmc_pairs(model_3_posterior_array,
            regex_pars = c(
              "hyper_intercept_raw", "hyper_treat_beta_day1\\[[1-2],", "hyper_beta_dyn_effect\\[[1-2],[1-3]\\]",
               "strata_beta\\[1,1,[1-3]\\]",
-              "strata_beta_day1_tau_raw\\[[1-3]\\]" 
+              "strata_beta_day1_tau\\[[1-3]\\]" 
               # "strata_beta_dyn_tau_raw\\[[1-2],1\\]"
              ),
            transform = lst(
-             "strata_beta_day1_tau_raw[1]" = "log", 
-             "strata_beta_day1_tau_raw[2]" = "log",
-             "strata_beta_day1_tau_raw[3]" = "log",
+             "strata_beta_day1_tau[1]" = "log", 
+             "strata_beta_day1_tau[2]" = "log",
+             "strata_beta_day1_tau[3]" = "log",
              # "strata_beta_day1_tau_raw[4]" = "log",
              # "strata_beta_day1_tau_raw[5]" = "log", 
              # "strata_beta_day1_tau_raw[6]" = "log"
