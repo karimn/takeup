@@ -2054,6 +2054,70 @@ bind_rows(observe = fast_sim_ate %>%
   theme(legend.position = "bottom")
 ```
 
+## New Parameteric Model
+
+```{r param-dyn-analysis-data}
+dyn_analysis_data <- analysis.data %>%
+  mutate(private_value = fct_collapse(assigned.treatment, 
+                                      control = c("control", "ink"), 
+                                      "calendar" = c("calendar", "bracelet")), 
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+  filter(!name_matched, sms.treatment.2 == "control") #, !hh.baseline.sample)
+
+dyn_static_treatment_map <- dyn_analysis_data %>% 
+  data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
+  # filter(sms.treatment.2 == "control" | phone_owner) %>% 
+  prepare_treatment_map()
+```
+
+```{r param-dyn-model-data, warning=FALSE}
+param_dyn_stan_data <- prepare_bayesian_analysis_data(
+  dyn_analysis_data,
+  wtp.data, 
+   
+  prepared_treatment_maps = TRUE, 
+  treatment_map = dyn_static_treatment_map,
+    
+  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner, 
+  subgroup_col = "phone_owner",
+  drop_intercept_from_dm = FALSE, 
+  nonparam_dynamics = TRUE,
+  param_poly_order = 2,
+  
+  all_ate = dyn_all_ate %>% 
+    filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
+    select(-starts_with("sms.treatment.2"), -starts_with("reminder")) %>% 
+    distinct(),
+  
+  scale_sigma = 1,
+  hyper_coef_sigma = 1,
+  hyper_intercept_sigma = 5,
+  
+  lkj_df = 2,
+  
+  use_logit = 1,
+  
+  estimate_ate = 1
+)
+```
+
+```{r model-3-gp-param, eval=FALSE}
+param_dyn_fit_version <- "param_testing_1"
+
+model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
+# model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe.stan"), model_name = "model_3_nonparam_fe")
+
+model_3_fit <- param_dyn_stan_data %>% 
+  sampling(model_3_param, data = ., 
+           chains = 2, iter = 300,
+           control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
+           # init = gen_nonparam_initializer(.),
+           sample_file = file.path("stanfit", str_interp("model_3_${param_dyn_fit_version}.csv")))
+
+# save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
+```
+
 ## Non-parameteric Model
 
 ```{r nonparam-dyn-analysis-data}
@@ -2070,6 +2134,8 @@ nonparam_dyn_static_treatment_map <- nonparam_dyn_analysis_data %>%
   filter(sms.treatment.2 == "control" | phone_owner) %>% 
   prepare_treatment_map()
 ```
+
+
 
 ```{r old-ate-cleanup, eval=FALSE}
 nonparam_ate <- dyn_all_ate %>% 
@@ -2199,11 +2265,11 @@ load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_
 ```{r}
 model_3_fit@model_pars
 # model_3_fit %>% print(pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw"))
-model_3_fit %>% print(pars = c("hyper_beta_day1", "strata_beta_day1_tau"))
+model_3_fit %>% print(pars = c("hyper_beta_day1", "strata_beta_day1_tau", "hyper_baseline_dyn_effect"))
 
 model_3_fit %>% print(pars = c("hyper_dyn_latent_var"))
 model_3_fit %>% print(pars = c("hyper_intercept"))
-model_3_fit %>% print(pars = c("hyper_beta"))
+model_3_fit %>% print(pars = c("hyper_baseline_beta"))
 # model_3_fit %>% print(pars = c("hyper_baseline_cond_takeup"))
 # model_3_fit %>% print(pars = c("stratum_baseline_cond_takeup"))
 model_3_fit %>% print(pars = c("est_takeup"))
@@ -2216,14 +2282,14 @@ model_3_posterior_array <- as.array(model_3_fit)
 model_3_np <- nuts_params(model_3_fit)
 model_3_lp <- log_posterior(model_3_fit)
 
-mcmc_trace(model_3_posterior_array, pars = c("strata_beta_day1_tau_raw[1]"), np = model_3_np)
+mcmc_trace(model_3_posterior_array, regex_pars = c("hyper_baseline_dyn_effect"), np = model_3_np)
 
 mcmc_nuts_divergence(model_3_np, model_3_lp)
 
 color_scheme_set("darkgray")
 mcmc_parcoord(model_3_posterior_array, np = model_3_np, 
-              regex_pars = c("hyper_intercept_raw", "strata_beta_day1_tau_raw",
-                             "strata_beta\\[1,"))
+              regex_pars = c("hyper_intercept", "strata_beta_day1_tau_raw",
+                             "strata_beta_day1"))
 ```
 
 ```{r}
@@ -2235,9 +2301,11 @@ mcmc_scatter(posterior_data, pars = c("strata_beta[1,1,2]", "strata_beta_day1_ta
 ```{r, fig.width=15}
 mcmc_pairs(model_3_posterior_array, 
            regex_pars = c(
-             "hyper_intercept_raw", "hyper_treat_beta_day1\\[[1-2],", "hyper_beta_dyn_effect\\[[1-2],[1-3]\\]",
-              "strata_beta\\[1,1,[1-3]\\]",
-              "strata_beta_day1_tau\\[[1-3]\\]" 
+             "hyper_beta_day1\\[[1-2]", 
+             "hyper_beta_baseline_dyn_effect\\[[1-2]\\]", 
+             "strata_beta_day1_raw\\[[1-3]\\]",
+             
+             "strata_beta_day1_tau\\[[1-3]\\]" 
               # "strata_beta_dyn_tau_raw\\[[1-2],1\\]"
              ),
            transform = lst(

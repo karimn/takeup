@@ -1041,6 +1041,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            subgroup_col = c("phone_owner", "name_matched"),
                                            drop_intercept_from_dm = TRUE,
                                            nonparam_dynamics = FALSE,
+                                           param_poly_order = 1,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
@@ -1364,10 +1365,71 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_stratum_takeup_total <- NULL
     observed_stratum_treatment <- NULL
   }
+ 
+  num_deworming_days <- 12L 
+  
+  hazard_day_map <- diag(c(rep(1, num_deworming_days), 0))[, 1:num_deworming_days]
+  hazard_day_triangle_map <- lower.tri(diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)]) * 1
+  relevant_latent_var_map <- hazard_day_map + hazard_day_triangle_map
+  
+  dewormed_day_any <- prepared_analysis_data %>% 
+    pull(dewormed.day.any) %>% 
+    coalesce(num_deworming_days + 1L)
+  
+  num_relevant_obs_days <- sum(relevant_latent_var_map[dewormed_day_any, ])
+  
+  obs_relevant_latent_var <- relevant_latent_var_map[dewormed_day_any, ]
+  obs_relevant_days <- rowSums(obs_relevant_latent_var)
+  
+  census_covar_id <- prepared_analysis_data$census_covar_id
+  census_covar_dm <- census_covar_map_dm[census_covar_id, ]
+ 
+  census_covar_dm_long <- census_covar_dm %>% magrittr::extract(rep(seq_len(nrow(.)), obs_relevant_days), ) 
   
   # treatment_map_design_matrix %<>%
   #   magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
   #                       detect_redund_col())
+  
+  num_all_treatments <- nrow(treatment_map_design_matrix)
+  num_all_treatment_coef <- ncol(treatment_map_design_matrix) 
+
+  obs_treatment <- prepared_analysis_data$all_treatment_id 
+  treatment_design_matrix <- treatment_map_design_matrix[obs_treatment, ]
+   
+  treatment_design_matrix_long <- treatment_map_design_matrix %>% magrittr::extract(rep(obs_treatment, obs_relevant_days), )
+  
+  cluster_id_long <- rep(prepared_analysis_data$new_cluster_id, obs_relevant_days)
+  
+  relevant_day_dewormed <- obs_relevant_days %>% # pmin(dewormed_day_any, num_deworming_days) %>% 
+    accumulate(add) %>% 
+    magrittr::extract(dewormed_day_any <= num_deworming_days)
+  
+  relevant_dewormed_any_daily <- rep.int(0, num_relevant_obs_days) %>% 
+    magrittr::inset(relevant_day_dewormed, 1)
+  
+  dewormed_day_long <- map(obs_relevant_days, seq_len) %>% unlist()
+  
+  num_param_dyn_coef <- (num_all_treatment_coef - 1) * param_poly_order
+  
+  days_poly_trend <- ((1:num_deworming_days) - 1) %>% 
+    scale() %>% 
+    matrix(num_deworming_days, param_poly_order) %>% 
+    plyr::aaply(1, accumulate, multiply_by) %>% 
+    magrittr::extract(, rep(seq_len(ncol(.)), each = num_all_treatment_coef - 1))  
+  
+  param_dyn_treatment_map <- treatment_map_design_matrix[, rep(2:num_all_treatment_coef, param_poly_order)] %>% 
+    plyr::alply(1, function(mask_row) matrix(as.numeric(mask_row), num_deworming_days, length(mask_row), byrow = TRUE) * days_poly_trend)
+ 
+  param_dyn_treatment_design_matrix_long <- obs_relevant_days %>% 
+    plyr::llply(function(curr_relevant_days) days_poly_trend[1:curr_relevant_days, ]) %>% 
+    do.call(rbind, .) %>% 
+    multiply_by(treatment_design_matrix_long[, rep(2:num_all_treatment_coef, param_poly_order)])
+  
+  param_dyn_qr <- qr(param_dyn_treatment_design_matrix_long)
+  
+  Q_param_dyn_treatment_design_matrix_long <- qr.Q(param_dyn_qr) * sqrt(num_relevant_obs_days - 1)
+  R_param_dyn_treatment_design_matrix_long <- qr.R(param_dyn_qr) / sqrt(num_relevant_obs_days - 1)
+  R_inv_param_dyn_treatment_design_matrix_long <- solve(R_param_dyn_treatment_design_matrix_long)
   
   private_value_calendar_coef <- treatment_map_design_matrix %>% 
     names() %>% 
@@ -1403,11 +1465,13 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     # Data passed to model
     
-    num_deworming_days = 12L, 
+    num_deworming_days, 
     
     treatment_map_design_matrix,
-    num_all_treatments = nrow(treatment_map_design_matrix),
-    num_all_treatment_coef = ncol(treatment_map_design_matrix), 
+    treatment_design_matrix,
+    treatment_design_matrix_long,
+    num_all_treatments,
+    num_all_treatment_coef,
     num_subgroups = length(subgroup_treatment_col_sizes),
     subgroup_treatment_col_sizes,
     
@@ -1423,6 +1487,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       dynamic_treatment_map %>% dlply(.(dynamic_treatment_id), . %>% select(-dynamic_treatment_id) %>% as.matrix()) 
     },
     
+    param_dyn_treatment_map,
+    param_dyn_treatment_design_matrix_long,
+    Q_param_dyn_treatment_design_matrix_long,
+    R_param_dyn_treatment_design_matrix_long,
+    R_inv_param_dyn_treatment_design_matrix_long,
+    
     num_private_value_calendar_coef = length(private_value_calendar_coef),
     num_private_value_bracelet_coef = length(private_value_bracelet_coef),
     private_value_calendar_coef,
@@ -1433,9 +1503,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     census_covar_map_dm,
     num_census_covar_coef = ncol(census_covar_map_dm),
     num_distinct_census_covar = nrow(census_covar_map_dm),
-    census_covar_id = prepared_analysis_data$census_covar_id,
+    census_covar_id,
     
-    census_covar_dm = census_covar_map_dm[census_covar_id, ],
+    census_covar_dm,
+    
+    census_covar_dm_long,
     
     endline_covar_dm,
     num_endline_covar_coef = ncol(endline_covar_dm),
@@ -1447,7 +1519,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       arrange(stratum_id) %$% 
       n,
     
-    obs_treatment = prepared_analysis_data$all_treatment_id,
+    obs_treatment,
   
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
     dynamic_treatment_id = if (is_empty(dynamic_treatment_mask_map)) rep(0, nrow(prepared_analysis_data)) else prepared_analysis_data$dynamic_treatment_id,
@@ -1458,12 +1530,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     dewormed_any = prepared_analysis_data$dewormed.any,
     
-    dewormed_day_any = prepared_analysis_data$dewormed.day.any %>% coalesce(num_deworming_days + 1L), # Set dewormed day to 13 for the non-dewormed
+    dewormed_day_any, # Set dewormed day to 13 for the non-dewormed
+    
+    relevant_dewormed_any_daily,
+    
+    dewormed_day_long,
     
     num_dewormed = sum(dewormed_any),
     dewormed_ids = prepared_analysis_data %>% filter(dewormed.any) %>% arrange(stratum_id) %>% pull(obs_index),
     
     cluster_id = prepared_analysis_data$new_cluster_id,
+    cluster_id_long,
     stratum_id = prepared_analysis_data$stratum_id,
     num_clusters = n_distinct(cluster_id),
     
@@ -1497,9 +1574,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       unlist() %>% 
       subtract(dewormed_ids, .),
     
-    hazard_day_map = diag(c(rep(1, num_deworming_days), 0))[, 1:num_deworming_days],
-    hazard_day_triangle_map = lower.tri(diag(num_deworming_days + 1L)[, seq_len(num_deworming_days)]) * 1,
-    relevant_latent_var_map = hazard_day_map + hazard_day_triangle_map,
+    hazard_day_map,
+    hazard_day_triangle_map,
+    relevant_latent_var_map,
+    
+    num_relevant_obs_days,
+    num_param_dyn_coef,
     
     # ATE
     
