@@ -1465,6 +1465,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     # Data passed to model
     
+    param_poly_order,
+    
     num_deworming_days, 
     
     treatment_map_design_matrix,
