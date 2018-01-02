@@ -2100,22 +2100,88 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
   
   estimate_ate = 1
 )
+
+dyn_fit_version <- "param_sms_ctrl_2"
 ```
 
 ```{r model-3-gp-param, eval=FALSE}
-param_dyn_fit_version <- "param_testing_1"
-
 model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
-# model_3_nonparam <- stan_model(file = file.path("stan_models", "takeup_model_3_nonparam_fe.stan"), model_name = "model_3_nonparam_fe")
 
 model_3_fit <- param_dyn_stan_data %>% 
   sampling(model_3_param, data = ., 
-           chains = 2, iter = 300,
+           chains = 2, iter = 20,
            control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
-           # init = gen_nonparam_initializer(.),
-           sample_file = file.path("stanfit", str_interp("model_3_${param_dyn_fit_version}.csv")))
+           sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
+```
 
-# save(nonparam_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
+```{r load-param-dyn-model-fit}
+model_3_fit <- dir("stanfit", pattern = str_interp("model_3_${dyn_fit_version}_[2-4].csv"), full.names = TRUE) %>% 
+  read_stan_csv()
+
+model_3_fit %>% 
+  get_sampler_params(inc_warmup = FALSE) %>% 
+  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
+  sum()
+
+# load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
+```
+
+```{r}
+model_3_fit@model_pars
+model_3_fit %>% print(pars = c("hyper_beta_day1", "hyper_baseline_dyn_effect"))
+model_3_fit %>% print(pars = c("QR_hyper_treat_beta_dyn_effect"))
+model_3_fit %>% print(pars = c("strata_beta_day1_tau"))
+model_3_fit %>% print(pars = c("strata_beta_day1_raw"))
+model_3_fit %>% print(pars = c("cluster_beta_day1"))
+
+model_3_fit %>% print(pars = c("est_takeup"))
+model_3_fit %>% print(pars = c("est_deworming_days"))
+model_3_fit %>% print(pars = c("est_takeup_ate"))
+```
+
+```{r, fig.width=15}
+model_3_posterior_array <- as.array(model_3_fit)
+model_3_np <- nuts_params(model_3_fit)
+model_3_lp <- log_posterior(model_3_fit)
+
+mcmc_trace(model_3_posterior_array, regex_pars = c("hyper_baseline_dyn_effect\\[[1-3]\\]"), np = model_3_np)
+
+mcmc_nuts_divergence(model_3_np, model_3_lp)
+
+color_scheme_set("darkgray")
+mcmc_parcoord(model_3_posterior_array, np = model_3_np, 
+              regex_pars = c("hyper_beta_day1"))
+mcmc_parcoord(model_3_posterior_array, np = model_3_np, 
+              regex_pars = c("hyper_baseline_dyn_effect"))
+mcmc_parcoord(model_3_posterior_array, np = model_3_np, 
+              regex_pars = c("strata_beta_day1_raw"))
+mcmc_parcoord(model_3_posterior_array, np = model_3_np, 
+              regex_pars = c("QR_hyper_treat_beta_dyn_effect"))
+mcmc_parcoord(model_3_posterior_array, np = model_3_np, 
+              regex_pars = c("cluster_beta_day1"))
+```
+
+```{r, fig.width=15}
+mcmc_pairs(model_3_posterior_array, 
+           regex_pars = c(
+             "hyper_beta_day1\\[[1-2]", 
+             "QR_hyper_beta_baseline_dyn_effect\\[[1-2]\\]", 
+             "strata_beta_day1_raw\\[[1-3]\\]",
+             
+             "strata_beta_day1_tau\\[[1-3]\\]" 
+              # "strata_beta_dyn_tau_raw\\[[1-2],1\\]"
+             ),
+           transform = lst(
+             "strata_beta_day1_tau[1]" = "log", 
+             "strata_beta_day1_tau[2]" = "log",
+             "strata_beta_day1_tau[3]" = "log",
+             # "strata_beta_day1_tau_raw[4]" = "log",
+             # "strata_beta_day1_tau_raw[5]" = "log", 
+             # "strata_beta_day1_tau_raw[6]" = "log"
+             # "strata_beta_dyn_tau_raw[1,1]" = "log", 
+             # "strata_beta_dyn_tau_raw[2,1]" = "log"
+             ), 
+           np = model_3_np)
 ```
 
 ## Non-parameteric Model
