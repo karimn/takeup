@@ -1397,6 +1397,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   treatment_design_matrix <- treatment_map_design_matrix[obs_treatment, ]
    
   treatment_design_matrix_long <- treatment_map_design_matrix %>% magrittr::extract(rep(obs_treatment, obs_relevant_days), )
+  treatment_design_matrix_qr <- qr(treatment_design_matrix_long)
+  Q_treatment_design_matrix_long <- qr.Q(treatment_design_matrix_qr) * sqrt(num_relevant_obs_days - 1)
+  R_treatment_design_matrix_long <- qr.R(treatment_design_matrix_qr) / sqrt(num_relevant_obs_days - 1)
+  R_inv_treatment_design_matrix_long <- solve(R_treatment_design_matrix_long)
   
   cluster_id_long <- rep(prepared_analysis_data$new_cluster_id, obs_relevant_days)
   
@@ -1472,6 +1476,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     treatment_map_design_matrix,
     treatment_design_matrix,
     treatment_design_matrix_long,
+    Q_treatment_design_matrix_long,
+    R_treatment_design_matrix_long,
+    R_inv_treatment_design_matrix_long,
     num_all_treatments,
     num_all_treatment_coef,
     num_subgroups = length(subgroup_treatment_col_sizes),
