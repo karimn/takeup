@@ -71,6 +71,8 @@ load(file.path("data", "analysis.RData"))
 
 ```{r model-versions}
 dyn_param_fit_ver <- 5
+dyn_fit_version <- "param_sms_ctrl_6"
+
 nonparam_dyn_fit_version <- "hazard_1"
 static_fit_ver <- 13
 ```
@@ -2063,11 +2065,13 @@ dyn_analysis_data <- analysis.data %>%
                                       "calendar" = c("calendar", "bracelet")), 
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
          sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-  filter(!name_matched, sms.treatment.2 == "control") #, !hh.baseline.sample)
+  filter(!name_matched) #, sms.treatment.2 == "control") #, !hh.baseline.sample)
 
 dyn_static_treatment_map <- dyn_analysis_data %>% 
-  data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
-  # filter(sms.treatment.2 == "control" | phone_owner) %>% 
+  data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% 
+  filter(sms.treatment.2 == "control" | phone_owner,
+         sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+         private_value == "control" | social_value != "ink") %>%
   prepare_treatment_map()
 ```
 
@@ -2079,16 +2083,18 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
   prepared_treatment_maps = TRUE, 
   treatment_map = dyn_static_treatment_map,
     
-  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner, 
+  # treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner, 
+  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2,
   subgroup_col = "phone_owner",
   drop_intercept_from_dm = FALSE, 
   nonparam_dynamics = TRUE,
   param_poly_order = 2,
   
-  all_ate = dyn_all_ate %>% 
-    filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
-    select(-starts_with("sms.treatment.2"), -starts_with("reminder")) %>% 
-    distinct(),
+  all_ate = dyn_all_ate,
+  # %>% 
+  #   filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
+  #   select(-starts_with("sms.treatment.2"), -starts_with("reminder")) %>% 
+  #   distinct(),
   
   scale_sigma = 1,
   hyper_coef_sigma = 1,
@@ -2100,8 +2106,6 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
   
   estimate_ate = 1
 )
-
-dyn_fit_version <- "param_sms_ctrl_2"
 ```
 
 ```{r model-3-gp-param, eval=FALSE}
@@ -2110,12 +2114,14 @@ model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_para
 model_3_fit <- param_dyn_stan_data %>% 
   sampling(model_3_param, data = ., 
            chains = 2, iter = 20,
-           control = lst(max_treedepth = 15), #adapt_delta = 0.99), 
-           sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
+           control = lst(max_treedepth = 15)) #adapt_delta = 0.99), 
+           # sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
+
+# save(param_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
 ```
 
 ```{r load-param-dyn-model-fit}
-model_3_fit <- dir("stanfit", pattern = str_interp("model_3_${dyn_fit_version}_[2-4].csv"), full.names = TRUE) %>% 
+model_3_fit <- dir("stanfit", pattern = str_interp("model_3_${dyn_fit_version}_[1-4].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
 model_3_fit %>% 
@@ -2123,8 +2129,12 @@ model_3_fit %>%
   map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
   sum()
 
-# load(file.path("stan_analysis_data", str_interp("model_3_gp_nonparam_${nonparam_dyn_fit_version}.RData")))
+load(file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
+
+param_dyn_stan_data <- dyn_stan_data
 ```
+
+### Checking MCMC
 
 ```{r}
 model_3_fit@model_pars
@@ -2164,26 +2174,232 @@ mcmc_parcoord(model_3_posterior_array, np = model_3_np,
 ```{r, fig.width=15}
 mcmc_pairs(model_3_posterior_array, 
            regex_pars = c(
-             "hyper_beta_day1\\[[1-2]", 
-             "QR_hyper_beta_baseline_dyn_effect\\[[1-2]\\]", 
-             "strata_beta_day1_raw\\[[1-3]\\]",
-             
+             "hyper_beta_day1\\[[1-2]\\]",
+             "strata_beta_day1_raw\\[[1-3]\\,1",
              "strata_beta_day1_tau\\[[1-3]\\]" 
-              # "strata_beta_dyn_tau_raw\\[[1-2],1\\]"
-             ),
+           ),
            transform = lst(
              "strata_beta_day1_tau[1]" = "log", 
              "strata_beta_day1_tau[2]" = "log",
              "strata_beta_day1_tau[3]" = "log",
-             # "strata_beta_day1_tau_raw[4]" = "log",
-             # "strata_beta_day1_tau_raw[5]" = "log", 
-             # "strata_beta_day1_tau_raw[6]" = "log"
-             # "strata_beta_dyn_tau_raw[1,1]" = "log", 
-             # "strata_beta_dyn_tau_raw[2,1]" = "log"
-             ), 
+           ), 
            np = model_3_np)
 ```
 
+```{r, fig.width=15}
+mcmc_pairs(model_3_posterior_array, 
+           regex_pars = c(
+             "strata_baseline_dyn_effect_raw\\[[1-3],1",
+             "strata_baseline_dyn_effect_tau\\[[1-3]\\]"
+           ),
+           transform = lst(
+             "strata_baseline_dyn_effect_tau[1]" = "log", 
+             "strata_baseline_dyn_effect_tau[2]" = "log", 
+             "strata_baseline_dyn_effect_tau[3]" = "log", 
+           ), 
+           np = model_3_np)
+```
+
+### Analyzing
+
+```{r new-param-dyn-model-prep-data}
+dyn_treatment_cell_info <- tibble(treatment_size = with(param_dyn_stan_data, missing_treatment_sizes + observed_treatment_sizes)) %>% 
+  bind_cols(param_dyn_stan_data$ate_treatments) %>% 
+  left_join(param_dyn_stan_data$treatment_map, c("static_all_treatment_id" = "all_treatment_id")) %>% 
+  left_join(param_dyn_stan_data$treatment_map, c("dynamic_all_treatment_id" = "all_treatment_id"), suffix = c("_static", "_dynamic")) %>% 
+  mutate(treatment_rank = seq_len(n()))
+
+dyn_ate_pair_info <- param_dyn_stan_data$ate_pairs %>% 
+  mutate(pair_rank = seq_len(n())) %>% 
+  left_join(dyn_treatment_cell_info, c("rank_id_left" = "treatment_rank")) %>% 
+  left_join(dyn_treatment_cell_info, c("rank_id_right" = "treatment_rank"), suffix = c("_left", "_right")) %>% 
+  mutate(treatment_size = treatment_size_left)
+
+est_deworming_takeup_dyn <- model_3_fit %>% 
+  as.data.frame( pars = "est_takeup") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(treatment_rank, iter_takeup, -iter_id) %>% 
+  mutate(treatment_rank = str_extract(treatment_rank, "\\d+") %>% as.integer()) %>% 
+  inner_join(dyn_treatment_cell_info, "treatment_rank")
+
+est_deworming_days <- model_3_fit %>% 
+  as.data.frame(pars = "est_deworming_days") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, iter_takeup, -iter_id) %>% 
+  mutate(outcome_id = str_extract(outcome_id, "\\d+,\\d+")) %>% 
+  separate(outcome_id, c("treatment_rank", "day"), ",", extra = "drop") %>% 
+  mutate_at(vars(day, treatment_rank), as.integer) %>% 
+  inner_join(dyn_treatment_cell_info, "treatment_rank")
+
+est_deworming_takeup_ate <- model_3_fit %>% 
+  as.data.frame(pars = "est_takeup_ate") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, iter_ate, -iter_id) %>% 
+  mutate(pair_rank = str_extract(outcome_id, "\\d+") %>% as.integer()) %>% 
+  inner_join(dyn_ate_pair_info, "pair_rank")
+```
+
+```{r summarize-est}
+prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroups = NULL) { 
+  subgroups <- if (daily) c(subgroups, "day") else subgroups
+  
+  est_data %>%
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)"), iter_id), subgroups)) %>% 
+    summarize_at(vars(outcome_var), funs(wtd_iter_est = weighted.mean(., treatment_size))) %>% 
+    ungroup() %>% 
+    group_by_at(c(vars(matches("((private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    summarize_at(vars("wtd_iter_est"), funs(mean_est = mean,
+                                         ub_90 = quantile(., 0.95),
+                                         ub_95 = quantile(., 0.975),
+                                         lb_90 = quantile(., 0.05),
+                                         lb_95 = quantile(., 0.025))) %>% 
+    ungroup() 
+}
+
+prepare_est_deworming_takeup_dyn <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "iter_takeup", ...) %>% 
+    unite(incentive_treatment_static, str_c(c("private", "social"), "_value_static"), sep = "-", remove = FALSE) %>% 
+    unite(incentive_treatment_dynamic, str_c(c("private", "social"), "_value_dynamic"), sep = "-", remove = FALSE) %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
+                                                 c("control-bracelet" = "bracelet social", 
+                                                   "calendar-bracelet" = "bracelet",
+                                                   "control-control" = "control", 
+                                                   "(-control)|(control-)" = "")) %>% 
+             fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet")))
+}
+
+prepare_est_deworming_ate_dyn <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "iter_ate", ...) %>% 
+    unite(incentive_treatment_static_left, str_c(c("private", "social"), "_value_static_left"), sep = "-", remove = FALSE) %>% 
+    unite(incentive_treatment_dynamic_left, str_c(c("private", "social"), "_value_dynamic_left"), sep = "-", remove = FALSE) %>% 
+    unite(incentive_treatment_static_right, str_c(c("private", "social"), "_value_static_right"), sep = "-", remove = FALSE) %>% 
+    unite(incentive_treatment_dynamic_right, str_c(c("private", "social"), "_value_dynamic_right"), sep = "-", remove = FALSE) %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
+                                                 c("control-bracelet" = "bracelet social", 
+                                                   "calendar-bracelet" = "bracelet",
+                                                   "control-control" = "control", 
+                                                   "(-control)|(control-)" = "")) %>% 
+             fct_relevel("control", "ink", "calendar", "bracelet social", "bracelet")))
+}
+
+est_deworming_takeup_dyn_phone <- est_deworming_takeup_dyn %>% 
+  filter(dist.pot.group_static == dist.pot.group_dynamic) %>%
+  prepare_est_deworming_takeup_dyn(subgroups = "phone_owner_static")
+
+est_deworming_day_phone <- est_deworming_days %>% 
+  filter(dist.pot.group_static == dist.pot.group_dynamic) %>%
+  prepare_est_deworming_takeup_dyn(subgroups = "phone_owner_static", daily = TRUE)
+
+est_deworming_takeup_dyn_dist <- est_deworming_takeup_dyn %>% 
+  prepare_est_deworming_takeup_dyn(subgroups = str_c("dist.pot.group_", c("static", "dynamic")))
+
+est_deworming_day_dist <- est_deworming_days %>% 
+  prepare_est_deworming_takeup_dyn(subgroups = str_c("dist.pot.group_", c("static", "dynamic")), daily = TRUE)
+
+est_deworming_takeup_dyn_phone_dist <- est_deworming_takeup_dyn %>%
+  prepare_est_deworming_takeup_dyn(subgroups = c("phone_owner_static", str_c("dist.pot.group_", c("static", "dynamic"))))
+
+est_deworming_day_phone_dist <- est_deworming_days %>%
+  prepare_est_deworming_takeup_dyn(subgroups = c("phone_owner_static", str_c("dist.pot.group_", c("static", "dynamic"))), daily = TRUE)
+
+est_deworming_takeup_dyn_all <- est_deworming_takeup_dyn %>% 
+  filter(dist.pot.group_static == dist.pot.group_dynamic) %>% 
+  prepare_est_deworming_takeup_dyn() 
+
+est_deworming_day_all <- est_deworming_days %>% 
+  filter(dist.pot.group_static == dist.pot.group_dynamic) %>% 
+  prepare_est_deworming_takeup_dyn(daily = TRUE) 
+
+est_deworming_takeup_ate_phone <- est_deworming_takeup_ate %>% 
+  filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+         dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
+  prepare_est_deworming_ate_dyn(subgroups = "phone_owner_static_left")
+
+est_deworming_takeup_ate_dist <- est_deworming_takeup_ate %>% 
+  prepare_est_deworming_ate_dyn(subgroups = str_c("dist.pot.group_", c("static", "dynamic"), rep(c("_left", "_right"), each = 2)))
+
+est_deworming_takeup_ate_phone_dist <- est_deworming_takeup_ate %>%
+  filter(dist.pot.group_static_left == dist.pot.group_static_right,
+         dist.pot.group_dynamic_left == dist.pot.group_dynamic_right) %>% 
+  prepare_est_deworming_ate_dyn(subgroups = c("phone_owner_static_left", str_c("dist.pot.group_", c("static", "dynamic"), rep(c("_left", "_right"), each = 2))))
+
+est_deworming_takeup_ate_all <- est_deworming_takeup_ate %>% 
+  filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+         dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
+  prepare_est_deworming_ate_dyn() 
+```
+
+```{r, eval=FALSE}
+dyn_ate <- bind_rows(non_phone = dyn_stan_data$non_phone_owner_ate_pairs,
+                     phone = dyn_stan_data$phone_owner_ate_pairs, .id = "phone_owner") %>% 
+  group_by(phone_owner) %>% 
+  mutate(all_treatment_id_left = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_left],
+         all_treatment_id_right = dyn_stan_data[[str_interp("${first(phone_owner)}_owner_treatments")]][rank_id_right],
+         all_treatment_size_left = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left] +
+           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_left],
+         all_treatment_size_right = dyn_stan_data[[str_interp("observed_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right] +
+           dyn_stan_data[[str_interp("missing_${first(phone_owner)}_owner_treatment_sizes")]][rank_id_right]) %>% 
+  ungroup() %>% 
+  mutate(ate_id = seq_len(n()),
+         phone_owner = phone_owner == "phone") %>% 
+  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_left" = "all_treatment_id")) %>%
+  left_join(dyn_stan_data$treatment_map, c("all_treatment_id_right" = "all_treatment_id"), suffix = c("_left", "_right")) %>% 
+  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), c("all_treatment_id_left" = "all_treatment_id")) %>% 
+  left_join(select(est_deworming_days, iter_id, all_treatment_id, day, sim_outcome, phone_owner), 
+            c("all_treatment_id_right" = "all_treatment_id", "iter_id", "day"),
+            suffix = c("_left", "_right")) %>% 
+  unite(incentive_treatment_left, private_value_left, social_value_left, sep = "-", remove = FALSE) %>% 
+  unite(incentive_treatment_right, private_value_right, social_value_right, sep = "-", remove = FALSE) 
+
+assertthat::assert_that(all(phone_owner.x == phone_owner.y) && all(phone_owner.x.x == phone_owner.y.y) & all(phone_owner == phone_owner.y.y), env = dyn_ate)
+assertthat::assert_that(all(dist.pot.group_left == dist.pot.group_right), env = dyn_ate)
+
+dyn_ate %<>% 
+  select(-contains("phone_owner.")) %>% 
+  filter(day == 13) %>% 
+  group_by_at(c("day", "phone_owner", "iter_id", "all_treatment_size_left", "all_treatment_size_right",
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
+                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
+  summarize(iter_ate = weighted.mean(1 - sim_outcome_left, all_treatment_size_left) - weighted.mean(1 - sim_outcome_right, all_treatment_size_right)) %>% 
+  # summarize_at(vars(mean_ate))
+  # mutate(iter_ate = (1 - sim_outcome_left) - (1 - sim_outcome_right)) %>% 
+  group_by_at(c("day", "phone_owner", 
+                c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment") %>%
+                # c("dist.pot.group", "private_value", "social_value", "sms.treatment.2", "incentive_treatment", "name_matched") %>%
+                  str_c(rep(c("_left", "_right"), each = length(.))))) %>% 
+  summarize(mean_ate = mean(iter_ate),
+            ub_90 = quantile(iter_ate, 0.95),
+            ub_95 = quantile(iter_ate, 0.975),
+            lb_90 = quantile(iter_ate, 0.05),
+            lb_95 = quantile(iter_ate, 0.025)) %>% 
+  ungroup() %>% 
+  mutate_at(vars(matches("incentive_treatment")), 
+            funs(fct_relevel(factor(.), "control-ink", "calendar-control", "control-bracelet", "bracelet-bracelet")))
+```
+
+
+```{r, fig.width=12, fig.height=7}
+est_deworming_takeup_dyn_all %>%
+  filter(incentive_treatment_static == incentive_treatment_dynamic,
+         sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
+  mutate_at(vars(starts_with("incentive_treatment_static")), str_to_title) %>% 
+  ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
+  geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
+  geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
+  geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
+  scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+  coord_flip() +
+  # coord_flip(ylim = c(0, 1)) +
+  # facet_wrap(~ dist.pot.group,  
+  #            labeller = as_labeller(. %>% str_to_title() %>% str_c("Distance: ", .)),
+  #            ncol = 1) +
+  labs(title = "Deworming Take-up", 
+       subtitle = "Across all treatments", 
+       x = "Incentive/Signal Treatment", 
+       y = "Posterior Probability of Deworming", 
+       caption = "Points on plot are the mean point estimates.\nThe thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.") + 
+  theme(legend.position = "right")
+```
 ## Non-parameteric Model
 
 ```{r nonparam-dyn-analysis-data}
