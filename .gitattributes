@@ -122,3 +122,12 @@ stanfit/basic_model_2_simple_debug_1.csv filter=lfs diff=lfs merge=lfs -text
 stanfit/basic_model_1_13_8.csv filter=lfs diff=lfs merge=lfs -text
 stanfit/basic_model_2_simple_9_6.csv filter=lfs diff=lfs merge=lfs -text
 stanfit/basic_model_2_simple_centered_1_6.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_3_1.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_3_2.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_3_3.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_3_4.csv filter=lfs diff=lfs merge=lfs -text
+stan_analysis_data/model_3_param_sms_ctrl_6.RData filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_6_1.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_6_2.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_6_3.csv filter=lfs diff=lfs merge=lfs -text
+stanfit/model_3_param_sms_ctrl_6_4.csv filter=lfs diff=lfs merge=lfs -text

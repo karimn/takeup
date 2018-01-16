@@ -8,3 +8,6 @@ takeup_bayesian_analysis.R
 
 # STAN models data
 takeup_*model_*.rds
+
+# Testing stanfit data
+stanfit/*testing*.csv

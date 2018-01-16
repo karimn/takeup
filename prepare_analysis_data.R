@@ -88,7 +88,6 @@ endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.stra
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
 analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, baseline.data, consent.dewormed.reports, cluster.strat.data, max.name.match.cost = 1)
 
-
 # Outliers ----------------------------------------------------------------
 
 cell.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE, 
