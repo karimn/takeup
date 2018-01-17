@@ -1030,6 +1030,27 @@ prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) 
   return(prepared)
 }
 
+to_new_dyn_ate <- function(all_ate, treatment_map) {
+  ate_names <- str_replace(names(all_ate), "_(left|right)", "")
+  static_ate_names <- c("private_value", "social_value", "dist.pot.group", "sms.treatment.2")
+  dyn_ate_names <- c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock")
+  
+  static_ate <- all_ate %>% 
+    select(-one_of(str_c(rep(dyn_ate_names, each = 2), c("_left", "_right")))) %>% 
+    identify_treatment_id(treatment_map) 
+  
+  dyn_ate <- all_ate %>% 
+    select(-one_of(c(str_c(rep(c("private_value", "social_value", "sms.treatment.2"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
+    rename_(.dots = setNames(str_c(rep(intersect(dyn_ate_names, ate_names), each = 2), c("_left", "_right")), 
+                             str_c(rep(intersect(static_ate_names, ate_names), each = 2), c("_left", "_right")))) %>% 
+    identify_treatment_id(treatment_map) 
+  
+  stopifnot(nrow(static_ate) == nrow(all_ate) & nrow(static_ate) == nrow(dyn_ate))
+  
+  imap_dfc(lst(static = static_ate, dynamic = dyn_ate), 
+           ~ select(.x, starts_with("all_treatment_id")) %>% set_colnames(str_c(.y, names(.), sep = "_")))
+}
+
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
@@ -1232,26 +1253,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       ungroup() 
     
     if (nonparam_dynamics) {
-      ate_names <- str_replace(names(all_ate), "_(left|right)", "")
-      # static_ate_names <- intersect(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), ate_names)
-      # dyn_ate_names <- intersect(c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock"), ate_names)
-      static_ate_names <- c("private_value", "social_value", "dist.pot.group", "sms.treatment.2")
-      dyn_ate_names <- c("incentive_shift", "signal_observed", "dyn_dist_pot", "reminder_info_stock")
-      
-      static_ate <- all_ate %>% 
-        select(-one_of(str_c(rep(dyn_ate_names, each = 2), c("_left", "_right")))) %>% 
-        identify_treatment_id(treatment_map) 
-      
-      dyn_ate <- all_ate %>% 
-        select(-one_of(c(str_c(rep(c("private_value", "social_value", "sms.treatment.2"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
-        rename_(.dots = setNames(str_c(rep(intersect(dyn_ate_names, ate_names), each = 2), c("_left", "_right")), 
-                                 str_c(rep(intersect(static_ate_names, ate_names), each = 2), c("_left", "_right")))) %>% 
-        identify_treatment_id(treatment_map) 
-      
-      stopifnot(nrow(static_ate) == num_ate_pairs & nrow(static_ate) == nrow(dyn_ate))
-      
-      combined_ate <- imap_dfc(lst(static = static_ate, dynamic = dyn_ate), 
-                               ~ select(.x, starts_with("all_treatment_id")) %>% set_colnames(str_c(.y, names(.), sep = "_")))
+      combined_ate <- to_new_dyn_ate(all_ate, treatment_map)
       
       ate_treatments <- combined_ate %>% 
         get_unique_treatments()
@@ -1931,4 +1933,179 @@ estimate_deworm_prob_ate <- function(iter_parameters,
     treatment_map_dm = treatment_map_dm,
     dyn_treatment_mask_map = dyn_treatment_mask_map,
     full_dyn_treatment_map_dm = full_dyn_treatment_map_dm)
+}
+
+
+# Dynamic ATE -------------------------------------------------------------
+
+get_dyn_ate <- function() {
+  dyn_sms_control_ate <- tribble(
+      ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
+      "control",            "ink",               "control",             "control",
+      "calendar",           "control",           "control",             "control",
+      "calendar",           "bracelet",          "control",             "control",
+      "control",            "bracelet",           "control",            "control" 
+    ) %>% 
+    mutate(signal_observed_left = social_value_left,
+           signal_observed_right = social_value_right) %>% 
+    bind_rows(
+      tribble(
+        ~ private_value_left, ~ social_value_left, ~ signal_observed_left, ~ private_value_right, ~ social_value_right, ~ signal_observed_right,
+        "control",            "bracelet",          "control",              "control",             "control",            "control",
+        "control",            "ink",               "control",              "control",             "control",            "control",
+        "control",            "bracelet",          "bracelet",             "control",             "bracelet",           "control",
+        "control",            "ink",               "ink",                  "control",             "ink",                "control"
+    )) %>%
+    mutate(incentive_shift_left = private_value_left,
+           incentive_shift_right = private_value_right) %>% 
+    bind_rows(
+      tribble(
+        ~ private_value_left, ~ incentive_shift_left,  ~ private_value_right, ~ incentive_shift_right,
+        "calendar",           "calendar",              "calendar",            "control" 
+      ) %>% 
+      mutate(social_value_left = "control",
+             social_value_right = "control",
+             signal_observed_left = "control",
+             signal_observed_right = "control")) %>%
+    mutate(dyn_dist_pot_left = NA,
+           dyn_dist_pot_right = NA) %>% 
+    bind_rows(
+      tribble(
+        ~ social_value_left, ~ dyn_dist_pot_left, ~ social_value_right, ~ dyn_dist_pot_right,
+        "control",              "close",             "control",               "far",
+        "bracelet",             "close",             "bracelet",              "far",
+        "ink",                  "close",             "ink",                   "far"
+      ) %>% 
+        mutate(private_value_left = "control",
+               private_value_right = "control",
+               signal_observed_left = social_value_left,
+               signal_observed_right = social_value_right,
+               incentive_shift_left = private_value_left,
+               incentive_shift_right = private_value_right) 
+    ) %>% 
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+    bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
+    bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
+    mutate(sms.treatment.2_left = "control", 
+           sms.treatment.2_right = "control",
+           # name_matched = FALSE,
+           # hh.baseline.sample = FALSE,
+           reminder_info_stock_left =  sms.treatment.2_left,
+           reminder_info_stock_right = sms.treatment.2_right) %>% 
+    mutate_at(vars(phone_owner, name_matched), as.logical) %>%
+    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) 
+    # filter(!name_matched) %>% select(-name_matched)
+  
+  dyn_phone_owners_ate <- tribble(
+    ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
+    "control",            "control",           "reminder.only",        "control",             "control",            "control",
+    "control",            "control",           "social.info",          "control",             "control",            "control",
+    "control",            "control",           "social.info",          "control",             "control",            "reminder.only",
+  
+    "control",            "ink",               "social.info",          "control",             "control",            "control",
+    "control",            "ink",               "social.info",          "control",             "control",            "social.info",
+    "control",            "ink",               "social.info",          "control",             "ink",                "control",
+  
+    "calendar",           "control",           "social.info",          "control",             "control",            "control",
+    "calendar",           "control",           "social.info",          "control",             "control",            "social.info",
+    "calendar",           "control",           "social.info",          "calendar",            "control",            "control",
+  
+    "calendar",           "bracelet",          "social.info",          "control",             "control",            "control",
+    "calendar",           "bracelet",          "social.info",          "control",             "control",            "social.info",
+    "calendar",           "bracelet",          "social.info",          "calendar",            "control",            "social.info",
+    "calendar",           "bracelet",          "social.info",          "calendar",            "bracelet",           "control",
+    
+    "control",           "bracelet",           "social.info",          "control",             "control",            "control",
+    "control",           "bracelet",           "social.info",          "control",             "control",            "social.info",
+    "control",           "bracelet",           "social.info",          "calendar",            "control",            "social.info",
+    "control",           "bracelet",           "social.info",          "control",             "bracelet",           "control"
+  ) %>%
+    mutate(#incentive_shift_left = private_value_left,
+           #incentive_shift_right = private_value_right,
+           signal_observed_left = social_value_left,
+           signal_observed_right = social_value_right,
+           reminder_info_stock_left = sms.treatment.2_left,
+           reminder_info_stock_right = sms.treatment.2_right) %>% 
+    bind_rows(
+      tribble(
+        ~ social_value_left, ~ social_value_right, ~ sms.treatment.2_right,
+        "bracelet",          "bracelet",           "control",
+        "bracelet",          "control",            "social.info",
+        "ink",               "ink",                "control",    
+        "ink",               "control",            "social.info"
+      ) %>% 
+      mutate(private_value_left = "control",
+             private_value_right = "control",
+             signal_observed_left = "control",
+             signal_observed_right = "control",
+             reminder_info_stock_left = "control",
+             reminder_info_stock_right = "control",
+             sms.treatment.2_left = "social.info")) %>% 
+    bind_rows(
+      tribble(
+        ~ private_value_left, ~ private_value_right, ~ sms.treatment.2_right,
+        "calendar",           "calendar",            "control",
+        "calendar",           "control",             "social.info"
+      ) %>% 
+      mutate(social_value_left = "control",
+             social_value_right = "control",
+             signal_observed_left = "control",
+             signal_observed_right = "control",
+             reminder_info_stock_left = "control",
+             reminder_info_stock_right = "control",
+             sms.treatment.2_left = "social.info")) %>% 
+    bind_rows(
+      tribble(
+        ~ social_value_left, ~ reminder_info_stock_left, ~ social_value_right,  ~ sms.treatment.2_right, 
+        "bracelet",          "social.info",              "bracelet",            "social.info",   
+        "bracelet",          "control",                  "bracelet",            "control",       
+        "ink",               "social.info",              "ink",                 "social.info",   
+        "ink",               "control",                  "ink",                 "control"       
+    ) %>% 
+      mutate(private_value_left = "control",
+             private_value_right = "control",
+             signal_observed_left = social_value_left,
+             signal_observed_right = social_value_right,
+             sms.treatment.2_left = "social.info",
+             reminder_info_stock_right = "control")) %>% 
+    bind_rows(
+      tribble(
+         ~ social_value_left, ~ private_value_left, ~ dyn_dist_pot_left, ~ dyn_dist_pot_right,
+         "control",           "control",            "close",             "far",
+         "control",           "calendar",           "close",             "far",
+         "ink",               "control",            "close",             "far",
+         "bracelet",          "control",            "close",             "far" 
+      ) %>%
+      mutate(
+        private_value_right = private_value_left,
+        social_value_right = social_value_left,
+        signal_observed_left = "control",
+        signal_observed_right = "control",
+        sms.treatment.2_left = "social.info",
+        sms.treatment.2_right = "social.info",
+        reminder_info_stock_left = sms.treatment.2_left,
+        reminder_info_stock_right = sms.treatment.2_right,
+        # incentive_shift_left = private_value_left,
+        # incentive_shift_right = private_value_right
+      )
+    ) %>% 
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
+    mutate(
+      phone_owner = TRUE,
+      incentive_shift_left = private_value_left,
+      incentive_shift_right = private_value_right,
+      # incentive_shift_left = "control",
+      # incentive_shift_right = "control",
+      # hh.baseline.sample = FALSE, 
+      name_matched = FALSE
+    ) %>%
+    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) %>% 
+    # select(-name_matched)
+    bind_rows(filter(., sms.treatment.2_left == "control" & sms.treatment.2_right == "control") %>% mutate(name_matched = TRUE))
+  
+  dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
+  
+  assertthat::assert_that(all(map_lgl(dyn_all_ate, ~ !any(is.na(.)))))
+  
+  return(dyn_all_ate)
 }
