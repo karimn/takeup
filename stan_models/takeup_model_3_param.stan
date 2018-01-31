@@ -177,6 +177,7 @@ data {
   // Constants for hyperpriors 
   
   real<lower = 0> scale_sigma;
+  real<lower = 0> cluster_scale_sigma;
   
   real<lower = 0> hyper_coef_sigma;
   real<lower = 0> hyper_intercept_sigma;
@@ -324,7 +325,7 @@ model {
   strata_baseline_dyn_effect_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
   // strata_beta_dyn_effect_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
-  cluster_beta_day1_tau ~ normal(0, scale_sigma);
+  cluster_beta_day1_tau ~ normal(0, cluster_scale_sigma);
   cluster_beta_day1_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
   
   {

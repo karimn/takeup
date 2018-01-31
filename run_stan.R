@@ -62,6 +62,7 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
     distinct(),
   
   scale_sigma = 1,
+  cluster_scale_sigma = 0.5,
   hyper_coef_sigma = 1,
   hyper_intercept_sigma = 5,
   
@@ -74,7 +75,7 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
 
 # Run ---------------------------------------------------------------------
 
-dyn_fit_version <- "param_14"
+dyn_fit_version <- "param_15"
 
 model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
 
@@ -82,8 +83,8 @@ cat(str_interp("Detected cores ${parallel::detectCores()}\n"))
 
 model_3_fit <- param_dyn_stan_data %>% 
   sampling(model_3_param, data = ., 
-           chains = num_chains, iter = 1000,
-           control = lst(max_treedepth = 20, adapt_delta = 0.9), 
+           chains = num_chains, iter = 500,
+           control = lst(max_treedepth = 15, adapt_delta = 0.9), 
            sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
 
 save(param_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
