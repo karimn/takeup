@@ -4,20 +4,26 @@ library(forcats)
 library(broom)
 library(tidyverse)
 library(modelr)
-
 library(rstan)
+library(docopt)
+
+script_options <- "Usage:
+  run_stan [--analysis-data-only | --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>] [--output-name=<output-name>]
+
+ Options:
+  --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
+  --num-iterations=<iterations>, -i <iterations>  Number of sampling iterations [default: 300]
+  --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
+  --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
+  --analysis-data-only  Don't run sampling, just produce analysis data
+" %>% 
+  docopt()
 
 source("analysis_util.R")
 
-num_chains <- commandArgs(trailingOnly = TRUE)[1]
-
-if (is.na(num_chains)) num_chains <- max(1, parallel::detectCores())
-
-options(mc.cores = num_chains)
-rstan_options(auto_write = TRUE)
-
 load(file.path("data", "analysis.RData"))
 
+dyn_fit_version <- script_options$`output-name`
 
 # Analysis Data -----------------------------------------------------------
 
@@ -73,9 +79,20 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
   estimate_ate = 1
 )
 
+save(param_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
+
+if (script_options$`analysis-data-only`) quit()
+
 # Run ---------------------------------------------------------------------
 
-dyn_fit_version <- "param_16"
+num_chains <- as.integer(script_options$`num-chains`)
+# num_chains <- commandArgs(trailingOnly = TRUE)[1]
+
+# if (is.na(num_chains)) num_chains <- max(1, parallel::detectCores())
+if (num_chains > parallel::detectCores()) stop("Not enough cores.")
+
+options(mc.cores = num_chains)
+rstan_options(auto_write = TRUE)
 
 model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
 
@@ -83,8 +100,8 @@ cat(str_interp("Detected cores ${parallel::detectCores()}\n"))
 
 model_3_fit <- param_dyn_stan_data %>% 
   sampling(model_3_param, data = ., 
-           chains = num_chains, iter = 500,
-           control = lst(max_treedepth = 15, adapt_delta = 0.9), 
+           chains = num_chains, 
+           iter = as.integer(script_options$`num-iterations`),
+           control = lst(max_treedepth = 15, adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
 
-save(param_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
