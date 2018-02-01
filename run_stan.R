@@ -62,7 +62,7 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
     distinct(),
   
   scale_sigma = 1,
-  cluster_scale_sigma = 0.5,
+  cluster_scale_sigma = 0.01,
   hyper_coef_sigma = 1,
   hyper_intercept_sigma = 5,
   
@@ -75,7 +75,7 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
 
 # Run ---------------------------------------------------------------------
 
-dyn_fit_version <- "param_15"
+dyn_fit_version <- "param_16"
 
 model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
 
