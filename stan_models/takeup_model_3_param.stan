@@ -264,9 +264,9 @@ parameters {
   // cholesky_factor_corr[num_param_dyn_coef] strata_beta_dyn_effect_L_corr_mat;
   
   // matrix[num_all_treatment_coef, num_strata] strata_beta_day1_raw;
-  // matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect_raw;
+  matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect_raw;
   matrix[num_all_treatment_coef, num_strata] QR_strata_beta_day1;
-  matrix[num_deworming_days - 1, num_strata] QR_strata_baseline_dyn_effect;
+  // matrix[num_deworming_days - 1, num_strata] QR_strata_baseline_dyn_effect;
   matrix[num_param_dyn_coef, num_strata] QR_strata_beta_dyn_effect;
   
   real<lower = 0> cluster_effect_tau;
@@ -283,7 +283,7 @@ transformed parameters {
     // append_row(rep_row_vector(0, num_strata),  strata_baseline_dyn_effect);
     
   matrix[num_all_treatment_coef, num_strata] strata_beta_day1_raw;
-  matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect_raw;
+  // matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect_raw;
   
   matrix[num_param_dyn_coef, num_strata] strata_beta_dyn_effect = R_inv_param_dyn_treatment_design_matrix_long * QR_strata_beta_dyn_effect;
   // strata_beta_dyn_effect = hyper_treat_beta_dyn_effect + diag_matrix(strata_beta_dyn_effect_tau) * strata_beta_dyn_effect_raw;
@@ -294,7 +294,7 @@ transformed parameters {
   matrix[num_all_treatment_coef, num_strata] strata_beta_day1 = R_inv_treatment_design_matrix_long * QR_strata_beta_day1;
 
   {
-    matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect = R_inv_treatment_design_matrix_long * QR_strata_baseline_dyn_effect;
+    // matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect = R_inv_treatment_design_matrix_long[, 2:num] * QR_strata_baseline_dyn_effect;
     
     matrix[num_deworming_days - 1, num_deworming_days - 1] strata_baseline_dyn_effect_L_vcov = 
       diag_pre_multiply(strata_baseline_dyn_effect_tau, strata_baseline_dyn_effect_L_corr_mat);
@@ -302,10 +302,10 @@ transformed parameters {
     matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_day1_L_vcov = rep_matrix(0, num_all_treatment_coef, num_all_treatment_coef);
     
     strata_full_baseline_dyn_effect = 
-      append_row(rep_row_vector(0, num_strata), strata_baseline_dyn_effect);
-                 // rep_matrix(hyper_baseline_dyn_effect, num_strata) + (strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw));
+      append_row(rep_row_vector(0, num_strata), // strata_baseline_dyn_effect);
+                 rep_matrix(hyper_baseline_dyn_effect, num_strata) + (strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw));
                  
-    strata_beta_dyn_effect_raw = strata_baseline_dyn_effect_L_vcov \ (strata_baseline_dyn_effect - rep_matrix(hyper_baseline_dyn_effect, num_strata));
+    // strata_beta_dyn_effect_raw = strata_baseline_dyn_effect_L_vcov \ (strata_baseline_dyn_effect - rep_matrix(hyper_baseline_dyn_effect, num_strata));
 
     strata_beta_day1_L_vcov[non_phone_treat_col, non_phone_treat_col] = diag_pre_multiply(strata_beta_day1_tau[non_phone_treat_col],
                                                                                           strata_beta_day1_L_corr_mat_non_phone);
