@@ -251,7 +251,7 @@ transformed data {
 }
 
 parameters {
-  row_vector[num_all_treatment_coef] hyper_beta_day1;
+  vector[num_all_treatment_coef] hyper_beta_day1;
   vector[num_deworming_days - 1] hyper_baseline_dyn_effect;
   vector[num_param_dyn_coef] hyper_treat_beta_dyn_effect;
   
