@@ -311,7 +311,7 @@ transformed parameters {
                                                                                           strata_beta_day1_L_corr_mat_non_phone);
     strata_beta_day1_L_vcov[phone_treat_col, phone_treat_col] = diag_pre_multiply(strata_beta_day1_tau[phone_treat_col], strata_beta_day1_L_corr_mat_phone);
 
-    // strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata) + (strata_beta_day1_L_vcov * strata_beta_day1_raw)';
+    // strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata) + (strata_beta_day1_L_vcov * strata_beta_day1_raw);
     
     strata_beta_day1_raw = strata_beta_day1_L_vcov \ (strata_beta_day1 - rep_matrix(hyper_beta_day1, num_strata));
   }
@@ -427,7 +427,7 @@ generated quantities {
 
     // matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1 = cluster_beta_day1' * treatment_map_design_matrix[ate_treatments[, 1]]';
     matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1 = 
-      strata_beta_day1[cluster_stratum_ids]' * treatment_map_design_matrix[ate_treatments[, 1]]'
+      treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta_day1[, cluster_stratum_ids] 
       + rep_matrix(cluster_effect, num_ate_treatments);
       
     matrix[num_clusters, num_deworming_days] cluster_latent_var_map[num_ate_treatments];
