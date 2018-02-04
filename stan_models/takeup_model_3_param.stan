@@ -313,7 +313,7 @@ transformed parameters {
 
     // strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata) + (strata_beta_day1_L_vcov * strata_beta_day1_raw)';
     
-    strata_beta_day1_raw = strata_beta_day1_L_vcov \ (strata_beta_day1 - rep_matrix(hyper_beta_day1, num_strata))';
+    strata_beta_day1_raw = strata_beta_day1_L_vcov \ (strata_beta_day1 - rep_matrix(hyper_beta_day1, num_strata));
   }
 }
 
