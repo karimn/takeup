@@ -427,7 +427,7 @@ generated quantities {
 
     // matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1 = cluster_beta_day1' * treatment_map_design_matrix[ate_treatments[, 1]]';
     matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1 = 
-      treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta_day1[, cluster_stratum_ids] 
+      (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta_day1[, cluster_stratum_ids])'
       + rep_matrix(cluster_effect, num_ate_treatments);
       
     matrix[num_clusters, num_deworming_days] cluster_latent_var_map[num_ate_treatments];
