@@ -8,7 +8,7 @@ library(rstan)
 library(docopt)
 
 script_options <- "Usage:
-  run_stan [--analysis-data-only | --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>] [--output-name=<output-name>]
+  run_stan [--analysis-data-only | --gumbel | --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -16,6 +16,7 @@ script_options <- "Usage:
   --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --analysis-data-only  Don't run sampling, just produce analysis data
+  --gumbel, -g  Use standard Gumbel link function, otherwise, inverse logit. 
 " %>% 
   docopt()
 
@@ -75,7 +76,7 @@ param_dyn_stan_data <- prepare_bayesian_analysis_data(
   
   lkj_df = 2,
   
-  use_logit = 1,
+  use_logit = !script_options$gumbel,
   
   estimate_ate = 1
 )
