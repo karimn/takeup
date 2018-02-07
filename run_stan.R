@@ -1,9 +1,8 @@
 #!/opt/microsoft/ropen/3.4.3/lib64/R/bin/Rscript
 
-library(docopt)
-
-script_options <- "Usage:
-  run_stan [--analysis-data-only | --gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>] [--output-name=<output-name>]
+script_options <- docopt::docopt(
+"Usage:
+  run_stan [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -11,9 +10,8 @@ script_options <- "Usage:
   --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --analysis-data-only  Don't run sampling, just produce analysis data
-  --gumbel, -g  Use standard Gumbel link function, otherwise, inverse logit. 
-" %>% 
-  docopt()
+  --gumbel, -g  Gumbel link"
+)
 
 library(magrittr)
 library(plyr)
@@ -88,6 +86,30 @@ save(param_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("mod
 
 if (script_options$`analysis-data-only`) quit()
 
+
+# Initializer Factory -------------------------------------------------------------
+
+gen_initializer <- function(stan_data_list) {
+  function() {
+    lst(
+      strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
+      strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
+      strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
+      strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
+      
+      # hyper_beta_day1 = rep(0, stan_data_list$num_all_treatment_coef),
+      # hyper_beta_day1 = rnorm(stan_data_list$num_all_treatment_coef),
+      # hyper_baseline_dyn_effect = rep(0, stan_data_list$num_deworming_days - 1),
+      # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
+      # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
+      strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
+      QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.05), nrow = num_all_treatment_coef, ncol = num_strata)),
+      QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.001), nrow = num_param_dyn_coef, ncol = num_strata)),
+      # cluster_effect = rep(0, stan_data_list$num_clusters)
+    )
+  }
+}
+
 # Run ---------------------------------------------------------------------
 
 num_chains <- as.integer(script_options$`num-chains`)
@@ -103,8 +125,9 @@ model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_para
 
 model_3_fit <- param_dyn_stan_data %>% 
   sampling(model_3_param, data = ., 
-           chains = num_chains, 
+           chains = num_chains,
            iter = as.integer(script_options$`num-iterations`),
            control = lst(max_treedepth = 15, adapt_delta = as.numeric(script_options$`adapt-delta`)), 
+           init = if (script_options$gumbel) gen_initializer(.) else "random",
            sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
 
