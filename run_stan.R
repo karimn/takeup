@@ -1,14 +1,9 @@
-library(magrittr)
-library(plyr)
-library(forcats)
-library(broom)
-library(tidyverse)
-library(modelr)
-library(rstan)
+#!/opt/microsoft/ropen/3.4.3/lib64/R/bin/Rscript
+
 library(docopt)
 
 script_options <- "Usage:
-  run_stan [--analysis-data-only | --gumbel | --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>] [--output-name=<output-name>]
+  run_stan [--analysis-data-only | --gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -19,6 +14,14 @@ script_options <- "Usage:
   --gumbel, -g  Use standard Gumbel link function, otherwise, inverse logit. 
 " %>% 
   docopt()
+
+library(magrittr)
+library(plyr)
+library(forcats)
+library(broom)
+library(tidyverse)
+library(modelr)
+library(rstan)
 
 source("analysis_util.R")
 
