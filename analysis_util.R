@@ -1961,7 +1961,8 @@ get_dyn_ate <- function() {
     bind_rows(
       tribble(
         ~ private_value_left, ~ incentive_shift_left,  ~ private_value_right, ~ incentive_shift_right,
-        "calendar",           "calendar",              "calendar",            "control" 
+        "calendar",           "calendar",              "calendar",            "control",
+        "calendar",           "control",               "control",             "control" 
       ) %>% 
       mutate(social_value_left = "control",
              social_value_right = "control",
