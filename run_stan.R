@@ -103,8 +103,8 @@ gen_initializer <- function(stan_data_list) {
       # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
       # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
       strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
-      QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.05), nrow = num_all_treatment_coef, ncol = num_strata)),
-      QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.001), nrow = num_param_dyn_coef, ncol = num_strata)),
+      QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
+      QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.005), nrow = num_param_dyn_coef, ncol = num_strata)),
       # cluster_effect = rep(0, stan_data_list$num_clusters)
     )
   }
