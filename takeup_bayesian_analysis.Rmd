@@ -71,7 +71,7 @@ load(file.path("data", "analysis.RData"))
 ```{r model-versions}
 dyn_param_fit_ver <- 5
 # dyn_fit_version <- "param_sms_ctrl_6"
-dyn_fit_version <- "param_13"
+dyn_fit_version <- "param_22"
 
 nonparam_dyn_fit_version <- "hazard_1"
 static_fit_ver <- 13
@@ -1958,38 +1958,66 @@ model_3_fit <- param_dyn_stan_data %>%
 # save(param_dyn_stan_data, file = file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
 ```
 
+
 ```{r load-param-dyn-model-fit}
 model_3_fit <- dir("stanfit", pattern = str_interp("model_3_${dyn_fit_version}_[1-8].csv"), full.names = TRUE) %>% 
   read_stan_csv()
 
-model_3_fit %>% 
-  get_sampler_params(inc_warmup = FALSE) %>% 
-  map_dbl(~ sum(magrittr::extract(.x, , "divergent__"))) %>% 
-  sum()
+check_hmc_diagnostics(model_3_fit)
 
 load(file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RData")))
 ```
 
 ### Checking MCMC
 
+From http://discourse.mc-stan.org/t/how-can-i-solve-bfmi-low-problem/3018/2
+
+```{r}
+pairs_stan <- function(chain, stan_model, pars) {
+  energy <- as.matrix(sapply(get_sampler_params(stan_model, inc_warmup = F), 
+                             function(x) x[,"energy__"]))
+  pars <- extract(stan_model, pars = pars, permuted = F)
+  df <- data.frame(energy[,chain], pars[,chain,])
+  names(df)[1] <- "energy"
+  GGally::ggpairs(df, title = paste0("Chain", chain), 
+                  lower = list(continuous = GGally::wrap("points", alpha = 0.2)))                    
+}
+```
+
 ```{r}
 model_3_fit@model_pars
-model_3_fit %>% print(pars = c("hyper_beta_day1", "hyper_baseline_dyn_effect"))
-model_3_fit %>% print(pars = c("QR_hyper_treat_beta_dyn_effect"))
-model_3_fit %>% print(pars = c("strata_beta_day1_tau"))
-model_3_fit %>% print(pars = c("strata_beta_day1_raw"))
-model_3_fit %>% print(pars = c("cluster_beta_day1"))
-
-model_3_fit %>% print(pars = c("est_takeup"))
-model_3_fit %>% print(pars = c("est_deworming_days"))
+# model_3_fit %>% print(pars = c("hyper_beta_day1", "hyper_baseline_dyn_effect"))
+# model_3_fit %>% print(pars = c("QR_hyper_treat_beta_dyn_effect"))
+# model_3_fit %>% print(pars = c("strata_beta_day1_tau"))
+# model_3_fit %>% print(pars = c("strata_beta_day1_raw"))
+# model_3_fit %>% print(pars = c("cluster_beta_day1"))
+# 
+# model_3_fit %>% print(pars = c("est_takeup"))
+# model_3_fit %>% print(pars = c("est_deworming_days"))
 model_3_fit %>% print(pars = c("est_takeup_ate"))
 ```
 
-```{r, fig.width=15}
+```{r}
 model_3_posterior_array <- as.array(model_3_fit)
 model_3_np <- nuts_params(model_3_fit)
 model_3_lp <- log_posterior(model_3_fit)
+```
 
+```{r check-energy}
+sample_param <- model_3_fit %>% get_sampler_params(inc_warmup = FALSE)
+
+sample_param %>% 
+  map(~ .x[, "energy__"]) %>% 
+  map(~ (sum(diff(.x)^2)/length(.x))/var(.x)) 
+```
+
+```{r}
+rhat(model_3_fit) %>% summary()
+rhat(model_3_fit) %>% discard(~ is_less_than(.x, 1.2) | is.nan(.x)) 
+```
+
+
+```{r, fig.width=15}
 mcmc_trace(model_3_posterior_array, regex_pars = c("hyper_baseline_dyn_effect\\[[1-3]\\]"), np = model_3_np)
 
 mcmc_nuts_divergence(model_3_np, model_3_lp)
@@ -2008,9 +2036,10 @@ mcmc_parcoord(model_3_posterior_array, np = model_3_np,
 ```
 
 ```{r, fig.width=15}
+color_scheme_set("darkgray")
 mcmc_pairs(model_3_posterior_array, 
            regex_pars = c(
-             "hyper_beta_day1\\[[1-2]\\]",
+             "hyper_beta_day1\\[1\\]",
              "strata_beta_day1_raw\\[[1-3]\\,1",
              "strata_beta_day1_tau\\[[1-3]\\]" 
            ),
@@ -2023,18 +2052,53 @@ mcmc_pairs(model_3_posterior_array,
 ```
 
 ```{r, fig.width=15}
+color_scheme_set("darkgray")
 mcmc_pairs(model_3_posterior_array, 
            regex_pars = c(
-             "strata_baseline_dyn_effect_raw\\[[1-3],1",
-             "strata_baseline_dyn_effect_tau\\[[1-3]\\]"
+             "strata_beta_day1_raw\\[1,1\\]",
+             "strata_baseline_dyn_effect_raw\\[1,1\\]",
+             "QR_strata_beta_dyn_effect\\[1,1\\]",
+             "QR_cluster_beta_day1\\[1,1\\]",
+             "strata_beta_day1_tau\\[1\\]",
+             "strata_baseline_dyn_effect_tau\\[1\\]",
+             "strata_beta_dyn_effect_tau\\[1\\]",
+             "cluster_beta_day1_tau\\[1\\]",
+             "lp__"
            ),
            transform = lst(
-             "strata_baseline_dyn_effect_tau[1]" = "log", 
-             "strata_baseline_dyn_effect_tau[2]" = "log", 
-             "strata_baseline_dyn_effect_tau[3]" = "log", 
+             "strata_baseline_dyn_effect_tau[1]" = "log",
+             "strata_beta_day1_tau[1]" = "log",
+             "strata_beta_dyn_effect_tau[1]" = "log",
+             "cluster_beta_day1_tau[1]" = "log",
            ), 
            np = model_3_np)
 ```
+
+```{r, fig.width=20}
+# pairs_stan(1, model_3_fit, c("hyper_beta_day1[1]", "hyper_beta_day1[10]", "lp__"))
+# pairs_stan(1, model_3_fit, c("hyper_baseline_dyn_effect[1]", "hyper_baseline_dyn_effect[10]", "lp__"))
+# pairs_stan(1, model_3_fit, c("hyper_treat_beta_dyn_effect[1]", "hyper_treat_beta_dyn_effect[10]", "lp__"))
+# pairs_stan(1, model_3_fit, c("strata_beta_day1_tau[1]", "strata_beta_day1_tau[10]", "lp__"))
+# pairs_stan(1, model_3_fit, c("strata_baseline_dyn_effect_tau[1]", "strata_baseline_dyn_effect_tau[10]", "lp__"))
+# pairs_stan(1, model_3_fit, c("strata_beta_dyn_effect_tau[1]", "strata_beta_dyn_effect_tau[10]", "lp__"))
+# pairs_stan(1, model_3_fit, c("strata_beta_day1_L_corr_mat_non_phone[1,2]", "strata_beta_day1_L_corr_mat_non_phone[3,1]", "lp__"))
+# pairs_stan(1, model_3_fit, c("strata_beta_day1_raw[1,1]", "strata_beta_day1_raw[10,2]", "lp__"))
+# pairs_stan(1, model_3_fit, c("strata_baseline_dyn_effect_raw[1,1]", "strata_baseline_dyn_effect_raw[10,2]", "lp__"))
+# pairs_stan(1, model_3_fit, c("QR_strata_beta_dyn_effect[1,1]", "QR_strata_beta_dyn_effect[10,2]", "lp__"))
+pairs_stan(1, model_3_fit, c("cluster_beta_day1_tau[1]", "cluster_beta_day1_tau[10]", "lp__"))
+pairs_stan(1, model_3_fit, c("cluster_beta_day1_tau", "lp__"))
+pairs_stan(1, model_3_fit, c("cluster_beta_day1_L_corr_mat[1,2]", "cluster_beta_day1_L_corr_mat[3,1]", "lp__"))
+pairs_stan(1, model_3_fit, c("QR_cluster_beta_day1[1,1]", "QR_cluster_beta_day1[10,2]", "lp__"))
+# pairs_stan(1, model_3_fit, c("[1]", "[10]", "lp__"))
+```
+
+
+```{r tree-energy-plots}
+color_scheme_set("red")
+mcmc_nuts_treedepth(model_3_np, model_3_lp)
+mcmc_nuts_energy(model_3_np)
+```
+
 
 ### Analyzing
 
@@ -2089,7 +2153,7 @@ est_deworming_takeup_ate <- model_3_fit %>%
 ```
 
 ```{r summarize-est}
-subgroup_combiner <- function(iter_data, outcome_var, subgroups) {
+subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL) {
   iter_data %>% 
     group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)"), iter_id), subgroups)) %>% 
     summarize_at(vars(outcome_var), funs(wtd_iter_est = weighted.mean(., treatment_size))) %>% 
@@ -2224,16 +2288,21 @@ dyn_ate %<>%
 ```
 
 ```{r new-plotters}
-plot_dyn_takeup <- function(takeup_summ_data, takeup_data, data_preparer = function(data) data) {
+plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, data_preparer = function(data) data) {
   inner_data_preparer <- . %>% 
     data_preparer() %>% 
     mutate_at(vars(starts_with("incentive_treatment_static")), funs(fct_relabel(., str_to_title))) 
     
   takeup_summ_data %>%
     inner_data_preparer() %>% { 
-      ggplot(., aes(incentive_treatment_static, mean_est)) +
+      plot_obj <- ggplot(., aes(incentive_treatment_static, mean_est)) 
+      
+      if (!is_null(takeup_data)) {
+        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), stroke = 0.25, color = "grey", fill = "lightgrey", data = inner_data_preparer(takeup_data)) 
+      }
+      
+      plot_obj +
         # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
-        geom_violin(aes(y = wtd_iter_est), stroke = 0.25, color = "grey", fill = "lightgrey", data = inner_data_preparer(takeup_data)) +
         geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
         geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
         geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
@@ -2272,10 +2341,13 @@ plot_dyn_ate <- . %>%
 ```
 
 ```{r, fig.width=10, fig.height=4}
-est_deworming_takeup_dyn_all %>% 
-  filter(incentive_treatment_static == incentive_treatment_dynamic) %>% 
-         # sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
-  plot_dyn_takeup()
+plot_dyn_takeup(
+  takeup_summ_data = est_deworming_takeup_dyn_all,
+  takeup_data = est_deworming_takeup_dyn %>%
+    filter(dist.pot.group_static == dist.pot.group_dynamic) %>%
+    subgroup_combiner("iter_takeup"),
+  data_preparer = . %>% 
+    filter(incentive_treatment_static == incentive_treatment_dynamic))
 ```
 
 ```{r, fig.width=10, fig.height=4}
@@ -2286,12 +2358,16 @@ est_deworming_takeup_ate_all %>%
 ```
 
 ```{r, fig.width=10, fig.height=8}
-est_deworming_takeup_dyn_dist %>% 
-  filter(incentive_treatment_static == incentive_treatment_dynamic,
-         dist.pot.group_static == dist.pot.group_dynamic) %>% 
-         # sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
-  mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
-  plot_dyn_takeup() +
+plot_dyn_takeup(
+  takeup_summ_data = est_deworming_takeup_dyn_dist %>% 
+    filter(dist.pot.group_static == dist.pot.group_dynamic),
+  takeup_data = est_deworming_takeup_dyn %>%
+    filter(incentive_treatment_static == incentive_treatment_dynamic,
+           dist.pot.group_static == dist.pot.group_dynamic) %>%
+    subgroup_combiner("iter_takeup", "dist.pot.group_static"),
+  data_preparer = . %>% 
+    filter(incentive_treatment_static == incentive_treatment_dynamic) %>% 
+    mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title)))) +
   facet_wrap(~ dist.pot.group_static, ncol = 1)
 ```
 
@@ -2343,13 +2419,17 @@ est_deworming_takeup_ate_phone_dist %>%
 
 
 ```{r, fig.width=10, fig.height=12}
-est_deworming_takeup_dyn_phone_dist %>% 
-  filter(incentive_treatment_static == incentive_treatment_dynamic,
-         dist.pot.group_static == dist.pot.group_dynamic) %>% 
-         # sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
-  mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
-  mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners")))) %>% 
-  plot_dyn_takeup() +
+plot_dyn_takeup(
+  takeup_summ_data = est_deworming_takeup_dyn_phone_dist %>% 
+    filter(dist.pot.group_static == dist.pot.group_dynamic),
+  takeup_data = est_deworming_takeup_dyn %>% 
+    filter(dist.pot.group_static == dist.pot.group_dynamic) %>% 
+    subgroup_combiner("iter_takeup", c("phone_owner_static", "dist.pot.group_static")),
+  data_preparer = . %>% 
+    filter(incentive_treatment_static == incentive_treatment_dynamic) %>% 
+    # sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
+    mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
+    mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners"))))) +
   facet_wrap(~ dist.pot.group_static + phone_owner_static, ncol = 1)
 ```
 
@@ -2447,7 +2527,6 @@ gen_nonparam_initializer <- function(stan_data_list) {
       # # L_cluster_census_covar_corr_mat = t(chol(cluster_census_covar_corr_mat))
       
       # hyper_dyn_latent_var = rep(0, num_dynamic_treatment_days)
-      
       
       strata_beta_day1_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
       strata_beta_day1_corr_mat = foreach(seq_len(stan_data_list$num_all_treatment_coef)) %do% { 
