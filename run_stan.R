@@ -113,15 +113,15 @@ gen_initializer <- function(stan_data_list) {
 # Run ---------------------------------------------------------------------
 
 num_chains <- as.integer(script_options$`num-chains`)
-# num_chains <- commandArgs(trailingOnly = TRUE)[1]
 
-# if (is.na(num_chains)) num_chains <- max(1, parallel::detectCores())
 if (num_chains > parallel::detectCores()) stop("Not enough cores.")
 
 options(mc.cores = num_chains)
 rstan_options(auto_write = TRUE)
 
 model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
+
+cat(str_interp("Output name: ${dyn_fit_version}\n"))
 
 model_3_fit <- param_dyn_stan_data %>% 
   sampling(model_3_param, data = ., 
