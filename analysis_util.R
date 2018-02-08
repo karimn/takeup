@@ -1972,14 +1972,13 @@ get_dyn_ate <- function() {
            dyn_dist_pot_right = NA) %>% 
     bind_rows(
       tribble(
-        ~ social_value_left, ~ dyn_dist_pot_left, ~ social_value_right, ~ dyn_dist_pot_right,
-        "control",              "close",             "control",               "far",
-        "bracelet",             "close",             "bracelet",              "far",
-        "ink",                  "close",             "ink",                   "far"
+        ~private_value_left, ~ social_value_left, ~ dyn_dist_pot_left, ~ private_value_right, ~ social_value_right, ~ dyn_dist_pot_right,
+        "control",           "control",              "close",          "control",             "control",            "far",
+        "calendar",          "control",              "close",          "calendar",            "control",            "far",
+        "control",           "bracelet",             "close",          "control",             "bracelet",           "far",
+        "control",           "ink",                  "close",          "control",             "ink",                   "far"
       ) %>% 
-        mutate(private_value_left = "control",
-               private_value_right = "control",
-               signal_observed_left = social_value_left,
+        mutate(signal_observed_left = social_value_left,
                signal_observed_right = social_value_right,
                incentive_shift_left = private_value_left,
                incentive_shift_right = private_value_right) 
