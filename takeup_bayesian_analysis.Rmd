@@ -2242,17 +2242,24 @@ est_deworming_takeup_ate_all <- est_deworming_takeup_ate %>%
 ```
 
 ```{r new-plotters}
-plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, data_preparer = function(data) data) {
+plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data) {
   inner_data_preparer <- . %>% 
-    data_preparer() %>% 
-    mutate_at(vars(starts_with("incentive_treatment_static")), funs(fct_relabel(., str_to_title))) 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    data_preparer() 
+  
+  takeup_data %<>% 
+      inner_data_preparer()
+  
+  if (!is_null(combiner)) {
+    takeup_data %<>% combiner()
+  } 
     
   takeup_summ_data %>%
     inner_data_preparer() %>% { 
       plot_obj <- ggplot(., aes(incentive_treatment_static, mean_est)) 
       
       if (!is_null(takeup_data)) {
-        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), draw_quantiles = c(0.25, 0.5, 0.75), stroke = 0.35, color = "white", fill = "darkgrey", data = inner_data_preparer(takeup_data)) 
+        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), draw_quantiles = c(0.25, 0.5, 0.75), stroke = 0.35, color = "white", fill = "darkgrey", data = takeup_data) 
       }
       
       plot_obj +
@@ -2283,10 +2290,17 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ) {
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
 }
 
-plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, data_preparer = function(data) data) {
+plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data) {
   inner_data_preparer <- . %>% 
-    data_preparer() %>% 
-    mutate_at(vars(starts_with("incentive_treatment_static")), funs(fct_relabel(., str_to_title))) 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    data_preparer() 
+  
+  ate_data %<>% 
+      inner_data_preparer()
+  
+  if (!is_null(combiner)) {
+    ate_data %<>% combiner()
+  } 
   
   # mutate(ref = if_else(incentive_treatment_right_static == "control" & sms.treatment.2_right == "sms.control", 
   #                      "control-sms.control", 
@@ -2298,7 +2312,7 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, data_preparer = functio
         # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
         
       if (!is_null(ate_data)) {
-        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), draw_quantiles = c(0.25, 0.5, 0.75), stroke = 0.35, color = "white", fill = "darkgrey", data = inner_data_preparer(ate_data)) 
+        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), draw_quantiles = c(0.25, 0.5, 0.75), stroke = 0.35, color = "white", fill = "darkgrey", data = ate_data)
       }
       
       plot_obj +
@@ -2320,7 +2334,8 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, data_preparer = functio
 ```{r, fig.width=10, fig.height=4}
 plot_dyn_takeup(
   takeup_summ_data = est_deworming_takeup_dyn_all,
-  takeup_data = est_deworming_takeup_dyn %>%
+  takeup_data = est_deworming_takeup_dyn,
+  combiner = . %>%
     filter(dist.pot.group_static == dist.pot.group_dynamic) %>%
     subgroup_combiner("iter_takeup"),
   data_preparer = . %>% 
@@ -2331,14 +2346,15 @@ plot_dyn_takeup(
 est_deworming_takeup_ate_all %>% 
   plot_dyn_ate(
     ate_summ_data = .,
-    ate_data = est_deworming_takeup_ate %>%
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>%
       filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
              dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
       subgroup_combiner("iter_ate"), 
     data_preparer = . %>% 
       filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
          incentive_treatment_static_right == incentive_treatment_dynamic_right,
-         incentive_treatment_static_right == "control") 
+         incentive_treatment_static_right == "Control") 
   )
 ```
 
@@ -2346,12 +2362,13 @@ est_deworming_takeup_ate_all %>%
 est_deworming_takeup_ate_all %>% 
   # count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right) 
   plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate %>%
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>%
       filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
              dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
-      subgroup_combiner("iter_ate"), 
+      subgroup_combiner("iter_ate", "compare_type"), 
     data_preparer = . %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
+      filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
       mutate(compare_type = if_else(incentive_treatment_static_left == incentive_treatment_dynamic_left, 
                                     "dynamic effect", 
                                     "static effect") %>% 
@@ -2372,52 +2389,51 @@ est_deworming_day_all %>%
 
 ```{r, fig.width=10, fig.height=8}
 plot_dyn_takeup(
-  takeup_summ_data = est_deworming_takeup_dyn_dist %>% 
-    filter(dist.pot.group_static == dist.pot.group_dynamic),
-  takeup_data = est_deworming_takeup_dyn %>%
-    filter(incentive_treatment_static == incentive_treatment_dynamic,
-           dist.pot.group_static == dist.pot.group_dynamic) %>%
+  takeup_summ_data = est_deworming_takeup_dyn_dist,
+  takeup_data = est_deworming_takeup_dyn,
+  combiner = . %>%
     subgroup_combiner("iter_takeup", "dist.pot.group_static"),
   data_preparer = . %>% 
-    filter(incentive_treatment_static == incentive_treatment_dynamic) %>% 
+    filter(incentive_treatment_static == incentive_treatment_dynamic,
+           dist.pot.group_static == dist.pot.group_dynamic) %>% 
     mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title)))) +
   facet_wrap(~ dist.pot.group_static, ncol = 1)
 ```
 
 ```{r, fig.width=10, fig.height=8}
 est_deworming_takeup_ate_dist %>% 
-  filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
-         dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
   plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate %>% 
-      filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
-             incentive_treatment_static_right == incentive_treatment_dynamic_right,
-             dist.pot.group_static_left == dist.pot.group_dynamic_left,
-             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
       subgroup_combiner("iter_ate", "dist.pot.group_static_left"),
     data_preparer = . %>% 
-      filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
+      filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right,
+             incentive_treatment_static_left == incentive_treatment_dynamic_left,
              incentive_treatment_static_right == incentive_treatment_dynamic_right) %>% 
              # sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
-      mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) 
+      mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(factor(.), str_to_title))) 
   ) +
   facet_wrap(~ dist.pot.group_static_left, ncol = 1)
 ```
 
 ```{r, fig.width=12, fig.height=6}
 est_deworming_takeup_ate_dist %>% 
-  filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
-         dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
+  # filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+  #        dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
    # count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right) 
   plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left,
-             dist.pot.group_static_left == dist.pot.group_dynamic_left,
-             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
-      subgroup_combiner("iter_ate", "dist.pot.group_static_left"),
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
+     # filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
+     # filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+     #        dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
+      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "compare_type")),
     data_preparer = . %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
-      mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
+      filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
+      filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
+      mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(factor(.), str_to_title))) %>% 
       mutate(compare_type = if_else(incentive_treatment_static_left == incentive_treatment_dynamic_left, 
                                     "dynamic effect", 
                                     "static effect") %>% 
@@ -2427,11 +2443,23 @@ est_deworming_takeup_ate_dist %>%
   labs(subtitle = "Separating static and dynamic effects") +
   facet_grid(dist.pot.group_static_left ~ compare_type) 
 ```
+
 ```{r}
 est_deworming_takeup_ate_dist %>% 
   filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right) %>% 
-   count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right, incentive_treatment_dynamic_right,
+   count(incentive_treatment_static_left,
+   # count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right, incentive_treatment_dynamic_right,
          dist.pot.group_static_left, dist.pot.group_dynamic_left, dist.pot.group_static_right, dist.pot.group_dynamic_right) 
+```
+
+```{r}
+est_deworming_takeup_ate_dist %>% 
+  plot_dyn_ate(
+    data_preparer = . %>% 
+      filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right, 
+             dist.pot.group_static_left == dist.pot.group_static_right) %>% 
+  )
 ```
 
 ```{r, fig.width=10, fig.height=8}
@@ -2477,13 +2505,13 @@ est_deworming_takeup_ate_phone %>%
 ```{r, fig.width=12, fig.height=6}
 est_deworming_takeup_ate_phone %>% 
   plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left,
-             dist.pot.group_static_left == dist.pot.group_dynamic_left,
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
+      filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
              dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
-      subgroup_combiner("iter_ate", "phone_owner_static_left"),
+      subgroup_combiner("iter_ate", c("phone_owner_static_left", "compare_type")),
     data_preparer = . %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
+      filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
       mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners")))) %>% 
       mutate(compare_type = if_else(incentive_treatment_static_left == incentive_treatment_dynamic_left, 
                                     "dynamic effect", "static effect") %>% 
@@ -2504,13 +2532,13 @@ est_deworming_day_phone %>%
 
 ```{r, fig.width=10, fig.height=12}
 plot_dyn_takeup(
-  takeup_summ_data = est_deworming_takeup_dyn_phone_dist %>% 
-    filter(dist.pot.group_static == dist.pot.group_dynamic),
-  takeup_data = est_deworming_takeup_dyn %>% 
-    filter(dist.pot.group_static == dist.pot.group_dynamic) %>% 
+  takeup_summ_data = est_deworming_takeup_dyn_phone_dist,
+  takeup_data = est_deworming_takeup_dyn,
+  combiner = . %>% 
     subgroup_combiner("iter_takeup", c("phone_owner_static", "dist.pot.group_static")),
   data_preparer = . %>% 
-    filter(incentive_treatment_static == incentive_treatment_dynamic) %>% 
+    filter(incentive_treatment_static == incentive_treatment_dynamic,
+           dist.pot.group_static == dist.pot.group_dynamic) %>% 
     # sms.treatment.2_static == sms.treatment.2_dynamic) %>% 
     mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
     mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners"))))) +
@@ -2519,18 +2547,15 @@ plot_dyn_takeup(
 
 ```{r, fig.width=10, fig.height=12}
 est_deworming_takeup_ate_phone_dist %>%
-  filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
-         dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
   plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate %>% 
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
+      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "phone_owner_static_left")),
+    data_preparer = . %>% 
       filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
              incentive_treatment_static_right == incentive_treatment_dynamic_right,
              dist.pot.group_static_left == dist.pot.group_dynamic_left,
              dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
-      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "phone_owner_static_left")),
-    data_preparer = . %>% 
-      filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
-             incentive_treatment_static_right == incentive_treatment_dynamic_right) %>% 
       mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
       mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners")))) 
   ) +
@@ -2539,17 +2564,15 @@ est_deworming_takeup_ate_phone_dist %>%
 
 ```{r, fig.width=12, fig.height=8}
 est_deworming_takeup_ate_phone_dist %>% 
-  filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
-         dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
   # count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right) 
   plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left,
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
+      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "phone_owner_static_left", "compare_type")),
+    data_preparer = . %>% 
+      filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left,
              dist.pot.group_static_left == dist.pot.group_dynamic_left,
              dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
-      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "phone_owner_static_left")),
-    data_preparer = . %>% 
-      filter(incentive_treatment_static_right != "control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>% 
       mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
       mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners")))) %>% 
       mutate(compare_type = if_else(incentive_treatment_static_left == incentive_treatment_dynamic_left, 
