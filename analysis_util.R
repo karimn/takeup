@@ -1974,9 +1974,13 @@ get_dyn_ate <- function() {
       tribble(
         ~private_value_left, ~ social_value_left, ~ dyn_dist_pot_left, ~ private_value_right, ~ social_value_right, ~ dyn_dist_pot_right,
         "control",           "control",              "close",          "control",             "control",            "far",
+        "control",           "control",              "far",            "control",             "control",            "close",
         "calendar",          "control",              "close",          "calendar",            "control",            "far",
+        "calendar",          "control",              "far",            "calendar",            "control",            "close",
         "control",           "bracelet",             "close",          "control",             "bracelet",           "far",
-        "control",           "ink",                  "close",          "control",             "ink",                   "far"
+        "control",           "bracelet",             "far",            "control",             "bracelet",           "close",
+        "control",           "ink",                  "close",          "control",             "ink",                "far",
+        "control",           "ink",                  "far",          "control",             "ink",                  "close"
       ) %>% 
         mutate(signal_observed_left = social_value_left,
                signal_observed_right = social_value_right,
