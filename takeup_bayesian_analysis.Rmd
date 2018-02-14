@@ -334,6 +334,7 @@ param_stan_data <- static_analysis_data %>%
     # treatment_formula = ~ (private_value + social_value * sms.treatment.2 * (dist.pot.group + hh.baseline.sample)) * phone_owner * name_matched,
     treatment_formula = ~ (private_value + social_value * sms.treatment.2 * dist.pot.group) * phone_owner * name_matched,
     drop_intercept_from_dm = FALSE,
+    subgroup_col = "phone_owner",
     
     all_ate = param_all_ate,
     
