@@ -135,9 +135,10 @@ est_deworming_takeup_ate <- model_3_fit %>%
 ```
 
 ```{r summarize-est, include=FALSE}
-subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL) {
+subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL, 
+                              group_by_regex = "(incentive_treatment|(private|social)_value|sms.treatment.2)") {
   iter_data %>% 
-    group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)"), iter_id), subgroups)) %>% 
+    group_by_at(c(vars(matches(group_by_regex), iter_id), subgroups)) %>% 
     summarize_at(vars(outcome_var), funs(wtd_iter_est = weighted.mean(., treatment_size))) %>% 
     ungroup() 
 }
@@ -183,7 +184,6 @@ est_deworming_takeup_dyn_phone_dist <- est_deworming_takeup_dyn %>%
 est_deworming_takeup_dyn_all <- est_deworming_takeup_dyn %>% 
   filter(dist.pot.group_static == dist.pot.group_dynamic) %>% 
   prepare_est_deworming_takeup_dyn() 
-
 ```
 
 ```{r, include=FALSE}
@@ -211,6 +211,7 @@ est_deworming_takeup_ate_phone <- est_deworming_takeup_ate %>%
 est_deworming_takeup_ate_dist <- est_deworming_takeup_ate %>% 
   prepare_est_deworming_ate_dyn(subgroups = str_c("dist.pot.group_", c("static", "dynamic"), rep(c("_left", "_right"), each = 2)))
 
+
 est_deworming_takeup_ate_phone_dist <- est_deworming_takeup_ate %>%
   # filter(dist.pot.group_static_left == dist.pot.group_static_right,
   #        dist.pot.group_dynamic_left == dist.pot.group_dynamic_right) %>% 
@@ -220,6 +221,51 @@ est_deworming_takeup_ate_all <- est_deworming_takeup_ate %>%
   filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
          dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
   prepare_est_deworming_ate_dyn() 
+```
+
+```{r info-change-ate}
+info_inc_ate_iter_data <- est_deworming_takeup_ate %>% 
+  filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
+         dist.pot.group_static_right == dist.pot.group_dynamic_right, 
+         dist.pot.group_dynamic_right == "far", 
+         dist.pot.group_static_left == dist.pot.group_static_right) %>% 
+  subgroup_combiner(outcome_var = "iter_ate", group_by_regex = "incentive_treatment_static_left") %>% {
+    inner_join(filter(., incentive_treatment_static_left != "control"),
+               filter(., incentive_treatment_static_left == "control"), "iter_id", suffix = c("_treat", "_control"))
+  } %>% 
+  mutate(wtd_iter_est = wtd_iter_est_treat - wtd_iter_est_control,
+         incentive_treatment_static_left = incentive_treatment_static_left_treat) 
+
+info_inc_ate <- info_inc_ate_iter_data %>% 
+  group_by(incentive_treatment_static_left) %>% 
+  summarize_at(vars(ends_with("wtd_iter_est")), funs(mean_est = mean(.),
+                                                     ub_90 = quantile(., 0.95),
+                                                     ub_95 = quantile(., 0.975),
+                                                     lb_90 = quantile(., 0.05),
+                                                     lb_95 = quantile(., 0.025))) %>% 
+  ungroup() 
+
+info_inc_ate_iter_data_phone <- est_deworming_takeup_ate %>% 
+  filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
+         dist.pot.group_static_right == dist.pot.group_dynamic_right, 
+         dist.pot.group_dynamic_right == "far", 
+         dist.pot.group_static_left == dist.pot.group_static_right) %>% 
+  subgroup_combiner(outcome_var = "iter_ate", group_by_regex = "incentive_treatment_static_left|phone_owner_static_left") %>% {
+    inner_join(filter(., incentive_treatment_static_left != "control"),
+               filter(., incentive_treatment_static_left == "control"), "iter_id", suffix = c("_treat", "_control"))
+  } %>% 
+  mutate(wtd_iter_est = wtd_iter_est_treat - wtd_iter_est_control,
+         incentive_treatment_static_left = incentive_treatment_static_left_treat, 
+         phone_owner_static_left = phone_owner_static_left_treat) 
+
+info_inc_ate_phone <- info_inc_ate_iter_data_phone %>% 
+  group_by(incentive_treatment_static_left, phone_owner_static_left) %>% 
+  summarize_at(vars(ends_with("wtd_iter_est")), funs(mean_est = mean(.),
+                                                     ub_90 = quantile(., 0.95),
+                                                     ub_95 = quantile(., 0.975),
+                                                     lb_90 = quantile(., 0.05),
+                                                     lb_95 = quantile(., 0.025))) %>% 
+  ungroup() 
 ```
 
 ```{r new-plotters, echo=FALSE}
@@ -430,31 +476,34 @@ est_deworming_takeup_ate_dist %>%
   facet_grid(dist.pot.group_static_left ~ compare_type) 
 ```
 
-```{r, include=FALSE}
+```{r, eval=FALSE}
 est_deworming_takeup_ate_dist %>% 
     filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
            dist.pot.group_static_right == dist.pot.group_dynamic_right, 
+           dist.pot.group_dynamic_right == "far", 
            dist.pot.group_static_left == dist.pot.group_static_right) %>% 
    count(incentive_treatment_static_left,
-   # count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right, incentive_treatment_dynamic_right,
          dist.pot.group_static_left, dist.pot.group_dynamic_left, dist.pot.group_static_right, dist.pot.group_dynamic_right) 
+   # count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right, incentive_treatment_dynamic_right,
 ```
 
-```{r, fig.width=10, fig.height=8}
-est_deworming_takeup_ate_dist %>% 
-  plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate,
-    combiner = . %>% 
-      subgroup_combiner("iter_ate", "info_change_type"),
-    data_preparer = . %>% 
-      filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
-             dist.pot.group_static_right == dist.pot.group_dynamic_right, 
-             dist.pot.group_static_left == dist.pot.group_static_right) %>% 
-      mutate(info_change_type = if_else(dist.pot.group_static_right == "far", "increase", "decrease") %>% 
-               factor() %>% 
-               fct_relabel(str_to_title))
-  ) +
-  facet_wrap(~ info_change_type, ncol = 1)
+```{r, fig.width=10, fig.height=4}
+plot_dyn_ate(info_inc_ate, ate_data = info_inc_ate_iter_data)  
+
+# est_deworming_takeup_ate_dist %>% 
+#   plot_dyn_ate(
+#     ate_data = est_deworming_takeup_ate,
+#     combiner = . %>% 
+#       subgroup_combiner("iter_ate", "info_change_type"),
+#     data_preparer = . %>% 
+#       filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
+#              dist.pot.group_static_right == dist.pot.group_dynamic_right, 
+#              dist.pot.group_static_left == dist.pot.group_static_right) %>% 
+#       mutate(info_change_type = if_else(dist.pot.group_static_right == "far", "increase", "decrease") %>% 
+#                factor() %>% 
+#                fct_relabel(str_to_title))
+#   ) +
+#   facet_wrap(~ info_change_type, ncol = 1)
 ```
 
 ### Daily Take-up Levels
@@ -554,7 +603,7 @@ plot_dyn_takeup(
   facet_wrap(~ dist.pot.group_static + phone_owner_static, ncol = 1)
 ```
 
-# ATE 
+### ATE 
 
 ```{r, fig.width=10, fig.height=12}
 est_deworming_takeup_ate_phone_dist %>%
@@ -594,21 +643,28 @@ est_deworming_takeup_ate_phone_dist %>%
   facet_grid(phone_owner_static_left + dist.pot.group_static_left ~ compare_type) 
 ```
 
-```{r, fig.width=12, fig.height=8}
-est_deworming_takeup_ate_phone_dist %>% 
-  plot_dyn_ate(
-    ate_data = est_deworming_takeup_ate,
-    combiner = . %>% 
-      subgroup_combiner("iter_ate", c("phone_owner_static_left", "info_change_type")),
-    data_preparer = . %>% 
-      filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
-             dist.pot.group_static_right == dist.pot.group_dynamic_right, 
-             dist.pot.group_static_left == dist.pot.group_static_right) %>% 
-      mutate(info_change_type = if_else(dist.pot.group_static_right == "far", "increase", "decrease") %>% 
-               factor() %>% 
-               fct_relabel(str_to_title))
-  ) +
-  facet_grid(phone_owner_static_left ~ info_change_type) 
+```{r, fig.width=12, fig.height=6}
+plot_dyn_ate(info_inc_ate_phone, 
+             ate_data = info_inc_ate_iter_data_phone,
+             data_preparer = . %>% 
+               mutate_at(vars(starts_with("phone_owner_static")), 
+                         funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners"))))) +
+  facet_wrap(~ phone_owner_static_left, ncol = 1)
+
+# est_deworming_takeup_ate_phone_dist %>% 
+#   plot_dyn_ate(
+#     ate_data = est_deworming_takeup_ate,
+#     combiner = . %>% 
+#       subgroup_combiner("iter_ate", c("phone_owner_static_left", "info_change_type")),
+#     data_preparer = . %>% 
+#       filter(dist.pot.group_static_left != dist.pot.group_dynamic_left | dist.pot.group_static_right != dist.pot.group_dynamic_right,
+#              dist.pot.group_static_right == dist.pot.group_dynamic_right, 
+#              dist.pot.group_static_left == dist.pot.group_static_right) %>% 
+#       mutate(info_change_type = if_else(dist.pot.group_static_right == "far", "increase", "decrease") %>% 
+#                factor() %>% 
+#                fct_relabel(str_to_title))
+#   ) +
+#   facet_grid(phone_owner_static_left ~ info_change_type) 
 ```
 
 ### Daily Take-up Levels
