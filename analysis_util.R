@@ -1938,6 +1938,53 @@ estimate_deworm_prob_ate <- function(iter_parameters,
 
 # Dynamic ATE -------------------------------------------------------------
 
+get_static_ate <- function() {
+  param_sms_control_ate <- tribble(
+    ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
+    "control",            "ink",               "control",             "control",
+    "calendar",           "control",           "control",             "control",
+    "bracelet",           "bracelet",          "control",             "control",
+    "control",            "bracelet",          "control",             "control" 
+  ) %>%
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+    bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
+    bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
+    mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control") %>% 
+           # hh.baseline.sample = FALSE) %>% 
+    mutate_at(vars(name_matched, phone_owner), as.logical) %>% 
+    mutate_at(vars(starts_with("private_value")), funs(fct_collapse(., calendar = c("calendar", "bracelet"))))
+  
+  param_phone_owners_ate <- tribble(
+    ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
+    "control",            "control",           "reminder.only",        "control",             "control",            "sms.control",
+    "control",            "control",           "social.info",          "control",             "control",            "sms.control",
+    "control",            "control",           "social.info",          "control",             "control",            "reminder.only",
+  
+    "control",            "ink",               "social.info",          "control",             "control",            "sms.control",
+    "control",            "ink",               "social.info",          "control",             "control",            "social.info",
+    "control",            "ink",               "social.info",          "control",             "ink",                "sms.control",
+  
+    "calendar",           "control",           "social.info",          "control",             "control",            "sms.control",
+    "calendar",           "control",           "social.info",          "control",             "control",            "social.info",
+    "calendar",           "control",           "social.info",          "calendar",            "control",            "sms.control",
+  
+    "bracelet",           "bracelet",          "social.info",          "control",             "control",            "sms.control",
+    "bracelet",           "bracelet",          "social.info",          "control",             "control",            "social.info",
+    "bracelet",           "bracelet",          "social.info",          "bracelet",            "bracelet",           "sms.control",
+    
+    "control",           "bracelet",           "social.info",          "control",             "control",            "sms.control",
+    "control",           "bracelet",           "social.info",          "control",             "control",            "social.info",
+    "control",           "bracelet",           "social.info",          "control",            "bracelet",            "sms.control"
+  ) %>%
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
+    mutate(phone_owner = TRUE,
+           name_matched = FALSE) %>% 
+           # hh.baseline.sample = FALSE) 
+    mutate_at(vars(starts_with("private_value")), funs(fct_collapse(., calendar = c("calendar", "bracelet"))))
+  
+  bind_rows(param_sms_control_ate, param_phone_owners_ate) 
+}
+
 get_dyn_ate <- function() {
   dyn_sms_control_ate <- tribble(
       ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,

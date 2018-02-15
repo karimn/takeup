@@ -2,7 +2,8 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--output-name=<output-name>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--output-name=<output-name>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -25,26 +26,36 @@ source("analysis_util.R")
 
 load(file.path("data", "analysis.RData"))
 
-dyn_fit_version <- script_options$`output-name`
+fit_version <- script_options$`output-name`
 
 # Analysis Data -----------------------------------------------------------
 
-param_dyn_analysis_data <- analysis.data %>%
-  mutate(private_value = fct_collapse(assigned.treatment, 
-                                      control = c("control", "ink"), 
-                                      "calendar" = c("calendar", "bracelet")), 
-         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
-         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-  filter(!name_matched, sms.treatment.2 == "control") #, sms.treatment.2 == "control") #, !hh.baseline.sample)
-
-dyn_static_treatment_map <- param_dyn_analysis_data %>% 
-  #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-  data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-  #filter(sms.treatment.2 == "control" | phone_owner,
-         # !name_matched | sms.treatment.2 == "control",
-         # sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-  filter(private_value == "control" | social_value != "ink") %>%
-  prepare_treatment_map()
+if (script_options$dynamic) {
+  stan_analysis_data <- analysis.data %>%
+    mutate(private_value = fct_collapse(assigned.treatment, 
+                                        control = c("control", "ink"), 
+                                        "calendar" = c("calendar", "bracelet")), 
+           social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+           sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+    filter(!name_matched, sms.treatment.2 == "control") #, sms.treatment.2 == "control") #, !hh.baseline.sample)
+  
+  dyn_static_treatment_map <- param_dyn_analysis_data %>% 
+    #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
+    data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
+    #filter(sms.treatment.2 == "control" | phone_owner,
+           # !name_matched | sms.treatment.2 == "control",
+           # sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+    filter(private_value == "control" | social_value != "ink") %>%
+    prepare_treatment_map()
+} else {
+  stan_analysis_data <- analysis.data %>%
+    mutate(private_value = fct_collapse(assigned.treatment, 
+                                        control = c("control", "ink"), 
+                                        "calendar" = c("calendar", "bracelet")), 
+           social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+           sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+    filter(!name_matched | sms.treatment.2 == "control") 
+}
 
 param_dyn_stan_data <- prepare_bayesian_analysis_data(
   param_dyn_analysis_data,
