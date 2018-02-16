@@ -387,15 +387,23 @@ multi.know.bel.cat.plot <- function(question.info,
     map_df(~ select_(.x, .dots = c(intersect(names(.x), question.info$col.name), "KEY.individ")), .id = "survey.type") %>% 
     map_df(question.info$col.name, 
            function(.col.name, .data) {
-             .data %>% 
-               unnest_(.col.name) %>% {
+             .data %>% {
+                 if (is.list(.[[.col.name]])) { 
+                   if (is.factor(.[[.col.name]][[1]])) {
+                     .[[.col.name]] <- map(.[[.col.name]], as.character)
+                   }
+                   
+                   unnest_(., .col.name) 
+                 } else return(.)
+               } %>% {
                  if(na.rm) filter_(., sprintf("!is.na(%s)", .col.name)) else return(.)
                } %>%
                group_by(survey.type) %>% 
-               do(mutate(count_(., c("survey.type", .col.name)), n = n/n_distinct(.$KEY.individ))) %>% 
+               do(mutate(count_(., .col.name), n = n/n_distinct(.$KEY.individ))) %>% 
                ungroup %>% 
                rename_(response = .col.name) %>% 
-               mutate(question = .col.name)
+               mutate(question = .col.name)  
+             
            },
          .data = .) %>% 
     mutate(question = factor(question, levels = question.info$col.name, labels = question.info$label),
@@ -624,6 +632,110 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
     ungroup %>% 
     mutate(ci.lb = bar.size - std.error * 1.64,
            ci.ub = bar.size + std.error * 1.64) 
+}
+
+plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data) {
+  inner_data_preparer <- . %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    data_preparer() 
+  
+  takeup_data %<>% 
+      inner_data_preparer()
+  
+  if (!is_null(combiner)) {
+    takeup_data %<>% combiner()
+  } 
+    
+  takeup_summ_data %>%
+    inner_data_preparer() %>% { 
+      plot_obj <- ggplot(., aes(incentive_treatment_static, mean_est)) 
+      caption_text <-
+        "Points represent mean point estimates and circles represent observed take-up levels.
+         The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
+      
+      if (!is_null(takeup_data)) {
+        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
+                                           # draw_quantiles = c(0.25, 0.5, 0.75), color = "white", fill = "darkgrey", data = takeup_data) 
+                                           draw_quantiles = c(0.25, 0.5, 0.75), color = "lightgrey", fill = "darkgrey", data = takeup_data)
+        
+        caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
+                                sep = "\n")
+      } 
+      
+      plot_obj +
+        # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
+        geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
+        geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
+        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
+        geom_point(aes(y = observed_takeup_prop), alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = position_dodge(width = 0.5)) +
+        # scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+        coord_flip() +
+        labs(title = "Deworming Take-up Levels", 
+             # subtitle = "Across all treatments", 
+             x = "Incentive/Signal Treatment", 
+             y = "Probability of Deworming", 
+             caption = caption_text) + 
+        theme(legend.position = "right") 
+    }
+}
+
+plot_dyn_takeup_daily <- function(daily_takeup_summ) {
+  daily_takeup_summ %>% 
+    filter(day < 13) %>% 
+    mutate_at(vars(starts_with("incentive_treatment_static")), funs(fct_relabel(., str_to_title))) %>% 
+    ggplot(aes(day, mean_est)) +
+    geom_line(aes(group = incentive_treatment_static, color = incentive_treatment_static)) +
+    scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
+    scale_color_discrete("Incentive/Signal Treatment") +
+    labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
+}
+
+plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data) {
+  inner_data_preparer <- . %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    data_preparer() 
+  
+  ate_data %<>% 
+      inner_data_preparer()
+  
+  if (!is_null(combiner)) {
+    ate_data %<>% combiner()
+  } 
+  
+  # mutate(ref = if_else(incentive_treatment_right_static == "control" & sms.treatment.2_right == "sms.control", 
+  #                      "control-sms.control", 
+  #                      if_else(sms.treatment.2_right == "sms.control", "own sms.control", "control-social.info")),
+  #        ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>%
+  ate_summ_data %>% 
+    inner_data_preparer() %>% { 
+      plot_obj <- ggplot(., aes(incentive_treatment_static_left, mean_est)) 
+        # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
+      caption_text <-
+        "Points represent mean point estimates.
+         The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
+        
+      if (!is_null(ate_data)) {
+        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
+                                           draw_quantiles = c(0.25, 0.5, 0.75), color = "lightgrey", fill = "darkgrey", data = ate_data)
+        
+        caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
+                                sep = "\n")
+      }
+      
+      plot_obj +
+        geom_hline(yintercept = 0, linetype = "dotted") +
+        geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
+        geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
+        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
+        scale_y_continuous(breaks = seq(-1, 1, 0.05)) +
+        coord_flip() +
+        labs(title = "Deworming Take-up Average Treatment Effect", 
+             # subtitle = "Across all treatments", 
+             x = "Incentive/Signal Treatment", 
+             y = "Posterior Probability of Deworming Average Treatment Effect", 
+             caption = caption_text) + 
+        theme(legend.position = "right") 
+    }
 }
 
 # Old plotting code -------------------------------------------------------
@@ -1933,6 +2045,14 @@ estimate_deworm_prob_ate <- function(iter_parameters,
     treatment_map_dm = treatment_map_dm,
     dyn_treatment_mask_map = dyn_treatment_mask_map,
     full_dyn_treatment_map_dm = full_dyn_treatment_map_dm)
+}
+
+subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL, 
+                              group_by_regex = "(incentive_treatment|(private|social)_value|sms.treatment.2)") {
+  iter_data %>% 
+    group_by_at(c(vars(matches(group_by_regex), iter_id), subgroups)) %>% 
+    summarize_at(vars(outcome_var), funs(wtd_iter_est = weighted.mean(., treatment_size))) %>% 
+    ungroup() 
 }
 
 

@@ -11,6 +11,7 @@ output:
   pdf_document:
     number_sections: yes
 header-includes:
+   - \usepackage{mathtools}
    - \usepackage{pxfonts}
    - \usepackage{bbm}
    - \usepackage{setspace}
@@ -59,6 +60,7 @@ options(dplyr.show_progress = FALSE, digits = 4)
 opts_chunk$set(echo = FALSE, warning = FALSE, 
                cache = TRUE, cache.path = "takeup_workingpaper-cache/", 
                fig.path = "takeup_workingpaper-fig/", fig.align = "center")
+
 ```
 
 ```{r proj4}
@@ -70,6 +72,10 @@ kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 ```
 
 ```{r stan-model-versions, ref.label="model-versions"}
+```
+
+```{r param-dyn-ver, ref.label="param-dyn-model-version"}
+
 ```
 
 ```{r ggplot-theme, cache=FALSE}
@@ -584,8 +590,8 @@ where
 
 <!-- , conditional on prosocial type type $v_i$. Health returns can differ in response to inferred peer take-up due to positive externalities, a response that potentially differs between prosocial and non-prosocial individuals. -->
 
-* $z \in \mathcal{Z} = \{\mathrm{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
-* $s \in \mathcal{S} = \{\mathrm{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
+* $z \in \mathcal{Z} = \{\text{control, ink, calendar, bracelet}\}$, is the signal/incentive treatment assigned to $i$'s community.
+* $s \in \mathcal{S} = \{\text{control, reminders-only, social-info}\}$, is the SMS treatment assigned to $i$.
 * $d \in \mathcal{D} = \{\text{close}, \text{far}\}$, is the distance to treatment location assigned to $i$'s community.
 * $m \in \{1,\ldots, 12\}$, is the deworming day.
 * $v_i \in \{0, 1\}$, is an indicator for $i$ being of a _prosocial_ type. This is known to $i$ but is unobservable to others.
@@ -835,7 +841,7 @@ In place of structural terms we introduce the linear parameters in \eqref{eqn:pr
             {} &+ \sum_{u\in\widetilde{Z}^r}\sum_{w\in\widetilde{S}} Z_u(z) \times \left\{S_w(s)\times\beta^{rs}_{uw1} + S_w(s)\times d \times \beta^{rs}_{uw2}\right\} \label{eqn:learned-params} 
 \end{split}
 \end{equation}
-We assume that for deworming days $m > 1$, $\tilde{L}_m(z, ,s, d)$ evolves by a additive change $\gamma_m(z, s)$, which we parameterize to be a quadratic function of (a) the number of days social signals had been observed and (b) the number of SMS messages received
+We assume that for deworming days $m > 1$, $\tilde{L}_m(z, ,s, d)$ evolves by an additive change $\gamma_m(z, s)$, which we parameterize to be a quadratic function of (a) the number of days social signals had been observed and (b) the number of SMS messages received
 <!-- TODO We're assuming that distance doesn't make a difference on dynamics, which is perhaps a bit too strong. The problem is that we're going to have to add a lot more parameters -->
 \begin{equation} 
 \gamma_m(z, s) = \sum_{q = 1}^2\left\{\sum_{w\in\widetilde{Z}^r} (m - 1)^q\times Z_w(z)\times\gamma^r_{qw} + \sum_{w\in\widetilde{S}} \lfloor (m - 1)/2 \rfloor^q\times S_w(s)\times\gamma^s_{qw}\right\} \label{eqn:gamma-m}.
@@ -857,49 +863,39 @@ Where $\kappa_m(z,s,d) \equiv \kappa^{stat}(z,s,d)\cdot\kappa^{dyn}_m(z,s)$, and
 
 We further enrich our model to be hierarchical (by county) and add covariates so our model becomes
 \begin{align*}
-\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, X_i, z,s,d] &= 1 - \exp\left[-\kappa_{k[i],m}(z,s,d;X_i)\lambda_{j[i],m}\right] \equiv 1 - \alpha_{k[i],m}(z, s, d; X_i) \\
-\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 0, X_i, z,s,d] &= \exp\left[\kappa_{k[i],m}(z,s,d;X_i)\lambda_{j[i],m}\right] \equiv \alpha_{k[i],m}(z, s, d; X_i) \\
+\Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 0, X_i, z,s,d] &= 1 - \exp\left[-\kappa_{k[i],m}(z,s,d;X_i)\lambda_{k[i],m}\right] \equiv 1 - \alpha_{k[i],m}(z, s, d; X_i) \\
+\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 0, X_i, z,s,d] &= \exp\left[\kappa_{k[i],m}(z,s,d;X_i)\lambda_{k[i],m}\right] \equiv \alpha_{k[i],m}(z, s, d; X_i) \\
 \Pr[Y_{im}(z,s,d) = 1 | Y_{i,m-1} = 1, X_i, z,s,d] &= 1 \\
-\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 1, X_i, z,s,d] &= 0, 
+\Pr[Y_{im}(z,s,d) = 0 | Y_{i,m-1} = 1, X_i, z,s,d] &= 0. 
 \end{align*}
-and
-\[ \lambda_{jm} = v^{clust}_j\cdot v^{strat}_{k[j]}\cdot \lambda_m, \]
-introducing both stratum and cluster effects.
 
-We conducted our analysis using the following priors on the model's parameters and hyper parameters:
+First, we model the baseline dynamics as
 \begin{align*}
--\exp(\lambda_m) &\sim \mathtt{Uniform}[0, 1] \\
-v^{clust}_j &\sim \mathtt{Gamma}(\delta^{clust}, \delta^{clust}) \\
-v^{strat}_k &\sim \mathtt{Gamma}(\delta^{strat}, \delta^{strat}) \\
-\beta &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
-                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
-                                                     \vdots        &               & \ddots &   \\
-                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
-\beta_k &\sim \mathtt{StudentT}\left(\nu^{coef}, \beta, \begin{pmatrix} \tau_1 & 0             & \cdots & 0  \\
-                                                     0             & \tau_2 & \cdots & 0 \\ 
-                                                     \vdots        &               & \ddots &   \\
-                                                     0             &               &        &  \end{pmatrix}\right) \\\\
-\gamma &\sim \mathtt{StudentT}\left(\nu^{coef}, 0, \begin{pmatrix} \sigma^{coef} & 0             & \cdots & 0  \\
-                                                     0             & \sigma^{coef} & \cdots & 0 \\ 
-                                                     \vdots        &               & \ddots &   \\
-                                                     0             &               &        & \sigma^{coef} \end{pmatrix}\right) \\\\
-\gamma_k &\sim \mathtt{StudentT}\left(\nu^{coef}, \gamma, \begin{pmatrix} \tau^{dyn}_{1} & 0             & \cdots & 0  \\
-                                                     0             & \tau^{dyn}_2 & \cdots & 0 \\ 
-                                                     \vdots        &               & \ddots &   \\
-                                                     0            &               &        &  \end{pmatrix}\right) \\
-\delta^{clust} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \tau^{scale}) \\
-\delta^{strat} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \tau^{scale}) \\
-\tau^{clust} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \sigma^{scale}) \\ 
-\tau^{strat} &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \sigma^{scale}) \\
-\tau &\sim \mathtt{HalfStudentT}(\nu^{scale}, 0, \sigma^{scale}) 
+  \log \lambda_{k} &\sim \mathtt{MultiNormal}(\log \lambda, \Sigma_\lambda) \\
+  \log \lambda_1 &\sim \mathtt{Normal}(0, 5) \\
+  \log \lambda_m &\sim \mathtt{Normal}(0, 1), m \in \{2, \ldots, 12\} \\
+  \Sigma_\lambda &= \mathsf{diag}(\tau_\lambda) \Omega_\lambda \mathsf{diag}(\tau_\lambda) \\
+  \tau_{\lambda,m} &\sim \mathtt{HalfNormal}(0, 1), m \in \{1,\ldots, 12\} \\
+  \Omega_\lambda &\sim \mathtt{LKJCorr}(2) \\
+  \log \lambda_{j,1} &\sim \mathtt{Normal}(\log \lambda_{k[j],1}, 1),
+\end{align*}
+where $\log \lambda$ is the population-level day effect and $\log \lambda_k$ is the county-level day effect; $\tau_\lambda$ are the day specific standard deviations of day effects and $\Omega_\lambda$ is the correlation matrix of day effects, over counties; and $\log \lambda_{j,1}$ are village level effects.  
+
+Second, we model treatment effect parameters as
+\begin{align*}
+  \beta &\sim \mathtt{MultiNormal}(\mathbf{0}, \mathsf{diag}(1\cdot \iota)) \\
+  \gamma &\sim \mathtt{MultiNormal}(\mathbf{0}, \mathsf{diag}(1\cdot \iota)) \\
+  \beta_k &\sim \mathtt{MultiNormal}(\beta, \Sigma_\beta) \\
+  \Sigma_\beta &= \mathsf{diag}(\tau_\beta) \Omega_\beta \mathsf{diag}(\tau_\beta) \\
+  \Omega_\beta &\sim \mathtt{LKJCorr}(2) \\
+  \tau_{\beta} &\sim \mathtt{MultiHalfNormal}(\mathbf{0}, \mathbf{I}) \\
+  \gamma_k &\sim \mathtt{MultiNormal}(\gamma, \Sigma_\gamma) \\
+  \Sigma_\gamma &= \mathsf{diag}(\tau_\gamma) \Omega_\gamma \mathsf{diag}(\tau_\gamma) \\
+  \Omega_\gamma &\sim \mathtt{LKJCorr}(2) \\
+  \tau_{\gamma} &\sim \mathtt{MultiHalfNormal}(\mathbf{0}, \mathbf{I}) 
 \end{align*}
 
-With constant hyper parameters: $\nu^{coef}, \nu^{scale}, \sigma^{coef}, \sigma^{scale}$.
 <!-- TODO Specify values for fixed hyper parameters -->
-
-To estimate this model we use the likelihood probability:
-
-\[ \mathcal{L}_i = \prod_{m = 1}^{M_i - 1} \alpha_{k[i],m}(z, s, d; X_i) \cdot \left(1 - \alpha_{k[i],M_i}(z, s, d;X_i)\right)^{Y_i} \]
 
 # Results
 
@@ -1011,107 +1007,255 @@ The static model allowed us to control for the consumption value of the bracelet
 
 ## Dynamic Deworming Take-up
 
-In this section we report the posterior distributions of^[Keep in mind that shown estimators are random functions of $\hat{\theta}$.]
-
-* The finite sample average of the probability of take-up on each deworming day and the probability of take-up on any day
-  \begin{align}
-    \frac{1}{N}\sum_{i=1}^N &\Pr[Y_{im}(z, s, d, m') = 1|\hat{\theta}_{k[i]}] \label{eqn:daily-takeup-level} \\
-    \frac{1}{N}\sum_{i=1}^N &\Pr[Y_i(z, s, d) = 1|\hat{\theta}_{k[i]}]. \label{eqn:any-day-takeup-level}
-  \end{align}
-  We use the notation $Pr[Y_{im}(z, s, d, m') = 1|\hat{\theta}]$ to refer to the probability of deworming on day $m$, given $m'$ days of social signaling and SMS treatment. In our results we will be looking at two cases, (i) the observed outcomes when $m' = 11$ and (ii) the unobserved outcome when $m' = 0$. 
-* The finite sample average treatment effect on take-up on each deworming day and on any day
-  \begin{align}
-    \frac{1}{N}\sum_{i=1}^N &\Pr[Y_{im}(z', s', d', m'') = 1|\hat{\theta}_{k[i]}] - \Pr[Y_{im}(z, s, d, m') = 1|\hat{\theta}_{k[i]}] \label{eqn:daily-ate} \\
-    \frac{1}{N}\sum_{i=1}^N &\Pr[Y_i(z', s', d') = 1|\hat{\theta}_{k[i]}] - \Pr[Y_i(z, s, d) = 1|\hat{\theta}_{k[i]}]. \label{eqn:any-day-ate} 
-  \end{align}
-* The finite sample average dynamic effect of signals and SMS treatment
-  \begin{equation}
-    \frac{1}{N}\sum_{i=1}^N \kappa_m^{dyn}(z,s;\hat{\theta}_{k[i]}) \label{eqn:dyn-kappa}.
-  \end{equation}
-
-
-```{r, ref.label="dyn-model-ate"}
+```{r load-param-dyn-est-data, cache=FALSE}
+load(file.path("data", "param_dyn_estimation.RData"))
 ```
 
-```{r, ref.label="dyn-stan-data"}
+In this section we report the posterior distributions of the finite sample average of the probability of take-up on any day
+  \begin{align*}
+    \frac{1}{N}\sum_{i=1}^N Y_i(z^p, z^r, s, d) - Y_i(z^{p'}, z^{r'}, s', d'), 
+  \end{align*}
+where $z^p, z^{p'} \in \mathcal{Z}^p$; $z^r, z^{r'} \in \mathcal{Z}^r$; $s, s' = \text{control}$; and $d, d' \in \mathcal{D}$. The results presented here are restricted to individuals not receiving any SMS intervention: the set of individuals $S^\text{control} = \{i: S_i = \text{control}\}$. Thus we simplify our below notation by dropping the SMS treatment variables.
+
+<!-- ```{r, ref.label="fast-sim-ate"} -->
+<!-- ``` -->
+
+```{r param-dyn-takeup-levels-all, fig.width=9, fig.height=3.5, fig.align="center", fig.cap="Pooled take-up levels."}
+plot_dyn_takeup(
+  takeup_summ_data = est_deworming_takeup_dyn_all,
+  takeup_data = est_deworming_takeup_dyn,
+  combiner = . %>%
+    filter(dist.pot.group_static == dist.pot.group_dynamic) %>%
+    subgroup_combiner("iter_takeup"),
+  data_preparer = . %>% 
+    filter(incentive_treatment_static == incentive_treatment_dynamic))
 ```
 
-```{r, ref.label="old-load-dyn-model-fit", include=FALSE}
+In Figures \ref{fig:param-dyn-takeup-levels-all}, we show the posterior distribution of the probability of deworming in the different incentive/signal treatment groups,
+\begin{align*}
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{control}, \text{ink}, D_{j[i]}) \\
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{calendar}, \text{control}, D_{j[i]}) \\
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{bracelet}, \text{bracelet}, D_{j[i]}) \\
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{control}, \text{bracelet}, D_{j[i]}),
+\end{align*}
+where the first three are take-up proportions for the three observed incentive/signal treatments^[By observed, we mean in response an actual treatment assignment in the experiment. We are still imputing unobserved counterfactuals.] and the fourth one imputes the take-up proportion of the unobserved outcome of the bracelet incentive/signal holding its private value fixed at the control level. In Figure \ref{fig:param-dyn-takeup-levels-phone-dist}, we similarly show take-up proportions but split by phone ownership and assigned distance to treatment.
+
+```{r param-dyn-takeup-levels-phone-dist, fig.width=9, fig.height=6, fig.align="center", fig.cap="Take-up levels split by phone ownership and distance to treatment."}
+plot_dyn_takeup(
+  takeup_summ_data = est_deworming_takeup_dyn_phone_dist,
+  takeup_data = est_deworming_takeup_dyn,
+  combiner = . %>%
+    subgroup_combiner("iter_takeup", c("phone_owner_static", "dist.pot.group_static")),
+  data_preparer = . %>%
+    filter(incentive_treatment_static == incentive_treatment_dynamic,
+           dist.pot.group_static == dist.pot.group_dynamic) %>%
+    mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>%
+    mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners"))))) +
+  facet_grid(dist.pot.group_static ~ phone_owner_static)
+  # facet_wrap(~ dist.pot.group_static + phone_owner_static, ncol = 1)
 ```
 
-```{r, ref.label="dyn-model-sim-params"}
+
+<!-- In Figure \ref{fig:sim-fast-take-up}, we are reporting the posterior distribution of deworming take-up levels as defined in \eqref{eqn:any-day-takeup-level}, separately by SMS cross treatment. Figure \ref{fig:sim-fast-take-up-dist} reports the same but split by distance to treatment location. -->
+
+<!-- ```{r sim-fast-take-up, ref.label="sim-fast-take-up", fig.width=9, fig.height=5, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups (dynamic model)."} -->
+<!-- ``` -->
+
+<!-- ```{r sim-fast-take-up-dist, ref.label="sim-fast-take-up-dist", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments, split by distance (dynamic model)."} -->
+<!-- ``` -->
+
+```{r param-dyn-ate-all, fig.width=9, fig.height=3.5, fig.align="center", fig.cap="Pooled average treatment effects."}
+est_deworming_takeup_ate_all %>%
+  plot_dyn_ate(
+    ate_summ_data = .,
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>%
+      filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>%
+      subgroup_combiner("iter_ate"),
+    data_preparer = . %>%
+      filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
+         incentive_treatment_static_right == incentive_treatment_dynamic_right,
+         incentive_treatment_static_right == "Control")
+  )
 ```
 
-```{r load-prepared-fast-sim}
-load(file.path("data", "prepared_fast_sim.RData"))
+In Figure \ref{fig:param-dyn-ate-all}, we show the posterior distributions for the average treatment effects of the three observed and one unobserved incentive/signal treatments, compared to control,
+\begin{gather}
+\begin{aligned}
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{control}, \text{ink}, D_{j[i]}) - Y_i(\text{control}, \text{control}, D_{j[i]}) \\ 
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{calendar}, \text{control}, D_{j[i]}) - Y_i(\text{control}, \text{control}, D_{j[i]}) \\ 
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{bracelet}, \text{bracelet}, D_{j[i]}) - Y_i(\text{control}, \text{control}, D_{j[i]}) \\ 
+    \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i(\text{control}, \text{bracelet}, D_{j[i]}) - Y_i(\text{control}, \text{control}, D_{j[i]}).  \label{eq:basic_ate}
+\end{aligned} 
+\end{gather}
+Figure \ref{fig:param-dyn-ate-phone-dist} similarly reports the same treatment effect estimates but split by phone ownership and assigned distance to treatment. 
 
+```{r param-dyn-ate-phone-dist, fig.width=9, fig.height=6, fig.align="center", message=FALSE, fig.cap=, fig.cap="Average treatment effects split by phone ownership and distance to treatment."}
+est_deworming_takeup_ate_phone_dist %>%
+  plot_dyn_ate(
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
+      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "phone_owner_static_left")),
+    data_preparer = . %>% 
+      filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
+             incentive_treatment_static_right == incentive_treatment_dynamic_right,
+             dist.pot.group_static_left == dist.pot.group_dynamic_left,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
+      mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
+      mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners")))) 
+  ) +
+  scale_y_continuous(breaks = seq(-1, 1, 0.1)) +
+  facet_grid(dist.pot.group_static_left ~ phone_owner_static_left) 
+  # facet_wrap(~ dist.pot.group_static_left + phone_owner_static_left, ncol = 1)
 ```
 
-```{r, ref.label="fast-sim-ate"}
+To take a deeper look at the social effects of incentives/signals, we estimate unobservable average treatment effects separating the their _static_ and _dynamic_ components. We modify our notation slightly from what is used in Equations \eqref{eq:basic_ate} to discuss these treatment effects (the previous notation is equivalent to what we use below, where both the static and dynamic treatments are equal). 
+
+* Static effects:
+
+  \begin{align*}
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[\overbrace{(\text{control}, \text{ink})}^{\text{static treatment}}, \overbrace{(\text{control}, \text{control})}^\text{dynamic treatment}, D_{j[i]}\big] - Y_i\big[\overbrace{(\text{control}, \text{control})}^{\text{static treatment}}, \overbrace{(\text{control}, \text{control})}^\text{dynamic treatment}, D_{j[i]}\big] \\ 
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[(\text{calendar}, \text{control}), (\text{control}, \text{control}), D_{j[i]}\big] - Y_i\big[(\text{control}, \text{control}), (\text{control}, \text{control}), D_{j[i]}\big] \\ 
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[(\text{bracelet}, \text{bracelet}), (\text{control}, \text{control}), D_{j[i]}\big] - Y_i\big[(\text{control}, \text{control}), (\text{control}, \text{control}), D_{j[i]}\big] \\ 
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[(\text{control}, \text{bracelet}), (\text{control}, \text{control}), D_{j[i]}\big] - Y_i\big[(\text{control}, \text{control}), (\text{control}, \text{control}), D_{j[i]}\big]  
+  \end{align*} 
+  
+* Dynamic effects:
+
+  \begin{align*}
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[\overbrace{(\text{control}, \text{ink})}^{\text{static treatment}}, \overbrace{(\text{control}, \text{ink})}^\text{dynamic treatment}, D_{j[i]}\big] - Y_i\big[\overbrace{(\text{control}, \text{ink})}^{\text{static treatment}}, \overbrace{(\text{control}, \text{control})}^\text{dynamic treatment}, D_{j[i]}\big] \\ 
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[(\text{calendar}, \text{control}), (\text{calendar}, \text{control}), D_{j[i]}\big] - Y_i\big[(\text{calendar}, \text{control}), (\text{control}, \text{control}), D_{j[i]}\big] \\ 
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[(\text{bracelet}, \text{bracelet}), (\text{bracelet}, \text{bracelet}), D_{j[i]}\big] - Y_i\big[(\text{bracelet}, \text{bracelet}), (\text{control}, \text{control}), D_{j[i]}\big] \\ 
+      \frac{1}{|S^\text{control}|}&\sum_{i\in S^\text{control}} Y_i\big[(\text{control}, \text{bracelet}), (\text{control}, \text{bracelet}), D_{j[i]}\big] - Y_i\big[(\text{control}, \text{bracelet}), (\text{control}, \text{control}), D_{j[i]}\big]  
+  \end{align*} 
+  
+Figure \ref{fig:static-dynamic-all} shows the posterior distribution of static and dynamic average treatment effects. Figure \ref{fig:param-dyn-sepstatdyn-phone-dist} does the same but split by phone ownership and assigned distance to treatment.
+
+```{r static-dynamic-all, fig.width=9, fig.height=5, fig.align="center", fig.cap="Separated static and dynamic average treatment effects."}
+est_deworming_takeup_ate_all %>% 
+  plot_dyn_ate(
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>%
+      filter(dist.pot.group_static_left == dist.pot.group_dynamic_left,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
+      subgroup_combiner("iter_ate", "compare_type"), 
+    data_preparer = . %>% 
+      # filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
+      filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left) %>%
+      mutate(compare_type = if_else(incentive_treatment_static_left == incentive_treatment_dynamic_left, 
+                                    "dynamic effect", 
+                                    "static effect") %>% 
+           factor() %>%
+           fct_relevel("static effect") %>% 
+           fct_relabel(str_to_title))
+  ) +
+  labs(subtitle = "Separating static and dynamic effects") +
+  facet_wrap(~ compare_type, ncol = 1) 
 ```
 
-
-In Figure \ref{fig:sim-fast-take-up}, we are reporting the posterior distribution of deworming take-up levels as defined in \eqref{eqn:any-day-takeup-level}, separately by SMS cross treatment. Figure \ref{fig:sim-fast-take-up-dist} reports the same but split by distance to treatment location.
-
-```{r sim-fast-take-up, ref.label="sim-fast-take-up", fig.width=9, fig.height=5, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments and subgroups (dynamic model)."}
+```{r param-dyn-sepstatdyn-phone-dist, fig.width=9, fig.height=7, fig.align="center", message=FALSE, fig.cap="Separated static and dynamic average treatment effects, split by phone ownership and distance to treatment."}
+est_deworming_takeup_ate_phone_dist %>% 
+  plot_dyn_ate(
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>% 
+      subgroup_combiner("iter_ate", c("dist.pot.group_static_left", "phone_owner_static_left", "compare_type")),
+    data_preparer = . %>% 
+      filter(incentive_treatment_static_right != "Control" | incentive_treatment_static_left != incentive_treatment_dynamic_left,
+             dist.pot.group_static_left == dist.pot.group_dynamic_left,
+             dist.pot.group_static_right == dist.pot.group_dynamic_right) %>% 
+      mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
+      mutate_at(vars(starts_with("phone_owner_static")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners")))) %>% 
+      mutate(compare_type = if_else(incentive_treatment_static_left == incentive_treatment_dynamic_left, 
+                                    "dynamic effect", "static effect") %>% 
+           factor() %>% 
+           fct_relevel("static effect") %>% 
+           fct_relabel(str_to_title)) 
+  )  +
+  scale_y_continuous(breaks = seq(-1, 1, 0.1)) +
+  labs(subtitle = "Separating static and dynamic effects") +
+  facet_grid(dist.pot.group_static_left + compare_type ~ phone_owner_static_left) 
 ```
 
-```{r sim-fast-take-up-dist, ref.label="sim-fast-take-up-dist", fig.width=9, fig.height=7, fig.cap="Posterior distribution of the finite sample average probability of deworming take-up across all treatments, split by distance (dynamic model)."}
+To further investigate how individuals respond to changes in observed peer take-up, we estimate the unobservable average treatment effect of increasing peer take-up while holding all other treatment assignments fixed. We do this by manipulating the dynamic assigned distance while holding (along with all other treatments) fixed the static distance to treatment. To discuss these estimands we again modify the notation used in Equations \eqref{eq:basic_ate} by allowing separate static and dynamic distances to treatment. 
+\begin{align*}
+    \frac{1}{|S^\text{control}|}\sum_{i\in S^\text{control}} 
+    &\big\{Y_i(\text{control}, \text{ink}, \overset{\substack{\text{static}\\ \downarrow}}{\text{far}}, \overset{\substack{\text{dynamic}\\ \downarrow}}{\text{close}}) - Y_i(\text{control}, \text{ink}, \overset{\substack{\text{static}\\ \downarrow}}{\text{far}}, \overset{\substack{\text{dynamic}\\ \downarrow}}{\text{far}})\big\} - A^\text{control} \\
+    \frac{1}{|S^\text{control}|}\sum_{i\in S^\text{control}} 
+    &\big\{Y_i(\text{calendar, control, far, close}) - Y_i(\text{calendar, control, far, far})\big\} - A^\text{control} \\ 
+    \frac{1}{|S^\text{control}|}\sum_{i\in S^\text{control}} 
+    &\big\{Y_i(\text{bracelet,bracelet, far, close}) - Y_i(\text{bracelet, bracelet, far, far})\big\} - A^\text{control} \\ 
+    \frac{1}{|S^\text{control}|}\sum_{i\in S^\text{control}} 
+    &\big\{Y_i(\text{control, bracelet, far, close}) - Y_i(\text{control, bracelet, far, far})\big\} - A^\text{control} 
+\end{align*}
+where $A^\text{control} \equiv \frac{1}{|S^\text{control}|}\sum_{i\in S^\text{control}} Y_i(\text{control, control, far, close}) - Y_i(\text{control, control, far, far})$. Figure \ref{fig:info-ate-dist} shows the posterior distribution for these average treatment effects, and Figure \ref{fig:info-ate-phone-dist} does the same but split by phone ownership.
+
+```{r info-ate-dist, fig.width=9, fig.height=3.5, fig.align="center", fig.cap="Average treatment effect of a change in peer take-up."}
+plot_dyn_ate(info_inc_ate, ate_data = info_inc_ate_iter_data)  
 ```
 
-In Figure \ref{fig:fast-sim-ate-plot}, we report the posterior distribution of treatment effects as defined in \eqref{eqn:any-day-ate}, separately by SMS cross treatment. Figure \ref{fig:fast-sim-ate-dist-plot} reports the same split by distance to treatment location. We report treatment effect in comparison with
-
-i. The control arm, with no SMS treatment, and with the same distance from treatment location
-ii. The control arm, with social information SMS treatment, and with the same distance from treatment location
-iii. The same arm, with no SMS treatment, and with the same distance from treatment location
-
-```{r fast-sim-ate-plot, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=8, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups, split by phone ownership (dynamic model)."}
+```{r info-ate-phone-dist, fig.width=9, fig.height=3.5, fig.align="center", fig.cap="Average treatment effect of a change in peer take-up, split by phone ownership and distance to treatment."}
+plot_dyn_ate(info_inc_ate_phone, 
+             ate_data = info_inc_ate_iter_data_phone,
+             data_preparer = . %>% 
+               mutate_at(vars(starts_with("phone_owner_static")), 
+                         funs(factor(., levels = c(FALSE, TRUE), labels = c("Phone Owners", "Non-Phone Owners"))))) +
+  facet_wrap(~ phone_owner_static_left, nrow = 1)
 ```
 
-```{r fast-sim-ate-dist-plot, ref.label="fast-sim-ate-dist-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
-```
+<!-- In Figure \ref{fig:fast-sim-ate-plot}, we report the posterior distribution of treatment effects as defined in \eqref{eqn:any-day-ate}, separately by SMS cross treatment. -->
 
-In Figure \ref{fig:fast-sim-daily-obs-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by distance from treatment location. We also report the "no observation" predicted counterfactual showing how the impact of signals would differ had there been no difference in salience/learning dynamics from the baseline level in the the control arm.
+<!-- i. The control arm, with no SMS treatment, and with the same distance from treatment location -->
+<!-- ii. The control arm, with social information SMS treatment, and with the same distance from treatment location -->
+<!-- iii. The same arm, with no SMS treatment, and with the same distance from treatment location -->
 
-```{r fast-sim-daily-obs-plot, ref.label="fast-sim-daily-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."}
-```
+<!-- ```{r fast-sim-ate-plot, ref.label="fast-sim-ate-plot", fig.width=10, fig.height=8, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups, split by phone ownership (dynamic model)."} -->
+<!-- ``` -->
 
-In Figure \ref{fig:fast-sim-daily-dyn-kappa}, we show the shape of the $\kappa^{dyn}_m$ quadratic functions, as defined in \eqref{eqn:dyn-kappa}, for the ink and bracelet arms.
+<!-- ```{r fast-sim-ate-dist-plot, ref.label="fast-sim-ate-dist-plot", fig.width=10, fig.height=10, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."} -->
+<!-- ``` -->
 
-```{r fast-sim-daily-dyn-kappa, ref.label="fast-sim-daily-dyn-kappa", fig.width=8, fig.cap="Posterior distribution of the finite sample dynamic effect of signal observation."}
-```
+<!-- In Figure \ref{fig:fast-sim-daily-obs-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by distance from treatment location. We also report the "no observation" predicted counterfactual showing how the impact of signals would differ had there been no difference in salience/learning dynamics from the baseline level in the the control arm. -->
 
-In Figure \ref{fig:fast-sim-daily-ate-obs-plot}, we report the daily posterior mean difference in the probability of deworming take-up compared to the control arm, as defined in \eqref{eqn:daily-ate}, and separately by distance from treatment location. We also report the "no observation" predicted counterfactual difference showing how the impact of signals would differ had there been no difference in salience/learning dynamics from the baseline level in the the control arm.
+<!-- ```{r fast-sim-daily-obs-plot, ref.label="fast-sim-daily-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with no SMS treatment)."} -->
+<!-- ``` -->
 
-```{r fast-sim-daily-ate-obs-plot, ref.label="fast-sim-daily-ate-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."}
-```
+<!-- In Figure \ref{fig:fast-sim-daily-dyn-kappa}, we show the shape of the $\kappa^{dyn}_m$ quadratic functions, as defined in \eqref{eqn:dyn-kappa}, for the ink and bracelet arms. -->
 
-In Figure \ref{fig:fast-sim-daily-sms-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by signal/incentive treatment and SMS treatment. We also report the predicted counterfactual of SMS recruitment and one pre-MDA reminder SMS message.
+<!-- ```{r fast-sim-daily-dyn-kappa, ref.label="fast-sim-daily-dyn-kappa", fig.width=8, fig.cap="Posterior distribution of the finite sample dynamic effect of signal observation."} -->
+<!-- ``` -->
 
-```{r fast-sim-daily-sms-plot, ref.label="fast-sim-daily-sms-plot", fig.width=9, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with SMS treatment)."}
-```
+<!-- In Figure \ref{fig:fast-sim-daily-ate-obs-plot}, we report the daily posterior mean difference in the probability of deworming take-up compared to the control arm, as defined in \eqref{eqn:daily-ate}, and separately by distance from treatment location. We also report the "no observation" predicted counterfactual difference showing how the impact of signals would differ had there been no difference in salience/learning dynamics from the baseline level in the the control arm. -->
+
+<!-- ```{r fast-sim-daily-ate-obs-plot, ref.label="fast-sim-daily-ate-obs-plot", fig.width=10, fig.height=5, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with no SMS treatment)."} -->
+<!-- ``` -->
+
+<!-- In Figure \ref{fig:fast-sim-daily-sms-plot}, we report the posterior daily mean of the probability of deworming as defined in \eqref{eqn:daily-takeup-level}, separately by signal/incentive treatment and SMS treatment. We also report the predicted counterfactual of SMS recruitment and one pre-MDA reminder SMS message. -->
+
+<!-- ```{r fast-sim-daily-sms-plot, ref.label="fast-sim-daily-sms-plot", fig.width=9, fig.cap="Posterior distribution of the daily finite sample average probability of deworming take-up (with SMS treatment)."} -->
+<!-- ``` -->
 
 <!-- TODO We are not showing the dynamics of SMS with no signal observation. -->
 
-In Figure \ref{fig:sim-fast-daily-sms-dyn-kappa}, we show the shape of the $\kappa^{dyn}_m$ quadratic functions, as defined in \eqref{eqn:dyn-kappa}, for all arms and SMS treatment.
+<!-- In Figure \ref{fig:sim-fast-daily-sms-dyn-kappa}, we show the shape of the $\kappa^{dyn}_m$ quadratic functions, as defined in \eqref{eqn:dyn-kappa}, for all arms and SMS treatment. -->
 
-```{r sim-fast-daily-sms-dyn-kappa, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=4, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."}
-```
+<!-- ```{r sim-fast-daily-sms-dyn-kappa, ref.label="sim-fast-daily-sms-dyn-kappa", fig.width=8, fig.height=4, fig.cap="Posterior distribution of the finite sample dynamic effect of SMS treatment."} -->
+<!-- ``` -->
 
-In Figure \ref{fig:fast-sim-daily-ate-sms-plot}, we report the daily posterior mean difference in the probability of deworming take-up compared to the control arm, as defined in \eqref{eqn:daily-ate}, and separately by signal/incentive and distance from treatment location. We also report the "no salience" predicted counterfactual difference.
+<!-- In Figure \ref{fig:fast-sim-daily-ate-sms-plot}, we report the daily posterior mean difference in the probability of deworming take-up compared to the control arm, as defined in \eqref{eqn:daily-ate}, and separately by signal/incentive and distance from treatment location. We also report the "no salience" predicted counterfactual difference. -->
 
-```{r fast-sim-daily-ate-sms-plot, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=8, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."}
-```
+<!-- ```{r fast-sim-daily-ate-sms-plot, ref.label="fast-sim-daily-ate-sms-plot", fig.width=9, fig.height=8, fig.cap="Posterior distribution of the daily finite sample average treatment effect (with SMS treatment)."} -->
+<!-- ``` -->
 
-In Figure \ref{fig:fast-sim-ate-day-one}, we focus our analysis on the first deworming day. We report posterior mean treatment effects on deworming take-up of SMS treatment, compared to take-up levels in the same signal/incentive arm with no SMS treatment. For reference, we also show the baseline take-up level.
+<!-- In Figure \ref{fig:fast-sim-ate-day-one}, we focus our analysis on the first deworming day. We report posterior mean treatment effects on deworming take-up of SMS treatment, compared to take-up levels in the same signal/incentive arm with no SMS treatment. For reference, we also show the baseline take-up level. -->
 
-```{r fast-sim-ate-day-one, ref.label="fast-sim-ate-day-one", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one, for phone owners only."}
-```
+<!-- ```{r fast-sim-ate-day-one, ref.label="fast-sim-ate-day-one", fig.width=10, fig.height=7, fig.cap="Posterior distribution of the finite sample average treatment effect of SMS treatment on take-up on deworming day one, for phone owners only."} -->
+<!-- ``` -->
 
-In Figure \ref{fig:fast-sim-no-obs-plot}, we show how treatment effects on deworming differ with (solid line) and without (dashed line) dynamic salience/learning.
+<!-- In Figure \ref{fig:fast-sim-no-obs-plot}, we show how treatment effects on deworming differ with (solid line) and without (dashed line) dynamic salience/learning. -->
 
-```{r fast-sim-no-obs-plot, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=9, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."}
-```
+<!-- ```{r fast-sim-no-obs-plot, ref.label="fast-sim-no-obs-plot", fig.width=10, fig.height=9, fig.cap="Posterior distribution of the finite sample average treatment effect across all treatments and subgroups."} -->
+<!-- ``` -->
 
 The dynamics model allows us to test for treatment effect changes over time that are due to social learning or salience/reminder effects as individuals can observe others’ treatment decisions. The model allows us to separate static impacts on take-up--with a fixed proportional impact on take-up over the 12 deworming days--and dynamic changes resulting in a temporal shift in the preference of deworming day which we assume must be due to learning/salience effects. Therefore, by shutting down this dynamic component of the model we eliminate learning and salience. This also results in discarding any learning effects relevant to social signaling, i.e., updating of beliefs on reputational returns to signaling. Nevertheless, this does not present a problem since we find practically negligible dynamic changes across treatments. We thus conclude that the impact of bracelets, after controlling for their private consumption utility, is entirely driven by social signaling.
 
