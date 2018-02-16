@@ -263,7 +263,7 @@ info_inc_ate_phone <- info_inc_ate_iter_data_phone %>%
 ```
 
 ```{r}
-c(ls(pattern = "est_deworming_(takeup_(dyn|ate)|day)_"),
+c(ls(pattern = "est_deworming_(takeup_(dyn|ate)|day)"),
   ls(pattern = "info_inc")) %>% 
   save(list = ., file = file.path("data", "param_dyn_estimation.RData"))
 ```
