@@ -11,3 +11,6 @@ takeup_*model_*.rds
 
 # Testing stanfit data
 stanfit/*testing*.csv
+
+# SLURM output
+slurm-*.out
