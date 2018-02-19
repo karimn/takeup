@@ -268,7 +268,7 @@ param_all_ate %>%
 
 ```{r param-model-data, warning=FALSE}
 static_analysis_data <- analysis.data %>%
-  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink"), calendar = c("calendar", "bracelet")),
+  mutate(private_value = fct_collapse(assigned.treatment, control = c("control", "ink")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar"))) %>% 
   filter(!name_matched | sms.treatment.2 == "sms.control") # There are a couple of SMS observations that are name-checked. Drop them. 
 
@@ -276,10 +276,10 @@ static_treatment_map <- static_analysis_data %>%
   # data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, hh.baseline.sample, phone_owner, name_matched) %>% 
   data_grid(private_value, social_value, dist.pot.group, sms.treatment.2, phone_owner, name_matched) %>% 
   filter(phone_owner | sms.treatment.2 == "sms.control",
-  #       (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
-  #        private_value != "calendar" | social_value == "control",
-  #        # private_value != "bracelet" | social_value == "bracelet",
-         !name_matched | sms.treatment.2 == "sms.control") %>%
+        (private_value == "control" & social_value == "control") | sms.treatment.2 != "reminder.only",
+         private_value != "calendar" | social_value == "control",
+         private_value != "bracelet" | social_value == "bracelet",
+         !name_matched | sms.treatment.2 == "sms.control") %>% 
   prepare_treatment_map()
 
 param_stan_data <- static_analysis_data %>%  
@@ -312,48 +312,20 @@ param_stan_data <- static_analysis_data %>%
     sigma_wtp_df_student_t = 2.5,
     sigma_ksh_util_gamma = 5,
     
-    lkj_df = 2,
-    
     estimate_ate = 1
   )
-
-gen_lkj_initializer <- function(stan_data_list) {
-  function() {
-    lst(
-      stratum_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
-      cluster_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
-      stratum_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
-      cluster_census_covar_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_census_covar_coef, lkj_df)),
-      
-      L_stratum_beta_corr_mat = t(chol(stratum_beta_corr_mat)), # chol() returns the upper triangle while Stan uses the lower
-      L_cluster_beta_corr_mat = t(chol(cluster_beta_corr_mat)),
-      L_stratum_census_covar_corr_mat = t(chol(stratum_census_covar_corr_mat)),
-      L_cluster_census_covar_corr_mat = t(chol(cluster_census_covar_corr_mat))
-    )
-  }
-}
-
-# basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
-basic_model_1 <- stan_model(file = "takeup_model_1_deep_multilevel.stan", model_name = "model_1_deep_multilevel")
 ```
 
 ```{r basic-model-1, eval=FALSE}
-basic_model_1_fit <- param_stan_data %>% 
-  sampling(basic_model_1, 
-           data = ., 
-           chains = 8, iter = 800, control = lst(max_treedepth = 15),
-           init = gen_lkj_initializer(.), 
-           sample_file = file.path("stanfit", str_interp("basic_model_1_${static_fit_ver}.csv"))) 
+basic_model_1 <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
+basic_model_1_fit <- sampling(basic_model_1, data = param_stan_data, chains = 8, iter = 800, sample_file = file.path("stanfit", "basic_model_1_13.csv"), control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
 
-save(param_stan_data, file = file.path("stan_analysis_data", str_interp("model_1_${static_fit_ver}.RData")))
+save(param_stan_data, file = file.path("stan_analysis_data", "model_1_13.RData"))
 ```
 
 ```{r basic-model-1-debug, eval=FALSE}
-basic_model_1_fit_debug <- param_stan_data %>% 
-  sampling(basic_model_1, 
-           data = ., 
-           chains = 2, iter = 10, control = lst(max_treedepth = 15), 
-           init = gen_lkj_initializer(.)) 
+basic_model_1_debug <- stan_model(file = "takeup_model_1.stan", model_name = "model_1")
+basic_model_1_fit_debug <- sampling(basic_model_1_debug, data = param_stan_data, chains = 2, iter = 20, control = lst(max_treedepth = 15)) # adapt_delta = 0.99,
 ```
 
 ```{r load-static-model-fit, echo=TRUE}
@@ -2351,7 +2323,3 @@ ggplot(tibble(x = c(0, 20)), aes(x)) +
   stat_function(aes(color = "Cauchy"), fun = . %>% dcauchy(0, 2.5)) + 
   stat_function(aes(color = "Student t(2)"), fun = . %>% dt(2)) + 
   stat_function(aes(color = "Student t(4)"), fun = . %>% dt(4)) + 
-  stat_function(aes(color = "Student t(7)"), fun = . %>% dt(7)) + 
-  stat_function(aes(color = "N(0, 5)"), fun = . %>% dnorm(0, 5)) + 
-  scale_x_continuous(breaks = seq(0, 50, 1))
-```
