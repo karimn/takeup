@@ -422,6 +422,8 @@ generated quantities {
   vector<lower = 0, upper = 1>[num_ate_treatments] est_takeup = rep_vector(0, num_ate_treatments);
   vector<lower = -1, upper = 1>[num_ate_pairs] est_takeup_ate = rep_vector(0, num_ate_pairs);
   
+  matrix[num_clusters, num_deworming_days] cluster_latent_var_map[num_ate_treatments];
+  
   if (estimate_ate) {
     int stratum_pos = 1;
 
@@ -429,8 +431,6 @@ generated quantities {
     matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1 = 
       (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta_day1[, cluster_stratum_ids])'
       + rep_matrix(cluster_effect, num_ate_treatments);
-      
-    matrix[num_clusters, num_deworming_days] cluster_latent_var_map[num_ate_treatments];
 
     for (ate_treat_index in 1:num_ate_treatments) {
       cluster_latent_var_map[ate_treat_index] = 

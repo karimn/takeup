@@ -2064,7 +2064,8 @@ get_dyn_ate <- function() {
       "control",            "ink",               "control",             "control",
       "calendar",           "control",           "control",             "control",
       "calendar",           "bracelet",          "control",             "control",
-      "control",            "bracelet",           "control",            "control" 
+      "calendar",           "bracelet",          "calendar",            "control",
+      "control",            "bracelet",          "control",             "control" 
     ) %>% 
     mutate(signal_observed_left = social_value_left,
            signal_observed_right = social_value_right) %>% 
