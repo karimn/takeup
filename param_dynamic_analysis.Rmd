@@ -86,6 +86,15 @@ load(file.path("stan_analysis_data", str_interp("model_3_${dyn_fit_version}.RDat
 ```
 # Analyzing
 
+```{r}
+tidy(model_3_fit, pars = "hyper_beta_day1") %>%
+  pull(estimate) %>%
+  multiply_by_matrix(as.matrix(param_dyn_stan_data$treatment_map_design_matrix), .) %>% 
+  mutate(param_dyn_stan_data$treatment_map, latent_var = .) %>% 
+  filter(private_value %in% c("calendar","control"), social_value %in% c("control", "bracelet"), !phone_owner, dist.pot.group == "far") %>% 
+  transmute(all_treatment_id, private_value, social_value, latent_var, prob = 1 - VGAM::pgumbel(-latent_var))
+```
+
 ```{r new-param-dyn-model-prep-data, include=FALSE}
 create_incentive_treatment_col <- . %>% 
   mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
@@ -143,7 +152,7 @@ prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroup
   est_data %>%
     subgroup_combiner(outcome_var, subgroups) %>% 
     group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
-    summarize_at(vars(ends_with("wtd_iter_est")), funs(mean_est = mean(., na.rm = na_rm),
+    summarize_at(., vars(ends_with("wtd_iter_est")), funs(mean_est = mean(., na.rm = na_rm),
                                          ub_90 = quantile(., 0.95, na.rm = na_rm),
                                          ub_95 = quantile(., 0.975, na.rm = na_rm),
                                          lb_90 = quantile(., 0.05, na.rm = na_rm),
