@@ -3,7 +3,7 @@ title: |
     | The Role of Social Signaling in Community Deworming 
     | Evidence from a Field Experiment in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
 subtitle: "Internal Working Paper -- Do Not Cite or Distribute"
-date: "December 2017"
+date: "Februrary 2018"
 author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`.]
