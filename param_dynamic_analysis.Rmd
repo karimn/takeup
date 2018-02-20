@@ -72,6 +72,7 @@ load(file.path("data", "analysis.RData"))
 
 ```{r param-dyn-model-version}
 dyn_fit_version <- "param_27"
+# dyn_fit_version <- "param_28_logit"
 ```
 
 Loading sampled estimates:
