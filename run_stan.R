@@ -39,7 +39,7 @@ if (script_options$dynamic) {
            sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
     filter(!name_matched, sms.treatment.2 == "control") #, sms.treatment.2 == "control") #, !hh.baseline.sample)
   
-  static_treatment_map <- param_dyn_analysis_data %>% 
+  static_treatment_map <- stan_analysis_data %>% 
     #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
     data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
     #filter(sms.treatment.2 == "control" | phone_owner,
@@ -64,7 +64,7 @@ if (script_options$dynamic) {
            sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
     filter(!name_matched, sms.treatment.2 == "control") 
   
-  static_treatment_map <- param_dyn_analysis_data %>% 
+  static_treatment_map <- stan_analysis_data %>% 
     #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
     data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
     #filter(sms.treatment.2 == "control" | phone_owner,
