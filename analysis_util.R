@@ -690,7 +690,7 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ) {
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
 }
 
-plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data) {
+plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data, by_comparator = FALSE) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     data_preparer() 
@@ -709,28 +709,51 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_p
   ate_summ_data %>% 
     inner_data_preparer() %>% { 
       plot_obj <- ggplot(., aes(incentive_treatment_static_left, mean_est)) 
-        # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
       caption_text <-
         "Points represent mean point estimates.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
         
       if (!is_null(ate_data)) {
-        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
-                                           draw_quantiles = c(0.25, 0.5, 0.75), color = "lightgrey", fill = "darkgrey", data = ate_data)
+        violin_quantiles <- c(0.25, 0.5, 0.75)
+        
+        if (by_comparator) {
+          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est, fill = incentive_treatment_static_right), 
+                                             alpha = 0.5, color = alpha("darkgrey", 1), 
+                                             position = position_dodge(width = 0.75),
+                                             draw_quantiles = violin_quantiles, data = ate_data) +
+            scale_fill_discrete("Comparator") 
+        # scale_fill_brewer(palette = "Set1") + 
+        } else {
+          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est, fill = incentive_treatment_static_right), 
+                                             color = "lightgrey", fill = "darkgrey", 
+                                             draw_quantiles = violin_quantiles, data = ate_data)
+        }
         
         caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
                                 sep = "\n")
       }
       
+      if (by_comparator) {
+        plot_obj <- plot_obj +
+          geom_pointrange(aes(ymin = lb_95, ymax = ub_95, group = incentive_treatment_static_right), 
+                          size = 0.5, position = position_dodge(width = 0.75)) +
+          geom_linerange(aes(ymin = lb_90, ymax = ub_90, group = incentive_treatment_static_right), 
+                         size = 1.5, position = position_dodge(width = 0.75)) 
+      } else {
+        plot_obj <- plot_obj +
+          geom_pointrange(aes(ymin = lb_95, ymax = ub_95), 
+                          size = 0.5) +
+          geom_linerange(aes(ymin = lb_90, ymax = ub_90), 
+                         size = 1.5) 
+      }
+      
       plot_obj +
         geom_hline(yintercept = 0, linetype = "dotted") +
-        geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
-        geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
-        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
+        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), 
+                        nudge_x = -0.25 - by_comparator * 0.1, size = 3, segment.color = NA) +
         scale_y_continuous(breaks = seq(-1, 1, 0.05)) +
         coord_flip() +
         labs(title = "Deworming Take-up Average Treatment Effect", 
-             # subtitle = "Across all treatments", 
              x = "Incentive/Signal Treatment", 
              y = "Posterior Probability of Deworming Average Treatment Effect", 
              caption = caption_text) + 

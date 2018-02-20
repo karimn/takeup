@@ -71,7 +71,7 @@ load(file.path("data", "analysis.RData"))
 ```
 
 ```{r param-dyn-model-version}
-dyn_fit_version <- "param_25"
+dyn_fit_version <- "param_27"
 ```
 
 Loading sampled estimates:
@@ -306,7 +306,8 @@ est_deworming_takeup_ate_all %>%
     data_preparer = . %>% 
       filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
          incentive_treatment_static_right == incentive_treatment_dynamic_right,
-         incentive_treatment_static_right == "Control") 
+         incentive_treatment_static_right %in% c("Control", "Calendar")),
+    by_comparator = TRUE
   )
 ```
 
