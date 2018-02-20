@@ -1738,6 +1738,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     ate_pairs = if (num_ate_pairs > 0) ate_pairs else c(1, 1),
     
     observed_dewormed_day = dewormed_day_any[observed_obs_ids],
+    observed_dewormed_any = dewormed_any[observed_obs_ids],
     ...
   ) %>% 
     modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
