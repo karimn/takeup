@@ -2,7 +2,7 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--output-name=<output-name>]
+  run_stan [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -10,7 +10,8 @@ script_options <- docopt::docopt(
   --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --analysis-data-only  Don't run sampling, just produce analysis data
-  --gumbel, -g  Gumbel link"
+  --gumbel, -g  Gumbel link
+  --include-latent-var-data, -l  Save latent variable while sampling"
 )
 
 library(magrittr)
@@ -124,9 +125,10 @@ model_3_param <- stan_model(file = file.path("stan_models", "takeup_model_3_para
 cat(str_interp("Output name: ${dyn_fit_version}\n"))
 
 model_3_fit <- param_dyn_stan_data %>% 
-  sampling(model_3_param, data = ., 
+  sampling(model_3_param, data = .,
            chains = num_chains,
            iter = as.integer(script_options$`num-iterations`),
+           include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
            control = lst(max_treedepth = 15, adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            init = if (script_options$gumbel) gen_initializer(.) else "random",
            sample_file = file.path("stanfit", str_interp("model_3_${dyn_fit_version}.csv")))
