@@ -215,7 +215,7 @@ model {
       for (cluster_pos_index in cluster_pos:cluster_end) {
         int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
         int curr_cluster_num_obs = cluster_sizes[curr_cluster_id];
-        int obs_end = obs_pos + curr_cluster_num_obs;
+        int obs_end = obs_pos + curr_cluster_num_obs - 1;
         
         // int curr_daily_cluster_size = relevant_daily_cluster_sizes[curr_cluster_id];
         // int relevant_daily_cluster_end = relevant_daily_cluster_pos + curr_relevant_daily_cluster_size - 1;
