@@ -1526,10 +1526,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   treatment_design_matrix <- treatment_map_design_matrix[obs_treatment, ]
    
   treatment_design_matrix_long <- treatment_map_design_matrix %>% magrittr::extract(rep(obs_treatment, obs_relevant_days), )
-  treatment_design_matrix_qr <- qr(treatment_design_matrix_long)
-  Q_treatment_design_matrix_long <- qr.Q(treatment_design_matrix_qr) * sqrt(num_relevant_obs_days - 1)
-  R_treatment_design_matrix_long <- qr.R(treatment_design_matrix_qr) / sqrt(num_relevant_obs_days - 1)
+  treatment_design_matrix_long_qr <- qr(treatment_design_matrix_long)
+  Q_treatment_design_matrix_long <- qr.Q(treatment_design_matrix_long_qr) * sqrt(num_relevant_obs_days - 1)
+  R_treatment_design_matrix_long <- qr.R(treatment_design_matrix_long_qr) / sqrt(num_relevant_obs_days - 1)
   R_inv_treatment_design_matrix_long <- solve(R_treatment_design_matrix_long)
+  
+  num_obs <- length(obs_treatment)
+  
+  treatment_design_matrix_qr <- qr(treatment_design_matrix)
+  Q_treatment_design_matrix <- qr.Q(treatment_design_matrix_qr) * sqrt(num_obs - 1)
+  R_treatment_design_matrix <- qr.R(treatment_design_matrix_qr) / sqrt(num_obs - 1)
+  R_inv_treatment_design_matrix <- solve(R_treatment_design_matrix)
   
   cluster_id_long <- rep(prepared_analysis_data$new_cluster_id, obs_relevant_days)
   
@@ -1608,6 +1615,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     Q_treatment_design_matrix_long,
     R_treatment_design_matrix_long,
     R_inv_treatment_design_matrix_long,
+    Q_treatment_design_matrix,
+    R_treatment_design_matrix,
+    R_inv_treatment_design_matrix,
     num_all_treatments,
     num_all_treatment_coef,
     num_subgroups = length(subgroup_treatment_col_sizes),
@@ -1662,7 +1672,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
     dynamic_treatment_id = if (is_empty(dynamic_treatment_mask_map)) rep(0, nrow(prepared_analysis_data)) else prepared_analysis_data$dynamic_treatment_id,
     
-    num_obs = length(obs_treatment), 
+    num_obs, 
+    # num_obs = length(obs_treatment), 
     
     treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
     
