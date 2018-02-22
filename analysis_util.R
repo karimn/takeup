@@ -1318,7 +1318,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       select(subgroup_id) %>% 
       bind_cols(treatment_map_design_matrix, .) %>% 
       group_by(subgroup_id) %>% 
-      summarize_all(~ 1 * (sum(.) > 1)) %>% 
+      summarize_all(~ 1 * (sum(.) > 0)) %>% 
       ungroup() 
     
     omitted_subgroup_treatment_col <- subgroup_treatment_map_dm %>% 
@@ -1445,6 +1445,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       
       all_ate %<>% 
         filter(all_treatment_id_left != all_treatment_id_right)
+      
+      num_ate_pairs <- nrow(all_ate)
       
       ate_treatments <- all_ate %>% get_unique_treatments()
       
