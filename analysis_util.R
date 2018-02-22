@@ -1443,6 +1443,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       
       stopifnot(nrow(all_ate) == num_ate_pairs)
       
+      all_ate %<>% 
+        filter(all_treatment_id_left != all_treatment_id_right)
+      
       ate_treatments <- all_ate %>% get_unique_treatments()
       
       if (!is_empty(subgroup_col)) {
