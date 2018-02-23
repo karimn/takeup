@@ -56,6 +56,8 @@ if (script_options$dynamic) {
            sms.treatment.2_right == "control") %>% 
     select(-starts_with("sms.treatment"), -starts_with("reminder_info_stock")) %>% 
     distinct()
+  
+  treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
 } else {
   stan_analysis_data <- analysis.data %>%
     mutate(private_value = fct_collapse(assigned.treatment, 
@@ -80,6 +82,8 @@ if (script_options$dynamic) {
     select(-name_matched) %>%
     select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
     distinct()
+  
+  treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2
 }
 
 param_stan_data <- prepare_bayesian_analysis_data(
@@ -89,7 +93,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   prepared_treatment_maps = TRUE, 
   treatment_map = static_treatment_map,
     
-  treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner,
+  treatment_formula = treatment_formula,
   #treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2,
   # treatment_formula = ~ (private_value + social_value * dist.pot.group) * phone_owner * name_matched + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2,
   subgroup_col = "phone_owner",
