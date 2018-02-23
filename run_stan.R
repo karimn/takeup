@@ -63,24 +63,22 @@ if (script_options$dynamic) {
                                         "calendar" = c("calendar", "bracelet")), 
            social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
            sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-    filter(!name_matched, sms.treatment.2 == "control") 
+    filter(!name_matched) #, sms.treatment.2 == "control") #, !hh.baseline.sample)
   
   static_treatment_map <- stan_analysis_data %>% 
-    #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-    data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-    #filter(sms.treatment.2 == "control" | phone_owner,
+    data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>%
+    # data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
+    filter(sms.treatment.2 == "control" | phone_owner,
            # !name_matched | sms.treatment.2 == "control",
-           # sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-    filter(private_value == "control" | social_value != "ink") %>%
+           sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+           private_value == "control" | social_value != "ink") %>%
+    # filter(private_value == "control" | social_value != "ink") %>%
     prepare_treatment_map()
   
   all_ate <- get_dyn_ate() %>% 
     filter(!name_matched) %>% 
     select(-name_matched) %>%
-    filter(sms.treatment.2_left == "control",
-           sms.treatment.2_right == "control") %>% 
-    select(-starts_with("sms.treatment"), -starts_with("reminder_info_stock")) %>% 
-    select(-starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
+    select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
     distinct()
 }
 
@@ -166,8 +164,8 @@ model_fit <- param_stan_data %>%
   sampling(model_param, data = ., 
            chains = num_chains,
            iter = as.integer(script_options$`num-iterations`),
-           include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
+           # include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
            control = lst(max_treedepth = 15, adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            init = if (script_options$dynamic && script_options$gumbel) gen_initializer(.) else "random",
-           sample_file = file.path("stanfit", str_interp("model_3_${fit_version}.csv")))
+           sample_file = file.path("stanfit", str_interp("model_${fit_version}.csv")))
 
