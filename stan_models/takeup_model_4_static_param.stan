@@ -137,21 +137,24 @@ parameters {
   vector<lower = 0>[num_all_treatment_coef] strata_beta_tau;
   cholesky_factor_corr[num_all_treatment_coef] strata_beta_L_corr_mat;
   
-  matrix[num_all_treatment_coef, num_strata] QR_strata_beta;
+  matrix[num_all_treatment_coef, num_strata] strata_beta_raw;
+  // matrix[num_all_treatment_coef, num_strata] QR_strata_beta;
   
   real<lower = 0> cluster_effect_tau;
   vector[num_clusters] cluster_effect;
 }
 
 transformed parameters {
-  matrix[num_all_treatment_coef, num_strata] strata_beta_raw;
+  // matrix[num_all_treatment_coef, num_strata] strata_beta_raw;
   
-  matrix[num_all_treatment_coef, num_strata] strata_beta = R_inv_treatment_design_matrix * QR_strata_beta;
+  matrix[num_all_treatment_coef, num_strata] strata_beta; // = R_inv_treatment_design_matrix * QR_strata_beta;
 
   {
     matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
     
-    strata_beta_raw = strata_beta_L_vcov \ (strata_beta - rep_matrix(hyper_beta, num_strata));
+    strata_beta = rep_matrix(hyper_beta, num_strata) + strata_beta_L_vcov * strata_beta_raw;  
+    
+    // strata_beta_raw = strata_beta_L_vcov \ (strata_beta - rep_matrix(hyper_beta, num_strata));
   }
 }
 
@@ -184,7 +187,8 @@ model {
         int obs_end = obs_pos + curr_cluster_num_obs - 1;
           
         latent_var[obs_pos:obs_end] =
-          Q_treatment_design_matrix[obs_pos:obs_end] * QR_strata_beta[, stratum_index] + rep_vector(cluster_effect[curr_cluster_id], curr_cluster_num_obs);
+          treatment_design_matrix[obs_pos:obs_end] * strata_beta[, stratum_index] + rep_vector(cluster_effect[curr_cluster_id], curr_cluster_num_obs);
+          // Q_treatment_design_matrix[obs_pos:obs_end] * QR_strata_beta[, stratum_index] + rep_vector(cluster_effect[curr_cluster_id], curr_cluster_num_obs);
                            
         obs_pos = obs_end + 1;
       }
