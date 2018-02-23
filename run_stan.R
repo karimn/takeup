@@ -2,8 +2,8 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--output-name=<output-name>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --sms-control-only --include-name-matched]] [--output-name=<output-name>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--separate-private-value --include-name-matched --output-name=<output-name>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--separate-private-value --sms-control-only --include-name-matched --output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -12,6 +12,7 @@ script_options <- docopt::docopt(
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --analysis-data-only  Don't run sampling, just produce analysis data
   --sms-control-only  Exclude SMS treatment data
+  --separate-private-value  Use separate private values for calendars and bracelets
   --include-name-matched  Include unmonitored sample (name matched against census)
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling"
@@ -33,17 +34,28 @@ fit_version <- script_options$`output-name`
 
 # Analysis Data -----------------------------------------------------------
 
+stan_analysis_data <- analysis.data %>%
+  mutate(private_value = fct_collapse(assigned.treatment, 
+                                      control = if (script_options$`separate-private-value`) c("control", "ink", "bracelet") else c("control", "ink"), 
+                                      "calendar" = if (script_options$`separate-private-value`) "calendar" else c("calendar", "bracelet")), 
+         social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
+         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) 
+
 all_ate <- get_dyn_ate()
 treatment_formula <- ~ (private_value + social_value) * dist.pot.group * phone_owner
 # treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
 
+if (script_options$`separate-private-value`) {
+  all_ate %<>% 
+    mutate(
+      private_value_left = if_else(social_value_left == "bracelet", "control", private_value_left),
+      private_value_right = if_else(social_value_right == "bracelet", "control", private_value_right),
+      incentive_shift_left = if_else(signal_observed_left == "bracelet", "control", incentive_shift_left),
+      incentive_shift_right = if_else(signal_observed_right == "bracelet", "control", incentive_shift_right))
+}
+
 if (script_options$dynamic || script_options$`sms-control-only`) {
-  stan_analysis_data <- analysis.data %>%
-    mutate(private_value = fct_collapse(assigned.treatment, 
-                                        control = c("control", "ink"), 
-                                        "calendar" = c("calendar", "bracelet")), 
-           social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
-           sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+  stan_analysis_data %<>% 
     filter(!name_matched | script_options$`include-name-matched`, 
            sms.treatment.2 == "control") #, !hh.baseline.sample)
   
@@ -86,12 +98,7 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
       distinct()
   }
 } else {
-  stan_analysis_data <- analysis.data %>%
-    mutate(private_value = fct_collapse(assigned.treatment, 
-                                        control = c("control", "ink"), 
-                                        "calendar" = c("calendar", "bracelet")), 
-           social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
-           sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+  stan_analysis_data %<>% 
     filter(!name_matched | script_options$`include-name-matched`) #, !hh.baseline.sample)
   
   if (script_options$`include-name-matched`) {
