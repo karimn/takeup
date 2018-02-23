@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
 "Usage:
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--output-name=<output-name>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --sms-control-only]] [--output-name=<output-name>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --sms-control-only --include-name-matched]] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -12,6 +12,7 @@ script_options <- docopt::docopt(
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --analysis-data-only  Don't run sampling, just produce analysis data
   --sms-control-only  Exclude SMS treatment data
+  --include-name-matched  Include unmonitored sample (name matched against census)
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling"
 )
@@ -32,6 +33,10 @@ fit_version <- script_options$`output-name`
 
 # Analysis Data -----------------------------------------------------------
 
+all_ate <- get_dyn_ate()
+treatment_formula <- ~ (private_value + social_value) * dist.pot.group * phone_owner
+# treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
+
 if (script_options$dynamic || script_options$`sms-control-only`) {
   stan_analysis_data <- analysis.data %>%
     mutate(private_value = fct_collapse(assigned.treatment, 
@@ -39,22 +44,39 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
                                         "calendar" = c("calendar", "bracelet")), 
            social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
            sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-    filter(!name_matched, sms.treatment.2 == "control") #, sms.treatment.2 == "control") #, !hh.baseline.sample)
+    filter(!name_matched | script_options$`include-name-matched`, 
+           sms.treatment.2 == "control") #, !hh.baseline.sample)
   
-  static_treatment_map <- stan_analysis_data %>% 
-    #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-    data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-    #filter(sms.treatment.2 == "control" | phone_owner,
-           # !name_matched | sms.treatment.2 == "control",
-           # sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-    filter(private_value == "control" | social_value != "ink") %>%
-    prepare_treatment_map()
+  if (script_options$`include-name-matched`) {
+    static_treatment_map <- stan_analysis_data %>% 
+      data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
+      #filter(sms.treatment.2 == "control" | phone_owner,
+             # !name_matched | sms.treatment.2 == "control",
+             # sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+      filter(private_value == "control" | social_value != "ink") %>%
+      prepare_treatment_map()
+    
+    treatment_formula %<>% 
+      update.formula(~ . * name_matched)
+    
+    # treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner * name_matched
+  } else {
+    static_treatment_map <- stan_analysis_data %>% 
+      #data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
+      data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
+      #filter(sms.treatment.2 == "control" | phone_owner,
+             # !name_matched | sms.treatment.2 == "control",
+             # sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+      filter(private_value == "control" | social_value != "ink") %>%
+      prepare_treatment_map()
+    
+     all_ate %<>% 
+      filter(!name_matched) %>% 
+      select(-name_matched) 
+  }
   
-  all_ate <- get_dyn_ate() %>% 
-    filter(!name_matched) %>% 
-    select(-name_matched) %>%
-    filter(sms.treatment.2_left == "control",
-           sms.treatment.2_right == "control") %>% 
+  all_ate %<>%
+    filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
     select(-starts_with("sms.treatment"), -starts_with("reminder_info_stock")) %>% 
     distinct()
   
@@ -63,8 +85,6 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
       select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
       distinct()
   }
-  
-  treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
 } else {
   stan_analysis_data <- analysis.data %>%
     mutate(private_value = fct_collapse(assigned.treatment, 
@@ -72,25 +92,45 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
                                         "calendar" = c("calendar", "bracelet")), 
            social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
            sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
-    filter(!name_matched) #, sms.treatment.2 == "control") #, !hh.baseline.sample)
+    filter(!name_matched | script_options$`include-name-matched`) #, !hh.baseline.sample)
   
-  static_treatment_map <- stan_analysis_data %>% 
-    data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>%
-    # data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
-    filter(sms.treatment.2 == "control" | phone_owner,
-           # !name_matched | sms.treatment.2 == "control",
-           sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-           private_value == "control" | social_value != "ink") %>%
-    # filter(private_value == "control" | social_value != "ink") %>%
-    prepare_treatment_map()
+  if (script_options$`include-name-matched`) {
+    static_treatment_map <- stan_analysis_data %>% 
+      data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
+      filter(sms.treatment.2 == "control" | phone_owner,
+             !name_matched | sms.treatment.2 == "control",
+             sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+             private_value == "control" | social_value != "ink") %>%
+      prepare_treatment_map()
+    
+    # treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner * name_matched + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2
+    treatment_formula %<>% 
+      update.formula(~ . * name_matched)
+  } else {
+    static_treatment_map <- stan_analysis_data %>% 
+      data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>%
+      # data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% #, name_matched) %>% 
+      filter(sms.treatment.2 == "control" | phone_owner,
+             # !name_matched | sms.treatment.2 == "control",
+             sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+             private_value == "control" | social_value != "ink") %>%
+      # filter(private_value == "control" | social_value != "ink") %>%
+      prepare_treatment_map()
+    
+     all_ate %<>% 
+      filter(!name_matched) %>% 
+      select(-name_matched) 
+   
+    # treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2
+  }
   
-  all_ate <- get_dyn_ate() %>% 
-    filter(!name_matched) %>% 
-    select(-name_matched) %>%
+  treatment_formula %<>% 
+    update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
+  
+  all_ate %<>% 
     select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
     distinct()
   
-  treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2
 }
 
 param_stan_data <- prepare_bayesian_analysis_data(
