@@ -2110,7 +2110,7 @@ estimate_deworm_prob_ate <- function(iter_parameters,
 }
 
 create_incentive_treatment_col <- function(.data) {
-  .data. %>% 
+  .data %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
                                                  c("control-bracelet" = "bracelet social", 
                                                    "calendar-bracelet" = "bracelet",
