@@ -1492,24 +1492,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
         left_join(observed_takeup_total, "all_treatment_id") %>% 
         mutate(takeup_total = coalesce(takeup_total, 0L))
     }
-      
-    missing_treatment <- ate_treatments %>%
-      plyr::alply(1, function(treat_row) {
-        (if (!is_empty(subgroup_col)) {
-          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
-        } else { prepared_analysis_data }) %>% 
-          filter(all_treatment_id != treat_row$all_treatment_id) %>% 
-          pull(obs_index)
-      })
-    
-    observed_stratum_treatment <- ate_treatments %>%
-      plyr::adply(1, function(treat_row) {
-        (if (!is_empty(subgroup_col)) {
-          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
-        } else { prepared_analysis_data }) %>% 
-          filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-          select(stratum, obs_index)
-      })
     
     observed_stratum_takeup_total <- prepared_analysis_data %>% 
       group_by(stratum, all_treatment_id) %>% 
