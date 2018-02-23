@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
 "Usage:
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--output-name=<output-name>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--output-name=<output-name>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --sms-control-only]] [--output-name=<output-name>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -11,6 +11,7 @@ script_options <- docopt::docopt(
   --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --analysis-data-only  Don't run sampling, just produce analysis data
+  --sms-control-only  Exclude SMS treatment data
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling"
 )
@@ -31,7 +32,7 @@ fit_version <- script_options$`output-name`
 
 # Analysis Data -----------------------------------------------------------
 
-if (script_options$dynamic) {
+if (script_options$dynamic || script_options$`sms-control-only`) {
   stan_analysis_data <- analysis.data %>%
     mutate(private_value = fct_collapse(assigned.treatment, 
                                         control = c("control", "ink"), 
@@ -56,6 +57,12 @@ if (script_options$dynamic) {
            sms.treatment.2_right == "control") %>% 
     select(-starts_with("sms.treatment"), -starts_with("reminder_info_stock")) %>% 
     distinct()
+  
+  if (!script_options$dynamic) {
+    all_ate %<>% 
+      select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
+      distinct()
+  }
   
   treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
 } else {
