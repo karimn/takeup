@@ -634,7 +634,8 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
            ci.ub = bar.size + std.error * 1.64) 
 }
 
-plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data) {
+plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data,
+                        incentive_treatment_col = "incentive_treatment_static") {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     data_preparer() 
@@ -648,7 +649,7 @@ plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NUL
     
   takeup_summ_data %>%
     inner_data_preparer() %>% { 
-      plot_obj <- ggplot(., aes(incentive_treatment_static, mean_est)) 
+      plot_obj <- ggplot(., aes_string(incentive_treatment_col, "mean_est")) 
       caption_text <-
         "Points represent mean point estimates and circles represent observed take-up levels.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
@@ -690,7 +691,9 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ) {
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
 }
 
-plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data) {
+plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data, 
+                     incentive_treatment_left_col = "incentive_treatment_static_left",
+                     by_comparator = NULL) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     data_preparer() 
@@ -708,29 +711,52 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_p
   #        ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>%
   ate_summ_data %>% 
     inner_data_preparer() %>% { 
-      plot_obj <- ggplot(., aes(incentive_treatment_static_left, mean_est)) 
-        # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
+      plot_obj <- ggplot(., aes_string(incentive_treatment_left_col, "mean_est")) 
       caption_text <-
         "Points represent mean point estimates.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
         
       if (!is_null(ate_data)) {
-        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
-                                           draw_quantiles = c(0.25, 0.5, 0.75), color = "lightgrey", fill = "darkgrey", data = ate_data)
+        violin_quantiles <- c(0.25, 0.5, 0.75)
+        
+        if (!is_null(by_comparator)) {
+          plot_obj <- plot_obj + geom_violin(aes_string(y = "wtd_iter_est", fill = by_comparator), 
+                                             alpha = 0.5, color = alpha("darkgrey", 1), 
+                                             position = position_dodge(width = 0.75),
+                                             draw_quantiles = violin_quantiles, data = ate_data) +
+            scale_fill_discrete("Comparator") 
+        # scale_fill_brewer(palette = "Set1") + 
+        } else {
+          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
+                                             color = "lightgrey", fill = "darkgrey", 
+                                             draw_quantiles = violin_quantiles, data = ate_data)
+        }
         
         caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
                                 sep = "\n")
       }
       
+      if (!is_null(by_comparator)) {
+        plot_obj <- plot_obj +
+          geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", group = by_comparator), 
+                          size = 0.5, position = position_dodge(width = 0.75)) +
+          geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", group = by_comparator), 
+                         size = 1.5, position = position_dodge(width = 0.75)) 
+      } else {
+        plot_obj <- plot_obj +
+          geom_pointrange(aes(ymin = lb_95, ymax = ub_95), 
+                          size = 0.5) +
+          geom_linerange(aes(ymin = lb_90, ymax = ub_90), 
+                         size = 1.5) 
+      }
+      
       plot_obj +
         geom_hline(yintercept = 0, linetype = "dotted") +
-        geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
-        geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
-        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
+        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), 
+                        nudge_x = -0.25 - (!is_null(by_comparator)) * 0.1, size = 3, segment.color = NA) +
         scale_y_continuous(breaks = seq(-1, 1, 0.05)) +
         coord_flip() +
         labs(title = "Deworming Take-up Average Treatment Effect", 
-             # subtitle = "Across all treatments", 
              x = "Incentive/Signal Treatment", 
              y = "Posterior Probability of Deworming Average Treatment Effect", 
              caption = caption_text) + 
@@ -1284,7 +1310,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     model_matrix(treatment_formula) %>% 
     rename(intercept = `(Intercept)`) %>% 
     magrittr::extract(, detect_redund_col(.)) %>% {
-      if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?)
+      if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?) 
     }
   
   if (!is_null(subgroup_col)) {
@@ -1295,7 +1321,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       select(subgroup_id) %>% 
       bind_cols(treatment_map_design_matrix, .) %>% 
       group_by(subgroup_id) %>% 
-      summarize_all(~ 1 * (sum(.) > 1)) %>% 
+      summarize_all(~ 1 * (sum(.) > 0)) %>% 
       ungroup() 
     
     omitted_subgroup_treatment_col <- subgroup_treatment_map_dm %>% 
@@ -1420,6 +1446,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       
       stopifnot(nrow(all_ate) == num_ate_pairs)
       
+      all_ate %<>% 
+        filter(all_treatment_id_left != all_treatment_id_right)
+      
+      num_ate_pairs <- nrow(all_ate)
+      
       ate_treatments <- all_ate %>% get_unique_treatments()
       
       if (!is_empty(subgroup_col)) {
@@ -1461,6 +1492,24 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
         left_join(observed_takeup_total, "all_treatment_id") %>% 
         mutate(takeup_total = coalesce(takeup_total, 0L))
     }
+      
+    missing_treatment <- ate_treatments %>%
+      plyr::alply(1, function(treat_row) {
+        (if (!is_empty(subgroup_col)) {
+          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+        } else { prepared_analysis_data }) %>% 
+          filter(all_treatment_id != treat_row$all_treatment_id) %>% 
+          pull(obs_index)
+      })
+    
+    observed_stratum_treatment <- ate_treatments %>%
+      plyr::adply(1, function(treat_row) {
+        (if (!is_empty(subgroup_col)) {
+          semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+        } else { prepared_analysis_data }) %>% 
+          filter(all_treatment_id == treat_row$all_treatment_id) %>% 
+          select(stratum, obs_index)
+      })
     
     observed_stratum_takeup_total <- prepared_analysis_data %>% 
       group_by(stratum, all_treatment_id) %>% 
@@ -1511,10 +1560,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   treatment_design_matrix <- treatment_map_design_matrix[obs_treatment, ]
    
   treatment_design_matrix_long <- treatment_map_design_matrix %>% magrittr::extract(rep(obs_treatment, obs_relevant_days), )
-  treatment_design_matrix_qr <- qr(treatment_design_matrix_long)
-  Q_treatment_design_matrix_long <- qr.Q(treatment_design_matrix_qr) * sqrt(num_relevant_obs_days - 1)
-  R_treatment_design_matrix_long <- qr.R(treatment_design_matrix_qr) / sqrt(num_relevant_obs_days - 1)
+  treatment_design_matrix_long_qr <- qr(treatment_design_matrix_long)
+  Q_treatment_design_matrix_long <- qr.Q(treatment_design_matrix_long_qr) * sqrt(num_relevant_obs_days - 1)
+  R_treatment_design_matrix_long <- qr.R(treatment_design_matrix_long_qr) / sqrt(num_relevant_obs_days - 1)
   R_inv_treatment_design_matrix_long <- solve(R_treatment_design_matrix_long)
+  
+  num_obs <- length(obs_treatment)
+  
+  treatment_design_matrix_qr <- qr(treatment_design_matrix)
+  Q_treatment_design_matrix <- qr.Q(treatment_design_matrix_qr) * sqrt(num_obs - 1)
+  R_treatment_design_matrix <- qr.R(treatment_design_matrix_qr) / sqrt(num_obs - 1)
+  R_inv_treatment_design_matrix <- solve(R_treatment_design_matrix)
   
   cluster_id_long <- rep(prepared_analysis_data$new_cluster_id, obs_relevant_days)
   
@@ -1593,6 +1649,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     Q_treatment_design_matrix_long,
     R_treatment_design_matrix_long,
     R_inv_treatment_design_matrix_long,
+    Q_treatment_design_matrix,
+    R_treatment_design_matrix,
+    R_inv_treatment_design_matrix,
     num_all_treatments,
     num_all_treatment_coef,
     num_subgroups = length(subgroup_treatment_col_sizes),
@@ -1647,7 +1706,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     treatment_id = prepared_analysis_data %>% arrange(all_treatment_id, obs_index) %$% obs_index,
     dynamic_treatment_id = if (is_empty(dynamic_treatment_mask_map)) rep(0, nrow(prepared_analysis_data)) else prepared_analysis_data$dynamic_treatment_id,
     
-    num_obs = length(obs_treatment), 
+    num_obs, 
+    # num_obs = length(obs_treatment), 
     
     treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
     
@@ -1669,11 +1729,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     num_strata = n_distinct(stratum_id),
     strata_sizes = count(prepared_analysis_data, stratum_id) %>% arrange(stratum_id) %>% pull(n),
-    cluster_sizes = count(prepared_analysis_data, new_cluster_id) %>% arrange(new_cluster_id) %>% pull(n),
+    cluster_sizes = count(prepared_analysis_data, stratum_id, new_cluster_id) %>% arrange(stratum_id, new_cluster_id) %>% pull(n),
     strata_num_clusters = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
       count(stratum_id) %>% 
       arrange(stratum_id) %>% 
       pull(n),
+   
     strata_cluster_ids = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
       arrange(stratum_id) %>% 
       pull(new_cluster_id),
@@ -1733,6 +1794,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     ate_pairs = if (num_ate_pairs > 0) ate_pairs else c(1, 1),
     
     observed_dewormed_day = dewormed_day_any[observed_obs_ids],
+    observed_dewormed_any = dewormed_any[observed_obs_ids],
     ...
   ) %>% 
     modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
@@ -2047,6 +2109,16 @@ estimate_deworm_prob_ate <- function(iter_parameters,
     full_dyn_treatment_map_dm = full_dyn_treatment_map_dm)
 }
 
+create_incentive_treatment_col <- function(.data) {
+  .data %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
+                                                 c("control-bracelet" = "bracelet social", 
+                                                   "calendar-bracelet" = "bracelet",
+                                                   "control-control" = "control", 
+                                                   "(-control)|(control-)" = "")) %>% 
+             factor(levels = c("control", "ink", "calendar", "bracelet social", "bracelet"))))
+}
+
 subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL, 
                               group_by_regex = "(incentive_treatment|(private|social)_value|sms.treatment.2)") {
   iter_data %>% 
@@ -2055,8 +2127,79 @@ subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL,
     ungroup() 
 }
 
+prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroups = NULL, na_rm = FALSE) { 
+  subgroups <- if (daily) c(subgroups, "day") else subgroups
+  
+  est_data %>%
+    subgroup_combiner(outcome_var, subgroups) %>% 
+    group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    summarize_at(., vars(ends_with("wtd_iter_est")), funs(mean_est = mean(., na.rm = na_rm),
+                                         ub_90 = quantile(., 0.95, na.rm = na_rm),
+                                         ub_95 = quantile(., 0.975, na.rm = na_rm),
+                                         lb_90 = quantile(., 0.05, na.rm = na_rm),
+                                         lb_95 = quantile(., 0.025, na.rm = na_rm))) %>% 
+    ungroup() 
+} 
+
+prepare_est_deworming_takeup <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, c("iter_takeup", "observed_takeup_prop"), na_rm = TRUE, ...) %>% 
+    rename_at(vars(starts_with("iter_takeup")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) %>% 
+    rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
+    select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
+}
+
+prepare_est_deworming_ate <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "iter_ate", ...) 
+}
 
 # Dynamic ATE -------------------------------------------------------------
+
+get_static_ate <- function() {
+  param_sms_control_ate <- tribble(
+    ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
+    "control",            "ink",               "control",             "control",
+    "calendar",           "control",           "control",             "control",
+    "bracelet",           "bracelet",          "control",             "control",
+    "control",            "bracelet",          "control",             "control" 
+  ) %>%
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+    bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
+    bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
+    mutate(sms.treatment.2_left = "sms.control", sms.treatment.2_right = "sms.control") %>% 
+           # hh.baseline.sample = FALSE) %>% 
+    mutate_at(vars(name_matched, phone_owner), as.logical) %>% 
+    mutate_at(vars(starts_with("private_value")), funs(fct_collapse(., calendar = c("calendar", "bracelet"))))
+  
+  param_phone_owners_ate <- tribble(
+    ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
+    "control",            "control",           "reminder.only",        "control",             "control",            "sms.control",
+    "control",            "control",           "social.info",          "control",             "control",            "sms.control",
+    "control",            "control",           "social.info",          "control",             "control",            "reminder.only",
+  
+    "control",            "ink",               "social.info",          "control",             "control",            "sms.control",
+    "control",            "ink",               "social.info",          "control",             "control",            "social.info",
+    "control",            "ink",               "social.info",          "control",             "ink",                "sms.control",
+  
+    "calendar",           "control",           "social.info",          "control",             "control",            "sms.control",
+    "calendar",           "control",           "social.info",          "control",             "control",            "social.info",
+    "calendar",           "control",           "social.info",          "calendar",            "control",            "sms.control",
+  
+    "bracelet",           "bracelet",          "social.info",          "control",             "control",            "sms.control",
+    "bracelet",           "bracelet",          "social.info",          "control",             "control",            "social.info",
+    "bracelet",           "bracelet",          "social.info",          "bracelet",            "bracelet",           "sms.control",
+    
+    "control",           "bracelet",           "social.info",          "control",             "control",            "sms.control",
+    "control",           "bracelet",           "social.info",          "control",             "control",            "social.info",
+    "control",           "bracelet",           "social.info",          "control",            "bracelet",            "sms.control"
+  ) %>%
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
+    mutate(phone_owner = TRUE,
+           name_matched = FALSE) %>% 
+           # hh.baseline.sample = FALSE) 
+    mutate_at(vars(starts_with("private_value")), funs(fct_collapse(., calendar = c("calendar", "bracelet"))))
+  
+  bind_rows(param_sms_control_ate, param_phone_owners_ate) 
+}
 
 get_dyn_ate <- function() {
   dyn_sms_control_ate <- tribble(
