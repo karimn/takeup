@@ -634,7 +634,8 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
            ci.ub = bar.size + std.error * 1.64) 
 }
 
-plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data) {
+plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data,
+                        incentive_treatment_col = "incentive_treatment_static") {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     data_preparer() 
@@ -648,7 +649,7 @@ plot_dyn_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NUL
     
   takeup_summ_data %>%
     inner_data_preparer() %>% { 
-      plot_obj <- ggplot(., aes(incentive_treatment_static, mean_est)) 
+      plot_obj <- ggplot(., aes_string(incentive_treatment_col, "mean_est")) 
       caption_text <-
         "Points represent mean point estimates and circles represent observed take-up levels.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
@@ -690,7 +691,9 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ) {
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
 }
 
-plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data, by_comparator = FALSE) {
+plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data, 
+                     incentive_treatment_left_col = "incentive_treatment_static_left",
+                     by_comparator = NULL) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     data_preparer() 
@@ -708,7 +711,7 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_p
   #        ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>%
   ate_summ_data %>% 
     inner_data_preparer() %>% { 
-      plot_obj <- ggplot(., aes(incentive_treatment_static_left, mean_est)) 
+      plot_obj <- ggplot(., aes_string(incentive_treatment_left_col, "mean_est")) 
       caption_text <-
         "Points represent mean point estimates.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
@@ -716,15 +719,15 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_p
       if (!is_null(ate_data)) {
         violin_quantiles <- c(0.25, 0.5, 0.75)
         
-        if (by_comparator) {
-          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est, fill = incentive_treatment_static_right), 
+        if (!is_null(by_comparator)) {
+          plot_obj <- plot_obj + geom_violin(aes_string(y = "wtd_iter_est", fill = by_comparator), 
                                              alpha = 0.5, color = alpha("darkgrey", 1), 
                                              position = position_dodge(width = 0.75),
                                              draw_quantiles = violin_quantiles, data = ate_data) +
             scale_fill_discrete("Comparator") 
         # scale_fill_brewer(palette = "Set1") + 
         } else {
-          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est, fill = incentive_treatment_static_right), 
+          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
                                              color = "lightgrey", fill = "darkgrey", 
                                              draw_quantiles = violin_quantiles, data = ate_data)
         }
@@ -733,11 +736,11 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_p
                                 sep = "\n")
       }
       
-      if (by_comparator) {
+      if (!is_null(by_comparator)) {
         plot_obj <- plot_obj +
-          geom_pointrange(aes(ymin = lb_95, ymax = ub_95, group = incentive_treatment_static_right), 
+          geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", group = by_comparator), 
                           size = 0.5, position = position_dodge(width = 0.75)) +
-          geom_linerange(aes(ymin = lb_90, ymax = ub_90, group = incentive_treatment_static_right), 
+          geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", group = by_comparator), 
                          size = 1.5, position = position_dodge(width = 0.75)) 
       } else {
         plot_obj <- plot_obj +
@@ -750,7 +753,7 @@ plot_dyn_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_p
       plot_obj +
         geom_hline(yintercept = 0, linetype = "dotted") +
         geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), 
-                        nudge_x = -0.25 - by_comparator * 0.1, size = 3, segment.color = NA) +
+                        nudge_x = -0.25 - (!is_null(by_comparator)) * 0.1, size = 3, segment.color = NA) +
         scale_y_continuous(breaks = seq(-1, 1, 0.05)) +
         coord_flip() +
         labs(title = "Deworming Take-up Average Treatment Effect", 
@@ -2106,6 +2109,16 @@ estimate_deworm_prob_ate <- function(iter_parameters,
     full_dyn_treatment_map_dm = full_dyn_treatment_map_dm)
 }
 
+create_incentive_treatment_col <- function(.data) {
+  .data. %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
+                                                 c("control-bracelet" = "bracelet social", 
+                                                   "calendar-bracelet" = "bracelet",
+                                                   "control-control" = "control", 
+                                                   "(-control)|(control-)" = "")) %>% 
+             factor(levels = c("control", "ink", "calendar", "bracelet social", "bracelet"))))
+}
+
 subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL, 
                               group_by_regex = "(incentive_treatment|(private|social)_value|sms.treatment.2)") {
   iter_data %>% 
@@ -2114,6 +2127,30 @@ subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL,
     ungroup() 
 }
 
+prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroups = NULL, na_rm = FALSE) { 
+  subgroups <- if (daily) c(subgroups, "day") else subgroups
+  
+  est_data %>%
+    subgroup_combiner(outcome_var, subgroups) %>% 
+    group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    summarize_at(., vars(ends_with("wtd_iter_est")), funs(mean_est = mean(., na.rm = na_rm),
+                                         ub_90 = quantile(., 0.95, na.rm = na_rm),
+                                         ub_95 = quantile(., 0.975, na.rm = na_rm),
+                                         lb_90 = quantile(., 0.05, na.rm = na_rm),
+                                         lb_95 = quantile(., 0.025, na.rm = na_rm))) %>% 
+    ungroup() 
+} 
+
+prepare_est_deworming_takeup <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, c("iter_takeup", "observed_takeup_prop"), na_rm = TRUE, ...) %>% 
+    rename_at(vars(starts_with("iter_takeup")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) %>% 
+    rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
+    select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
+}
+
+prepare_est_deworming_ate <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "iter_ate", ...) 
+}
 
 # Dynamic ATE -------------------------------------------------------------
 
