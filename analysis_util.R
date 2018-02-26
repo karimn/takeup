@@ -641,9 +641,14 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     data_preparer() 
  
-  if (!(is_null(takeup_data) || is_null(combiner))) {
+  if (!is_null(takeup_data)) {
     takeup_data %<>% 
         inner_data_preparer()
+    
+    if (!is_null(combiner)) {
+      takeup_data %<>% 
+          combiner()
+    }
   } 
     
   takeup_summ_data %>%
@@ -653,8 +658,16 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
         "Points represent mean point estimates and circles represent observed take-up levels.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
       
-      if (!is_null(takeup_data) && is_null(lower_level_data)) {
-        plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
+      if (!is_null(lower_level_data)) {
+        plot_obj <- plot_obj +
+          geom_violin(aes_string(incentive_treatment_col, "mean_est"), alpha = 0.5, 
+                      draw_quantiles = c(0.25, 0.5, 0.75), color = "darkgrey", fill = "lightgrey", data = inner_data_preparer(lower_level_data)) +
+          geom_jitter(aes_string(incentive_treatment_col, "mean_est"), shape = 3, size = 2, alpha = 0.5,
+                      size = 0.5, data = inner_data_preparer(lower_level_data))
+                     # shape = 3, size = 3, data = inner_data_preparer(lower_level_data))
+      } else if (!is_null(takeup_data)) {
+        plot_obj <- plot_obj + 
+          geom_violin(aes(y = wtd_iter_est), 
                                            # draw_quantiles = c(0.25, 0.5, 0.75), color = "white", fill = "darkgrey", data = takeup_data) 
                                            draw_quantiles = c(0.25, 0.5, 0.75), color = "lightgrey", fill = "darkgrey", data = takeup_data)
         
@@ -662,14 +675,6 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
                                 sep = "\n")
       }
       
-      if (!is_null(lower_level_data)) {
-        plot_obj <- plot_obj +
-          geom_violin(aes_string(incentive_treatment_col, "mean_est"), alpha = 0.5, 
-                      draw_quantiles = c(0.25, 0.5, 0.75), color = "darkgrey", fill = "lightgrey", data = inner_data_preparer(lower_level_data)) +
-          geom_jitter(aes_string(incentive_treatment_col, "mean_est"), alpha = 0.5,
-                      size = 0.5, data = inner_data_preparer(lower_level_data))
-                     # shape = 3, size = 3, data = inner_data_preparer(lower_level_data))
-      }
       
       plot_obj <- plot_obj +
         # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
