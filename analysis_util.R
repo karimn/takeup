@@ -1095,9 +1095,14 @@ identify_treatment_id <- function(ate_pairs, treatment_map) {
               suffix = c("_left", "_right")) 
 }
 
-get_unique_treatments <- function(ate_pairs, subgroups) {
-  ate_pairs %>% 
-    select(matches("(all|dynamic)_treatment_id_(left|right)$"), subgroups) %>%
+get_unique_treatments <- function(ate_pairs, subgroups = NULL) {
+  ate_pairs %>% {
+    if (!is_null(subgroups)) {
+      select(., matches("(all|dynamic)_treatment_id_(left|right)$"), subgroups) 
+    } else {
+      select(., matches("(all|dynamic)_treatment_id_(left|right)$")) 
+    }
+  } %>%
     mutate(row_id = seq_len(n())) %>%
     gather(key = treatment_key, value = id, matches("_(left|right)$")) %>% 
     separate(treatment_key, c("treatment_key", "left_right"), "_(?=left|right)") %>% 
@@ -1415,7 +1420,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       combined_ate <- to_new_dyn_ate(all_ate, treatment_map)
       
       ate_treatments <- combined_ate %>% 
-        get_unique_treatments(subgroup_col)
+        get_unique_treatments(NULL)
       
       if (!is_empty(subgroup_col)) {
         ate_treatments %<>% 
