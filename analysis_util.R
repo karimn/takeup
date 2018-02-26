@@ -1415,7 +1415,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       combined_ate <- to_new_dyn_ate(all_ate, treatment_map)
       
       ate_treatments <- combined_ate %>% 
-        get_unique_treatments()
+        get_unique_treatments(subgroup_col)
       
       if (!is_empty(subgroup_col)) {
         ate_treatments %<>% 
