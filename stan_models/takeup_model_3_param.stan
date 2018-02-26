@@ -178,7 +178,6 @@ data {
   
   real<lower = 0> scale_sigma;
   real<lower = 0> cluster_scale_sigma;
-  real<lower = 0> cluster_intercept_scale_sigma;
   
   real<lower = 0> hyper_coef_sigma;
   real<lower = 0> hyper_intercept_sigma;
