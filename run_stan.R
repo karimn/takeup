@@ -41,7 +41,9 @@ stan_analysis_data <- analysis.data %>%
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
          sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) 
 
-all_ate <- get_dyn_ate()
+all_ate <- get_dyn_ate() 
+  # bind_rows(Busia = ., Kakamega = ., Siaya = ., .id = "stratum")
+
 treatment_formula <- ~ (private_value + social_value) * dist.pot.group * phone_owner
 # treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
 
@@ -156,10 +158,9 @@ param_stan_data <- prepare_bayesian_analysis_data(
   param_poly_order = 2,
   
   all_ate = all_ate,
-  
+ 
   scale_sigma = 1,
-  cluster_scale_sigma = 0.01,
-  cluster_intercept_scale_sigma = 1,
+  cluster_scale_sigma = 0.25,
   hyper_coef_sigma = 1,
   hyper_intercept_sigma = 5,
   
