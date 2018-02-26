@@ -140,8 +140,8 @@ parameters {
   matrix<lower = 0>[num_all_treatment_coef, num_strata] cluster_beta_tau;
   cholesky_factor_corr[num_all_treatment_coef] cluster_beta_L_corr_mat[num_strata];
   
-  real<lower = 1, upper = 7> stratum_student_df;
-  real<lower = 1, upper = 7> cluster_student_df;
+  real<lower = 2, upper = 7> stratum_student_df;
+  real<lower = 2, upper = 7> cluster_student_df;
 
   matrix[num_all_treatment_coef, num_strata] strata_beta_raw;
   matrix[num_all_treatment_coef, num_clusters] cluster_beta_raw;
