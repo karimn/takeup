@@ -1172,9 +1172,11 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
       original_dyn_var)
 }
 
-prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps) { #, ate) {
+prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps, 
+                                  cluster_level_treatment = c("private_value", "social_value", "dist.pot.group")) { #, ate) {
   prepared <- static_treatment_map %>% 
-    mutate(all_treatment_id = seq_len(n())) %>% 
+    mutate(all_treatment_id = seq_len(n())) %>%
+    left_join(distinct_(., .dots = cluster_level_treatment) %>% mutate(cluster_treatment_id = seq_len(n())), cluster_level_treatment) %>% 
     mutate_if(is.factor, funs(id = as.integer(.))) 
   
   if (!missing(dynamic_treatment_maps)) {
@@ -1215,8 +1217,8 @@ to_new_dyn_ate <- function(all_ate, treatment_map) {
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
-                                           treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample.pool"),
-                                           prepared_treatment_maps = FALSE, 
+                                           # treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample.pool"),
+                                           # prepared_treatment_maps = FALSE, 
                                            treatment_map = NULL,
                                            dynamic_treatment_map = NULL,
                                            treatment_formula = NULL,
@@ -1279,11 +1281,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   is_dynamic_model <- !is.null(dynamic_treatment_map)
   
   if (is_dynamic_model) {
-    if (prepared_treatment_maps) {
+    # if (prepared_treatment_maps) {
       dyn_treat_maps <- dynamic_treatment_map
-    } else {
-      dyn_treat_maps <- prepare_dynamic_treatment_maps(dynamic_treatment_map, prepared_analysis_data)
-    }
+    # } else {
+    #   dyn_treat_maps <- prepare_dynamic_treatment_maps(dynamic_treatment_map, prepared_analysis_data)
+    # }
     
     dynamic_treatment_map <- dyn_treat_maps$map
     dynamic_treatment_mask_map <- dyn_treat_maps$mask
@@ -1294,17 +1296,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     dynamic_treatment_dm <- NULL
   }
  
-  if (is.null(treatment_map)) { 
-    treatment_map <- expand_(prepared_analysis_data, c(treatment_col, subgroup_col)) %>% {
-        if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
-      } 
-  } else {
+  # if (is.null(treatment_map)) { 
+  #   treatment_map <- expand_(prepared_analysis_data, c(treatment_col, subgroup_col)) %>% {
+  #       if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
+  #     } 
+  # } else {
     treatment_col <- intersect(names(treatment_map), names(prepared_analysis_data))
-  }
+  # }
   
-  if (!prepared_treatment_maps) {
-    if (is_dynamic_model) treatment_map %<>% prepare_treatment_map(dyn_treat_maps) else treatment_map %<>% prepare_treatment_map()
-  }
+  # if (!prepared_treatment_maps) {
+  #   if (is_dynamic_model) treatment_map %<>% prepare_treatment_map(dyn_treat_maps) else treatment_map %<>% prepare_treatment_map()
+  # }
   
   census_covar_map <- count_(prepared_analysis_data, c("age", "gender")) %>% 
     mutate(census_covar_id = seq_len(n())) 
@@ -1321,13 +1323,14 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
   
- 
-  if (is.null(treatment_formula)) { 
-    treatment_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {
-        if (!is.null(subgroup_col)) str_c(., " - ", str_c(subgroup_col, collapse = " - ")) else return(.)
-      } %>% 
-      as.formula()
-  }
+  observed_cluster_treatments <- unique(prepared_analysis_data$cluster_treatment_id)
+  
+  # if (is.null(treatment_formula)) { 
+  #   treatment_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {
+  #       if (!is.null(subgroup_col)) str_c(., " - ", str_c(subgroup_col, collapse = " - ")) else return(.)
+  #     } %>% 
+  #     as.formula()
+  # }
   
   # Find redundant columns, excluding the intercept if we are required to keep it
   detect_redund_col <- . %>% { map_lgl(., ~ n_distinct(.) > 1) | (str_detect(names(.), fixed("intercept")) & !drop_intercept_from_dm) }
@@ -1338,6 +1341,16 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     magrittr::extract(, detect_redund_col(.)) %>% {
       if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?) 
     }
+  
+  within_cluster_treatment_map <- treatment_map %>% 
+    filter(cluster_treatment_id %in% observed_cluster_treatments) %>% 
+    group_by(cluster_treatment_id) %>% 
+    do(cluster_dm = treatment_map_design_matrix[.$all_treatment_id, ] %>% {
+         bind_rows(.[1, ],
+                   subtract(.[2:nrow(.), ], 
+                            matrix(.[1, ], nrow = nrow(.) - 1, ncol = ncol(.), byrow = TRUE)))
+    }) %>%  
+    ungroup()
   
   if (!is_null(subgroup_col)) {
     subgroup_treatment_map_dm <- treatment_map %>% 
@@ -1566,7 +1579,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
 
   obs_treatment <- prepared_analysis_data$all_treatment_id 
   treatment_design_matrix <- treatment_map_design_matrix[obs_treatment, ]
-   
+  
   treatment_design_matrix_long <- treatment_map_design_matrix %>% magrittr::extract(rep(obs_treatment, obs_relevant_days), )
   treatment_design_matrix_long_qr <- qr(treatment_design_matrix_long)
   Q_treatment_design_matrix_long <- qr.Q(treatment_design_matrix_long_qr) * sqrt(num_relevant_obs_days - 1)
@@ -1664,6 +1677,20 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_all_treatment_coef,
     num_subgroups = length(subgroup_treatment_col_sizes),
     subgroup_treatment_col_sizes,
+
+    num_cluster_level_treatments = nrow(within_cluster_treatment_map),    
+    within_cluster_treatment_sizes = within_cluster_treatment_map$cluster_dm %>% map_int(nrow),
+    unique_within_cluster_treatment_sizes = unique(within_cluster_treatment_sizes) %>% {
+      if (length(.) == 2) { 
+        sort(., decreasing = TRUE) 
+      } else if (length(.) == 1) {
+        c(0, .)
+      } else stop("Incorrect number of cluster level treatment sizes.")
+    },
+    # num_control_cluster_treatments = sum(within_cluster_treatment_sizes == unique_within_cluster_treatment_sizes[1]),
+    within_cluster_treatment_map = within_cluster_treatment_map %>% 
+      unnest(cluster_dm, .drop = TRUE) %>% 
+      select(-cluster_treatment_id),
     
     num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
     num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),
