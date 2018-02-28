@@ -1348,7 +1348,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     do(cluster_dm = treatment_map_design_matrix[.$all_treatment_id, ] %>% {
          bind_rows(.[1, ],
                    subtract(.[2:nrow(.), ], 
-                            matrix(.[1, ], nrow = nrow(.) - 1, ncol = ncol(.), byrow = TRUE)))
+                            matrix(as.matrix(.[1, ]), nrow = nrow(.) - 1, ncol = ncol(.), byrow = TRUE)))
     }) %>%  
     ungroup()
   
