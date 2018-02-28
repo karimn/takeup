@@ -92,7 +92,7 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
   }
 } else {
   stan_analysis_data %<>% 
-    filter(!name_matched | script_options$`include-name-matched`) 
+    filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
   
   if (script_options$`include-name-matched`) {
     static_treatment_map <- stan_analysis_data %>% 
