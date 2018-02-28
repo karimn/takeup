@@ -1,22 +1,22 @@
 #!/opt/microsoft/ropen/3.4.3/lib64/R/bin/Rscript
 
-script_options <- docopt::docopt(
+script_options <- docopt::docopt(sprintf(
 "Usage:
-  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--separate-private-value --include-name-matched --output-name=<output-name>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--separate-private-value --sms-control-only --include-name-matched --output-name=<output-name>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--separate-private-value --include-name-matched --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--separate-private-value --sms-control-only --include-name-matched --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
   --num-iterations=<iterations>, -i <iterations>  Number of sampling iterations [default: 300]
   --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
+  --output-dir=<output-dir>, -p <output-dir>  Directory analysis data and stanfit output will be stored [default: %s]
   --analysis-data-only  Don't run sampling, just produce analysis data
   --sms-control-only  Exclude SMS treatment data
   --separate-private-value  Use separate private values for calendars and bracelets
   --include-name-matched  Include unmonitored sample (name matched against census)
   --gumbel, -g  Gumbel link
-  --include-latent-var-data, -l  Save latent variable while sampling"
-)
+  --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
 
 library(magrittr)
 library(plyr)
@@ -171,7 +171,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   estimate_ate = 1
 )
 
-save(param_stan_data, file = file.path("stan_analysis_data", str_interp("model_${fit_version}.RData")))
+save(param_stan_data, file = file.path(script_options$`output-dir`, "stan_analysis_data", str_interp("model_${fit_version}.RData"))))
 
 if (script_options$`analysis-data-only`) quit()
 
@@ -226,5 +226,5 @@ model_fit <- param_stan_data %>%
            # include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
            control = lst(max_treedepth = 15, adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            init = if (script_options$dynamic && script_options$gumbel) gen_initializer(.) else "random",
-           sample_file = file.path("stanfit", str_interp("model_${fit_version}.csv")))
+           sample_file = file.path(script_options$`output-dir`, "stanfit", str_interp("model_${fit_version}.csv")))
 
