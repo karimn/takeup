@@ -14,3 +14,6 @@ stanfit/*testing*.csv
 
 # SLURM output
 slurm-*.out
+
+stanfit/*.csv
+stan_analysis_data/*.RData
