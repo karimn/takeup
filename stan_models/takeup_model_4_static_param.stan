@@ -119,9 +119,7 @@ data {
   
   // Constants for hyperpriors 
   
-  // real<lower = 0> stratum_student_df;
   real<lower = 0> scale_sigma;
-  // real<lower = 0> cluster_student_df;
   real<lower = 0> cluster_scale_sigma;
   
   real<lower = 0> hyper_coef_sigma;
