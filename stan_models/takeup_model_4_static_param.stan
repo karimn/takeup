@@ -148,39 +148,28 @@ transformed data {
 parameters {
   vector[num_all_treatment_coef] hyper_beta;
   
-  vector<lower = 0>[num_all_treatment_coef] strata_beta_tau;
-  cholesky_factor_corr[num_all_treatment_coef] strata_beta_L_corr_mat;
-  matrix<lower = 0>[num_within_cluster_rows, num_strata] cluster_beta_tau;
-  // matrix<lower = 0>[num_all_treatment_coef, num_strata] cluster_beta_tau;
-  // cholesky_factor_corr[num_all_treatment_coef] cluster_beta_L_corr_mat[num_strata];
-  cholesky_factor_corr[unique_within_cluster_treatment_sizes[1]] control_cluster_L_corr_mat[num_strata, num_control_cluster_treatments];
-  cholesky_factor_corr[unique_within_cluster_treatment_sizes[2]] treated_cluster_L_corr_mat[num_strata, num_treated_cluster_treatments];
-  // cholesky_factor_corr[num_within_cluster_rows] cluster_beta_L_corr_mat[num_strata];
-  
   real<lower = 2, upper = 7> stratum_student_df;
   real<lower = 2, upper = 7> cluster_student_df;
-
+  
+  
   matrix[num_all_treatment_coef, num_strata] strata_beta_raw;
+  vector<lower = 0>[num_all_treatment_coef] strata_beta_tau;
+  cholesky_factor_corr[num_all_treatment_coef] strata_beta_L_corr_mat;
+  
   matrix[num_all_treatment_coef, num_clusters] cluster_beta;
-  // matrix[num_all_treatment_coef, num_clusters] cluster_beta_raw;
-  // // matrix[num_all_treatment_coef, num_strata] QR_strata_beta;
-  // 
-  // real<lower = 0> cluster_effect_tau;
-  // vector[num_clusters] cluster_effect;
+  matrix<lower = 0>[num_within_cluster_rows, num_strata] cluster_beta_tau;
+  cholesky_factor_corr[unique_within_cluster_treatment_sizes[1]] control_cluster_L_corr_mat[num_strata, num_control_cluster_treatments];
+  cholesky_factor_corr[unique_within_cluster_treatment_sizes[2]] treated_cluster_L_corr_mat[num_strata, num_treated_cluster_treatments];
 }
 
 transformed parameters {
-  // matrix[num_all_treatment_coef, num_strata] strata_beta_raw;
-  // matrix[num_all_treatment_coef, num_strata] strata_beta; // = R_inv_treatment_design_matrix * QR_strata_beta;
   matrix[num_all_treatment_coef, num_strata] strata_beta; 
-  // matrix[num_all_treatment_coefnum_clusters] cluster_beta;
-  
-  // vector[num_within_cluster_rows] within_cluster_beta[num_clusters]; 
   matrix[num_within_cluster_rows, num_clusters] within_cluster_beta_raw; 
   
   {
     int cluster_pos = 1;
     matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
+    
     strata_beta =
       rep_matrix(hyper_beta, num_strata) + strata_beta_L_vcov * strata_beta_raw;
 
@@ -216,23 +205,11 @@ transformed parameters {
       
       within_cluster_beta_L_vcov_mat = diag_pre_multiply(cluster_beta_tau[, stratum_index], within_cluster_beta_L_corr_mat);
       
-      // within_cluster_beta[cluster_pos:cluster_end] = 
-      //   rep_matrix(stratum_cluster_level_mu, curr_num_clusters) + within_cluster_beta_L_vcov_mat * within_cluster_beta_raw[, cluster_pos:cluster_end];
-        
       within_cluster_beta_raw[, cluster_pos:cluster_end] = 
         within_cluster_beta_L_vcov_mat \ (within_cluster_beta - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
       
-      // matrix[num_all_treatment_coef, num_all_treatment_coef] cluster_beta_L_vcov = diag_pre_multiply(cluster_beta_tau[, stratum_index], 
-      //                                                                                                cluster_beta_L_corr_mat[stratum_index]);
-
-      // cluster_beta[, cluster_pos:cluster_end] = rep_matrix(strata_beta[, stratum_index], curr_num_clusters)
-      //    + cluster_beta_L_vcov * cluster_beta_raw[, cluster_pos:cluster_end];
-         // + diag_matrix(cluster_beta_tau[, stratum_index]) * cluster_beta_raw[, cluster_pos:cluster_end];
-
       cluster_pos = cluster_end + 1;
     }
-
-    // strata_beta_raw = strata_beta_L_vcov \ (strata_beta - rep_matrix(hyper_beta, num_strata));
   }
 }
 
@@ -241,16 +218,12 @@ model {
   hyper_beta[2:num_all_treatment_coef] ~ normal(0, hyper_coef_sigma);
   
   to_vector(strata_beta_raw) ~ student_t(stratum_student_df, 0, 1);
-  // to_vector(cluster_beta_raw) ~ student_t(cluster_student_df, 0, 1);
   to_vector(within_cluster_beta_raw) ~ student_t(cluster_student_df, 0, 1);
 
   strata_beta_tau ~ normal(0, scale_sigma);
   to_vector(cluster_beta_tau) ~ normal(0, cluster_scale_sigma);
 
   strata_beta_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
- 
-  // cluster_effect_tau ~ normal(0, cluster_intercept_scale_sigma);
-  // cluster_effect ~ normal(0, cluster_effect_tau);
   
   {
     vector[num_obs] latent_var = rep_vector(0, num_obs);
@@ -274,8 +247,6 @@ model {
           treated_pos += 1; 
         }
       }
-      
-      // cluster_beta_L_corr_mat[stratum_index] ~ lkj_corr_cholesky(lkj_df);
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
         int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
@@ -283,11 +254,7 @@ model {
         int obs_end = obs_pos + curr_cluster_num_obs - 1;
           
         latent_var[obs_pos:obs_end] =
-          // treatment_design_matrix[obs_pos:obs_end] * hyper_beta;
-          // treatment_design_matrix[obs_pos:obs_end] * strata_beta[, stratum_index];
           treatment_design_matrix[obs_pos:obs_end] * cluster_beta[, curr_cluster_id];
-          // treatment_design_matrix[obs_pos:obs_end] * strata_beta[, stratum_index] + rep_vector(cluster_effect[curr_cluster_id], curr_cluster_num_obs);
-          // Q_treatment_design_matrix[obs_pos:obs_end] * QR_strata_beta[, stratum_index] + rep_vector(cluster_effect[curr_cluster_id], curr_cluster_num_obs);
                            
         obs_pos = obs_end + 1;
       }
@@ -319,10 +286,6 @@ generated quantities {
     hyper_latent_var_map = treatment_map_design_matrix[ate_treatments] * hyper_beta;
     stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments] * strata_beta)';
     cluster_latent_var_map = (treatment_map_design_matrix[ate_treatments] * cluster_beta)';
-      // (treatment_map_design_matrix[ate_treatments] * rep_matrix(hyper_beta, num_clusters))';
-      // (treatment_map_design_matrix[ate_treatments] * cluster_beta)';
-      // (treatment_map_design_matrix[ate_treatments] * strata_beta[, cluster_stratum_ids])';
-      // + rep_matrix(cluster_effect, num_ate_treatments);
 
     est_takeup =
       treatment_cell_deworming_prop_rng(num_ate_treatments,
