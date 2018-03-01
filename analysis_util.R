@@ -636,9 +636,16 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
 
 plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data,
                         incentive_treatment_col = "incentive_treatment_static",
-                        lower_level_data = NULL) {
+                        include_sms_treatment = FALSE,
+                        lower_level_data = NULL, lower_level_shape_size = 2) {
   inner_data_preparer <- . %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
+      if (include_sms_treatment) {
+         mutate_at(., vars(starts_with("sms.treatment.2")), funs(fct_relabel(., str_to_title)))   
+      } else {
+        return(.)
+      }
+    } %>% 
     data_preparer() 
  
   if (!is_null(takeup_data)) {
@@ -649,39 +656,74 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       takeup_data %<>% 
           combiner()
     }
-  } 
+  }
+  
+  top_aes <- aes_string(incentive_treatment_col, "mean_est")
     
   takeup_summ_data %>%
     inner_data_preparer() %>% { 
-      plot_obj <- ggplot(., aes_string(incentive_treatment_col, "mean_est")) 
+      dodge <- position_dodge(width = 0.75)
+      
+      plot_obj <- ggplot(., top_aes) 
       caption_text <-
         "Points represent mean point estimates and circles represent observed take-up levels.
          The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
       
       if (!is_null(lower_level_data)) {
         plot_obj <- plot_obj +
-          geom_violin(aes_string(incentive_treatment_col, "mean_est"), alpha = 0.5, 
-                      draw_quantiles = c(0.25, 0.5, 0.75), color = "darkgrey", fill = "lightgrey", data = inner_data_preparer(lower_level_data)) +
-          geom_jitter(aes_string(incentive_treatment_col, "mean_est"), shape = 3, size = 2, alpha = 0.5,
-                      size = 0.5, data = inner_data_preparer(lower_level_data))
+          geom_boxplot(aes_string(incentive_treatment_col, "mean_est"), alpha = 0.5, 
+                      # draw_quantiles = c(0.25, 0.5, 0.75), 
+                      color = "darkgrey", fill = "lightgrey", data = inner_data_preparer(lower_level_data)) +
+          geom_jitter(aes_string(incentive_treatment_col, "mean_est"), 
+                      shape = 3, size = lower_level_shape_size, stroke = lower_level_shape_size, alpha = 0.5, color = "red",
+                      data = inner_data_preparer(lower_level_data))
                      # shape = 3, size = 3, data = inner_data_preparer(lower_level_data))
       } else if (!is_null(takeup_data)) {
-        plot_obj <- plot_obj + 
-          geom_violin(aes(y = wtd_iter_est), 
-                                           # draw_quantiles = c(0.25, 0.5, 0.75), color = "white", fill = "darkgrey", data = takeup_data) 
-                                           draw_quantiles = c(0.25, 0.5, 0.75), color = "lightgrey", fill = "darkgrey", data = takeup_data)
+        if (include_sms_treatment) {
+          plot_obj <- plot_obj +
+            geom_violin(aes(y = wtd_iter_est, fill = sms.treatment.2),
+                        alpha = 0.5, 
+                        position = dodge,
+                        draw_quantiles = c(0.25, 0.5, 0.75), data = takeup_data)
+        } else {
+        plot_obj <- plot_obj +
+          geom_violin(aes(y = wtd_iter_est),
+                      color = "lightgrey", fill = "darkgrey",
+                      # draw_quantiles = c(0.25, 0.5, 0.75), color = "white", fill = "darkgrey", data = takeup_data)
+                      draw_quantiles = c(0.25, 0.5, 0.75), data = takeup_data)
+        }
         
         caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
                                 sep = "\n")
       }
       
+      if (include_sms_treatment) {
+        if (is_null(takeup_data)) {
+          plot_obj <- plot_obj +
+            geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2), size = 0.5, position = dodge) +
+            geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2), size = 1.5, position = dodge) +
+            scale_color_discrete("SMS Treatment")
+        } else {
+          plot_obj <- plot_obj +
+            geom_pointrange(aes(ymin = lb_95, ymax = ub_95, group = sms.treatment.2), size = 0.5, position = dodge) +
+            geom_linerange(aes(ymin = lb_90, ymax = ub_90, group = sms.treatment.2), size = 1.5, position = dodge) +
+            scale_fill_discrete("SMS Treatment")
+        }
+        
+        plot_obj <- plot_obj +
+          geom_point(aes(y = observed_takeup_prop, group = sms.treatment.2), 
+                     alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
+      } else {
+        plot_obj <- plot_obj +
+          geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = dodge) +
+          geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = dodge) +
+          geom_point(aes(y = observed_takeup_prop), 
+                     alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
+      }
       
       plot_obj <- plot_obj +
         # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
-        geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = position_dodge(width = 0.5)) +
-        geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = position_dodge(width = 0.5)) +
         geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
-        geom_point(aes(y = observed_takeup_prop), alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = position_dodge(width = 0.5)) +
         # scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
         coord_flip() +
         labs(title = "Deworming Take-up Levels", 
@@ -1654,8 +1696,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     observed_stratum_takeup_total,
     observed_stratum_takeup_prop = if (!is_null(observed_stratum_takeup_total)) observed_stratum_takeup_total %>% 
-      left_join(count(observed_stratum_treatment, all_treatment_id, stratum), c("all_treatment_id", "stratum")) %>% 
-      transmute(all_treatment_id, stratum, takeup_prop = takeup_total / n),
+      left_join(count(observed_stratum_treatment, all_treatment_id, stratum, stratum_id), c("all_treatment_id", "stratum")) %>% 
+      transmute(all_treatment_id, stratum, stratum_id, takeup_prop = takeup_total / n),
     observed_stratum_treatment,
     
     # Data passed to model
