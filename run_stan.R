@@ -82,7 +82,7 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
   
   all_ate %<>%
     filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
-    select(-starts_with("sms.treatment"), -starts_with("reminder_info_stock")) %>% 
+    select(-starts_with(-starts_with("reminder_info_stock"), "sms.treatment")) %>% 
     distinct()
   
   if (!script_options$dynamic) {
