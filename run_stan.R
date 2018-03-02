@@ -34,6 +34,8 @@ fit_version <- script_options$`output-name`
 
 #   Analysis Data -----------------------------------------------------------
 
+subgroups <- "phone_owner"
+
 stan_analysis_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, 
                                       control = if (script_options$`separate-private-value`) c("control", "ink", "bracelet") else c("control", "ink"), 
@@ -62,6 +64,8 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
            sms.treatment.2 == "control") 
   
   if (script_options$`include-name-matched`) {
+    subgroups %<>% c("name_matched")
+    
     static_treatment_map <- stan_analysis_data %>% 
       data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
       filter(private_value == "control" | social_value != "ink") %>%
@@ -95,6 +99,8 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
     filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
   
   if (script_options$`include-name-matched`) {
+    subgroups %<>% c("name_matched")
+    
     static_treatment_map <- stan_analysis_data %>% 
       data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
       filter(sms.treatment.2 == "control" | phone_owner,
@@ -135,7 +141,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   treatment_map = static_treatment_map,
     
   treatment_formula = treatment_formula,
-  subgroup_col = "phone_owner",
+  subgroup_col = subgroups,
   drop_intercept_from_dm = FALSE, 
   nonparam_dynamics = script_options$dynamic,
   param_poly_order = 2,
