@@ -1497,7 +1497,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id == treat_row$static_all_treatment_id & all_treatment_id == treat_row$dynamic_all_treatment_id) %>% 
-            select(stratum, obs_index)
+            select(stratum, stratum_id, obs_index)
         }) 
       
       observed_treatment <- observed_stratum_treatment %>% 
@@ -1553,7 +1553,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-            select(stratum, obs_index)
+            select(stratum, stratum_id, obs_index)
         })
       
       observed_treatment <- observed_stratum_treatment %>% 
@@ -1575,7 +1575,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     }
     
     observed_stratum_takeup_total <- prepared_analysis_data %>% 
-      group_by(stratum, all_treatment_id) %>% 
+      group_by(stratum, stratum_id, all_treatment_id) %>% 
       summarize(takeup_total = sum(dewormed.any)) %>% 
       ungroup() 
   } else {
@@ -1695,9 +1695,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
     
     observed_stratum_takeup_total,
-    observed_stratum_takeup_prop = if (!is_null(observed_stratum_takeup_total)) observed_stratum_takeup_total %>% 
-      left_join(count(observed_stratum_treatment, all_treatment_id, stratum, stratum_id), c("all_treatment_id", "stratum")) %>% 
-      transmute(all_treatment_id, stratum, stratum_id, takeup_prop = takeup_total / n),
+    observed_stratum_takeup_prop = if (!is_null(observed_stratum_takeup_total)) { 
+      observed_stratum_takeup_total %>% 
+        left_join(count(observed_stratum_treatment, all_treatment_id, stratum, stratum_id), c("all_treatment_id", "stratum", "stratum_id")) %>% 
+        transmute(all_treatment_id, stratum, stratum_id, takeup_prop = takeup_total / n) 
+    },
     observed_stratum_treatment,
     
     # Data passed to model
