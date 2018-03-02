@@ -738,12 +738,20 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
     }
 }
 
-plot_dyn_takeup_daily <- function(daily_takeup_summ) {
+plot_dyn_takeup_daily <- function(daily_takeup_summ, control_observation = FALSE) {
+  if (control_observation) {
+    daily_takeup_summ %<>% 
+      mutate(treatment_fullobs = str_c(as.character(incentive_treatment_static), full_observation, sep = "-"))
+    line_aes <- aes(group = treatment_fullobs, color = incentive_treatment_static, linetype = full_observation)
+  } else {
+    line_aes <- aes(group = incentive_treatment_static, color = incentive_treatment_static)
+  }
+  
   daily_takeup_summ %>% 
     filter(day < 13) %>% 
-    mutate_at(vars(starts_with("incentive_treatment_static")), funs(fct_relabel(., str_to_title))) %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
     ggplot(aes(day, mean_est)) +
-    geom_line(aes(group = incentive_treatment_static, color = incentive_treatment_static)) +
+    geom_line(line_aes) +
     scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
     scale_color_discrete("Incentive/Signal Treatment") +
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
@@ -1338,17 +1346,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     dynamic_treatment_dm <- NULL
   }
  
-  # if (is.null(treatment_map)) { 
-  #   treatment_map <- expand_(prepared_analysis_data, c(treatment_col, subgroup_col)) %>% {
-  #       if ("phone_owner" %in% names(.)) arrange(., phone_owner) else return(.) 
-  #     } 
-  # } else {
-    treatment_col <- intersect(names(treatment_map), names(prepared_analysis_data))
-  # }
-  
-  # if (!prepared_treatment_maps) {
-  #   if (is_dynamic_model) treatment_map %<>% prepare_treatment_map(dyn_treat_maps) else treatment_map %<>% prepare_treatment_map()
-  # }
+  treatment_col <- intersect(names(treatment_map), names(prepared_analysis_data))
   
   census_covar_map <- count_(prepared_analysis_data, c("age", "gender")) %>% 
     mutate(census_covar_id = seq_len(n())) 
@@ -1366,13 +1364,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(obs_index = seq_len(n()))
   
   observed_cluster_treatments <- unique(prepared_analysis_data$cluster_treatment_id)
-  
-  # if (is.null(treatment_formula)) { 
-  #   treatment_formula <- str_c("~ ", str_c(c(treatment_col, subgroup_col), collapse = " * ")) %>% {
-  #       if (!is.null(subgroup_col)) str_c(., " - ", str_c(subgroup_col, collapse = " - ")) else return(.)
-  #     } %>% 
-  #     as.formula()
-  # }
   
   # Find redundant columns, excluding the intercept if we are required to keep it
   detect_redund_col <- . %>% { map_lgl(., ~ n_distinct(.) > 1) | (str_detect(names(.), fixed("intercept")) & !drop_intercept_from_dm) }
@@ -1649,7 +1640,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   num_param_dyn_coef <- (num_all_treatment_coef - 1) * param_poly_order
   
   days_poly_trend <- ((1:num_deworming_days) - 1) %>% 
-    scale() %>% 
+    # scale() %>% 
     matrix(num_deworming_days, param_poly_order) %>% 
     plyr::aaply(1, accumulate, multiply_by) %>% 
     magrittr::extract(, rep(seq_len(ncol(.)), each = num_all_treatment_coef - 1))  
