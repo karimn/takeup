@@ -93,8 +93,6 @@ data {
   matrix[num_all_treatments, num_all_treatment_coef] treatment_map_design_matrix; // Design matrix generated from treatment map
   matrix[num_obs, num_all_treatment_coef] treatment_design_matrix;
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
-  int<lower = 1> num_subgroups;
-  int<lower = 1, upper = num_all_treatment_coef> subgroup_treatment_col_sizes[num_subgroups];
   
   int<lower = 1, upper = num_all_treatments> num_cluster_level_treatments;
   int<lower = 1> within_cluster_treatment_sizes[num_cluster_level_treatments];
@@ -209,19 +207,9 @@ transformed data {
   int<lower = 0> relevant_daily_strata_sizes[num_strata];
   int<lower = 0> relevant_daily_cluster_sizes[num_clusters]; // By cluster ID
   
-  // phone subgroup column info
-  
-  int num_non_phone_treat_col = subgroup_treatment_col_sizes[1];
-  int num_phone_treat_col = subgroup_treatment_col_sizes[2];
-  int non_phone_treat_col[num_non_phone_treat_col];
-  int phone_treat_col[num_phone_treat_col];
-  
   int<lower = 1, upper = num_all_treatments> num_within_cluster_rows = sum(within_cluster_treatment_sizes);
   int<lower = 0, upper = num_cluster_level_treatments> num_control_cluster_treatments = 0;
   int<lower = 1, upper = num_cluster_level_treatments> num_treated_cluster_treatments = num_cluster_level_treatments;
-  
-  for (col_index in 1:num_non_phone_treat_col) non_phone_treat_col[col_index] = col_index;
-  for (col_index in 1:num_phone_treat_col) phone_treat_col[col_index] = num_non_phone_treat_col + col_index;
   
   for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
     if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
