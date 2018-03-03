@@ -1386,47 +1386,47 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     ungroup()
   
   if (!is_null(subgroup_col)) {
-    subgroup_treatment_map_dm <- treatment_map %>% 
-      distinct_(.dots = intersect(names(.), subgroup_col)) %>% 
-      mutate(subgroup_id = seq_len(n())) %>% 
-      left_join(treatment_map, ., intersect(names(.), subgroup_col)) %>% 
-      select(subgroup_id) %>% 
-      bind_cols(treatment_map_design_matrix, .) %>% 
-      group_by(subgroup_id) %>% 
-      summarize_all(~ 1 * (sum(.) > 0)) %>% 
-      ungroup() 
+    # subgroup_treatment_map_dm <- treatment_map %>% 
+    #   distinct_(.dots = intersect(names(.), subgroup_col)) %>% 
+    #   mutate(subgroup_id = seq_len(n())) %>% 
+    #   left_join(treatment_map, ., intersect(names(.), subgroup_col)) %>% 
+    #   select(subgroup_id) %>% 
+    #   bind_cols(treatment_map_design_matrix, .) %>% 
+    #   group_by(subgroup_id) %>% 
+    #   summarize_all(~ 1 * (sum(.) > 0)) %>% 
+    #   ungroup() 
     
-    omitted_subgroup_treatment_col <- subgroup_treatment_map_dm %>% 
-      select(-subgroup_id) %>% 
-      select_if(~ sum(.) > 1) %>% 
-      names()
+    # omitted_subgroup_treatment_col <- subgroup_treatment_map_dm %>% 
+    #   select(-subgroup_id) %>% 
+    #   select_if(~ sum(.) > 1) %>% 
+    #   names()
     
-    omitted_subgroup_id <- subgroup_treatment_map_dm %>% 
-      select(-one_of(omitted_subgroup_treatment_col)) %>% 
-      filter_at(vars(-subgroup_id), all_vars(. == 0)) %>% 
-      pull(subgroup_id)
+    # omitted_subgroup_id <- subgroup_treatment_map_dm %>% 
+    #   select(-one_of(omitted_subgroup_treatment_col)) %>% 
+    #   filter_at(vars(-subgroup_id), all_vars(. == 0)) %>% 
+    #   pull(subgroup_id)
    
-    omitted_subgroup <- tibble(subgroup_treatment_col = omitted_subgroup_treatment_col) %>% 
-      mutate(subgroup_id = omitted_subgroup_id)
+    # omitted_subgroup <- tibble(subgroup_treatment_col = omitted_subgroup_treatment_col) %>% 
+    #   mutate(subgroup_id = omitted_subgroup_id)
     
-    subgroup_treatment_col_map <- subgroup_treatment_map_dm %>% 
-      select(-one_of(omitted_subgroup_treatment_col)) %>% 
-      anti_join(omitted_subgroup, "subgroup_id") %>%
-      gather(subgroup_treatment_col, col_mask, -subgroup_id) %>% 
-      group_by(subgroup_id) %>% 
-      filter(col_mask == 1) %>% 
-      ungroup() %>% 
-      select(-col_mask) %>% 
-      bind_rows(omitted_subgroup) %>% 
-      arrange(subgroup_id)
+    # subgroup_treatment_col_map <- subgroup_treatment_map_dm %>% 
+    #   select(-one_of(omitted_subgroup_treatment_col)) %>% 
+    #   anti_join(omitted_subgroup, "subgroup_id") %>%
+    #   gather(subgroup_treatment_col, col_mask, -subgroup_id) %>% 
+    #   group_by(subgroup_id) %>% 
+    #   filter(col_mask == 1) %>% 
+    #   ungroup() %>% 
+    #   select(-col_mask) %>% 
+    #   bind_rows(omitted_subgroup) %>% 
+    #   arrange(subgroup_id)
     
-    treatment_map_design_matrix %<>% select(subgroup_treatment_col_map$subgroup_treatment_col)
+    # treatment_map_design_matrix %<>% select(subgroup_treatment_col_map$subgroup_treatment_col)
     
-    subgroup_treatment_col_sizes <- subgroup_treatment_col_map %>% 
-      count(subgroup_id) %>% 
-      pull(n)
+    # subgroup_treatment_col_sizes <- subgroup_treatment_col_map %>% 
+    #   count(subgroup_id) %>% 
+    #   pull(n)
   } else {
-    subgroup_treatment_col_sizes <- ncol(treatment_map_design_matrix)
+    # subgroup_treatment_col_sizes <- ncol(treatment_map_design_matrix)
   }
   
   census_covar_map_dm <- census_covar_map %>% 
@@ -1526,7 +1526,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       ate_treatments <- all_ate %>% get_unique_treatments(subgroup_col)
       
       if (!is_empty(subgroup_col)) {
-        ate_treatments %<>% left_join(select(treatment_map, all_treatment_id, intersect(names(treatment_map), subgroup_col)), c("all_treatment_id", intersect(names(treatment_map), subgroup_col)))
+        ate_treatments%<>% left_join(select(treatment_map, all_treatment_id, intersect(names(treatment_map), subgroup_col)), c("all_treatment_id", intersect(names(treatment_map), subgroup_col)))
       }
       
       missing_treatment <- ate_treatments %>%
@@ -1710,8 +1710,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     R_inv_treatment_design_matrix,
     num_all_treatments,
     num_all_treatment_coef,
-    num_subgroups = length(subgroup_treatment_col_sizes),
-    subgroup_treatment_col_sizes,
+    # num_subgroups = length(subgroup_treatment_col_sizes),
+    # subgroup_treatment_col_sizes,
 
     num_cluster_level_treatments = nrow(within_cluster_treatment_map),    
     within_cluster_treatment_sizes = within_cluster_treatment_map$cluster_dm %>% map_int(nrow),
@@ -1722,7 +1722,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
         c(0, .)
       } else stop("Incorrect number of cluster level treatment sizes.")
     },
-    # num_control_cluster_treatments = sum(within_cluster_treatment_sizes == unique_within_cluster_treatment_sizes[1]),
     within_cluster_treatment_map = within_cluster_treatment_map %>% 
       unnest(cluster_dm, .drop = TRUE) %>% 
       select(-cluster_treatment_id),
@@ -1777,7 +1776,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     dynamic_treatment_id = if (is_empty(dynamic_treatment_mask_map)) rep(0, nrow(prepared_analysis_data)) else prepared_analysis_data$dynamic_treatment_id,
     
     num_obs, 
-    # num_obs = length(obs_treatment), 
     
     treatment_sizes = count(prepared_analysis_data, all_treatment_id) %>% arrange(all_treatment_id) %>% pull(n),
     
