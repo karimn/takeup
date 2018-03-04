@@ -2,8 +2,8 @@
 
 script_options <- docopt::docopt(sprintf(
 "Usage:
-  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--separate-private-value --include-name-matched --output-name=<output-name> --output-dir=<output-dir>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--separate-private-value --sms-control-only --include-name-matched --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--separate-private-value --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -15,6 +15,7 @@ script_options <- docopt::docopt(sprintf(
   --sms-control-only  Exclude SMS treatment data
   --separate-private-value  Use separate private values for calendars and bracelets
   --include-name-matched  Include unmonitored sample (name matched against census)
+  --no-private-value-interact  Allow private value to interact with distance
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
 
@@ -46,8 +47,11 @@ stan_analysis_data <- analysis.data %>%
 all_ate <- get_dyn_ate() 
   # bind_rows(Busia = ., Kakamega = ., Siaya = ., .id = "stratum")
 
-treatment_formula <- ~ (private_value + social_value) * dist.pot.group * phone_owner
-# treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
+if (script_options$`no-private-value-interact`) {
+  treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
+} else {
+  treatment_formula <- ~ (private_value + social_value) * dist.pot.group * phone_owner
+}
 
 if (script_options$`separate-private-value`) {
   all_ate %<>% 
