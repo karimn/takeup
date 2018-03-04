@@ -2,13 +2,14 @@
 
 script_options <- docopt::docopt(sprintf(
 "Usage:
-  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --include-latent-var-data]] [--separate-private-value --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data]] [--separate-private-value --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
   --num-iterations=<iterations>, -i <iterations>  Number of sampling iterations [default: 300]
   --adapt-delta=<adapt-delta>, -d <adapt-delta>  Stan control adapt_delta [default: 0.8]
+  --max-treedepth=<max-treedepth>, -t <max-treedepth>  Stan control max_treedepth [default: 15]
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file [default: param]
   --output-dir=<output-dir>, -p <output-dir>  Directory analysis data and stanfit output will be stored [default: %s]
   --analysis-data-only  Don't run sampling, just produce analysis data
@@ -217,7 +218,8 @@ model_fit <- param_stan_data %>%
            chains = num_chains,
            iter = as.integer(script_options$`num-iterations`),
            # include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
-           control = lst(max_treedepth = 15, adapt_delta = as.numeric(script_options$`adapt-delta`)), 
+           control = lst(max_treedepth = as.integer(script_options$`max-treedepth`), 
+                         adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            init = if (script_options$dynamic && script_options$gumbel) gen_initializer(.) else "random",
            sample_file = file.path(script_options$`output-dir`, "stanfit", str_interp("model_${fit_version}.csv")))
 
