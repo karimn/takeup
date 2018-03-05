@@ -637,7 +637,9 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
 plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data,
                         incentive_treatment_col = "incentive_treatment_static",
                         include_sms_treatment = FALSE,
-                        lower_level_data = NULL, lower_level_shape_size = 2) {
+                        lower_level_data = NULL, 
+                        lower_level_color_by = NULL,
+                        lower_level_shape_size = 2) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
       if (include_sms_treatment) {
@@ -672,12 +674,19 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       if (!is_null(lower_level_data)) {
         plot_obj <- plot_obj +
           geom_boxplot(aes_string(incentive_treatment_col, "mean_est"), alpha = 0.5, 
-                      # draw_quantiles = c(0.25, 0.5, 0.75), 
-                      color = "darkgrey", fill = "lightgrey", data = inner_data_preparer(lower_level_data)) +
-          geom_jitter(aes_string(incentive_treatment_col, "mean_est"), 
-                      shape = 3, size = lower_level_shape_size, stroke = lower_level_shape_size, alpha = 0.5, color = "red",
-                      data = inner_data_preparer(lower_level_data))
-                     # shape = 3, size = 3, data = inner_data_preparer(lower_level_data))
+                      color = "darkgrey", fill = "lightgrey", data = inner_data_preparer(lower_level_data)) 
+        
+        if (!is_null(lower_level_color_by)) {
+          plot_obj <- plot_obj +
+            geom_jitter(aes_string(incentive_treatment_col, "mean_est", color = lower_level_color_by), 
+                        shape = 3, size = lower_level_shape_size, stroke = lower_level_shape_size, alpha = 0.5, 
+                        data = inner_data_preparer(lower_level_data))
+        } else {
+          plot_obj <- plot_obj +
+            geom_jitter(aes_string(incentive_treatment_col, "mean_est"), 
+                        shape = 3, size = lower_level_shape_size, stroke = lower_level_shape_size, alpha = 0.5, color = "red",
+                        data = inner_data_preparer(lower_level_data))
+        }
       } else if (!is_null(takeup_data)) {
         if (include_sms_treatment) {
           plot_obj <- plot_obj +
@@ -1279,14 +1288,20 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
+  # prep_data_arranger <- function(prep_data) { 
+  #   prep_data %>% 
+  #     arrange_at(vars(one_of("stratum_id", "new_cluster_id", "name_matched", "dewormed.any")))
+  # }
   
   prepared_analysis_data <- origin_prepared_analysis_data %>% 
-    mutate(new_cluster_id = factor(cluster.id) %>% as.integer(),
+    mutate(#new_cluster_id = factor(cluster.id) %>% as.integer(),
            age = if_else(!is.na(age), age, age.census),
            age_group = if_else(!is.na(age_group), age_group, age.census_group),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
     mutate(stratum = county) %>% 
+    arrange(stratum, cluster.id) %>%
+    left_join(distinct(., stratum, cluster.id) %>% mutate(new_cluster_id = seq_len(n()))) %>% 
     mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, gender, school, floor, ethnicity), 
               funs(id = as.integer)) %>% 
     prep_data_arranger() 
@@ -1803,9 +1818,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       arrange(stratum_id) %>% 
       pull(n),
    
-    strata_cluster_ids = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
-      arrange(stratum_id) %>% 
-      pull(new_cluster_id),
+    # strata_cluster_ids = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
+    #   arrange(stratum_id) %>% 
+    #   pull(new_cluster_id),
     cluster_obs_ids = prepared_analysis_data %>% 
       arrange(new_cluster_id) %>% 
       pull(obs_index),
@@ -2202,10 +2217,10 @@ prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroup
     subgroup_combiner(outcome_var, subgroups) %>% 
     group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
     summarize_at(., vars(ends_with("wtd_iter_est")), funs(mean_est = mean(., na.rm = na_rm),
-                                         ub_90 = quantile(., 0.95, na.rm = na_rm),
-                                         ub_95 = quantile(., 0.975, na.rm = na_rm),
-                                         lb_90 = quantile(., 0.05, na.rm = na_rm),
-                                         lb_95 = quantile(., 0.025, na.rm = na_rm))) %>% 
+                                                          ub_90 = quantile(., 0.95, na.rm = na_rm),
+                                                          ub_95 = quantile(., 0.975, na.rm = na_rm),
+                                                          lb_90 = quantile(., 0.05, na.rm = na_rm),
+                                                          lb_95 = quantile(., 0.025, na.rm = na_rm))) %>% 
     ungroup() 
 } 
 
