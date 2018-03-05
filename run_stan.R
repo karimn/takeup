@@ -214,7 +214,8 @@ if (script_options$dynamic) {
   model_param <- stan_model(file = file.path("stan_models", "takeup_model_4_static_param.stan"), model_name = "model_4_static_param")
 }
 
-cat(str_interp("Output name: ${fit_version}\n"))
+cat(str_interp("Output name: ${fit_version}.
+                Running model with ${param_stan_data$model_levels} levels."))
 
 model_fit <- param_stan_data %>% 
   sampling(model_param, data = ., 
