@@ -283,14 +283,11 @@ model {
       }
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
-        // int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
-        // int curr_cluster_num_obs = cluster_sizes[curr_cluster_id];
         int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         int obs_end = obs_pos + curr_cluster_num_obs - 1;
           
         latent_var[obs_pos:obs_end] =
           treatment_design_matrix[obs_pos:obs_end] * effective_cluster_beta[, cluster_pos_index];
-          // treatment_design_matrix[obs_pos:obs_end] * effective_cluster_beta[, curr_cluster_id];
                            
         obs_pos = obs_end + 1;
       }
