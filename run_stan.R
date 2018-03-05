@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(sprintf(
 "Usage:
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data]] [--separate-private-value --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -17,6 +17,7 @@ script_options <- docopt::docopt(sprintf(
   --separate-private-value  Use separate private values for calendars and bracelets
   --include-name-matched  Include unmonitored sample (name matched against census)
   --no-private-value-interact  Allow private value to interact with distance
+  --model-levels=<model-levels>  How deep is the multilevel model [default: 3]
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
 
@@ -162,7 +163,9 @@ param_stan_data <- prepare_bayesian_analysis_data(
   
   use_logit = !(script_options$dynamic && script_options$gumbel),
   
-  estimate_ate = 1
+  estimate_ate = 1,
+  
+  model_levels = as.integer(script_options$`model-levels`)
 )
 
 save(param_stan_data, file = file.path(script_options$`output-dir`, "stan_analysis_data", str_interp("model_${fit_version}.RData")))
