@@ -102,7 +102,7 @@ data {
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs]; // Observations' stratum IDs
   int<lower = 1, upper = num_strata> cluster_stratum_ids[num_clusters]; // Clusters' stratum IDs
-  int<lower = 1, upper = num_clusters> strata_cluster_ids[num_clusters]; // Cluster IDs ordered by stratum
+  // int<lower = 1, upper = num_clusters> strata_cluster_ids[num_clusters]; // Cluster IDs ordered by stratum
   int<lower = 1, upper = num_obs> cluster_obs_ids[num_obs]; // Observation IDs ordered by cluster
   int<lower = 1, upper = num_obs> strata_sizes[num_strata]; // Observations in strata 
   int<lower = 1, upper = num_clusters> strata_num_clusters[num_strata]; // Clusters in strata
@@ -231,12 +231,13 @@ transformed data {
       int cluster_end = cluster_pos + curr_num_clusters - 1;
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
-        int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
-        int curr_cluster_num_obs = cluster_sizes[curr_cluster_id];
+        // int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
+        int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         
         int cluster_obs_end = cluster_obs_pos + curr_cluster_num_obs - 1;
         
-        relevant_daily_cluster_sizes[curr_cluster_id] = sum(to_array_1d(relevant_latent_var_map[dewormed_day_any[cluster_obs_pos:cluster_obs_end]]));
+        relevant_daily_cluster_sizes[cluster_pos_index] = sum(to_array_1d(relevant_latent_var_map[dewormed_day_any[cluster_obs_pos:cluster_obs_end]]));
+        // relevant_daily_cluster_sizes[curr_cluster_id] = sum(to_array_1d(relevant_latent_var_map[dewormed_day_any[cluster_obs_pos:cluster_obs_end]]));
         
         cluster_obs_pos = cluster_obs_end + 1;
       }
@@ -395,14 +396,14 @@ model {
       }
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
-        int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
-        int curr_cluster_num_obs = cluster_sizes[curr_cluster_id];
+        // int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
+        int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         
-        int curr_relevant_daily_cluster_size = relevant_daily_cluster_sizes[curr_cluster_id];
+        int curr_relevant_daily_cluster_size = relevant_daily_cluster_sizes[cluster_pos_index];
         int relevant_daily_cluster_end = relevant_daily_cluster_pos + curr_relevant_daily_cluster_size - 1;
           
         latent_var[relevant_daily_cluster_pos:relevant_daily_cluster_end] =
-          treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * cluster_beta_day1[, curr_cluster_id] 
+          treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * cluster_beta_day1[, cluster_pos_index] 
           + strata_full_baseline_dyn_effect[dewormed_day_long[relevant_daily_cluster_pos:relevant_daily_cluster_end], stratum_index]
           + Q_param_dyn_treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * QR_strata_beta_dyn_effect[, stratum_index];
                            
