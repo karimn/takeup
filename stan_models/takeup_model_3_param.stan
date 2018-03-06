@@ -102,7 +102,6 @@ data {
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs]; // Observations' stratum IDs
   int<lower = 1, upper = num_strata> cluster_stratum_ids[num_clusters]; // Clusters' stratum IDs
-  // int<lower = 1, upper = num_clusters> strata_cluster_ids[num_clusters]; // Cluster IDs ordered by stratum
   int<lower = 1, upper = num_obs> cluster_obs_ids[num_obs]; // Observation IDs ordered by cluster
   int<lower = 1, upper = num_obs> strata_sizes[num_strata]; // Observations in strata 
   int<lower = 1, upper = num_clusters> strata_num_clusters[num_strata]; // Clusters in strata
@@ -191,31 +190,40 @@ data {
   
   int<lower = 0, upper = 1> estimate_ate;
   int<lower = 0, upper = 1> use_logit; 
+  
+  // This allows us to specify how many levels the model has:
+  // 1: Only the toplevel parameters
+  // 2: Strata level (counties)
+  // 3: Cluster level (villages)
+  int<lower = 1, upper = 3> model_levels;
 }
 
 transformed data {
-  // Some useful constants 
-  
-  vector[num_deworming_days - 1] mu_dyn_zero = rep_vector(0, num_deworming_days - 1);
-  vector[num_all_treatment_coef] mu_treat_zero = rep_vector(0, num_all_treatment_coef);
-  row_vector[num_all_treatment_coef] mu_treat_zero_row = rep_row_vector(0, num_all_treatment_coef);
-  matrix[num_deworming_days - 1, num_deworming_days - 1] dyn_identity_mat = diag_matrix(rep_vector(1, num_deworming_days - 1));
-  matrix[num_deworming_days, num_deworming_days] treat_identity_mat = diag_matrix(rep_vector(1, num_deworming_days));
- 
   // Long (dynamic) versions of strata/cluster sizes 
   
   int<lower = 0> relevant_daily_strata_sizes[num_strata];
   int<lower = 0> relevant_daily_cluster_sizes[num_clusters]; // By cluster ID
   
-  int<lower = 1, upper = num_all_treatments> num_within_cluster_rows = sum(within_cluster_treatment_sizes);
-  int<lower = 0, upper = num_cluster_level_treatments> num_control_cluster_treatments = 0;
-  int<lower = 1, upper = num_cluster_level_treatments> num_treated_cluster_treatments = num_cluster_level_treatments;
+  int<lower = 0> strata_num_all_treatment_coef = model_levels > 1 ? num_all_treatment_coef : 0;
+  int<lower = 0> cluster_num_all_treatment_coef = model_levels > 2 ? num_all_treatment_coef : 0;
+  int<lower = 0> strata_num_deworming_days = model_levels > 1 ? num_deworming_days : 0;
+  int<lower = 0> cluster_num_deworming_days = model_levels > 2 ? num_deworming_days : 0;
+  int<lower = 0> strata_num_param_dyn_coef = model_levels > 1 ? num_param_dyn_coef : 0;
+  int<lower = 0> cluster_num_param_dyn_coef = model_levels > 1 ? num_param_dyn_coef : 0;
   
-  for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
-    if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
-      num_control_cluster_treatments += 1;
-      num_treated_cluster_treatments -= 1;
+  int<lower = 0, upper = num_all_treatments> num_within_cluster_rows = model_levels > 2 ? sum(within_cluster_treatment_sizes) : 0;
+  int<lower = 0, upper = num_cluster_level_treatments> num_control_cluster_treatments = 0;
+  int<lower = 0, upper = num_cluster_level_treatments> num_treated_cluster_treatments = num_cluster_level_treatments;
+  
+  if (model_levels > 2) { 
+    for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
+      if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
+        num_control_cluster_treatments += 1;
+        num_treated_cluster_treatments -= 1;
+      }
     }
+  } else {
+    num_treated_cluster_treatments = 0;
   }
   
   {
@@ -231,13 +239,11 @@ transformed data {
       int cluster_end = cluster_pos + curr_num_clusters - 1;
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
-        // int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
         int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         
         int cluster_obs_end = cluster_obs_pos + curr_cluster_num_obs - 1;
         
         relevant_daily_cluster_sizes[cluster_pos_index] = sum(to_array_1d(relevant_latent_var_map[dewormed_day_any[cluster_obs_pos:cluster_obs_end]]));
-        // relevant_daily_cluster_sizes[curr_cluster_id] = sum(to_array_1d(relevant_latent_var_map[dewormed_day_any[cluster_obs_pos:cluster_obs_end]]));
         
         cluster_obs_pos = cluster_obs_end + 1;
       }
@@ -265,30 +271,33 @@ parameters {
   
   real<lower = 2, upper = 7> cluster_day1_student_df;
   
-  vector<lower = 0>[num_all_treatment_coef] strata_beta_day1_tau;
-  cholesky_factor_corr[num_all_treatment_coef] strata_beta_day1_L_corr_mat;
+  vector<lower = 0>[strata_num_all_treatment_coef] strata_beta_day1_tau;
+  cholesky_factor_corr[strata_num_all_treatment_coef] strata_beta_day1_L_corr_mat;
   
-  vector<lower = 0>[num_deworming_days - 1] strata_baseline_dyn_effect_tau;
-  cholesky_factor_corr[num_deworming_days - 1] strata_baseline_dyn_effect_L_corr_mat;
+  vector<lower = 0>[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_tau;
+  cholesky_factor_corr[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_L_corr_mat;
   
-  vector<lower = 0>[num_param_dyn_coef] strata_beta_dyn_effect_tau;
+  vector<lower = 0>[strata_num_param_dyn_coef] strata_beta_dyn_effect_tau;
   
-  matrix[num_all_treatment_coef, num_strata] strata_beta_day1_raw;
-  matrix[num_deworming_days - 1, num_strata] strata_baseline_dyn_effect_raw;
-  matrix[num_param_dyn_coef, num_strata] QR_strata_beta_dyn_effect;
+  matrix[strata_num_all_treatment_coef, num_strata] strata_beta_day1_raw;
+  matrix[max(strata_num_deworming_days - 1, 0), num_strata] strata_baseline_dyn_effect_raw;
+  matrix[strata_num_param_dyn_coef, num_strata] QR_strata_beta_dyn_effect;
   
-  matrix[num_all_treatment_coef, num_clusters] cluster_beta_day1;
+  matrix[cluster_num_all_treatment_coef, num_clusters] cluster_beta_day1;
   matrix<lower = 0>[num_within_cluster_rows, num_strata] cluster_beta_day1_tau;
   cholesky_factor_corr[unique_within_cluster_treatment_sizes[1]] control_cluster_day1_L_corr_mat[num_strata, num_control_cluster_treatments];
   cholesky_factor_corr[unique_within_cluster_treatment_sizes[2]] treated_cluster_day1_L_corr_mat[num_strata, num_treated_cluster_treatments];
 }
 
 transformed parameters {
+  vector[num_deworming_days] hyper_full_baseline_dyn_effect;  
   matrix[num_deworming_days, num_strata] strata_full_baseline_dyn_effect;  
   matrix[num_deworming_days, num_clusters] cluster_full_baseline_dyn_effect;  
-  matrix[num_param_dyn_coef, num_strata] strata_beta_dyn_effect = R_inv_param_dyn_treatment_design_matrix_long * QR_strata_beta_dyn_effect;
-  matrix[num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw = 
-    diag_matrix(strata_beta_dyn_effect_tau) \ (strata_beta_dyn_effect - rep_matrix(hyper_treat_beta_dyn_effect, num_strata));
+  
+  matrix[num_all_treatment_coef, num_clusters] effective_cluster_beta_day1;
+  
+  matrix[num_param_dyn_coef, num_strata] strata_beta_dyn_effect; 
+  matrix[strata_num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw;  
   
   matrix[num_all_treatment_coef, num_strata] strata_beta_day1;
   
@@ -297,53 +306,72 @@ transformed parameters {
   {
     int cluster_pos = 1;
     
-    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_day1_L_vcov = diag_pre_multiply(strata_beta_day1_tau, strata_beta_day1_L_corr_mat);
-    matrix[num_deworming_days - 1, num_deworming_days - 1] strata_baseline_dyn_effect_L_vcov = 
-      diag_pre_multiply(strata_baseline_dyn_effect_tau, strata_baseline_dyn_effect_L_corr_mat);
+    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_day1_L_vcov;
+    matrix[num_deworming_days - 1, num_deworming_days - 1] strata_baseline_dyn_effect_L_vcov;  
       
-    strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata) + (strata_beta_day1_L_vcov * strata_beta_day1_raw);
-    
-    strata_full_baseline_dyn_effect = 
-      append_row(rep_row_vector(0, num_strata), // strata_baseline_dyn_effect);
-                 rep_matrix(hyper_baseline_dyn_effect, num_strata) + (strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw));
+    hyper_full_baseline_dyn_effect = append_row(0, hyper_baseline_dyn_effect);
+      
+    if (model_levels > 1) {
+      strata_beta_dyn_effect = R_inv_param_dyn_treatment_design_matrix_long * QR_strata_beta_dyn_effect;
+      strata_beta_dyn_effect_raw = diag_matrix(strata_beta_dyn_effect_tau) \ (strata_beta_dyn_effect - rep_matrix(hyper_treat_beta_dyn_effect, num_strata));
+      
+      strata_beta_day1_L_vcov = diag_pre_multiply(strata_beta_day1_tau, strata_beta_day1_L_corr_mat);
+      strata_baseline_dyn_effect_L_vcov = diag_pre_multiply(strata_baseline_dyn_effect_tau, strata_baseline_dyn_effect_L_corr_mat);
+      
+      strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata) + (strata_beta_day1_L_vcov * strata_beta_day1_raw);
+      
+      strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata)  
+        + strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw;
+        
+        if (model_levels > 2) {
+          effective_cluster_beta_day1 = cluster_beta_day1;
+        }
+    } else {
+      strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata);  
+      strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata);
+      strata_beta_dyn_effect = rep_matrix(hyper_treat_beta_dyn_effect, num_strata);
+    }
                  
     for (stratum_index in 1:num_strata) {
       int curr_num_clusters = strata_num_clusters[stratum_index];
       int cluster_end = cluster_pos + curr_num_clusters - 1;
       
-      matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta_day1 = within_cluster_treatment_map * cluster_beta_day1[, cluster_pos:cluster_end];
-      
-      matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_day1_L_corr_mat = rep_matrix(0, num_within_cluster_rows, num_within_cluster_rows);
-      matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_day1_L_vcov_mat;  
-      vector[num_within_cluster_rows] stratum_cluster_level_mu = within_cluster_treatment_map * strata_beta_day1[, stratum_index];
-      
-      int control_pos = 1;
-      int treated_pos = 1;
-      int corr_pos = 1;
-      
-      for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
-        int corr_end; 
+      if (model_levels > 2) {
+        matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta_day1 = within_cluster_treatment_map * cluster_beta_day1[, cluster_pos:cluster_end];
         
-        if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
-          corr_end = corr_pos + unique_within_cluster_treatment_sizes[1] - 1;
-          within_cluster_beta_day1_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = control_cluster_day1_L_corr_mat[stratum_index, control_pos];
-          control_pos += 1; 
-        } else {
-          corr_end = corr_pos + unique_within_cluster_treatment_sizes[2] - 1;
-          within_cluster_beta_day1_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = treated_cluster_day1_L_corr_mat[stratum_index, treated_pos];
-          treated_pos += 1; 
+        matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_day1_L_corr_mat = rep_matrix(0, num_within_cluster_rows, num_within_cluster_rows);
+        matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_day1_L_vcov_mat;  
+        vector[num_within_cluster_rows] stratum_cluster_level_mu = within_cluster_treatment_map * strata_beta_day1[, stratum_index];
+        
+        int control_pos = 1;
+        int treated_pos = 1;
+        int corr_pos = 1;
+        
+        for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
+          int corr_end; 
+          
+          if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
+            corr_end = corr_pos + unique_within_cluster_treatment_sizes[1] - 1;
+            within_cluster_beta_day1_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = control_cluster_day1_L_corr_mat[stratum_index, control_pos];
+            control_pos += 1; 
+          } else {
+            corr_end = corr_pos + unique_within_cluster_treatment_sizes[2] - 1;
+            within_cluster_beta_day1_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = treated_cluster_day1_L_corr_mat[stratum_index, treated_pos];
+            treated_pos += 1; 
+          }
+          
+          corr_pos = corr_end + 1;
         }
         
-        corr_pos = corr_end + 1;
-      }
-      
-      within_cluster_beta_day1_L_vcov_mat = diag_pre_multiply(cluster_beta_day1_tau[, stratum_index], within_cluster_beta_day1_L_corr_mat);
-      
-      within_cluster_beta_day1_raw[, cluster_pos:cluster_end] = 
-        within_cluster_beta_day1_L_vcov_mat \ (within_cluster_beta_day1 - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
+        within_cluster_beta_day1_L_vcov_mat = diag_pre_multiply(cluster_beta_day1_tau[, stratum_index], within_cluster_beta_day1_L_corr_mat);
         
-      cluster_full_baseline_dyn_effect[, cluster_pos:cluster_end] = rep_matrix(strata_full_baseline_dyn_effect[, stratum_index], curr_num_clusters);  
+        within_cluster_beta_day1_raw[, cluster_pos:cluster_end] = 
+          within_cluster_beta_day1_L_vcov_mat \ (within_cluster_beta_day1 - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
+      } else {
+        effective_cluster_beta_day1[, cluster_pos:cluster_end] = rep_matrix(strata_beta_day1[, stratum_index], curr_num_clusters);
+      } 
       
+      cluster_full_baseline_dyn_effect[, cluster_pos:cluster_end] = rep_matrix(strata_full_baseline_dyn_effect[, stratum_index], curr_num_clusters);  
       cluster_pos = cluster_end + 1;
     }
   }
@@ -357,20 +385,24 @@ model {
   hyper_baseline_dyn_effect ~ normal(0, hyper_coef_sigma);
   
   to_vector(hyper_treat_beta_dyn_effect) ~ normal(0, hyper_coef_sigma);
+ 
+  if (model_levels > 1) { 
+    to_vector(strata_beta_day1_raw) ~ student_t(stratum_day1_student_df, 0, 1);
+    to_vector(strata_baseline_dyn_effect_raw) ~ student_t(stratum_baseline_dyn_student_df, 0, 1);
+    to_vector(strata_beta_dyn_effect_raw) ~ student_t(stratum_dyn_student_df, 0, 1);
   
-  to_vector(strata_beta_day1_raw) ~ student_t(stratum_day1_student_df, 0, 1);
-  to_vector(strata_baseline_dyn_effect_raw) ~ student_t(stratum_baseline_dyn_student_df, 0, 1);
-  to_vector(strata_beta_dyn_effect_raw) ~ student_t(stratum_dyn_student_df, 0, 1);
+    strata_beta_day1_tau ~ normal(0, scale_sigma);
+    strata_baseline_dyn_effect_tau ~ normal(0, scale_sigma);
+    strata_beta_dyn_effect_tau ~ normal(0, scale_sigma);
   
-  strata_beta_day1_tau ~ normal(0, scale_sigma);
-  strata_baseline_dyn_effect_tau ~ normal(0, scale_sigma);
-  strata_beta_dyn_effect_tau ~ normal(0, scale_sigma);
+    strata_beta_day1_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
+    strata_baseline_dyn_effect_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
+  }
   
-  strata_beta_day1_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
-  strata_baseline_dyn_effect_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
-  
-  to_vector(within_cluster_beta_day1_raw) ~ student_t(cluster_day1_student_df, 0, 1);
-  to_vector(cluster_beta_day1_tau) ~ normal(0, cluster_scale_sigma);
+  if (model_levels > 2) {
+    to_vector(within_cluster_beta_day1_raw) ~ student_t(cluster_day1_student_df, 0, 1);
+    to_vector(cluster_beta_day1_tau) ~ normal(0, cluster_scale_sigma);
+  }
   
   {
     vector[num_relevant_obs_days] latent_var = rep_vector(0, num_relevant_obs_days);
@@ -382,30 +414,38 @@ model {
       int curr_num_clusters = strata_num_clusters[stratum_index];
       int cluster_end = cluster_pos + curr_num_clusters - 1;
       
-      int control_pos = 1;
-      int treated_pos = 1;
-      
-      for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
-        if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
-          control_cluster_day1_L_corr_mat[stratum_index, control_pos] ~ lkj_corr_cholesky(lkj_df);
-          control_pos += 1; 
-        } else {
-          treated_cluster_day1_L_corr_mat[stratum_index, treated_pos] ~ lkj_corr_cholesky(lkj_df);
-          treated_pos += 1; 
+      if (model_levels > 2) {
+        int control_pos = 1;
+        int treated_pos = 1;
+        
+        for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
+          if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
+            control_cluster_day1_L_corr_mat[stratum_index, control_pos] ~ lkj_corr_cholesky(lkj_df);
+            control_pos += 1; 
+          } else {
+            treated_cluster_day1_L_corr_mat[stratum_index, treated_pos] ~ lkj_corr_cholesky(lkj_df);
+            treated_pos += 1; 
+          }
         }
       }
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
-        // int curr_cluster_id = strata_cluster_ids[cluster_pos_index];
         int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         
         int curr_relevant_daily_cluster_size = relevant_daily_cluster_sizes[cluster_pos_index];
         int relevant_daily_cluster_end = relevant_daily_cluster_pos + curr_relevant_daily_cluster_size - 1;
-          
-        latent_var[relevant_daily_cluster_pos:relevant_daily_cluster_end] =
-          treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * cluster_beta_day1[, cluster_pos_index] 
-          + strata_full_baseline_dyn_effect[dewormed_day_long[relevant_daily_cluster_pos:relevant_daily_cluster_end], stratum_index]
-          + Q_param_dyn_treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * QR_strata_beta_dyn_effect[, stratum_index];
+        
+        if (model_levels > 1) {
+          latent_var[relevant_daily_cluster_pos:relevant_daily_cluster_end] =
+            treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * effective_cluster_beta_day1[, cluster_pos_index] 
+            + strata_full_baseline_dyn_effect[dewormed_day_long[relevant_daily_cluster_pos:relevant_daily_cluster_end], stratum_index]
+            + Q_param_dyn_treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * QR_strata_beta_dyn_effect[, stratum_index];
+        } else {
+          latent_var[relevant_daily_cluster_pos:relevant_daily_cluster_end] =
+            treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * effective_cluster_beta_day1[, cluster_pos_index] 
+            + strata_full_baseline_dyn_effect[dewormed_day_long[relevant_daily_cluster_pos:relevant_daily_cluster_end], stratum_index]
+            + param_dyn_treatment_design_matrix_long[relevant_daily_cluster_pos:relevant_daily_cluster_end] * hyper_treat_beta_dyn_effect;
+        }
                            
         relevant_daily_cluster_pos = relevant_daily_cluster_end + 1;
       }
@@ -430,17 +470,56 @@ generated quantities {
   if (estimate_ate) {
     int stratum_pos = 1;
     
-    // vector[num_ate_treatments] hyper_latent_var_map_day1 = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta_day1;
-    // matrix[num_strata, num_ate_treatments] stratum_latent_var_map_day1 = (treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta_day1)';
-    matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1 = (treatment_map_design_matrix[ate_treatments[, 1]] * cluster_beta_day1)';
+    // vector<lower = 0, upper = 1>[num_deworming_days] sp_est_daily_takeup[num_ate_treatments];
+    // matrix<lower = 0, upper = 1>[num_strata, num_deworming_days] stratum_sp_est_daily_takeup[num_ate_treatments];
+    // matrix<lower = 0, upper = 1>[num_clusters, num_deworming_days] cluster_sp_est_daily_takeup[num_ate_treatments];
     
+    // vector[num_ate_treatments] hyper_latent_var_map_day1;
+    // matrix[num_strata, num_ate_treatments] stratum_latent_var_map_day1;
+    matrix[num_clusters, num_ate_treatments] cluster_latent_var_map_day1;
+    
+    // vector[num_deworming_days] hyper_latent_var_map[num_ate_treatments];
+    // matrix[num_strata, num_deworming_days] stratum_latent_var_map[num_ate_treatments];
     matrix[num_clusters, num_deworming_days] cluster_latent_var_map[num_ate_treatments];
+    
+    // hyper_latent_var_map_day1 = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta_day1;
+    // stratum_latent_var_map_day1 = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta_day1)';
+    cluster_latent_var_map_day1 = (treatment_map_design_matrix[ate_treatments[, 1]] * effective_cluster_beta_day1)';
 
     for (ate_treat_index in 1:num_ate_treatments) {
+      // hyper_latent_var_map[ate_treat_index] = rep_vector(hyper_latent_var_map_day1[ate_treat_index], num_deworming_days) 
+      //   + hyper_full_baseline_dyn_effect
+      //   + param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * hyper_treat_beta_dyn_effect; 
+      //   
+      // stratum_latent_var_map[ate_treat_index] = 
+      //   rep_matrix(stratum_latent_var_map_day1[, ate_treat_index], num_deworming_days) 
+      //   + strata_full_baseline_dyn_effect' 
+      //   + (param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * strata_beta_dyn_effect)'; 
+      
       cluster_latent_var_map[ate_treat_index] = 
         rep_matrix(cluster_latent_var_map_day1[, ate_treat_index], num_deworming_days) 
         + strata_full_baseline_dyn_effect[, cluster_stratum_ids]' 
         + (param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * strata_beta_dyn_effect[, cluster_stratum_ids])'; 
+        
+      // if (use_logit) {
+      //   sp_est_daily_takeup[ate_treat_index] = inv_logit(hyper_latent_var_map[ate_treat_index]); 
+      //   stratum_sp_est_daily_takeup[ate_treat_index] = inv_logit(stratum_latent_var_map[ate_treat_index]); 
+      //   cluster_sp_est_daily_takeup[ate_treat_index] = inv_logit(cluster_latent_var_map[ate_treat_index]); 
+      // } else {
+      //   for (day_index in 1:num_deworming_days) {
+      //     sp_est_daily_takeup[ate_treat_index, day_index] = 1 - gumbel_cdf(- hyper_latent_var_map[ate_treat_index, day_index], 0, 1); 
+      //     
+      //     for (stratum_index in 1:num_strata) {
+      //       stratum_sp_est_daily_takeup[ate_treat_index, stratum_index, day_index] = 
+      //         1 - gumbel_cdf(- stratum_latent_var_map[ate_treat_index, stratum_index, day_index], 0, 1); 
+      //     }
+      //     
+      //     for (cluster_index in 1:num_clusters) {
+      //       cluster_sp_est_daily_takeup[ate_treat_index, cluster_index, day_index] = 
+      //         1 - gumbel_cdf(- cluster_latent_var_map[ate_treat_index, cluster_index, day_index], 0, 1); 
+      //     }
+      //   }
+      // }
     }
 
     est_deworming_days =
