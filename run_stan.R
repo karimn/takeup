@@ -2,7 +2,7 @@
 
 script_options <- docopt::docopt(sprintf(
 "Usage:
-  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data]] [--separate-private-value --include-name-matched --no-private-value-interact --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data]] [--separate-private-value --include-name-matched --no-private-value-interact --model-levels=<model-levels> --output-name=<output-name> --output-dir=<output-dir>]
   run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
@@ -136,7 +136,6 @@ if (script_options$dynamic || script_options$`sms-control-only`) {
   all_ate %<>% 
     select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
     distinct()
-  
 }
 
 param_stan_data <- prepare_bayesian_analysis_data(
@@ -214,8 +213,10 @@ if (script_options$dynamic) {
   model_param <- stan_model(file = file.path("stan_models", "takeup_model_4_static_param.stan"), model_name = "model_4_static_param")
 }
 
-cat(str_interp("Output name: ${fit_version}.
-                Running model with ${param_stan_data$model_levels} levels."))
+cat(str_interp(
+"Output name: ${fit_version}.
+Running model with ${param_stan_data$model_levels} levels."
+))
 
 model_fit <- param_stan_data %>% 
   sampling(model_param, data = ., 
