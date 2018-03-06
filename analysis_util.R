@@ -1301,7 +1301,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
            missing_covar = is.na(floor)) %>% 
     mutate(stratum = county) %>% 
     arrange(stratum, cluster.id) %>%
-    left_join(distinct(., stratum, cluster.id) %>% mutate(new_cluster_id = seq_len(n()))) %>% 
+    left_join(distinct(., stratum, cluster.id) %>% mutate(new_cluster_id = seq_len(n())), c("stratum", "cluster.id")) %>% 
     mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, gender, school, floor, ethnicity), 
               funs(id = as.integer)) %>% 
     prep_data_arranger() 
