@@ -737,9 +737,15 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       }
       
       if (show_observed) {
-        plot_obj <- plot_obj +
-          geom_point(aes(y = observed_takeup_prop, group = sms.treatment.2), 
-                     alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
+        if (include_sms_treatment) {
+          plot_obj <- plot_obj +
+            geom_point(aes(y = observed_takeup_prop, group = sms.treatment.2), 
+                       alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
+        } else {
+          plot_obj <- plot_obj +
+            geom_point(aes(y = observed_takeup_prop), 
+                       alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
+        }
       }
       
       plot_obj <- plot_obj +
