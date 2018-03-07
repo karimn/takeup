@@ -1326,7 +1326,7 @@ to_new_dyn_ate <- function(all_ate, treatment_map) {
     identify_treatment_id(treatment_map) 
   
   dyn_ate <- all_ate %>% 
-    select(-one_of(c(str_c(rep(c("private_value", "social_value", "sms.treatment.2"), each = 2), c("_left", "_right")), "dist.pot.group"))) %>%
+    select(-one_of(c(str_c(rep(static_ate_names, each = 2), c("_left", "_right"))))) %>%
     rename_(.dots = setNames(str_c(rep(intersect(dyn_ate_names, ate_names), each = 2), c("_left", "_right")), 
                              str_c(rep(intersect(static_ate_names, ate_names), each = 2), c("_left", "_right")))) %>% 
     identify_treatment_id(treatment_map) 
@@ -1682,10 +1682,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
  
   census_covar_dm_long <- census_covar_dm %>% magrittr::extract(rep(seq_len(nrow(.)), obs_relevant_days), ) 
   
-  # treatment_map_design_matrix %<>%
-  #   magrittr::extract(., , magrittr::extract(., c(unique(prepared_analysis_data$all_treatment_id), ate_treatments$all_treatment_id), ) %>% 
-  #                       detect_redund_col())
-  
   num_all_treatments <- nrow(treatment_map_design_matrix)
   num_all_treatment_coef <- ncol(treatment_map_design_matrix) 
 
@@ -1719,7 +1715,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   num_param_dyn_coef <- (num_all_treatment_coef - 1) * param_poly_order
   
   days_poly_trend <- ((1:num_deworming_days) - 1) %>% 
-    # scale() %>% 
+    divide_by(max(.)) %>% 
     matrix(num_deworming_days, param_poly_order) %>% 
     plyr::aaply(1, accumulate, multiply_by) %>% 
     magrittr::extract(, rep(seq_len(ncol(.)), each = num_all_treatment_coef - 1))  
