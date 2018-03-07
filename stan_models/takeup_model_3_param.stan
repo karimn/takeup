@@ -321,7 +321,7 @@ transformed parameters {
       strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata) + (strata_beta_day1_L_vcov * strata_beta_day1_raw);
       
       strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata)  
-        + strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw;
+        + append_row(rep_row_vector(0, num_strata), strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw);
         
         if (model_levels > 2) {
           effective_cluster_beta_day1 = cluster_beta_day1;
