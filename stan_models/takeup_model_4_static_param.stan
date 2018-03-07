@@ -71,7 +71,6 @@ data {
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs]; // Observations' stratum IDs
   int<lower = 1, upper = num_strata> cluster_stratum_ids[num_clusters]; // Clusters' stratum IDs
-  // int<lower = 1, upper = num_clusters> strata_cluster_ids[num_clusters]; // Cluster IDs ordered by stratum
   int<lower = 1, upper = num_obs> cluster_obs_ids[num_obs]; // Observation IDs ordered by cluster
   int<lower = 1, upper = num_obs> strata_sizes[num_strata]; // Observations in strata 
   int<lower = 1, upper = num_clusters> strata_num_clusters[num_strata]; // Clusters in strata
@@ -161,8 +160,8 @@ transformed data {
 parameters {
   vector[num_all_treatment_coef] hyper_beta;
   
-  real<lower = 2, upper = 7> stratum_student_df;
-  real<lower = 2, upper = 7> cluster_student_df;
+  real<lower = 2, upper = 8> stratum_student_df;
+  real<lower = 2, upper = 8> cluster_student_df;
   
   matrix[strata_num_all_treatment_coef, num_strata] strata_beta_raw;
   vector<lower = 0>[strata_num_all_treatment_coef] strata_beta_tau;
@@ -198,18 +197,17 @@ transformed parameters {
       int curr_num_clusters = strata_num_clusters[stratum_index];
       int cluster_end = cluster_pos + curr_num_clusters - 1;
       
-      matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta;
-      
-      matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_corr_mat;
-      matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_vcov_mat;  
-      vector[num_within_cluster_rows] stratum_cluster_level_mu;
-      
-      int control_pos = 1;
-      int treated_pos = 1;
-      int corr_pos = 1;
-      
       if (model_levels > 2) {
-        within_cluster_beta_L_corr_mat = rep_matrix(0, num_within_cluster_rows, num_within_cluster_rows);
+        matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta;
+        
+        matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_corr_mat; // = rep_matrix(0, num_within_cluster_rows, num_within_cluster_rows);
+        matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_vcov_mat;  
+        vector[num_within_cluster_rows] stratum_cluster_level_mu;
+        
+        int control_pos = 1;
+        int treated_pos = 1;
+        int corr_pos = 1;
+        
         within_cluster_beta = within_cluster_treatment_map * cluster_beta[, cluster_pos:cluster_end];
         stratum_cluster_level_mu = within_cluster_treatment_map * strata_beta[, stratum_index];
       
@@ -286,8 +284,7 @@ model {
         int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         int obs_end = obs_pos + curr_cluster_num_obs - 1;
           
-        latent_var[obs_pos:obs_end] =
-          treatment_design_matrix[obs_pos:obs_end] * effective_cluster_beta[, cluster_pos_index];
+        latent_var[obs_pos:obs_end] = treatment_design_matrix[obs_pos:obs_end] * effective_cluster_beta[, cluster_pos_index];
                            
         obs_pos = obs_end + 1;
       }
