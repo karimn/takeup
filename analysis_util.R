@@ -639,11 +639,16 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
                         include_sms_treatment = FALSE,
                         lower_level_data = NULL, 
                         lower_level_color_by = NULL,
-                        lower_level_shape_size = 2) {
+                        lower_level_shape_size = 2,
+                        quantiles = c(0.025, 0.05, 0.1, 0.5,  0.9, 0.95, 0.97),
+                        show_observed = FALSE) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
       if (include_sms_treatment) {
-         mutate_at(., vars(starts_with("sms.treatment.2")), funs(fct_relabel(., str_to_title)))   
+         mutate_at(., vars(starts_with("sms.treatment.2")), funs(fct_recode(., 
+                                                                            "No SMS" = "control",
+                                                                            "Reminders" = "reminder.only",
+                                                                            "Social Info" = "social.info")))   
       } else {
         return(.)
       }
@@ -664,12 +669,11 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
     
   takeup_summ_data %>%
     inner_data_preparer() %>% { 
-      dodge <- position_dodge(width = 0.75)
+      dodge <- position_dodge(width = 0.5)
       
       plot_obj <- ggplot(., top_aes) 
-      caption_text <-
-        "Points represent mean point estimates and circles represent observed take-up levels.
-         The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
+      caption_text <- "Points represent mean point estimates" %>% 
+        str_c(if (show_observed) "and circles represent observed take-up levels." else ".") 
       
       if (!is_null(lower_level_data)) {
         plot_obj <- plot_obj +
@@ -692,51 +696,62 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
           plot_obj <- plot_obj +
             geom_violin(aes(y = wtd_iter_est, fill = sms.treatment.2),
                         alpha = 0.5, 
+                        color = "black",
                         position = dodge,
-                        draw_quantiles = c(0.25, 0.5, 0.75), data = takeup_data)
+                        draw_quantiles = quantiles, data = takeup_data)
         } else {
         plot_obj <- plot_obj +
           geom_violin(aes(y = wtd_iter_est),
                       color = "lightgrey", fill = "darkgrey",
                       # draw_quantiles = c(0.25, 0.5, 0.75), color = "white", fill = "darkgrey", data = takeup_data)
-                      draw_quantiles = c(0.25, 0.5, 0.75), data = takeup_data)
+                      draw_quantiles = quantiles, data = takeup_data)
         }
         
-        caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
+        quantiles_text <- str_c(quantiles * 100, "th") %>% 
+          { str_c(str_c(.[-length(.)], collapse = ", "), .[length(.)], sep = ", and ") } 
+        
+        caption_text %<>% str_c(str_interp("Vertical lines in the posterior distribution density identify the ${quantiles_text} percentiles."), 
                                 sep = "\n")
       }
       
       if (include_sms_treatment) {
         if (is_null(takeup_data)) {
+          caption_text %<>% str_c("The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.", sep = "\n")
+          
           plot_obj <- plot_obj +
             geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2), size = 0.5, position = dodge) +
             geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2), size = 1.5, position = dodge) +
             scale_color_discrete("SMS Treatment")
         } else {
           plot_obj <- plot_obj +
-            geom_pointrange(aes(ymin = lb_95, ymax = ub_95, group = sms.treatment.2), size = 0.5, position = dodge) +
-            geom_linerange(aes(ymin = lb_90, ymax = ub_90, group = sms.treatment.2), size = 1.5, position = dodge) +
+            geom_point(aes(group = sms.treatment.2), size = 2, position = dodge) +
+            # geom_pointrange(aes(ymin = lb_95, ymax = ub_95, group = sms.treatment.2), size = 0.5, position = dodge) +
+            # geom_linerange(aes(ymin = lb_90, ymax = ub_90, group = sms.treatment.2), size = 1.5, position = dodge) +
             scale_fill_discrete("SMS Treatment")
         }
         
-        plot_obj <- plot_obj +
-          geom_point(aes(y = observed_takeup_prop, group = sms.treatment.2), 
-                     alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
       } else {
         plot_obj <- plot_obj +
           geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = dodge) +
-          geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = dodge) +
-          geom_point(aes(y = observed_takeup_prop), 
+          geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = dodge) 
+      }
+      
+      if (show_observed) {
+        plot_obj <- plot_obj +
+          geom_point(aes(y = observed_takeup_prop, group = sms.treatment.2), 
                      alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
       }
       
       plot_obj <- plot_obj +
-        # ggplot(aes(incentive_treatment_static, mean_est, color = sms.treatment.2_static)) +
-        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), nudge_x = -0.25, size = 3, segment.color = NA) +
-        # scale_color_discrete("SMS Treatment", labels = c("None", "Reminders Only", "Social Information")) +
+        geom_label_repel(aes(label = sprintf("%.3f", mean_est)),
+                        nudge_x = if (include_sms_treatment) -0.5 else -0.25,
+                         label.padding = 0.1,
+                        size = 3.5, segment.color = NA, fill = alpha("white", 0.5), color = alpha("black", 1)) +
+        # geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL),
+        #                 nudge_x = if (include_sms_treatment) -0.45 else -0.25,
+        #                 size = 3, segment.color = NA) +
         coord_flip() +
         labs(title = "Deworming Take-up Levels", 
-             # subtitle = "Across all treatments", 
              x = "Incentive/Signal Treatment", 
              y = "Probability of Deworming", 
              caption = caption_text) + 
@@ -747,7 +762,8 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
     }
 }
 
-plot_dyn_takeup_daily <- function(daily_takeup_summ, control_observation = FALSE) {
+plot_dyn_takeup_daily <- function(daily_takeup_summ, 
+                                  control_observation = FALSE) {
   if (control_observation) {
     daily_takeup_summ %<>% 
       mutate(treatment_fullobs = str_c(as.character(incentive_treatment_static), full_observation, sep = "-"))
@@ -768,9 +784,15 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ, control_observation = FALSE
 
 plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data, 
                      incentive_treatment_left_col = "incentive_treatment_static_left",
-                     by_comparator = NULL) {
+                     # by_comparator = NULL,
+                     include_sms_treatment = FALSE,
+                     quantiles = c(0.025, 0.05, 0.1, 0.5,  0.9, 0.95, 0.97)) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(., 
+                                                                    "No SMS" = "control",
+                                                                    "Reminders" = "reminder.only",
+                                                                    "Social Info" = "social.info"))) %>%    
     data_preparer() 
   
   ate_data %<>% 
@@ -786,37 +808,75 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
   #        ref = fct_relevel(ref, "control-sms.control", "own sms.control", "control-social.info")) %>%
   ate_summ_data %>% 
     inner_data_preparer() %>% { 
+      dodge <- position_dodge(width = 0.5)
+      
       plot_obj <- ggplot(., aes_string(incentive_treatment_left_col, "mean_est")) 
       caption_text <-
-        "Points represent mean point estimates.
-         The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively."
+        "Points represent mean point estimates."
         
       if (!is_null(ate_data)) {
-        violin_quantiles <- c(0.25, 0.5, 0.75)
-        
-        if (!is_null(by_comparator)) {
-          plot_obj <- plot_obj + geom_violin(aes_string(y = "wtd_iter_est", fill = by_comparator), 
-                                             alpha = 0.5, color = alpha("darkgrey", 1), 
-                                             position = position_dodge(width = 0.75),
-                                             draw_quantiles = violin_quantiles, data = ate_data) +
-            scale_fill_discrete("Comparator") 
-        # scale_fill_brewer(palette = "Set1") + 
-        } else {
-          plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
-                                             color = "lightgrey", fill = "darkgrey", 
-                                             draw_quantiles = violin_quantiles, data = ate_data)
+        if (include_sms_treatment) {
+          # if (!is_null(by_comparator)) {
+          #   plot_obj <- plot_obj +
+          #     geom_violin(aes_string(y = "wtd_iter_est", fill = "sms.treatment.2_left", linetype = by_comparator),
+          #                 alpha = 0.5, 
+          #                 color = "black",
+          #                 position = dodge,
+          #                 draw_quantiles = quantiles, data = ate_data)
+          # } else {
+            plot_obj <- plot_obj +
+              geom_violin(aes(y = wtd_iter_est, fill = sms.treatment.2_left),
+                          alpha = 0.5, 
+                          color = "black",
+                          position = dodge,
+                          draw_quantiles = quantiles, data = ate_data) +
+              scale_fill_discrete("SMS Treatment")
+          } else { 
+        # } else if (!is_null(by_comparator)) {
+        #   plot_obj <- plot_obj +
+        #     geom_violin(aes_string(y = "wtd_iter_est", linetype = by_comparator),
+        #                 color = "lightgrey", fill = "darkgrey",
+        #                 draw_quantiles = quantiles, data = ate_data)
+        # } else 
+          plot_obj <- plot_obj +
+            geom_violin(aes(y = wtd_iter_est),
+                        color = "lightgrey", fill = "darkgrey",
+                        draw_quantiles = quantiles, data = ate_data)
         }
         
-        caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
+        quantiles_text <- str_c(quantiles * 100, "th") %>% 
+          { str_c(str_c(.[-length(.)], collapse = ", "), .[length(.)], sep = ", and ") } 
+        
+        caption_text %<>% str_c(str_interp("Vertical lines in the posterior distribution density identify the ${quantiles_text} percentiles."), 
                                 sep = "\n")
+        
+        # if (!is_null(by_comparator)) {
+        #   plot_obj <- plot_obj + geom_violin(aes_string(y = "wtd_iter_est", fill = by_comparator), 
+        #                                      alpha = 0.5, color = alpha("darkgrey", 1), 
+        #                                      position = position_dodge(width = 0.75),
+        #                                      draw_quantiles = quantiles, data = ate_data) +
+        #     scale_fill_discrete("Comparator") 
+        # # scale_fill_brewer(palette = "Set1") + 
+        # } else {
+        #   plot_obj <- plot_obj + geom_violin(aes(y = wtd_iter_est), 
+        #                                      color = "lightgrey", fill = "darkgrey", 
+        #                                      draw_quantiles = quantiles, data = ate_data)
+        # }
+        # 
+        # caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
+        #                         sep = "\n")
       }
       
-      if (!is_null(by_comparator)) {
+      # if (!is_null(by_comparator)) {
+      #   plot_obj <- plot_obj +
+      #     geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", group = by_comparator), 
+      #                     size = 0.5, position = position_dodge(width = 0.75)) +
+      #     geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", group = by_comparator), 
+      #                    size = 1.5, position = position_dodge(width = 0.75)) 
+      # } else {
+      if (include_sms_treatment) {
         plot_obj <- plot_obj +
-          geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", group = by_comparator), 
-                          size = 0.5, position = position_dodge(width = 0.75)) +
-          geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", group = by_comparator), 
-                         size = 1.5, position = position_dodge(width = 0.75)) 
+          geom_point(aes(group = sms.treatment.2_left), size = 2, position = dodge) 
       } else {
         plot_obj <- plot_obj +
           geom_pointrange(aes(ymin = lb_95, ymax = ub_95), 
@@ -827,8 +887,12 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
       
       plot_obj +
         geom_hline(yintercept = 0, linetype = "dotted") +
-        geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), 
-                        nudge_x = -0.25 - (!is_null(by_comparator)) * 0.1, size = 3, segment.color = NA) +
+        geom_label_repel(aes(label = sprintf("%.3f", mean_est)),
+                        nudge_x = if (include_sms_treatment) -0.5 else -0.25,
+                        label.padding = 0.1,
+                        size = 3.5, segment.color = NA, fill = alpha("white", 0.5), color = alpha("black", 1)) +
+        # geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), 
+        #                 nudge_x = -0.25 - (!is_null(by_comparator)) * 0.1, size = 3, segment.color = NA) +
         scale_y_continuous(breaks = seq(-1, 1, 0.05)) +
         coord_flip() +
         labs(title = "Deworming Take-up Average Treatment Effect", 
@@ -2287,7 +2351,27 @@ get_dyn_ate <- function() {
                incentive_shift_left = private_value_left,
                incentive_shift_right = private_value_right) 
     ) %>% 
-    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>% 
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group_left") %>% 
+    mutate(dist.pot.group_right = dist.pot.group_left) %>% 
+    bind_rows(
+      tribble(
+      ~ private_value_left, ~ social_value_left, ~ private_value_right, ~ social_value_right,
+      "control",            "ink",               "control",             "control",
+      "calendar",           "control",           "control",             "control",
+      "calendar",           "bracelet",          "control",             "control",
+      "calendar",           "bracelet",          "calendar",            "control",
+      "control",            "bracelet",          "control",             "control" 
+      ) %>% 
+      mutate(
+        dist.pot.group_left = "close",
+        dist.pot.group_right = "far",
+        incentive_shift_left = private_value_left,
+        incentive_shift_right = private_value_right,
+        dyn_dist_pot_left = dist.pot.group_left,
+        dyn_dist_pot_right = dist.pot.group_right,
+        signal_observed_left = social_value_left,
+        signal_observed_right = social_value_right 
+      )) %>% 
     bind_rows(`TRUE` = ., `FALSE` = ., .id = "phone_owner") %>%
     bind_rows(`TRUE` = ., `FALSE` = ., .id = "name_matched") %>%
     mutate(sms.treatment.2_left = "control", 
@@ -2295,7 +2379,7 @@ get_dyn_ate <- function() {
            reminder_info_stock_left =  sms.treatment.2_left,
            reminder_info_stock_right = sms.treatment.2_right) %>% 
     mutate_at(vars(phone_owner, name_matched), as.logical) %>%
-    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) 
+    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group_left))) 
   
   dyn_phone_owners_ate <- tribble(
     ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -2386,14 +2470,15 @@ get_dyn_ate <- function() {
         reminder_info_stock_right = sms.treatment.2_right,
       )
     ) %>% 
-    bind_rows("close" = ., "far" = ., .id = "dist.pot.group") %>%
+    bind_rows("close" = ., "far" = ., .id = "dist.pot.group_left") %>%
     mutate(
+      dist.pot.group_right = dist.pot.group_left,
       phone_owner = TRUE,
       incentive_shift_left = private_value_left,
       incentive_shift_right = private_value_right,
       name_matched = FALSE
     ) %>%
-    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group))) %>% 
+    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group_left))) %>% 
     bind_rows(filter(., sms.treatment.2_left == "control" & sms.treatment.2_right == "control") %>% mutate(name_matched = TRUE))
   
   dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
