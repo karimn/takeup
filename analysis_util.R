@@ -1470,50 +1470,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     }) %>%  
     ungroup()
   
-  if (!is_null(subgroup_col)) {
-    # subgroup_treatment_map_dm <- treatment_map %>% 
-    #   distinct_(.dots = intersect(names(.), subgroup_col)) %>% 
-    #   mutate(subgroup_id = seq_len(n())) %>% 
-    #   left_join(treatment_map, ., intersect(names(.), subgroup_col)) %>% 
-    #   select(subgroup_id) %>% 
-    #   bind_cols(treatment_map_design_matrix, .) %>% 
-    #   group_by(subgroup_id) %>% 
-    #   summarize_all(~ 1 * (sum(.) > 0)) %>% 
-    #   ungroup() 
-    
-    # omitted_subgroup_treatment_col <- subgroup_treatment_map_dm %>% 
-    #   select(-subgroup_id) %>% 
-    #   select_if(~ sum(.) > 1) %>% 
-    #   names()
-    
-    # omitted_subgroup_id <- subgroup_treatment_map_dm %>% 
-    #   select(-one_of(omitted_subgroup_treatment_col)) %>% 
-    #   filter_at(vars(-subgroup_id), all_vars(. == 0)) %>% 
-    #   pull(subgroup_id)
-   
-    # omitted_subgroup <- tibble(subgroup_treatment_col = omitted_subgroup_treatment_col) %>% 
-    #   mutate(subgroup_id = omitted_subgroup_id)
-    
-    # subgroup_treatment_col_map <- subgroup_treatment_map_dm %>% 
-    #   select(-one_of(omitted_subgroup_treatment_col)) %>% 
-    #   anti_join(omitted_subgroup, "subgroup_id") %>%
-    #   gather(subgroup_treatment_col, col_mask, -subgroup_id) %>% 
-    #   group_by(subgroup_id) %>% 
-    #   filter(col_mask == 1) %>% 
-    #   ungroup() %>% 
-    #   select(-col_mask) %>% 
-    #   bind_rows(omitted_subgroup) %>% 
-    #   arrange(subgroup_id)
-    
-    # treatment_map_design_matrix %<>% select(subgroup_treatment_col_map$subgroup_treatment_col)
-    
-    # subgroup_treatment_col_sizes <- subgroup_treatment_col_map %>% 
-    #   count(subgroup_id) %>% 
-    #   pull(n)
-  } else {
-    # subgroup_treatment_col_sizes <- ncol(treatment_map_design_matrix)
-  }
-  
   census_covar_map_dm <- census_covar_map %>% 
     mutate(age_squared = age ^ 2) %>% 
     select(-census_covar_id) %>% 
@@ -1681,7 +1637,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   num_relevant_obs_days <- sum(relevant_latent_var_map[dewormed_day_any, ])
   
   obs_relevant_latent_var <- relevant_latent_var_map[dewormed_day_any, ]
-  obs_relevant_days <- rowSums(obs_relevant_latent_var)
+  obs_relevant_days <- dewormed_day_any
   
   census_covar_id <- prepared_analysis_data$census_covar_id
   census_covar_dm <- census_covar_map_dm[census_covar_id, ]
