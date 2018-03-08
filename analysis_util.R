@@ -1637,7 +1637,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   num_relevant_obs_days <- sum(relevant_latent_var_map[dewormed_day_any, ])
   
   obs_relevant_latent_var <- relevant_latent_var_map[dewormed_day_any, ]
-  obs_relevant_days <- dewormed_day_any - 1
+  obs_relevant_days <- rowSums(obs_relevant_days)
   
   census_covar_id <- prepared_analysis_data$census_covar_id
   census_covar_dm <- census_covar_map_dm[census_covar_id, ]
