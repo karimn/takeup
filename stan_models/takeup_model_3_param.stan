@@ -99,6 +99,10 @@ data {
   int<lower = 0, upper = num_cluster_level_treatments> unique_within_cluster_treatment_sizes[2]; // Control and treated clusters have different sizes
   matrix<lower = 0, upper = 1>[sum(within_cluster_treatment_sizes), num_all_treatment_coef] within_cluster_treatment_map;
   
+  int<lower = 0, upper = num_all_treatment_coef> num_private_value_dist_col;
+  int<lower = 1, upper = num_all_treatment_coef> private_value_dist_col[num_private_value_dist_col];
+  int<lower = 1, upper = num_all_treatment_coef> not_private_value_dist_col[num_all_treatment_coef - num_private_value_dist_col - 1];
+  
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs]; // Observations' stratum IDs
   int<lower = 1, upper = num_strata> cluster_stratum_ids[num_clusters]; // Clusters' stratum IDs
@@ -186,6 +190,8 @@ data {
   
   real<lower = 0> lkj_df;
   
+  real<lower = 0> private_value_dist_sigma;
+  
   // Configuration
   
   int<lower = 0, upper = 1> estimate_ate;
@@ -196,6 +202,7 @@ data {
   // 2: Strata level (counties)
   // 3: Cluster level (villages)
   int<lower = 1, upper = 3> model_levels;
+  int<lower = 0, upper = 1> use_cluster_re; // If model_levels < 2 this flag determines if a cluster RE is used.
   
   int<lower = 0, upper = 1> save_sp_estimates;
 }
@@ -207,17 +214,20 @@ transformed data {
   int<lower = 0> relevant_daily_cluster_sizes[num_clusters]; // By cluster ID
   
   int<lower = 0> strata_num_all_treatment_coef = model_levels > 1 ? num_all_treatment_coef : 0;
-  int<lower = 0> cluster_num_all_treatment_coef = model_levels > 2 ? num_all_treatment_coef : 0;
+  int<lower = 0> cluster_num_all_treatment_coef = 0;
   int<lower = 0> strata_num_deworming_days = model_levels > 1 ? num_deworming_days : 0;
   int<lower = 0> cluster_num_deworming_days = model_levels > 2 ? num_deworming_days : 0;
   int<lower = 0> strata_num_param_dyn_coef = model_levels > 1 ? num_param_dyn_coef : 0;
   int<lower = 0> cluster_num_param_dyn_coef = model_levels > 1 ? num_param_dyn_coef : 0;
   
   int<lower = 0, upper = num_all_treatments> num_within_cluster_rows = model_levels > 2 ? sum(within_cluster_treatment_sizes) : 0;
+  int<lower = 0, upper = num_all_treatment_coef> num_cluster_tau = model_levels <= 2 && use_cluster_re ? 1 : num_within_cluster_rows;
   int<lower = 0, upper = num_cluster_level_treatments> num_control_cluster_treatments = 0;
   int<lower = 0, upper = num_cluster_level_treatments> num_treated_cluster_treatments = num_cluster_level_treatments;
   
   if (model_levels > 2) { 
+    cluster_num_all_treatment_coef = num_all_treatment_coef;
+    
     for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
       if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
         num_control_cluster_treatments += 1;
@@ -226,6 +236,10 @@ transformed data {
     }
   } else {
     num_treated_cluster_treatments = 0;
+    
+    if (use_cluster_re) {
+      cluster_num_all_treatment_coef = 1;
+    }
   }
   
   {
@@ -286,7 +300,7 @@ parameters {
   matrix[strata_num_param_dyn_coef, num_strata] QR_strata_beta_dyn_effect;
   
   matrix[cluster_num_all_treatment_coef, num_clusters] cluster_beta_day1;
-  matrix<lower = 0>[num_within_cluster_rows, num_strata] cluster_beta_day1_tau;
+  matrix<lower = 0>[num_cluster_tau, num_strata] cluster_beta_day1_tau;
   cholesky_factor_corr[unique_within_cluster_treatment_sizes[1]] control_cluster_day1_L_corr_mat[num_strata, num_control_cluster_treatments];
   cholesky_factor_corr[unique_within_cluster_treatment_sizes[2]] treated_cluster_day1_L_corr_mat[num_strata, num_treated_cluster_treatments];
 }
@@ -325,9 +339,9 @@ transformed parameters {
       strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata)  
         + append_row(rep_row_vector(0, num_strata), strata_baseline_dyn_effect_L_vcov * strata_baseline_dyn_effect_raw);
         
-        if (model_levels > 2) {
-          effective_cluster_beta_day1 = cluster_beta_day1;
-        }
+      if (model_levels > 2) {
+        effective_cluster_beta_day1 = cluster_beta_day1;
+      } 
     } else {
       strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata);  
       strata_beta_day1 = rep_matrix(hyper_beta_day1, num_strata);
@@ -369,6 +383,12 @@ transformed parameters {
         
         within_cluster_beta_day1_raw[, cluster_pos:cluster_end] = 
           within_cluster_beta_day1_L_vcov_mat \ (within_cluster_beta_day1 - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
+      } else if (use_cluster_re) {
+        effective_cluster_beta_day1[1, cluster_pos:cluster_end] = 
+          strata_beta_day1[1, stratum_index] + cluster_beta_day1_tau[1, stratum_index] * cluster_beta_day1[1, cluster_pos:cluster_end];
+        
+        effective_cluster_beta_day1[2:num_all_treatment_coef, cluster_pos:cluster_end] = 
+          rep_matrix(strata_beta_day1[2:num_all_treatment_coef, stratum_index], curr_num_clusters);
       } else {
         effective_cluster_beta_day1[, cluster_pos:cluster_end] = rep_matrix(strata_beta_day1[, stratum_index], curr_num_clusters);
       } 
@@ -382,7 +402,8 @@ transformed parameters {
 model {
   hyper_beta_day1[1] ~ normal(0, hyper_intercept_sigma);
   
-  hyper_beta_day1[2:num_all_treatment_coef] ~ normal(0, hyper_coef_sigma);
+  hyper_beta_day1[not_private_value_dist_col] ~ normal(0, hyper_coef_sigma);
+  hyper_beta_day1[private_value_dist_col] ~ normal(0, private_value_dist_sigma);
   
   hyper_baseline_dyn_effect ~ normal(0, hyper_coef_sigma);
   
@@ -401,9 +422,14 @@ model {
     strata_baseline_dyn_effect_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
   }
   
-  if (model_levels > 2) {
-    to_vector(within_cluster_beta_day1_raw) ~ student_t(cluster_day1_student_df, 0, 1);
+  if (model_levels > 2 || use_cluster_re) {
     to_vector(cluster_beta_day1_tau) ~ normal(0, cluster_scale_sigma);
+    
+    if (model_levels > 2) { 
+      to_vector(within_cluster_beta_day1_raw) ~ student_t(cluster_day1_student_df, 0, 1);
+    } else {
+      to_vector(cluster_beta_day1) ~ student_t(cluster_day1_student_df, 0, 1);
+    }
   }
   
   {

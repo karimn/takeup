@@ -2,8 +2,8 @@
 
 script_options <- docopt::docopt(sprintf(
 "Usage:
-  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --include-name-matched --no-private-value-interact --model-levels=<model-levels> --output-name=<output-name> --output-dir=<output-dir>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -18,6 +18,7 @@ script_options <- docopt::docopt(sprintf(
   --include-name-matched  Include unmonitored sample (name matched against census)
   --no-private-value-interact  Allow private value to interact with distance
   --model-levels=<model-levels>  How deep is the multilevel model [default: 3]
+  --use-cluster-re  Use cluster level random effects (if model levels <= 2)
   --save-sp-estimates  Calcuate superpopulation ATE 
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
@@ -158,6 +159,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   cluster_scale_sigma = 0.25,
   hyper_coef_sigma = 1,
   hyper_intercept_sigma = 5,
+  private_value_dist_sigma = 0.01,
   
   lkj_df = 2,
   
@@ -166,6 +168,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   estimate_ate = 1,
   
   model_levels = as.integer(script_options$`model-levels`),
+  use_cluster_re = as.integer(script_options$`use-cluster-re`),
   save_sp_estimates = as.integer(script_options$`save-sp-estimates`)
 )
 
