@@ -703,7 +703,6 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
         plot_obj <- plot_obj +
           geom_violin(aes(y = wtd_iter_est),
                       color = "lightgrey", fill = "darkgrey",
-                      # draw_quantiles = c(0.25, 0.5, 0.75), color = "white", fill = "darkgrey", data = takeup_data)
                       draw_quantiles = quantiles, data = takeup_data)
         }
         
@@ -716,17 +715,15 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       
       if (include_sms_treatment) {
         if (is_null(takeup_data)) {
-          caption_text %<>% str_c("The thick and thin vertical lines show the 90% and 95% posterior probability ranges, respectively.", sep = "\n")
-          
           plot_obj <- plot_obj +
             geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2), size = 0.5, position = dodge) +
             geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2), size = 1.5, position = dodge) +
             scale_color_discrete("SMS Treatment")
+          
+          caption_text %<>% str_c("Horizonal line ranges represent the 90% and 95% probability intervals.", sep = "\n")
         } else {
           plot_obj <- plot_obj +
             geom_point(aes(group = sms.treatment.2), size = 2, position = dodge) +
-            # geom_pointrange(aes(ymin = lb_95, ymax = ub_95, group = sms.treatment.2), size = 0.5, position = dodge) +
-            # geom_linerange(aes(ymin = lb_90, ymax = ub_90, group = sms.treatment.2), size = 1.5, position = dodge) +
             scale_fill_discrete("SMS Treatment")
         }
         
@@ -734,6 +731,8 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
         plot_obj <- plot_obj +
           geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5, position = dodge) +
           geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5, position = dodge) 
+        
+        caption_text %<>% str_c("Horizonal line ranges represent the 90% and 95% probability intervals.", sep = "\n")
       }
       
       if (show_observed) {
@@ -792,6 +791,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
                      incentive_treatment_left_col = "incentive_treatment_static_left",
                      # by_comparator = NULL,
                      include_sms_treatment = FALSE,
+                     sms_treatment_right = FALSE,
                      quantiles = c(0.025, 0.05, 0.1, 0.5,  0.9, 0.95, 0.97)) {
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
@@ -800,13 +800,15 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
                                                                     "Reminders" = "reminder.only",
                                                                     "Social Info" = "social.info"))) %>%    
     data_preparer() 
+ 
+  if (!is_null(ate_data)) { 
+    ate_data %<>% 
+        inner_data_preparer()
   
-  ate_data %<>% 
-      inner_data_preparer()
-  
-  if (!is_null(combiner)) {
-    ate_data %<>% combiner()
-  } 
+    if (!is_null(combiner)) {
+      ate_data %<>% combiner()
+    }
+  }
   
   # mutate(ref = if_else(incentive_treatment_right_static == "control" & sms.treatment.2_right == "sms.control", 
   #                      "control-sms.control", 
@@ -817,8 +819,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
       dodge <- position_dodge(width = 0.5)
       
       plot_obj <- ggplot(., aes_string(incentive_treatment_left_col, "mean_est")) 
-      caption_text <-
-        "Points represent mean point estimates."
+      caption_text <- "Points represent mean point estimates."
         
       if (!is_null(ate_data)) {
         if (include_sms_treatment) {
@@ -853,8 +854,9 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
         quantiles_text <- str_c(quantiles * 100, "th") %>% 
           { str_c(str_c(.[-length(.)], collapse = ", "), .[length(.)], sep = ", and ") } 
         
-        caption_text %<>% str_c(str_interp("Vertical lines in the posterior distribution density identify the ${quantiles_text} percentiles."), 
-                                sep = "\n")
+        caption_text %<>% 
+          str_c(str_interp("Vertical lines in the posterior distribution density identify the ${quantiles_text} percentiles."), 
+                sep = "\n")
         
         # if (!is_null(by_comparator)) {
         #   plot_obj <- plot_obj + geom_violin(aes_string(y = "wtd_iter_est", fill = by_comparator), 
@@ -870,7 +872,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
         # }
         # 
         # caption_text %<>% str_c("Vertical lines in the posterior distribution density identify the 25th, 50th, and 75th percentiles.", 
-        #                         sep = "\n")
+        
       }
       
       # if (!is_null(by_comparator)) {
@@ -880,15 +882,31 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
       #     geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", group = by_comparator), 
       #                    size = 1.5, position = position_dodge(width = 0.75)) 
       # } else {
-      if (include_sms_treatment) {
+      if (include_sms_treatment && !is_null(ate_data)) {
         plot_obj <- plot_obj +
           geom_point(aes(group = sms.treatment.2_left), size = 2, position = dodge) 
       } else {
-        plot_obj <- plot_obj +
-          geom_pointrange(aes(ymin = lb_95, ymax = ub_95), 
-                          size = 0.5) +
-          geom_linerange(aes(ymin = lb_90, ymax = ub_90), 
-                         size = 1.5) 
+        if (include_sms_treatment) {
+          plot_obj <- plot_obj +
+            geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2_left), size = 1.5, position = dodge) +
+            scale_color_discrete("SMS Treatment")
+          
+          if (sms_treatment_right) {
+            plot_obj <- plot_obj +
+              geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2_left, shape = sms.treatment.2_right), 
+                              size = 0.5, fatten = 10, position = dodge, fill = "white")  +
+              scale_shape_discrete("SMS Reference Treatment")
+          } else {
+            plot_obj <- plot_obj +
+              geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2_left), size = 0.5, position = dodge) 
+          }
+        } else {
+          plot_obj <- plot_obj +
+            geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.5) +
+            geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 1.5) 
+        }
+        
+        caption_text %<>% str_c("Horizonal line ranges represent the 90% and 95% probability intervals.", sep = "\n")
       }
       
       plot_obj +
@@ -1747,8 +1765,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     R_inv_treatment_design_matrix,
     num_all_treatments,
     num_all_treatment_coef,
-    # num_subgroups = length(subgroup_treatment_col_sizes),
-    # subgroup_treatment_col_sizes,
+    
+    private_value_dist_col = str_which(names(treatment_map_design_matrix), "private_value.+dist\\.pot\\.group"),
+    num_private_value_dist_col = length(private_value_dist_col),
+    not_private_value_dist_col = seq_len(num_all_treatment_coef) %>% 
+      setdiff(c(1, private_value_dist_col)), # Remove the intercept too
 
     num_cluster_level_treatments = nrow(within_cluster_treatment_map),    
     within_cluster_treatment_sizes = within_cluster_treatment_map$cluster_dm %>% map_int(nrow),
