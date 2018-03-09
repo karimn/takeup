@@ -150,7 +150,7 @@ transformed data {
   int<lower = 0> cluster_num_all_treatment_coef = 0;
   
   int<lower = 0, upper = num_all_treatments> num_within_cluster_rows = model_levels > 2 ? sum(within_cluster_treatment_sizes) : 0;
-  int<lower = 0, upper = num_all_treatment_coef> num_cluster_tau = model_levels <= 2 && use_cluster_re ? 1 : num_within_cluster_rows;
+  int<lower = 0, upper = num_all_treatments> num_cluster_tau = model_levels <= 2 && use_cluster_re ? 1 : num_within_cluster_rows;
   int<lower = 0, upper = num_cluster_level_treatments> num_control_cluster_treatments = 0;
   int<lower = 0, upper = num_cluster_level_treatments> num_treated_cluster_treatments = num_cluster_level_treatments;
  
