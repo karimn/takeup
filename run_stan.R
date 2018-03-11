@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(sprintf(
 "Usage:
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-identity-corr --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -19,6 +19,7 @@ script_options <- docopt::docopt(sprintf(
   --no-private-value-interact  Allow private value to interact with distance
   --model-levels=<model-levels>  How deep is the multilevel model [default: 3]
   --use-cluster-re  Use cluster level random effects (if model levels <= 2)
+  --use-cluster-identity-corr  No correlation estimation for cluster level parameters
   --save-sp-estimates  Calcuate superpopulation ATE 
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
@@ -66,77 +67,136 @@ if (script_options$`separate-private-value`) {
       incentive_shift_right = if_else(signal_observed_right == "bracelet", "control", incentive_shift_right))
 }
 
-if (script_options$dynamic || script_options$`sms-control-only`) {
-  stan_analysis_data %<>% 
-    filter(!name_matched | script_options$`include-name-matched`, 
-           sms.treatment.2 == "control") 
-  
-  if (script_options$`include-name-matched`) {
-    subgroups %<>% c("name_matched")
+if (script_options$dynamic) {
+  if (script_options$`sms-control-only`) {
+    stan_analysis_data %<>% 
+      filter(!name_matched | script_options$`include-name-matched`, 
+             sms.treatment.2 == "control") 
     
-    static_treatment_map <- stan_analysis_data %>% 
-      data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
-      filter(private_value == "control" | social_value != "ink") %>%
-      prepare_treatment_map()
+    if (script_options$`include-name-matched`) {
+      subgroups %<>% c("name_matched")
+      
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
+        filter(private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+      treatment_formula %<>% 
+        update.formula(~ . * name_matched)
+    } else {
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
+        filter(private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+       all_ate %<>% 
+        filter(!name_matched) %>% 
+        select(-name_matched) %>% 
+        filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
+        select(-starts_with("reminder_info_stock"), -starts_with("sms.treatment")) %>% 
+        distinct()
+    }
+  } else {
+    stan_analysis_data %<>% 
+      filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
+    
+    if (script_options$`include-name-matched`) {
+      subgroups %<>% c("name_matched")
+      
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
+        filter(sms.treatment.2 == "control" | phone_owner,
+               !name_matched | sms.treatment.2 == "control",
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+               private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+      treatment_formula %<>% 
+        update.formula(~ . * name_matched)
+    } else {
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% 
+        filter(sms.treatment.2 == "control" | phone_owner,
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+               private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+       all_ate %<>% 
+        filter(!name_matched) %>% 
+        select(-name_matched) 
+    }
     
     treatment_formula %<>% 
-      update.formula(~ . * name_matched)
-  } else {
-    static_treatment_map <- stan_analysis_data %>% 
-      data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
-      filter(private_value == "control" | social_value != "ink") %>%
-      prepare_treatment_map()
-    
-     all_ate %<>% 
-      filter(!name_matched) %>% 
-      select(-name_matched) 
-  }
-  
-  all_ate %<>%
-    filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
-    select(-starts_with("reminder_info_stock"), -starts_with("sms.treatment")) %>% 
-    distinct()
-  
-  if (!script_options$dynamic) {
-    all_ate %<>% 
-      select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
-      distinct()
+      update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
   }
 } else {
-  stan_analysis_data %<>% 
-    filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
+  all_ate %<>% 
+    select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) 
   
-  if (script_options$`include-name-matched`) {
-    subgroups %<>% c("name_matched")
-    
-    static_treatment_map <- stan_analysis_data %>% 
-      data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
-      filter(sms.treatment.2 == "control" | phone_owner,
-             !name_matched | sms.treatment.2 == "control",
-             sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-             private_value == "control" | social_value != "ink") %>%
-      prepare_treatment_map()
-    
-    treatment_formula %<>% 
-      update.formula(~ . * name_matched)
+  if (script_options$`sms-control-only`) {
+    stan_analysis_data %<>% 
+      filter(!name_matched | script_options$`include-name-matched`, 
+             sms.treatment.2 == "control") 
+  
+    if (script_options$`include-name-matched`) {
+      subgroups %<>% c("name_matched")
+      
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
+        filter(private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+      treatment_formula %<>% 
+        update.formula(~ . * name_matched)
+    } else {
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
+        filter(private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+       all_ate %<>% 
+        filter(!name_matched) %>% 
+        select(-name_matched) 
+    }
+  
+    all_ate %<>%
+      filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
+      select(-starts_with("sms.treatment")) 
   } else {
-    static_treatment_map <- stan_analysis_data %>% 
-      data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>%
-      filter(sms.treatment.2 == "control" | phone_owner,
-             sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-             private_value == "control" | social_value != "ink") %>%
-      prepare_treatment_map()
-    
-     all_ate %<>% 
-      filter(!name_matched) %>% 
-      select(-name_matched) 
+    stan_analysis_data %<>% 
+      filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
+  
+    if (script_options$`include-name-matched`) {
+      subgroups %<>% c("name_matched")
+      
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
+        filter(sms.treatment.2 == "control" | phone_owner,
+               !name_matched | sms.treatment.2 == "control",
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+               private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+      treatment_formula %<>% 
+        update.formula(~ . * name_matched)
+    } else {
+      static_treatment_map <- stan_analysis_data %>% 
+        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>%
+        filter(sms.treatment.2 == "control" | phone_owner,
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
+               private_value == "control" | social_value != "ink") %>%
+        prepare_treatment_map()
+      
+       all_ate %<>% 
+        filter(!name_matched) %>% 
+        select(-name_matched) 
+    }
+  
+    treatment_formula %<>% 
+      update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
   }
   
-  treatment_formula %<>% 
-    update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
-  
   all_ate %<>% 
-    select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) %>% 
     distinct()
 }
 
@@ -169,6 +229,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   
   model_levels = as.integer(script_options$`model-levels`),
   use_cluster_re = as.integer(script_options$`use-cluster-re`),
+  use_cluster_identity_corr = as.integer(script_options$`use-cluster-identity-corr`),
   save_sp_estimates = as.integer(script_options$`save-sp-estimates`)
 )
 
@@ -178,7 +239,7 @@ if (script_options$`analysis-data-only`) quit()
 
 # Initializer Factory -------------------------------------------------------------
 
-gen_initializer <- function(stan_data_list, dynamic = TRUE) {
+gen_initializer <- function(stan_data_list, dynamic = TRUE, script_options = script_options) {
   if (dynamic) {
     function() {
       lst(
@@ -199,7 +260,12 @@ gen_initializer <- function(stan_data_list, dynamic = TRUE) {
       )
     } 
   } else {
-    function() {}
+    function() {
+      if (script_options$`use-cluster-identity-corr`) {
+        lst(cluster_beta = 0)
+        # lst(cluster_beta = with(stan_data_list, rnorm(num_all_treatment_coef)))
+      } else lst()
+    }
   }
 }
 
@@ -230,6 +296,8 @@ model_fit <- param_stan_data %>%
            # include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
            control = lst(max_treedepth = as.integer(script_options$`max-treedepth`), 
                          adapt_delta = as.numeric(script_options$`adapt-delta`)), 
-           init = if (script_options$dynamic && script_options$gumbel) gen_initializer(.) else "random",
+           init = if ((script_options$dynamic && script_options$gumbel)) # || script_options$`use-cluster-identity-corr`)
+             gen_initializer(., dynamic = script_options$dynamic, script_options)
+           else "random",
            sample_file = file.path(script_options$`output-dir`, "stanfit", str_interp("model_${fit_version}.csv")))
 
