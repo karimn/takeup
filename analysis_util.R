@@ -887,16 +887,20 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
           geom_point(aes(group = sms.treatment.2_left), size = 2, position = dodge) 
       } else {
         if (include_sms_treatment) {
-          plot_obj <- plot_obj +
-            geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2_left), size = 1.5, position = dodge) +
-            scale_color_discrete("SMS Treatment")
           
           if (sms_treatment_right) {
             plot_obj <- plot_obj +
+              geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2_left, group = str_c(sms.treatment.2_left, sms.treatment.2_right)), 
+                             size = 1.5, position = dodge) +
+              scale_color_discrete("SMS Treatment")
+            plot_obj <- plot_obj +
               geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2_left, shape = sms.treatment.2_right), 
-                              size = 0.5, fatten = 10, position = dodge, fill = "white")  +
+                              size = 0.5, fatten = 10, position = dodge)  +
               scale_shape_discrete("SMS Reference Treatment")
           } else {
+            plot_obj <- plot_obj +
+              geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2_left), size = 1.5, position = dodge) +
+              scale_color_discrete("SMS Treatment")
             plot_obj <- plot_obj +
               geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2_left), size = 0.5, position = dodge) 
           }
@@ -2235,14 +2239,18 @@ estimate_deworm_prob_ate <- function(iter_parameters,
     full_dyn_treatment_map_dm = full_dyn_treatment_map_dm)
 }
 
+incentive_treatment_factor <- function(.f) {
+  factor(.f, levels = c("control", "ink", "calendar", "bracelet social", "bracelet"))
+}
+
 create_incentive_treatment_col <- function(.data) {
   .data %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
                                                  c("control-bracelet" = "bracelet social", 
                                                    "calendar-bracelet" = "bracelet",
                                                    "control-control" = "control", 
-                                                   "(-control)|(control-)" = "")) %>% 
-             factor(levels = c("control", "ink", "calendar", "bracelet social", "bracelet"))))
+                                                   "(-control)|(control-)" = "")) %>%
+             incentive_treatment_factor()))
 }
 
 subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL, 
