@@ -71,11 +71,12 @@ data {
   int<lower = 1> within_cluster_treatment_sizes[num_cluster_level_treatments];
   int<lower = 0, upper = num_cluster_level_treatments> unique_within_cluster_treatment_sizes[2]; // Control and treated clusters have different sizes
   matrix<lower = 0, upper = 1>[sum(within_cluster_treatment_sizes), num_all_treatment_coef] within_cluster_treatment_map;
+  // Left inverse of within_cluster_treatment_map
+  matrix[num_all_treatment_coef, sum(within_cluster_treatment_sizes)] within_cluster_treatment_map_ginv; 
   
   int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   int<lower = 1, upper = num_strata> stratum_id[num_obs]; // Observations' stratum IDs
   int<lower = 1, upper = num_strata> cluster_stratum_ids[num_clusters]; // Clusters' stratum IDs
-  // int<lower = 1, upper = num_clusters> strata_cluster_ids[num_clusters]; // Cluster IDs ordered by stratum
   int<lower = 1, upper = num_obs> cluster_obs_ids[num_obs]; // Observation IDs ordered by cluster
   int<lower = 1, upper = num_obs> strata_sizes[num_strata]; // Observations in strata 
   int<lower = 1, upper = num_clusters> strata_num_clusters[num_strata]; // Clusters in strata
@@ -153,39 +154,34 @@ transformed data {
   
   int<lower = 0, upper = num_all_treatments> num_within_cluster_rows = 0;
   int<lower = 0, upper = num_all_treatments> num_cluster_tau = 0;
+  int<lower = 0, upper = num_all_treatments> num_true_cluster_tau = 0;
   int<lower = 0, upper = num_cluster_level_treatments> num_control_cluster_treatments = 0;
   int<lower = 0, upper = num_cluster_level_treatments> num_treated_cluster_treatments = 0;
   int<lower = 0, upper = num_all_treatments> num_within_cluster_control_treatments = 0;
   int<lower = 0, upper = num_all_treatments> num_within_cluster_treated_treatments = 0;
  
   if (model_levels > 2) { 
+    num_treated_cluster_treatments = num_cluster_level_treatments;
+    num_within_cluster_rows = sum(within_cluster_treatment_sizes);
+    num_cluster_tau = num_within_cluster_rows;
+    num_true_cluster_tau = num_all_treatment_coef;
+    
     cluster_num_all_treatment_coef = num_all_treatment_coef;
     
-    if (use_cluster_identity_corr) {
-      num_cluster_tau = num_all_treatment_coef;
-    } else {
+    if (!use_cluster_identity_corr) {
       num_within_cluster_control_treatments = unique_within_cluster_treatment_sizes[1];
       num_within_cluster_treated_treatments = unique_within_cluster_treatment_sizes[2];
-      
-      num_treated_cluster_treatments = num_cluster_level_treatments;
-      num_within_cluster_rows = sum(within_cluster_treatment_sizes);
-      num_cluster_tau = num_within_cluster_rows;
+    }
     
-      for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
-        if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
-          num_control_cluster_treatments += 1;
-          num_treated_cluster_treatments -= 1;
-        }
+    for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
+      if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
+        num_control_cluster_treatments += 1;
+        num_treated_cluster_treatments -= 1;
       }
     }
-    
-  } else {
-    num_treated_cluster_treatments = 0;
-    
-    if (use_cluster_re) {
-      num_cluster_tau = 1; 
-      cluster_num_all_treatment_coef = 1;
-    }
+  } else if (use_cluster_re) {
+    num_cluster_tau = 1; 
+    cluster_num_all_treatment_coef = 1;
   }
 }
 
@@ -209,7 +205,8 @@ transformed parameters {
   // These are always specified even if the model is not multilevel; they'll just have the same values one level up.
   matrix[num_all_treatment_coef, num_strata] strata_beta = rep_matrix(0, num_all_treatment_coef, num_strata); 
   matrix[num_all_treatment_coef, num_clusters] effective_cluster_beta = rep_matrix(0, num_all_treatment_coef, num_clusters);
-  matrix[num_within_cluster_rows, num_clusters] within_cluster_beta_raw; 
+  matrix[num_within_cluster_rows, num_clusters] within_cluster_beta_raw;
+  matrix<lower = 0>[num_true_cluster_tau, num_strata] true_cluster_beta_tau;
   
   {
     int cluster_pos = 1;
@@ -227,21 +224,19 @@ transformed parameters {
       int cluster_end = cluster_pos + curr_num_clusters - 1;
       
       if (model_levels > 2) {
+        matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_corr_mat = rep_matrix(0, num_within_cluster_rows, num_within_cluster_rows);
+        matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_vcov_mat;  
+        matrix[num_all_treatment_coef, num_all_treatment_coef] true_cluster_beta_vcov_mat;  
+        vector[num_within_cluster_rows] stratum_cluster_level_mu = within_cluster_treatment_map * strata_beta[, stratum_index];
+        
+        matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta = within_cluster_treatment_map * cluster_beta[, cluster_pos:cluster_end];
+        
         if (use_cluster_identity_corr) {
-          effective_cluster_beta[, cluster_pos:cluster_end] = 
-            rep_matrix(strata_beta[, stratum_index], curr_num_clusters) + diag_pre_multiply(cluster_beta_tau[, stratum_index], cluster_beta[, cluster_pos:cluster_end]);
+          within_cluster_beta_L_corr_mat = diag_matrix(rep_vector(1, num_within_cluster_rows));
         } else {
-          matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_corr_mat = rep_matrix(0, num_within_cluster_rows, num_within_cluster_rows);
-          matrix[num_within_cluster_rows, num_within_cluster_rows] within_cluster_beta_L_vcov_mat;  
-          vector[num_within_cluster_rows] stratum_cluster_level_mu = within_cluster_treatment_map * strata_beta[, stratum_index];
-          
-          matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta;
-          
           int control_pos = 1;
           int treated_pos = 1;
           int corr_pos = 1;
-          
-          within_cluster_beta = within_cluster_treatment_map * cluster_beta[, cluster_pos:cluster_end];
           
           for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
             int corr_end; 
@@ -258,12 +253,14 @@ transformed parameters {
             
             corr_pos = corr_end + 1;
           }
-        
-          within_cluster_beta_L_vcov_mat = diag_pre_multiply(cluster_beta_tau[, stratum_index], within_cluster_beta_L_corr_mat);
-          
-          within_cluster_beta_raw[, cluster_pos:cluster_end] = 
-            within_cluster_beta_L_vcov_mat \ (within_cluster_beta - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
         }
+      
+        within_cluster_beta_L_vcov_mat = diag_pre_multiply(cluster_beta_tau[, stratum_index], within_cluster_beta_L_corr_mat);
+        true_cluster_beta_vcov_mat = tcrossprod(within_cluster_treatment_map_ginv * within_cluster_beta_L_vcov_mat);
+        true_cluster_beta_tau[, stratum_index] = diagonal(true_cluster_beta_vcov_mat);
+        
+        within_cluster_beta_raw[, cluster_pos:cluster_end] = 
+          within_cluster_beta_L_vcov_mat \ (within_cluster_beta - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
       } else if (use_cluster_re) {
         effective_cluster_beta[1, cluster_pos:cluster_end] = 
           strata_beta[1, stratum_index] + cluster_beta_tau[1, stratum_index] * cluster_beta[1, cluster_pos:cluster_end];
@@ -277,8 +274,8 @@ transformed parameters {
       cluster_pos = cluster_end + 1;
     }
     
-    if (model_levels > 2 && !use_cluster_identity_corr && !use_cluster_re) {
-        effective_cluster_beta = cluster_beta;
+    if (model_levels > 2 && !use_cluster_re) {
+      effective_cluster_beta = cluster_beta;
     }  
   }
 }
@@ -294,17 +291,11 @@ model {
     strata_beta_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
  
     if (model_levels > 2 || use_cluster_re) { 
+      to_vector(within_cluster_beta_raw) ~ student_t(cluster_student_df, 0, 1);
+      to_vector(true_cluster_beta_tau) ~ normal(0, cluster_scale_sigma);
+    } else if (use_cluster_re) {
+      to_vector(cluster_beta) ~ student_t(cluster_student_df, 0, 1);
       to_vector(cluster_beta_tau) ~ normal(0, cluster_scale_sigma);
-     
-      if (model_levels > 2) { 
-        if (use_cluster_identity_corr) {
-          to_vector(cluster_beta) ~ student_t(cluster_student_df, 0, 1);
-        } else {
-          to_vector(within_cluster_beta_raw) ~ student_t(cluster_student_df, 0, 1);
-        }
-      } else {
-        to_vector(cluster_beta) ~ student_t(cluster_student_df, 0, 1);
-      }
     }
   }
   
