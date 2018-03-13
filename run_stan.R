@@ -239,33 +239,36 @@ if (script_options$`analysis-data-only`) quit()
 
 # Initializer Factory -------------------------------------------------------------
 
-gen_initializer <- function(stan_data_list, dynamic = TRUE, script_options = script_options) {
-  if (dynamic) {
-    function() {
-      lst(
-        strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
-        strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
-        strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
-        strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
-        
-        # hyper_beta_day1 = rep(0, stan_data_list$num_all_treatment_coef),
-        # hyper_beta_day1 = rnorm(stan_data_list$num_all_treatment_coef),
-        # hyper_baseline_dyn_effect = rep(0, stan_data_list$num_deworming_days - 1),
-        # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
-        # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
-        strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
-        QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
-        QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.005), nrow = num_param_dyn_coef, ncol = num_strata)),
-        # cluster_effect = rep(0, stan_data_list$num_clusters)
-      )
-    } 
+gen_initializer <- function(stan_data_list, script_options = script_options) {
+  if (script_options$dynamic) {
+    if (script_options$gumbel) {
+      function() {
+        lst(
+          strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
+          strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
+          strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
+          strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
+          
+          # hyper_beta_day1 = rep(0, stan_data_list$num_all_treatment_coef),
+          # hyper_beta_day1 = rnorm(stan_data_list$num_all_treatment_coef),
+          # hyper_baseline_dyn_effect = rep(0, stan_data_list$num_deworming_days - 1),
+          # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
+          # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
+          strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
+          QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
+          QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.005), nrow = num_param_dyn_coef, ncol = num_strata)),
+        )
+      }
+    } else return("random")
   } else {
-    function() {
-      if (script_options$`use-cluster-identity-corr`) {
-        lst(cluster_beta = 0)
-        # lst(cluster_beta = with(stan_data_list, rnorm(num_all_treatment_coef)))
-      } else lst()
-    }
+    if (script_options$`model-levels` > 2) {
+      function() {
+        lst(cluster_beta = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_clusters, sd = 0.01), 
+                                                       nrow = num_all_treatment_coef, ncol = num_clusters)),
+            strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+            strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat)))
+      }
+    } else return("random")
   }
 }
 
@@ -296,8 +299,6 @@ model_fit <- param_stan_data %>%
            # include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
            control = lst(max_treedepth = as.integer(script_options$`max-treedepth`), 
                          adapt_delta = as.numeric(script_options$`adapt-delta`)), 
-           init = if ((script_options$dynamic && script_options$gumbel)) # || script_options$`use-cluster-identity-corr`)
-             gen_initializer(., dynamic = script_options$dynamic, script_options)
-           else "random",
+           init = gen_initializer(., script_options),
            sample_file = file.path(script_options$`output-dir`, "stanfit", str_interp("model_${fit_version}.csv")))
 
