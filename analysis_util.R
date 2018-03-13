@@ -1368,8 +1368,6 @@ to_new_dyn_ate <- function(all_ate, treatment_map) {
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
                                            ...,
-                                           # treatment_col = c("assigned.treatment", "dist.pot.group", "sms.treatment.2", "hh.baseline.sample.pool"),
-                                           # prepared_treatment_maps = FALSE, 
                                            treatment_map = NULL,
                                            dynamic_treatment_map = NULL,
                                            treatment_formula = NULL,
@@ -1380,14 +1378,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
   prep_data_arranger <- function(prep_data, ...) prep_data %>% arrange(stratum_id, new_cluster_id, name_matched, dewormed.any, ...)
-  # prep_data_arranger <- function(prep_data) { 
-  #   prep_data %>% 
-  #     arrange_at(vars(one_of("stratum_id", "new_cluster_id", "name_matched", "dewormed.any")))
-  # }
   
   prepared_analysis_data <- origin_prepared_analysis_data %>% 
-    mutate(#new_cluster_id = factor(cluster.id) %>% as.integer(),
-           age = if_else(!is.na(age), age, age.census),
+    mutate(age = if_else(!is.na(age), age, age.census),
            age_group = if_else(!is.na(age_group), age_group, age.census_group),
            age_squared = age^2,
            missing_covar = is.na(floor)) %>% 
@@ -1438,11 +1431,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   is_dynamic_model <- !is.null(dynamic_treatment_map)
   
   if (is_dynamic_model) {
-    # if (prepared_treatment_maps) {
-      dyn_treat_maps <- dynamic_treatment_map
-    # } else {
-    #   dyn_treat_maps <- prepare_dynamic_treatment_maps(dynamic_treatment_map, prepared_analysis_data)
-    # }
+    dyn_treat_maps <- dynamic_treatment_map
     
     dynamic_treatment_map <- dyn_treat_maps$map
     dynamic_treatment_mask_map <- dyn_treat_maps$mask
@@ -1787,6 +1776,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     within_cluster_treatment_map = within_cluster_treatment_map %>% 
       unnest(cluster_dm, .drop = TRUE) %>% 
       select(-cluster_treatment_id),
+    within_cluster_treatment_map_ginv = MASS::ginv(as.matrix(within_cluster_treatment_map)),
     
     num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
     num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),
