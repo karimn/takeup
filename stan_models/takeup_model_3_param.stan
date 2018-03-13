@@ -119,11 +119,6 @@ data {
   
   int<lower = 0, upper = 1> dewormed_any[num_obs];
   int<lower = 1, upper = num_deworming_days + 1> dewormed_day_any[num_obs];
- 
-  int num_dewormed; 
-  int strata_dewormed_sizes[num_strata];
-  int dewormed_ids[num_dewormed];
-  int<lower = 1> stratum_dewormed_index[num_dewormed];
   
   // Dynamics
   
