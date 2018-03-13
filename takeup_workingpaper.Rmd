@@ -20,6 +20,7 @@ header-includes:
    - \usepackage{pdflscape}
    - \usepackage{threeparttable}
    - \usepackage{todonotes}
+   - \usepackage{tikz}
 abstract: "This paper provides field-experimental evidence on the role of social signaling in community deworming. Working with the Kenyan Government, we implement a new community deworming program that offers free deworming treatment to 200,000 adults over a period of twelve days. The program explicitly emphasizes the public good aspect of deworming. We introduce two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink make the decision to deworm or abstain from treatment observable and allow adults to signal to others that they contributed to protecting their community from worms. We further introduce a private incentive, in the form of a calendar, that is comparable in its consumption value to the bracelet. Deworming treatment points and their catchment communities are randomized into being eligible for the ink, bracelet or calendar incentive or a control group where no incentive is offered. The cluster randomization identifies the combined effect of social signaling, learning and reminders or salience effects. To separately identify the extent to which deworming decisions are driven by a desire to signal, we offer free text messages to a random subset of adults, reminding them of the availability of deworming treatment and providing information about deworming take-up in their community. To exogenously vary the information, we randomly assign communities to far or close walking distances to the treatment points, thus randomizing the average level of take-up in their community. We estimate a static and dynamic hierarchical Bayesian model to identify the average partial effect of social signaling on deworming take-up. Bracelets as _signals_ increased deworming take-up by 4 to 6 percentage points, an 11% to 20% increase compared to the control group. We find a close to zero average treatment effect for the ink incentive, with substantial heterogeneity in the impact across close (-3pp) and far communities (+2pp). The results suggest that mandatory signaling as in the case of inking people’s thumb, can dissuade marginal individuals if the perceived social desirability of being someone who deworms is negative. We find no evidence that visibility in actions, through ink or bracelets, affects take-up decisions through social learning or reminders. The text message treatment led to large increases (13-17pp) in deworming take-up across all groups, supporting existing evidence on the power of personal nudges."
 
 bibliography: /home/karim/Documents/library.bib
@@ -27,6 +28,55 @@ bibliography: /home/karim/Documents/library.bib
 
 \doublespacing
 \newtheorem{assumption}{Assumption}
+
+\usetikzlibrary{arrows,positioning,shapes.geometric,fit}
+
+\tikzset{
+  >=stealth',
+  county/.style={
+    ellipse,
+    draw=black, very thick,
+    fill=white,
+    text width=8.5em,
+    minimum height=2em,
+    text centered},
+  punkt/.style={
+    rectangle,
+    rounded corners,
+    draw=black, very thick,
+    fill=white,
+    text width=8.5em,
+    minimum height=2em,
+    text centered},
+  expgroup/.style 2 args={
+    rectangle,
+    rounded corners, 
+    draw=black!50, dashed,
+    fill=black!10,
+    fit=(#1) (#2)},
+  pil/.style={
+    <-,
+    thick,
+    shorten <=2pt,
+    shorten >=2pt},
+  greypil/.style={
+    <-,
+    draw=black, dotted,
+    shorten <=2pt,
+    shorten >=2pt},
+  triangle/.style={
+    regular polygon,
+    draw=black, very thick,
+    fill=white,
+    regular polygon sides=3
+  },
+  popcircle/.style={
+    circle,
+    fill=white,
+    draw=black, very thick
+  }
+}
+
 
 ```{r workingpaper-setup, include=FALSE}
 library(plyr)
@@ -193,6 +243,119 @@ Clusters were then randomly assigned, stratified over counties and distance trea
 To finalize the cluster selection process, we surveyed the treatment location and target community anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified alternative treatment locations, close to the selected schools, as potential backups. For the anchor schools, we identified all the communities near them and randomly selected one community to target.^[In some cases because the initial village was too small, we added a second village] We then conducted a census of all adults (18 years or older of age) residing in the selected communities: surveyors visited each household, captured their geographic coordinates, and collected basic information of each household member that would allow us to follow-up with individuals if they were sampled in later stages and to stratify over relevant characteristics (e.g., phone ownership).
 
 Using the census lists we randomly sampled individuals to be surveyed at base- and/or endline and to be part of the text messaging intervention. The sampling of individuals who did not receive any text messages was stratified over phone ownership. For all sampled individuals, we monitored the decision to take-up deworming treatment and obtained their consent to having observed their take-up status and using their data.^[Except for individuals who were surveyed at baseline, the majority were not informed about their participation in the study and therefore needed to be re-consented.] 
+
+\pgfdeclarelayer{background}
+\pgfdeclarelayer{foreground}
+\pgfsetlayers{background,main,foreground}
+
+\begin{figure}
+  \centering
+  \begin{tikzpicture}[node distance=1cm, auto,]
+    
+    \node[county] (kakamega) at (-5, -2) {Kakamega County};
+    \node[county] (siaya) at (0, -2) {Siaya County};
+    \node[county] (busia) at (5, -2) {Busia County};
+    
+    \node[punkt] (close) at (-2, -4) {Close}
+      edge[greypil] (kakamega)
+      edge[greypil] (busia)
+      edge[pil] (siaya);
+    \node[punkt] (far) at (2, -4) {Far}
+      edge[greypil] (kakamega)
+      edge[greypil] (busia)
+      edge[pil] (siaya);
+      
+    \node[punkt] (control) at (-6, -6) {Control}
+      edge[pil] (close)
+      edge[pil] (far);
+    \node[punkt] (ink) at (-2, -6) {Ink}
+      edge[pil] (close)
+      edge[pil] (far);
+    \node[punkt] (calendar) at (2, -6) {Calendar}
+      edge[pil] (close)
+      edge[pil] (far);
+    \node[punkt] (bracelet) at (6, -6) {Bracelet}
+      edge[pil] (close)
+      edge[pil] (far);
+      
+    \node[triangle, below=of ink] (village1) {}
+      edge[pil] (ink);
+    \node[triangle, left=0.25cm of village1] (village2) {}
+      edge[pil] (ink);
+    \node[triangle, right=0.75cm of village1] (village3) {}
+      edge[pil] (ink);
+      
+    \node[triangle, below=of control] (village1-control) {}
+      edge[pil] (control);
+    \node[triangle, left=0.25cm of village1-control] (village2-control) {}
+      edge[pil] (control);
+    \node[triangle, right=0.75cm of village1-control] (village3-control) {}
+      edge[pil] (control);
+      
+    \node[triangle, below=of calendar] (village1-calendar) {}
+      edge[pil] (calendar);
+    \node[triangle, left=0.25cm of village1-calendar] (village2-calendar) {}
+      edge[pil] (calendar);
+    \node[triangle, right=0.75cm of village1-calendar] (village3-calendar) {}
+      edge[pil] (calendar);
+      
+    \node[triangle, below=of bracelet] (village1-bracelet) {}
+      edge[pil] (bracelet);
+    \node[triangle, left=0.25cm of village1-bracelet] (village2-bracelet) {}
+      edge[pil] (bracelet);
+    \node[triangle, right=0.75cm of village1-bracelet] (village3-bracelet) {}
+      edge[pil] (bracelet);
+      
+     \path (village1) -- node[auto=false,font=\bf]{\ldots} (village3); 
+     \path (village1-control) -- node[auto=false,font=\bf]{\ldots} (village3-control); 
+     \path (village1-calendar) -- node[auto=false,font=\bf]{\ldots} (village3-calendar); 
+     \path (village1-bracelet) -- node[auto=false,font=\bf]{\ldots} (village3-bracelet); 
+     
+    \node[popcircle, below=1.5cm of village2-control, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control-control) {}
+      edge[pil] (village1-control);
+    \node[popcircle, below=3.5cm of village3-control, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-control-1) {}
+      edge[pil] (village1-control);
+    \node[popcircle, right=0.25cm of phone-sms-control-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Reminders Only}}}] (phone-sms-control-control-2) {}
+      edge[pil] (village1-control);
+    \node[popcircle, right=0.25cm of phone-sms-control-control-2, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-control-3) {}
+      edge[pil] (village1-control);
+     
+    \node[popcircle, below=1.5cm of village2, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control) {}
+      edge[pil] (village1);
+    \node[popcircle, below=3.5cm of village3, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-1) {}
+      edge[pil] (village1);
+    \node[popcircle, right=0.25cm of phone-sms-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-2) {}
+      edge[pil] (village1);
+     
+    \begin{pgfonlayer}{background}
+      \coordinate (strata top right) at (8, -1.1);
+      \coordinate (strata bottom left) at (-8, -2.9);
+      
+      \node[expgroup={strata bottom left}{strata top right}, label={[yshift=0.5cm,xshift=6cm]below:{\bf Strata} (Counties)}] (stratabox) {};
+      %% \node[rotate=-30, anchor=south] at (stratabox.east) {};
+      
+      \coordinate (villages top right) at (8, -7.1);
+      \coordinate (villages bottom left) at (-8, -8.5);
+      
+      \node[expgroup={villages bottom left}{villages top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Clusters} (Villages)}] (villagesbox) {};
+      
+      %%\node[rotate=-30, anchor=south] at (villagesbox.east) {{\bf Clusters}}; 
+      
+      \coordinate (non-phone top right) at (8, -9);
+      \coordinate (non-phone bottom left) at (-8, -10.52);
+      
+      \node[expgroup={non-phone bottom left}{non-phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Non Phone Owners}}] (non-phonebox) {};
+      
+      %%\node[rotate=-30, anchor=south] at (non-phonebox.east) {{\bf Non Phone Owners}}; 
+      
+      \coordinate (phone top right) at (8, -11);
+      \coordinate (phone bottom left) at (-8, -13.3);
+      
+      \node[expgroup={phone bottom left}{phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Phone Owners}}] {};
+    \end{pgfonlayer}
+  \end{tikzpicture}
+  \caption{Experiment Design: grey boxes identity the types of population units over which treatment was assigned. The study was stratified over counties (ellipses) and clustered over villages (triangles). Boxes identify cluster (village) level treatments while circles identify individual level treatments.}
+\end{figure}
 
 <!-- TODO Strange bit since we state above that all individuals who came for treatment, were asked about their name, age, gender and community. So saying "All individuals who were in these samples were collectively put the _monitored_ group. At the treatment location, individuals who were treated were asked some quick identifying questions (name, age, etc.), and if they were found to match someone in the _monitored_ group we made a record of their treatment." does not quite make sense and makes it sound like as if we did not monitor other people's treatment status which we did though.-->
 
