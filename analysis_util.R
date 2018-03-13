@@ -1373,7 +1373,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
                                            treatment_formula = NULL,
                                            subgroup_col = c("phone_owner", "name_matched"),
                                            drop_intercept_from_dm = TRUE,
-                                           nonparam_dynamics = FALSE,
+                                           param_dynamics = FALSE,
                                            param_poly_order = 1,
                                            all_ate = NULL,
                                            endline_covar = c("ethnicity", "floor", "school")) {
@@ -1514,7 +1514,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       summarize(takeup_total = sum(dewormed.any)) %>% 
       ungroup() 
     
-    if (nonparam_dynamics) {
+    if (param_dynamics) {
       combined_ate <- to_new_dyn_ate(all_ate, treatment_map)
       
       ate_treatments <- combined_ate %>% 
@@ -1891,10 +1891,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     observed_takeup_total = ate_treatments$takeup_total,
     ate_treatments = if (!is.null(ate_treatments)) { 
-        if (nonparam_dynamics) {
+        if (param_dynamics) {
           ate_treatments %>% select(static_all_treatment_id, dynamic_all_treatment_id)
         } else {
-          ate_treatments$all_treatment_id 
+          ate_treatments %>% select(all_treatment_id)
         } 
       }else 1,
     

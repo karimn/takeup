@@ -210,7 +210,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   treatment_formula = treatment_formula,
   subgroup_col = subgroups,
   drop_intercept_from_dm = FALSE, 
-  nonparam_dynamics = script_options$dynamic,
+  param_dynamics = script_options$dynamic,
   param_poly_order = 2,
   
   all_ate = all_ate,
@@ -223,7 +223,9 @@ param_stan_data <- prepare_bayesian_analysis_data(
   
   lkj_df = 2,
   
-  use_logit = !(script_options$dynamic && script_options$gumbel),
+  dynamic_model = script_options$dynamic,
+  
+  model_link_type = !(script_options$dynamic && script_options$gumbel),
   
   estimate_ate = 1,
   
@@ -241,13 +243,13 @@ if (script_options$`analysis-data-only`) quit()
 
 gen_initializer <- function(stan_data_list, script_options = script_options) {
   if (script_options$dynamic) {
-    if (script_options$gumbel) {
+    # if (script_options$gumbel) {
       function() {
-        lst(
-          strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
-          strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
-          strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
-          strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
+        init_lst <- lst(
+          # strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
+          # strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
+          # strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
+          # strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
           
           # hyper_beta_day1 = rep(0, stan_data_list$num_all_treatment_coef),
           # hyper_beta_day1 = rnorm(stan_data_list$num_all_treatment_coef),
@@ -255,11 +257,19 @@ gen_initializer <- function(stan_data_list, script_options = script_options) {
           # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
           # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
           strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
-          QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
+          # QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
           QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.005), nrow = num_param_dyn_coef, ncol = num_strata)),
+          strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+          strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat))
         )
+        
+        if (script_options$`model-levels` > 2) {
+          init_lst %<>% 
+            update_list(cluster_beta = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_clusters, sd = 0.01), 
+                                                                   nrow = num_all_treatment_coef, ncol = num_clusters)))
+        }
       }
-    } else return("random")
+    # } else return("random")
   } else {
     if (script_options$`model-levels` > 2) {
       function() {
@@ -281,11 +291,13 @@ if (num_chains > parallel::detectCores()) stop("Not enough cores.")
 options(mc.cores = num_chains)
 rstan_options(auto_write = TRUE)
 
-if (script_options$dynamic) {
-  model_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
-} else {
-  model_param <- stan_model(file = file.path("stan_models", "takeup_model_4_static_param.stan"), model_name = "model_4_static_param")
-}
+# if (script_options$dynamic) {
+#   model_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
+# } else {
+#   model_param <- stan_model(file = file.path("stan_models", "takeup_model_4_static_param.stan"), model_name = "model_4_static_param")
+# }
+
+model_param <- stan_model(file = file.path("stan_models", "takeup_model_5_param.stan"), model_name = "model_5_param")
 
 cat(str_interp(
 "Output name: ${fit_version}.
