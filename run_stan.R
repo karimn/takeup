@@ -235,7 +235,8 @@ param_stan_data <- prepare_bayesian_analysis_data(
   save_sp_estimates = as.integer(script_options$`save-sp-estimates`)
 )
 
-save(param_stan_data, file = file.path(script_options$`output-dir`, "stan_analysis_data", str_interp("model_${fit_version}.RData")))
+save(param_stan_data, script_options, 
+     file = file.path(script_options$`output-dir`, "stan_analysis_data", str_interp("model_${fit_version}.RData")))
 
 if (script_options$`analysis-data-only`) quit()
 
