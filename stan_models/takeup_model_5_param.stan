@@ -343,25 +343,25 @@ transformed data {
 
 parameters {
   vector[num_all_treatment_coef] hyper_beta;
-  vector[dynamic_model ? num_deworming_days - 1 : 0] hyper_baseline_dyn_effect;
-  vector[dynamic_model ? num_param_dyn_coef : 0] hyper_treat_beta_dyn_effect;
+  vector[dynamic_model ? num_deworming_days - 1 : 0] hyper_baseline_dyn_effect; // Dynamic
+  vector[dynamic_model ? num_param_dyn_coef : 0] hyper_treat_beta_dyn_effect; // Dynamic
  
   // Student t degrees of freedom parameters with uniform priors
   real<lower = 2, upper = 8> stratum_student_df;
-  real<lower = 2, upper = 8> stratum_baseline_dyn_student_df;
-  real<lower = 2, upper = 8> stratum_dyn_student_df;
+  real<lower = 2, upper = 8> stratum_baseline_dyn_student_df; // Dynamic
+  real<lower = 2, upper = 8> stratum_dyn_student_df; // Dynamic
   real<lower = 2, upper = 8> cluster_student_df;
   
   matrix[strata_num_all_treatment_coef, num_strata] strata_beta_raw;
   vector<lower = 0>[strata_num_all_treatment_coef] strata_beta_tau;
   cholesky_factor_corr[strata_num_all_treatment_coef] strata_beta_L_corr_mat;
   
-  vector<lower = 0>[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_tau;
-  cholesky_factor_corr[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_L_corr_mat;
+  vector<lower = 0>[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_tau; // Dynamic
+  cholesky_factor_corr[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_L_corr_mat; // Dynamic
   
-  vector<lower = 0>[strata_num_param_dyn_coef] strata_beta_dyn_effect_tau;
-  matrix[max(strata_num_deworming_days - 1, 0), num_strata] strata_baseline_dyn_effect_raw;
-  matrix[strata_num_param_dyn_coef, num_strata] QR_strata_beta_dyn_effect;
+  vector<lower = 0>[strata_num_param_dyn_coef] strata_beta_dyn_effect_tau; // Dynamic
+  matrix[max(strata_num_deworming_days - 1, 0), num_strata] strata_baseline_dyn_effect_raw; // Dynamic
+  matrix[strata_num_param_dyn_coef, num_strata] QR_strata_beta_dyn_effect; // Dynamic
   
   matrix[cluster_num_all_treatment_coef, num_clusters] cluster_beta;
   matrix<lower = 0>[num_cluster_tau, num_strata] cluster_beta_tau;
@@ -593,7 +593,6 @@ generated quantities {
   // vector<lower = 0, upper = 1>[num_deworming_days] sp_est_daily_takeup[(estimate_ate && save_sp_estimates) ? num_ate_treatments : 0];
   // matrix<lower = 0, upper = 1>[num_strata, num_deworming_days] stratum_sp_est_daily_takeup[(estimate_ate && save_sp_estimates) ? num_ate_treatments : 0];
   // matrix<lower = 0, upper = 1>[num_clusters, num_deworming_days] cluster_sp_est_daily_takeup[(estimate_ate && save_sp_estimates) ? num_ate_treatments : 0];
-  
  
   // Superpopulation estimands 
   vector<lower = 0, upper = 1>[num_ate_treatments] sp_est_takeup = rep_vector(0, num_ate_treatments);
