@@ -1,0 +1,242 @@
+---
+title: "Social Knowledge"
+author:
+- Anne Karing^[University of California Berkeley]
+- Karim Naguib^[Evidence Action]
+output:
+  html_notebook:
+    fig_align: "center"
+    fig_caption: yes
+    fig_height: 5
+    fig_width: 8
+    number_sections: yes
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 5
+header-includes:
+   - \usepackage{bbm}
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(plyr)
+library(tidyverse)
+# library(multidplyr)
+library(lubridate)
+library(forcats)
+library(haven)
+library(lmtest)
+library(car)
+library(mlogit)
+library(broom)
+library(ggrepel)
+library(sp)
+library(rgeos)
+library(ggmap)
+library(knitr)
+
+library(econometr)
+
+source("takeup_rct_assign_clusters.R")
+source("analysis_util.R")
+
+knitr::read_chunk("analysis_util.R", labels = "analysis-util")
+
+config <- yaml::yaml.load_file("../local_config.yaml")
+
+doParallel::registerDoParallel(cores = config$cores)
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+
+do.neyman.analysis <- TRUE
+
+options(dplyr.show_progress = FALSE, digits = 4)
+```
+
+```{r load-data, include=FALSE}
+load(file.path("data", "analysis.RData"))
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.A") %>% 
+  mutate(relationship = fct_infreq(relationship)) %>% {
+    ggplot(.) +
+      geom_bar(aes(relationship, y = ..count../sum(..count..)), alpha = 0.5, color = "black") + 
+      labs(x = "Relationship", y = "Proportion", title = "Reported Relationships", subtitle = "Table A only", caption = sprintf("Number of knowledge queries: %d", nrow(.))) +
+      scale_y_continuous(breaks = seq(0, 1, 0.1))
+  }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.A", recognized == "yes") %>% 
+  mutate(relationship = fct_infreq(relationship)) %>% 
+  group_by(relationship) %>% 
+  mutate(rel.size = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop = n()/first(rel.size)) %>% 
+  ungroup %>% {
+    ggplot(., aes(x = relationship, group = dewormed)) +
+      geom_col(aes(y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+      labs(x = "Relationship", y = "Proportion", title = "Reported Others' Deworming", subtitle = "Table A only",
+           caption = "Proportions are relative to relationship group.") +
+      scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+      scale_fill_discrete("Other Dewormed")
+  }
+```
+
+```{r, fig.height=6}
+# endline.know.table.data %>% 
+#   filter(know.table.type == "table.A", recognized == "yes") %>% 
+#   # group_by(respondent.dewormed.any, assigned.treatment, actual.other.dewormed.any.either) %>% 
+#   group_by(assigned.treatment, actual.other.dewormed.any.either) %>% 
+#   mutate(rel.size = n()) %>% 
+#   group_by(dewormed, add = TRUE) %>% 
+#   summarize(prop = n()/first(rel.size)) %>% 
+#   ungroup %>% {
+#     ggplot(., aes(x = actual.other.dewormed.any.either, group = dewormed)) +
+#       geom_col(aes(y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+#       labs(x = "Actual Deworming Status", y = "Proportion", title = "Reported and Actual Others' Deworming", subtitle = "Table A only",
+#            caption = "Proportions are relative to deworming status group.") +
+#       scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+#       scale_fill_discrete("Reported Others' Dewormed") +
+#       facet_wrap(~ assigned.treatment, nrow = 1) +
+#       # facet_grid(respondent.dewormed.any ~ assigned.treatment) + #, nrow = 1) +
+#       theme(legend.position = "bottom")
+#   }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.B") %>% { 
+    ggplot(.) +
+      geom_bar(aes(num.recognized, y = ..count../sum(..count..)), alpha = 0.5, color = "black") + 
+      labs(x = "Number of Individuals Recognized", y = "Proportion", title = "Recognized in Pairs", subtitle = "Table B only", caption = sprintf("Number of knowledge queries: %d", nrow(.))) 
+  }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.B", num.recognized > 0) %>%
+  group_by(num.recognized) %>% 
+  mutate(num.rec.size = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop = n() / first(num.rec.size)) %>% 
+  ungroup %>% { 
+    ggplot(.) +
+      geom_col(aes(factor(num.recognized), y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+      labs(x = "Number of Individuals Recognized", y = "Proportion", title = "Reported Others' Deworming (In Pairs)", subtitle = "Table B only", caption = "Proportions are relative to relationship group.") +
+      scale_fill_discrete("Dewormed") +
+      scale_y_continuous(breaks = seq(0, 1, 0.1))
+  }
+```
+
+```{r, fig.height=6}
+endline.know.table.data %>% 
+  # filter(know.table.type == "table.B", num.recognized > 0) %>%
+  filter(num.recognized > 0) %>%
+  mutate(know.table.type = fct_recode(know.table.type, "Table A" = "table.A", "Table B" = "table.B")) %>% 
+  group_by(assigned.treatment, know.table.type, actual.other.dewormed.any.either) %>% 
+  mutate(num.rec.size = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop = n() / first(num.rec.size)) %>% 
+  ungroup %>% { 
+    ggplot(.) +
+      geom_col(aes(factor(actual.other.dewormed.any.either), y = prop, fill = dewormed), position = "dodge", alpha = 0.5, color = "black") + 
+      labs(x = "Others' Actual Deworming Status", y = "Proportion", title = "Reported and Actual Others' Deworming", caption = "Proportions are relative to facet and actual deworming status groups.") +
+      scale_fill_discrete("Others' Reported Deworming Status") +
+      scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+      facet_grid(know.table.type ~ assigned.treatment) +
+      theme(legend.position = "bottom")
+      # facet_wrap(~ assigned.treatment, nrow = 1)
+  }
+```
+
+```{r}
+endline.know.table.data %>% 
+  filter(know.table.type == "table.A", 
+         recognized == "yes") %>% 
+  group_by(KEY.individ, assigned.treatment, sms.treatment) %>% 
+  mutate(num_rec = n()) %>% 
+  group_by(dewormed, add = TRUE) %>% 
+  summarize(prop_response = n() / sum(num_rec)) %>%
+  group_by(assigned.treatment, sms.treatment, dewormed) %>% 
+  summarize(prop_response = mean(prop_response, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  ggplot(aes(factor(dewormed))) +
+  geom_col(aes(y = prop_response, fill = sms.treatment), position = "dodge") +
+  facet_wrap(~ assigned.treatment)
+
+endline.know.table.data %>% 
+  filter(know.table.type == "table.A", 
+         recognized == "yes", 
+         dewormed %in% c("no", "yes")) %>% 
+  mutate(correct_response = (dewormed == "no" & !actual.other.dewormed.any.either) | (dewormed == "yes" & actual.other.dewormed.any.either)) %>% 
+  group_by(KEY.individ, assigned.treatment, sms.treatment) %>% 
+  summarize(prop_accurate = mean(correct_response, na.rm = TRUE), prop_dewormed = mean(dewormed == "yes"), prop_actual_dewormed = mean(actual.other.dewormed.any.either)) %>% 
+  group_by(assigned.treatment, sms.treatment) %>%
+  summarize_at(vars(prop_accurate, prop_dewormed, prop_actual_dewormed), funs(mean(., na.rm = TRUE)))
+```
+
+```{r, fig.width=10}
+endline.data %>% 
+  ggplot() +
+  geom_freqpoly(aes(x = dworm_rate, y = ..density.., color = sms.treatment), binwidth = 1) +
+  geom_vline(aes(xintercept = mean_belief, color = sms.treatment), 
+             data = . %>% group_by(assigned.treatment, sms.treatment) %>% summarize(mean_belief = mean(dworm_rate, na.rm = TRUE))) +
+  scale_x_continuous("Reported Rate", breaks = 0:10) +
+  scale_y_continuous("Density") +
+  scale_color_discrete("") +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ assigned.treatment, ncol = 1)  
+
+endline.data %>% 
+  left_join(select(analysis.data, KEY.individ, dewormed.any), "KEY.individ") %>% 
+  ggplot() +
+  geom_freqpoly(aes(x = dworm_rate, y = ..density.., color = sms.treatment), binwidth = 1) +
+  geom_vline(aes(xintercept = mean_belief, color = sms.treatment), 
+             data = . %>% group_by(assigned.treatment, sms.treatment, dewormed.any) %>% summarize(mean_belief = mean(dworm_rate, na.rm = TRUE))) +
+  scale_x_continuous("Reported Rate", breaks = 0:10) +
+  scale_y_continuous("Density") +
+  scale_color_discrete("") +
+  theme(legend.position = "bottom") +
+  facet_grid(assigned.treatment ~ dewormed.any)  
+```
+
+```{r, fig.height=20, fig.width=15}
+takeup_beliefs <- select(endline.data, cluster.id, village, assigned.treatment, sms.treatment, dworm_rate) %>% 
+  group_by(cluster.id, village, assigned.treatment, sms.treatment) %>% 
+  summarize(takeup_rate = mean(dworm_rate, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  rename(rate_type = sms.treatment)
+
+sms.content.data %>% 
+  filter(deworming.day == 10, !is.na(KEY.individ), !is.na(social.info)) %>% 
+  inner_join(select(analysis.data, KEY.individ, cluster.id, village, assigned.treatment), "KEY.individ") %>% 
+  distinct(cluster.id, village, assigned.treatment, social.info) %>% 
+  rename(takeup_rate = social.info) %>% 
+  mutate(rate_type = "sms_content") %>% 
+  bind_rows(takeup_beliefs) %>% 
+  spread(rate_type, takeup_rate) %>% 
+  mutate(village = factor(village) %>% fct_reorder(sms_content)) %>% 
+  ggplot(aes(x = village)) +
+  # geom_linerange(aes(ymin = 0, ymax = takeup_rate), size = 0.15) +
+  # geom_point(aes(y = takeup_rate, color = rate_type), data = . %>% gather(rate_type, takeup_rate) %>% filter(rate_type != "sms_content")) +
+  geom_segment(aes(xend = village, y = sms.control, yend = social.info), arrow = arrow(length = unit(0.125, "cm"))) +
+  geom_point(aes(y = sms_content)) +
+  labs(x = "", y = "") +
+  coord_flip() +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+  facet_wrap(~ assigned.treatment, ncol = 2, scales = "free_y")
+```
+
