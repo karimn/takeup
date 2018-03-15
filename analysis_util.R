@@ -636,6 +636,7 @@ prep.sms.treat.dist.plot.data <- function(.reg.output) {
 
 plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, data_preparer = function(data) data,
                         incentive_treatment_col = "incentive_treatment_static",
+                        sms_treatment_col = "sms.treatment.2_static",
                         include_sms_treatment = FALSE,
                         lower_level_data = NULL, 
                         lower_level_color_by = NULL,
@@ -645,10 +646,11 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
   inner_data_preparer <- . %>% 
     mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
       if (include_sms_treatment) {
-         mutate_at(., vars(starts_with("sms.treatment.2")), funs(fct_recode(., 
-                                                                            "No SMS" = "control",
-                                                                            "Reminders" = "reminder.only",
-                                                                            "Social Info" = "social.info")))   
+        select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
+        mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
+                                                                        "No SMS" = "control",
+                                                                        "Reminders" = "reminder.only",
+                                                                        "Social Info" = "social.info")))
       } else {
         return(.)
       }
@@ -694,7 +696,7 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       } else if (!is_null(takeup_data)) {
         if (include_sms_treatment) {
           plot_obj <- plot_obj +
-            geom_violin(aes(y = wtd_iter_est, fill = sms.treatment.2),
+            geom_violin(aes_string(y = "wtd_iter_est", fill = sms_treatment_col),
                         alpha = 0.5, 
                         color = "black",
                         position = dodge,
@@ -716,14 +718,14 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       if (include_sms_treatment) {
         if (is_null(takeup_data)) {
           plot_obj <- plot_obj +
-            geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2), size = 0.5, position = dodge) +
-            geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2), size = 1.5, position = dodge) +
+            geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", color = sms_treatment_col), size = 0.5, position = dodge) +
+            geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col), size = 1.5, position = dodge) +
             scale_color_discrete("SMS Treatment")
           
           caption_text %<>% str_c("Horizonal line ranges represent the 90% and 95% probability intervals.", sep = "\n")
         } else {
           plot_obj <- plot_obj +
-            geom_point(aes(group = sms.treatment.2), size = 2, position = dodge) +
+            geom_point(aes_string(group = sms_treatment_col), size = 2, position = dodge) +
             scale_fill_discrete("SMS Treatment")
         }
         
@@ -738,7 +740,7 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       if (show_observed) {
         if (include_sms_treatment) {
           plot_obj <- plot_obj +
-            geom_point(aes(y = observed_takeup_prop, group = sms.treatment.2), 
+            geom_point(aes_string(y = "observed_takeup_prop", group = sms_treatment_col), 
                        alpha = 0.5, shape = 21, stroke = 1.5, size = 5, position = dodge) 
         } else {
           plot_obj <- plot_obj +
@@ -767,38 +769,66 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
     }
 }
 
-plot_dyn_takeup_daily <- function(daily_takeup_summ, 
+plot_dyn_takeup_daily <- function(daily_takeup_summ,
+                                  include_sms_treatment = FALSE,
                                   control_observation = FALSE) {
+  color_col <- if (include_sms_treatment) "sms.treatment.2_static" else "incentive_treatment_static"
+  
   if (control_observation) {
     daily_takeup_summ %<>% 
       mutate(treatment_fullobs = str_c(as.character(incentive_treatment_static), full_observation, sep = "-"))
-    line_aes <- aes(group = treatment_fullobs, color = incentive_treatment_static, linetype = full_observation)
+    
+    line_aes <- aes_string(group = "treatment_fullobs", color = color_col, linetype = "full_observation")
   } else {
-    line_aes <- aes(group = incentive_treatment_static, color = incentive_treatment_static)
+    line_aes <- aes_string(color = color_col)
   }
   
-  daily_takeup_summ %>% 
+  plot_obj <- daily_takeup_summ %>% 
     filter(day < 13) %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
+      if (include_sms_treatment) {
+        select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
+          mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
+                                                                          "No SMS" = "control",
+                                                                          "Reminders" = "reminder.only",
+                                                                          "Social Info" = "social.info"))) 
+      } else return(.)
+    } %>% 
     ggplot(aes(day, mean_est)) +
     geom_line(line_aes) +
     scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
-    scale_color_discrete("Incentive/Signal Treatment") +
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
+  
+  if (include_sms_treatment) {
+    plot_obj <- plot_obj +
+      scale_color_discrete("SMS Treatment") 
+      # facet_wrap(~ incentive_treatment_static, ncol = 2, nrow = 2)
+  } else {
+    plot_obj <- plot_obj +
+      scale_color_discrete("Incentive/Signal Treatment") 
+  }
+  
+  return(plot_obj)
 }
 
 plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_preparer = function(data) data, 
                      incentive_treatment_left_col = "incentive_treatment_static_left",
+                     sms_treatment_col = "sms.treatment.2_static_left",
+                     sms_treatment_col_right = str_replace(sms_treatment_col, "_left$", "_right"),
                      # by_comparator = NULL,
                      include_sms_treatment = FALSE,
                      sms_treatment_right = FALSE,
                      quantiles = c(0.025, 0.05, 0.1, 0.5,  0.9, 0.95, 0.97)) {
   inner_data_preparer <- . %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% 
-    mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(., 
-                                                                    "No SMS" = "control",
-                                                                    "Reminders" = "reminder.only",
-                                                                    "Social Info" = "social.info"))) %>%    
+    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
+      if (include_sms_treatment) {
+        select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
+          mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
+                                                                          "No SMS" = "control",
+                                                                          "Reminders" = "reminder.only",
+                                                                          "Social Info" = "social.info"))) 
+      } else return(.)
+    } %>% 
     data_preparer() 
  
   if (!is_null(ate_data)) { 
@@ -808,6 +838,11 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
     if (!is_null(combiner)) {
       ate_data %<>% combiner()
     }
+  }
+  
+  if (include_sms_treatment) {
+    ate_summ_data %<>% 
+      unite_("sms_left_right", c(sms_treatment_col, sms_treatment_col_right), remove = FALSE)
   }
   
   # mutate(ref = if_else(incentive_treatment_right_static == "control" & sms.treatment.2_right == "sms.control", 
@@ -832,7 +867,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
           #                 draw_quantiles = quantiles, data = ate_data)
           # } else {
             plot_obj <- plot_obj +
-              geom_violin(aes(y = wtd_iter_est, fill = sms.treatment.2_left),
+              geom_violin(aes_string(y = "wtd_iter_est", fill = sms_treatment_col),
                           alpha = 0.5, 
                           color = "black",
                           position = dodge,
@@ -884,25 +919,25 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
       # } else {
       if (include_sms_treatment && !is_null(ate_data)) {
         plot_obj <- plot_obj +
-          geom_point(aes(group = sms.treatment.2_left), size = 2, position = dodge) 
+          geom_point(aes_string(group = sms_treatment_col), size = 2, position = dodge) 
       } else {
         if (include_sms_treatment) {
           
           if (sms_treatment_right) {
             plot_obj <- plot_obj +
-              geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2_left, group = str_c(sms.treatment.2_left, sms.treatment.2_right)), 
+              geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col, group = "sms_left_right"), 
                              size = 1.5, position = dodge) +
               scale_color_discrete("SMS Treatment")
             plot_obj <- plot_obj +
-              geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2_left, shape = sms.treatment.2_right), 
+              geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", color = sms_treatment_col, shape = sms_treatment_col_right),
                               size = 0.5, fatten = 10, position = dodge)  +
               scale_shape_discrete("SMS Reference Treatment")
           } else {
             plot_obj <- plot_obj +
-              geom_linerange(aes(ymin = lb_90, ymax = ub_90, color = sms.treatment.2_left), size = 1.5, position = dodge) +
+              geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col), size = 1.5, position = dodge) +
               scale_color_discrete("SMS Treatment")
             plot_obj <- plot_obj +
-              geom_pointrange(aes(ymin = lb_95, ymax = ub_95, color = sms.treatment.2_left), size = 0.5, position = dodge) 
+              geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", color = sms_treatment_col), size = 0.5, position = dodge) 
           }
         } else {
           plot_obj <- plot_obj +
