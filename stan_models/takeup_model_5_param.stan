@@ -384,9 +384,10 @@ transformed parameters {
   matrix[dynamic_model ? num_param_dyn_coef : 0, num_strata] strata_beta_dyn_effect; 
   matrix[strata_num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw;  
   
+  cov_matrix[strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
+  
   {
     int cluster_pos = 1;
-    matrix[strata_num_all_treatment_coef, strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
     matrix[dynamic_model ? num_deworming_days - 1 : 0, dynamic_model ? num_deworming_days - 1 : 0] strata_baseline_dyn_effect_L_vcov;  
    
     if (dynamic_model) { 
@@ -601,6 +602,8 @@ generated quantities {
   vector<lower = -1, upper = 1>[num_ate_pairs] sp_est_takeup_ate = rep_vector(0, num_ate_pairs);
   matrix<lower = -1, upper = 1>[num_strata, num_ate_pairs] stratum_sp_est_takeup_ate = rep_matrix(0, num_strata, num_ate_pairs);
   matrix<lower = -1, upper = 1>[num_clusters, num_ate_pairs] cluster_sp_est_takeup_ate = rep_matrix(0, num_clusters, num_ate_pairs);
+
+  corr_matrix[num_ate_treatments] strata_treatment_corr = rep_matrix(0, num_ate_treatments, num_ate_treatments);
   
   vector[num_ate_treatments] hyper_latent_var_map; 
   matrix[num_strata, num_ate_treatments] stratum_latent_var_map; 
@@ -612,6 +615,10 @@ generated quantities {
   if (estimate_ate) {
     int stratum_pos = 1;
     matrix[num_clusters, num_ate_treatments] cluster_latent_var_map; 
+    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_vcov = tcrossprod(strata_beta_L_vcov); 
+    matrix[num_ate_treatments, num_ate_treatments] strata_treatment_sandwich = (diag_matrix(diagonal(strata_beta_vcov)) \ treatment_map_design_matrix[ate_treatments[, 1]])';
+    
+    strata_treatment_corr = quad_form(strata_beta_vcov, strata_treatment_sandwich);
     
     hyper_latent_var_map = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta;
     stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta)';
