@@ -384,7 +384,7 @@ transformed parameters {
   matrix[dynamic_model ? num_param_dyn_coef : 0, num_strata] strata_beta_dyn_effect; 
   matrix[strata_num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw;  
   
-  cov_matrix[strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
+  cholesky_factor_cov[strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
   
   {
     int cluster_pos = 1;
