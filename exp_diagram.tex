@@ -1,0 +1,160 @@
+\documentclass[tikz,convert={density=300 -alpha deactivate,size=1080x800,outext=.png}]{standalone}
+
+\usetikzlibrary{arrows,positioning,shapes.geometric,fit}
+
+\tikzset{
+  >=stealth',
+  county/.style={
+    ellipse,
+    draw=black, very thick,
+    fill=white,
+    text width=8.5em,
+    minimum height=2em,
+    text centered},
+  punkt/.style={
+    rectangle,
+    rounded corners,
+    draw=black, very thick,
+    fill=white,
+    text width=8.5em,
+    minimum height=2em,
+    text centered},
+  expgroup/.style 2 args={
+    rectangle,
+    rounded corners, 
+    draw=black!50, dashed,
+    fill=black!10,
+    fit=(#1) (#2)},
+  pil/.style={
+    <-,
+    thick,
+    shorten <=2pt,
+    shorten >=2pt},
+  greypil/.style={
+    <-,
+    draw=black, dotted,
+    shorten <=2pt,
+    shorten >=2pt},
+  triangle/.style={
+    regular polygon,
+    draw=black, very thick,
+    fill=white,
+    regular polygon sides=3
+  },
+  popcircle/.style={
+    circle,
+    fill=white,
+    draw=black, very thick
+  }
+}
+
+\begin{document}
+
+\pgfdeclarelayer{background}
+\pgfdeclarelayer{foreground}
+\pgfsetlayers{background,main,foreground}
+
+\begin{tikzpicture}[node distance=1cm, auto,]
+  \node[county] (kakamega) at (-5, -2) {Kakamega County};
+  \node[county] (siaya) at (0, -2) {Siaya County};
+  \node[county] (busia) at (5, -2) {Busia County};
+  
+  \node[punkt] (close) at (-2, -4) {Close}
+    edge[greypil] (kakamega)
+    edge[greypil] (busia)
+    edge[pil] (siaya);
+  \node[punkt] (far) at (2, -4) {Far}
+    edge[greypil] (kakamega)
+    edge[greypil] (busia)
+    edge[pil] (siaya);
+    
+  \node[punkt] (control) at (-6, -6) {Control}
+    edge[pil] (close)
+    edge[pil] (far);
+  \node[punkt] (ink) at (-2, -6) {Ink}
+    edge[pil] (close)
+    edge[pil] (far);
+  \node[punkt] (calendar) at (2, -6) {Calendar}
+    edge[pil] (close)
+    edge[pil] (far);
+  \node[punkt] (bracelet) at (6, -6) {Bracelet}
+    edge[pil] (close)
+    edge[pil] (far);
+    
+  \node[triangle, below=of ink] (village1) {}
+    edge[pil] (ink);
+  \node[triangle, left=0.25cm of village1] (village2) {}
+    edge[pil] (ink);
+  \node[triangle, right=0.75cm of village1] (village3) {}
+    edge[pil] (ink);
+    
+  \node[triangle, below=of control] (village1-control) {}
+    edge[pil] (control);
+  \node[triangle, left=0.25cm of village1-control] (village2-control) {}
+    edge[pil] (control);
+  \node[triangle, right=0.75cm of village1-control] (village3-control) {}
+    edge[pil] (control);
+    
+  \node[triangle, below=of calendar] (village1-calendar) {}
+    edge[pil] (calendar);
+  \node[triangle, left=0.25cm of village1-calendar] (village2-calendar) {}
+    edge[pil] (calendar);
+  \node[triangle, right=0.75cm of village1-calendar] (village3-calendar) {}
+    edge[pil] (calendar);
+    
+  \node[triangle, below=of bracelet] (village1-bracelet) {}
+    edge[pil] (bracelet);
+  \node[triangle, left=0.25cm of village1-bracelet] (village2-bracelet) {}
+    edge[pil] (bracelet);
+  \node[triangle, right=0.75cm of village1-bracelet] (village3-bracelet) {}
+    edge[pil] (bracelet);
+    
+   \path (village1) -- node[auto=false,font=\bf]{\ldots} (village3); 
+   \path (village1-control) -- node[auto=false,font=\bf]{\ldots} (village3-control); 
+   \path (village1-calendar) -- node[auto=false,font=\bf]{\ldots} (village3-calendar); 
+   \path (village1-bracelet) -- node[auto=false,font=\bf]{\ldots} (village3-bracelet); 
+   
+  \node[popcircle, below=1.5cm of village2-control, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control-control) {}
+    edge[pil] (village1-control);
+  \node[popcircle, below=3.5cm of village3-control, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-control-1) {}
+    edge[pil] (village1-control);
+  \node[popcircle, right=0.25cm of phone-sms-control-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Reminders Only}}}] (phone-sms-control-control-2) {}
+    edge[pil] (village1-control);
+  \node[popcircle, right=0.25cm of phone-sms-control-control-2, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-control-3) {}
+    edge[pil] (village1-control);
+   
+  \node[popcircle, below=1.5cm of village2, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control) {}
+    edge[pil] (village1);
+  \node[popcircle, below=3.5cm of village3, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-1) {}
+    edge[pil] (village1);
+  \node[popcircle, right=0.25cm of phone-sms-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-2) {}
+    edge[pil] (village1);
+   
+  \begin{pgfonlayer}{background}
+    \coordinate (strata top right) at (8, -1.1);
+    \coordinate (strata bottom left) at (-8, -2.9);
+    
+    \node[expgroup={strata bottom left}{strata top right}, label={[yshift=0.5cm,xshift=6cm]below:{\bf Strata} (Counties)}] (stratabox) {};
+    %% \node[rotate=-30, anchor=south] at (stratabox.east) {};
+    
+    \coordinate (villages top right) at (8, -7.1);
+    \coordinate (villages bottom left) at (-8, -8.5);
+    
+    \node[expgroup={villages bottom left}{villages top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Clusters} (Villages)}] (villagesbox) {};
+    
+    %%\node[rotate=-30, anchor=south] at (villagesbox.east) {{\bf Clusters}}; 
+    
+    \coordinate (non-phone top right) at (8, -9);
+    \coordinate (non-phone bottom left) at (-8, -10.52);
+    
+    \node[expgroup={non-phone bottom left}{non-phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Non Phone Owners}}] (non-phonebox) {};
+    
+    %%\node[rotate=-30, anchor=south] at (non-phonebox.east) {{\bf Non Phone Owners}}; 
+    
+    \coordinate (phone top right) at (8, -11);
+    \coordinate (phone bottom left) at (-8, -13.3);
+    
+    \node[expgroup={phone bottom left}{phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Phone Owners}}] {};
+  \end{pgfonlayer}
+\end{tikzpicture}
+\end{document}
