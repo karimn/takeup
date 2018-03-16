@@ -243,41 +243,42 @@ if (script_options$`analysis-data-only`) quit()
 # Initializer Factory -------------------------------------------------------------
 
 gen_initializer <- function(stan_data_list, script_options = script_options) {
-  if (script_options$dynamic) {
-    # if (script_options$gumbel) {
-      function() {
-        init_lst <- lst(
-          # strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
-          # strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
-          # strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
-          # strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
-          
-          # hyper_beta_day1 = rep(0, stan_data_list$num_all_treatment_coef),
-          # hyper_beta_day1 = rnorm(stan_data_list$num_all_treatment_coef),
-          # hyper_baseline_dyn_effect = rep(0, stan_data_list$num_deworming_days - 1),
-          # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
-          # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
-          strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
-          # QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
-          QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.005), nrow = num_param_dyn_coef, ncol = num_strata)),
-          strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
-          strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat))
-        )
+  if (script_options$dynamic) { # DYNAMIC
+    function() {
+      init_lst <- lst(
+        # strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
+        # strata_beta_day1_corr_mat_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[2], lkj_df)),
+        # strata_beta_day1_L_corr_mat_non_phone = t(chol(strata_beta_day1_corr_mat_non_phone)),
+        # strata_beta_day1_L_corr_mat_phone = t(chol(strata_beta_day1_corr_mat_phone)),
         
-        if (script_options$`model-levels` > 2) {
-          init_lst %<>% 
-            update_list(cluster_beta = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_clusters, sd = 0.01), 
-                                                                   nrow = num_all_treatment_coef, ncol = num_clusters)))
-        }
+        # hyper_beta_day1 = rep(0, stan_data_list$num_all_treatment_coef),
+        # hyper_beta_day1 = rnorm(stan_data_list$num_all_treatment_coef),
+        # hyper_baseline_dyn_effect = rep(0, stan_data_list$num_deworming_days - 1),
+        # hyper_baseline_dyn_effect = rnorm(stan_data_list$num_deworming_days - 1),
+        # hyper_treat_beta_dyn_effect = rep(0, stan_data_list$num_param_dyn_coef),
+        strata_beta_tau = with(stan_data_list, pmax(0.001, rnorm(num_all_treatment_coef, sd = 0.5))), 
+        strata_baseline_dyn_effect_raw = with(stan_data_list, matrix(rnorm((num_deworming_days - 1) * num_strata, sd = 0.5), nrow = num_deworming_days - 1, ncol = num_strata)),
+        # QR_strata_beta_day1 = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_strata, sd = 0.005), nrow = num_all_treatment_coef, ncol = num_strata)),
+        QR_strata_beta_dyn_effect = with(stan_data_list, matrix(rnorm(num_param_dyn_coef * num_strata, sd = 0.005), nrow = num_param_dyn_coef, ncol = num_strata)),
+        strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+        strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat))
+      )
+      
+      if (script_options$`model-levels` > 2) {
+        init_lst %<>% 
+          update_list(cluster_beta = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_clusters, sd = 0.01), 
+                                                                 nrow = num_all_treatment_coef, ncol = num_clusters)))
       }
-    # } else return("random")
-  } else {
+    }
+  } else { # STATIC
     if (script_options$`model-levels` > 2) {
       function() {
         lst(cluster_beta = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_clusters, sd = 0.01), 
                                                        nrow = num_all_treatment_coef, ncol = num_clusters)),
-            strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
-            strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat)))
+            # strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
+            strata_beta_corr_mat = with(stan_data_list, diag(rep(1, num_all_treatment_coef))),
+            strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat)),
+            strata_beta_tau = with(stan_data_list, pmax(0.001, rnorm(num_all_treatment_coef, sd = 0.5)))) 
       }
     } else return("random")
   }
