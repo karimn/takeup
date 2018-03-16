@@ -624,8 +624,6 @@ generated quantities {
     
     strata_treatment_corr = quad_form_sym(strata_treatment_vcov, diag_matrix(1 ./ strata_treatment_tau));
     
-    print(strata_treatment_corr[1:10, 1:10]);
-    
     hyper_latent_var_map = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta;
     stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta)';
     cluster_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * effective_cluster_beta)';
