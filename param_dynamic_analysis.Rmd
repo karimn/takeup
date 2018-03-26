@@ -411,7 +411,7 @@ ggsave(filename = "dyn_daily_all.png", path = "march_2018_plots",
        width = 7.5, height = 6.5)
 ```
 
-```{r param-dyn-daily-takeup-levels-with-sms, fig.width=12, fig.height=6}
+```{r param-dyn-daily-takeup-levels-with-sms, fig.width=8, fig.height=8}
 est_deworming_day_all %>% 
   mutate(full_observation = incentive_treatment_static == incentive_treatment_dynamic) %>% 
   filter(full_observation,
@@ -420,8 +420,11 @@ est_deworming_day_all %>%
   # filter(full_observation | incentive_treatment_dynamic == "control") %>% 
   plot_dyn_takeup_daily(control_observation = FALSE, include_sms_treatment = TRUE) +
   coord_cartesian(ylim = c(0, 0.21)) +
-  facet_wrap(~ incentive_treatment_static, nrow = 1) +
+  facet_wrap(~ incentive_treatment_static, nrow = 2) +
   theme(legend.position = "bottom")
+
+ggsave(filename = "dyn_daily_all_withsms.png", path = "march_2018_plots", 
+       width = 7.5, height = 7.5)
 ```
 
 ## Split by Distance

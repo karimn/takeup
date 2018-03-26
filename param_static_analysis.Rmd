@@ -62,14 +62,8 @@ cl <- parallel::makeCluster(max(1, num_cores))
 doParallel::registerDoParallel(cl)
 ```
 
-```{r param-rstan-setup}
-options(mc.cores = max(1, parallel::detectCores()))
-rstan_options(auto_write = TRUE)
-```
-
 ```{r param-model-version}
 fit_version <- "param_static_2330864" # Name matched and SMS, private value separated (bracelet and calendar)
-# fit_version <- "param_test_cluster_corr" # Name matched and SMS, private value separated (bracelet and calendar)
 # fit_version <- "param_static_nm_test_lvl2_re" # Name matched and SMS, private value separated (bracelet and calendar)
 # fit_version <- "param_static_nm_test_lvl2" # Name matched and SMS, private value separated (bracelet and calendar)
 # fit_version <- "param_static_2190373" # Name matched and SMS, private value separated (bracelet and calendar)
@@ -96,7 +90,8 @@ load(file.path("stan_analysis_data", str_interp("model_${fit_version}.RData")))
 # Analyzing
 
 ```{r param-model-prep-data, include=FALSE}
-static_treatment_cell_info <- param_stan_data$ate_treatments %>% 
+static_treatment_cell_info <- param_stan_data$ate_treatments %>%
+# static_treatment_cell_info <- tibble(all_treatment_id = param_stan_data$ate_treatments) %>% 
   mutate(treatment_size = with(param_stan_data, missing_treatment_sizes + observed_treatment_sizes)) %>% 
   left_join(param_stan_data$treatment_map, "all_treatment_id") %>% 
   select(-ends_with("_id"), all_treatment_id) %>% 
@@ -146,10 +141,6 @@ est_deworming_takeup_ate_phone <- est_deworming_takeup_ate %>%
   filter(dist.pot.group_left == dist.pot.group_right) %>% 
   prepare_est_deworming_ate(subgroups = "phone_owner_left")
 
-est_deworming_takeup_ate_phone_name_matched <- est_deworming_takeup_ate %>%
-  filter(dist.pot.group_left == dist.pot.group_right) %>% 
-  prepare_est_deworming_ate(subgroups = c("phone_owner_left", "name_matched_left"))
-
 est_deworming_takeup_ate_dist <- est_deworming_takeup_ate %>% 
   prepare_est_deworming_ate(subgroups = str_c("dist.pot.group", c("_left", "_right")))
 
@@ -159,10 +150,19 @@ est_deworming_takeup_ate_phone_dist <- est_deworming_takeup_ate %>%
 est_deworming_takeup_ate_all <- est_deworming_takeup_ate %>% 
   filter(dist.pot.group_left == dist.pot.group_right) %>% 
   prepare_est_deworming_ate() 
+```
 
-# est_deworming_takeup_ate_all_name_matched <- est_deworming_takeup_ate %>% 
-#   filter(dist.pot.group_left == dist.pot.group_right) %>% 
-#   prepare_est_deworming_ate(subgroups = "name_matched_left") 
+```{r verify-level-sms-difference}
+est_deworming_takeup_ate_phone_name_matched <- est_deworming_takeup_ate %>%
+  filter(dist.pot.group_left == dist.pot.group_right) %>% 
+  prepare_est_deworming_ate(subgroups = c("phone_owner_left", "name_matched_left"))
+
+est_deworming_takeup_ate_dist_name_matched <- est_deworming_takeup_ate %>% 
+  prepare_est_deworming_ate(subgroups = c(str_c("dist.pot.group", c("_left", "_right")), "name_matched_left"))
+
+est_deworming_takeup_ate_all_name_matched <- est_deworming_takeup_ate %>%
+  filter(dist.pot.group_left == dist.pot.group_right) %>%
+  prepare_est_deworming_ate(subgroups = "name_matched_left")
 ```
 
 
@@ -191,7 +191,7 @@ plot_takeup(
 # ) + facet_wrap(~ name_matched, scales = "free") 
 ```
 
-```{r static_level_smsctrl, fig.height=3, fig.width=8}
+```{r static_level_smsctrl, fig.height=5, fig.width=8}
 plot_takeup(
   takeup_summ_data = est_deworming_takeup_all,
   data_preparer = . %>%
@@ -201,7 +201,8 @@ plot_takeup(
       incentive_treatment != "Bracelet Social"
       ),
   incentive_treatment_col = "incentive_treatment",
-  show_observed = FALSE
+  show_observed = FALSE,
+  num_obs = param_stan_data$num_obs
     ) +
   labs(y = "") 
 
@@ -237,7 +238,8 @@ plot_takeup(
   incentive_treatment_col = "incentive_treatment",
   sms_treatment_col = "sms.treatment.2",
   include_sms_treatment = TRUE,
-  show_observed = FALSE
+  show_observed = FALSE,
+  num_obs = param_stan_data$num_obs
     ) +
   labs(y = "", subtitle = "Phone Owners Only") 
 
@@ -302,7 +304,7 @@ est_deworming_takeup_ate_all %>%
 # est_deworming_takeup_ate_all_name_matched %>% # Used this check the different ATE for name_matched and monitored
 est_deworming_takeup_ate_all %>%
   filter(incentive_treatment_left != "bracelet social",
-         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>% 
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
   plot_ate(
     ate_summ_data = .,
       data_preparer = . %>% 
@@ -312,13 +314,40 @@ est_deworming_takeup_ate_all %>%
              sms.treatment.2_left == sms.treatment.2_right),
     incentive_treatment_left_col = "incentive_treatment_left" 
   ) + 
-  labs(y = "") 
+  labs(y = "")
+       # subtitle = "ATE(z)",
+       # x = "Incentive/signal (z)") #+ facet_wrap(~ name_matched_left)
 
 ggsave(filename = "static_ate_smsctrl.png", path = "march_2018_plots",
-       width = 7.5, height = 3.25)
+       width = 7.5, height = 5)
 ```
 
+```{r static_ate_smsctrl-2, fig.width=8, fig.height=4}
+# est_deworming_takeup_ate_all_name_matched %>% # Used this check the different ATE for name_matched and monitored
+est_deworming_takeup_ate_all %>%
+  filter(incentive_treatment_left != "bracelet social",
+         incentive_treatment_right == "control" | incentive_treatment_left == "bracelet") %>% 
+  plot_ate(
+    ate_summ_data = .,
+      data_preparer = . %>% 
+      filter(incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left != incentive_treatment_right,
+             sms.treatment.2_left == "control",
+             sms.treatment.2_left == sms.treatment.2_right),
+    incentive_treatment_left_col = "incentive_treatment_left", 
+    incentive_treatment_right_col = "incentive_treatment_right" 
+  ) + 
+  labs(y = "")
+       # subtitle = "ATE(z)",
+       # x = "Incentive/signal (z)") #+ facet_wrap(~ name_matched_left)
+
+ggsave(filename = "static_ate_smsctrl_2.png", path = "march_2018_plots",
+       width = 7.5, height = 5)
+```
+
+
 ```{r static_ate_all, fig.width=8}
+# est_deworming_takeup_ate_phone_name_matched %>%
 est_deworming_takeup_ate_phone %>%
   mutate(same_incentive = incentive_treatment_left == incentive_treatment_right,
          same_sms = sms.treatment.2_left == sms.treatment.2_right) %>% 
@@ -331,17 +360,42 @@ est_deworming_takeup_ate_phone %>%
     ate_summ_data = .,
     incentive_treatment_left_col = "incentive_treatment_left",
     sms_treatment_col = "sms.treatment.2_left",
-    include_sms_treatment = TRUE
+    include_sms_treatment = TRUE,
+    num_obs = param_stan_data$num_obs
   ) + 
-  labs(y = "", subtitle = "Phone Owners Only") 
+  labs(y = "", subtitle = "Phone Owners Only") #+ facet_wrap(~ name_matched_left)
 
 ggsave(filename = "static_ate_all.png", path = "march_2018_plots",
        width = 7.5, height = 4.25)
 ```
 
+```{r static_ate_all-2, fig.width=8}
+# est_deworming_takeup_ate_phone_name_matched %>%
+est_deworming_takeup_ate_phone %>%
+  mutate(same_incentive = incentive_treatment_left == incentive_treatment_right,
+         same_sms = sms.treatment.2_left == sms.treatment.2_right) %>% 
+  filter(phone_owner_left, 
+         incentive_treatment_left != "bracelet social",
+         !same_incentive & same_sms,
+         sms.treatment.2_right != "reminder.only",
+         incentive_treatment_right == "control" | incentive_treatment_left == "bracelet") %>% 
+  plot_ate(
+    ate_summ_data = .,
+    incentive_treatment_left_col = "incentive_treatment_left", 
+    # incentive_treatment_right_col = "incentive_treatment_right",
+    sms_treatment_col = "sms.treatment.2_left",
+    include_sms_treatment = TRUE,
+    num_obs = param_stan_data$num_obs
+  ) + 
+  labs(y = "", subtitle = "Phone Owners Only") #+ facet_wrap(~ name_matched_left)
+
+ggsave(filename = "static_ate_all_2.png", path = "march_2018_plots",
+       width = 7.5, height = 4.25)
+```
+
 ```{r static_ate_signal_effect_sms_diff, fig.width=8, fig.height=4}
 est_deworming_takeup_ate %>% 
-  filter(incentive_treatment_left %in% c("ink", "bracelet"),
+  filter(incentive_treatment_left %in% c("ink", "calendar", "bracelet"),
          incentive_treatment_right == "control",
          phone_owner_left, phone_owner_right, !name_matched_left,
          dist.pot.group_left == dist.pot.group_right,
@@ -419,10 +473,12 @@ plot_takeup(
       ) %>% 
     mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(., str_to_title))), 
     incentive_treatment_col = "incentive_treatment", 
-    show_observed = FALSE 
+    show_observed = FALSE,
+    num_obs = param_stan_data$num_obs
     ) +
   labs(y = "", subtitle = "Split by distance") +
-  facet_wrap(~ dist.pot.group, ncol = 1)
+  facet_wrap(~ dist.pot.group, ncol = 1) +
+  theme(strip.text = element_text(size = 15, face = "bold"))
 
 ggsave(filename = "static_level_smsctrl_dist.png", path = "march_2018_plots",
        width = 7.5, height = 5.5)
@@ -440,10 +496,12 @@ plot_takeup(
     mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(., str_to_title))), 
     incentive_treatment_col = "incentive_treatment",
     sms_treatment_col = "sms.treatment.2",
-    include_sms_treatment = TRUE
+    include_sms_treatment = TRUE,
+    num_obs = param_stan_data$num_obs
   ) +
   labs(y = "", subtitle = "For phone owners only, split by distance.") +
-  facet_wrap(~ dist.pot.group, ncol = 1) 
+  facet_wrap(~ dist.pot.group, ncol = 1) +
+  theme(strip.text = element_text(size = 15, face = "bold"))
 
 ggsave(filename = "static_level_all_dist.png", path = "march_2018_plots",
        width = 7.5, height = 7)
@@ -517,14 +575,12 @@ est_deworming_takeup_ate_dist %>%
         strip.text.y = element_text(angle = 0),
         strip.background =  element_rect(color = "lightgrey", fill = "lightgrey"))
 ```
+
 ```{r static_ate_smsctrl_dist, fig.width=8}
 est_deworming_takeup_ate_dist %>% 
+# est_deworming_takeup_ate_dist_name_matched %>% 
   filter(incentive_treatment_left != "bracelet social",
          !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>% 
-  # mutate(incentive_treatment_left = if_else(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar", 
-  #                                           "bracelet social",
-  #                                           as.character(incentive_treatment_left)) %>% 
-  #          incentive_treatment_factor()) %>% 
   plot_ate(
     ate_summ_data = .,
     data_preparer = . %>% 
@@ -534,13 +590,42 @@ est_deworming_takeup_ate_dist %>%
            sms.treatment.2_left == "control",
            sms.treatment.2_left == sms.treatment.2_right) %>% 
       mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(factor(.), str_to_title))), 
-    incentive_treatment_left_col = "incentive_treatment_left"
+    incentive_treatment_left_col = "incentive_treatment_left",
+    num_obs = param_stan_data$num_obs
   ) + 
   labs(y = "") +
-  facet_wrap(~ dist.pot.group_left, ncol = 1)
+  # facet_grid(name_matched_left ~ dist.pot.group_left)
+  facet_wrap(~ dist.pot.group_left, ncol = 1) +
+  theme(strip.text = element_text(size = 15, face = "bold"))
 
 ggsave(filename = "static_ate_smsctrl_dist.png", path = "march_2018_plots",
-       width = 7.5, height = 4.75)
+       width = 7.5, height = 5.5)
+```
+
+```{r static_ate_smsctrl_dist-2, fig.width=8}
+est_deworming_takeup_ate_dist %>% 
+  filter(incentive_treatment_left != "bracelet social",
+         incentive_treatment_right == "control" | incentive_treatment_left == "bracelet") %>% 
+  plot_ate(
+    ate_summ_data = .,
+    data_preparer = . %>% 
+    filter(incentive_treatment_right %in% c("Control", "Calendar"),
+           incentive_treatment_left != incentive_treatment_right,
+           dist.pot.group_left == dist.pot.group_right,
+           sms.treatment.2_left == "control",
+           sms.treatment.2_left == sms.treatment.2_right) %>% 
+      mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(factor(.), str_to_title))), 
+    incentive_treatment_left_col = "incentive_treatment_left",
+    incentive_treatment_right_col = "incentive_treatment_right",
+    num_obs = param_stan_data$num_obs
+  ) + 
+  labs(y = "") +
+  # facet_grid(name_matched_left ~ dist.pot.group_left)
+  facet_wrap(~ dist.pot.group_left, ncol = 1) +
+  theme(strip.text = element_text(size = 15, face = "bold"))
+
+ggsave(filename = "static_ate_smsctrl_dist_2.png", path = "march_2018_plots",
+       width = 7.5, height = 7)
 ```
 
 ```{r static_ate_all_dist, fig.width=8, fig.height=8}
@@ -563,38 +648,44 @@ est_deworming_takeup_ate_phone_dist %>%
     data_preparer = . %>% 
       mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(factor(.), str_to_title))), 
     include_sms_treatment = TRUE,
-    sms_treatment_right = FALSE
+    sms_treatment_right = FALSE,
+    num_obs = param_stan_data$num_obs
   ) + 
   labs(y = "") +
-  facet_wrap(~ dist.pot.group_left, ncol = 1)
+  facet_wrap(~ dist.pot.group_left, ncol = 1) +
+  theme(strip.text = element_text(size = 15, face = "bold"))
 
 ggsave(filename = "static_ate_all_dist.png", path = "march_2018_plots",
        width = 9, height = 7.5)
 ```
 
 
-```{r static_ate_signal_effect_dist_diff, fig.width=8, fig.height=3}
+```{r static_ate_signal_effect_dist_diff, fig.width=8, fig.height=4}
 est_deworming_takeup_ate %>% 
-  filter(incentive_treatment_left %in% c("ink", "bracelet"),
-         incentive_treatment_right == "control",
+  filter(incentive_treatment_left %in% c("ink", "bracelet", "calendar"),
+         incentive_treatment_right == "control" | (incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar"),
          dist.pot.group_left == dist.pot.group_right,
          sms.treatment.2_left == sms.treatment.2_right,
          sms.treatment.2_left == "control") %>% { 
    inner_join(filter(., dist.pot.group_left == "close"), 
               filter(., dist.pot.group_left == "far"),
-              c("incentive_treatment_left", "name_matched_left", "iter_id", "phone_owner_left", "treatment_size"), suffix = c("_close", "_far")) 
+              by = c("incentive_treatment_left", "incentive_treatment_right", "name_matched_left", "iter_id", "phone_owner_left", "treatment_size"), 
+              suffix = c("_close", "_far")) 
  } %>% 
  mutate(iter_ate = iter_ate_close - iter_ate_far) %>% 
  prepare_est_deworming_ate() %>% 
  plot_ate(
    ate_summ_data = .,
    incentive_treatment_left_col = "incentive_treatment_left",
-   include_sms_treatment = FALSE
+   incentive_treatment_right_col = "incentive_treatment_right",
+   include_sms_treatment = FALSE,
+   num_obs = param_stan_data$num_obs
  ) + 
- labs(y = "", subtitle = "Estimating difference in social effect on moving from far and close locations.") 
+ labs(y = "", subtitle = "Estimating difference in social effect on moving from far and close locations.") +
+ theme(strip.text = element_text(size = 15, face = "bold"))
 
 ggsave(filename = "static_ate_signal_effect_dist_diff.png", path = "march_2018_plots",
-       width = 7.5, height = 3.25)
+       width = 7.5, height = 5.25)
 ```
 
 ## Split by Phone Ownership
@@ -679,6 +770,7 @@ plot_takeup(
     mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(., str_to_title))) %>% 
     mutate_at(vars(starts_with("phone_owner")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Non-Phone Owners", "Phone Owners")))),
   incentive_treatment_col = "incentive_treatment",
+  show_observed = TRUE,
   include_sms_treatment = FALSE) +
   facet_grid(dist.pot.group + phone_owner ~name_matched, scales = "free")
   # facet_wrap(~ dist.pot.group + phone_owner, ncol = 1)
@@ -981,17 +1073,18 @@ plot_takeup(
 
 ```{r, fig.width=10, fig.height=4}
 sp_est_deworming_takeup_ate_all %>% 
+  filter(incentive_treatment_left != "bracelet social",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>% 
   plot_ate(
     ate_summ_data = .,
-    ate_data = sp_est_deworming_takeup_ate,
-    combiner = . %>%
-      subgroup_combiner("iter_ate"), 
+    # ate_data = sp_est_deworming_takeup_ate,
+    # combiner = . %>%
+    #   subgroup_combiner("iter_ate"), 
     data_preparer = . %>% 
       filter(incentive_treatment_right %in% c("Control", "Calendar"), 
              sms.treatment.2_left == "control",
              sms.treatment.2_right == "control"),
-    incentive_treatment_left_col = "incentive_treatment_left", 
-    by_comparator = "incentive_treatment_right"
+    incentive_treatment_left_col = "incentive_treatment_left" 
   )
 ```
 
