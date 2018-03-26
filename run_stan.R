@@ -2,6 +2,7 @@
 
 script_options <- docopt::docopt(sprintf(
 "Usage:
+  run_stan wtp [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
   run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-identity-corr --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
 
@@ -293,24 +294,20 @@ if (num_chains > parallel::detectCores()) stop("Not enough cores.")
 options(mc.cores = num_chains)
 rstan_options(auto_write = TRUE)
 
-# if (script_options$dynamic) {
-#   model_param <- stan_model(file = file.path("stan_models", "takeup_model_3_param.stan"), model_name = "model_3_param")
-# } else {
-#   model_param <- stan_model(file = file.path("stan_models", "takeup_model_4_static_param.stan"), model_name = "model_4_static_param")
-# }
+cat(str_interp("Output name: ${fit_version}\n"))
 
-model_param <- stan_model(file = file.path("stan_models", "takeup_model_5_param.stan"), model_name = "model_5_param")
-
-cat(str_interp(
-"Output name: ${fit_version}.
-Running model with ${param_stan_data$model_levels} levels."
-))
+if (script_options$wtp) {
+  model_param <- stan_model(file = file.path("stan_models", "wtp_model.stan"), model_name = "wtp_model")
+} else {
+  model_param <- stan_model(file = file.path("stan_models", "takeup_model_5_param.stan"), model_name = "model_5_param")
+  
+  cat(str_interp("Running model with ${param_stan_data$model_levels} levels.\n"))
+}
 
 model_fit <- param_stan_data %>% 
   sampling(model_param, data = ., 
            chains = num_chains,
            iter = as.integer(script_options$`num-iterations`),
-           # include = script_options$`include-latent-var-data`, pars = if (script_options$`include-latent-var-data`) NA else c("cluster_latent_var_map"),           
            control = lst(max_treedepth = as.integer(script_options$`max-treedepth`), 
                          adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            init = gen_initializer(., script_options),

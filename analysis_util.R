@@ -1253,29 +1253,39 @@ prepare_bayes_wtp_data <- function(
   stratum_map = origin_prepared_analysis_data %>% 
     mutate(stratum_id = as.integer(stratum)) %>% 
     distinct(stratum_id, stratum),
+  cluster_map = NULL,
   ...) {
+  
+  if (!is_null(cluster_map)) {
+    data_arranger <- function(.data, ...) arrange(.data, stratum_id, new_cluster_id, ...)
+  } else {
+    data_arranger <- function(.data, ...) arrange(.data, stratum_id, ...)
+  }
   
   incentive_choice_data <- origin_prepared_analysis_data %>%
     filter(!is.na(gift_choice) & gift_choice != "neither",
            assigned.treatment == "control",
            sms.treatment.2 == "sms.control") %>%
-    select(county, gift_choice, phone_owner) %>%
+    select(county, cluster.id, gift_choice, phone_owner) %>%
     mutate(offer = 0,
            response = "keep")
 
   incentive_choice_data <- wtp_data %>%
+    semi_join(origin_prepared_analysis_data, "cluster.id") %>% # Make sure we have the same clusters
     filter(!is.na(first_choice)) %>%
-    transmute(county,
+    transmute(county, cluster.id,
               gift_choice = first_choice,
               offer = price,
               response = second_choice) %>%
     bind_rows(incentive_choice_data) %>%
-    left_join(stratum_map, c("county" = "stratum")) %>%
+    left_join(stratum_map, c("county" = "stratum")) %>% {
+      if (!is_null(cluster_map)) left_join(., cluster_map, "cluster.id") else return(.) 
+    } %>%
     mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
-           response = 2 * (response == "switch") - 1) %>%
-    arrange(stratum_id, response)
+           response = 2 * (response == "switch") - 1) %>% 
+    data_arranger(response)
  
-  lst(
+  wtp_stan_data <- lst(
     num_strata = nrow(stratum_map),
     
     num_wtp_obs = nrow(incentive_choice_data),
@@ -1285,7 +1295,18 @@ prepare_bayes_wtp_data <- function(
     wtp_response = incentive_choice_data$response,
     
     ...
-  ) 
+  )
+  
+  if (!is_null(cluster_map)) {
+    wtp_stan_data %<>% 
+      update_list(
+        num_wtp_clusters = n_distinct(incentive_choice_data$new_cluster_id),
+        wtp_cluster_id = incentive_choice_data$new_cluster_id,
+        wtp_cluster_sizes = count(incentive_choice_data, stratum_id, new_cluster_id) %>% data_arranger() %>% pull(n)
+      )
+  }
+  
+  return(wtp_stan_data)
 }
 
 identify_treatment_id <- function(ate_pairs, treatment_map) {
@@ -1566,6 +1587,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
            true.monitored | !monitored) # using only true monitored and those not monitored because they weren't in a study sample
      
   stratum_map <- distinct(prepared_analysis_data, stratum_id, stratum)
+  cluster_map <- distinct(prepared_analysis_data, cluster.id, new_cluster_id)
  
   if (!is.null(all_ate)) {
     num_ate_pairs <- nrow(all_ate)
@@ -1782,7 +1804,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     census_covar_map, 
     stratum_map,
-    cluster_map = distinct(prepared_analysis_data, new_cluster_id, cluster.id),
+    cluster_map, 
     
     observed_stratum_takeup_total,
     observed_stratum_takeup_prop = if (!is_null(observed_stratum_takeup_total)) { 
@@ -1961,7 +1983,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_dewormed_any = dewormed_any[observed_obs_ids],
     ...
   ) %>% 
-    modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
+    modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map, cluster_map))
   
   return(stan_data_list)
 } 
