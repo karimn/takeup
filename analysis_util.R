@@ -1767,16 +1767,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   Q_param_dyn_treatment_design_matrix_long <- qr.Q(param_dyn_qr) * sqrt(num_relevant_obs_days - 1)
   R_param_dyn_treatment_design_matrix_long <- qr.R(param_dyn_qr) / sqrt(num_relevant_obs_days - 1)
   R_inv_param_dyn_treatment_design_matrix_long <- solve(R_param_dyn_treatment_design_matrix_long)
-  
-  private_value_calendar_coef <- treatment_map_design_matrix %>% 
-    names() %>% 
-    str_detect("private_valuecalendar") %>% 
-    which()
-  
-  private_value_bracelet_coef <- treatment_map_design_matrix %>% 
-    names() %>% 
-    str_detect("private_valuebracelet") %>% 
-    which()
  
   stan_data_list <- lst(
     # Save meta data 
@@ -1856,13 +1846,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     Q_param_dyn_treatment_design_matrix_long,
     R_param_dyn_treatment_design_matrix_long,
     R_inv_param_dyn_treatment_design_matrix_long,
-    
-    num_private_value_calendar_coef = length(private_value_calendar_coef),
-    num_private_value_bracelet_coef = length(private_value_bracelet_coef),
-    private_value_calendar_coef,
-    private_value_bracelet_coef,
-    private_value_bracelet_indicator = colnames(treatment_map_design_matrix) %>% str_detect("^private_valuebracelet$") %>% which,
-    not_private_value_bracelet_coef = seq_len(num_all_treatment_coef) %>% setdiff(private_value_bracelet_coef),
     
     census_covar_map_dm,
     num_census_covar_coef = ncol(census_covar_map_dm),
@@ -1979,19 +1962,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     ...
   ) %>% 
     modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map))
-  
-  # stan_data_list$dynamic_initializer <- function() { 
-  #   num_not_private_value_bracelet_coef <- with(stan_data_list, num_all_treatment_coef - num_private_value_bracelet_coef)
-  #   
-  #   lst(
-  #     hyper_beta_raw = rep(0, num_not_private_value_bracelet_coef),
-  #     stratum_beta_raw = array(rep(0, num_not_private_value_bracelet_coef * stan_data_list$num_strata),
-  #                              dim = c(stan_data_list$num_strata, num_not_private_value_bracelet_coef)),
-  #     hyper_dynamic_treatment_coef_raw = rep(0, stan_data_list$num_dynamic_treatment_col),
-  #     stratum_dynamic_treatment_coef_raw = with(stan_data_list, array(rep(0, num_dynamic_treatment_col * num_strata),
-  #                                                                     dim = c(num_strata, num_dynamic_treatment_col)))
-  #   )
-  # }
   
   return(stan_data_list)
 } 
