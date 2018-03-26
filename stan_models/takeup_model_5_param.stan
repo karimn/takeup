@@ -83,11 +83,9 @@ functions {
   
   matrix treatment_cell_deworming_day_prop_rng(int[,] treatment_ids, 
                                                int[] missing_obs_ids, 
-                                               // int[] missing_cluster_id,
                                                int[] missing_level_id, // Either stratum or cluster
                                                int[] missing_treatment_sizes,
                                                int[] observed_treatment_sizes,
-                                               // matrix census_covar_latent_var,
                                                matrix[] latent_var_map, // matrix[num_clusters, num_deworming_days][num_ate_treatments]
                                                int[] observed_dewormed_any,
                                                int use_logit) {
@@ -164,11 +162,13 @@ data {
   matrix[num_obs, num_all_treatment_coef] Q_treatment_design_matrix;
   matrix[num_all_treatment_coef, num_all_treatment_coef] R_inv_treatment_design_matrix;
   int<lower = 1, upper = num_all_treatments> obs_treatment[num_obs]; // ID of observed treatment (from treatment map)
-  
+ 
+  // These data identify private_value X distance interaction terms in the design matrix  
   int<lower = 0, upper = num_all_treatment_coef> num_private_value_dist_col;
   int<lower = 1, upper = num_all_treatment_coef> private_value_dist_col[num_private_value_dist_col];
   int<lower = 1, upper = num_all_treatment_coef> not_private_value_dist_col[num_all_treatment_coef - num_private_value_dist_col - 1];
-  
+ 
+  // These data are used to model within cluster individual level treatment assignments and their correlation. 
   int<lower = 1, upper = num_all_treatments> num_cluster_level_treatments;
   int<lower = 1> within_cluster_treatment_sizes[num_cluster_level_treatments];
   int<lower = 0, upper = num_cluster_level_treatments> unique_within_cluster_treatment_sizes[2]; // Control and treated clusters have different sizes
@@ -190,22 +190,24 @@ data {
   
   int num_deworming_days;
   
-  int<lower = 0, upper = 1> dewormed_any[num_obs];
-  int<lower = 1, upper = num_deworming_days + 1> dewormed_day_any[num_obs];
+  int<lower = 0, upper = 1> dewormed_any[num_obs]; // Binary outcome
+  int<lower = 1, upper = num_deworming_days + 1> dewormed_day_any[num_obs]; // Day dewormed; last day + 1 for not dewormed
   
   // Dynamics
   
-  int<lower = 1> param_poly_order;
-  
+  int<lower = 1> param_poly_order; // Parametric dynamic model polynomial order
+  int<lower = 1> num_param_dyn_coef; // Number of terms in parametric dynamic design matrix
+ 
+  // For the dynamic model each observation has (dewormed day - 1) observations 
   int<lower = 0, upper = 1> relevant_latent_var_map[num_deworming_days + 1, num_deworming_days];
-  
   int<lower = 1, upper = num_obs * num_deworming_days> num_relevant_obs_days;
-  int<lower = 1> num_param_dyn_coef;
-  
   int<lower = 1, upper = num_clusters> cluster_id_long[num_relevant_obs_days];
-  
   int<lower = 0, upper = 1> relevant_dewormed_any_daily[num_relevant_obs_days];
   int<lower = 1, upper = num_deworming_days> dewormed_day_long[num_relevant_obs_days];
+  
+  matrix[num_deworming_days, num_param_dyn_coef] param_dyn_treatment_map[num_all_treatments];
+  
+  // Design Matrices   
   
   matrix[num_relevant_obs_days, num_param_dyn_coef] param_dyn_treatment_design_matrix_long;
   matrix[num_relevant_obs_days, num_param_dyn_coef] Q_param_dyn_treatment_design_matrix_long;
@@ -214,8 +216,6 @@ data {
   matrix[num_relevant_obs_days, num_all_treatment_coef] treatment_design_matrix_long;
   matrix[num_relevant_obs_days, num_all_treatment_coef] Q_treatment_design_matrix_long;
   matrix[num_all_treatment_coef, num_all_treatment_coef] R_inv_treatment_design_matrix_long;
-  
-  matrix[num_deworming_days, num_param_dyn_coef] param_dyn_treatment_map[num_all_treatments];
   
   // Covariates
   
@@ -265,7 +265,6 @@ transformed data {
   // Long (dynamic) versions of strata/cluster sizes 
   int<lower = 0> relevant_daily_strata_sizes[num_strata];
   int<lower = 0> relevant_daily_cluster_sizes[num_clusters]; // By cluster ID
-  
   
   int<lower = 0> strata_num_all_treatment_coef = model_levels > 1 ? num_all_treatment_coef : 0;
   int<lower = 0> cluster_num_all_treatment_coef = 0;
@@ -384,10 +383,7 @@ transformed parameters {
   matrix[dynamic_model ? num_param_dyn_coef : 0, num_strata] strata_beta_dyn_effect; 
   matrix[strata_num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw;  
   
-  // matrix[strata_num_all_treatment_coef, strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
   cholesky_factor_cov[strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
-  
-  // print(strata_beta_L_vcov[1:10, 1:10]);
   
   {
     int cluster_pos = 1;
