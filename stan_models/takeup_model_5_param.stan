@@ -228,7 +228,7 @@ data {
   // Covariates
   
   int<lower = 1> num_census_covar_coef;
-  matrix<lower = 0, upper = 1>[num_obs, num_census_covar_coef] census_covar_design_matrix;
+  matrix[num_obs, num_census_covar_coef] census_covar_design_matrix;
   
   // int<lower = 1> num_census_covar_coef;
   // matrix[num_obs, num_census_covar_coef] census_covar_dm;
@@ -627,8 +627,6 @@ model {
           relevant_daily_cluster_pos = relevant_daily_cluster_end + 1;
         } else {
           int obs_end = obs_pos + curr_cluster_num_obs - 1;
-          
-          
        
           latent_var[obs_pos:obs_end] =
             treatment_design_matrix[obs_pos:obs_end] * effective_cluster_beta[, cluster_pos_index];
