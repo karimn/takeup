@@ -1869,7 +1869,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     R_param_dyn_treatment_design_matrix_long,
     R_inv_param_dyn_treatment_design_matrix_long,
     
-    census_covar_design_matrix = model_matrix(prepared_analysis_data, ~ age_group * gender) %>% select(-1),
+    census_covar_design_matrix = prepared_analysis_data %>% 
+      model_matrix(~ age_group * gender) %>% 
+      select(-1) %>% 
+      scale(),
     num_census_covar_coef = ncol(census_covar_design_matrix),
     
     # census_covar_map_dm,
