@@ -152,7 +152,7 @@ data {
   int<lower = 0, upper = 1> use_cluster_identity_corr; // Uncorrelated parameters at the cluster level (must have model_levels > 2)
  
   // 0: Don't control for census covar
-  // 1: Additative control for census covar
+  // 1: Additive control for census covar
   int<lower = 0, upper = 1> use_census_covar;
   
   // Sizes
@@ -230,9 +230,6 @@ data {
   int<lower = 1> num_census_covar_coef;
   matrix[num_obs, num_census_covar_coef] census_covar_design_matrix;
   
-  // int<lower = 1> num_census_covar_coef;
-  // matrix[num_obs, num_census_covar_coef] census_covar_dm;
- 
   // Counterfactuals and ATE
   
   int<lower = 0, upper = num_all_treatments * num_all_treatments> num_ate_treatments;
