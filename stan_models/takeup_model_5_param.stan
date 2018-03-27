@@ -16,6 +16,7 @@ functions {
                                            int[] missing_treatment_sizes,
                                            int[] observed_treatment_sizes,
                                            matrix latent_var_map, 
+                                           vector census_covar_latent_var,
                                            int[] observed_dewormed_any) {
     int missing_treatment_pos = 1;
     int observed_treatment_pos = 1;
@@ -26,8 +27,11 @@ functions {
       int missing_treatment_end = missing_treatment_pos + curr_missing_treatment_size - 1;
       int curr_observed_treatment_size = observed_treatment_sizes[treatment_ids_index];
       
+      int curr_missing_obs_ids[curr_missing_treatment_size] = missing_obs_ids[missing_treatment_pos:missing_treatment_end];
+      
       vector[curr_missing_treatment_size] missing_deworming_mask = 
-        treatment_deworming_rng(latent_var_map[missing_level_id[missing_treatment_pos:missing_treatment_end], treatment_ids_index]);
+        treatment_deworming_rng(latent_var_map[missing_level_id[missing_treatment_pos:missing_treatment_end], treatment_ids_index] 
+                                + census_covar_latent_var[curr_missing_treatment_size]);
                                     
       if (curr_observed_treatment_size > 0) {
         int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
@@ -146,6 +150,10 @@ data {
   
   int<lower = 0, upper = 1> use_cluster_re; // If model_levels < 2 this flag determines if a cluster RE is used.
   int<lower = 0, upper = 1> use_cluster_identity_corr; // Uncorrelated parameters at the cluster level (must have model_levels > 2)
+ 
+  // 0: Don't control for census covar
+  // 1: Additative control for census covar
+  int<lower = 0, upper = 1> use_census_covar;
   
   // Sizes
   
@@ -220,7 +228,10 @@ data {
   // Covariates
   
   int<lower = 1> num_census_covar_coef;
-  matrix[num_obs, num_census_covar_coef] census_covar_dm;
+  matrix<lower = 0, upper = 1>[num_obs, num_census_covar_coef] census_covar_design_matrix;
+  
+  // int<lower = 1> num_census_covar_coef;
+  // matrix[num_obs, num_census_covar_coef] census_covar_dm;
  
   // Counterfactuals and ATE
   
@@ -268,6 +279,9 @@ transformed data {
   
   int<lower = 0> strata_num_all_treatment_coef = model_levels > 1 ? num_all_treatment_coef : 0;
   int<lower = 0> cluster_num_all_treatment_coef = 0;
+  
+  int<lower = 0> strata_num_census_covar_coef = model_levels > 1 && use_census_covar > 0 ? num_census_covar_coef : 0;
+  int<lower = 0> cluster_num_census_covar_coef = model_levels > 2 && use_census_covar > 0 ? num_census_covar_coef : 0;
   
   int<lower = 0, upper = num_all_treatments> num_within_cluster_rows = 0;
   int<lower = 0, upper = num_all_treatments> num_cluster_tau = 0;
@@ -344,6 +358,8 @@ parameters {
   vector[num_all_treatment_coef] hyper_beta;
   vector[dynamic_model ? num_deworming_days - 1 : 0] hyper_baseline_dyn_effect; // Dynamic
   vector[dynamic_model ? num_param_dyn_coef : 0] hyper_treat_beta_dyn_effect; // Dynamic
+  
+  vector[use_census_covar > 0 ? num_census_covar_coef : 0] hyper_census_covar_beta;
  
   // Student t degrees of freedom parameters with uniform priors
   real<lower = 2, upper = 8> stratum_student_df;
@@ -351,9 +367,16 @@ parameters {
   real<lower = 2, upper = 8> stratum_dyn_student_df; // Dynamic
   real<lower = 2, upper = 8> cluster_student_df;
   
+  real<lower = 2, upper = 8> stratum_census_covar_student_df;
+  real<lower = 2, upper = 8> cluster_census_covar_student_df;
+  
   matrix[strata_num_all_treatment_coef, num_strata] strata_beta_raw;
   vector<lower = 0>[strata_num_all_treatment_coef] strata_beta_tau;
   cholesky_factor_corr[strata_num_all_treatment_coef] strata_beta_L_corr_mat;
+  
+  matrix[strata_num_census_covar_coef, num_strata] strata_census_covar_beta_raw;
+  vector<lower = 0>[strata_num_census_covar_coef] strata_census_covar_beta_tau;
+  cholesky_factor_corr[strata_num_census_covar_coef] strata_census_covar_beta_L_corr_mat;
   
   vector<lower = 0>[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_tau; // Dynamic
   cholesky_factor_corr[max(strata_num_deworming_days - 1, 0)] strata_baseline_dyn_effect_L_corr_mat; // Dynamic
@@ -366,6 +389,10 @@ parameters {
   matrix<lower = 0>[num_cluster_tau, num_strata] cluster_beta_tau;
   cholesky_factor_corr[num_within_cluster_control_treatments] control_cluster_L_corr_mat[num_strata, num_control_cluster_treatments];
   cholesky_factor_corr[num_within_cluster_treated_treatments] treated_cluster_L_corr_mat[num_strata, num_treated_cluster_treatments];
+  
+  matrix[cluster_num_census_covar_coef, num_clusters] cluster_census_covar_beta_raw;
+  matrix<lower = 0>[num_census_covar_coef, num_strata] cluster_census_covar_beta_tau;
+  cholesky_factor_corr[strata_num_census_covar_coef] cluster_census_covar_beta_L_corr_mat[num_strata];
 }
 
 transformed parameters {
@@ -385,9 +412,18 @@ transformed parameters {
   
   cholesky_factor_cov[strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
   
+  cholesky_factor_cov[strata_num_census_covar_coef] strata_census_covar_beta_L_vcov = diag_pre_multiply(strata_census_covar_beta_tau, 
+                                                                                                        strata_census_covar_beta_L_corr_mat);
+  
+  vector[num_obs] census_covar_latent_var = rep_vector(0, num_obs);
+  // vector[use_census_covar > 0 ? num_obs : 0] census_covar_latent_var = rep_vector(0, use_census_covar > 0 ? num_obs : 0);
+  
   {
     int cluster_pos = 1;
     matrix[dynamic_model ? num_deworming_days - 1 : 0, dynamic_model ? num_deworming_days - 1 : 0] strata_baseline_dyn_effect_L_vcov;  
+    
+    matrix[num_census_covar_coef, num_strata] strata_census_covar_beta = rep_matrix(0, num_census_covar_coef, num_strata);
+    matrix[num_census_covar_coef, num_clusters] cluster_census_covar_beta = rep_matrix(0, num_census_covar_coef, num_clusters);
     
     if (dynamic_model) { 
       hyper_full_baseline_dyn_effect = append_row(0, hyper_baseline_dyn_effect);
@@ -395,6 +431,8 @@ transformed parameters {
     
     if (model_levels > 1) {
       strata_beta = rep_matrix(hyper_beta, num_strata) + strata_beta_L_vcov * strata_beta_raw;
+      
+      strata_census_covar_beta = rep_matrix(hyper_census_covar_beta, num_strata) + strata_census_covar_beta_L_vcov * strata_census_covar_beta_raw;
       
       if (dynamic_model) { 
         strata_beta_dyn_effect = R_inv_param_dyn_treatment_design_matrix_long * QR_strata_beta_dyn_effect;
@@ -407,6 +445,8 @@ transformed parameters {
       }
     } else {
       strata_beta = rep_matrix(hyper_beta, num_strata);
+      
+      strata_census_covar_beta = rep_matrix(hyper_census_covar_beta, num_strata);
       
       if (dynamic_model) { 
         strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata);  
@@ -426,6 +466,9 @@ transformed parameters {
         
         matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta = within_cluster_treatment_map * cluster_beta[, cluster_pos:cluster_end];
         
+        matrix[cluster_num_census_covar_coef, cluster_num_census_covar_coef] cluster_census_covar_beta_L_vcov = 
+          diag_pre_multiply(cluster_census_covar_beta_tau[, stratum_index], cluster_census_covar_beta_L_corr_mat[stratum_index]);  
+        
         if (use_cluster_identity_corr) {
           within_cluster_beta_L_corr_mat = diag_matrix(rep_vector(1, num_within_cluster_rows));
         } else {
@@ -436,14 +479,16 @@ transformed parameters {
           for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
             int corr_end; 
             
-            if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
-              corr_end = corr_pos + unique_within_cluster_treatment_sizes[1] - 1;
-              within_cluster_beta_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = control_cluster_L_corr_mat[stratum_index, control_pos];
-              control_pos += 1; 
-            } else {
-              corr_end = corr_pos + unique_within_cluster_treatment_sizes[2] - 1;
-              within_cluster_beta_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = treated_cluster_L_corr_mat[stratum_index, treated_pos];
-              treated_pos += 1; 
+            if (!use_cluster_identity_corr) {
+              if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
+                corr_end = corr_pos + unique_within_cluster_treatment_sizes[1] - 1;
+                within_cluster_beta_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = control_cluster_L_corr_mat[stratum_index, control_pos];
+                control_pos += 1; 
+              } else {
+                corr_end = corr_pos + unique_within_cluster_treatment_sizes[2] - 1;
+                within_cluster_beta_L_corr_mat[corr_pos:corr_end, corr_pos:corr_end] = treated_cluster_L_corr_mat[stratum_index, treated_pos];
+                treated_pos += 1; 
+              }
             }
             
             corr_pos = corr_end + 1;
@@ -456,20 +501,30 @@ transformed parameters {
         
         within_cluster_beta_raw[, cluster_pos:cluster_end] = 
           within_cluster_beta_L_vcov_mat \ (within_cluster_beta - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
-      } else if (use_cluster_re) {
-        effective_cluster_beta[1, cluster_pos:cluster_end] = 
-          strata_beta[1, stratum_index] + cluster_beta_tau[1, stratum_index] * cluster_beta[1, cluster_pos:cluster_end];
+          
+        cluster_census_covar_beta[, cluster_pos:cluster_end] = 
+          rep_matrix(strata_census_covar_beta[, stratum_index], curr_num_clusters) 
+          + cluster_census_covar_beta_L_vcov * cluster_census_covar_beta_raw[, cluster_pos:cluster_end];   
+      } else { 
+        cluster_census_covar_beta = rep_matrix(strata_census_covar_beta[, stratum_index], curr_num_clusters);
         
-        effective_cluster_beta[2:num_all_treatment_coef, cluster_pos:cluster_end] = 
-          rep_matrix(strata_beta[2:num_all_treatment_coef, stratum_index], curr_num_clusters);
-      }  else {
-        effective_cluster_beta[, cluster_pos:cluster_end] = rep_matrix(strata_beta[, stratum_index], curr_num_clusters);
+        if (use_cluster_re) {
+          effective_cluster_beta[1, cluster_pos:cluster_end] = 
+            strata_beta[1, stratum_index] + cluster_beta_tau[1, stratum_index] * cluster_beta[1, cluster_pos:cluster_end];
+          
+          effective_cluster_beta[2:num_all_treatment_coef, cluster_pos:cluster_end] = 
+            rep_matrix(strata_beta[2:num_all_treatment_coef, stratum_index], curr_num_clusters);
+        }  else {
+          effective_cluster_beta[, cluster_pos:cluster_end] = rep_matrix(strata_beta[, stratum_index], curr_num_clusters);
+        }
       }
       
       cluster_full_baseline_dyn_effect[, cluster_pos:cluster_end] = rep_matrix(strata_full_baseline_dyn_effect[, stratum_index], curr_num_clusters);  
       
       cluster_pos = cluster_end + 1;
     }
+    
+    census_covar_latent_var = rows_dot_product(census_covar_design_matrix, cluster_census_covar_beta[, cluster_id]');
     
     if (model_levels > 2 && !use_cluster_re) {
       effective_cluster_beta = cluster_beta;
@@ -481,6 +536,8 @@ model {
   hyper_beta[1] ~ normal(0, hyper_intercept_sigma);
   hyper_beta[not_private_value_dist_col] ~ normal(0, hyper_coef_sigma);
   hyper_beta[private_value_dist_col] ~ normal(0, private_value_dist_sigma);
+  
+  hyper_census_covar_beta ~ normal(0, hyper_coef_sigma);
   
   if (dynamic_model) {
     hyper_baseline_dyn_effect ~ normal(0, hyper_coef_sigma);
@@ -499,10 +556,19 @@ model {
     to_vector(strata_beta_raw) ~ student_t(stratum_student_df, 0, 1);
     strata_beta_tau ~ normal(0, scale_sigma);
     strata_beta_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
+    
+    to_vector(strata_census_covar_beta_raw) ~ student_t(stratum_census_covar_student_df, 0, 1);
+    strata_census_covar_beta_tau ~ normal(0, scale_sigma);
+    strata_census_covar_beta_L_corr_mat ~ lkj_corr_cholesky(lkj_df);
  
     if (model_levels > 2 || use_cluster_re) { 
       to_vector(within_cluster_beta_raw) ~ student_t(cluster_student_df, 0, 1);
       to_vector(true_cluster_beta_tau) ~ normal(0, cluster_scale_sigma);
+      
+      if (model_levels > 2) {
+        to_vector(cluster_census_covar_beta_raw) ~ student_t(cluster_census_covar_student_df, 0, 1);
+        to_vector(cluster_census_covar_beta_tau) ~ normal(0, scale_sigma);
+      }
     } else if (use_cluster_re) {
       to_vector(cluster_beta) ~ student_t(cluster_student_df, 0, 1);
       to_vector(cluster_beta_tau) ~ normal(0, cluster_scale_sigma);
@@ -523,16 +589,20 @@ model {
       int control_pos = 1;
       int treated_pos = 1;
       
-      if (model_levels > 2 && !use_cluster_identity_corr) {
-        for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
-          if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
-            control_cluster_L_corr_mat[stratum_index, control_pos] ~ lkj_corr_cholesky(lkj_df);
-            control_pos += 1; 
-          } else {
-            treated_cluster_L_corr_mat[stratum_index, treated_pos] ~ lkj_corr_cholesky(lkj_df);
-            treated_pos += 1; 
+      if (model_levels > 2) { 
+        if (!use_cluster_identity_corr) {
+          for (cluster_level_treat_index in 1:num_cluster_level_treatments) {
+            if (within_cluster_treatment_sizes[cluster_level_treat_index] == unique_within_cluster_treatment_sizes[1]) {
+              control_cluster_L_corr_mat[stratum_index, control_pos] ~ lkj_corr_cholesky(lkj_df);
+              control_pos += 1; 
+            } else {
+              treated_cluster_L_corr_mat[stratum_index, treated_pos] ~ lkj_corr_cholesky(lkj_df);
+              treated_pos += 1; 
+            }
           }
         }
+        
+        cluster_census_covar_beta_L_corr_mat[stratum_index] ~ lkj_corr_cholesky(lkj_df);
       }
 
       for (cluster_pos_index in cluster_pos:cluster_end) {
@@ -557,6 +627,8 @@ model {
           relevant_daily_cluster_pos = relevant_daily_cluster_end + 1;
         } else {
           int obs_end = obs_pos + curr_cluster_num_obs - 1;
+          
+          
        
           latent_var[obs_pos:obs_end] =
             treatment_design_matrix[obs_pos:obs_end] * effective_cluster_beta[, cluster_pos_index];
@@ -576,9 +648,9 @@ model {
       }
     } else {
       if (model_link_type == 0) { 
-        dewormed_any ~ bernoulli(inv_cloglog(latent_var));
+        dewormed_any ~ bernoulli(inv_cloglog(latent_var + census_covar_latent_var));
       } else if (model_link_type == 1) {
-        dewormed_any ~ bernoulli_logit(latent_var);
+        dewormed_any ~ bernoulli_logit(latent_var + census_covar_latent_var);
       }
     }
   }
@@ -688,6 +760,7 @@ generated quantities {
                                           missing_treatment_sizes,
                                           observed_treatment_sizes,
                                           cluster_latent_var_map,
+                                          census_covar_latent_var,
                                           observed_dewormed_any);
                                           
       sp_est_takeup = inv_logit(hyper_latent_var_map);  

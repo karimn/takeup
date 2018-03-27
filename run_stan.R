@@ -4,7 +4,7 @@ script_options <- docopt::docopt(sprintf(
 "Usage:
   run_stan wtp [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
-  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-identity-corr --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
+  run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-identity-corr --use-cluster-re --use-census-covar --output-name=<output-name> --output-dir=<output-dir>]
 
  Options:
   --num-chains=<num-chains>, -c <num-chains>  Number of Stan chains [default: 1]
@@ -21,6 +21,7 @@ script_options <- docopt::docopt(sprintf(
   --model-levels=<model-levels>  How deep is the multilevel model [default: 3]
   --use-cluster-re  Use cluster level random effects (if model levels <= 2)
   --use-cluster-identity-corr  No correlation estimation for cluster level parameters
+  --use-census-covar  Control for census covariates
   --save-sp-estimates  Calcuate superpopulation ATE 
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
@@ -233,7 +234,9 @@ param_stan_data <- prepare_bayesian_analysis_data(
   model_levels = as.integer(script_options$`model-levels`),
   use_cluster_re = as.integer(script_options$`use-cluster-re`),
   use_cluster_identity_corr = as.integer(script_options$`use-cluster-identity-corr`),
-  save_sp_estimates = as.integer(script_options$`save-sp-estimates`)
+  save_sp_estimates = as.integer(script_options$`save-sp-estimates`),
+  
+  use_census_covar = as.integer(script_options$`use-census-covar`)
 )
 
 save(param_stan_data, script_options, 
