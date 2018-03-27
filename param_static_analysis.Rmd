@@ -72,6 +72,8 @@ fit_version <- "param_static_2330864" # Name matched and SMS, private value sepa
 
 # global_subgroup <- NULL
 global_subgroup <- "name_matched"
+
+wtp_fit_version <- "wtp_multilevel_1"
 ```
 
 Loading sampled estimates:
@@ -86,6 +88,7 @@ rhat(model_fit) %>% summary()
 
 load(file.path("stan_analysis_data", str_interp("model_${fit_version}.RData")))
 ```
+
 
 # Analyzing
 
@@ -1215,6 +1218,22 @@ pairs_stan(1, model_3_fit, c("QR_cluster_beta_day1[1,1]", "QR_cluster_beta_day1[
 color_scheme_set("red")
 mcmc_nuts_treedepth(model_3_np, model_3_lp)
 mcmc_nuts_energy(model_3_np)
+```
+
+# WTP
+
+```{r load-wtp-model-fit}
+wtp_model_fit <- dir("stanfit", pattern = str_interp("model_${wtp_fit_version}_\\d+.csv"), full.names = TRUE) %>%
+  read_stan_csv()
+
+check_hmc_diagnostics(wtp_model_fit)
+
+rhat(wtp_model_fit) %>% summary()
+```
+
+```{r}
+wtp_model_fit %>% 
+  print(pars = c("hyper_mu", "strata_mu_student_df", "strata_mu", "strata_mu_tau", "strata_student_df", "strata_sigma", "prob_prefer_calendar"))
 ```
 
 
