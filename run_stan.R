@@ -1,6 +1,8 @@
 #!/opt/microsoft/ropen/3.4.3/lib64/R/bin/Rscript
 
-script_options <- docopt::docopt(sprintf(
+# Setup -------------------------------------------------------------------
+
+script_options <- if (interactive()) NULL else docopt::docopt(sprintf(
 "Usage:
   run_stan wtp [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
@@ -24,7 +26,7 @@ script_options <- docopt::docopt(sprintf(
   --use-census-covar  Control for census covariates
   --save-sp-estimates  Calcuate superpopulation ATE 
   --gumbel, -g  Gumbel link
-  --include-latent-var-data, -l  Save latent variable while sampling", getwd())) 
+  --include-latent-var-data, -l  Save latent variable while sampling", getwd()))
 
 library(magrittr)
 library(plyr)
@@ -38,29 +40,29 @@ source("analysis_util.R")
 
 load(file.path("data", "analysis.RData"))
 
-fit_version <- script_options$`output-name`
+fit_version <- script_options$`output-name` %||% "interactive_test"
 
-#   Analysis Data -----------------------------------------------------------
+# Setup for Analysis Data -----------------------------------------------------------
 
 subgroups <- "phone_owner"
 
 stan_analysis_data <- analysis.data %>%
   mutate(private_value = fct_collapse(assigned.treatment, 
-                                      control = if (script_options$`separate-private-value`) c("control", "ink", "bracelet") else c("control", "ink"), 
-                                      "calendar" = if (script_options$`separate-private-value`) "calendar" else c("calendar", "bracelet")), 
+                                      control = if (!is_null(script_options) && script_options$`separate-private-value`) c("control", "ink", "bracelet") else c("control", "ink"),
+                                      calendar = if (!is_null(script_options) && script_options$`separate-private-value`) "calendar" else c("calendar", "bracelet")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
          sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) 
 
 all_ate <- get_dyn_ate() 
   # bind_rows(Busia = ., Kakamega = ., Siaya = ., .id = "stratum")
 
-if (script_options$`no-private-value-interact`) {
+if (script_options$`no-private-value-interact` %||% FALSE) {
   treatment_formula <- ~ (private_value + social_value * dist.pot.group) * phone_owner
 } else {
   treatment_formula <- ~ (private_value + social_value) * dist.pot.group * phone_owner
 }
 
-if (script_options$`separate-private-value`) {
+if (script_options$`separate-private-value` %||% FALSE) {
   all_ate %<>% 
     mutate(
       private_value_left = if_else(social_value_left == "bracelet", "control", private_value_left),
@@ -69,27 +71,32 @@ if (script_options$`separate-private-value`) {
       incentive_shift_right = if_else(signal_observed_right == "bracelet", "control", incentive_shift_right))
 }
 
-if (script_options$dynamic) {
-  if (script_options$`sms-control-only`) {
+treatment_map_var <- c("private_value", "social_value", "dist.pot.group")
+base_treatment_map_filter <- . %>% 
+  filter(private_value == "control" | social_value != "ink") 
+treatment_map_filter <- base_treatment_map_filter
+
+if (script_options$dynamic %||% FALSE) {
+  if (script_options$`sms-control-only` %||% FALSE) {
     stan_analysis_data %<>% 
       filter(!name_matched | script_options$`include-name-matched`, 
              sms.treatment.2 == "control") 
     
-    if (script_options$`include-name-matched`) {
+    if (!is_null(script_options) && script_options$`include-name-matched`) {
       subgroups %<>% c("name_matched")
       
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
-        filter(private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
+      # static_treatment_map <- stan_analysis_data %>% 
+      #   data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
+      #   filter(private_value == "control" | social_value != "ink") %>%
+      #   prepare_treatment_map()
       
       treatment_formula %<>% 
         update.formula(~ . * name_matched)
     } else {
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
-        filter(private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
+      # static_treatment_map <- stan_analysis_data %>% 
+      #   data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
+      #   filter(private_value == "control" | social_value != "ink") %>%
+      #   prepare_treatment_map()
       
        all_ate %<>% 
         filter(!name_matched) %>% 
@@ -100,33 +107,31 @@ if (script_options$dynamic) {
     }
   } else {
     stan_analysis_data %<>% 
-      filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
+      filter(!name_matched | ((script_options$`include-name-matched` %||% TRUE) & sms.treatment.2 == "control")) 
     
-    if (script_options$`include-name-matched`) {
+    if (script_options$`include-name-matched` %||% TRUE) {
       subgroups %<>% c("name_matched")
       
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
+      treatment_map_filter <- . %>% 
         filter(sms.treatment.2 == "control" | phone_owner,
                !name_matched | sms.treatment.2 == "control",
-               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-               private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
+        base_treatment_map_filter() 
       
       treatment_formula %<>% 
         update.formula(~ . * name_matched)
     } else {
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% 
+      treatment_map_filter <- . %>% 
         filter(sms.treatment.2 == "control" | phone_owner,
-               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-               private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
+        base_treatment_map_filter() 
       
        all_ate %<>% 
         filter(!name_matched) %>% 
         select(-name_matched) 
     }
+    
+    treatment_map_var %<>% c("sms.treatment.2")
     
     treatment_formula %<>% 
       update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
@@ -135,7 +140,7 @@ if (script_options$dynamic) {
   all_ate %<>% 
     select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) 
   
-  if (script_options$`sms-control-only`) {
+  if (script_options$`sms-control-only` %||% FALSE) {
     stan_analysis_data %<>% 
       filter(!name_matched | script_options$`include-name-matched`, 
              sms.treatment.2 == "control") 
@@ -143,57 +148,45 @@ if (script_options$dynamic) {
     if (script_options$`include-name-matched`) {
       subgroups %<>% c("name_matched")
       
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, dist.pot.group, phone_owner, name_matched) %>% 
-        filter(private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
-      
       treatment_formula %<>% 
         update.formula(~ . * name_matched)
     } else {
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, dist.pot.group, phone_owner) %>% 
-        filter(private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
-      
        all_ate %<>% 
         filter(!name_matched) %>% 
         select(-name_matched) 
     }
-  
+    
     all_ate %<>%
       filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
       select(-starts_with("sms.treatment")) 
   } else {
     stan_analysis_data %<>% 
-      filter(!name_matched | (script_options$`include-name-matched` & sms.treatment.2 == "control")) 
+      filter(!name_matched | ((script_options$`include-name-matched` %||% TRUE) & sms.treatment.2 == "control")) 
   
-    if (script_options$`include-name-matched`) {
+    if (script_options$`include-name-matched` %||% TRUE) {
       subgroups %<>% c("name_matched")
       
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner, name_matched) %>%
+      treatment_map_filter <- . %>% 
         filter(sms.treatment.2 == "control" | phone_owner,
                !name_matched | sms.treatment.2 == "control",
-               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-               private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
+        base_treatment_map_filter() 
       
       treatment_formula %<>% 
         update.formula(~ . * name_matched)
     } else {
-      static_treatment_map <- stan_analysis_data %>% 
-        data_grid(private_value, social_value, sms.treatment.2, dist.pot.group, phone_owner) %>% #, name_matched) %>%
+      treatment_map_filter <- . %>% 
         filter(sms.treatment.2 == "control" | phone_owner,
-               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control"),
-               private_value == "control" | social_value != "ink") %>%
-        prepare_treatment_map()
+               sms.treatment.2 != "reminder.only" | (private_value == "control" & social_value == "control")) %>% 
+        base_treatment_map_filter() 
       
        all_ate %<>% 
         filter(!name_matched) %>% 
         select(-name_matched) 
     }
-  
+    
+    treatment_map_var %<>% c("sms.treatment.2")
+    
     treatment_formula %<>% 
       update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
   }
@@ -201,6 +194,27 @@ if (script_options$dynamic) {
   all_ate %<>% 
     distinct()
 }
+
+# if (script_options$`use-census-covar` %||% TRUE) {
+#   treatment_formula %<>% 
+#     update.formula(~ . + age.census_group * gender)
+#   
+#   subgroups %<>% c("age.census_group", "gender")
+#   
+#   all_ate %<>% 
+#     merge(distinct(stan_analysis_data, age.census_group, gender), all = TRUE)
+# }
+
+treatment_map_var %<>% c(subgroups)
+
+cat(str_interp("Design matrix variables: ${str_c(treatment_map_var, collapse = ', ')}\n"))
+
+static_treatment_map <- stan_analysis_data %>% 
+  expand_(dots = treatment_map_var) %>%
+  treatment_map_filter() %>% 
+  prepare_treatment_map()
+
+# Generate Analysis Data --------------------------------------------------
 
 param_stan_data <- prepare_bayesian_analysis_data(
   stan_analysis_data,
@@ -212,7 +226,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   treatment_formula = treatment_formula,
   subgroup_col = subgroups,
   drop_intercept_from_dm = FALSE, 
-  param_dynamics = script_options$dynamic,
+  param_dynamics = script_options$dynamic %||% FALSE,
   param_poly_order = 2,
   
   all_ate = all_ate,
@@ -225,18 +239,18 @@ param_stan_data <- prepare_bayesian_analysis_data(
   
   lkj_df = 2,
   
-  dynamic_model = script_options$dynamic,
+  dynamic_model = script_options$dynamic %||% FALSE,
   
-  model_link_type = !(script_options$dynamic && script_options$gumbel),
+  model_link_type = !((script_options$dynamic %||% FALSE) && script_options$gumbel),
   
   estimate_ate = 1,
   
-  model_levels = as.integer(script_options$`model-levels`),
-  use_cluster_re = as.integer(script_options$`use-cluster-re`),
-  use_cluster_identity_corr = as.integer(script_options$`use-cluster-identity-corr`),
-  save_sp_estimates = as.integer(script_options$`save-sp-estimates`),
+  model_levels = as.integer(script_options$`model-levels` %||% 3),
+  use_cluster_re = as.integer(script_options$`use-cluster-re` %||% 0),
+  use_cluster_identity_corr = as.integer(script_options$`use-cluster-identity-corr` %||% 0),
+  save_sp_estimates = as.integer(script_options$`save-sp-estimates` %||% 0),
   
-  use_census_covar = as.integer(script_options$`use-census-covar`)
+  use_census_covar = as.integer(script_options$`use-census-covar` %||% TRUE)
 )
 
 save(param_stan_data, script_options, 
@@ -279,7 +293,6 @@ gen_initializer <- function(stan_data_list, script_options = script_options) {
       function() {
         lst(cluster_beta = with(stan_data_list, matrix(rnorm(num_all_treatment_coef * num_clusters, sd = 0.01), 
                                                        nrow = num_all_treatment_coef, ncol = num_clusters)),
-            # strata_beta_corr_mat = with(stan_data_list, rethinking::rlkjcorr(1, num_all_treatment_coef, lkj_df)),
             strata_beta_corr_mat = with(stan_data_list, diag(rep(1, num_all_treatment_coef))),
             strata_beta_L_corr_mat = t(chol(strata_beta_corr_mat)),
             strata_beta_tau = with(stan_data_list, pmax(0.001, rnorm(num_all_treatment_coef, sd = 0.5)))) 
@@ -316,3 +329,4 @@ model_fit <- param_stan_data %>%
            init = gen_initializer(., script_options),
            sample_file = file.path(script_options$`output-dir`, "stanfit", str_interp("model_${fit_version}.csv")))
 
+cat(str_interp("Sampling complete for ${fit_version}.\n"))
