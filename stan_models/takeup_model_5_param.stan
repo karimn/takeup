@@ -31,7 +31,7 @@ functions {
       
       vector[curr_missing_treatment_size] missing_deworming_mask = 
         treatment_deworming_rng(latent_var_map[missing_level_id[missing_treatment_pos:missing_treatment_end], treatment_ids_index] 
-                                + census_covar_latent_var[curr_missing_treatment_size]);
+                                + census_covar_latent_var[curr_missing_obs_ids]);
                                     
       if (curr_observed_treatment_size > 0) {
         int observed_treatment_end = observed_treatment_pos + curr_observed_treatment_size - 1;
@@ -179,7 +179,7 @@ data {
   // These data are used to model within cluster individual level treatment assignments and their correlation. 
   int<lower = 1, upper = num_all_treatments> num_cluster_level_treatments;
   int<lower = 1> within_cluster_treatment_sizes[num_cluster_level_treatments];
-  int<lower = 0, upper = num_cluster_level_treatments> unique_within_cluster_treatment_sizes[2]; // Control and treated clusters have different sizes
+  int<lower = 0, upper = num_all_treatments> unique_within_cluster_treatment_sizes[2]; // Control and treated clusters have different sizes
   matrix<lower = 0, upper = 1>[sum(within_cluster_treatment_sizes), num_all_treatment_coef] within_cluster_treatment_map;
   // Left inverse of within_cluster_treatment_map
   matrix[num_all_treatment_coef, sum(within_cluster_treatment_sizes)] within_cluster_treatment_map_ginv; 
@@ -407,10 +407,7 @@ transformed parameters {
   matrix[dynamic_model ? num_param_dyn_coef : 0, num_strata] strata_beta_dyn_effect; 
   matrix[strata_num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw;  
   
-  cholesky_factor_cov[strata_num_all_treatment_coef] strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
-  
-  cholesky_factor_cov[strata_num_census_covar_coef] strata_census_covar_beta_L_vcov = diag_pre_multiply(strata_census_covar_beta_tau, 
-                                                                                                        strata_census_covar_beta_L_corr_mat);
+  cholesky_factor_cov[num_all_treatment_coef] strata_beta_L_vcov = diag_matrix(rep_vector(1, num_all_treatment_coef));
   
   vector[num_obs] census_covar_latent_var = rep_vector(0, num_obs);
   // vector[use_census_covar > 0 ? num_obs : 0] census_covar_latent_var = rep_vector(0, use_census_covar > 0 ? num_obs : 0);
@@ -418,6 +415,7 @@ transformed parameters {
   {
     int cluster_pos = 1;
     matrix[dynamic_model ? num_deworming_days - 1 : 0, dynamic_model ? num_deworming_days - 1 : 0] strata_baseline_dyn_effect_L_vcov;  
+    matrix[num_census_covar_coef, num_census_covar_coef] strata_census_covar_beta_L_vcov;
     
     matrix[num_census_covar_coef, num_strata] strata_census_covar_beta = rep_matrix(0, num_census_covar_coef, num_strata);
     matrix[num_census_covar_coef, num_clusters] cluster_census_covar_beta = rep_matrix(0, num_census_covar_coef, num_clusters);
@@ -427,9 +425,13 @@ transformed parameters {
     }
     
     if (model_levels > 1) {
+      strata_beta_L_vcov = diag_pre_multiply(strata_beta_tau, strata_beta_L_corr_mat);
       strata_beta = rep_matrix(hyper_beta, num_strata) + strata_beta_L_vcov * strata_beta_raw;
-      
-      strata_census_covar_beta = rep_matrix(hyper_census_covar_beta, num_strata) + strata_census_covar_beta_L_vcov * strata_census_covar_beta_raw;
+     
+      if (use_census_covar > 0) { 
+        strata_census_covar_beta_L_vcov = diag_pre_multiply(strata_census_covar_beta_tau, strata_census_covar_beta_L_corr_mat);
+        strata_census_covar_beta = rep_matrix(hyper_census_covar_beta, num_strata) + strata_census_covar_beta_L_vcov * strata_census_covar_beta_raw;
+      }
       
       if (dynamic_model) { 
         strata_beta_dyn_effect = R_inv_param_dyn_treatment_design_matrix_long * QR_strata_beta_dyn_effect;
@@ -463,8 +465,14 @@ transformed parameters {
         
         matrix[num_within_cluster_rows, curr_num_clusters] within_cluster_beta = within_cluster_treatment_map * cluster_beta[, cluster_pos:cluster_end];
         
-        matrix[cluster_num_census_covar_coef, cluster_num_census_covar_coef] cluster_census_covar_beta_L_vcov = 
-          diag_pre_multiply(cluster_census_covar_beta_tau[, stratum_index], cluster_census_covar_beta_L_corr_mat[stratum_index]);  
+        if (use_census_covar > 0) {
+          matrix[cluster_num_census_covar_coef, cluster_num_census_covar_coef] cluster_census_covar_beta_L_vcov = 
+            diag_pre_multiply(cluster_census_covar_beta_tau[, stratum_index], cluster_census_covar_beta_L_corr_mat[stratum_index]);  
+            
+          cluster_census_covar_beta[, cluster_pos:cluster_end] = 
+            rep_matrix(strata_census_covar_beta[, stratum_index], curr_num_clusters) 
+            + cluster_census_covar_beta_L_vcov * cluster_census_covar_beta_raw[, cluster_pos:cluster_end];   
+        }
         
         if (use_cluster_identity_corr) {
           within_cluster_beta_L_corr_mat = diag_matrix(rep_vector(1, num_within_cluster_rows));
@@ -499,11 +507,8 @@ transformed parameters {
         within_cluster_beta_raw[, cluster_pos:cluster_end] = 
           within_cluster_beta_L_vcov_mat \ (within_cluster_beta - rep_matrix(stratum_cluster_level_mu, curr_num_clusters));
           
-        cluster_census_covar_beta[, cluster_pos:cluster_end] = 
-          rep_matrix(strata_census_covar_beta[, stratum_index], curr_num_clusters) 
-          + cluster_census_covar_beta_L_vcov * cluster_census_covar_beta_raw[, cluster_pos:cluster_end];   
       } else { 
-        cluster_census_covar_beta = rep_matrix(strata_census_covar_beta[, stratum_index], curr_num_clusters);
+        cluster_census_covar_beta[, cluster_pos:cluster_end] = rep_matrix(strata_census_covar_beta[, stratum_index], curr_num_clusters);
         
         if (use_cluster_re) {
           effective_cluster_beta[1, cluster_pos:cluster_end] = 
@@ -521,7 +526,9 @@ transformed parameters {
       cluster_pos = cluster_end + 1;
     }
     
-    census_covar_latent_var = rows_dot_product(census_covar_design_matrix, cluster_census_covar_beta[, cluster_id]');
+    if (use_census_covar > 0) {
+      census_covar_latent_var = rows_dot_product(census_covar_design_matrix, cluster_census_covar_beta[, cluster_id]');
+    }
     
     if (model_levels > 2 && !use_cluster_re) {
       effective_cluster_beta = cluster_beta;
