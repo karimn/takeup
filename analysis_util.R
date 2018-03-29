@@ -1802,6 +1802,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     missing_treatment,
     observed_treatment,
     
+    subgroups = subgroup_col,
+    
     # census_covar_map, 
     stratum_map,
     cluster_map, 
@@ -1870,9 +1872,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     R_inv_param_dyn_treatment_design_matrix_long,
     
     census_covar_design_matrix = prepared_analysis_data %>% 
-      model_matrix(~ age_group * gender) %>% 
-      select(-1) %>% 
-      scale(),
+      model_matrix(~ age.census_group * gender) %>% 
+      select(-1), 
     num_census_covar_coef = ncol(census_covar_design_matrix),
     
     # census_covar_map_dm,
