@@ -359,13 +359,13 @@ parameters {
   vector[use_census_covar > 0 ? num_census_covar_coef : 0] hyper_census_covar_beta;
  
   // Student t degrees of freedom parameters with uniform priors
-  real<lower = 2, upper = 8> stratum_student_df;
-  real<lower = 2, upper = 8> stratum_baseline_dyn_student_df; // Dynamic
-  real<lower = 2, upper = 8> stratum_dyn_student_df; // Dynamic
-  real<lower = 2, upper = 8> cluster_student_df;
+  real<lower = 1> stratum_student_df;
+  real<lower = 1> stratum_baseline_dyn_student_df; // Dynamic
+  real<lower = 1> stratum_dyn_student_df; // Dynamic
+  real<lower = 1> cluster_student_df;
   
-  real<lower = 2, upper = 8> stratum_census_covar_student_df;
-  real<lower = 2, upper = 8> cluster_census_covar_student_df;
+  real<lower = 1> stratum_census_covar_student_df;
+  real<lower = 1> cluster_census_covar_student_df;
   
   matrix[strata_num_all_treatment_coef, num_strata] strata_beta_raw;
   vector<lower = 0>[strata_num_all_treatment_coef] strata_beta_tau;
@@ -542,6 +542,14 @@ model {
   hyper_beta[private_value_dist_col] ~ normal(0, private_value_dist_sigma);
   
   hyper_census_covar_beta ~ normal(0, hyper_coef_sigma);
+  
+  stratum_student_df ~ gamma(2, 0.1);
+  stratum_baseline_dyn_student_df ~ gamma(2, 0.1); 
+  stratum_dyn_student_df ~ gamma(2, 0.1); 
+  cluster_student_df ~ gamma(2, 0.1);
+  
+  stratum_census_covar_student_df ~ gamma(2, 0.1);
+  cluster_census_covar_student_df ~ gamma(2, 0.1);
   
   if (dynamic_model) {
     hyper_baseline_dyn_effect ~ normal(0, hyper_coef_sigma);
