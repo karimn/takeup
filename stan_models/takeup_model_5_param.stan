@@ -684,10 +684,14 @@ generated quantities {
   matrix<lower = -1, upper = 1>[num_strata, num_ate_pairs] stratum_sp_est_takeup_ate = rep_matrix(0, num_strata, num_ate_pairs);
   matrix<lower = -1, upper = 1>[num_clusters, num_ate_pairs] cluster_sp_est_takeup_ate = rep_matrix(0, num_clusters, num_ate_pairs);
 
-  matrix[num_ate_treatments, num_ate_treatments] strata_treatment_corr = diag_matrix(rep_vector(1, num_ate_treatments));
+  matrix[num_ate_treatments, num_ate_treatments] strata_latent_var_corr = diag_matrix(rep_vector(1, num_ate_treatments));
   
   vector[num_ate_treatments] hyper_latent_var_map; 
   matrix[num_strata, num_ate_treatments] stratum_latent_var_map; 
+  
+  vector<lower = 0, upper = 1>[num_obs] rep_prob_takeup = rep_vector(0, num_obs);
+  int<lower = 0, upper = 1> rep_takeup[num_obs] = rep_array(0, num_obs);
+  vector<lower = 0, upper = 1>[num_clusters] rep_cluster_prob_takeup = rep_vector(0, num_clusters);
   
   if (dynamic_model) {
     est_deworming_days = rep_matrix(0, num_ate_treatments, num_deworming_days + 1);
@@ -697,10 +701,10 @@ generated quantities {
     int stratum_pos = 1;
     matrix[num_clusters, num_ate_treatments] cluster_latent_var_map; 
     matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_vcov = tcrossprod(strata_beta_L_vcov); 
-    matrix[num_ate_treatments, num_ate_treatments] strata_treatment_vcov = quad_form_sym(strata_beta_vcov, treatment_map_design_matrix[ate_treatments[, 1]]'); 
-    vector[num_ate_treatments] strata_treatment_tau = sqrt(diagonal(strata_treatment_vcov));
+    matrix[num_ate_treatments, num_ate_treatments] strata_latent_var_vcov = quad_form_sym(strata_beta_vcov, treatment_map_design_matrix[ate_treatments[, 1]]'); 
+    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_corr_mat = tcrossprod(strata_beta_L_corr_mat);
     
-    strata_treatment_corr = quad_form_sym(strata_treatment_vcov, diag_matrix(1 ./ strata_treatment_tau));
+    strata_latent_var_corr = quad_form_sym(strata_latent_var_vcov, diag_matrix(inv(strata_beta_tau)));
     
     hyper_latent_var_map = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta;
     stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta)';
