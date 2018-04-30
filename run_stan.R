@@ -25,6 +25,7 @@ script_options <- if (interactive()) NULL else docopt::docopt(sprintf(
   --use-cluster-identity-corr  No correlation estimation for cluster level parameters
   --use-census-covar  Control for census covariates
   --save-sp-estimates  Calcuate superpopulation ATE 
+  --no-replicate  Do not generate outcome replication
   --gumbel, -g  Gumbel link
   --include-latent-var-data, -l  Save latent variable while sampling", getwd()))
 
@@ -244,7 +245,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   model_link_type = !((script_options$dynamic %||% FALSE) && script_options$gumbel),
   
   estimate_ate = 1,
-  replicate_outcomes = 1,
+  replicate_outcomes = !(script_options$`no-replicate` %||% FALSE),
   
   model_levels = as.integer(script_options$`model-levels` %||% 3),
   use_cluster_re = as.integer(script_options$`use-cluster-re` %||% 0),
