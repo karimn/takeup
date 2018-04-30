@@ -691,8 +691,6 @@ generated quantities {
   vector[num_ate_treatments] hyper_latent_var_map; 
   matrix[num_strata, num_ate_treatments] stratum_latent_var_map; 
   
-  vector<lower = 0, upper = 1>[num_obs] rep_prob_takeup = rep_vector(0, num_obs);
-  int<lower = 0, upper = 1> rep_takeup[num_obs] = rep_array(0, num_obs);
   vector<lower = 0, upper = 1>[num_clusters] rep_cluster_prob_takeup = rep_vector(0, num_clusters);
   
   if (dynamic_model) {
@@ -700,6 +698,9 @@ generated quantities {
   }
   
   {
+    vector[num_obs] rep_prob_takeup = rep_vector(0, num_obs);
+    int rep_takeup[num_obs] = rep_array(0, num_obs);
+    
     matrix[num_clusters, num_ate_treatments] cluster_latent_var_map; 
     
     if (estimate_ate || replicate_outcomes) {
@@ -734,8 +735,7 @@ generated quantities {
       matrix[num_ate_treatments, num_ate_treatments] strata_latent_var_vcov = quad_form_sym(strata_beta_vcov, treatment_map_design_matrix[ate_treatments[, 1]]'); 
       matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_corr_mat = tcrossprod(strata_beta_L_corr_mat);
       
-      strata_latent_var_corr = quad_form_sym(strata_latent_var_vcov, diag_matrix(inv(strata_beta_tau)));
-      
+      strata_latent_var_corr = quad_form_sym(strata_latent_var_vcov, diag_matrix(inv(diagonal(strata_latent_var_vcov))));
       
       if (dynamic_model) {
         // vector[num_deworming_days] hyper_daily_latent_var_map[num_ate_treatments];
