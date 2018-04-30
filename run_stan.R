@@ -244,6 +244,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   model_link_type = !((script_options$dynamic %||% FALSE) && script_options$gumbel),
   
   estimate_ate = 1,
+  replicate_outcomes = 1,
   
   model_levels = as.integer(script_options$`model-levels` %||% 3),
   use_cluster_re = as.integer(script_options$`use-cluster-re` %||% 0),
