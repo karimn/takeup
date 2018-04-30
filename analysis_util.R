@@ -1526,17 +1526,17 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
  
   treatment_col <- intersect(names(treatment_map), names(prepared_analysis_data))
   
-  census_covar_map <- count_(prepared_analysis_data, c("age", "gender")) %>% 
-    mutate(census_covar_id = seq_len(n())) 
+  # census_covar_map <- count_(prepared_analysis_data, c("age", "gender")) %>% 
+  #   mutate(census_covar_id = seq_len(n())) 
   
   join_treatment_map_col <- unique(c(treatment_col, dyn_formula_var, subgroup_col)) %>% 
     intersect(intersect(names(prepared_analysis_data), names(treatment_map)))
     
   prepared_analysis_data %<>% 
     left_join(treatment_map, join_treatment_map_col) %>% 
-    left_join(select(census_covar_map, -n), c("age", "gender")) %T>% {
-      if (any(is.na(.$all_treatment_id))) warning(sprintf("%d observations with NA all treatment ID", sum(is.na(.$all_treatment_id))))
-    } %>%
+    # left_join(select(census_covar_map, -n), c("age", "gender")) %T>% {
+    #   if (any(is.na(.$all_treatment_id))) warning(sprintf("%d observations with NA all treatment ID", sum(is.na(.$all_treatment_id))))
+    # } %>%
     # filter(!is.na(all_treatment_id)) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n()))
@@ -1563,12 +1563,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     }) %>%  
     ungroup()
   
-  census_covar_map_dm <- census_covar_map %>% 
-    mutate(age_squared = age ^ 2) %>% 
-    select(-census_covar_id) %>% 
-    scale_covar()
-  
-  census_covar_map %<>% select(-n)
+  # census_covar_map_dm <- census_covar_map %>% 
+  #   mutate(age_squared = age ^ 2) %>% 
+  #   select(-census_covar_id) %>% 
+  #   scale_covar()
+  # 
+  # census_covar_map %<>% select(-n)
   
   endline_covar_dm <- prepared_analysis_data %>% 
     filter(!missing_covar) %>% 
@@ -1733,10 +1733,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   obs_relevant_latent_var <- relevant_latent_var_map[dewormed_day_any, ]
   obs_relevant_days <- rowSums(obs_relevant_latent_var)
   
-  census_covar_id <- prepared_analysis_data$census_covar_id
-  census_covar_dm <- census_covar_map_dm[census_covar_id, ]
- 
-  census_covar_dm_long <- census_covar_dm %>% magrittr::extract(rep(seq_len(nrow(.)), obs_relevant_days), ) 
+  # census_covar_id <- prepared_analysis_data$census_covar_id
+  # census_covar_dm <- census_covar_map_dm[census_covar_id, ]
+  # 
+  # census_covar_dm_long <- census_covar_dm %>% magrittr::extract(rep(seq_len(nrow(.)), obs_relevant_days), ) 
   
   num_all_treatments <- nrow(treatment_map_design_matrix)
   num_all_treatment_coef <- ncol(treatment_map_design_matrix) 
@@ -1802,7 +1802,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     missing_treatment,
     observed_treatment,
     
-    census_covar_map, 
+    subgroups = subgroup_col,
+    
+    # census_covar_map, 
     stratum_map,
     cluster_map, 
     
@@ -1869,24 +1871,29 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     R_param_dyn_treatment_design_matrix_long,
     R_inv_param_dyn_treatment_design_matrix_long,
     
-    census_covar_map_dm,
-    num_census_covar_coef = ncol(census_covar_map_dm),
-    num_distinct_census_covar = nrow(census_covar_map_dm),
-    census_covar_id,
+    census_covar_design_matrix = prepared_analysis_data %>% 
+      model_matrix(~ age.census_group * gender) %>% 
+      select(-1), 
+    num_census_covar_coef = ncol(census_covar_design_matrix),
     
-    census_covar_dm,
-    
-    census_covar_dm_long,
+    # census_covar_map_dm,
+    # num_census_covar_coef = ncol(census_covar_map_dm),
+    # num_distinct_census_covar = nrow(census_covar_map_dm),
+    # census_covar_id,
+    # 
+    # census_covar_dm,
+    # 
+    # census_covar_dm_long,
     
     endline_covar_dm,
     num_endline_covar_coef = ncol(endline_covar_dm),
     
-    stratum_covar_id = prepared_analysis_data %>% prep_data_arranger(missing_covar, obs_index) %$% obs_index, # First obs then missing
-    stratum_missing_covar_sizes = prepared_analysis_data %>% 
-      filter(missing_covar | (select_(., .dots = endline_covar) %>% map(is.na) %>% reduce(or))) %>% 
-      count(stratum_id) %>% 
-      arrange(stratum_id) %$% 
-      n,
+    # stratum_covar_id = prepared_analysis_data %>% prep_data_arranger(missing_covar, obs_index) %$% obs_index, # First obs then missing
+    # stratum_missing_covar_sizes = prepared_analysis_data %>% 
+    #   filter(missing_covar | (select_(., .dots = endline_covar) %>% map(is.na) %>% reduce(or))) %>% 
+    #   count(stratum_id) %>% 
+    #   arrange(stratum_id) %$% 
+    #   n,
     
     obs_treatment,
   
@@ -1974,7 +1981,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     missing_treatment_stratum_id = stratum_id[missing_obs_ids], 
     missing_treatment_cluster_id = cluster_id[missing_obs_ids],
     
-    missing_census_covar_dm = census_covar_dm[missing_obs_ids, ],
+    # missing_census_covar_dm = census_covar_dm[missing_obs_ids, ],
     
     num_ate_pairs = if (num_ate_treatments > 0) num_ate_pairs else 0,
     ate_pairs = if (num_ate_pairs > 0) ate_pairs else c(1, 1),
