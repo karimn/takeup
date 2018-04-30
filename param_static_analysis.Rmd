@@ -63,7 +63,9 @@ doParallel::registerDoParallel(cl)
 ```
 
 ```{r param-model-version}
-fit_version <- "param_static_2330864" # Name matched and SMS, private value separated (bracelet and calendar)
+# fit_version <- "param" 
+fit_version <- "param_static_2330864" # Name matched and SMS
+
 # fit_version <- "param_static_nm_test_lvl2_re" # Name matched and SMS, private value separated (bracelet and calendar)
 # fit_version <- "param_static_nm_test_lvl2" # Name matched and SMS, private value separated (bracelet and calendar)
 # fit_version <- "param_static_2190373" # Name matched and SMS, private value separated (bracelet and calendar)
@@ -94,7 +96,6 @@ load(file.path("stan_analysis_data", str_interp("model_${fit_version}.RData")))
 
 ```{r param-model-prep-data, include=FALSE}
 static_treatment_cell_info <- param_stan_data$ate_treatments %>%
-# static_treatment_cell_info <- tibble(all_treatment_id = param_stan_data$ate_treatments) %>% 
   mutate(treatment_size = with(param_stan_data, missing_treatment_sizes + observed_treatment_sizes)) %>% 
   left_join(param_stan_data$treatment_map, "all_treatment_id") %>% 
   select(-ends_with("_id"), all_treatment_id) %>% 
@@ -186,7 +187,7 @@ plot_takeup(
     subgroup_combiner("iter_takeup", subgroups = global_subgroup), 
   data_preparer = . %>%
     filter(
-      !name_matched,
+      # !name_matched,
       sms.treatment.2 == "control"
       ),
   incentive_treatment_col = "incentive_treatment"
@@ -229,6 +230,7 @@ plot_takeup(
   include_sms_treatment = TRUE
 )
 ```
+
 ```{r static_level_all, fig.width=8}
 plot_takeup(
   takeup_summ_data = est_deworming_takeup_phone,
@@ -266,6 +268,24 @@ plot_takeup(
 
 ### ATE
 
+```{r, fig.width=10, fig.height=8}
+est_deworming_takeup_ate_all %>% 
+  plot_ate(
+    ate_summ_data = .,
+    ate_data = est_deworming_takeup_ate,
+    combiner = . %>%
+      filter(dist.pot.group_left == dist.pot.group_right) %>% 
+      subgroup_combiner("iter_ate"), 
+    data_preparer = . %>% 
+      filter(#incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left == incentive_treatment_right,
+             sms.treatment.2_right == "No SMS",
+             sms.treatment.2_left != "No SMS"),
+    incentive_treatment_left_col = "incentive_treatment_left", sms_treatment_col = "sms.treatment.2_left",
+    include_sms_treatment = TRUE
+  ) + facet_grid(incentive_treatment_right ~ ., scales = "free_y", space = "free_y")
+```
+
 ```{r param-ate-all, fig.width=10, fig.height=8}
 est_deworming_takeup_ate_all %>% 
   plot_ate(
@@ -276,9 +296,9 @@ est_deworming_takeup_ate_all %>%
       subgroup_combiner("iter_ate"), 
     data_preparer = . %>% 
       filter(incentive_treatment_right %in% c("Control", "Calendar"),
-             incentive_treatment_left != incentive_treatment_right | sms.treatment.2_left == "Reminders",
+             incentive_treatment_left != incentive_treatment_right | sms.treatment.2_left %in% c("Reminders", "Social Info"),
              sms.treatment.2_right == "No SMS"),
-    incentive_treatment_left_col = "incentive_treatment_left", 
+    incentive_treatment_left_col = "incentive_treatment_left", sms_treatment_col = "sms.treatment.2_left",
     include_sms_treatment = TRUE
   ) + facet_grid(incentive_treatment_right ~ ., scales = "free_y", space = "free_y")
 ```
@@ -1030,7 +1050,7 @@ plot_takeup(
   data_preparer = . %>% filter(sms.treatment.2 == "control"),
   lower_level_data = stratum_sp_est_deworming_takeup_all, 
   lower_level_color_by = "stratum",
-) + facet_wrap(~ name_matched, ncol = 1)
+) #+ facet_wrap(~ name_matched, ncol = 1)
 ```
 
 ```{r, fig.width=12, fig.height=12}
