@@ -1816,6 +1816,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     },
     observed_stratum_treatment,
     
+    # Constants
+    
+    LINK_TYPE_LPM = 1,
+    LINK_TYPE_LOGIT = 2,
+    LINK_TYPE_CLOGLOG = 3,
+  
     # Data passed to model
     
     param_poly_order,
