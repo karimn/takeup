@@ -230,6 +230,15 @@ data {
   int<lower = 1> num_census_covar_coef;
   matrix[num_obs, num_census_covar_coef] census_covar_design_matrix;
   
+  // Social knowledge tables
+  
+  int<lower = 1, upper = num_obs> num_know_table_A_obs;
+  int<lower = 1, upper = num_obs> num_know_table_B_obs;
+  int<lower = 1, upper = num_obs> know_table_A_obs_ids[num_know_table_A_obs];
+  int<lower = 1, upper = num_obs> know_table_B_obs_ids[num_know_table_B_obs];
+  int<lower = 0, upper = 10> num_know_table_A_recognized[num_know_table_A_obs];
+  int<lower = 0, upper = 20> num_know_table_B_recognized[num_know_table_B_obs];
+  
   // Counterfactuals and ATE
   
   int<lower = 0, upper = num_all_treatments * num_all_treatments> num_ate_treatments;

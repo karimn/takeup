@@ -1449,6 +1449,7 @@ to_new_dyn_ate <- function(all_ate, treatment_map) {
 
 prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data, 
                                            wtp_data,
+                                           know_table_data, 
                                            ...,
                                            treatment_map = NULL,
                                            dynamic_treatment_map = NULL,
@@ -1473,41 +1474,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
               funs(id = as.integer)) %>% 
     prep_data_arranger() 
 
-  scale_covar <- function (covar_data) {
-    counted_map <- "n" %in% names(covar_data)
-    
-    covar_data %<>% 
-      select_if(~ n_distinct(.) > 1) %>% 
-      na.omit()
-    
-    if (counted_map) {
-      map_count <- covar_data$n 
-      
-      covar_data %<>%
-        select(-n) 
-    } else {
-      map_count <- rep(1, nrow(covar_data))
-    }
-    
-    is_factor_col <- map(covar_data, 
-                         ~ switch(class(.),
-                                  factor = rep(TRUE, nlevels(.) - 1),
-                                  logical = TRUE,
-                                  FALSE)) %>% 
-      unlist()
-    
-    design_matrix <- model_matrix(covar_data, ~ .) %>% 
-      magrittr::extract(, -1) # get rid of intercept column
-   
-    map_means <- map2_dbl(design_matrix, is_factor_col, ~ if_else(!.y, weighted.mean(.x, map_count), 0))
-   
-    design_matrix %>%  
-      scale(scale = map2_dbl(., map_means, 
-                             function(col, col_mean) sqrt(sum(map_count * ((col - col_mean)^2))/(sum(map_count) - 1)) * 2) %>%  
-              if_else(is_factor_col, 1, .),
-            center = map_means) # Center and scale to have SD = 0.5
-  }
-  
   remove_dup_treatment_dm_cols <- TRUE
   
   is_dynamic_model <- !is.null(dynamic_treatment_map)
@@ -1526,20 +1492,18 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
  
   treatment_col <- intersect(names(treatment_map), names(prepared_analysis_data))
   
-  # census_covar_map <- count_(prepared_analysis_data, c("age", "gender")) %>% 
-  #   mutate(census_covar_id = seq_len(n())) 
-  
   join_treatment_map_col <- unique(c(treatment_col, dyn_formula_var, subgroup_col)) %>% 
     intersect(intersect(names(prepared_analysis_data), names(treatment_map)))
     
   prepared_analysis_data %<>% 
     left_join(treatment_map, join_treatment_map_col) %>% 
-    # left_join(select(census_covar_map, -n), c("age", "gender")) %T>% {
-    #   if (any(is.na(.$all_treatment_id))) warning(sprintf("%d observations with NA all treatment ID", sum(is.na(.$all_treatment_id))))
-    # } %>%
-    # filter(!is.na(all_treatment_id)) %>% 
     prep_data_arranger() %>% 
-    mutate(obs_index = seq_len(n()))
+    mutate(obs_index = seq_len(n())) %>% 
+    add_count(cluster.id, village) %>% 
+    rename(village_size = n) %>% 
+    left_join(nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), "KEY.individ") %>% 
+    mutate(know_table_num_recognized = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$num.recognized) else NA_integer_),
+           thinks_other_knows_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order == "yes", na.rm = TRUE) else NA_integer_))
   
   observed_cluster_treatments <- unique(prepared_analysis_data$cluster_treatment_id)
   
@@ -1570,11 +1534,11 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   # 
   # census_covar_map %<>% select(-n)
   
-  endline_covar_dm <- prepared_analysis_data %>% 
-    filter(!missing_covar) %>% 
-    prep_data_arranger(obs_index) %>% 
-    select_(.dots = endline_covar) %>%
-    scale_covar()
+  # endline_covar_dm <- prepared_analysis_data %>% 
+  #   filter(!missing_covar) %>% 
+  #   prep_data_arranger(obs_index) %>% 
+  #   select_(.dots = endline_covar) %>%
+  #   scale_covar()
   
   name_matched_data <- filter(prepared_analysis_data, name_matched == 1) %>% 
     prep_data_arranger() # Should already be in the right order, but to be on the safe size
@@ -1885,8 +1849,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     # 
     # census_covar_dm_long,
     
-    endline_covar_dm,
-    num_endline_covar_coef = ncol(endline_covar_dm),
+    # endline_covar_dm,
+    # num_endline_covar_coef = ncol(endline_covar_dm),
     
     # stratum_covar_id = prepared_analysis_data %>% prep_data_arranger(missing_covar, obs_index) %$% obs_index, # First obs then missing
     # stratum_missing_covar_sizes = prepared_analysis_data %>% 
@@ -1957,6 +1921,15 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     num_relevant_obs_days,
     num_param_dyn_coef,
+    
+    # Social knowledge tables data
+    
+    know_table_A_obs_ids = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(obs_index),
+    know_table_B_obs_ids = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.B") %>% pull(obs_index),
+    num_know_table_A_obs = length(know_table_A_obs_ids),
+    num_know_table_B_obs = length(know_table_B_obs_ids),
+    num_know_table_A_recognized = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(know_table_num_recognized),
+    num_know_table_B_recognized = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.B") %>% pull(know_table_num_recognized),
     
     # ATE
     

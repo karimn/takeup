@@ -219,6 +219,7 @@ static_treatment_map <- stan_analysis_data %>%
 param_stan_data <- prepare_bayesian_analysis_data(
   stan_analysis_data,
   wtp.data, 
+  endline.know.table.data,
    
   prepared_treatment_maps = TRUE, 
   treatment_map = static_treatment_map,
