@@ -5,6 +5,7 @@
 script_options <- if (interactive()) NULL else docopt::docopt(sprintf(
 "Usage:
   run_stan wtp [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
+  run_stan beliefs [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
   run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-identity-corr --use-cluster-re --use-census-covar --output-name=<output-name> --output-dir=<output-dir>]
 
@@ -38,9 +39,11 @@ library(rstan)
 
 source("analysis_util.R")
 
-load(file.path("data", "analysis.RData"))
-
 fit_version <- script_options$`output-name` %||% "interactive_test"
+
+# Load Data ---------------------------------------------------------------
+
+load(file.path("data", "analysis.RData"))
 
 # Setup for Analysis Data -----------------------------------------------------------
 
@@ -51,7 +54,12 @@ stan_analysis_data <- analysis.data %>%
                                       control = if (!is_null(script_options) && script_options$`separate-private-value`) c("control", "ink", "bracelet") else c("control", "ink"),
                                       calendar = if (!is_null(script_options) && script_options$`separate-private-value`) "calendar" else c("calendar", "bracelet")),
          social_value = fct_collapse(assigned.treatment, control = c("control", "calendar")),
-         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) 
+         sms.treatment.2 = fct_recode(sms.treatment.2, control = "sms.control")) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_pop_size = n()) %>% 
+  group_by(village, add = TRUE) %>% 
+  mutate(village_pop_size = n()) %>% 
+  ungroup()
 
 all_ate <- get_dyn_ate() 
   # bind_rows(Busia = ., Kakamega = ., Siaya = ., .id = "stratum")
@@ -240,7 +248,7 @@ param_stan_data <- prepare_bayesian_analysis_data(
   
   lkj_df = 2,
   
-  dynamic_model = script_options$dynamic %||% FALSE,
+  # dynamic_model = script_options$dynamic %||% FALSE,
   
   model_link_type = !((script_options$dynamic %||% FALSE) && script_options$gumbel),
   
@@ -262,7 +270,13 @@ if (script_options$`analysis-data-only`) quit()
 # Initializer Factory -------------------------------------------------------------
 
 gen_initializer <- function(stan_data_list, script_options = script_options) {
-  if (script_options$dynamic) { # DYNAMIC
+  if (script_options$beliefs) {
+    function() {
+      lst(recognized_prop_alpha = 0.1,
+          recognized_prop_beta = 0.1)
+    }
+    
+  } else if (script_options$dynamic) { # DYNAMIC
     function() {
       init_lst <- lst(
         # strata_beta_day1_corr_mat_non_phone = with(stan_data_list, rethinking::rlkjcorr(1, subgroup_treatment_col_sizes[1], lkj_df)),
@@ -315,6 +329,8 @@ cat(str_interp("Output name: ${fit_version}\n"))
 
 if (script_options$wtp) {
   model_param <- stan_model(file = file.path("stan_models", "wtp_model.stan"), model_name = "wtp_model")
+} else if (script_options$beliefs) {
+  model_param <- stan_model(file = file.path("stan_models", "secobeliefs.stan"), model_name = "beliefs")
 } else {
   model_param <- stan_model(file = file.path("stan_models", "takeup_model_5_param.stan"), model_name = "model_5_param")
   

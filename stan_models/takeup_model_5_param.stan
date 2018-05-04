@@ -132,10 +132,16 @@ functions {
 }
 
 data {
+  // Constants
+  
+  int MODEL_TYPE_STATIC;
+  int MODEL_TYPE_DYNAMIC;
+  // int MODEL_TYPE_BELIEFS;
+  
   // Configuration
   
-  int<lower = 0, upper = 1> dynamic_model;
- 
+  int<lower = 1, upper = 3> model_type;
+  
   // 0: complementary log-log (for the dynamic model)
   // 1: logistic
   int<lower = 0, upper = 1> model_link_type; 
@@ -230,19 +236,11 @@ data {
   int<lower = 1> num_census_covar_coef;
   matrix[num_obs, num_census_covar_coef] census_covar_design_matrix;
   
-  // Social knowledge tables
-  
-  int<lower = 1, upper = num_obs> num_know_table_A_obs;
-  int<lower = 1, upper = num_obs> num_know_table_B_obs;
-  int<lower = 1, upper = num_obs> know_table_A_obs_ids[num_know_table_A_obs];
-  int<lower = 1, upper = num_obs> know_table_B_obs_ids[num_know_table_B_obs];
-  int<lower = 0, upper = 10> num_know_table_A_recognized[num_know_table_A_obs];
-  int<lower = 0, upper = 20> num_know_table_B_recognized[num_know_table_B_obs];
   
   // Counterfactuals and ATE
   
   int<lower = 0, upper = num_all_treatments * num_all_treatments> num_ate_treatments;
-  int<lower = 1, upper = num_all_treatments> ate_treatments[num_ate_treatments, dynamic_model + 1]; 
+  int<lower = 1, upper = num_all_treatments> ate_treatments[num_ate_treatments, model_type == MODEL_TYPE_DYNAMIC ? 2: 1];  
   
   int<lower = 0> num_missing_obs_ids;
   int<lower = 0, upper = num_obs> missing_treatment_sizes[num_ate_treatments];
@@ -297,10 +295,10 @@ transformed data {
   int<lower = 0, upper = num_all_treatments> num_within_cluster_control_treatments = 0;
   int<lower = 0, upper = num_all_treatments> num_within_cluster_treated_treatments = 0;
   
-  int<lower = 0> strata_num_deworming_days = dynamic_model && model_levels > 1 ? num_deworming_days : 0;
-  int<lower = 0> cluster_num_deworming_days = dynamic_model && model_levels > 2 ? num_deworming_days : 0;
-  int<lower = 0> strata_num_param_dyn_coef = dynamic_model && model_levels > 1 ? num_param_dyn_coef : 0;
-  int<lower = 0> cluster_num_param_dyn_coef = dynamic_model && model_levels > 1 ? num_param_dyn_coef : 0;
+  int<lower = 0> strata_num_deworming_days = model_type == MODEL_TYPE_DYNAMIC && model_levels > 1 ? num_deworming_days : 0;
+  int<lower = 0> cluster_num_deworming_days = model_type == MODEL_TYPE_DYNAMIC && model_levels > 2 ? num_deworming_days : 0;
+  int<lower = 0> strata_num_param_dyn_coef = model_type == MODEL_TYPE_DYNAMIC && model_levels > 1 ? num_param_dyn_coef : 0;
+  int<lower = 0> cluster_num_param_dyn_coef = model_type == MODEL_TYPE_DYNAMIC && model_levels > 1 ? num_param_dyn_coef : 0;
  
   if (model_levels > 2) { 
     num_treated_cluster_treatments = num_cluster_level_treatments;
@@ -362,8 +360,8 @@ transformed data {
 
 parameters {
   vector[num_all_treatment_coef] hyper_beta;
-  vector[dynamic_model ? num_deworming_days - 1 : 0] hyper_baseline_dyn_effect; // Dynamic
-  vector[dynamic_model ? num_param_dyn_coef : 0] hyper_treat_beta_dyn_effect; // Dynamic
+  vector[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days - 1 : 0] hyper_baseline_dyn_effect; // Dynamic
+  vector[model_type == MODEL_TYPE_DYNAMIC ? num_param_dyn_coef : 0] hyper_treat_beta_dyn_effect; // Dynamic
   
   vector[use_census_covar > 0 ? num_census_covar_coef : 0] hyper_census_covar_beta;
  
@@ -402,10 +400,10 @@ parameters {
 }
 
 transformed parameters {
-  vector[dynamic_model ? num_deworming_days : 0] hyper_full_baseline_dyn_effect;  
-  matrix[dynamic_model ? num_deworming_days : 0, num_strata] strata_full_baseline_dyn_effect = 
-    rep_matrix(0, dynamic_model ? num_deworming_days : 0, num_strata);  
-  matrix[dynamic_model ? num_deworming_days : 0, num_clusters] cluster_full_baseline_dyn_effect;  
+  vector[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0] hyper_full_baseline_dyn_effect;  
+  matrix[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_strata] strata_full_baseline_dyn_effect = 
+    rep_matrix(0, model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_strata);  
+  matrix[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_clusters] cluster_full_baseline_dyn_effect;  
   
   // These are always specified even if the model is not multilevel; they'll just have the same values one level up.
   matrix[num_all_treatment_coef, num_strata] strata_beta = rep_matrix(0, num_all_treatment_coef, num_strata); 
@@ -413,7 +411,7 @@ transformed parameters {
   matrix[num_within_cluster_rows, num_clusters] within_cluster_beta_raw;
   matrix<lower = 0>[num_true_cluster_tau, num_strata] true_cluster_beta_tau;
   
-  matrix[dynamic_model ? num_param_dyn_coef : 0, num_strata] strata_beta_dyn_effect; 
+  matrix[model_type == MODEL_TYPE_DYNAMIC ? num_param_dyn_coef : 0, num_strata] strata_beta_dyn_effect; 
   matrix[strata_num_param_dyn_coef, num_strata] strata_beta_dyn_effect_raw;  
   
   cholesky_factor_cov[num_all_treatment_coef] strata_beta_L_vcov = diag_matrix(rep_vector(1, num_all_treatment_coef));
@@ -423,13 +421,13 @@ transformed parameters {
   
   {
     int cluster_pos = 1;
-    matrix[dynamic_model ? num_deworming_days - 1 : 0, dynamic_model ? num_deworming_days - 1 : 0] strata_baseline_dyn_effect_L_vcov;  
+    matrix[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days - 1 : 0, model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days - 1 : 0] strata_baseline_dyn_effect_L_vcov;  
     matrix[num_census_covar_coef, num_census_covar_coef] strata_census_covar_beta_L_vcov;
     
     matrix[num_census_covar_coef, num_strata] strata_census_covar_beta = rep_matrix(0, num_census_covar_coef, num_strata);
     matrix[num_census_covar_coef, num_clusters] cluster_census_covar_beta = rep_matrix(0, num_census_covar_coef, num_clusters);
     
-    if (dynamic_model) { 
+    if (model_type == MODEL_TYPE_DYNAMIC) { 
       hyper_full_baseline_dyn_effect = append_row(0, hyper_baseline_dyn_effect);
     }
     
@@ -442,7 +440,7 @@ transformed parameters {
         strata_census_covar_beta = rep_matrix(hyper_census_covar_beta, num_strata) + strata_census_covar_beta_L_vcov * strata_census_covar_beta_raw;
       }
       
-      if (dynamic_model) { 
+      if (model_type == MODEL_TYPE_DYNAMIC) { 
         strata_beta_dyn_effect = R_inv_param_dyn_treatment_design_matrix_long * QR_strata_beta_dyn_effect;
         strata_beta_dyn_effect_raw = diag_matrix(strata_beta_dyn_effect_tau) \ (strata_beta_dyn_effect - rep_matrix(hyper_treat_beta_dyn_effect, num_strata));
         
@@ -456,7 +454,7 @@ transformed parameters {
       
       strata_census_covar_beta = rep_matrix(hyper_census_covar_beta, num_strata);
       
-      if (dynamic_model) { 
+      if (model_type == MODEL_TYPE_DYNAMIC) { 
         strata_full_baseline_dyn_effect = rep_matrix(hyper_full_baseline_dyn_effect, num_strata);  
         strata_beta_dyn_effect = rep_matrix(hyper_treat_beta_dyn_effect, num_strata);
       }
@@ -552,13 +550,13 @@ model {
   
   hyper_census_covar_beta ~ normal(0, hyper_coef_sigma);
   
-  if (dynamic_model) {
+  if (model_type == MODEL_TYPE_DYNAMIC) {
     hyper_baseline_dyn_effect ~ normal(0, hyper_coef_sigma);
     to_vector(hyper_treat_beta_dyn_effect) ~ normal(0, hyper_coef_sigma);
   }
  
   if (model_levels > 1) { 
-    if (dynamic_model) {
+    if (model_type == MODEL_TYPE_DYNAMIC) {
       to_vector(strata_baseline_dyn_effect_raw) ~ student_t(stratum_baseline_dyn_student_df, 0, 1);
       to_vector(strata_beta_dyn_effect_raw) ~ student_t(stratum_dyn_student_df, 0, 1);
       strata_baseline_dyn_effect_tau ~ normal(0, scale_sigma);
@@ -589,7 +587,7 @@ model {
   }
   
   {
-    vector[dynamic_model ? num_relevant_obs_days : num_obs] latent_var = rep_vector(0, dynamic_model ? num_relevant_obs_days : num_obs);
+    vector[model_type == MODEL_TYPE_DYNAMIC ? num_relevant_obs_days : num_obs] latent_var = rep_vector(0, model_type == MODEL_TYPE_DYNAMIC ? num_relevant_obs_days : num_obs);
    
     int obs_pos = 1; 
     int cluster_pos = 1;
@@ -621,7 +619,7 @@ model {
       for (cluster_pos_index in cluster_pos:cluster_end) {
         int curr_cluster_num_obs = cluster_sizes[cluster_pos_index];
         
-        if (dynamic_model) { 
+        if (model_type == MODEL_TYPE_DYNAMIC) { 
           int curr_relevant_daily_cluster_size = relevant_daily_cluster_sizes[cluster_pos_index];
           int relevant_daily_cluster_end = relevant_daily_cluster_pos + curr_relevant_daily_cluster_size - 1;
           
@@ -651,7 +649,7 @@ model {
       cluster_pos = cluster_end + 1;
     }
     
-    if (dynamic_model) {
+    if (model_type == MODEL_TYPE_DYNAMIC) {
       if (model_link_type == 0) { 
         relevant_dewormed_any_daily ~ bernoulli(inv_cloglog(latent_var));
       } else if (model_link_type == 1) {
@@ -669,7 +667,7 @@ model {
 
 generated quantities { 
   // Finite sample estimands
-  matrix<lower = 0>[num_ate_treatments, dynamic_model ? num_deworming_days + 1 : 0] est_deworming_days;  
+  matrix<lower = 0>[num_ate_treatments, model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days + 1 : 0] est_deworming_days;  
   vector<lower = 0, upper = 1>[num_ate_treatments] est_takeup = rep_vector(0, num_ate_treatments);
   vector<lower = -1, upper = 1>[num_ate_pairs] est_takeup_ate = rep_vector(0, num_ate_pairs);
   
@@ -690,7 +688,7 @@ generated quantities {
   vector[num_ate_treatments] hyper_latent_var_map; 
   matrix[num_strata, num_ate_treatments] stratum_latent_var_map; 
   
-  if (dynamic_model) {
+  if (model_type == MODEL_TYPE_DYNAMIC) {
     est_deworming_days = rep_matrix(0, num_ate_treatments, num_deworming_days + 1);
   }
 
@@ -707,7 +705,7 @@ generated quantities {
     stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta)';
     cluster_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * effective_cluster_beta)';
     
-    if (dynamic_model) {
+    if (model_type == MODEL_TYPE_DYNAMIC) {
       // vector[num_deworming_days] hyper_daily_latent_var_map[num_ate_treatments];
       // matrix[num_strata, num_deworming_days] stratum_daily_latent_var_map[num_ate_treatments];
       matrix[num_clusters, num_deworming_days] cluster_daily_latent_var_map[num_ate_treatments];

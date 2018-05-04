@@ -1,243 +1,161 @@
 data {
   int<lower = 0> num_obs;
-  int<lower = 0, upper = num_obs> num_with_links_obs;
-  int<lower = 0, upper = num_with_links_obs> num_thinks_other_knows;
-  int<lower = 1, upper = num_obs> num_treatments;
-  int<lower = 1> num_treatment_coef;
+  int<lower = 1> num_clusters;
+  int<lower = 1> num_strata;
   
-  int<lower = 1, upper = num_treatments> control_treatment_map[num_treatments];
+  int<lower = 1, upper = num_clusters> num_know_table_A_clusters;
   
-  int<lower = 1, upper = num_treatments> treatment_ids[num_obs];
-  int<lower = 1, upper = num_treatments> control_treatment_ids[num_obs];
+  int<lower = 1, upper = num_clusters> cluster_id[num_obs];
   
-  int<lower = 0, upper = num_obs> treatment_obs_sizes[num_treatments];
-  int<lower = 0, upper = num_obs> treatment_missing_sizes[num_treatments];
+  int<lower = 1, upper = num_obs> know_table_A_cluster_sizes[num_know_table_A_clusters];
+  int<lower = 1, upper = num_obs> cluster_pop_sizes[num_clusters];
   
-  int<lower = 1, upper = num_obs> treatment_obs_ids[sum(treatment_obs_sizes)];
-  int<lower = 1, upper = num_obs> treatment_missing_ids[sum(treatment_missing_sizes)];
+  int<lower = 1, upper = num_obs> num_know_table_A_obs;
+  int<lower = 1, upper = num_obs> know_table_A_obs_ids[num_know_table_A_obs];
+  int<lower = 0, upper = 10> num_know_table_A_recognized[num_know_table_A_obs];
   
-  int<lower = 0, upper = num_obs> know_treatment_obs_sizes[num_treatments];
-  int<lower = 0, upper = num_obs> know_treatment_missing_sizes[num_treatments];
+  int<lower = 0, upper = 10> num_know_table_A_2ord_knows[num_know_table_A_obs];
   
-  int<lower = 1, upper = num_obs> know_treatment_obs_ids[sum(know_treatment_obs_sizes)];
-  int<lower = 1, upper = num_obs> know_treatment_missing_ids[sum(know_treatment_missing_sizes)];
-  
-  int<lower = 0, upper = num_obs> other_know_treatment_obs_sizes[num_treatments];
-  int<lower = 0, upper = num_obs> other_know_treatment_missing_sizes[num_treatments];
-  
-  int<lower = 1, upper = num_obs> other_know_treatment_obs_ids[sum(other_know_treatment_obs_sizes)];
-  int<lower = 1, upper = num_obs> other_know_treatment_missing_ids[sum(other_know_treatment_missing_sizes)];
-  
-  int<lower = 1, upper = num_obs> with_links_ids[num_with_links_obs];
-  int<lower = 1, upper = num_obs> thinks_other_knows_ids[num_thinks_other_knows];
-  
-  int<lower = 0, upper = 10> obs_know_person[num_obs];
-  int<lower = 0, upper = 10> thinks_other_knows[num_obs];
-  int<lower = 0, upper = 10> thinks_other_knows_yes[num_obs];
-  
-  matrix[num_treatments, num_treatment_coef] treatment_map_design_matrix;
-  
-  int<lower = 1> village_size[num_obs];
+  // int<lower = 1, upper = num_obs> num_know_table_B_obs;
+  // int<lower = 1, upper = num_obs> know_table_B_obs_ids[num_know_table_B_obs];
+  // int<lower = 0, upper = 20> num_know_table_B_recognized[num_know_table_B_obs];
 }
 
 transformed data {
-  int obs_per_person = 10;
-  int num_second_order_dm_col = num_treatment_coef * 4 + 3;
+  int<lower = 1, upper = num_clusters> know_table_A_cluster_id[num_know_table_A_obs] = cluster_id[know_table_A_obs_ids];
+  int<lower = 0, upper = num_know_table_A_clusters> know_table_A_cluster_id_dict[num_clusters] = rep_array(0, num_clusters);
+  int<lower = 1, upper = num_know_table_A_clusters> know_table_A_cluster_index[num_know_table_A_obs];
   
-  matrix[num_obs, num_treatment_coef] treatment_design_matrix = treatment_map_design_matrix[treatment_ids];
-  matrix[num_obs, num_treatment_coef] control_treatment_design_matrix = treatment_map_design_matrix[control_treatment_ids];
- 
-  vector<lower = 1>[num_obs] vec_village_size = to_vector(village_size); 
-  vector[num_obs] stdz_village_size = (vec_village_size - mean(vec_village_size)) / sd(vec_village_size);
+  vector<lower = 1, upper = num_obs>[num_know_table_A_obs] obs_cluster_pop_size = to_vector(cluster_pop_sizes[know_table_A_cluster_id]);
+  real<lower = 0> obs_cluster_pop_size_mean = mean(obs_cluster_pop_size);
+  real<lower = 0> obs_cluster_pop_size_sd = sd(obs_cluster_pop_size);
+  vector[num_know_table_A_obs] standard_obs_cluster_pop_size = (obs_cluster_pop_size - obs_cluster_pop_size_mean) / obs_cluster_pop_size_sd;
   
-  int with_links_obs_index[num_obs] = rep_array(-1, num_obs);
-  int thinks_other_knows_obs_index[num_obs] = rep_array(-1, num_obs);
-  
-  for (with_links_index in 1:num_with_links_obs) {
-    with_links_obs_index[with_links_ids[with_links_index]] = with_links_index;
-  }
-  
-  for (thinks_other_knows_index in 1:num_thinks_other_knows) {
-    thinks_other_knows_obs_index[thinks_other_knows_ids[thinks_other_knows_index]] = thinks_other_knows_index;
+  {
+    int cluster_index = 1;
+    int curr_cluster_id = 0; 
+    
+    for (obs_index in 1:num_know_table_A_obs) {
+      if (know_table_A_cluster_id[obs_index] != curr_cluster_id) {
+        curr_cluster_id = know_table_A_cluster_id[obs_index];
+        know_table_A_cluster_id_dict[curr_cluster_id] = cluster_index;
+        
+        cluster_index += 1;
+      }
+    }
+    
+    know_table_A_cluster_index = know_table_A_cluster_id_dict[know_table_A_cluster_id];
   }
 }
 
 parameters {
-  vector[num_treatment_coef] beta_know_person;
-  vector[num_obs] intercept_know_person;
-  real<lower = 0> intercept_sd_know_person;
+  // Recognizes others
   
-  vector[num_second_order_dm_col] beta_thinks_other_knows;
-  vector[num_with_links_obs] intercept_thinks_other_knows;
-  real<lower = 0> intercept_sd_thinks_other_knows;
+  real hyper_recognized_intercept;
+  real hyper_recognized_beta_cluster_size;
   
-  vector[num_second_order_dm_col] beta_thinks_other_knows_yes;
-  vector[num_thinks_other_knows] intercept_thinks_other_knows_yes;
-  real<lower = 0> intercept_sd_thinks_other_knows_yes;
+  vector[num_know_table_A_clusters] cluster_recognized_intercept_raw;
+  real<lower = 0> cluster_recognized_intercept_sd;
+  // real<lower = 3> cluster_recognized_intercept_df;
+  
+  vector[num_know_table_A_clusters] cluster_recognized_beta_cluster_size_raw;
+  real<lower = 0> cluster_recognized_beta_cluster_size_sd;
+  // real<lower = 3> cluster_recognized_beta_cluster_size_df;
+  
+  vector[num_know_table_A_obs] obs_recognized_intercept_raw;
+  real<lower = 0> obs_recognized_intercept_sd;
+  // real<lower = 3> obs_recognized_intercept_df;
+  
+  // Second order beliefs
+  
+  real hyper_2ord_intercept;
+  vector[1] hyper_2ord_beta_treat;
+  
+  matrix[2, num_know_table_A_clusters] cluster_2ord_beta_raw;
+  vector<lower = 0>[2] cluster_2ord_beta_sd;
+  
+  matrix[2, num_know_table_A_obs] obs_2ord_beta_raw;
+  vector<lower = 0>[2] obs_2ord_beta_sd;
 }
 
 transformed parameters {
-  vector[num_obs] latent_var_know_person = intercept_know_person + treatment_design_matrix * beta_know_person;
-  vector[num_obs] social_degree = vec_village_size .* inv_logit(latent_var_know_person);
-  real mean_degree = mean(social_degree);
-  real sd_degree = sd(social_degree);
-  vector[num_obs] stdz_degree = (social_degree - mean_degree) / sd_degree;
+  vector[num_know_table_A_clusters] cluster_recognized_intercept = hyper_recognized_intercept + cluster_recognized_intercept_raw * cluster_recognized_intercept_sd;
+  vector[num_know_table_A_clusters] cluster_recognized_beta_cluster_size = 
+    hyper_recognized_beta_cluster_size + cluster_recognized_beta_cluster_size_raw * cluster_recognized_beta_cluster_size_sd;
+    
+  vector[num_know_table_A_obs] obs_recognized_intercept = cluster_recognized_intercept[know_table_A_cluster_index] + obs_recognized_intercept_raw * obs_recognized_intercept_sd;
+    
+  vector[num_know_table_A_obs] recognized_latent_var = 
+    obs_recognized_intercept + standard_obs_cluster_pop_size .* cluster_recognized_beta_cluster_size[know_table_A_cluster_index];
+    
+  vector<lower = 0, upper = 1>[num_know_table_A_obs] rep_know_table_A_prop_recognized = inv_logit(recognized_latent_var);
+  vector<lower = 0>[num_know_table_A_obs]            degree = 
+    to_vector(num_know_table_A_recognized) + (obs_cluster_pop_size - 10) .* rep_know_table_A_prop_recognized;
+    
+  vector[num_know_table_A_obs] beliefs_2ord_latent_var;
+  vector<lower = 0, upper = 1>[num_know_table_A_obs] rep_know_table_A_2ord_prop_know;
+  
+  vector[2] hyper_2ord_beta = append_row(hyper_2ord_intercept, hyper_2ord_beta_treat);
+  matrix[2, num_know_table_A_clusters] cluster_2ord_beta = 
+    rep_matrix(hyper_2ord_beta, num_know_table_A_clusters) + diag_matrix(cluster_2ord_beta_sd) * cluster_2ord_beta_raw;
+  matrix[2, num_know_table_A_obs] obs_2ord_beta = 
+    cluster_2ord_beta[, know_table_A_cluster_index] + diag_matrix(obs_2ord_beta_sd) * obs_2ord_beta_raw;
+  
+  vector<lower = 0, upper = 1>[num_know_table_A_obs] beliefs_2ord_prop_know;
+  
+  {
+    vector[num_know_table_A_obs] standard_rep_know_table_A_prop_recognized = 
+      (rep_know_table_A_prop_recognized - mean(rep_know_table_A_prop_recognized)) / sd(rep_know_table_A_prop_recognized);
+      
+    matrix[num_know_table_A_obs, 2] beliefs_2ord_dm;  
+      
+    beliefs_2ord_dm[, 1] = rep_vector(1, num_know_table_A_obs);
+    beliefs_2ord_dm[, 2] = standard_obs_cluster_pop_size;
+      
+    // beliefs_2ord_latent_var = rows_dot_product(beliefs_2ord_dm, cluster_2ord_beta[, know_table_A_cluster_index]');
+    beliefs_2ord_latent_var = rows_dot_product(beliefs_2ord_dm, obs_2ord_beta');
+    rep_know_table_A_2ord_prop_know = inv_logit(beliefs_2ord_latent_var);
+    beliefs_2ord_prop_know = (to_vector(num_know_table_A_2ord_knows) + rep_know_table_A_2ord_prop_know .* rep_know_table_A_prop_recognized .* (obs_cluster_pop_size - 10)) 
+    ./ degree;
+  }
 }
 
 model {
-  intercept_sd_know_person ~ normal(0, 5);
-  intercept_know_person ~ normal(0, intercept_sd_know_person);
-  beta_know_person ~ normal(0, 1);
+  // Priors
   
-  intercept_sd_thinks_other_knows ~ normal(0, 5);
-  intercept_thinks_other_knows ~ normal(0, intercept_sd_thinks_other_knows);
-  beta_thinks_other_knows ~ normal(0, 1);
+  hyper_recognized_intercept               ~ normal(0, 5);
+  hyper_recognized_beta_cluster_size       ~ normal(0, 0.5);
   
-  intercept_sd_thinks_other_knows_yes ~ normal(0, 5);
-  intercept_thinks_other_knows_yes ~ normal(0, intercept_sd_thinks_other_knows_yes);
-  beta_thinks_other_knows_yes ~ normal(0, 1);
+  // cluster_recognized_intercept_df          ~ gamma(2, 0.1);
+  // cluster_recognized_intercept_raw         ~ student_t(cluster_recognized_intercept_df, 0, 1);
+  cluster_recognized_intercept_raw         ~ normal(0, 1);
+  cluster_recognized_intercept_sd          ~ normal(0, 0.25);
   
-  {
-    matrix[num_obs, num_second_order_dm_col] treatment_social_design_matrix;
-    vector[num_with_links_obs] latent_var_thinks_other_knows; 
-    vector[num_thinks_other_knows] latent_var_thinks_other_knows_yes; 
-    
-    obs_know_person ~ binomial_logit(obs_per_person, latent_var_know_person);
-    
-    treatment_social_design_matrix[, 1:num_treatment_coef] = treatment_design_matrix;
-    treatment_social_design_matrix[, (num_treatment_coef + 1):(2 * num_treatment_coef)] = 
-      treatment_design_matrix .* rep_matrix(stdz_degree, num_treatment_coef);
-    treatment_social_design_matrix[, (2 * num_treatment_coef + 1):(3 * num_treatment_coef)] = 
-      treatment_design_matrix .* rep_matrix(stdz_village_size, num_treatment_coef);
-      
-    treatment_social_design_matrix[, (4 * num_treatment_coef) + 1] = stdz_degree;
-    treatment_social_design_matrix[, (4 * num_treatment_coef) + 2] = stdz_village_size;
-    treatment_social_design_matrix[, (4 * num_treatment_coef) + 3] = stdz_degree .* stdz_village_size;
-    
-    treatment_social_design_matrix[, (3 * num_treatment_coef + 1):(4 * num_treatment_coef)] = 
-      treatment_design_matrix .* rep_matrix(stdz_degree .* stdz_village_size, num_treatment_coef);
-    
-    latent_var_thinks_other_knows = intercept_thinks_other_knows + treatment_social_design_matrix[with_links_ids] * beta_thinks_other_knows;
-    latent_var_thinks_other_knows_yes = intercept_thinks_other_knows_yes + treatment_social_design_matrix[thinks_other_knows_ids] * beta_thinks_other_knows_yes;
-    
-    thinks_other_knows[with_links_ids] ~ binomial_logit(obs_know_person[with_links_ids], latent_var_thinks_other_knows); 
-    thinks_other_knows_yes[thinks_other_knows_ids] ~ binomial_logit(thinks_other_knows[thinks_other_knows_ids], latent_var_thinks_other_knows_yes); 
-  }
+  // cluster_recognized_beta_cluster_size_df  ~ gamma(2, 0.1);
+  // cluster_recognized_beta_cluster_size_raw ~ student_t(cluster_recognized_beta_cluster_size_df, 0, 1);
+  cluster_recognized_beta_cluster_size_raw ~ normal(0, 1);
+  cluster_recognized_beta_cluster_size_sd  ~ normal(0, 0.25);
+  
+  // obs_recognized_intercept_df              ~ gamma(2, 0.1);
+  // obs_recognized_intercept_raw             ~ student_t(obs_recognized_intercept_df, 0, 1);
+  obs_recognized_intercept_raw             ~ normal(0, 1);
+  obs_recognized_intercept_sd              ~ normal(0, 0.25);
+  
+  hyper_2ord_intercept                     ~ normal(0, 5);
+  hyper_2ord_beta_treat                    ~ normal(0, 0.5);
+  
+  to_vector(cluster_2ord_beta_raw)         ~ normal(0, 1);
+  cluster_2ord_beta_sd                     ~ normal(0, 0.25);
+  
+  to_vector(obs_2ord_beta_raw)         ~ normal(0, 1);
+  obs_2ord_beta_sd                     ~ normal(0, 0.25);
+  
+  // Likelihood 
+  
+  num_know_table_A_recognized              ~ binomial_logit(10, recognized_latent_var); 
+  
+  num_know_table_A_2ord_knows              ~ binomial_logit(num_know_table_A_recognized, beliefs_2ord_latent_var);
 }
 
-generated quantities { 
-  vector<lower = 0, upper = 1>[num_treatments] mean_know_person;
-  vector<lower = 0, upper = 1>[num_treatments] mean_thinks_other_know;
-  vector<lower = 0, upper = 1>[num_treatments] mean_thinks_other_know_yes;
-  
-  vector<lower = -1, upper = 1>[num_treatments] ate_know_person;
-  vector<lower = -1, upper = 1>[num_treatments] ate_thinks_other_know;
-  vector<lower = -1, upper = 1>[num_treatments] ate_thinks_other_know_yes;
-  
-  {
-    int treatment_obs_pos = 1;
-    int treatment_missing_pos = 1;
-    int know_treatment_obs_pos = 1;
-    int know_treatment_missing_pos = 1;
-    int other_know_treatment_obs_pos = 1;
-    int other_know_treatment_missing_pos = 1;
-    
-    for (treatment_index in 1:num_treatments) {
-      int curr_treatment_obs_size = treatment_obs_sizes[treatment_index];
-      int curr_treatment_missing_size = treatment_missing_sizes[treatment_index];
-      int treatment_obs_end = treatment_obs_pos + curr_treatment_obs_size - 1; 
-      int treatment_missing_end = treatment_missing_pos + curr_treatment_missing_size - 1; 
-      
-      int know_curr_treatment_obs_size = know_treatment_obs_sizes[treatment_index];
-      int know_curr_treatment_missing_size = know_treatment_missing_sizes[treatment_index];
-      int know_treatment_obs_end = know_treatment_obs_pos + know_curr_treatment_obs_size - 1; 
-      int know_treatment_missing_end = know_treatment_missing_pos + know_curr_treatment_missing_size - 1; 
-      
-      int other_know_curr_treatment_obs_size = other_know_treatment_obs_sizes[treatment_index];
-      int other_know_curr_treatment_missing_size = other_know_treatment_missing_sizes[treatment_index];
-      int other_know_treatment_obs_end = other_know_treatment_obs_pos + other_know_curr_treatment_obs_size - 1; 
-      int other_know_treatment_missing_end = other_know_treatment_missing_pos + other_know_curr_treatment_missing_size - 1; 
-      
-      real mean_obs_know_person = mean(to_vector(obs_know_person[treatment_obs_ids[treatment_obs_pos:treatment_obs_end]]) ./ 10);
-      vector[curr_treatment_missing_size] missing_know_person;
-      
-      matrix[num_obs, num_second_order_dm_col] treatment_social_design_matrix; 
-      
-      real mean_obs_thinks_other_know = mean(to_vector(thinks_other_knows[know_treatment_obs_ids[know_treatment_obs_pos:know_treatment_obs_end]]) 
-                                             ./ to_vector(obs_know_person[know_treatment_obs_ids[know_treatment_obs_pos:know_treatment_obs_end]]));
-      vector[know_curr_treatment_missing_size] missing_thinks_other_know;
-      
-      real mean_obs_thinks_other_know_yes = mean(to_vector(thinks_other_knows_yes[other_know_treatment_obs_ids[other_know_treatment_obs_pos:other_know_treatment_obs_end]]) 
-                                             ./ to_vector(thinks_other_knows[other_know_treatment_obs_ids[other_know_treatment_obs_pos:other_know_treatment_obs_end]]));
-      vector[other_know_curr_treatment_missing_size] missing_thinks_other_know_yes;
-     
-      matrix[num_obs, num_treatment_coef] curr_dm = rep_matrix(treatment_design_matrix[treatment_index], num_obs);
-      
-      treatment_social_design_matrix[, 1:num_treatment_coef] = curr_dm;
-      treatment_social_design_matrix[, (num_treatment_coef + 1):(2 * num_treatment_coef)] = 
-        curr_dm .* rep_matrix(stdz_degree, num_treatment_coef);
-      treatment_social_design_matrix[, (2 * num_treatment_coef + 1):(3 * num_treatment_coef)] = 
-        curr_dm .* rep_matrix(stdz_village_size, num_treatment_coef);
-        
-      treatment_social_design_matrix[, (4 * num_treatment_coef) + 1] = stdz_degree;
-      treatment_social_design_matrix[, (4 * num_treatment_coef) + 2] = stdz_village_size;
-      treatment_social_design_matrix[, (4 * num_treatment_coef) + 3] = stdz_degree .* stdz_village_size;
-      
-      treatment_social_design_matrix[, (3 * num_treatment_coef + 1):(4 * num_treatment_coef)] = 
-        curr_dm .* rep_matrix(stdz_degree .* stdz_village_size, num_treatment_coef);
-      
-      for (missing_index in 1:curr_treatment_missing_size) {
-        int curr_missing_id = treatment_missing_ids[treatment_missing_pos + missing_index - 1];
-       
-        missing_know_person[missing_index] = 
-          binomial_rng(obs_per_person, 
-                       inv_logit(intercept_know_person[curr_missing_id] + treatment_map_design_matrix[treatment_index] * beta_know_person));
-      }
-      
-      for (know_missing_index in 1:know_curr_treatment_missing_size) {
-        int know_curr_missing_id = know_treatment_missing_ids[know_treatment_missing_pos + know_missing_index - 1];
-       
-        missing_thinks_other_know[know_missing_index] = 
-          binomial_rng(obs_know_person[know_curr_missing_id], 
-                       inv_logit(intercept_thinks_other_knows[with_links_obs_index[know_curr_missing_id]] 
-                       + treatment_social_design_matrix[know_curr_missing_id] * beta_thinks_other_knows));
-      }
-      
-      for (other_know_missing_index in 1:other_know_curr_treatment_missing_size) {
-        int other_know_curr_missing_id = other_know_treatment_missing_ids[other_know_treatment_missing_pos + other_know_missing_index - 1];
-       
-        missing_thinks_other_know_yes[other_know_missing_index] = 
-          binomial_rng(thinks_other_knows[other_know_curr_missing_id], 
-                       inv_logit(intercept_thinks_other_knows_yes[thinks_other_knows_obs_index[other_know_curr_missing_id]] 
-                       + treatment_social_design_matrix[other_know_curr_missing_id] * beta_thinks_other_knows_yes));
-      }
-      
-      mean_know_person[treatment_index] = 
-        (curr_treatment_obs_size * mean_obs_know_person + curr_treatment_missing_size * mean(missing_know_person ./ 10)) 
-        / (curr_treatment_obs_size + curr_treatment_missing_size);
-        
-      mean_thinks_other_know[treatment_index] = 
-        (know_curr_treatment_obs_size * mean_obs_thinks_other_know 
-         + (know_curr_treatment_missing_size 
-            * mean(missing_thinks_other_know ./ to_vector(obs_know_person[know_treatment_missing_ids[know_treatment_missing_pos:know_treatment_missing_end]])))) 
-        / (know_curr_treatment_obs_size + know_curr_treatment_missing_size);
-        
-      mean_thinks_other_know_yes[treatment_index] = 
-        (other_know_curr_treatment_obs_size * mean_obs_thinks_other_know_yes
-         + (other_know_curr_treatment_missing_size 
-            * mean(missing_thinks_other_know_yes ./ to_vector(thinks_other_knows[other_know_treatment_missing_ids[other_know_treatment_missing_pos:other_know_treatment_missing_end]]))))
-        / (other_know_curr_treatment_obs_size + other_know_curr_treatment_missing_size);
-      
-      treatment_obs_pos = treatment_obs_end + 1;
-      treatment_missing_pos = treatment_missing_end + 1;
-      know_treatment_obs_pos = know_treatment_obs_end + 1;
-      know_treatment_missing_pos = know_treatment_missing_end + 1;
-      other_know_treatment_obs_pos = other_know_treatment_obs_end + 1;
-      other_know_treatment_missing_pos = other_know_treatment_missing_end + 1;
-    }
-  }
-  
-  ate_know_person = mean_know_person - mean_know_person[control_treatment_map];
-  ate_thinks_other_know = mean_thinks_other_know - mean_thinks_other_know[control_treatment_map];
-  ate_thinks_other_know_yes = mean_thinks_other_know_yes - mean_thinks_other_know_yes[control_treatment_map];
+generated quantities {
 }

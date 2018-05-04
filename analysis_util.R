@@ -1499,8 +1499,6 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     left_join(treatment_map, join_treatment_map_col) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n())) %>% 
-    add_count(cluster.id, village) %>% 
-    rename(village_size = n) %>% 
     left_join(nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), "KEY.individ") %>% 
     mutate(know_table_num_recognized = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$num.recognized) else NA_integer_),
            thinks_other_knows_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order == "yes", na.rm = TRUE) else NA_integer_))
@@ -1780,7 +1778,15 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     },
     observed_stratum_treatment,
     
+    # Constants
+    
+    MODEL_TYPE_STATIC  = 1,
+    MODEL_TYPE_DYNAMIC = 2,
+    # MODEL_TYPE_BELIEFS = 4,
+    
     # Data passed to model
+    
+    model_type = if (is_dynamic_model) MODEL_TYPE_DYNAMIC else MODEL_TYPE_STATIC,
     
     param_poly_order,
     
@@ -1891,6 +1897,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       count(stratum_id) %>% 
       arrange(stratum_id) %>% 
       pull(n),
+    cluster_pop_sizes = distinct(prepared_analysis_data, stratum_id, new_cluster_id, cluster_pop_size) %>% 
+      arrange(stratum_id, new_cluster_id) %>% 
+      pull(cluster_pop_size),
    
     # strata_cluster_ids = distinct(prepared_analysis_data, stratum_id, new_cluster_id) %>% 
     #   arrange(stratum_id) %>% 
@@ -1930,6 +1939,16 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_know_table_B_obs = length(know_table_B_obs_ids),
     num_know_table_A_recognized = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(know_table_num_recognized),
     num_know_table_B_recognized = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.B") %>% pull(know_table_num_recognized),
+    
+    num_know_table_A_2ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(thinks_other_knows_yes),
+    num_know_table_B_2ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.B") %>% pull(thinks_other_knows_yes),
+    
+    num_know_table_A_clusters = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %$% n_distinct(new_cluster_id),
+    know_table_A_cluster_sizes = prepared_analysis_data %>% 
+      filter(!is.na(know.table.type), know.table.type == "table.A") %>% 
+      count(stratum_id, new_cluster_id) %>% 
+      arrange(stratum_id, new_cluster_id) %>% 
+      pull(n),
     
     # ATE
     

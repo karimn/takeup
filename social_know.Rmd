@@ -43,6 +43,9 @@ library(rgeos)
 library(ggmap)
 library(knitr)
 
+library(rstan)
+library(bayesplot)
+
 library(econometr)
 
 source("takeup_rct_assign_clusters.R")
@@ -52,7 +55,7 @@ knitr::read_chunk("analysis_util.R", labels = "analysis-util")
 
 config <- yaml::yaml.load_file("../local_config.yaml")
 
-doParallel::registerDoParallel(cores = config$cores)
+# doParallel::registerDoParallel(cores = config$cores)
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
@@ -240,3 +243,25 @@ sms.content.data %>%
   facet_wrap(~ assigned.treatment, ncol = 2, scales = "free_y")
 ```
 
+# Bayesian Model
+
+```{r}
+fit_version <- "param"
+model_fit <- dir("stanfit", pattern = str_interp("model_${fit_version}_\\d+.csv"), full.names = TRUE) %>%
+  read_stan_csv()
+
+check_hmc_diagnostics(model_fit)
+
+rhat(model_fit) %>% summary()
+
+load(file.path("stan_analysis_data", str_interp("model_${fit_version}.RData")))
+```
+
+```{r}
+model_fit %>% 
+  print(pars = c("hyper_recognized_intercept", "hyper_recognized_beta_cluster_size", 
+                 "cluster_recognized_intercept_sd",
+                 "obs_recognized_intercept_sd"))
+```
+
+## Model Checking
