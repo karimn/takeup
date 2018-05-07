@@ -173,8 +173,6 @@ model {
   obs_recognized_intercept_raw             ~ normal(0, 1);
   obs_recognized_intercept_sd              ~ normal(0, 0.25);
   
-  // hyper_2ord_intercept                     ~ normal(0, 5);
-  // hyper_2ord_beta_treat                    ~ normal(0, 0.5);
   hyper_2ord_beta[1]                         ~ normal(0, 5);
   hyper_2ord_beta[2:num_2ord_treatment_coef] ~ normal(0, 0.5);
   

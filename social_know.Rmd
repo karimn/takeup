@@ -246,7 +246,7 @@ sms.content.data %>%
 # Bayesian Model
 
 ```{r load-stanfit}
-fit_version <- "param"
+fit_version <- "param_beliefs_2981815"
 model_fit <- dir("stanfit", pattern = str_interp("model_${fit_version}_\\d+.csv"), full.names = TRUE) %>%
   read_stan_csv()
 
@@ -265,6 +265,13 @@ model_fit %>%
                  "hyper_2ord_beta",
                  "cluster_2ord_beta_sd"))
 ```
+
+```{r}
+model_fit %>% 
+  print(pars = c("fp_2ord_prop_knows_ate"), 
+        probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)) 
+```
+
 
 ## Model Checking
 
