@@ -84,6 +84,13 @@ base_treatment_map_filter <- . %>%
   filter(private_value == "control" | social_value != "ink") 
 treatment_map_filter <- base_treatment_map_filter
 
+exclude_pars <- NA
+
+if (script_options$beliefs) {
+  exclude_pars <- c("obs_recognized_intercept_raw", "obs_2ord_beta_raw", "obs_recognized_intercept", "obs_2ord_beta", "recognized_latent_var",
+                    "rep_know_table_A_prop_recognized", "degree", "beliefs_2ord_latent_var", "rep_know_table_A_2ord_prop_know", "beliefs_2ord_prop_know")
+}
+
 if (script_options$dynamic %||% FALSE) {
   if (script_options$`sms-control-only` %||% FALSE) {
     stan_analysis_data %<>% 
@@ -338,12 +345,15 @@ if (script_options$wtp) {
 }
 
 model_fit <- param_stan_data %>% 
-  sampling(model_param, data = ., 
+  sampling(model_param, 
+           data = ., 
            chains = num_chains,
            iter = as.integer(script_options$`num-iterations`),
            control = lst(max_treedepth = as.integer(script_options$`max-treedepth`), 
                          adapt_delta = as.numeric(script_options$`adapt-delta`)), 
            init = gen_initializer(., script_options),
+           include = FALSE,
+           pars = exclude_pars,
            sample_file = file.path(script_options$`output-dir`, "stanfit", str_interp("model_${fit_version}.csv")))
 
 cat(str_interp("Sampling complete for ${fit_version}.\n"))
