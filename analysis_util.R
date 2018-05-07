@@ -1501,7 +1501,15 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(obs_index = seq_len(n())) %>% 
     left_join(nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), "KEY.individ") %>% 
     mutate(know_table_num_recognized = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$num.recognized) else NA_integer_),
-           thinks_other_knows_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order == "yes", na.rm = TRUE) else NA_integer_))
+           thinks_other_knows_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order == "yes", na.rm = TRUE) else NA_integer_)) %>% 
+    left_join(filter(., !is.na(know.table.type), know.table.type == "table.A") %>% 
+                arrange(obs_index) %>% 
+                transmute(obs_index, know_table_A_obs_index = seq_len(nrow(.))), 
+              "obs_index") %>% 
+    left_join(filter(., !is.na(know.table.type), know.table.type == "table.B") %>% 
+                arrange(obs_index) %>% 
+                transmute(obs_index, know_table_B_obs_index = seq_len(nrow(.))), 
+              "obs_index")
   
   observed_cluster_treatments <- unique(prepared_analysis_data$cluster_treatment_id)
   
@@ -1576,7 +1584,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id != treat_row$static_all_treatment_id | all_treatment_id != treat_row$dynamic_all_treatment_id) %>% 
-            pull(obs_index)
+            select(obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
         })
       
       observed_stratum_treatment <- ate_treatments %>%
@@ -1585,12 +1593,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id == treat_row$static_all_treatment_id & all_treatment_id == treat_row$dynamic_all_treatment_id) %>% 
-            select(stratum, stratum_id, obs_index)
+            select(stratum, stratum_id, obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
         }) 
       
       observed_treatment <- observed_stratum_treatment %>% 
         group_by_at(vars(ends_with("all_treatment_id"))) %>% 
-        do(treatment_ids = .$obs_index) %>% 
+        do(treatment_ids = select(., obs_index, know.table.type, matches("know_table_[AB]_obs_index"))) %>% 
         ungroup() %>%
         right_join(select(ate_treatments, static_all_treatment_id, dynamic_all_treatment_id), 
                    str_c(c("static", "dynamic"), "_all_treatment_id")) %>% 
@@ -1632,7 +1640,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id != treat_row$all_treatment_id) %>% 
-            pull(obs_index)
+            select(obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
         })
       
       observed_stratum_treatment <- ate_treatments %>%
@@ -1641,12 +1649,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
             semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id == treat_row$all_treatment_id) %>% 
-            select(stratum, stratum_id, obs_index)
+            select(stratum, stratum_id, obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
         })
       
       observed_treatment <- observed_stratum_treatment %>% 
         group_by(all_treatment_id) %>% 
-        do(treatment_ids = .$obs_index) %>% 
+        do(treatment_ids = select(., obs_index, know.table.type, matches("know_table_[AB]_obs_index"))) %>% 
         ungroup() %>%
         right_join(select(ate_treatments, all_treatment_id), "all_treatment_id") %>% 
         pull(treatment_ids)
@@ -1784,6 +1792,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     MODEL_TYPE_DYNAMIC = 2,
     # MODEL_TYPE_BELIEFS = 4,
     
+    
+    
     # Data passed to model
     
     model_type = if (is_dynamic_model) MODEL_TYPE_DYNAMIC else MODEL_TYPE_STATIC,
@@ -1791,6 +1801,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     param_poly_order,
     
     num_deworming_days, 
+    
+    know_table_A_sample_size = 10,
     
     treatment_map_design_matrix,
     treatment_design_matrix,
@@ -1963,15 +1975,36 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
         } 
       }else 1,
     
-    missing_obs_ids = if (num_ate_treatments > 0) unlist(missing_treatment) else 1,
+    missing_obs_ids = if (num_ate_treatments > 0) unlist(map(missing_treatment, pull, obs_index)) else 1,
     num_missing_obs_ids = if (num_ate_treatments > 0) length(missing_obs_ids) else 0,
-    missing_treatment_sizes = if (!is.null(all_ate)) map_int(missing_treatment, length) else 1,
-    observed_obs_ids = if (num_ate_treatments > 0) unlist(observed_treatment) else 1,
+    missing_treatment_sizes = if (!is.null(all_ate)) map_int(missing_treatment, NROW) else 1,
+    observed_obs_ids = if (num_ate_treatments > 0) unlist(map_if(observed_treatment, ~ !is_empty(.x), pull, obs_index)) else 1,
     num_observed_obs_ids = if (num_ate_treatments > 0) length(observed_obs_ids) else 0,
-    observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, length) else 1,
+    observed_treatment_sizes = if (!is.null(all_ate)) map_int(observed_treatment, NROW) else 1,
     
     missing_treatment_stratum_id = stratum_id[missing_obs_ids], 
     missing_treatment_cluster_id = cluster_id[missing_obs_ids],
+    
+    know_table_A_missing_obs_ids = if (num_ate_treatments > 0) unlist(map(missing_treatment, 
+                                                                          . %>% 
+                                                                            filter(!is.na(know.table.type),
+                                                                                   know.table.type == "table.A") %>% 
+                                                                            pull(know_table_A_obs_index))) else 1,
+    num_know_table_A_missing_obs_ids = if (num_ate_treatments > 0) length(know_table_A_missing_obs_ids) else 0,
+    know_table_A_missing_treatment_sizes = if (!is.null(all_ate)) {
+      map(missing_treatment, filter, !is.na(know.table.type) & know.table.type == "table.A") %>%  map_int(NROW) 
+    } else 1,
+    
+    know_table_A_observed_obs_ids = if (num_ate_treatments > 0) unlist(map_if(observed_treatment,
+                                                                              ~ !is_empty(.x),
+                                                                              . %>%
+                                                                                filter(!is.na(know.table.type),
+                                                                                       know.table.type == "table.A") %>%
+                                                                                pull(know_table_A_obs_index))) else 1,
+    num_know_table_A_observed_obs_ids = if (num_ate_treatments > 0) length(know_table_A_observed_obs_ids) else 0,
+    know_table_A_observed_treatment_sizes = if (!is.null(all_ate)) {
+      map_if(observed_treatment, ~ !is_empty(.x), filter, !is.na(know.table.type) & know.table.type == "table.A") %>% map_int(NROW)
+    } else 1,
     
     # missing_census_covar_dm = census_covar_dm[missing_obs_ids, ],
     

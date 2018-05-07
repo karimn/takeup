@@ -4,8 +4,8 @@
 
 script_options <- if (interactive()) NULL else docopt::docopt(sprintf(
 "Usage:
-  run_stan wtp [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
-  run_stan beliefs [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>] [--output-name=<output-name> --output-dir=<output-dir>]]
+  run_stan wtp [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--output-name=<output-name> --output-dir=<output-dir>]
+  run_stan beliefs [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--output-name=<output-name> --output-dir=<output-dir>]
   run_stan dynamic [--analysis-data-only |[--gumbel --num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth> --include-latent-var-data --save-sp-estimates]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-re --output-name=<output-name> --output-dir=<output-dir>]
   run_stan static [--analysis-data-only |[--num-chains=<num-chains> --num-iterations=<iterations> --adapt-delta=<adapt-delta> --max-treedepth=<max-treedepth>]] [--separate-private-value --sms-control-only --include-name-matched --no-private-value-interact --model-levels=<model-levels> --use-cluster-identity-corr --use-cluster-re --use-census-covar --output-name=<output-name> --output-dir=<output-dir>]
 
@@ -144,7 +144,7 @@ if (script_options$dynamic %||% FALSE) {
     treatment_formula %<>% 
       update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
   }
-} else {
+} else { # STATIC
   all_ate %<>% 
     select(-starts_with("reminder_info_stock"), -starts_with("signal_observed"), -starts_with("incentive_shift"), -starts_with("dyn_dist_pot")) 
   
@@ -171,7 +171,7 @@ if (script_options$dynamic %||% FALSE) {
     stan_analysis_data %<>% 
       filter(!name_matched | ((script_options$`include-name-matched` %||% TRUE) & sms.treatment.2 == "control")) 
   
-    if (script_options$`include-name-matched` %||% TRUE) {
+    if (script_options$`include-name-matched` %||% TRUE ) {
       subgroups %<>% c("name_matched")
       
       treatment_map_filter <- . %>% 
