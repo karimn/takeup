@@ -69,6 +69,8 @@ options(dplyr.show_progress = FALSE, digits = 4)
 load(file.path("data", "analysis.RData"))
 ```
 
+# Qualitative Analysis
+
 ```{r}
 endline.know.table.data %>% 
   filter(know.table.type == "table.A") %>% 
@@ -272,6 +274,160 @@ model_fit %>%
         probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)) 
 ```
 
+## Analysis
+
+```{r, include=FALSE}
+treatment_cell_info <- param_stan_data$ate_treatments %>%
+  mutate(treatment_size = with(param_stan_data, know_table_A_missing_treatment_sizes + know_table_A_observed_treatment_sizes)) %>%
+  left_join(param_stan_data$treatment_map, "all_treatment_id") %>% 
+  select(-ends_with("_id"), all_treatment_id) %>% 
+  mutate(treatment_rank = seq_len(n()),
+        observed_treatment_size = param_stan_data$know_table_A_observed_treatment_sizes) %>% 
+         # observed_takeup_prop = param_stan_data$observed_takeup_total / observed_treatment_size) %>% 
+  unite(incentive_treatment, str_c(c("private", "social"), "_value"), sep = "-", remove = FALSE) %>% 
+  create_incentive_treatment_col()
+
+ate_pair_info <- param_stan_data$ate_pairs %>% 
+  mutate(pair_rank = seq_len(n())) %>% 
+  left_join(treatment_cell_info, c("rank_id_left" = "treatment_rank")) %>% 
+  left_join(treatment_cell_info, c("rank_id_right" = "treatment_rank"), suffix = c("_left", "_right")) %>% 
+  mutate(treatment_size = treatment_size_left)
+
+fp_2ord_prop_knows_mean <- model_fit %>% 
+  as.data.frame(pars = "fp_2ord_prop_knows_mean") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(treatment_rank, fp_2ord_prop_knows_mean, -iter_id) %>% 
+  mutate(treatment_rank = str_extract_all(treatment_rank, "\\d+") %>% map_int(~ as.integer(.x[2]))) %>% 
+  inner_join(treatment_cell_info, "treatment_rank") 
+
+fp_2ord_prop_knows_ate <- model_fit %>% 
+  as.data.frame(pars = "fp_2ord_prop_knows_ate") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, iter_ate, -iter_id) %>% 
+  mutate(pair_rank = str_extract_all(outcome_id, "\\d+") %>% map_int(~ as.integer(.x[2]))) %>% 
+  inner_join(ate_pair_info, "pair_rank")
+```
+
+```{r param-takeup-levels, include=FALSE}
+fp_2ord_prop_knows_mean_phone <- fp_2ord_prop_knows_mean %>% 
+  prepare_fp_2ord_prop_knows_mean(subgroups = "phone_owner")
+
+fp_2ord_prop_knows_mean_dist <- fp_2ord_prop_knows_mean %>% 
+  prepare_fp_2ord_prop_knows_mean(subgroups = "dist.pot.group")
+
+fp_2ord_prop_knows_mean_phone_dist <- fp_2ord_prop_knows_mean %>% 
+  prepare_fp_2ord_prop_knows_mean(subgroups = c("phone_owner", "dist.pot.group"))
+
+fp_2ord_prop_knows_mean_all <- fp_2ord_prop_knows_mean %>% 
+  prepare_fp_2ord_prop_knows_mean()
+```
+
+```{r new-param-ate, include=FALSE}
+fp_2ord_prop_knows_ate_phone <- fp_2ord_prop_knows_ate %>%
+  filter(dist.pot.group_left == dist.pot.group_right) %>% 
+  prepare_fp_2ord_prop_knows_ate(subgroups = "phone_owner_left")
+
+fp_2ord_prop_knows_ate_dist <- fp_2ord_prop_knows_ate %>%
+  prepare_fp_2ord_prop_knows_ate(subgroups = str_c("dist.pot.group", c("_left", "_right")))
+
+fp_2ord_prop_knows_ate_phone_dist <- fp_2ord_prop_knows_ate %>%
+  prepare_fp_2ord_prop_knows_ate(subgroups = c("phone_owner_left", str_c("dist.pot.group", c("_left", "_right"))))
+
+fp_2ord_prop_knows_ate_all <- fp_2ord_prop_knows_ate %>%
+  filter(dist.pot.group_left == dist.pot.group_right) %>% 
+  prepare_est_deworming_ate() 
+```
+
+$$
+\begin{align}
+  Y_i^\text{rec} &\sim \mathtt{Binomial}(10, p_i^\text{rec}) \\
+  p_i^\text{rec} &= logit^{-1}(\alpha_i^\text{rec} + \delta_{j[i]}^\text{rec}\cdot N_{j[i]}) \\
+  X_i^{degree} &= Y_i^\text{rec} + p^\text{rec}_i \cdot(N_{j[i]} - 10)  
+\end{align}
+$$
+
+$$
+\begin{align}
+  Y_i^\text{2ord} &\sim \mathtt{Binomial}(Y^\text{rec}_i, p_i^\text{2ord}(\mathbf{Z}_i)) \\
+  p_i^\text{2ord}(\mathbf{z}) &= logit^{-1}(\alpha_i^\text{2ord} + \mathbf{z}\cdot \beta_i^\text{2ord} + \delta_i^\text{2ord}\cdot N_{j[i]}) \\
+  \overline{Y}^\text{ 2ord,fp}(\mathbf{Z}_i) &= \frac{Y_i^\text{2ord} + p_i^\text{2ord}(\mathbf{Z}_i)\cdot p_i^\text{rec}\cdot (N_j[i] - 10)}{X_i^{degree}}
+\end{align}
+$$
+
+For unobserved (missing) treatment $\mathbf{z}^\text{mis}$ we impute $\overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{mis})$ as
+$$
+  \overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{mis}) = \frac{p_i^\text{2ord}(\mathbf{z}^\text{mis})\cdot p_i^\text{rec}\cdot N_j[i]}{X_i^{degree}}
+$$
+
+### All Combined
+
+#### Levels
+
+```{r, fig.width=8}
+plot_takeup(
+  takeup_summ_data = fp_2ord_prop_knows_mean_all,
+  data_preparer = . %>%
+    filter(
+      sms.treatment.2 == "control",
+      incentive_treatment != "Bracelet Social"
+      ),
+  incentive_treatment_col = "incentive_treatment",
+  show_observed = FALSE
+    ) +
+  labs(title = "Second Order Beliefs", subtitle = "Proportion of recognized peers who know one's deworming status", y = "") 
+```
+
+```{r, fig.width=8}
+plot_takeup(
+  takeup_summ_data = fp_2ord_prop_knows_mean_phone,
+  data_preparer = . %>%
+    filter(
+      phone_owner,
+      incentive_treatment != "Bracelet Social"
+      ),
+  incentive_treatment_col = "incentive_treatment",
+  sms_treatment_col = "sms.treatment.2",
+  include_sms_treatment = TRUE,
+  show_observed = FALSE
+    ) +
+  labs(title = "Second Order Beliefs", subtitle = "Proportion of recognized peers who know one's deworming status (phone owners only)", y = "") 
+```
+
+#### ATE
+
+```{r, fig.width=8, fig.height=4}
+fp_2ord_prop_knows_ate_all %>%
+  filter(incentive_treatment_left != "bracelet social",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
+  plot_ate(
+    ate_summ_data = .,
+      data_preparer = . %>% 
+      filter(incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left != incentive_treatment_right,
+             sms.treatment.2_left == "control",
+             sms.treatment.2_left == sms.treatment.2_right),
+    incentive_treatment_left_col = "incentive_treatment_left" 
+  ) + 
+  labs(title = "Second Order Beliefs ATE", y = "")
+```
+
+```{r, fig.width=8}
+fp_2ord_prop_knows_ate_phone %>%
+  mutate(same_incentive = incentive_treatment_left == incentive_treatment_right,
+         same_sms = sms.treatment.2_left == sms.treatment.2_right) %>% 
+  filter(phone_owner_left, 
+         incentive_treatment_left != "bracelet social",
+         !same_incentive & same_sms,
+         sms.treatment.2_right != "reminder.only",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>% 
+  plot_ate(
+    ate_summ_data = .,
+    incentive_treatment_left_col = "incentive_treatment_left",
+    sms_treatment_col = "sms.treatment.2_left",
+    include_sms_treatment = TRUE
+  ) + 
+  labs(title = "Second Order Beliefs ATE", y = "", subtitle = "Phone owners only")
+```
 
 ## Model Checking
 

@@ -2363,6 +2363,19 @@ prepare_est_deworming_ate <- function(est_data, ...) {
   prepare_est_deworming(est_data, "iter_ate", ...) 
 }
 
+# Knowledge Tables --------------------------------------------------------
+
+prepare_fp_2ord_prop_knows_mean <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "fp_2ord_prop_knows_mean", na_rm = TRUE, ...) %>% 
+    rename_at(vars(starts_with("fp_2ord_prop_knows_mean")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) 
+    # rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
+    # select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
+}
+
+prepare_fp_2ord_prop_knows_ate <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "iter_ate", ...) 
+}
+
 # Dynamic ATE -------------------------------------------------------------
 
 get_dyn_ate <- function() {
