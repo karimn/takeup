@@ -1501,6 +1501,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(obs_index = seq_len(n())) %>% 
     left_join(nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), "KEY.individ") %>% 
     mutate(know_table_num_recognized = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$num.recognized) else NA_integer_),
+           thinks_other_knows = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order %in% c("yes", "no"), na.rm = TRUE) else NA_integer_),
            thinks_other_knows_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order == "yes", na.rm = TRUE) else NA_integer_)) %>% 
     left_join(filter(., !is.na(know.table.type), know.table.type == "table.A") %>% 
                 arrange(obs_index) %>% 
@@ -1952,8 +1953,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_know_table_A_recognized = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(know_table_num_recognized),
     num_know_table_B_recognized = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.B") %>% pull(know_table_num_recognized),
     
-    num_know_table_A_2ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(thinks_other_knows_yes),
-    num_know_table_B_2ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.B") %>% pull(thinks_other_knows_yes),
+    num_know_table_A_2ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(thinks_other_knows),
+    num_know_table_A_2ord_knows_yes = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(thinks_other_knows_yes),
     
     num_know_table_A_clusters = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %$% n_distinct(new_cluster_id),
     know_table_A_cluster_sizes = prepared_analysis_data %>% 

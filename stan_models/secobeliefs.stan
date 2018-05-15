@@ -22,6 +22,7 @@ data {
   int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_recognized[num_know_table_A_obs];
   
   int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_2ord_knows[num_know_table_A_obs];
+  int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_2ord_knows_yes[num_know_table_A_obs];
   
   // int<lower = 1, upper = num_obs> num_know_table_B_obs;
   // int<lower = 1, upper = num_obs> know_table_B_obs_ids[num_know_table_B_obs];
