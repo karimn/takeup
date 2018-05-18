@@ -87,8 +87,10 @@ treatment_map_filter <- base_treatment_map_filter
 exclude_pars <- NA
 
 if (script_options$beliefs) {
-  exclude_pars <- c("obs_recognized_intercept_raw", "obs_2ord_beta_raw", "obs_recognized_intercept", "obs_2ord_beta", "recognized_latent_var",
-                    "rep_know_table_A_prop_recognized", "degree", "beliefs_2ord_latent_var", "rep_know_table_A_2ord_prop_know", "beliefs_2ord_prop_know")
+  exclude_pars <- c("obs_recognized_intercept_raw", "obs_1ord_beta_raw", "obs_2ord_beta_raw", "obs_recognized_intercept", "obs_1ord_beta", "obs_2ord_beta", "recognized_latent_var",
+                    "rep_know_table_A_prop_recognized", "degree", "beliefs_1ord_latent_var", "beliefs_2ord_latent_var", 
+                    "rep_know_table_A_1ord_prop_know", "beliefs_1ord_prop_know",
+                    "rep_know_table_A_2ord_prop_know", "beliefs_2ord_prop_know")
 }
 
 if (script_options$dynamic %||% FALSE) {
