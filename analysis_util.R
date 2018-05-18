@@ -728,7 +728,7 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
                             shape = 21, size = 1, stroke = 2, fill = "white", position = dodge) +
             scale_color_discrete("SMS Treatment") 
           
-          caption_text %<>% str_c("Horizonal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
+          caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
         } else {
           plot_obj <- plot_obj +
             geom_point(aes_string(group = sms_treatment_col), size = 2, position = dodge) +
@@ -967,7 +967,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
           }
         }
         
-        caption_text %<>% str_c("Horizonal line ranges represent the 90% and 95% probability intervals.", sep = "\n")
+        caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
       }
       
       if (!is.na(num_obs)) {
@@ -1501,6 +1501,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     mutate(obs_index = seq_len(n())) %>% 
     left_join(nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), "KEY.individ") %>% 
     mutate(know_table_num_recognized = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$num.recognized) else NA_integer_),
+           knows_other_dewormed = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$dewormed %in% c("yes", "no"), na.rm = TRUE) else NA_integer_),
+           knows_other_dewormed_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$dewormed == "yes", na.rm = TRUE) else NA_integer_),
            thinks_other_knows = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order %in% c("yes", "no"), na.rm = TRUE) else NA_integer_),
            thinks_other_knows_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$second.order == "yes", na.rm = TRUE) else NA_integer_)) %>% 
     left_join(filter(., !is.na(know.table.type), know.table.type == "table.A") %>% 
@@ -1956,6 +1958,9 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     num_know_table_A_2ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(thinks_other_knows),
     num_know_table_A_2ord_knows_yes = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(thinks_other_knows_yes),
     
+    num_know_table_A_1ord_knows = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(knows_other_dewormed),
+    num_know_table_A_1ord_knows_yes = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %>% pull(knows_other_dewormed_yes),
+    
     num_know_table_A_clusters = prepared_analysis_data %>% filter(!is.na(know.table.type), know.table.type == "table.A") %$% n_distinct(new_cluster_id),
     know_table_A_cluster_sizes = prepared_analysis_data %>% 
       filter(!is.na(know.table.type), know.table.type == "table.A") %>% 
@@ -2365,6 +2370,17 @@ prepare_est_deworming_ate <- function(est_data, ...) {
 }
 
 # Knowledge Tables --------------------------------------------------------
+
+prepare_fp_1ord_prop_knows_mean <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "fp_1ord_prop_knows_mean", na_rm = TRUE, ...) %>% 
+    rename_at(vars(starts_with("fp_1ord_prop_knows_mean")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) 
+    # rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
+    # select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
+}
+
+prepare_fp_1ord_prop_knows_ate <- function(est_data, ...) { 
+  prepare_est_deworming(est_data, "iter_ate", ...) 
+}
 
 prepare_fp_2ord_prop_knows_mean <- function(est_data, ...) { 
   prepare_est_deworming(est_data, "fp_2ord_prop_knows_mean", na_rm = TRUE, ...) %>% 
