@@ -200,10 +200,18 @@ if (script_options$dynamic %||% FALSE) {
         select(-name_matched) 
     }
     
-    treatment_map_var %<>% c("sms.treatment.2")
-    
-    treatment_formula %<>% 
-      update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
+    if (!script_options$beliefs) {
+      treatment_map_var %<>% c("sms.treatment.2")
+      
+      treatment_formula %<>% 
+        update.formula(~ . + (social_value * dist.pot.group) : sms.treatment.2 + sms.treatment.2)
+    } else {
+      all_ate %<>%
+        filter(sms.treatment.2_left == "control", sms.treatment.2_right == "control") %>% 
+        select(-starts_with("sms.treatment")) 
+      
+      treatment_map_filter <- base_treatment_map_filter 
+    }
   }
   
   all_ate %<>% 
