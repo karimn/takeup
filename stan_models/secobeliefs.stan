@@ -24,6 +24,9 @@ data {
   int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_2ord_knows[num_know_table_A_obs];
   int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_2ord_knows_yes[num_know_table_A_obs];
   
+  int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_1ord_knows[num_know_table_A_obs];
+  int<lower = 0, upper = know_table_A_sample_size> num_know_table_A_1ord_knows_yes[num_know_table_A_obs];
+  
   // int<lower = 1, upper = num_obs> num_know_table_B_obs;
   // int<lower = 1, upper = num_obs> know_table_B_obs_ids[num_know_table_B_obs];
   // int<lower = 0, upper = 20> num_know_table_B_recognized[num_know_table_B_obs];
@@ -58,6 +61,7 @@ transformed data {
   real<lower = 0> obs_cluster_pop_size_sd = sd(obs_cluster_pop_size);
   vector[num_know_table_A_obs] standard_obs_cluster_pop_size = (obs_cluster_pop_size - obs_cluster_pop_size_mean) / obs_cluster_pop_size_sd;
   
+  int num_1ord_treatment_coef = num_all_treatment_coef + 1; 
   int num_2ord_treatment_coef = num_all_treatment_coef + 1; 
   
   matrix[num_know_table_A_obs, num_all_treatment_coef] know_table_A_design_matrix = treatment_design_matrix[know_table_A_obs_ids];
@@ -102,6 +106,16 @@ parameters {
   real<lower = 0> obs_recognized_intercept_sd;
   // real<lower = 3> obs_recognized_intercept_df;
   
+  // First order beliefs
+  
+  vector[num_1ord_treatment_coef] hyper_1ord_beta;
+  
+  matrix[num_1ord_treatment_coef, num_know_table_A_clusters] cluster_1ord_beta_raw;
+  vector<lower = 0>[num_1ord_treatment_coef] cluster_1ord_beta_sd;
+  
+  matrix[num_1ord_treatment_coef, num_know_table_A_obs] obs_1ord_beta_raw;
+  vector<lower = 0>[num_1ord_treatment_coef] obs_1ord_beta_sd;
+  
   // Second order beliefs
   
   vector[num_2ord_treatment_coef] hyper_2ord_beta;
@@ -123,6 +137,11 @@ transformed parameters {
     
   vector[num_know_table_A_obs] obs_recognized_intercept = cluster_recognized_intercept[know_table_A_cluster_index] + obs_recognized_intercept_raw * obs_recognized_intercept_sd;
   
+  matrix[num_1ord_treatment_coef, num_know_table_A_clusters] cluster_1ord_beta = 
+    rep_matrix(hyper_1ord_beta, num_know_table_A_clusters) + diag_matrix(cluster_1ord_beta_sd) * cluster_1ord_beta_raw;
+  matrix[num_1ord_treatment_coef, num_know_table_A_obs] obs_1ord_beta = 
+    cluster_1ord_beta[, know_table_A_cluster_index] + diag_matrix(obs_1ord_beta_sd) * obs_1ord_beta_raw;
+  
   matrix[num_2ord_treatment_coef, num_know_table_A_clusters] cluster_2ord_beta = 
     rep_matrix(hyper_2ord_beta, num_know_table_A_clusters) + diag_matrix(cluster_2ord_beta_sd) * cluster_2ord_beta_raw;
   matrix[num_2ord_treatment_coef, num_know_table_A_obs] obs_2ord_beta = 
@@ -135,15 +154,23 @@ transformed parameters {
   vector<lower = 0>[num_know_table_A_obs] degree = 
     to_vector(num_know_table_A_recognized) + (obs_cluster_pop_size - know_table_A_sample_size) .* rep_know_table_A_prop_recognized;
     
+  vector[num_know_table_A_obs] beliefs_1ord_latent_var;
+  vector<lower = 0, upper = 1>[num_know_table_A_obs] rep_know_table_A_1ord_prop_know;
+  vector<lower = 0, upper = 1>[num_know_table_A_obs] beliefs_1ord_prop_know;
+  
   vector[num_know_table_A_obs] beliefs_2ord_latent_var;
   vector<lower = 0, upper = 1>[num_know_table_A_obs] rep_know_table_A_2ord_prop_know;
-  
-  
   vector<lower = 0, upper = 1>[num_know_table_A_obs] beliefs_2ord_prop_know;
   
   {
     vector[num_know_table_A_obs] standard_rep_know_table_A_prop_recognized = 
       (rep_know_table_A_prop_recognized - mean(rep_know_table_A_prop_recognized)) / sd(rep_know_table_A_prop_recognized);
+      
+    beliefs_1ord_latent_var = rows_dot_product(beliefs_design_matrix, obs_1ord_beta');
+    rep_know_table_A_1ord_prop_know = inv_logit(beliefs_1ord_latent_var);
+    beliefs_1ord_prop_know = 
+      (to_vector(num_know_table_A_1ord_knows) + rep_know_table_A_1ord_prop_know .* rep_know_table_A_prop_recognized .* (obs_cluster_pop_size - know_table_A_sample_size)) 
+      ./ degree;
       
     beliefs_2ord_latent_var = rows_dot_product(beliefs_design_matrix, obs_2ord_beta');
     rep_know_table_A_2ord_prop_know = inv_logit(beliefs_2ord_latent_var);
@@ -174,6 +201,15 @@ model {
   obs_recognized_intercept_raw             ~ normal(0, 1);
   obs_recognized_intercept_sd              ~ normal(0, 0.25);
   
+  hyper_1ord_beta[1]                         ~ normal(0, 5);
+  hyper_1ord_beta[2:num_1ord_treatment_coef] ~ normal(0, 0.5);
+  
+  to_vector(cluster_1ord_beta_raw)         ~ normal(0, 1);
+  cluster_1ord_beta_sd                     ~ normal(0, 0.25);
+  
+  to_vector(obs_1ord_beta_raw)         ~ normal(0, 1);
+  obs_1ord_beta_sd                     ~ normal(0, 0.25);
+  
   hyper_2ord_beta[1]                         ~ normal(0, 5);
   hyper_2ord_beta[2:num_2ord_treatment_coef] ~ normal(0, 0.5);
   
@@ -185,13 +221,17 @@ model {
   
   // Likelihood 
   
-  num_know_table_A_recognized              ~ binomial_logit(know_table_A_sample_size, recognized_latent_var); 
-  
-  num_know_table_A_2ord_knows              ~ binomial_logit(num_know_table_A_recognized, beliefs_2ord_latent_var);
+  num_know_table_A_recognized ~ binomial_logit(know_table_A_sample_size, recognized_latent_var); 
+  num_know_table_A_1ord_knows ~ binomial_logit(num_know_table_A_recognized, beliefs_1ord_latent_var);
+  num_know_table_A_2ord_knows ~ binomial_logit(num_know_table_A_recognized, beliefs_2ord_latent_var);
 }
 
 generated quantities {
-  vector<lower = 0, upper = 1>[num_ate_treatments] fp_2ord_prop_knows_mean = rep_vector(0, num_ate_treatments);
+  vector<lower = 0, upper = 1>[num_ate_treatments] fp_1ord_prop_knows_mean = rep_vector(0, num_ate_treatments);
+  vector<lower = -1, upper = 1>[num_ate_pairs] fp_1ord_prop_knows_ate = rep_vector(0, num_ate_pairs);
+  
+  // vector<lower = 0, upper = 1>[num_ate_treatments] fp_2ord_prop_knows_mean = rep_vector(0, num_ate_treatments);
+  vector[num_ate_treatments] fp_2ord_prop_knows_mean = rep_vector(0, num_ate_treatments);
   vector<lower = -1, upper = 1>[num_ate_pairs] fp_2ord_prop_knows_ate = rep_vector(0, num_ate_pairs);
   
   {
@@ -209,11 +249,19 @@ generated quantities {
       int curr_missing_obs_ids[curr_missing_treatment_size] = know_table_A_missing_obs_ids[missing_treatment_pos:missing_treatment_end];
       int curr_observed_obs_ids[curr_observed_treatment_size] = know_table_A_observed_obs_ids[observed_treatment_pos:observed_treatment_end];
       
+      vector[curr_missing_treatment_size] missing_1ord_prop_knows = 
+        inv_logit(rows_dot_product(append_col(rep_matrix(treatment_map_design_matrix[ate_treatments[treatment_ids_index, 1]], curr_missing_treatment_size),
+                                              standard_obs_cluster_pop_size[curr_missing_obs_ids]),
+                                   obs_1ord_beta[, curr_missing_obs_ids]')) .* rep_num_know_table_A_recognized[curr_missing_obs_ids];
+                                   
       vector[curr_missing_treatment_size] missing_2ord_prop_knows = 
         inv_logit(rows_dot_product(append_col(rep_matrix(treatment_map_design_matrix[ate_treatments[treatment_ids_index, 1]], curr_missing_treatment_size),
                                               standard_obs_cluster_pop_size[curr_missing_obs_ids]),
                                    obs_2ord_beta[, curr_missing_obs_ids]')) .* rep_num_know_table_A_recognized[curr_missing_obs_ids];
                          
+      fp_1ord_prop_knows_mean[treatment_ids_index] = (sum(missing_1ord_prop_knows) + sum(beliefs_1ord_prop_know[curr_observed_obs_ids])) 
+                                                     / (curr_missing_treatment_size + curr_observed_treatment_size);
+                                                     
       fp_2ord_prop_knows_mean[treatment_ids_index] = (sum(missing_2ord_prop_knows) + sum(beliefs_2ord_prop_know[curr_observed_obs_ids])) 
                                                      / (curr_missing_treatment_size + curr_observed_treatment_size);
       
@@ -221,6 +269,7 @@ generated quantities {
       observed_treatment_pos = observed_treatment_end + 1;
     }
     
+    fp_1ord_prop_knows_ate = fp_1ord_prop_knows_mean[ate_pairs[, 1]] - fp_1ord_prop_knows_mean[ate_pairs[, 2]];
     fp_2ord_prop_knows_ate = fp_2ord_prop_knows_mean[ate_pairs[, 1]] - fp_2ord_prop_knows_mean[ate_pairs[, 2]];
   }
 }
