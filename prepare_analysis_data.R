@@ -171,6 +171,11 @@ save(all.endline.data, endline.data, consent.dewormed.reports, baseline.data,
      census.data, reconsent.data, takeup.data, sms.content.data, social.info.data, village.centers, wtp.data, endline.know.table.data,
      file = file.path("data", "analysis.RData"))
 
+endline.data %>% 
+  set_names(str_replace_all(names(.), "\\.|-", "_")) %>% 
+  mutate_if(is.list, funs(map_chr(., ~ str_c(.x, collapse = " ")))) %>%  
+  haven::write_dta(file.path("data", "endline_data.dta"))
+
 analysis.data %>% 
   set_names(str_replace_all(names(.), "\\.|-", "_")) %>% 
   haven::write_dta(file.path("data", "analysis_data.dta"))
