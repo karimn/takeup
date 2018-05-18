@@ -248,7 +248,8 @@ sms.content.data %>%
 # Bayesian Model
 
 ```{r load-stanfit}
-fit_version <- "param_beliefs_2981815"
+# fit_version <- "param_beliefs_2981815"
+fit_version <- "know_table_poolsms"
 model_fit <- dir("stanfit", pattern = str_interp("model_${fit_version}_\\d+.csv"), full.names = TRUE) %>%
   read_stan_csv()
 
@@ -293,6 +294,20 @@ ate_pair_info <- param_stan_data$ate_pairs %>%
   left_join(treatment_cell_info, c("rank_id_right" = "treatment_rank"), suffix = c("_left", "_right")) %>% 
   mutate(treatment_size = treatment_size_left)
 
+fp_1ord_prop_knows_mean <- model_fit %>% 
+  as.data.frame(pars = "fp_1ord_prop_knows_mean") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(treatment_rank, fp_1ord_prop_knows_mean, -iter_id) %>% 
+  mutate(treatment_rank = str_extract_all(treatment_rank, "\\d+") %>% map_int(~ as.integer(.x[2]))) %>% 
+  inner_join(treatment_cell_info, "treatment_rank") 
+
+fp_1ord_prop_knows_ate <- model_fit %>% 
+  as.data.frame(pars = "fp_1ord_prop_knows_ate") %>%
+  mutate(iter_id = seq_len(n())) %>% 
+  gather(outcome_id, iter_ate, -iter_id) %>% 
+  mutate(pair_rank = str_extract_all(outcome_id, "\\d+") %>% map_int(~ as.integer(.x[2]))) %>% 
+  inner_join(ate_pair_info, "pair_rank")
+
 fp_2ord_prop_knows_mean <- model_fit %>% 
   as.data.frame(pars = "fp_2ord_prop_knows_mean") %>%
   mutate(iter_id = seq_len(n())) %>% 
@@ -308,7 +323,21 @@ fp_2ord_prop_knows_ate <- model_fit %>%
   inner_join(ate_pair_info, "pair_rank")
 ```
 
-```{r param-takeup-levels, include=FALSE}
+```{r 1ord-beliefs-levels, include=FALSE}
+fp_1ord_prop_knows_mean_phone <- fp_1ord_prop_knows_mean %>% 
+  prepare_fp_1ord_prop_knows_mean(subgroups = "phone_owner")
+
+fp_1ord_prop_knows_mean_dist <- fp_1ord_prop_knows_mean %>% 
+  prepare_fp_1ord_prop_knows_mean(subgroups = "dist.pot.group")
+
+fp_1ord_prop_knows_mean_phone_dist <- fp_1ord_prop_knows_mean %>% 
+  prepare_fp_1ord_prop_knows_mean(subgroups = c("phone_owner", "dist.pot.group"))
+
+fp_1ord_prop_knows_mean_all <- fp_1ord_prop_knows_mean %>% 
+  prepare_fp_1ord_prop_knows_mean()
+```
+
+```{r 2ord-beliefs-levels, include=FALSE}
 fp_2ord_prop_knows_mean_phone <- fp_2ord_prop_knows_mean %>% 
   prepare_fp_2ord_prop_knows_mean(subgroups = "phone_owner")
 
@@ -322,7 +351,23 @@ fp_2ord_prop_knows_mean_all <- fp_2ord_prop_knows_mean %>%
   prepare_fp_2ord_prop_knows_mean()
 ```
 
-```{r new-param-ate, include=FALSE}
+```{r 1ord-beliefs-ate, include=FALSE}
+fp_1ord_prop_knows_ate_phone <- fp_1ord_prop_knows_ate %>%
+  filter(dist.pot.group_left == dist.pot.group_right) %>% 
+  prepare_fp_1ord_prop_knows_ate(subgroups = "phone_owner_left")
+
+fp_1ord_prop_knows_ate_dist <- fp_1ord_prop_knows_ate %>%
+  prepare_fp_1ord_prop_knows_ate(subgroups = str_c("dist.pot.group", c("_left", "_right")))
+
+fp_1ord_prop_knows_ate_phone_dist <- fp_1ord_prop_knows_ate %>%
+  prepare_fp_1ord_prop_knows_ate(subgroups = c("phone_owner_left", str_c("dist.pot.group", c("_left", "_right"))))
+
+fp_1ord_prop_knows_ate_all <- fp_1ord_prop_knows_ate %>%
+  filter(dist.pot.group_left == dist.pot.group_right) %>% 
+  prepare_est_deworming_ate() 
+```
+
+```{r 2ord-beliefs-ate, include=FALSE}
 fp_2ord_prop_knows_ate_phone <- fp_2ord_prop_knows_ate %>%
   filter(dist.pot.group_left == dist.pot.group_right) %>% 
   prepare_fp_2ord_prop_knows_ate(subgroups = "phone_owner_left")
@@ -359,11 +404,147 @@ $$
   \overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{mis}) = \frac{p_i^\text{2ord}(\mathbf{z}^\text{mis})\cdot p_i^\text{rec}\cdot N_j[i]}{X_i^{degree}}
 $$
 
-### All Combined
+### Pooled SMS Treatment
 
 #### Levels
 
 ```{r, fig.width=8}
+plot_takeup(
+  takeup_summ_data = fp_1ord_prop_knows_mean_all,
+  data_preparer = . %>%
+    filter(
+      incentive_treatment != "Bracelet Social"
+      ),
+  incentive_treatment_col = "incentive_treatment",
+  show_observed = FALSE
+    ) +
+  labs(title = "First Order Beliefs (Levels)", 
+       subtitle = "Proportion of recognized peers whose deworming status is reported known", y = "") 
+```
+
+```{r, fig.width=8, fig.height=8}
+plot_takeup(
+  takeup_summ_data = fp_1ord_prop_knows_mean_phone,
+  data_preparer = . %>%
+    filter(
+      incentive_treatment != "Bracelet Social"
+      ) %>% 
+      mutate_at(vars(starts_with("phone_owner")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Non-Phone Owners", "Phone Owners")))), 
+  incentive_treatment_col = "incentive_treatment",
+  show_observed = FALSE
+    ) +
+  labs(title = "First Order Beliefs (Levels)", 
+       subtitle = "Proportion of recognized peers whose deworming status is reported known", y = "") +
+  facet_wrap(~ phone_owner, ncol = 1) 
+  # theme(strip.text = element_text(size = 15, face = "bold"))
+```
+
+```{r, fig.width=8}
+plot_takeup(
+  takeup_summ_data = fp_2ord_prop_knows_mean_all,
+  data_preparer = . %>%
+    filter(
+      incentive_treatment != "Bracelet Social"
+      ),
+  incentive_treatment_col = "incentive_treatment",
+  show_observed = FALSE
+    ) +
+  labs(title = "Second Order Beliefs (Levels)", 
+       subtitle = "Proportion of recognized peers with knowledge of one's deworming status", y = "") 
+```
+
+```{r, fig.width=8, fig.height=8}
+plot_takeup(
+  takeup_summ_data = fp_2ord_prop_knows_mean_phone,
+  data_preparer = . %>%
+    filter(
+      incentive_treatment != "Bracelet Social"
+      ) %>% 
+      mutate_at(vars(starts_with("phone_owner")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Non-Phone Owners", "Phone Owners")))), 
+  incentive_treatment_col = "incentive_treatment",
+  show_observed = FALSE
+    ) +
+  labs(title = "Second Order Beliefs (Levels)", 
+       subtitle = "Proportion of recognized peers with knowledge of one's deworming status", y = "") +
+  facet_wrap(~ phone_owner, ncol = 1) 
+  # theme(strip.text = element_text(size = 15, face = "bold"))
+```
+
+#### ATE
+
+```{r, fig.width=8, fig.height=4}
+fp_1ord_prop_knows_ate_all %>%
+  filter(incentive_treatment_left != "bracelet social",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
+  plot_ate(
+    ate_summ_data = .,
+      data_preparer = . %>% 
+      filter(incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left != incentive_treatment_right),
+    incentive_treatment_left_col = "incentive_treatment_left" 
+  ) + 
+  labs(title = "First Order Beliefs (ATE)", 
+       subtitle = "Average change in the proportion of recognized peers whose deworming status is reported known", 
+       y = "") 
+```
+
+```{r, fig.width=8, fig.height=7}
+fp_1ord_prop_knows_ate_phone %>%
+  filter(incentive_treatment_left != "bracelet social",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
+  plot_ate(
+    ate_summ_data = .,
+      data_preparer = . %>% 
+      filter(incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left != incentive_treatment_right) %>% 
+      mutate_at(vars(starts_with("phone_owner")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Non-Phone Owners", "Phone Owners")))), 
+    incentive_treatment_left_col = "incentive_treatment_left" 
+  ) + 
+  labs(title = "First Order Beliefs (ATE)", 
+       subtitle = "Average change in the proportion of recognized peers whose deworming status is reported known", 
+       y = "") +
+  facet_wrap(~ phone_owner_left, ncol = 1) 
+```
+
+```{r, fig.width=8, fig.height=4}
+fp_2ord_prop_knows_ate_all %>%
+  filter(incentive_treatment_left != "bracelet social",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
+  plot_ate(
+    ate_summ_data = .,
+      data_preparer = . %>% 
+      filter(incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left != incentive_treatment_right),
+    incentive_treatment_left_col = "incentive_treatment_left" 
+  ) + 
+  labs(title = "Second Order Beliefs (ATE)", 
+       subtitle = "Average change in the proportion of recognized peers with knowledge of one's deworming status",
+       y = "")
+```
+
+```{r, fig.width=8, fig.height=7}
+fp_2ord_prop_knows_ate_phone %>%
+  filter(incentive_treatment_left != "bracelet social",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
+  plot_ate(
+    ate_summ_data = .,
+      data_preparer = . %>% 
+      filter(incentive_treatment_right %in% c("Control", "Calendar"),
+             incentive_treatment_left != incentive_treatment_right) %>% 
+      mutate_at(vars(starts_with("phone_owner")), funs(factor(., levels = c(FALSE, TRUE), labels = c("Non-Phone Owners", "Phone Owners")))), 
+    incentive_treatment_left_col = "incentive_treatment_left" 
+  ) + 
+  labs(title = "Second Order Beliefs (ATE)", 
+       subtitle = "Average change in the proportion of recognized peers with knowledge of one's deworming status",
+       y = "") +
+  facet_wrap(~ phone_owner_left, ncol = 1) 
+```
+
+### All Combined
+
+#### Levels
+
+```{r, fig.width=8, eval=FALSE}
 plot_takeup(
   takeup_summ_data = fp_2ord_prop_knows_mean_all,
   data_preparer = . %>%
@@ -377,7 +558,7 @@ plot_takeup(
   labs(title = "Second Order Beliefs", subtitle = "Proportion of recognized peers who know one's deworming status", y = "") 
 ```
 
-```{r, fig.width=8}
+```{r, fig.width=8, eval=FALSE}
 plot_takeup(
   takeup_summ_data = fp_2ord_prop_knows_mean_phone,
   data_preparer = . %>%
@@ -395,7 +576,7 @@ plot_takeup(
 
 #### ATE
 
-```{r, fig.width=8, fig.height=4}
+```{r, fig.width=8, fig.height=4, eval=FALSE}
 fp_2ord_prop_knows_ate_all %>%
   filter(incentive_treatment_left != "bracelet social",
          !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>%
@@ -411,7 +592,7 @@ fp_2ord_prop_knows_ate_all %>%
   labs(title = "Second Order Beliefs ATE", y = "")
 ```
 
-```{r, fig.width=8}
+```{r, fig.width=8, eval=FALSE}
 fp_2ord_prop_knows_ate_phone %>%
   mutate(same_incentive = incentive_treatment_left == incentive_treatment_right,
          same_sms = sms.treatment.2_left == sms.treatment.2_right) %>% 
@@ -433,14 +614,17 @@ fp_2ord_prop_knows_ate_phone %>%
 
 ```{r}
 recognized_prop <- param_stan_data$num_know_table_A_recognized / 10
+thinks_1ord_knows_prop <- param_stan_data$num_know_table_A_1ord_knows / na_if(param_stan_data$num_know_table_A_recognized, 0)
 thinks_knows_prop <- param_stan_data$num_know_table_A_2ord_knows / na_if(param_stan_data$num_know_table_A_recognized, 0)
   
 rep_recognized_prop <- model_fit %>% as.matrix("rep_know_table_A_prop_recognized")
+rep_1ord_knows_prop <- model_fit %>% as.matrix("rep_know_table_A_1ord_prop_know")
 rep_2ord_knows_prop <- model_fit %>% as.matrix("rep_know_table_A_2ord_prop_know")
 ```
 
 ```{r}
 ppc_dens_overlay(recognized_prop, rep_recognized_prop)
+ppc_dens_overlay(thinks_1ord_knows_prop[!is.na(thinks_1ord_knows_prop)], rep_1ord_knows_prop[, !is.na(thinks_1ord_knows_prop)]) 
 ppc_dens_overlay(thinks_knows_prop[!is.na(thinks_knows_prop)], rep_2ord_knows_prop[, !is.na(thinks_knows_prop)]) 
 ```
 
