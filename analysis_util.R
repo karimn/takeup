@@ -741,7 +741,7 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
           geom_linerange(aes(ymin = lb_80, ymax = ub_80), size = 4, position = dodge) +
           geom_pointrange(aes(ymin = lb_95, ymax = ub_95), shape = 21, size = 1, stroke = 2, position = dodge, fill = "white") 
         
-        caption_text %<>% str_c("Horizonal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
+        caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
       }
       
       if (show_observed) {
