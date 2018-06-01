@@ -819,7 +819,7 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ,
     } %>% 
     ggplot(aes(day, mean_est)) +
     geom_line(line_aes) +
-    scale_x_continuous("Deworming Day", breaks = 1:12, minor_breaks = FALSE) +
+    scale_x_continuous("Deworming Day", breaks = seq(1, 12, 1), minor_breaks = FALSE) +
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
   
   if (include_sms_treatment) {
