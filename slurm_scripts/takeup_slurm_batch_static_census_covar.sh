@@ -14,4 +14,4 @@
 
 module load r 
 
-Rscript ~/Code/dewormtheworld/takeup/run_stan.R static --num-chains=8 --num-iterations=600 --adapt-delta=0.9 --max-treedepth=25 --output-name=param_static_census_covar_$SLURM_JOB_ID --output-dir=/global/scratch/knaguib # --use-census-covar --include-name-matched  
+Rscript ~/Code/dewormtheworld/takeup/run_stan.R static --num-chains=8 --num-iterations=600 --adapt-delta=0.9 --max-treedepth=25 --use-census-covar --output-name=param_static_census_covar_$SLURM_JOB_ID --output-dir=/global/scratch/knaguib #  --include-name-matched  

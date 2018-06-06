@@ -1795,8 +1795,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     MODEL_TYPE_DYNAMIC = 2,
     # MODEL_TYPE_BELIEFS = 4,
     
-    
-    
+    LINK_TYPE_LPM = 1,
+    LINK_TYPE_LOGIT = 2,
+    LINK_TYPE_CLOGLOG = 3,
+  
     # Data passed to model
     
     model_type = if (is_dynamic_model) MODEL_TYPE_DYNAMIC else MODEL_TYPE_STATIC,

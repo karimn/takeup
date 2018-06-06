@@ -133,7 +133,6 @@ functions {
 
 data {
   // Constants
-  
   int MODEL_TYPE_STATIC;
   int MODEL_TYPE_DYNAMIC;
   // int MODEL_TYPE_BELIEFS;
@@ -142,9 +141,16 @@ data {
   
   int<lower = 1, upper = 3> model_type;
   
-  // 0: complementary log-log (for the dynamic model)
-  // 1: logistic
-  int<lower = 0, upper = 1> model_link_type; 
+  int LINK_TYPE_LPM;
+  int LINK_TYPE_LOGIT;
+  int LINK_TYPE_CLOGLOG;
+  
+  // Configuration
+  
+  int<lower = 0, upper = 1> replicate_outcomes;
+
+  // LINK_TYPE_* 
+  int<lower = 1, upper = 3> model_link_type; 
   
   int<lower = 0, upper = 1> estimate_ate;
   
@@ -364,15 +370,18 @@ parameters {
   vector[model_type == MODEL_TYPE_DYNAMIC ? num_param_dyn_coef : 0] hyper_treat_beta_dyn_effect; // Dynamic
   
   vector[use_census_covar > 0 ? num_census_covar_coef : 0] hyper_census_covar_beta;
+  
+  // LPM error term standard deviation
+  vector<lower = 0>[model_link_type == LINK_TYPE_LPM ? num_all_treatments : 0] treatment_sigma;
  
   // Student t degrees of freedom parameters with uniform priors
-  real<lower = 2, upper = 8> stratum_student_df;
-  real<lower = 2, upper = 8> stratum_baseline_dyn_student_df; // Dynamic
-  real<lower = 2, upper = 8> stratum_dyn_student_df; // Dynamic
-  real<lower = 2, upper = 8> cluster_student_df;
+  real<lower = 1> stratum_student_df;
+  real<lower = 1> stratum_baseline_dyn_student_df; // Dynamic
+  real<lower = 1> stratum_dyn_student_df; // Dynamic
+  real<lower = 1> cluster_student_df;
   
-  real<lower = 2, upper = 8> stratum_census_covar_student_df;
-  real<lower = 2, upper = 8> cluster_census_covar_student_df;
+  real<lower = 1> stratum_census_covar_student_df;
+  real<lower = 1> cluster_census_covar_student_df;
   
   matrix[strata_num_all_treatment_coef, num_strata] strata_beta_raw;
   vector<lower = 0>[strata_num_all_treatment_coef] strata_beta_tau;
@@ -549,6 +558,18 @@ model {
   hyper_beta[private_value_dist_col] ~ normal(0, private_value_dist_sigma);
   
   hyper_census_covar_beta ~ normal(0, hyper_coef_sigma);
+ 
+  if (model_link_type == LINK_TYPE_LPM) {
+    to_vector(treatment_sigma) ~ normal(0, hyper_coef_sigma);
+  } 
+  
+  stratum_student_df ~ gamma(2, 0.1);
+  stratum_baseline_dyn_student_df ~ gamma(2, 0.1); 
+  stratum_dyn_student_df ~ gamma(2, 0.1); 
+  cluster_student_df ~ gamma(2, 0.1);
+  
+  stratum_census_covar_student_df ~ gamma(2, 0.1);
+  cluster_census_covar_student_df ~ gamma(2, 0.1);
   
   if (model_type == MODEL_TYPE_DYNAMIC) {
     hyper_baseline_dyn_effect ~ normal(0, hyper_coef_sigma);
@@ -650,17 +671,19 @@ model {
     }
     
     if (model_type == MODEL_TYPE_DYNAMIC) {
-      if (model_link_type == 0) { 
+      if (model_link_type == LINK_TYPE_CLOGLOG) { 
         relevant_dewormed_any_daily ~ bernoulli(inv_cloglog(latent_var));
-      } else if (model_link_type == 1) {
+      } else if (model_link_type == LINK_TYPE_LOGIT) {
         relevant_dewormed_any_daily ~ bernoulli_logit(latent_var);
       }
     } else {
-      if (model_link_type == 0) { 
+      if (model_link_type == LINK_TYPE_CLOGLOG) { 
         dewormed_any ~ bernoulli(inv_cloglog(latent_var + census_covar_latent_var));
-      } else if (model_link_type == 1) {
+      } else if (model_link_type == LINK_TYPE_LOGIT) {
         dewormed_any ~ bernoulli_logit(latent_var + census_covar_latent_var);
-      }
+      } else if (model_link_type == LINK_TYPE_LPM) {
+        to_vector(dewormed_any) ~ normal(latent_var + census_covar_latent_var, treatment_sigma[obs_treatment]);
+      } 
     }
   }
 }
@@ -683,105 +706,150 @@ generated quantities {
   matrix<lower = -1, upper = 1>[num_strata, num_ate_pairs] stratum_sp_est_takeup_ate = rep_matrix(0, num_strata, num_ate_pairs);
   matrix<lower = -1, upper = 1>[num_clusters, num_ate_pairs] cluster_sp_est_takeup_ate = rep_matrix(0, num_clusters, num_ate_pairs);
 
-  matrix[num_ate_treatments, num_ate_treatments] strata_treatment_corr = diag_matrix(rep_vector(1, num_ate_treatments));
+  matrix[num_ate_treatments, num_ate_treatments] strata_latent_var_corr = diag_matrix(rep_vector(1, num_ate_treatments));
   
   vector[num_ate_treatments] hyper_latent_var_map; 
   matrix[num_strata, num_ate_treatments] stratum_latent_var_map; 
   
+  vector<lower = 0, upper = 1>[num_clusters] rep_cluster_prob_takeup = rep_vector(0, num_clusters);
+  
   if (model_type == MODEL_TYPE_DYNAMIC) {
     est_deworming_days = rep_matrix(0, num_ate_treatments, num_deworming_days + 1);
   }
-
-  if (estimate_ate) {
-    int stratum_pos = 1;
-    matrix[num_clusters, num_ate_treatments] cluster_latent_var_map; 
-    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_vcov = tcrossprod(strata_beta_L_vcov); 
-    matrix[num_ate_treatments, num_ate_treatments] strata_treatment_vcov = quad_form_sym(strata_beta_vcov, treatment_map_design_matrix[ate_treatments[, 1]]'); 
-    vector[num_ate_treatments] strata_treatment_tau = sqrt(diagonal(strata_treatment_vcov));
-    
-    strata_treatment_corr = quad_form_sym(strata_treatment_vcov, diag_matrix(1 ./ strata_treatment_tau));
-    
-    hyper_latent_var_map = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta;
-    stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta)';
-    cluster_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * effective_cluster_beta)';
-    
-    if (model_type == MODEL_TYPE_DYNAMIC) {
-      // vector[num_deworming_days] hyper_daily_latent_var_map[num_ate_treatments];
-      // matrix[num_strata, num_deworming_days] stratum_daily_latent_var_map[num_ate_treatments];
-      matrix[num_clusters, num_deworming_days] cluster_daily_latent_var_map[num_ate_treatments];
-      
-      for (ate_treat_index in 1:num_ate_treatments) {
-        // if (save_sp_estimates) {
-        //   hyper_latent_var_map[ate_treat_index] = rep_vector(hyper_latent_var_map_day1[ate_treat_index], num_deworming_days)
-        //     + hyper_full_baseline_dyn_effect
-        //     + param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * hyper_treat_beta_dyn_effect;
-        // 
-        //   stratum_latent_var_map[ate_treat_index] =
-        //     rep_matrix(stratum_latent_var_map_day1[, ate_treat_index], num_deworming_days)
-        //     + strata_full_baseline_dyn_effect'
-        //     + (param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * strata_beta_dyn_effect)';
-        // }
-        
-        cluster_daily_latent_var_map[ate_treat_index] = 
-          rep_matrix(cluster_latent_var_map[, ate_treat_index], num_deworming_days) 
-          + strata_full_baseline_dyn_effect[, cluster_stratum_ids]' 
-          + (param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * strata_beta_dyn_effect[, cluster_stratum_ids])'; 
-        
-        // if (save_sp_estimates) {  
-        //   if (use_logit) {
-        //     sp_est_daily_takeup[ate_treat_index] = inv_logit(hyper_latent_var_map[ate_treat_index]);
-        //     stratum_sp_est_daily_takeup[ate_treat_index] = inv_logit(stratum_latent_var_map[ate_treat_index]);
-        //     cluster_sp_est_daily_takeup[ate_treat_index] = inv_logit(cluster_latent_var_map[ate_treat_index]);
-        //   } else {
-        //     for (day_index in 1:num_deworming_days) {
-        //       sp_est_daily_takeup[ate_treat_index, day_index] = 1 - gumbel_cdf(- hyper_latent_var_map[ate_treat_index, day_index], 0, 1);
-        // 
-        //       for (stratum_index in 1:num_strata) {
-        //         stratum_sp_est_daily_takeup[ate_treat_index, stratum_index, day_index] =
-        //           1 - gumbel_cdf(- stratum_latent_var_map[ate_treat_index, stratum_index, day_index], 0, 1);
-        //       }
-        // 
-        //       for (cluster_index in 1:num_clusters) {
-        //         cluster_sp_est_daily_takeup[ate_treat_index, cluster_index, day_index] =
-        //           1 - gumbel_cdf(- cluster_latent_var_map[ate_treat_index, cluster_index, day_index], 0, 1);
-        //       }
-        //     }
-        //   }
-        // }
-      }
-      
-      est_deworming_days =
-        treatment_cell_deworming_day_prop_rng(ate_treatments,
-                                              missing_obs_ids,
-                                              missing_treatment_cluster_id,
-                                              missing_treatment_sizes,
-                                              observed_treatment_sizes,
-                                              cluster_daily_latent_var_map,
-                                              observed_dewormed_day,
-                                              model_link_type == 1);
   
-      est_takeup = 1 - est_deworming_days[, num_deworming_days + 1];
-    } else {
-      est_takeup =
-        treatment_cell_deworming_prop_rng(num_ate_treatments,
-                                          missing_obs_ids,
-                                          missing_treatment_cluster_id,
-                                          missing_treatment_sizes,
-                                          observed_treatment_sizes,
-                                          cluster_latent_var_map,
-                                          census_covar_latent_var,
-                                          observed_dewormed_any);
-                                          
-      sp_est_takeup = inv_logit(hyper_latent_var_map);  
-      sp_est_takeup_ate = sp_est_takeup[ate_pairs[, 1]] - sp_est_takeup[ate_pairs[, 2]];
-      
-      stratum_sp_est_takeup = inv_logit(stratum_latent_var_map); 
-      stratum_sp_est_takeup_ate = stratum_sp_est_takeup[, ate_pairs[, 1]] - stratum_sp_est_takeup[, ate_pairs[, 2]];
-      
-      cluster_sp_est_takeup = inv_logit(cluster_latent_var_map); 
-      cluster_sp_est_takeup_ate = cluster_sp_est_takeup[, ate_pairs[, 1]] - cluster_sp_est_takeup[, ate_pairs[, 2]];
+  {
+    vector[num_obs] rep_prob_takeup = rep_vector(0, num_obs);
+    int rep_takeup[num_obs] = rep_array(0, num_obs);
+    
+    matrix[num_clusters, num_ate_treatments] cluster_latent_var_map; 
+    
+    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_vcov = tcrossprod(strata_beta_L_vcov); 
+    matrix[num_ate_treatments, num_ate_treatments] strata_latent_var_vcov = quad_form_sym(strata_beta_vcov, treatment_map_design_matrix[ate_treatments[, 1]]'); 
+    matrix[num_all_treatment_coef, num_all_treatment_coef] strata_beta_corr_mat = tcrossprod(strata_beta_L_corr_mat);
+    
+    strata_latent_var_corr = quad_form_sym(strata_latent_var_vcov, diag_matrix(inv(diagonal(strata_latent_var_vcov))));
+    
+    if (estimate_ate || replicate_outcomes) {
+      hyper_latent_var_map = treatment_map_design_matrix[ate_treatments[, 1]] * hyper_beta;
+      stratum_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * strata_beta)';
+      cluster_latent_var_map = (treatment_map_design_matrix[ate_treatments[, 1]] * effective_cluster_beta)';
     }
-
-    est_takeup_ate = est_takeup[ate_pairs[, 1]] - est_takeup[ate_pairs[, 2]];
+    
+    if (replicate_outcomes) {
+      vector[num_obs] rep_latent_var = rows_dot_product(treatment_design_matrix, effective_cluster_beta[, cluster_id]'); 
+      
+      int obs_pos = 1;
+      
+      if (model_link_type == LINK_TYPE_LPM) {
+        rep_prob_takeup = rep_latent_var; 
+      } 
+      
+      for (cluster_index in 1:num_clusters) {
+        int curr_cluster_num_obs = cluster_sizes[cluster_index];
+        int obs_end = obs_pos + curr_cluster_num_obs - 1;
+        
+        if (model_link_type != LINK_TYPE_LPM) {
+          for(obs_pos_index in obs_pos:obs_end) {
+            if (model_link_type == LINK_TYPE_LOGIT) { 
+              rep_prob_takeup[obs_pos_index] = inv_logit(rep_latent_var[obs_pos_index]);
+            } else if (model_link_type == LINK_TYPE_CLOGLOG) { 
+              rep_prob_takeup[obs_pos_index] = inv_cloglog(rep_latent_var[obs_pos_index]);
+            }
+            
+            rep_takeup[obs_pos_index] = bernoulli_rng(rep_prob_takeup[obs_pos_index]);
+          }
+        }
+          
+        rep_cluster_prob_takeup[cluster_index] = mean(rep_prob_takeup[obs_pos:obs_end]);
+        
+        obs_pos = obs_end + 1;
+      }
+    }
+  
+    if (estimate_ate) {
+      int stratum_pos = 1;
+      
+      if (model_type == MODEL_TYPE_DYNAMIC) {
+        // vector[num_deworming_days] hyper_daily_latent_var_map[num_ate_treatments];
+        // matrix[num_strata, num_deworming_days] stratum_daily_latent_var_map[num_ate_treatments];
+        matrix[num_clusters, num_deworming_days] cluster_daily_latent_var_map[num_ate_treatments];
+        
+        for (ate_treat_index in 1:num_ate_treatments) {
+          // if (save_sp_estimates) {
+          //   hyper_latent_var_map[ate_treat_index] = rep_vector(hyper_latent_var_map_day1[ate_treat_index], num_deworming_days)
+          //     + hyper_full_baseline_dyn_effect
+          //     + param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * hyper_treat_beta_dyn_effect;
+          // 
+          //   stratum_latent_var_map[ate_treat_index] =
+          //     rep_matrix(stratum_latent_var_map_day1[, ate_treat_index], num_deworming_days)
+          //     + strata_full_baseline_dyn_effect'
+          //     + (param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * strata_beta_dyn_effect)';
+          // }
+          
+          cluster_daily_latent_var_map[ate_treat_index] = 
+            rep_matrix(cluster_latent_var_map[, ate_treat_index], num_deworming_days) 
+            + strata_full_baseline_dyn_effect[, cluster_stratum_ids]' 
+            + (param_dyn_treatment_map[ate_treatments[ate_treat_index, 2]] * strata_beta_dyn_effect[, cluster_stratum_ids])'; 
+          
+          // if (save_sp_estimates) {  
+          //   if (use_logit) {
+          //     sp_est_daily_takeup[ate_treat_index] = inv_logit(hyper_latent_var_map[ate_treat_index]);
+          //     stratum_sp_est_daily_takeup[ate_treat_index] = inv_logit(stratum_latent_var_map[ate_treat_index]);
+          //     cluster_sp_est_daily_takeup[ate_treat_index] = inv_logit(cluster_latent_var_map[ate_treat_index]);
+          //   } else {
+          //     for (day_index in 1:num_deworming_days) {
+          //       sp_est_daily_takeup[ate_treat_index, day_index] = 1 - gumbel_cdf(- hyper_latent_var_map[ate_treat_index, day_index], 0, 1);
+          // 
+          //       for (stratum_index in 1:num_strata) {
+          //         stratum_sp_est_daily_takeup[ate_treat_index, stratum_index, day_index] =
+          //           1 - gumbel_cdf(- stratum_latent_var_map[ate_treat_index, stratum_index, day_index], 0, 1);
+          //       }
+          // 
+          //       for (cluster_index in 1:num_clusters) {
+          //         cluster_sp_est_daily_takeup[ate_treat_index, cluster_index, day_index] =
+          //           1 - gumbel_cdf(- cluster_latent_var_map[ate_treat_index, cluster_index, day_index], 0, 1);
+          //       }
+          //     }
+          //   }
+          // }
+        }
+        
+        est_deworming_days =
+          treatment_cell_deworming_day_prop_rng(ate_treatments,
+                                                missing_obs_ids,
+                                                missing_treatment_cluster_id,
+                                                missing_treatment_sizes,
+                                                observed_treatment_sizes,
+                                                cluster_daily_latent_var_map,
+                                                observed_dewormed_day,
+                                                model_link_type == LINK_TYPE_LOGIT);
+    
+        est_takeup = 1 - est_deworming_days[, num_deworming_days + 1];
+      } else {
+        if (model_link_type != LINK_TYPE_LPM) {
+          est_takeup = treatment_cell_deworming_prop_rng(num_ate_treatments,
+                                                         missing_obs_ids,
+                                                         missing_treatment_cluster_id,
+                                                         missing_treatment_sizes,
+                                                         observed_treatment_sizes,
+                                                         cluster_latent_var_map,
+                                                         census_covar_latent_var,
+                                                         observed_dewormed_any);
+        }
+                                            
+        sp_est_takeup = inv_logit(hyper_latent_var_map);  
+        sp_est_takeup_ate = sp_est_takeup[ate_pairs[, 1]] - sp_est_takeup[ate_pairs[, 2]];
+        
+        stratum_sp_est_takeup = inv_logit(stratum_latent_var_map); 
+        stratum_sp_est_takeup_ate = stratum_sp_est_takeup[, ate_pairs[, 1]] - stratum_sp_est_takeup[, ate_pairs[, 2]];
+        
+        cluster_sp_est_takeup = inv_logit(cluster_latent_var_map); 
+        cluster_sp_est_takeup_ate = cluster_sp_est_takeup[, ate_pairs[, 1]] - cluster_sp_est_takeup[, ate_pairs[, 2]];
+      }
+  
+      if (model_link_type != LINK_TYPE_LPM) {
+        est_takeup_ate = est_takeup[ate_pairs[, 1]] - est_takeup[ate_pairs[, 2]];
+      }
+    }
   }
 }

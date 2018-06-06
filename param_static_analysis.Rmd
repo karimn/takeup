@@ -64,13 +64,8 @@ doParallel::registerDoParallel(cl)
 
 ```{r param-model-version}
 # fit_version <- "param" 
-fit_version <- "param_static_2330864" # Name matched and SMS
-
-# fit_version <- "param_static_nm_test_lvl2_re" # Name matched and SMS, private value separated (bracelet and calendar)
-# fit_version <- "param_static_nm_test_lvl2" # Name matched and SMS, private value separated (bracelet and calendar)
-# fit_version <- "param_static_2190373" # Name matched and SMS, private value separated (bracelet and calendar)
-# fit_version <- "param_static_2188348" # Name matched and SMS, private value separated (bracelet and calendar)
-# fit_version <- "param_static_2187538" # Name matched and SMS, private value separated (bracelet and calendar)
+fit_version <- "param_static_2962857" # Name matched and SMS
+# fit_version <- "param_static_2330864" # Name matched and SMS
 
 # global_subgroup <- NULL
 global_subgroup <- "name_matched"
@@ -86,7 +81,7 @@ model_fit <- dir("stanfit", pattern = str_interp("model_${fit_version}_\\d+.csv"
 
 check_hmc_diagnostics(model_fit)
 
-rhat(model_fit) %>% summary()
+rhat(model_fit) %>%  summary()
 
 load(file.path("stan_analysis_data", str_interp("model_${fit_version}.RData")))
 ```
@@ -1137,6 +1132,8 @@ sp_est_deworming_takeup_ate_all %>%
     incentive_treatment_left_col = "incentive_treatment_left" 
   )
 ```
+
+# Model Checking
 
 # Checking MCMC
 
