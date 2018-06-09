@@ -409,9 +409,10 @@ parameters {
 }
 
 transformed parameters {
-  vector[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0] hyper_full_baseline_dyn_effect;  
-  matrix[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_strata] strata_full_baseline_dyn_effect = 
-    rep_matrix(0, model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_strata);  
+  vector[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0]               hyper_full_baseline_dyn_effect;  
+  matrix[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_strata]   strata_full_baseline_dyn_effect = rep_matrix(0, 
+                                                                                                                               model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0,
+                                                                                                                               num_strata);  
   matrix[model_type == MODEL_TYPE_DYNAMIC ? num_deworming_days : 0, num_clusters] cluster_full_baseline_dyn_effect;  
   
   // These are always specified even if the model is not multilevel; they'll just have the same values one level up.
