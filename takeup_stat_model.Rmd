@@ -1,0 +1,95 @@
+---
+title: "TakeUp Statistical Model"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Static Model
+
+## Model subscripts 
+
+* $i$: individuals
+* $j$: clusters (villages)
+* $k$: strata (counties)
+
+## Variables
+
+* $Y_i \in \{0, 1\}$, observed take-up.
+* $\mathbf{Z}_i$, assigned treatment: incentive treatments, SMS treatment, distance treatment 
+* $\mathbf{X}_i$, covariates: phone-ownership, and name-matching indicators. 
+
+## Likelihood Model
+
+This is the model's likelihood, the data generating process for observed outcomes:
+
+\begin{equation}
+\begin{aligned}
+\Pr[Y_i = 1 | \mathbf{Z}_i, \mathbf{X}_i] &= g^{-1}(\eta_i) \\
+\eta_i &=  f(\mathbf{Z}_i, \mathbf{X}_i;\alpha_{j[i]}, \beta_{j[i]})   
+\end{aligned}
+\end{equation}
+
+where 
+
+* $g$ is a binary link function (e.g., logit or probit link functions).
+* $f$ is a linear function of $\mathbf{Z}$ and $\mathbf{X}$^[I'm writing it this way so I don't have to write the whole linear model with treatment indicators, covariates and, their interactions. I can specify it separately, it would just distract from the overall model here.]. 
+* $\alpha_j$ and $\beta_j$ are the model parameters for the village-level intercept and the village-level vector of slope coefficients, respectively.
+
+## Parameter Model
+
+This section describe the hierarchical model for parameters.
+
+Combine $\theta_j = (\alpha_j, \beta_j)'$ simplifying the notation of the above model parameters. The vector of village-level parameters has the following multivariate distribution:
+
+$$
+\forall j: \theta_j \sim \mathtt{MultiStudentT}(\nu^\text{village}, \theta_{k[j]}, \Sigma_{k[j]}^\text{village})
+$$
+while the county-level parameters have the following distribution
+$$
+\forall k: \theta_k \sim \mathtt{MultiStudentT}(\nu^\text{county}, \theta^o, \Sigma^\text{county})
+$$
+where $\theta^o = (\alpha^o, \beta^o)$ are the hyperparameters of the linear model:
+$$
+\begin{aligned}
+\alpha^o &\sim \mathtt{Normal}(0, 5) \\
+\beta^o &\sim \mathtt{MultiNormal}(0, \mathsf{diag}(1))
+\end{aligned}
+$$
+($\mathsf{diag}(x)$ is a matrix with the diagonal vector $x$.)
+
+The covariance matrices for $\theta_j$ and $\theta_k$ are defined as
+$$
+\begin{aligned}
+\forall k: \Sigma_k^\text{village} &= \mathsf{diag}(\sigma^\text{village}) \Omega_k^\text{village} \mathsf{diag}(\sigma^\text{village}) \\
+\Sigma^\text{county} &= \mathsf{diag}(\sigma^\text{county}) \Omega^\text{county} \mathsf{diag}(\sigma^\text{county})
+\end{aligned}
+$$
+where $\Omega_k^\text{village}$ and $\Omega^\text{county}$ are correlation matrices with their own prior distributions.
+
+Other hyper parameters have the following prior distributions
+$$
+\begin{aligned}
+\nu^\text{village} &\sim \Gamma(2, 0.1) \\
+\nu^\text{county} &\sim \Gamma(2, 0.1) \\
+\sigma^\text{village} &\sim \mathtt{HalfMultiNormal}(0, \mathsf{diag}(1)) \\
+\sigma^\text{county} &\sim \mathtt{HalfMultiNormal}(0, \mathsf{diag}(1)) \\
+\end{aligned}
+$$
+
+## Posterior Distribution of Model Parameters
+
+Let $\theta$ be a vector of all linear model parameters at all levels and $\phi$ is a vector of all hyperparameters. To conduct our inference we need to calculate the distribution
+$$
+p(\theta,\phi|\mathbf{Y}) = p(\mathbf{Y} | \theta, \phi) p(\theta | \phi) p(\phi)
+$$
+
+## Inference
+
+After calculating the posterior distribtution of the model's parameters we want to be able to calculate, for any two treatments $z$ and $z'$, the distribution of the average treatment effect
+$$
+\frac{1}{N} \Sigma_i Y_i(z) - Y_i(z')
+$$
+
