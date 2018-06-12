@@ -27,8 +27,8 @@ This is the model's likelihood, the data generating process for observed outcome
 
 \begin{equation}
 \begin{aligned}
-\Pr[Y_i = 1 | \mathbf{Z}_i, \mathbf{X}_i] &= g^{-1}(\eta_i) \\
-\eta_i &=  f(\mathbf{Z}_i, \mathbf{X}_i;\alpha_{j[i]}, \beta_{j[i]})   
+\Pr[Y_i = 1 | \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_i | \theta_{j[i]}) \\
+\eta_i &=  f(\mathbf{Z}_i, \mathbf{X}_i | \theta_{j[i]})   
 \end{aligned}
 \end{equation}
 
@@ -36,13 +36,13 @@ where
 
 * $g$ is a binary link function (e.g., logit or probit link functions).
 * $f$ is a linear function of $\mathbf{Z}$ and $\mathbf{X}$^[I'm writing it this way so I don't have to write the whole linear model with treatment indicators, covariates and, their interactions. I can specify it separately, it would just distract from the overall model here.]. 
-* $\alpha_j$ and $\beta_j$ are the model parameters for the village-level intercept and the village-level vector of slope coefficients, respectively.
+* $\theta_j = (\alpha_j, \beta_j)'$, where $\alpha_j$ and $\beta_j$ are the model parameters for the village-level intercept and the village-level vector of slope coefficients, respectively.
 
 ## Parameter Model
 
-This section describe the hierarchical model for parameters.
+This section describe the hierarchical model for parameters. Distribution that have $\mathtt{Multi}$ prefix are multivariate distributions and distributions with $\mathtt{Half}$ prefix are restricted to have non-negative values. 
 
-Combine $\theta_j = (\alpha_j, \beta_j)'$ simplifying the notation of the above model parameters. The vector of village-level parameters has the following multivariate distribution:
+The vector of village-level parameters has the following multivariate distribution:
 
 $$
 \forall j: \theta_j \sim \mathtt{MultiStudentT}(\nu^\text{village}, \theta_{k[j]}, \Sigma_{k[j]}^\text{village})
@@ -81,9 +81,9 @@ $$
 
 ## Posterior Distribution of Model Parameters
 
-Let $\theta$ be a vector of all linear model parameters at all levels and $\phi$ is a vector of all hyperparameters. To conduct our inference we need to calculate the distribution
+Let $\theta$ be a vector of all linear model parameters at all levels and $\phi$ is a vector of all hyperparameters, and $\mathbf{Y}$ is a matrix of all observed outcomes. To conduct our inference we need to calculate the distribution
 $$
-p(\theta,\phi|\mathbf{Y}) = p(\mathbf{Y} | \theta, \phi) p(\theta | \phi) p(\phi)
+p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X}) = p(\mathbf{Y}^\text{observed} | \mathbf{Z}^\text{observed}, \mathbf{X}, \theta, \phi) p(\theta | \phi) p(\phi)
 $$
 
 ## Inference
@@ -93,3 +93,7 @@ $$
 \frac{1}{N} \Sigma_i Y_i(z) - Y_i(z')
 $$
 
+Since we only observe at most one outcome of $Y_i(\cdot)$, we need to quantify the distribution of _missing_ counterfactuals:
+$$
+p(\mathbf{Y}^\text{missing} | \mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{Z}^\text{missing}, \mathbf{X}) = \int p(\mathbf{Y}^\text{missing} | \mathbf{Z}^\text{missing}, \mathbf{X}, \theta, \phi) \cdot p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X})\, d\theta d\phi
+$$
