@@ -7,7 +7,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Static Model
+# Static Take-up Model
 
 ## Model subscripts 
 
@@ -25,12 +25,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This is the model's likelihood, the data generating process for observed outcomes:
 
-\begin{equation}
+$$
 \begin{aligned}
 \Pr[Y_i = 1 | \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_i | \theta_{j[i]}) \\
 \eta_i &=  f(\mathbf{Z}_i, \mathbf{X}_i | \theta_{j[i]})   
 \end{aligned}
-\end{equation}
+$$
 
 where 
 
@@ -97,3 +97,57 @@ Since we only observe at most one outcome of $Y_i(\cdot)$, we need to quantify t
 $$
 p(\mathbf{Y}^\text{missing} | \mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{Z}^\text{missing}, \mathbf{X}) = \int p(\mathbf{Y}^\text{missing} | \mathbf{Z}^\text{missing}, \mathbf{X}, \theta, \phi) \cdot p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X})\, d\theta d\phi
 $$
+
+# Beliefs and Knowledge Model
+
+## Model subscripts 
+
+* $i$: individuals
+* $j$: clusters (villages)
+
+## Variables
+
+* $Y_i^\text{rec} \in \{0, 1, \ldots, 10\}$, the number of of individuals recognized (from a list of 10 randomly selected community members).
+* $Y_i^\text{2ord} \in \{0, 1, \ldots, Y_i^\text{rec}\}(z)$, second-order beliefs about the $Y_i^\text{rec}$ recognized community members. $\overline{Y}^\text{ 2ord,fp}(z)$ is the estimated proportion of $X^\text{degree}_i$.
+* $Y_i^\text{1ord} \in \{0, 1, \ldots, Y_i^\text{rec}\}$, first-order beliefs about the $Y_i^\text{rec}$ recognized community members. $\overline{Y}^\text{1ord,fp}(z)$ is the estimated proportion of $X^\text{degree}_i$.
+* $N_j \in \mathcal{Z}^+$, the population size of village $j$ (observed from the census).
+* $X_i^\text{degree} \in \{Y_i^\text{rec}, \ldots, N_{j[i]}\}$, the estimated number of community members $i$ recognizes.
+* $\mathbf{Z}_i$, assigned treatment: incentive treatments, SMS treatment, distance treatment 
+
+## Likelihood Model
+
+### Social connectness or recognition
+
+The first stage is to impute each respondents' recognition degree by estimating a parameteric binomial model. $g$ is a link function (e.g. logit). One thing doesn't makes sense here: $\delta^\text{rec}_{j}$ is the coefficient for a village level independent variable, $N_j$. It seems like $\delta^\text{rec}_j$ should just be a village level random effect or make it a county level parameter.
+
+$$
+\begin{aligned}
+  Y_i^\text{rec} &\sim \mathtt{Binomial}(10, p_i^\text{rec}) \\
+  p_i^\text{rec} &= g^{-1}(\alpha_i^\text{rec} + \delta_{j[i]}^\text{rec}\cdot N_{j[i]}) \\
+  X_i^\text{degree} &= Y_i^\text{rec} + p^\text{rec}_i \cdot(N_{j[i]} - 10)  
+\end{aligned}
+$$
+
+$X_i^\text{degree}$ is imputed by adding the known $Y_i^\text{rec}$ with the estimated number of community members (and not asked about in the survey) recognized.
+
+### Second-order beliefs
+
+Same as above but with treatment assignment potentially having a causal effect. Same comment as above about parameter levels.
+
+$$
+\begin{aligned}
+  Y_i^\text{2ord}(\mathbf{Z}_i) &\sim \mathtt{Binomial}(Y^\text{rec}_i, p_i^\text{2ord}(\mathbf{Z}_i)) \\
+  p_i^\text{2ord}(\mathbf{z}) &= g^{-1}(\alpha_i^\text{2ord} + \mathbf{z}\cdot \beta_i^\text{2ord} + \delta_i^\text{2ord}\cdot N_{j[i]}) \\
+  \overline{Y}^\text{ 2ord,fp}(\mathbf{Z}_i) &= \frac{Y_i^\text{2ord} + p_i^\text{2ord}(\mathbf{Z}_i)\cdot p_i^\text{rec}\cdot (N_{j[i]} - 10)}{X_i^\text{degree}}
+\end{aligned} 
+$$
+The number of community members $i$ has second-order beliefs^[In the current model $Y_i^\text{2ord} = 1 \iff$ $i$ reports yes/no.] is the sum of the observed sampled $Y_i^\text{2ord}$ and the estimated beliefs about the remaining population not asked about, $p_i^\text{rec}\cdot(N_{j[i]} - 10)$.
+
+For unobserved (missing) treatment $\mathbf{z}^\text{missing}$ we impute $\overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{missing})$ as
+$$
+\overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{missing}) = \frac{p_i^\text{2ord}(\mathbf{z}^\text{missing})\cdot p_i^\text{rec}\cdot N_{j[i]}}{X_i^\text{degree}}
+$$
+
+### First-order beliefs
+
+The first-order beliefs model is the same as the second-order model.
