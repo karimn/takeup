@@ -7,21 +7,24 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Static Take-up Model
+# Take-up Models
 
 ## Model subscripts 
 
 * $i$: individuals
 * $j$: clusters (villages)
 * $k$: strata (counties)
+* $m \in \{1,\ldots,12\}$, deworming day index.
 
 ## Variables
 
-* $Y_i \in \{0, 1\}$, observed take-up.
+* $Y_i \in \{0, 1\}$, is observed take-up over the whole intervention duration. $Y_{im} \in \{0, 1\}$, is observed take-up on day $m$.
 * $\mathbf{Z}_i$, assigned treatment: incentive treatments, SMS treatment, distance treatment 
 * $\mathbf{X}_i$, covariates: phone-ownership, and name-matching indicators. 
 
-## Likelihood Model
+## Static Model
+
+### Likelihood Model
 
 This is the model's likelihood, the data generating process for observed outcomes:
 
@@ -38,7 +41,7 @@ where
 * $f$ is a linear function of $\mathbf{Z}$ and $\mathbf{X}$^[I'm writing it this way so I don't have to write the whole linear model with treatment indicators, covariates and, their interactions. I can specify it separately, it would just distract from the overall model here.]. 
 * $\theta_j = (\alpha_j, \beta_j)'$, where $\alpha_j$ and $\beta_j$ are the model parameters for the village-level intercept and the village-level vector of slope coefficients, respectively.
 
-## Parameter Model
+### Parameters Model
 
 This section describe the hierarchical model for parameters. Distribution that have $\mathtt{Multi}$ prefix are multivariate distributions and distributions with $\mathtt{Half}$ prefix are restricted to have non-negative values. 
 
@@ -79,14 +82,14 @@ $$
 \end{aligned}
 $$
 
-## Posterior Distribution of Model Parameters
+### Posterior Distribution of Model Parameters
 
 Let $\theta$ be a vector of all linear model parameters at all levels and $\phi$ is a vector of all hyperparameters, and $\mathbf{Y}$ is a matrix of all observed outcomes. To conduct our inference we need to calculate the distribution
 $$
 p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X}) = p(\mathbf{Y}^\text{observed} | \mathbf{Z}^\text{observed}, \mathbf{X}, \theta, \phi) p(\theta | \phi) p(\phi)
 $$
 
-## Inference
+### Inference
 
 After calculating the posterior distribtution of the model's parameters we want to be able to calculate, for any two treatments $z$ and $z'$, the distribution of the average treatment effect
 $$
@@ -97,6 +100,23 @@ Since we only observe at most one outcome of $Y_i(\cdot)$, we need to quantify t
 $$
 p(\mathbf{Y}^\text{missing} | \mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{Z}^\text{missing}, \mathbf{X}) = \int p(\mathbf{Y}^\text{missing} | \mathbf{Z}^\text{missing}, \mathbf{X}, \theta, \phi) \cdot p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X})\, d\theta d\phi
 $$
+
+## Dynamic Model
+
+### Likelihood Model
+
+The dynamic model is extends the static model to the 12 deworming days.
+
+$$
+\begin{aligned}
+\Pr[Y_{im} = 1 | Y_{i,m-1} = 0, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_{im} | \theta_{j[i]}) \\
+\eta_{im} &= \log(\lambda_{k[i],m}) + f(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{static}_{j[i]}) + f_m(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{dynamic}_{k[i]}) \\
+\\
+\Pr[Y_{im} = 1 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 1
+\end{aligned}
+$$
+
+The link function $g$ here is a complementary log-log^[Logit and probit work just as well.]. $\lambda_{km}$ the is the piecewise-constant proportional hazard (Just taking a log of it to add it to the other linear model terms instead of leaving outside the $\exp(\cdot)$ term in the complementary log-log). The linear function $f$ is the same as in the static model, while $f_m$ is a quadratic linear model of days $m$ interacted with $\mathbf{Z}_i$ and $\mathbf{X}_i$. In the above notation I split the static and dynamic parameters such that $\theta = (\theta^\text{static}, \theta^\text{dynamic})$.
 
 # Beliefs and Knowledge Model
 
