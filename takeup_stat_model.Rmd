@@ -112,7 +112,8 @@ $$
 \Pr[Y_{im} = 1 | Y_{i,m-1} = 0, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_{im} | \theta_{j[i]}) \\
 \eta_{im} &= \log(\lambda_{k[i],m}) + f(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{static}_{j[i]}) + f_m(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{dynamic}_{k[i]}) \\
 \\
-\Pr[Y_{im} = 1 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 1
+\Pr[Y_{im} = 1 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 1 \\
+\Pr[Y_{im} = 0 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 0
 \end{aligned}
 $$
 
