@@ -336,12 +336,13 @@ est_deworming_takeup_ate_all %>%
              sms.treatment.2_left == sms.treatment.2_right),
     incentive_treatment_left_col = "incentive_treatment_left" 
   ) + 
-  labs(y = "")
+  labs(y = "Treatment Effect on Take-up Probability") +
        # subtitle = "ATE(z)",
        # x = "Incentive/signal (z)") #+ facet_wrap(~ name_matched_left)
+  NULL
 
 ggsave(filename = "static_ate_smsctrl.png", path = plot_save_path,
-       width = 7.5, height = 5)
+       width = 7.5, height = 3)
 ```
 
 ```{r static_ate_smsctrl-2, fig.width=8, fig.height=4}
@@ -415,7 +416,7 @@ ggsave(filename = "static_ate_all_2.png", path = "march_2018_plots",
        width = 7.5, height = 4.25)
 ```
 
-```{r, fig.width=8}
+```{r static_ate_combined_sms, fig.width=8}
 est_deworming_takeup_ate_phone %>%
   mutate(same_incentive = incentive_treatment_left == incentive_treatment_right,
          same_sms = sms.treatment.2_left == sms.treatment.2_right) %>% 
@@ -431,10 +432,14 @@ est_deworming_takeup_ate_phone %>%
     include_sms_treatment = TRUE,
     num_obs = param_stan_data$num_obs
   ) + 
-  labs(y = "", subtitle = "For phone owners only, compared to control incentive treatment combined with SMS treatment status.") #+ facet_wrap(~ name_matched_left)
+  labs(y = "Treatment Effect on Take-up Probability", 
+       subtitle = "For phone owners only, comparing incentive treatment + SMS treatment to the control.") + #+ facet_wrap(~ name_matched_left)
+  theme(legend.position = "top") +
+  scale_color_brewer("SMS Treatment", type = "qual", palette = "Set2") +
+  NULL
 
 ggsave(filename = "static_ate_combined_sms.png", path = plot_save_path,
-       width = 7.5, height = 4.25)
+       width = 7.5, height = 4.5)
 ```
 
 
@@ -638,13 +643,13 @@ est_deworming_takeup_ate_dist %>%
     incentive_treatment_left_col = "incentive_treatment_left",
     num_obs = param_stan_data$num_obs
   ) + 
-  labs(y = "") +
+  labs(subtitle = "Split by distance to point of treatment.") +
   # facet_grid(name_matched_left ~ dist.pot.group_left)
   facet_wrap(~ dist.pot.group_left, ncol = 1) +
   theme(strip.text = element_text(size = 15, face = "bold"))
 
-ggsave(filename = "static_ate_smsctrl_dist.png", path = "march_2018_plots",
-       width = 7.5, height = 5.5)
+ggsave(filename = "static_ate_smsctrl_dist.png", path = plot_save_path,
+       width = 7.5, height = 5.25)
 ```
 
 ```{r static_ate_smsctrl_dist-2, fig.width=8}
@@ -696,12 +701,42 @@ est_deworming_takeup_ate_phone_dist %>%
     sms_treatment_right = FALSE,
     num_obs = param_stan_data$num_obs
   ) + 
-  labs(y = "") +
   facet_wrap(~ dist.pot.group_left, ncol = 1) +
   theme(strip.text = element_text(size = 15, face = "bold"))
 
 ggsave(filename = "static_ate_all_dist.png", path = "march_2018_plots",
        width = 9, height = 7.5)
+```
+
+
+```{r static_ate_combined_sms_dist, fig.width=8, fig.height=8}
+est_deworming_takeup_ate_phone_dist %>%
+  mutate(same_incentive = incentive_treatment_left == incentive_treatment_right,
+         same_sms = sms.treatment.2_left == sms.treatment.2_right) %>% 
+  filter(phone_owner_left, 
+         incentive_treatment_left != "bracelet social",
+         !same_incentive | incentive_treatment_left == "control",
+         dist.pot.group_left == dist.pot.group_right,
+         sms.treatment.2_right == "control",
+         !(incentive_treatment_left == "bracelet" & incentive_treatment_right == "calendar")) %>% 
+  plot_ate(
+    ate_summ_data = .,
+    incentive_treatment_left_col = "incentive_treatment_left",
+    sms_treatment_col = "sms.treatment.2_left",
+    data_preparer = . %>% 
+      mutate_at(vars(starts_with("dist.pot.group")), funs(fct_relabel(factor(.), str_to_title))), 
+    include_sms_treatment = TRUE,
+    num_obs = param_stan_data$num_obs
+  ) + 
+  labs(y = "Treatment Effect on Take-up Probability", 
+       subtitle = "Split by distance to point of treatment.\nFor phone owners only, comparing incentive treatment + SMS treatment to the control.") + #+ facet_wrap(~ name_matched_left)
+  facet_wrap(~ dist.pot.group_left, ncol = 1) +
+  scale_color_brewer("SMS Treatment", type = "qual", palette = "Set2") +
+  theme(strip.text = element_text(size = 15, face = "bold"), legend.position = "top") +
+  NULL
+
+ggsave(filename = "static_ate_combined_sms_dist.png", path = plot_save_path,
+       width = 7.5, height = 7.5)
 ```
 
 

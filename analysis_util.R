@@ -650,8 +650,8 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
         select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
         mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
                                                                         "No SMS" = "control",
-                                                                        "Reminders" = "reminder.only",
-                                                                        "Social Info" = "social.info")))
+                                                                        "Reminders Only" = "reminder.only",
+                                                                        "Social Info & Reminders" = "social.info")))
       } else {
         return(.)
       }
@@ -813,12 +813,13 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ,
         select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
           mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
                                                                           "No SMS" = "control",
-                                                                          "Reminders" = "reminder.only",
-                                                                          "Social Info" = "social.info"))) 
+                                                                          "Reminders Only" = "reminder.only",
+                                                                          "Social Info & Reminders" = "social.info"))) 
       } else return(.)
     } %>% 
     ggplot(aes(day, mean_est)) +
-    geom_line(line_aes) +
+    geom_line(line_aes, size = 0.5) +
+    geom_line(line_aes, alpha = 0.25, size = 2) +
     scale_x_continuous("Deworming Day", breaks = seq(1, 12, 1), minor_breaks = FALSE) +
     labs(title = "Daily Mean Probability of Deworming Take-up", y = "Posterior Mean Probability of Deworming") 
   
@@ -849,8 +850,8 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
         select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
           mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
                                                                           "No SMS" = "control",
-                                                                          "Reminders" = "reminder.only",
-                                                                          "Social Info" = "social.info"))) 
+                                                                          "Reminders Only" = "reminder.only",
+                                                                          "Social Info & Reminders" = "social.info"))) 
       } else return(.)
     } %>% 
     data_preparer() 
@@ -927,10 +928,10 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
             if (!is_null(incentive_treatment_right_col)) { 
               plot_obj <- plot_obj +
                 geom_linerange(aes_string(ymin = "lb_80", ymax = "ub_80", color = sms_treatment_col, group = "sms_left_incentive_right"), 
-                               size = 4, position = dodge) +
+                               size = 4, alpha = 0.4, position = dodge) +
                 scale_color_discrete("SMS Treatment")
                 geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col, group = "sms_left_incentive_right"), 
-                               size = 3, position = dodge) +
+                               size = 3, alpha = 0.4, position = dodge) +
                 scale_color_discrete("SMS Treatment")
               
               plot_obj <- plot_obj +
@@ -939,35 +940,35 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
             } else {
               plot_obj <- plot_obj +
                 geom_linerange(aes_string(ymin = "lb_80", ymax = "ub_80", color = sms_treatment_col), 
-                               size = 4, position = dodge) +
+                               size = 4, alpha = 0.4, position = dodge) +
                 geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col), 
-                               size = 3, position = dodge) +
+                               size = 3, alpha = 0.5, position = dodge) +
                 scale_color_discrete("SMS Treatment")
               
               plot_obj <- plot_obj +
                 geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", color = sms_treatment_col), 
-                                size = 1, stroke = 2, shape = 21, fill = "white", position = dodge) 
+                                size = .75, stroke = 1.5, shape = 21, fill = "white", position = dodge) 
             }
           }
         } else {
           if (!is_null(incentive_treatment_right_col)) { 
             plot_obj <- plot_obj +
               geom_linerange(aes_string(ymin = "lb_80", ymax = "ub_80", color = incentive_treatment_right_col), 
-                             position = dodge, size = 4, show.legend = FALSE) + 
+                             alpha = 0.4, position = dodge, size = 4, show.legend = FALSE) + 
               geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = incentive_treatment_right_col), 
-                             position = dodge, size = 3, show.legend = FALSE) + 
+                             alpha = 0.4, position = dodge, size = 3, show.legend = FALSE) + 
               geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", color = incentive_treatment_right_col), 
-                              position = dodge, size = 1, stroke = 2, shape = 21, fill = "white", show.legend = FALSE) +
+                              position = dodge, size = .75, stroke = 1.5, shape = 21, fill = "white", show.legend = FALSE) +
               scale_color_manual(values = c("black", "deepskyblue2"))
           } else {
             plot_obj <- plot_obj +
-              geom_linerange(aes(ymin = lb_80, ymax = ub_80), size = 4) + 
-              geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 3) + 
-              geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 1, stroke = 2, shape = 21, fill = "white") 
+              geom_linerange(aes(ymin = lb_80, ymax = ub_80), size = 4, alpha = 0.4) + 
+              geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 3, alpha = 0.4) + 
+              geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = .75, alpha = 1, stroke = 1.5, shape = 21, fill = "white") 
           }
         }
         
-        caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
+        caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% posterior probability intervals.", sep = "\n")
       }
       
       if (!is.na(num_obs)) {
@@ -977,7 +978,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
       plot_obj +
         geom_hline(yintercept = 0, linetype = "dotted") +
         geom_label_repel(aes(label = sprintf("%.3f", mean_est)),
-                        nudge_x = if (include_sms_treatment) -0.5 else -0.25,
+                        nudge_x = if (include_sms_treatment) -0.5 else -0.3,
                         label.padding = 0.1,
                         size = 3.5, segment.color = NA, fill = alpha("white", 0.5), color = alpha("black", 1)) +
         # geom_text_repel(aes(label = sprintf("%.3f", mean_est), color = NULL), 
@@ -986,7 +987,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
         coord_flip() +
         labs(title = "Deworming Take-up Average Treatment Effect", 
              x = "Incentive/Signal Treatment", 
-             y = "Posterior Probability of Deworming Average Treatment Effect", 
+             y = "Treatment Effect on Take-up Probability",
              caption = caption_text) + 
         theme(legend.position = "right") 
     }

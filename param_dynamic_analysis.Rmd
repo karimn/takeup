@@ -269,6 +269,10 @@ c(ls(pattern = "est_deworming_(takeup_(dyn|ate)|day)"),
   save(list = ., file = file.path("data", "param_dyn_estimation.RData"))
 ```
 
+```{r}
+plot_save_path = "plots_may2018"
+```
+
 ## All Combined
 
 ### Take-up Levels
@@ -536,10 +540,11 @@ est_deworming_day_dist %>%
   mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
   plot_dyn_takeup_daily() +
   facet_wrap(~ dist.pot.group_static, nrow = 1, scales = "free_y") +
+  scale_color_brewer("Incentive/Signal Treatment", type = "div", palette = "Spectral") +
   coord_cartesian(ylim = c(0, 0.13)) +
   theme(legend.position = "bottom")
 
-ggsave(filename = "dyn_daily_all_dist.png", path = "march_2018_plots", 
+ggsave(filename = "dyn_daily_all_dist.png", path = plot_save_path,
        width = 8.5, height = 6)
 ```
 
@@ -553,9 +558,15 @@ est_deworming_day_dist %>%
          dist.pot.group_static == dist.pot.group_dynamic) %>% 
   mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
   plot_dyn_takeup_daily(control_observation = FALSE, include_sms_treatment = TRUE) +
+  scale_color_brewer("SMS Treatment", type = "qual", palette = "Set2") +
+  labs(subtitle = "Split by distance to point of treatment. For phone owners only.") + #+ facet_wrap(~ name_matched_left)
+  # scale_color_brewer("SMS Treatment", type = "div", palette = "RdBu") +
   coord_cartesian(ylim = c(0, 0.24)) +
   facet_grid(dist.pot.group_static ~ incentive_treatment_static) +
   theme(legend.position = "bottom")
+
+ggsave(filename = "dyn_daily_sms_dist.png", path = plot_save_path,
+       width = 8.5, height = 6)
 ```
 
 ## Split by Phone Ownership
