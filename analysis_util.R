@@ -596,7 +596,7 @@ plot.takeup.dynamics <- function(.data, .aes = aes(x = dewormed.day.any, y = tak
     annotate(geom = "rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
     scale_x_continuous("Deworming Day", breaks = 1:12) +
     scale_color_discrete("Incentive Treatment") +
-    coord_cartesian(y = c(0, max(.data[[deparse(.aes$y)]]) + 0.0001)) +
+    # coord_cartesian(y = c(0, max(.data[[deparse(.aes$y)]]) + 0.0001)) +
     labs(caption = "Grey vertical bars mark the days after SMS messages are received.\nThe red bar marks the first deworming day, so subjects would have only received a reminder message the day before.")
 }
 
@@ -722,10 +722,10 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
       if (include_sms_treatment) {
         if (is_null(takeup_data)) {
           plot_obj <- plot_obj +
-            geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col), size = 2, position = dodge) +
-            geom_linerange(aes_string(ymin = "lb_80", ymax = "ub_80", color = sms_treatment_col), size = 3, position = dodge) +
+            geom_linerange(aes_string(ymin = "lb_90", ymax = "ub_90", color = sms_treatment_col), size = 2, position = dodge, alpha = 0.4) +
+            geom_linerange(aes_string(ymin = "lb_80", ymax = "ub_80", color = sms_treatment_col), size = 3, position = dodge, alpha = 0.4) +
             geom_pointrange(aes_string(ymin = "lb_95", ymax = "ub_95", color = sms_treatment_col), 
-                            shape = 21, size = 1, stroke = 2, fill = "white", position = dodge) +
+                            shape = 21, size = 0.75, alpha = 1, stroke = 1.5, fill = "white", position = dodge) +
             scale_color_discrete("SMS Treatment") 
           
           caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
@@ -737,9 +737,9 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
         
       } else {
         plot_obj <- plot_obj +
-          geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 3, position = dodge) +
-          geom_linerange(aes(ymin = lb_80, ymax = ub_80), size = 4, position = dodge) +
-          geom_pointrange(aes(ymin = lb_95, ymax = ub_95), shape = 21, size = 1, stroke = 2, position = dodge, fill = "white") 
+          geom_linerange(aes(ymin = lb_90, ymax = ub_90), size = 3, position = dodge, alpha = 0.4) +
+          geom_linerange(aes(ymin = lb_80, ymax = ub_80), size = 4, position = dodge, alpha = 0.4) +
+          geom_pointrange(aes(ymin = lb_95, ymax = ub_95), size = 0.75, shape = 21, size = 1, stroke = 1.5, position = dodge, fill = "white", alpha = 1) 
         
         caption_text %<>% str_c("Horizontal line ranges represent the 80%, 90%, and 95% probability intervals.", sep = "\n")
       }
