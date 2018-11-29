@@ -219,10 +219,10 @@ praise.stigma.plot <- baseline.data %>%
   ungroup %>%
   mutate_at(vars(praise.stigma, response), funs(fct_relabel(factor(.), str_to_title))) %>% 
   mutate(topic = fct_recode(factor(topic), 
-                            "Wearing/not wearing nice clothes to church" = "clothes",
-                            "Use Latrine/open defecation" = "defecate",
-                            "Deworming/not deworming during MDA" = "deworm",
-                            "Immunize/not immunize children" = "immunize")) %>% 
+                            "Wearing/not wearing nice clothes to church" = "clothe",
+                            "Use Latrine/open defecation" = "defecat",
+                            "Deworming/not deworming during MDA" = "dewor",
+                            "Immunize/not immunize children" = "immuniz")) %>% 
   ggplot(aes(response)) +
   geom_col(aes(y = n), alpha = 0.5) +
   labs(y = "Proportion", x = "") +

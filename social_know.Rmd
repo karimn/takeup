@@ -73,11 +73,12 @@ load(file.path("data", "analysis.RData"))
 
 ```{r}
 endline.know.table.data %>% 
-  filter(know.table.type == "table.A") %>% 
-  mutate(relationship = fct_infreq(relationship)) %>% {
+  filter(know.table.type == "table.A", !is.na(relationship)) %>% 
+  mutate(relationship = fct_infreq(relationship) %>% fct_relabel(str_to_title)) %>% {
     ggplot(.) +
       geom_bar(aes(relationship, y = ..count../sum(..count..)), alpha = 0.5, color = "black") + 
-      labs(x = "Relationship", y = "Proportion", title = "Reported Relationships", subtitle = "Table A only", caption = sprintf("Number of knowledge queries: %d", nrow(.))) +
+      labs(x = "Relationship", y = "Proportion", 
+           title = "Reported Relationships", caption = sprintf("Number of knowledge queries: %d", nrow(.))) +
       scale_y_continuous(breaks = seq(0, 1, 0.1))
   }
 ```
@@ -85,7 +86,8 @@ endline.know.table.data %>%
 ```{r}
 endline.know.table.data %>% 
   filter(know.table.type == "table.A", recognized == "yes") %>% 
-  mutate(relationship = fct_infreq(relationship)) %>% 
+  mutate(relationship = fct_infreq(relationship) %>% fct_relabel(str_to_title),
+         dewormed = str_to_title(dewormed)) %>% 
   group_by(relationship) %>% 
   mutate(rel.size = n()) %>% 
   group_by(dewormed, add = TRUE) %>% 
@@ -382,6 +384,35 @@ fp_2ord_prop_knows_ate_all <- fp_2ord_prop_knows_ate %>%
   filter(dist.pot.group_left == dist.pot.group_right) %>% 
   prepare_est_deworming_ate() 
 ```
+
+```{r}
+save(
+  ate_pair_info,
+  fp_1ord_prop_knows_mean,
+  fp_1ord_prop_knows_ate,
+  fp_2ord_prop_knows_mean, 
+  fp_2ord_prop_knows_ate, 
+  fp_1ord_prop_knows_mean_phone,
+  fp_1ord_prop_knows_mean_dist,
+  fp_1ord_prop_knows_mean_phone_dist,
+  fp_1ord_prop_knows_mean_all,
+  fp_2ord_prop_knows_mean_phone,
+  fp_2ord_prop_knows_mean_dist,
+  fp_2ord_prop_knows_mean_phone_dist,
+  fp_2ord_prop_knows_mean_all,
+  fp_1ord_prop_knows_ate_phone,
+  fp_1ord_prop_knows_ate_dist,
+  fp_1ord_prop_knows_ate_phone_dist,
+  fp_1ord_prop_knows_ate_all,
+  fp_2ord_prop_knows_ate_phone,
+  fp_2ord_prop_knows_ate_dist,
+  fp_2ord_prop_knows_ate_phone_dist,
+  fp_2ord_prop_knows_ate_all,
+  
+  file = file.path("stan_analysis_data", "beliefs_processed.RData")
+)
+```
+
 
 $$
 \begin{align}
