@@ -164,6 +164,27 @@ est_deworming_takeup_ate_all_name_matched <- est_deworming_takeup_ate %>%
   prepare_est_deworming_ate(subgroups = "name_matched_left")
 ```
 
+```{r}
+save(
+  static_treatment_cell_info, 
+  static_ate_pair_info,
+  est_deworming_takeup,
+  est_deworming_takeup_ate,
+  est_deworming_takeup_phone,
+  est_deworming_takeup_dist,
+  est_deworming_takeup_phone_dist,
+  est_deworming_takeup_all,
+  est_deworming_takeup_ate_phone,
+  est_deworming_takeup_ate_dist,
+  est_deworming_takeup_ate_phone_dist,
+  est_deworming_takeup_ate_all,
+  est_deworming_takeup_ate_phone_name_matched,
+  est_deworming_takeup_ate_dist_name_matched,
+  est_deworming_takeup_ate_all_name_matched,
+  file = file.path("stan_analysis_data", "static_processed.RData")
+)
+```
+
 
 ```{r}
 model_fit %>% 

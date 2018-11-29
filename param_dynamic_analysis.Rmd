@@ -259,6 +259,28 @@ info_inc_ate_phone <- info_inc_ate_iter_data_phone %>%
 ```
 
 ```{r}
+save(
+  dyn_treatment_cell_info,
+  dyn_ate_pair_info,
+  est_deworming_takeup_dyn,
+  est_deworming_days,
+  est_deworming_takeup_dyn_ate,
+  est_deworming_takeup_dyn_phone,
+  est_deworming_takeup_dyn_dist,
+  est_deworming_takeup_dyn_phone_dist,
+  est_deworming_takeup_dyn_all,
+  est_deworming_day_dist,
+  est_deworming_day_all,
+  est_deworming_takeup_ate_phone,
+  est_deworming_takeup_dyn_ate_dist,
+  est_deworming_takeup_ate_phone_dist,
+  est_deworming_takeup_dyn_ate_all,
+  
+  file = file.path("stan_analysis_data", "dynamic_processed.RData")
+)
+```
+
+```{r}
 model_3_fit %>% 
   tidy(pars = c(str_c(c("stratum", "cluster"), "_student_df"), "stratum_baseline_dyn_student_df", "stratum_dyn_student_df"))
 ```
