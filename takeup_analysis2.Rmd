@@ -1033,8 +1033,7 @@ c("bracelet - calendar - ink") %>%
 
 ```{r, fig.width=10}
 prep.sms.ctrl.plot.data(reg.output.sms.ctrl.covar) %>% {
-  plot.sms.ctrl.takeup(.) +
-    labs(subtitle = "With control")
+  plot.sms.ctrl.takeup(.) 
 }
 ```
 
