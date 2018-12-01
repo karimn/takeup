@@ -527,7 +527,7 @@ prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
 }
 
 plot.sms.ctrl.takeup <- function(.preped.data, .facet.formula = . ~ ref.treatment) {
-  ggplot(.preped.data, aes(x = incentive.treatment)) +
+  plot_obj <- ggplot(.preped.data, aes(x = incentive.treatment)) +
     geom_col(aes(y = estimate, fill = !ref), 
              position = position_stack(reverse = TRUE), alpha = 0.25, color = "grey50") +
     geom_text_repel(aes(y = bar.size, label = sprintf("%.2f", bar.size)), 
@@ -543,11 +543,17 @@ plot.sms.ctrl.takeup <- function(.preped.data, .facet.formula = . ~ ref.treatmen
     scale_fill_discrete("", labels = c("Reference Group", "Comparison Group")) +
     scale_y_continuous("Proportion of Take-up", breaks = seq(0, 1, 0.05)) +
     scale_x_discrete("Treatment") +
-    facet_grid(.facet.formula, scales = "free_x", space = "free_x", 
-               labeller = labeller(.cols = as_labeller(. %>% paste0("Reference Group: ", .)),
-                                   .rows = as_labeller(. %>% paste0("Distance: ", .)))) +
     labs(title = "Estimated Take-up in Response to Incentive Treatment",
          caption = "Intervals shown identify the 90% confidence intervals, estimated using cluster robust standard errors.\nConfidence intervals test the null hypothesis of no difference in take-up from the reference group.") 
+  
+  if (!is_null(.facet.formula)) {
+    plot_obj <- plot_obj +
+      facet_grid(.facet.formula, scales = "free_x", space = "free_x", 
+                 labeller = labeller(.cols = as_labeller(. %>% paste0("Reference Group: ", .)),
+                                     .rows = as_labeller(. %>% paste0("Distance: ", .)))) 
+  }
+  
+  return(plot_obj)
 }
 
 prep.sms.treat.plot.data <- function(.reg.output) {
