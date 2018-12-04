@@ -1,7 +1,7 @@
 ---
 title: |
     | Social Signaling and Prosocial Behavior
-    | Experimental Evidence in Community Deworming in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
+    | Experimental Evidence in Community Deworming in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; Supreet Kaur, Dmitry Taubinsky, Seema Jayachandran, Nancy Qian and seminar participants at Berkeley, Northwestern Rookiefest, Oxford CSAE Conference 2018 and PacDev 2018 for helpful discussions and feedback; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
 date: "November 2018"
 subtitle: "Please find the latest version of the paper [here](https://sites.google.com/view/annekaring/research)"
 author:
@@ -23,13 +23,15 @@ header-includes:
    - \usepackage{threeparttable}
    - \usepackage{todonotes}
    - \usepackage{tikz}
-   - \usepackage[nomarkers,figuresonly]{endfloat}
+   - \usepackage[nomarkers]{endfloat}
 abstract: "Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. To separate social signaling preferences from reminder and learning effects, we offer free text messages to a random subset of adults. Further, we exogenously vary the travel distance to treatment locations. We find that (1) bracelets as signals increase deworming take-up by 24 percent, outperforming a material incentive; (2) the effects are not due to pure reminder or learning effects; (3) there is no detectable effect for the ink signal, which we attribute to its lower visibility; (4) adults are highly sensitive to distance and both signaling treatments have a larger impact on take-up at far distances. The latter finding is consistent with the theoretical prediction that signaling returns increase as signals become more informative. Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision."
 bibliography: /home/karim/Documents/library.bib
 nocite: |
   @R
 urlcolor: blue
 ---
+
+\newpage
 
 \onehalfspacing
 \newtheorem{assumption}{Assumption}
@@ -148,7 +150,7 @@ load(file.path("data", "analysis.RData"))
 # Introduction
 
 <!-- Motivation and research question -->
-Externalities play an important role in many health behaviors. Prominent examples are deworming, smoking, open defecation and vaccination. Individuals frequently undervalue the social costs and benefits of their actions and underinvest in public goods like deworming. There is an extensive theoretical literature on the role of social signaling and image concerns [@Bernheim1994; @Benabou2006;-@Benabou2012a]. Recent field experiments show that social image concerns affect important behaviors, such as consumption, the decision to vote, and student effort [@Dellavigna2017; @Bursztyn2017a; @Bursztyn2015]. However, empirical evidence from field settings in low-income countries is scarce. Developing countries are a particularly important context, since formal enforcement mechanisms are often missing to produce efficient contributions to public goods and signaling incentives could be an inexpensive substitute.^[For example, the United States and Germany have laws that require children to be immunized in order to attend daycare. There is an extensive literature showing the effectiveness of material and financial incentives in encouraging positive health behaviors [@Thornton2008; @Banerjee2010;@Sato2015] However, governments often raise concerns about the scaleability and financial sustainability of these incentives.] We chose community deworming, as an empirical setting, to manipulate social signaling concerns. Deworming is a public good for which most of its benefits accrue through reduced disease transmission [@Miguel2004]. Worm infections in adults present a large disease burden as they lead to continuous reinfections among children [@Anderson2013;@Anderson2014;@Truscott2014;@Njenga2011]. In this paper, we ask two questions: Can social signals increase adults' willingness to take up deworming treatment? To what extent do differences in peer take-up affect the reputational returns of signals? 
+Externalities play an important role in many health behaviors. Prominent examples are deworming, smoking, open defecation and vaccination. Individuals frequently undervalue the social costs and benefits of their actions and under-invest in public goods like deworming. There is an extensive theoretical literature on the role of social signaling and image concerns [@Bernheim1994; @Benabou2006;-@Benabou2012a]. Recent field experiments show that social image concerns affect important behaviors, such as consumption, the decision to vote, and student effort [@Dellavigna2017; @Bursztyn2017a; @Bursztyn2015]. However, empirical evidence from field settings in low-income countries is scarce. Developing countries are a particularly important context, since formal enforcement mechanisms are often missing to produce efficient contributions to public goods and signaling incentives could be an inexpensive substitute.^[For example, the United States and Germany have laws that require children to be immunized in order to attend daycare. There is an extensive literature showing the effectiveness of material and financial incentives in encouraging positive health behaviors [@Thornton2008; @Banerjee2010;@Sato2015] However, governments often raise concerns about the scalability and financial sustainability of these incentives.] We chose community deworming, as an empirical setting, to manipulate social signaling concerns. Deworming is a public good for which most of its benefits accrue through reduced disease transmission [@Miguel2004]. Worm infections in adults present a large disease burden as they lead to continuous reinfections among children [@Anderson2013;@Anderson2014;@Truscott2014;@Njenga2011]. In this paper, we ask two questions: Can social signals increase adults' willingness to take up deworming treatment? To what extent do differences in peer take-up affect the reputational returns of signals? 
 
 <!-- Experimental design and identification -->
 We answer these questions by implementing a large-scale field experiment that is closely tied to Bénabou and Tirole's theory of social signaling [-@Benabou2006;-@Benabou2012a]. In collaboration with the Kenyan Government, we launch a new community deworming program where health volunteers offer free deworming treatment to over 200,000 adults at central locations (instead of through a traditional door-to-door campaign) over a period of 12 days. We inform adults, prior to the program, about the health benefits of deworming with an explicit emphasis on the public good aspect of treatment. Our main experimental manipulations are (i) to increase the observability of deworming decisions and (ii) to vary the distance that adults have to travel to receive treatment. Specifically, we introduce two social signals in the form of a colorful bracelet and ink applied to adults' thumbs, both of which are given to adults upon coming for deworming treatment. As a third treatment, we introduce a private material incentive in the form of a one-page wall calendar that allows us to hold constant the consumption value of the bracelet. We randomize 144 treatment locations and their surrounding communities into the ink, bracelet and calendar treatments or a control group where no incentive is given. The cluster randomization identifies the combined effect of social signaling, salience and social learning effects. To separately identify the extent to which deworming decisions are driven by a desire to signal, we offer free text messages to a small random subset of adults in each of the study communities. The text messages (a) remind individuals of the availability of deworming and (b) provide information about the share of adults that have come for deworming in their community. Lastly, to exogenously vary the cost of deworming, we randomly assign communities to close (less than 1.25 kilometers) or far (between 1.25 and 2.5 kilometers) walking distances to treatment locations. The distance randomization allows us to exogenously shift the level of deworming take-up at community level. 
@@ -168,7 +170,7 @@ Our work contributes to the literature of social signaling in four ways. First, 
 Second, this study makes a contribution by exogenously varying distance and with that deworming take-up at the community level. Such is in most settings impossible and allows us to investigate the relationship between equilibrium take-up levels, the informativeness of signals and subsequent differences in the impact of signals on individuals' decision to deworm. By generating large exogenous differences in take-up levels, we show that signals have much larger effects at far distances and can undo the negative demand response observed in the control group. We observe no such effect for the material incentive. This result has the potential to inform policy decisions about optimal treatment locations: as reputational returns are higher at far compared to close distances, increasing individuals' willingness to walk, optimal treatment locations can be set up further apart and with the same number of locations larger geographic areas can be covered.  
 <!-- Think about this more later in terms of optimal Pigouvian tax, B&T paper; also this claim may need to be substantiated further  -->
 
-Third, we show that the type of signal offered can drastically influence its effectiveness. To our knowledge, this is the first study that simultaneously tests two different signals. Our findings suggest that differences in the perceived salience of signals can translate into large differences in their effectivenes to influence behavior. While ink is a known, well-established signal in Kenya - commonly used for voting - our study highlights that such familiarity does not imply it is transferable as signal to another domain. 
+Third, we show that the type of signal offered can drastically influence its effectiveness. To our knowledge, this is the first study that simultaneously tests two different signals. Our findings suggest that differences in the perceived salience of signals can translate into large differences in their effectiveness to influence behavior. While ink is a known, well-established signal in Kenya - commonly used for voting - our study highlights that such familiarity does not imply it is transferable as signal to another domain. 
 
 Fourth, this paper is one of two papers (in addition to @Karing2018) that provides the first evidence on social signaling in health, and therefore contributes to a large literature on incentives to increase the use of health services and public goods in low-income settings [@Thornton2008; @Banerjee2010;@Ashraf2012;@Sato2015]. Complementing Karing's [-@Karing2018] findings, our paper demonstrates the potential effectiveness of social signals in an environment with low take-up levels and where a new technology is introduced.^[In our study, take-up of deworming treatment is 36 percent in the control group, compared to 73 percent take-up of vaccine four in the control groups of Karing's study.] 
 
@@ -212,7 +214,7 @@ baseline.data %>%
       panel.border = element_blank()) 
 ```
 
-Community deworming and the context of Western Kenya provide an empirically relevant and suitable setting to study prosocial behavior and the potential of social signaling. Firstly, deworming is a public good. Most of its benefits come through reduced disease transmission to others, while private health benefits are low for many individuals. Secondly, deworming is an established health technology in Kenya. In 2009 the Government of Kenya launched a National School-Based Deworming Programme (NSBDP) through which between 2012 and 2017 over 5 million children got dewormed. Trained teachers administered deworming tablets to all enrolled and non-enrolled children aged 2-14 years in all primary schools in areas endemic to parasitic worms, including our study area. Most likely as a results of that, 78 percent of adults in our baseline survey sample know about deworming treatment and 61 percent are aware that treatment should be taken regularly, every three to twelve months. When asked who is at risk of worm infections, 94 percent of adults answer children and 67 percent answer that adults are at risk too. Only 4 percent say that deworming treatment is for sick people only. Third, there is a strong prescriptive norm around deworming. 95 percent of adults at baseline say they would praise someone who would come for free deworming treatment, while 69 percent said they would look down on a person who did not come. Figure \ref{fig:praise-stigma-plot} shows that image concerns for deworming are comparable to those for open defecation and child immunization. Individuals consider deworming as the "right thing to do" to protect one's health and not spread worms, while those who do not deworm are considered as careless and ignorant. While there could be concerns about adults' interpreting others' decision to deworm as a sign of them having worms or "being dirty" (i.e. revealing negative health characteristic) the baseline data suggests that this is not the case. Instead, deworming is seen as a preventative health behavior for everyone to take, regardless of whether someone believes to have worms or is feeling healthy. However, adults have a limited understanding of externalities. Less than half (41 percent) of adults know that worms can spread between people.^[When asked if a person sick with worms can spread works to others, only 31 percent answered yes, 56 percent said know and 13 percent were uncertain. When asked if "If you have worms, does that affect your neighbors? or relatives? health?" 27 percent and "If your neighbors or relatives have worms, does that affect your health?" 25 percent answered yes. Only 18 percent answered yes to all three questions, had full externality knowledge. 41 percent answered yes to one of the three questions, had partial understanding of externalities.] Lastly, adults underinvest in deworming despite treatment being readily available at a low cost.^[Adults can purchase deworming treatment at pharmacies and clinics for a price of about 50-200 Kenyan shillings (\$0.50-2)] While 68 percent of adults at baseline report to have taken treatment before, only 38 percent say they dewormed in the past 12 month. Adults in endemic areas are advised to deworm every 6 to 12 months but there is currently no formal program that provides free treatment to adults. In collaboration with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to over 200,000 adults in Western Kenya. The program was implemented across three counties, Busia, Siaya and Kakamega, where soil-transmitted helminths are endemic. We implemented the program and experiment in two waves: wave one of deworming was implemented from early to mid-October  in Busia and Siaya County, and wave two was implemented from late October until early November in Kakamega County. In both waves, deworming started on a Monday and was offered for twelve consecutive days, each day from 8am until 5pm. 
+Community deworming and the context of Western Kenya provide an empirically relevant and suitable setting to study prosocial behavior and the potential of social signaling. Firstly, deworming is a public good. Most of its benefits come through reduced disease transmission to others, while private health benefits are low for many individuals. Secondly, deworming is an established health technology in Kenya. In 2009 the Government of Kenya launched a National School-Based Deworming Programme (NSBDP) through which between 2012 and 2017 over 5 million children got dewormed. Trained teachers administered deworming tablets to all enrolled and non-enrolled children aged 2-14 years in all primary schools in areas endemic to parasitic worms, including our study area. Most likely as a results of that, 78 percent of adults in our baseline survey sample know about deworming treatment and 61 percent are aware that treatment should be taken regularly, every three to twelve months. When asked who is at risk of worm infections, 94 percent of adults answer children and 67 percent answer that adults are at risk too. Only 4 percent say that deworming treatment is for sick people only. Third, there is a strong prescriptive norm around deworming. 95 percent of adults at baseline say they would praise someone who would come for free deworming treatment, while 69 percent said they would look down on a person who did not come. Figure \ref{fig:praise-stigma-plot} shows that image concerns for deworming are comparable to those for open defecation and child immunization. Individuals consider deworming as the "right thing to do" to protect one's health and not spread worms, while those who do not deworm are considered as careless and ignorant. While there could be concerns about adults' interpreting others' decision to deworm as a sign of them having worms or "being dirty" (i.e. revealing negative health characteristic) the baseline data suggests that this is not the case. Instead, deworming is seen as a preventative health behavior for everyone to take, regardless of whether someone believes to have worms or is feeling healthy. However, adults have a limited understanding of externalities. Less than half (41 percent) of adults know that worms can spread between people.^[When asked if a person sick with worms can spread works to others, only 31 percent answered yes, 56 percent said know and 13 percent were uncertain. When asked if "If you have worms, does that affect your neighbors? or relatives? health?" 27 percent and "If your neighbors or relatives have worms, does that affect your health?" 25 percent answered yes. Only 18 percent answered yes to all three questions, had full externality knowledge. 41 percent answered yes to one of the three questions, had partial understanding of externalities.] Lastly, adults under-invest in deworming despite treatment being readily available at a low cost.^[Adults can purchase deworming treatment at pharmacies and clinics for a price of about 50-200 Kenyan shillings (\$0.50-2)] While 68 percent of adults at baseline report to have taken treatment before, only 38 percent say they dewormed in the past 12 month. Adults in endemic areas are advised to deworm every 6 to 12 months but there is currently no formal program that provides free treatment to adults. In collaboration with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to over 200,000 adults in Western Kenya. The program was implemented across three counties, Busia, Siaya and Kakamega, where soil-transmitted helminths are endemic. We implemented the program and experiment in two waves: wave one of deworming was implemented from early to mid-October  in Busia and Siaya County, and wave two was implemented from late October until early November in Kakamega County. In both waves, deworming started on a Monday and was offered for twelve consecutive days, each day from 8am until 5pm. 
 
 # Theoretical Framework 
 
@@ -388,9 +390,12 @@ To create visibility in actions, we experimentally introduce two signals - in th
 
 ### Social Signals: Ink and Bracelet {-} 
 
-<!-- Took out reference to bracelet and ink figure -->
+```{r bracelet-img, fig.cap="Note: In Swahili it says on the bracelet \"Treat worms improve the health of your community\"."}
+knitr::include_graphics(file.path("images", "signal_bracelet.png"))
+```
 
-We introduce two different types of signals to increase the visibility of deworming decisions $x$: a green silicone bracelet and green ink that is applied to a person's thumb. Bracelets and ink were randomized at the cluster level: at 39 treatment locations individuals received a bracelet when coming for deworming and at 36 locations they received ink. The color green was chosen as it is not associated with any political parties and was liked by most individuals during piloting. We test two different signals since it was unclear upfront which one could be more effectiv.[^signals]
+
+We introduce two different types of signals to increase the visibility of deworming decisions $x$: a green silicone bracelet (Figure \ref{fig:bracelet-img}) and green ink that is applied to a person's thumb. Bracelets and ink were randomized at the cluster level: at 39 treatment locations individuals received a bracelet when coming for deworming and at 36 locations they received ink. The color green was chosen as it is not associated with any political parties and was liked by most individuals during piloting. We test two different signals since it was unclear upfront which one could be more effective.[^signals]
 
 [^signals]: Ink and bracelets vary as signals across important dimensions:
 
@@ -401,9 +406,11 @@ We introduce two different types of signals to increase the visibility of deworm
   
 ### Material Incentive: Calendar {-} 
 
-<!-- Took out reference to calendar figure -->
+```{r calendar-img, fig.cap="Note: The calendar made no reference to deworming to minimize its social signaling value."}
+knitr::include_graphics(file.path("images", "calendar.png"))
+```
 
-To control for the consumption value $z$ of the bracelet, we introduced a material incentive in the form of a simple one-page wall calendar. At 35 treatment locations individuals received the calendar when coming for deworming. The cost of the calendar is 50 Kenyan Shillings (50 Cents). Wall calendars are popular in Kenya as people use them to decorate the walls of their homes and often have many calendars for the same year put up. Due to its durability and visibility inside the home, the calendar would also act as a self-signal to individuals, reminding them of their participation in deworming. 34 treatment locations were randomized into a control arm where no incentives were provided. Signal/incentives were randomized at the cluster level for them to be informative about actions as opposed to adults' preferences for different incentives.  
+To control for the consumption value $z$ of the bracelet, we introduced a material incentive in the form of a simple one-page wall calendar (Figure \ref{fig:calendar-img}). At 35 treatment locations individuals received the calendar when coming for deworming. The cost of the calendar is 50 Kenyan Shillings (50 Cents). Wall calendars are popular in Kenya as people use them to decorate the walls of their homes and often have many calendars for the same year put up. Due to its durability and visibility inside the home, the calendar would also act as a self-signal to individuals, reminding them of their participation in deworming. 34 treatment locations were randomized into a control arm where no incentives were provided. Signal/incentives were randomized at the cluster level for them to be informative about actions as opposed to adults' preferences for different incentives.  
 
 ### Cost of Deworming: Close and Far {-} 
 
@@ -448,7 +455,12 @@ To verify that adults were reading the text messages, we offered an airtime rewa
 
 ## Information Campaign Prior to Deworming
 
-One week before the launch of the community deworming program Community Health Volunteers (CHVs) together with field researchers visited _each_ of the selected 144 communities to inform adults about the upcoming program.^[Deworming treatment started on a Monday. The information campaign ended on the Friday before the program started to not avoid ``nudging'' adults too close to treatment.] CHVs are trusted community members who are known for their involvement in health campaigns and are part of the school-based deworming program in Kenya. Figure 2 shows the information script that CHVs used. The objective was to send a strong message (i) that regular deworming, even in the absence of symptoms, is not only important for children but also for adults and (ii) that deworming is a public good. CHVs further informed community members that ink, calendars and bracelets would be given when coming for deworming, and distributed flyers (see Appendix, Figure 24-26) that displayed the incentives. The objective was to create common knowledge about the meaning of the signals/incentives among community members before the start of the program. 
+```{r sensitization-img, fig.width=8, out.width="5.5in", fig.cap="Note: Community Health Volunteers informed all households in study communities one week prior to the start of the deworming treatment about the social benefits of deworming, when and where free deworming treatment will be available and if applicable what type of incentive will be given to adults when coming for treatment."}
+knitr::include_graphics(file.path("images", "sensitization.png"))
+```
+
+
+One week before the launch of the community deworming program Community Health Volunteers (CHVs) together with field researchers visited _each_ of the selected 144 communities to inform adults about the upcoming program.^[Deworming treatment started on a Monday. The information campaign ended on the Friday before the program started to not avoid ``nudging'' adults too close to treatment.] CHVs are trusted community members who are known for their involvement in health campaigns and are part of the school-based deworming program in Kenya. Figure \ref{fig:sensitization-img} shows the information script that CHVs used. The objective was to send a strong message (i) that regular deworming, even in the absence of symptoms, is not only important for children but also for adults and (ii) that deworming is a public good. CHVs further informed community members that ink, calendars and bracelets would be given when coming for deworming, and distributed flyers (see Appendix, Figure 24-26) that displayed the incentives. The objective was to create common knowledge about the meaning of the signals/incentives among community members before the start of the program. 
 
 ## Site Selection and Randomization
 
@@ -885,7 +897,7 @@ $$
 
 ### Inference
 
-After calculating the posterior distribtution of the model's parameters we want to be able to calculate, for any two treatments $z$ and $z'$, the distribution of the average treatment effect
+After calculating the posterior distribution of the model's parameters we want to be able to calculate, for any two treatments $z$ and $z'$, the distribution of the average treatment effect
 $$
 \frac{1}{N} \Sigma_i Y_i(z) - Y_i(z')
 $$
@@ -897,7 +909,7 @@ $$
 
 ## Dynamic Model
 
-The text message treatment may only imperfectly capture the potential salience and information effects of the bracelet and ink signals. Individuals might become inattentive to text messages over time, due to the repetitiveness of the reminder messages, or not pay sufficient attention to information about peer take-up as it is communicated in an abstract way (e.g. "few" versus "half" of people dewormed). The possible difference in salience and information effects of text messages, and bracelets or ink is a valid concern. Individuals might become inattentive to text messages as the reminder content is the same each time, and information about peers' take-up might appear abstract (e.g., "few" versus "half" of people dewormed). Signals on the other hand, allow adults to observe on a daily basis who dewormed, providing information about the take-up decisions of specific friends, neighbors or family members. Further, despite adults' low private valuation of bracelets, bracelets could gain popularity and a fad could emerge as more adults start wearing the item. To separately identify these dynamic effects, we estimate a piecewise-constant proportional hazard model (Wooldridge, 2010) that uses the full information about changes in take-up levels across the twelve days of deworming. We model the probability to deworm, conditional on not having already done so, extending the static model to twelve deworming days $m \in \{1,...,12\}$.^[The estimation is restricted to the sample of name-matched individuals.]
+The text message treatment may only imperfectly capture the potential salience and information effects of the bracelet and ink signals. Individuals might become inattentive to text messages over time, due to the repetitiveness of the reminder messages, or not pay sufficient attention to information about peer take-up as it is communicated in an abstract way (e.g. "few" versus "half" of people dewormed). The possible difference in salience and information effects of text messages, and bracelets or ink is a valid concern. Individuals might become inattentive to text messages as the reminder content is the same each time, and information about peers' take-up might appear abstract (e.g., "few" versus "half" of people dewormed). Signals on the other hand, allow adults to observe on a daily basis who dewormed, providing information about the take-up decisions of specific friends, neighbors or family members. Further, despite adults' low private valuation of bracelets, bracelets could gain popularity and a fad could emerge as more adults start wearing the item. To separately identify these dynamic effects, we estimate a piecewise-constant proportional hazard model [@Wooldridge2010] that uses the full information about changes in take-up levels across the twelve days of deworming. We model the probability to deworm, conditional on not having already done so, extending the static model to twelve deworming days $m \in \{1,...,12\}$.^[The estimation is restricted to the sample of name-matched individuals.]
 
 ### Likelihood Model
 
@@ -962,7 +974,7 @@ We estimate these model parameters using the likelihood probability:
 
 #### Social connectness or recognition
 
-The first stage is to impute each respondents' recognition degree by estimating a parameteric binomial model. $g$ is a link function (e.g. logit). One thing doesn't makes sense here: $\delta^\text{rec}_{j}$ is the coefficient for a village level independent variable, $N_j$. It seems like $\delta^\text{rec}_j$ should just be a village level random effect or make it a county level parameter.
+The first stage is to impute each respondents' recognition degree by estimating a parametric binomial model. $g$ is a link function (e.g. logit). One thing doesn't makes sense here: $\delta^\text{rec}_{j}$ is the coefficient for a village level independent variable, $N_j$. It seems like $\delta^\text{rec}_j$ should just be a village level random effect or make it a county level parameter.
 
 $$
 \begin{aligned}
@@ -1369,7 +1381,7 @@ est_deworming_takeup_ate_dist %>%
   theme(strip.text = element_text(size = 15, face = "bold"))
 ```
 
-Similar to previous findings in the literature (Kremer and Miguel, 2007) a small increase in cost leads to a dramatic reduction in the demand for deworming treatment. Figure \ref{fig:static_level_smsctrl_dist} shows that an increase in the mean walking distance by 1 kilometer (from 0.86km to 1.86km) led to a drop in deworming take-up from 44 percent to 28 percent in the control group. This is a decrease of 64  percent. Since we randomly assigned individuals to far and close treatment locations, we were able to hold the underlying preference distribution $G(v)$ and the private valuation that individuals assign to incentives constant, while _only_ shifting the marginal person $\hat{v}$. Figure \ref{fig:static_ate_smsctrl_dist} shows the treatment effects by distance. The effect of calendar, a consumption incentive, is constant for far and close communities, increasing take-up by 3  percentage points. The average treatment effects of ink and bracelet, however, sizably increased at far distances where take-up is lower. The average treatment effect of bracelets doubled from 5.5  percentage points to 11  percentage points. As a result, the take-up level for far communities in the bracelet treatment is 41 percent which is close to the take-up level for close communities in the control group. In other words, the signaling effect almost fully compensated for the increase in deworming cost. This is provides suggestive evidence for that changes in $\hat{v}$ can lead to significant changes in reputational returns.  
+Similar to previous findings in the literature [@Kremer2007] a small increase in cost leads to a dramatic reduction in the demand for deworming treatment. Figure \ref{fig:static_level_smsctrl_dist} shows that an increase in the mean walking distance by 1 kilometer (from 0.86km to 1.86km) led to a drop in deworming take-up from 44 percent to 28 percent in the control group. This is a decrease of 64  percent. Since we randomly assigned individuals to far and close treatment locations, we were able to hold the underlying preference distribution $G(v)$ and the private valuation that individuals assign to incentives constant, while _only_ shifting the marginal person $\hat{v}$. Figure \ref{fig:static_ate_smsctrl_dist} shows the treatment effects by distance. The effect of calendar, a consumption incentive, is constant for far and close communities, increasing take-up by 3  percentage points. The average treatment effects of ink and bracelet, however, sizably increased at far distances where take-up is lower. The average treatment effect of bracelets doubled from 5.5  percentage points to 11  percentage points. As a result, the take-up level for far communities in the bracelet treatment is 41 percent which is close to the take-up level for close communities in the control group. In other words, the signaling effect almost fully compensated for the increase in deworming cost. This is provides suggestive evidence for that changes in $\hat{v}$ can lead to significant changes in reputational returns.  
 
 ```{r static_level_all, fig.height=4, fig.width=8, fig.cap="Posterior distribution of deworming take-up levels (phone owners only)", eval=FALSE}
 plot_takeup(
@@ -1485,11 +1497,61 @@ est_deworming_takeup_ate_phone_dist %>%
   NULL
 ```
 
-## Dynamic Deworming Take-up
+## Dynamic Take-up Model Results
+
+Figure \ref{fig:param-dyn-ate-all} repeats the analysis done in the static model (Figure \ref{fig:static_ate_smsctrl-2}), estimating average treatment effects for incentives/signals compared to the control arm with no SMS treatment. There are some differences from the static model results, but not surprisingly so, considering the stronger model assumptions we place in the dynamic model on how the utility for deworming evolves over the twelve days.
+
+The main purpose of analyzing this dynamic model is to impute normally unobservable dynamic outcomes, namely, what would deworming take-up look like were we able to shut down any treatment dynamics beyond what is normally observed in the control arm (as mention in section \ref{dynamic-model}, the dynamic model's piecewise-constant proportional hazard parameters represent individual's baseline deworming day preference). The dynamic model has two sets of treatment effect parameters, static and dynamic: Static treatment effects capture the utility of deworming on day one, while the dynamic parameters of a quadratic model capture the time-varying utility of deworming. The static component thus captures both the private utility of deworming (assuming it is static over twelve days) _and_ individuals' estimated reputational returns of signaling using their prior beliefs about the take-up of others. The dynamic component of the model captures how individuals' estimated reputational returns evolve in response to what they observe about their peers' deworming take-up, _as well as potentially other unmodeled channels of social learning distinct from prosocial signaling_. Hence, in other to focus on signaling returns, we impute the treatment effect of social signals but restricting the dynamic component to be that of the control arm. 
+
+Figure \ref{fig:param-dyn-ate-all-2}, reports the average treatment effect of bracelets and ink, net their dynamic effects. While out estimates are imprecise, we continue to observe some potential static effect to the bracelets treatment. Keeping in mind that this calculation of the static effect is very likely a downward biased estimate, this presents compelling evidence that reputational concerns are motivating individuals to seek treatment.   
 
 ```{r load-param-dyn-est-data, cache=FALSE}
 load(file.path("stan_analysis_data", "dynamic_processed.RData"))
 load(file.path("stan_analysis_data", str_interp("model_${dyn_fit_version}.RData")))
+```
+
+```{r param-dyn-ate-all, fig.width=8, fig.height=3, fig.cap="Dynamic model incentive/signal treatment effect."}
+est_deworming_takeup_dyn_ate_all %>% 
+  # filter(incentive_treatment_static_left != "bracelet social") %>% 
+  filter(incentive_treatment_static_left != "bracelet") %>% #pull(incentive_treatment_static_left) %>% fct_recode("x" = "bracelet social")
+  plot_ate(
+    ate_summ_data = .,
+    data_preparer = . %>% 
+      filter(incentive_treatment_static_left == incentive_treatment_dynamic_left,
+         incentive_treatment_static_right == incentive_treatment_dynamic_right,
+         sms.treatment.2_static_left == "No SMS",
+         sms.treatment.2_dynamic_left == "No SMS",
+         sms.treatment.2_static_right == "No SMS",
+         sms.treatment.2_dynamic_right == "No SMS",
+         incentive_treatment_static_right %in% c("Control")), #, "Calendar")),
+    
+    include_sms_treatment = TRUE
+  ) + # facet_grid(incentive_treatment_static_right ~ ., scales = "free_y", space = "free_y") +
+  labs(title = "Dynamic Model Incentive/Signal Average Treatment Effect") + 
+  theme(legend.position = "bottom")
+```
+
+```{r param-dyn-ate-all-2, fig.width=8, fig.height=3, fig.cap="Signaling treatment effects, net any dynamic effects."}
+est_deworming_takeup_dyn_ate_all %>% 
+  filter(incentive_treatment_static_left != "calendar") %>% 
+  # filter(incentive_treatment_static_left != "bracelet social") %>% 
+  # filter(incentive_treatment_static_left == "bracelet") %>%  #count(incentive_treatment_static_left, incentive_treatment_dynamic_left, incentive_treatment_static_right, incentive_treatment_dynamic_right)
+  # count(incentive_treatment_static_left, incentive_treatment_dynamic_left)
+  plot_ate(
+    ate_summ_data = .,
+    data_preparer = . %>% 
+      filter(
+         incentive_treatment_dynamic_left == "Control",
+         incentive_treatment_dynamic_right == "Control",
+         sms.treatment.2_static_left == "No SMS",
+         sms.treatment.2_dynamic_left == "No SMS",
+         sms.treatment.2_static_right == "No SMS",
+         sms.treatment.2_dynamic_right == "No SMS",
+         incentive_treatment_static_right %in% c("Control")), #, "Calendar")),
+    
+    include_sms_treatment = TRUE
+  ) + #facet_grid(incentive_treatment_static_right ~ ., scales = "free_y", space = "free_y") +
+  theme(legend.position = "bottom")
 ```
 
 
@@ -1505,7 +1567,7 @@ est_deworming_day_all %>%
   theme(legend.position = "bottom")
 ```
 
-```{r param-dyn-daily-takeup-levels-with-sms, fig.width=7, fig.height=4, fig.cap="Daily take-up non-cumulative proportion for all incentive/signal treatments and SMS treatments (phone owners only)."}
+```{r param-dyn-daily-takeup-levels-with-sms, fig.width=7, fig.height=4, fig.cap="Daily take-up non-cumulative proportion for all incentive/signal treatments and SMS treatments (phone owners only).", eval=FALSE}
 est_deworming_day_all %>% 
   mutate(full_observation = incentive_treatment_static == incentive_treatment_dynamic) %>% 
   filter(full_observation,
@@ -1519,7 +1581,7 @@ est_deworming_day_all %>%
 ```
 
 
-```{r param-dyn-daily-takeup-levels-dist, fig.width=7, fig.height=4, fig.cap="Daily take-up non-cumulative proportion for all incentive/signal treatment arms (No SMS treatment), split by distance."}
+```{r param-dyn-daily-takeup-levels-dist, fig.width=7, fig.height=4, fig.cap="Daily take-up non-cumulative proportion for all incentive/signal treatment arms (No SMS treatment), split by distance.", eval=FALSE}
 est_deworming_day_dist %>% 
   mutate(full_observation = incentive_treatment_static == incentive_treatment_dynamic) %>% 
   filter(full_observation,
@@ -1536,7 +1598,7 @@ est_deworming_day_dist %>%
   theme(legend.position = "bottom")
 ```
 
-```{r param-dyn-daily-takeup-levels-dist-with-sms, fig.width=8, fig.height=5, fig.cap="Daily take-up non-cumulative proportion for all incentive/signal treatments and SMS treatments (phone owners only), split by distance."}
+```{r param-dyn-daily-takeup-levels-dist-with-sms, fig.width=8, fig.height=5, fig.cap="Daily take-up non-cumulative proportion for all incentive/signal treatments and SMS treatments (phone owners only), split by distance.", eval=FALSE}
 est_deworming_day_dist %>% 
   mutate(full_observation = incentive_treatment_static == incentive_treatment_dynamic) %>% 
   filter(full_observation,
@@ -1560,7 +1622,7 @@ This paper provides field experimental evidence on the effects of social signali
 
 # Appendix A: Reduced Form Regression Results {-}
 
-Figures \ref{fig:ols-no-sms}-\ref{fig:ols-sms-dist} present the OLS stratified regression analysis results, using robust standard errors clustered at the village level [@Imbens2015]. The overall pattern of effects (direction and magnitudes) is similar to the main analysis results in section \ref{results}. As expected, estimates are not exactly the same. Regression analyses report sample and null hypothesis test statistics, while multilevel Bayesian analyses rely on generative models to impute counterfactuals and calculate causal estimands. Using a null hypothesis testing framework with multiple comparisons is vulernable to picking up spurious statistically significant effects [@Gelman2008;@Young2015], and thus we use a multilevel model to provide more conservative estimands and to avoid overfitting.
+Figures \ref{fig:ols-no-sms}-\ref{fig:ols-sms-dist} present the OLS stratified regression analysis results, using robust standard errors clustered at the village level [@Imbens2015]. The overall pattern of effects (direction and magnitudes) is similar to the main analysis results in section \ref{results}. As expected, estimates are not exactly the same. Regression analyses report sample and null hypothesis test statistics, while multilevel Bayesian analyses rely on generative models to impute counterfactuals and calculate causal estimands. Using a null hypothesis testing framework with multiple comparisons is vulnerable to picking up spurious statistically significant effects [@Gelman2008;@Young2015], and thus we use a multilevel model to provide more conservative estimands and to avoid over-fitting.
 
 ```{r ols-basic-reg}
 reg.output.sms.ctrl.covar <- analysis.data %>%  
@@ -1615,6 +1677,24 @@ prep.sms.treat.dist.plot.data(reg.output.sms.treat.dist.covar) %>% {
     labs(subtitle = "Split by distance.") +
     coord_flip()
 }
+```
+
+# Appendix B: Flyers {-}
+
+```{r control-flyer-img, fig.width=8, out.width="4in", fig.cap="Control group flyer distributed by Community Health Volunteers to all households prior to the start of the deworming program. Message on the flyer says: \"Treat worms: improve the health of your community. Help to eradicate/fight worms in your community. Where: [Cluster's Treatment Location]. When: [Dates Wave 1/2]. Medicines will be provided free of charge. Kenya's government against worms treatment for people over age 18.\""}
+knitr::include_graphics(file.path("images", "flyer_control.png"))
+```
+
+```{r ink-flyer-img, fig.width=8, out.width="4in", fig.cap="Ink group flyer distributed by Community Health Volunteers to all households prior to the start of the deworming program. Message is identical to Control group and includes added message: \"Show your support by putting ink thumb\"."}
+knitr::include_graphics(file.path("images", "flyer_ink.png"))
+```
+
+```{r calendar-flyer-img, fig.width=8, out.width="4in", fig.cap="Calendar group flyer distributed by Community Health Volunteers to all households prior to the start of the deworming program. Message is identical to Control group and includes added message: \"You will be given a calendar as a gift.\""}
+knitr::include_graphics(file.path("images", "flyer_calendar.png"))
+```
+
+```{r bracelet-flyer-img, fig.width=8, out.width="4in", fig.cap="Bracelet group flyer distributed by Community Health Volunteers to all households prior to the start of the deworming program. Message is identical to Control group and includes added message: \"You will be given a bracelet as a gift.\""}
+knitr::include_graphics(file.path("images", "flyer_bracelet.png"))
 ```
 
 # References {-}
