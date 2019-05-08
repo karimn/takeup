@@ -2,8 +2,8 @@
 title: |
     | Social Signaling and Prosocial Behavior
     | Experimental Evidence in Community Deworming in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; Supreet Kaur, Dmitry Taubinsky, Seema Jayachandran, Nancy Qian and seminar participants at Berkeley, Northwestern Rookiefest, Oxford CSAE Conference 2018 and PacDev 2018 for helpful discussions and feedback; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
-date: "November 2018"
-subtitle: "Please find the latest version of the paper [here](https://sites.google.com/view/annekaring/research)"
+date: "December 2018"
+subtitle: "Please find the latest version of the paper [here](https://drive.google.com/file/d/164wP0_dqOFfKvUenHVixlY3Js7oFPFhg/view)"
 author:
 - Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
 - Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`.]
@@ -1110,7 +1110,7 @@ plot_takeup(
        subtitle = "Proportion of recognized peers whose deworming status is reported known", y = "") 
 ```
 
-Figure \ref{fig:fp-2ord-prop-knows-mean-all} shows the proportion of recognized peers that respondents believe have knowledge of their own deworming status. In the control _and_ calendar group, adults believe that 66 percent of peers have information about their deworming status, illustrating i) that there is significant scope for reducing information asymmetries and ii) that a material incentive, in spite of its perceived visibility, does not necessarily increase the (perceived) visibility of actions. Bracelets significantly shifted beliefs: adults reported that 74 percent (an 7.9  percentage point increase) of peers have information about their deworming status. We find a smaller (2.7  percentage points) and insignificant shift of second-order beliefs in the ink treatment. Figure \ref{fig:fp-1ord-prop-knows-mean-all} shows a similar movement for first-order beliefs. Adults in bracelet and ink treatments are 5.8 (over control) and 8.8  percentage points (over calendar group) respectively more likely to say that they have information about someone's deworming status. When asking respondents "Why do you think they would think [Yes/No/Don't know]?" 35 percent of respondent mention that others had "seen the bracelet" in their answer, while only 6 percent and 7 percent of respondents respectively mentioned ink or calendar as a reason. Next, we test the accuracy of beliefs. Conditional on individuals reporting to have information about others, we can compare first (and second-order) beliefs to the _true_ deworming status. 
+Figure \ref{fig:fp-2ord-prop-knows-mean-all} shows the proportion of recognized peers that respondents believe have knowledge of their own deworming status. In the control _and_ calendar group, adults believe that 66 percent of peers have information about their deworming status, illustrating i) that there is significant scope for reducing information asymmetries and ii) that a material incentive, in spite of its perceived visibility, does not necessarily increase the (perceived) visibility of actions. Bracelets significantly shifted beliefs: adults reported that 74 percent (a 7.9 percentage point increase) of peers have information about their deworming status. We find a smaller (2.7  percentage points) and insignificant shift of second-order beliefs in the ink treatment. Figure \ref{fig:fp-1ord-prop-knows-mean-all} shows a similar movement for first-order beliefs. Adults in the bracelet treatment are 10.5 (over the control) and 8.8 percentage points (over the calendar group) respectively are more likely to say that they have information about someone's deworming status. For the ink, we find smaller (5.8 over the control group) shifts in first-order beliefs. When asking respondents "Why do you think they would think [Yes/No/Don't know]?" 35 percent of respondent mention that others had "seen the bracelet" in their answer, while only 6 percent and 7 percent of respondents respectively mentioned ink or calendar as a reason. 
 
 ```{r fp_1ord_prop_knows_mean_phone, fig.width=8, fig.height=5, fig.cap="First order beliefs (levels), split by phone ownership.", eval=FALSE}
 plot_takeup(
@@ -1265,7 +1265,7 @@ plot_takeup(
   labs(y = "") 
 ```
 
-```{r static_ate_smsctrl-2, fig.width=8, fig.height=3, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment)."}
+```{r static_ate_smsctrl-2, fig.width=8, fig.height=3, fig.cap="Posterior distribution of signal/incentive treatment effects on take-up compared with the control arm take-up (with no SMS treatment). Black lines show average treatment effects compared to control group; blue line shows the bracelet treatment effect compared to the calendar treatment."}
 est_deworming_takeup_ate_all %>%
   filter(incentive_treatment_left != "bracelet social",
          incentive_treatment_right == "control" | incentive_treatment_left == "bracelet") %>% 
