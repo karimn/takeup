@@ -20,7 +20,7 @@ header-includes:
    - \usepackage{pdflscape}
    - \usepackage{threeparttable}
 abstract: "This report presents preliminary analysis findings for a randomized control trial (RCT) assessing the effectiveness of social incentives on adult deworming. Working with the Kenyan Government, we implemented a new community deworming program that offered free deworming treatment to adults and explicitly emphasized the public good aspect of deworming. We distributed two types of social incentives in the form of colorful bracelets and ink. The bracelets and ink made the decision to deworm or abstain from treatment observable and allowed adults to signal to others that they contributed to protecting their community from worms. We further introduced a calendar as private incentive that was comparable in its consumption value to the bracelet but could not easily be observed by others. Communities were randomized into being eligible for the ink, calendar or bracelet incentive or a control arm where no incentive was offered. In a second stage, we offered free text messages to a random subset of adults living in these communities, reminding them of the availability of free deworming treatment and providing information about deworming treatment take-up in their community. We found that bracelets strongly incentivized deworming take-up, and our results point to this being a social rather than a private motivation. In addition, we found that informational text messages amplified this effect." 
-bibliography: ~/Documents/library.bib
+bibliography: /home/karim/Documents/library.bib
 ---
 
 \doublespacing

@@ -2,7 +2,7 @@
 title: Assessing Delivery Strategies and Cost-effectiveness of STH Transmission Elimination
   (ADCOSTE)
 output: word_document
-bibliography: ~/Documents/library.bib
+bibliography: /home/karim/Documents/library.bib
 ---
 
 # Introduction
