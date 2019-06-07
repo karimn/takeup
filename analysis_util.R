@@ -78,7 +78,7 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .ba
         transmute(.endline.data, 
                   KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice, hh_cal, cal_value, hh_bracelet, number_bracelet, 
                   endline_deworm_rate = dworm_rate), "KEY.individ") %>% 
-    mutate_at(vars(age, age.census), funs(squared = (.)^2, group = cut(., breaks = c(seq(18, 58, 10), 120), right = FALSE))) %>% 
+    mutate_at(vars(age, age.census), list(squared = ~ (.)^2, group = ~ cut(., breaks = c(seq(18, 58, 10), 120), right = FALSE))) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.))) %>%
     unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
@@ -123,9 +123,9 @@ base.prepare.baseline.endline.data <- function(.data, .cluster.strat.data) { #, 
            floor = factor(floor, levels = c(1:3, 99, 97), labels = c("Cement", "Earth", "Tiles", "Other", "Prefer Not to Say")),
            ethnicity = factor(ethnicity, levels = c(1:7, 99, 97),
                               labels = c("Luo", "Luhya", "Kisii", "Kalengin", "Kikukyu", "Kamba", "Iteso", "Other", "Prefer Not to Say"))) %>% 
-    mutate_at(vars(worms_affect, neighbours_worms_affect), funs(yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(worms_affect, neighbours_worms_affect), list(~ yes.no.factor(., .yes.no = 1:0))) %>% 
     mutate_at(vars(spread_worms), yes.no.factor) %>% 
-    mutate_at(vars(school, floor, ethnicity), funs(recode_factor(., "Other" = NA_character_, "Prefer Not to Say" = NA_character_) %>% 
+    mutate_at(vars(school, floor, ethnicity), list(~ recode_factor(., "Other" = NA_character_, "Prefer Not to Say" = NA_character_) %>% 
                                                      fct_drop)) %>% 
     mutate(ethnicity2 = fct_lump(ethnicity, other_level = "Other Ethnicities", prop = 0.05)) %>% 
     left_join(select(.cluster.strat.data, wave, county, cluster.id, assigned.treatment, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
@@ -142,8 +142,8 @@ prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
     ungroup() %>% 
     base.prepare.baseline.endline.data(.cluster.strat.data) %>% 
     mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported, hh_bracelet, hh_cal, cal_value), 
-              funs(yes.no.factor(., .yes.no = 1:0))) %>% 
-    mutate_at(vars(treat_begin, days_available, treat_end), funs(factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
+              list(~ yes.no.factor(., .yes.no = 1:0))) %>% 
+    mutate_at(vars(treat_begin, days_available, treat_end), list(~ factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
     mutate(treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
            treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
            #where_offered = labelled(where_offered, c("somewhere else" = 0, "home" = 3, "DK" = 98)) %>% as_factor)
@@ -176,9 +176,9 @@ prepare.baseline.data <- function(.data, .cluster.strat.data) {
                                                                                     "prefer not say", "DK"))) %>% 
     mutate_at(vars(treated, family_treated), yes.no.factor) %>% 
     mutate_at(vars(few_deworm, many_deworm, matches("(praise|stigma)_(immunize|clothes|deworm|defecate)[A-D]$")), 
-              funs(factor(., levels = 0:2, labels = c("no", "yes", "maybe")))) %>% 
+              list(~ factor(., levels = 0:2, labels = c("no", "yes", "maybe")))) %>% 
     mutate_at(vars(treated_where, where_family_treated), 
-              funs(factor(., 
+              list(~ factor(., 
                           levels = c(1:4, 97:99), 
                           labels = c("bought", "school MDA", "non-school MDA", "hosp/clinic", 
                                      "prefer not say", "DK", "other"))))
@@ -297,7 +297,7 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
          select_(.dots = c("replicate", "treatment.group", .interact.with, "treatment.data")) %>% 
          unnest(treatment.data) %>% 
          group_by_(.dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
-         summarize_at(vars(ate, treatment.mean.dewormed), funs(mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>%
+         summarize_at(vars(ate, treatment.mean.dewormed), list(~ mean(., na.rm = TRUE), sd(., na.rm = TRUE))) %>%
          mutate(ci.lower.treatment.mean.dewormed = treatment.mean.dewormed_mean - 1.64 * treatment.mean.dewormed_sd,
                 ci.upper.treatment.mean.dewormed = treatment.mean.dewormed_mean + 1.64 * treatment.mean.dewormed_sd,
                 ci.lower.ate = ate_mean - 1.64 * ate_sd,
@@ -446,7 +446,7 @@ plot.pref.unfaceted <- function(.data, .second.group.by = NULL) {
                             pref.prop = (pref.prop %*% arm.size)/sum(arm.size)) %>% 
                   ungroup)
     } %>%
-    mutate_at(vars(gift_choice, assigned.treatment), funs(fct_relabel(factor(.), str_to_title))) %>% 
+    mutate_at(vars(gift_choice, assigned.treatment), list(~ fct_relabel(factor(.), str_to_title))) %>% 
     mutate(assigned.treatment = fct_relevel(assigned.treatment, 
                                             "(All Arms)", "Control Arm", "Ink Arm", "Calendar Arm", "Bracelet Arm")) %>% 
     ggplot(aes(gift_choice, pref.prop)) +
@@ -651,10 +651,10 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
                         show_observed = FALSE,
                         num_obs = NA) {
   inner_data_preparer <- . %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
+    mutate_at(vars(starts_with("incentive_treatment")), list(~ fct_relabel(., str_to_title))) %>% {
       if (include_sms_treatment) {
         select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
-        mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
+        mutate_at(vars(starts_with("sms.treatment.2")), list(~ fct_recode(.,
                                                                         "No SMS" = "control",
                                                                         "Reminders Only" = "reminder.only",
                                                                         "Social Info & Reminders" = "social.info")))
@@ -814,10 +814,10 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ,
   
   plot_obj <- daily_takeup_summ %>% 
     filter(day < 13) %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
+    mutate_at(vars(starts_with("incentive_treatment")), list(~ fct_relabel(., str_to_title))) %>% {
       if (include_sms_treatment) {
         select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
-          mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
+          mutate_at(vars(starts_with("sms.treatment.2")), list(~ fct_recode(.,
                                                                           "No SMS" = "control",
                                                                           "Reminders Only" = "reminder.only",
                                                                           "Social Info & Reminders" = "social.info"))) 
@@ -851,10 +851,10 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
                      quantiles = c(0.025, 0.05, 0.1, 0.5,  0.9, 0.95, 0.97),
                      num_obs = NA) {
   inner_data_preparer <- . %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(fct_relabel(., str_to_title))) %>% {
+    mutate_at(vars(starts_with("incentive_treatment")), list(~ fct_relabel(., str_to_title))) %>% {
       if (include_sms_treatment) {
         select_if(., !str_detect(names(.), "sms\\.treatment\\.2_id")) %>% 
-          mutate_at(vars(starts_with("sms.treatment.2")), funs(fct_recode(.,
+          mutate_at(vars(starts_with("sms.treatment.2")), list(~ fct_recode(.,
                                                                           "No SMS" = "control",
                                                                           "Reminders Only" = "reminder.only",
                                                                           "Social Info & Reminders" = "social.info"))) 
@@ -1058,7 +1058,7 @@ print.reg.table <- function(.reg.table.data,
                                    "far", "ink:far", "calendar:far", "bracelet:far",
                                    "ink:social.info", "calendar:social.info", "bracelet:social.info")) %>% 
     mutate_at(vars(term, ref.type), 
-              funs(fct_relabel(., function(.label) str_replace_all(.label, c(":" = " [x] ", "\\." = " ")) %>% 
+              list(~ fct_relabel(., function(.label) str_replace_all(.label, c(":" = " [x] ", "\\." = " ")) %>% 
                                  str_to_title %>% 
                                  str_replace_all(fixed("[X]"), "$\\times$")))) %>% 
     right_join(modelr::data_grid(., spec, ref.type, term), c("spec", "ref.type", "term")) 
@@ -1194,12 +1194,12 @@ print.sms.interact.table <- function(.reg.table.data,
     mutate(index = seq_len(n())) %>% 
     right_join(modelr::data_grid(., spec, linear.test), c("spec", "linear.test")) %>% 
     mutate_at(vars(linear.test), 
-              funs(str_replace_all(., c(":" = " <x> ", "\\." = " ")) %>% 
+              list(~ str_replace_all(., c(":" = " <x> ", "\\." = " ")) %>% 
                      str_to_title %>% 
                      str_replace_all(c("<X>" = "$\\\\times$",
                                        "([-\\+=])" = "$\\1$")))) %>% 
     arrange(index) %>% 
-    mutate_at(vars(spec, linear.test), funs(. %>% forcats::as_factor())) %>% 
+    mutate_at(vars(spec, linear.test), list(~ . %>% forcats::as_factor())) %>% 
     select(-index)
   
   total.num.cols <- length(.reg.table.data) * 1
@@ -1417,7 +1417,7 @@ prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps,
   prepared <- static_treatment_map %>% 
     mutate(all_treatment_id = seq_len(n())) %>%
     left_join(distinct_(., .dots = cluster_level_treatment) %>% mutate(cluster_treatment_id = seq_len(n())), cluster_level_treatment) %>% 
-    mutate_if(is.factor, funs(id = as.integer(.))) 
+    mutate_if(is.factor, list(id = ~ as.integer(.))) 
   
   if (!missing(dynamic_treatment_maps)) {
     prepared %<>% {
@@ -1478,7 +1478,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     arrange(stratum, cluster.id) %>%
     left_join(distinct(., stratum, cluster.id) %>% mutate(new_cluster_id = seq_len(n())), c("stratum", "cluster.id")) %>% 
     mutate_at(vars(county_dist_stratum, county_dist_mon_stratum, county, stratum, gender, school, floor, ethnicity), 
-              funs(id = as.integer)) %>% 
+              list(id = ~ as.integer(.))) %>% 
     prep_data_arranger() 
 
   remove_dup_treatment_dm_cols <- TRUE
@@ -2087,7 +2087,7 @@ estimate_treatment_deworm_prob_dm <- function(applicable_obs,
                 as_tibble() %>% 
                 magrittr::set_names(str_c("log_kappa_dyn_treat_days_", days_treated))) %>% 
     mutate_at(vars(num_range("log_kappa_dyn_treat_days_", days_treated)), 
-              funs(log_alpha = - exp(log_kappa_census_covar + log_kappa_static_treatment + .) * cluster_hazard)) %>% 
+              list(log_alpha = ~ - exp(log_kappa_census_covar + log_kappa_static_treatment + .) * cluster_hazard)) %>% 
     {
       if (num_days_treated > 1) {
         gather(., log_key, log_val, matches("^log_kappa_dyn_treat_days_\\d+(_log_alpha)?$")) %>% 
@@ -2203,7 +2203,7 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
       dplyr::group_by(deworming_day, dyn_treat_days) %>% 
       mutate(treatment_group_size = sum(subgroup_size)) %>% 
       dplyr::group_by(deworming_day, dyn_treat_days, treatment_group_size) %>% 
-      summarize_at(vars(prob_deworm, alpha, kappa_dyn_treat), funs(weighted.mean(., subgroup_size))) %>% 
+      summarize_at(vars(prob_deworm, alpha, kappa_dyn_treat), list(~ weighted.mean(., subgroup_size))) %>% 
       ungroup() 
   }
   
@@ -2250,7 +2250,7 @@ estimate_deworm_prob <- function(iter_cluster_parameters,
                   # treatment_summarizer = function(d) d,
                   by_id = "obs_index") %>% 
       group_by(deworming_day, dyn_treat_days) %>% 
-      summarize_at(vars(prob_deworm, log_alpha), funs(weighted.mean(., day_size))) %>%
+      summarize_at(vars(prob_deworm, log_alpha), list(~ weighted.mean(., day_size))) %>%
       ungroup()
   
   identify_treatment_id(treatments_info, treatment_map) %>% 
@@ -2285,7 +2285,7 @@ estimate_deworm_prob_ate <- function(iter_parameters,
                   sim_stratum_hazards = sim_stratum_hazards,
                   full_dyn_treatment_dm = full_dyn_treatment_map_dm) %>% 
       group_by(deworming_day, dyn_treat_days) %>% 
-      summarize_at(vars(prob_deworm, alpha), funs(weighted.mean(., day_size))) %>% 
+      summarize_at(vars(prob_deworm, alpha), list(~ weighted.mean(., day_size))) %>% 
       ungroup()
     
     if (!is.null(other_group_suffix)) {
@@ -2335,7 +2335,7 @@ incentive_treatment_factor <- function(.f) {
 
 create_incentive_treatment_col <- function(.data) {
   .data %>% 
-    mutate_at(vars(starts_with("incentive_treatment")), funs(str_replace_all(., 
+    mutate_at(vars(starts_with("incentive_treatment")), list(~ str_replace_all(., 
                                                  c("control-bracelet" = "bracelet social", 
                                                    "calendar-bracelet" = "bracelet",
                                                    "control-control" = "control", 
@@ -2347,7 +2347,7 @@ subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL,
                               group_by_regex = "(incentive_treatment|(private|social)_value|sms.treatment.2)") {
   iter_data %>% 
     group_by_at(c(vars(matches(group_by_regex), iter_id), subgroups)) %>% 
-    summarize_at(vars(outcome_var), funs(wtd_iter_est = weighted.mean(., treatment_size))) %>% 
+    summarize_at(vars(outcome_var), list(wtd_iter_est = ~ weighted.mean(., treatment_size))) %>% 
     ungroup() 
 }
 
@@ -2357,19 +2357,19 @@ prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroup
   est_data %>%
     subgroup_combiner(outcome_var, subgroups) %>% 
     group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
-    summarize_at(., vars(ends_with("wtd_iter_est")), funs(mean_est = mean(., na.rm = na_rm),
-                                                          ub_80 = quantile(., 0.8, na.rm = na_rm),
-                                                          ub_90 = quantile(., 0.95, na.rm = na_rm),
-                                                          ub_95 = quantile(., 0.975, na.rm = na_rm),
-                                                          lb_80 = quantile(., 0.1, na.rm = na_rm),
-                                                          lb_90 = quantile(., 0.05, na.rm = na_rm),
-                                                          lb_95 = quantile(., 0.025, na.rm = na_rm))) %>% 
+    summarize_at(., vars(ends_with("wtd_iter_est")), list(mean_est = ~ mean(., na.rm = na_rm),
+                                                          ub_80 = ~ quantile(., 0.8, na.rm = na_rm),
+                                                          ub_90 = ~ quantile(., 0.95, na.rm = na_rm),
+                                                          ub_95 = ~ quantile(., 0.975, na.rm = na_rm),
+                                                          lb_80 = ~ quantile(., 0.1, na.rm = na_rm),
+                                                          lb_90 = ~ quantile(., 0.05, na.rm = na_rm),
+                                                          lb_95 = ~ quantile(., 0.025, na.rm = na_rm))) %>% 
     ungroup() 
 } 
 
 prepare_est_deworming_takeup <- function(est_data, ...) { 
   prepare_est_deworming(est_data, c("iter_takeup", "observed_takeup_prop"), na_rm = TRUE, ...) %>% 
-    rename_at(vars(starts_with("iter_takeup")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) %>% 
+    rename_at(vars(starts_with("iter_takeup")), list(~ str_replace(., "iter_takeup_wtd_iter_est_", ""))) %>% 
     rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
     select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
 }
@@ -2382,7 +2382,7 @@ prepare_est_deworming_ate <- function(est_data, ...) {
 
 prepare_fp_1ord_prop_knows_mean <- function(est_data, ...) { 
   prepare_est_deworming(est_data, "fp_1ord_prop_knows_mean", na_rm = TRUE, ...) %>% 
-    rename_at(vars(starts_with("fp_1ord_prop_knows_mean")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) 
+    rename_at(vars(starts_with("fp_1ord_prop_knows_mean")), list(~ str_replace(., "iter_takeup_wtd_iter_est_", ""))) 
     # rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
     # select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
 }
@@ -2393,7 +2393,7 @@ prepare_fp_1ord_prop_knows_ate <- function(est_data, ...) {
 
 prepare_fp_2ord_prop_knows_mean <- function(est_data, ...) { 
   prepare_est_deworming(est_data, "fp_2ord_prop_knows_mean", na_rm = TRUE, ...) %>% 
-    rename_at(vars(starts_with("fp_2ord_prop_knows_mean")), funs(str_replace(., "iter_takeup_wtd_iter_est_", ""))) 
+    rename_at(vars(starts_with("fp_2ord_prop_knows_mean")), list(~ str_replace(., "iter_takeup_wtd_iter_est_", ""))) 
     # rename(observed_takeup_prop = observed_takeup_prop_wtd_iter_est_mean_est) %>% 
     # select(-matches("^observed_takeup_prop.+[ul]b_\\d+$")) 
 }
@@ -2482,7 +2482,7 @@ get_dyn_ate <- function() {
            reminder_info_stock_left =  sms.treatment.2_left,
            reminder_info_stock_right = sms.treatment.2_right) %>% 
     mutate_at(vars(phone_owner, name_matched), as.logical) %>%
-    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group_left))) 
+    mutate_at(vars(starts_with("dyn_dist_pot")), list(~ coalesce(., dist.pot.group_left))) 
   
   dyn_phone_owners_ate <- tribble(
     ~ private_value_left, ~ social_value_left, ~ sms.treatment.2_left, ~ private_value_right, ~ social_value_right, ~ sms.treatment.2_right,
@@ -2581,7 +2581,7 @@ get_dyn_ate <- function() {
       incentive_shift_right = private_value_right,
       name_matched = FALSE
     ) %>%
-    mutate_at(vars(starts_with("dyn_dist_pot")), funs(coalesce(., dist.pot.group_left))) %>% 
+    mutate_at(vars(starts_with("dyn_dist_pot")), list(~ coalesce(., dist.pot.group_left))) %>% 
     bind_rows(filter(., sms.treatment.2_left == "control" & sms.treatment.2_right == "control") %>% mutate(name_matched = TRUE))
   
   dyn_all_ate <- bind_rows(dyn_sms_control_ate, dyn_phone_owners_ate) 
