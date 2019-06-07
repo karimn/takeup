@@ -43,13 +43,13 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .ba
     rename(dewormed.day = deworming.day) %>% 
     group_by(KEY.individ) %>% 
     summarize_at(vars(dewormed.day, dewormed.date), min) %>% # If dewormed multiple times, take the first day only
-    ungroup
+    ungroup()
   
   analysis.data <- .census.data %>% 
     filter(!is.na(wave)) %>%  # Remove clusters no longer in study
     left_join(.consent.dewormed.reports, "KEY.individ") %>% 
     mutate(dewormed = KEY.individ %in% discard(.takeup.data$KEY.individ, is.na), # TRUE if individual found in take-up data
-           dewormed = ifelse(monitored, dewormed, NA),
+           dewormed = ifelse(true.monitored, dewormed, NA), # We don't know the deworming status of those not monitored
            # hh.baseline.sample = KEY %in% .baseline.data$KEY, # We don't have a clear link between baseline surveys and the census. See the field notebook
            monitor.consent = !is.na(monitor.consent) & monitor.consent,
            sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
@@ -69,7 +69,8 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .ba
     right_join(analysis.data, c("cluster.id", "KEY.individ")) %>% 
     left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day, dewormed.date.matched = dewormed.date), 
               c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
-    mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
+    # mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
+    mutate(monitored = !is.na(true.monitored) & !is.na(wave) & true.monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
            dewormed.day.any = if_else(!is.na(dewormed.day), as.integer(dewormed.day), dewormed.day.matched), 
            dewormed.date.any = if_else(!is.na(dewormed.date), dewormed.date, dewormed.date.matched),
