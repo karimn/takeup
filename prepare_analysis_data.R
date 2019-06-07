@@ -65,8 +65,8 @@ pot_geo_info <- pot.info %>%
 #                                      as.vector()))) 
 
 # Calculate the distance between households and their assigned point-of-treatment 
-census.data %<>% l
-eft_join(pot_geo_info, by = "cluster.id") %>% 
+census.data %<>% 
+  left_join(pot_geo_info, by = "cluster.id") %>% 
   group_by(cluster.id) %>%
   do({
     if (is.na(first(.$cluster.id))) {
@@ -83,7 +83,7 @@ eft_join(pot_geo_info, by = "cluster.id") %>%
   
     mutate(., dist.to.pot = individ.dist.to.pot)
   }) %>% 
-  ungroup
+  ungroup()
 
 # Village center distance to PoT ------------------------------------------
 
