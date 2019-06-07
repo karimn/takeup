@@ -6,6 +6,7 @@ library(tidyverse)
 library(stringr)
 library(forcats)
 library(lubridate)
+library(sf)
 library(sp)
 library(rgeos)
 
@@ -20,30 +21,53 @@ kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 load(file.path("data", "takeup_village_pot_dist.RData"))
 
 # This data was prepared in takeup_field_notebook.Rmd
-census.data <- read_rds(file.path("data", "takeup_census.rds"))
+census.data <- read_rds(file.path("data", "takeup_census.rds")) %>% 
+  rename(census.consent = consent) # Rename this to reduce chance of error
+
 baseline.data <- read_rds(file.path("data", "takeup_baseline_data.rds"))
 takeup.data <- read_rds(file.path("data", "takeup.rds"))
 all.endline.data <- read_rds(file.path("data", "all_endline.rds"))
 reconsent.data <- read_rds(file.path("data", "reconsent.rds"))
-cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
+cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds")) # Study clusters metadata
 sms.content.data <- read_rds(file.path("data", "takeup_sms_treatment.rds"))
-pot.info <- read_rds(file.path("data", "pot_info.rds"))
-wtp.data <- read_rds(file.path("data", "takeup_wtp.rds"))
+pot.info <- read_rds(file.path("data", "pot_info.rds")) # Point of treatment information
+wtp.data <- read_rds(file.path("data", "takeup_wtp.rds")) # Willingness-to-pay experiment data
 
-# Clean up consent variable -----------------------------------------------
-
-census.data %<>% rename(census.consent = consent) # Rename this to reduce chance of error
-
+# Geographic data for clusters in the study
+pot_geo_info <- pot.info %>% 
+  filter(!is.na(wave)) %>% 
+  transmute(cluster.id, 
+            pot.lon = lon.post.rct.update,
+            pot.lat = lat.post.rct.update) 
+  
 # HH distance to PoT ------------------------------------------------------
 
-census.data %<>% 
-  left_join(pot.info %>% 
-              filter(!is.na(wave)) %>% 
-              transmute(cluster.id, 
-                        pot.lon = lon.post.rct.update,
-                        pot.lat = lat.post.rct.update),
-            "cluster.id") %>% 
-  group_by(cluster.id) %>% 
+# census.data %>% 
+#   group_by(cluster.id) %>% 
+#   group_modify(function(households, ...) {
+#     hh_sf <- st_as_sf(households, coords = c("lon", "lat"), crs = wgs.84) %>% 
+#       st_transform(kenya.proj4)
+#     
+#     # pot_sf <- st_as_sf(pot_geo_info, coords = c("pot.lon", "pot.lat"), crs = wgs.84)
+#     
+#     return(households)
+#   }, pot_geo_info = pot_geo_info) %>% 
+#   ungroup()
+#   
+#   
+#   
+#   nest_join(pot_geo_info, ., by = "cluster.id", name = "households") %>% 
+#   # st_as_sf(coords = c("pot.lon", "pot.lat"), crs = wgs.84) %>% 
+#   mutate(households = map(households, st_as_sf, coords = c("lon", "lat"), crs = wgs.84) %>% 
+#            map2(geometry, ~ mutate(.x, 
+#                                    dist.to.pot = st_distance(.x %>% st_transform(kenya.proj4),
+#                                                              st_sfc(.y, crs = wgs.84) %>% st_transform(kenya.proj4)) %>% 
+#                                      as.vector()))) 
+
+# Calculate the distance between households and their assigned point-of-treatment 
+census.data %<>% l
+eft_join(pot_geo_info, by = "cluster.id") %>% 
+  group_by(cluster.id) %>%
   do({
     if (is.na(first(.$cluster.id))) {
       individ.dist.to.pot <- NA
@@ -65,12 +89,7 @@ census.data %<>%
 
 village.centers %<>% 
   select(cluster.id, lon, lat) %>% 
-  left_join(pot.info %>% 
-              filter(!is.na(wave)) %>% 
-              transmute(cluster.id, 
-                        pot.lon = lon.post.rct.update,
-                        pot.lat = lat.post.rct.update),
-            "cluster.id") %>% {
+  left_join(pot_geo_info, by = "cluster.id") %>% {
     cluster.pot.locations <- convert.to.sp(., ~ pot.lon + pot.lat, wgs.84) %>% 
       spTransform(kenya.proj4)
     
@@ -79,7 +98,7 @@ village.centers %<>%
     
     mutate(., dist.to.pot = diag(gDistance(cluster.center.locations, cluster.pot.locations, byid = TRUE)))
   } %>% 
-  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id")
+  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), by = "cluster.id")
 
 # Core data prep --------------------------------------------------------------
 
@@ -144,11 +163,11 @@ endline.know.table.data %<>%
             c("KEY.individ" = "person_key", "know.other.index.2" = "know.other.index"),
             suffix = c(".1", ".2")) %>% 
   mutate_at(vars(recognized, dewormed, dewormed.know.only), 
-            funs(factor(., levels = c(0:1, 98), labels = c("no", "yes", "don't know")))) %>% 
+            list(~ factor(., levels = c(0:1, 98), labels = c("no", "yes", "don't know")))) %>% 
   mutate_at(vars(second.order), 
-            funs(factor(., levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know")))) %>% 
+            list(~ factor(., levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know")))) %>% 
   mutate_at(vars(relationship), 
-            funs(factor(., 
+            list(~ factor(., 
                         levels = c(1:5, 99), 
                         labels = c("hh member", "extended family", "friend", "neighbor", "church", "other")))) %>%
   mutate(relationship = if_else(relationship == "other" & str_to_lower(relationship.other) %in% c("village member", "village mate", "same village", "village elder", "village mates", "villager"),
@@ -173,7 +192,7 @@ save(all.endline.data, endline.data, consent.dewormed.reports, baseline.data,
 
 endline.data %>% 
   set_names(str_replace_all(names(.), "\\.|-", "_")) %>% 
-  mutate_if(is.list, funs(map_chr(., ~ str_c(.x, collapse = " ")))) %>%  
+  mutate_if(is.list, list(~ map_chr(., ~ str_c(.x, collapse = " ")))) %>%  
   haven::write_dta(file.path("data", "endline_data.dta"))
 
 analysis.data %>% 
