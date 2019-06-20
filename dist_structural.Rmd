@@ -1,0 +1,255 @@
+---
+title: "Distance Structural"
+output: html_notebook
+---
+
+```{r setup}
+library(magrittr)
+library(tidyverse)
+library(HRW)
+library(splines2)
+library(rstan)
+```
+
+```{r util-scripts}
+source("analysis_util.R")
+```
+
+```{r load-data}
+load(file.path("data", "analysis.RData"))
+```
+
+```{r data-prep}
+standardize <- as_mapper(~ (. - mean(.)) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot))
+
+cluster_analysis_data <- monitored_nosms_data %>% 
+  group_by(cluster.id, assigned.treatment, cluster.dist.to.pot, dist.pot.group) %>% 
+  summarize(prop_takeup = mean(dewormed)) %>% 
+  ungroup() %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
+         standard_prop_takeup = standardize(prop_takeup))
+```
+
+```{r, fig.width=10, eval=FALSE}
+cluster_analysis_data %>% 
+  ggplot(aes(cluster.dist.to.pot, prop_takeup)) +
+  geom_point() +
+  stat_smooth() +
+  facet_wrap(vars(assigned.treatment), nrow = 1)
+```
+
+```{r}
+num_interior_knots <- 100
+
+get_spline_range <- function(x) {
+  lst(lower_range = 1.01 * min(x) - 0.01 * max(x),
+      upper_range = 1.01 * max(x) - 0.01 * min(x))
+}
+
+calculate_splines <- function(x, num_interior_knots, splines_for = x, spline_type = c("osullivan", "i-spline"), ...) {
+  spline_type <- match.arg(spline_type)
+  
+  spline_range <- get_spline_range(x)
+  
+  interior_knots <- quantile(unique(x), seq(0, 1, length = num_interior_knots + 2)) %>% 
+    magrittr::extract(2:(num_interior_knots + 1))
+
+  switch(spline_type,
+         "osullivan" = ZOSull(splines_for, range.x = unlist(spline_range), intKnots = interior_knots, ...),
+         "i-spline" = iSpline(splines_for, knots = interior_knots,  Boundary.knots = unlist(spline_range), ...))
+}
+
+Z_osullivan <- calculate_splines(monitored_nosms_data$standard_cluster.dist.to.pot, num_interior_knots = num_interior_knots, spline_type = "osullivan")
+Z_i_spline <- calculate_splines(monitored_nosms_data$standard_cluster.dist.to.pot, num_interior_knots = num_interior_knots, spline_type = "i-spline")
+
+grid_dist <- get_spline_range(monitored_nosms_data$standard_cluster.dist.to.pot) %>% unname() %>% list_modify(length = 1001) %>% do.call(seq, .)
+
+Z_grid_osullivan <- calculate_splines(monitored_nosms_data$standard_cluster.dist.to.pot, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "osullivan")
+Z_grid_i_spline <- calculate_splines(monitored_nosms_data$standard_cluster.dist.to.pot, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "i-spline")
+
+options(mc.cores = 12)
+rstan_options(auto_write = TRUE)
+
+dist_fit <- stan(
+  file = file.path("stan_models", "dist_splines.stan"), 
+  
+  data = lst(
+    num_obs = nrow(monitored_nosms_data),
+    num_grid_obs = length(grid_dist),
+    num_treatments = 4,
+    assigned_treatment = as.integer(monitored_nosms_data$assigned.treatment),
+    takeup = monitored_nosms_data$dewormed,
+    standard_dist = monitored_nosms_data$standard_cluster.dist.to.pot,
+    grid_dist,
+    
+    Z_splines_B = Z_i_spline,
+    Z_splines_R = Z_osullivan,
+    num_knots_B = ncol(Z_splines_B),
+    num_knots_R = ncol(Z_splines_R),
+    
+    Z_grid_B = Z_grid_i_spline,
+    Z_grid_R = Z_grid_osullivan,
+  ),
+  
+  iter = 500,
+  warmup = 300,
+  chains = 6,
+  sample_file = file.path("stanfit", "struct_dist_semiparam.csv")
+)
+```
+
+```{r}
+extract_sim_level <- function(fit, par) {
+  fit %>% 
+    as.data.frame(par = par) %>% 
+    mutate(iter_id = seq_len(n())) %>% 
+    gather(indices, iter_est, -iter_id) %>% 
+    tidyr::extract(indices, c("grid_index", "assigned_treatment"), "(\\d+),(\\d+)", convert = TRUE) %>% 
+    group_nest(grid_index, assigned_treatment, .key = "iter_data") %>% 
+    mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
+           quantiles_est = map(iter_data, 
+                                       function(iter, probs) 
+                                         quantile(iter$iter_est, probs = probs, names = FALSE) %>% 
+                                         enframe(name = NULL, value = "est") %>% 
+                                         mutate(per = probs),
+                                       probs = c(0.05, 0.1, 0.5, 0.9, 0.95))) %>% 
+    left_join(tibble(grid_dist) %>% mutate(grid_index = seq_len(n())), by = "grid_index") %>% 
+    mutate(assigned_treatment = factor(assigned_treatment, labels = levels(monitored_nosms_data$assigned.treatment)),
+           grid_dist = unstandardize(grid_dist, monitored_nosms_data$cluster.dist.to.pot)) 
+}
+
+extract_sim_diff <- function(level) {
+  level %>% 
+    select(-mean_est, -quantiles_est) %>% 
+    rename(assigned_treatment_left = assigned_treatment) %>% 
+    mutate(assigned_treatment_right = "control") %>% 
+    left_join(select(., -grid_dist, -assigned_treatment_right), 
+              by = c("assigned_treatment_right" = "assigned_treatment_left", "grid_index"), 
+              suffix = c("_left", "_right")) %>% 
+    filter(assigned_treatment_left != assigned_treatment_right) %>% 
+    mutate(iter_diff = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+             map(mutate, iter_est = iter_est_left - iter_est_right)) %>% 
+    mutate(mean_est = map_dbl(iter_diff, ~ mean(.$iter_est)),
+           quantiles_est = map(iter_diff, 
+                                       function(iter, probs) 
+                                         quantile(iter$iter_est, probs = probs, names = FALSE) %>% 
+                                         enframe(name = NULL, value = "est") %>% 
+                                         mutate(per = probs),
+                                                # interval_size = round(2 * abs(probs - 0.5), 4)),
+                                       probs = c(0.05, 0.1, 0.5, 0.9, 0.95))) 
+}
+
+sim_takeup <- dist_fit %>% extract_sim_level("sim_takeup") 
+sim_B <- try(dist_fit %>% extract_sim_level("sim_B")) 
+sim_R <- dist_fit %>% extract_sim_level("sim_R") 
+sim_latent <- dist_fit %>% extract_sim_level("sim_latent") 
+
+sim_takeup_diff <- sim_takeup %>% extract_sim_diff()
+sim_latent_diff <- sim_latent %>% extract_sim_diff()
+```
+
+```{r, fig.width=12, fig.height=4}
+sim_takeup %>%
+  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
+           map(spread, per, est)) %>% 
+  unnest(wide_quantiles) %>% 
+  ggplot(aes(grid_dist, mean_est)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
+  geom_point(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group), 
+             data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
+  labs(x = "Distance from PoT [meters]", y = "Take-up", color = "Assigned Distance Group",
+       caption = "Points: observed village level proportion of take-up.
+                  Grey ribbons: 80% and 90% credible intervals.") +
+  facet_wrap(vars(assigned_treatment), nrow = 1) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+```{r, fig.width=12, fig.height=4}
+sim_B %>%
+  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
+           map(spread, per, est)) %>% 
+  unnest(wide_quantiles) %>% 
+  ggplot(aes(grid_dist, mean_est)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
+  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
+           alpha = 0.5,
+           sides = "b",
+           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
+  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group",
+       caption = "Points: observed village level proportion of take-up.
+                  Grey ribbons: 80% and 90% credible intervals.") +
+  facet_wrap(vars(assigned_treatment), nrow = 1) +
+  theme(legend.position = "top")
+```
+
+```{r, fig.width=12, fig.height=4}
+sim_R %>%
+  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
+           map(spread, per, est)) %>% 
+  unnest(wide_quantiles) %>% 
+  ggplot(aes(grid_dist, mean_est)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
+  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
+           alpha = 0.5,
+           sides = "b",
+           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
+  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group",
+       caption = "Points: observed village level proportion of take-up.
+                  Grey ribbons: 80% and 90% credible intervals.") +
+  facet_wrap(vars(assigned_treatment), nrow = 1) +
+  theme(legend.position = "top")
+```
+
+```{r, fig.width=14, fig.height=6}
+sim_takeup_diff %>%
+  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
+           map(spread, per, est)) %>% 
+  unnest(wide_quantiles) %>% 
+  ggplot(aes(grid_dist, mean_est)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.2) +
+  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
+           alpha = 0.5,
+           sides = "b",
+           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
+  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group") +
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+  facet_wrap(vars(assigned_treatment_left), nrow = 1) +
+  theme(legend.position = "top")
+```
+
+```{r, fig.width=14, fig.height=6}
+sim_latent_diff %>%
+  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
+           map(spread, per, est)) %>% 
+  unnest(wide_quantiles) %>% 
+  ggplot(aes(grid_dist, mean_est)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.2) +
+  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
+           alpha = 0.5,
+           sides = "b",
+           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
+  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group") +
+  facet_wrap(vars(assigned_treatment_left), nrow = 1) +
+  theme(legend.position = "top")
+```
+
