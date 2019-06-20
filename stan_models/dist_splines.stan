@@ -33,10 +33,12 @@ transformed data {
 parameters {
   vector[num_treatments] beta;
   
-  vector[num_treatments] dist_beta;
+  // vector[num_treatments] dist_beta;
+  vector<lower = 0>[num_treatments] dist_beta_B;
+  vector[num_treatments] dist_beta_R;
   
-  // simplex[num_knots_B] u_splines_B_simplex[num_treatments];  
-  // vector<lower = 0>[num_treatments] u_splines_B_scale;  
+  simplex[num_knots_B] u_splines_B_simplex[num_treatments];
+  vector<lower = 0>[num_treatments] u_splines_B_scale;
   // simplex[num_knots_B] u_splines_B_simplex;  
   // real<lower = 0> u_splines_B_scale;  
   
@@ -70,39 +72,44 @@ transformed parameters {
   
   // B = treatment_design_matrix * beta - rows_dot_product(u_splines_B[assigned_treatment], Z_splines_B);
   // B = treatment_design_matrix * beta - Z_splines_B * u_splines_B; 
-  B = treatment_design_matrix * beta + (treatment_design_matrix * dist_beta) .* standard_dist;
+  B = treatment_design_matrix * beta  
+    // + (treatment_design_matrix * dist_beta) .* standard_dist 
+    - (treatment_design_matrix * dist_beta_B) .* standard_dist; 
+    // - rows_dot_product(u_splines_B[assigned_treatment], Z_splines_B);
   
-  R = rows_dot_product(u_splines_R[assigned_treatment], Z_splines_R);
+  R = rows_dot_product(u_splines_R[assigned_treatment], Z_splines_R)
+    + (treatment_design_matrix * dist_beta_R) .* standard_dist; 
 }
 
 model {
   beta[1] ~ normal(0, 2);
   beta[2:num_treatments] ~ normal(0, 1);
   
-  dist_beta ~ normal(0, 0.125);
+  // dist_beta ~ normal(0, 0.125);
+  dist_beta_B ~ normal(0, 0.125);
+  dist_beta_R ~ normal(0, 0.125);
   
-  // u_splines_B_scale ~ exponential(1);
+  u_splines_B_scale ~ exponential(1);
   
   u_splines_R_sigma ~ normal(0, 0.125);
   
   to_vector(u_splines_R_raw) ~ normal(0, 1);
   
-  // to_vector(u_splines_R) ~ normal(0, u_splines_R_sigma);
-  
   takeup ~ bernoulli_logit(B + R);
 }
 
 generated quantities {
-  matrix[num_grid_obs, num_treatments] sim_B = rep_matrix((treatment_map_design_matrix * beta)', num_grid_obs) + 
-    rep_matrix((treatment_map_design_matrix * dist_beta)', num_grid_obs) .* rep_matrix(grid_dist, num_treatments); 
-  matrix[num_grid_obs, num_treatments] sim_R; 
+  matrix[num_grid_obs, num_treatments] sim_B = rep_matrix((treatment_map_design_matrix * beta)', num_grid_obs) 
+    // + rep_matrix((treatment_map_design_matrix * dist_beta)', num_grid_obs) .* rep_matrix(grid_dist, num_treatments); 
+    - rep_matrix((treatment_map_design_matrix * dist_beta_B)', num_grid_obs) .* rep_matrix(grid_dist, num_treatments); 
+  matrix[num_grid_obs, num_treatments] sim_R = rep_matrix((treatment_map_design_matrix * dist_beta_R)', num_grid_obs) .* rep_matrix(grid_dist, num_treatments); 
   matrix[num_grid_obs, num_treatments] sim_latent;
   matrix[num_grid_obs, num_treatments] sim_takeup;
 
   for (treatment_index in 1:num_treatments) {
     // sim_B[, treatment_index] -= rows_dot_product(rep_matrix(u_splines_B[treatment_index], num_grid_obs), Z_grid_B); 
     // sim_B[, treatment_index] -= Z_grid_B * u_splines_B;
-    sim_R[, treatment_index] = rows_dot_product(rep_matrix(u_splines_R[treatment_index], num_grid_obs), Z_grid_R);
+    sim_R[, treatment_index] += rows_dot_product(rep_matrix(u_splines_R[treatment_index], num_grid_obs), Z_grid_R);
   }
 
   sim_latent = sim_B + sim_R;
