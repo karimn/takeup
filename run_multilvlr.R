@@ -21,7 +21,7 @@ Options:
   --hist-only  Calculate outcome histograms only
   --output-name=<output-name>, -o <output-name>  Name to use in stanfit .csv files and analysis data .RData file
   --no-db  Don't extract stanfit iterations to SQLite database
-  --no-rhats,  Don't report R hats quantiles 
+  --no-rhats  Don't report R hats quantiles 
   --prior-predict  Run a prior posterior predictive distribution check"
 )
 
