@@ -10,6 +10,7 @@ library(HRW)
 library(splines2)
 library(rstan)
 library(loo)
+library(bayesplot)
 
 options(mc.cores = 12)
 rstan_options(auto_write = TRUE)
@@ -148,143 +149,6 @@ Z_grid_i_spline <- calculate_splines(cluster_standard_dist, num_interior_knots =
 Z_grid_b_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "b-spline")
 ```
 
-```{r}
-dist_fit <- stan(
-  file = file.path("stan_models", "dist_splines.stan"), 
-  
-  data = lst(
-    num_obs = nrow(monitored_nosms_data),
-    num_grid_obs = length(grid_dist),
-    num_treatments = 4,
-    assigned_treatment = as.integer(monitored_nosms_data$assigned.treatment),
-    takeup = monitored_nosms_data$dewormed,
-    standard_dist = monitored_nosms_data$standard_cluster.dist.to.pot,
-    grid_dist,
-    
-    Z_splines_B = Z_i_spline,
-    Z_splines_R = Z_osullivan,
-    num_knots_B = ncol(Z_splines_B),
-    num_knots_R = ncol(Z_splines_R),
-    
-    Z_grid_B = Z_grid_i_spline,
-    Z_grid_R = Z_grid_osullivan,
-  ),
-  
-  iter = 500,
-  warmup = 300,
-  chains = 6,
-  sample_file = file.path("stanfit", "struct_dist_semiparam.csv")
-)
-```
-
-```{r}
-sim_takeup <- dist_fit %>% extract_sim_level("sim_takeup") 
-sim_B <- try(dist_fit %>% extract_sim_level("sim_B")) 
-sim_R <- dist_fit %>% extract_sim_level("sim_R") 
-sim_latent <- dist_fit %>% extract_sim_level("sim_latent") 
-
-sim_takeup_diff <- sim_takeup %>% extract_sim_diff()
-sim_latent_diff <- sim_latent %>% extract_sim_diff()
-```
-
-```{r, fig.width=12, fig.height=4}
-sim_takeup %>%
-  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
-           map(spread, per, est)) %>% 
-  unnest(wide_quantiles) %>% 
-  ggplot(aes(grid_dist, mean_est)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
-  geom_point(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group), 
-             data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
-  labs(x = "Distance from PoT [meters]", y = "Take-up", color = "Assigned Distance Group",
-       caption = "Points: observed village level proportion of take-up.
-                  Grey ribbons: 80% and 90% credible intervals.") +
-  facet_wrap(vars(assigned_treatment), nrow = 1) +
-  theme_minimal() +
-  theme(legend.position = "top")
-```
-
-```{r, fig.width=12, fig.height=4}
-sim_B %>%
-  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
-           map(spread, per, est)) %>% 
-  unnest(wide_quantiles) %>% 
-  ggplot(aes(grid_dist, mean_est)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
-  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
-           alpha = 0.5,
-           sides = "b",
-           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
-  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group",
-       caption = "Points: observed village level proportion of take-up.
-                  Grey ribbons: 80% and 90% credible intervals.") +
-  facet_wrap(vars(assigned_treatment), nrow = 1) +
-  theme(legend.position = "top")
-```
-
-```{r, fig.width=12, fig.height=4}
-sim_R %>%
-  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
-           map(spread, per, est)) %>% 
-  unnest(wide_quantiles) %>% 
-  ggplot(aes(grid_dist, mean_est)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
-  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
-           alpha = 0.5,
-           sides = "b",
-           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
-  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group",
-       caption = "Points: observed village level proportion of take-up.
-                  Grey ribbons: 80% and 90% credible intervals.") +
-  facet_wrap(vars(assigned_treatment), nrow = 1) +
-  theme(legend.position = "top")
-```
-
-```{r, fig.width=14, fig.height=6}
-sim_takeup_diff %>%
-  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
-           map(spread, per, est)) %>% 
-  unnest(wide_quantiles) %>% 
-  ggplot(aes(grid_dist, mean_est)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.2) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
-           alpha = 0.5,
-           sides = "b",
-           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
-  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group") +
-  scale_y_continuous(breaks = seq(0, 1, 0.1)) +
-  facet_wrap(vars(assigned_treatment_left), nrow = 1) +
-  theme(legend.position = "top")
-```
-
-```{r, fig.width=14, fig.height=6}
-sim_latent_diff %>%
-  mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
-           map(spread, per, est)) %>% 
-  unnest(wide_quantiles) %>% 
-  ggplot(aes(grid_dist, mean_est)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.2) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_rug(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
-           alpha = 0.5,
-           sides = "b",
-           data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
-  labs(x = "Distance from PoT", y = "", color = "Assigned Distance Group") +
-  facet_wrap(vars(assigned_treatment_left), nrow = 1) +
-  theme(legend.position = "top")
-```
-
 # Structural $v^*(z,d)$
 
 ```{r}
@@ -297,11 +161,6 @@ models <- lst(
   QUADRATIC_NONLINEAR_DIST = lst(model_type = 4),
   CUBIC_NONLINEAR_DIST = lst(model_type = 5),
   SEMIPARAM_NONLINEAR_DIST_OSULLIVAN = lst(model_type = 6),
-  # SEMIPARAM_NONLINEAR_DIST_BSPLINE2 = lst(model_type = 7, 
-  #                                        Z_splines_v = Z_b_spline,
-  #                                        num_knots_v = ncol(Z_splines_v),
-  #                                        Z_grid_v = Z_grid_b_spline,
-  #                                        u_splines_v_sigma_sd = 0.005),
   SEMIPARAM_NONLINEAR_DIST_BSPLINE = lst(model_type = 7, 
                                          Z_splines_v = Z_b_spline,
                                          num_knots_v = ncol(Z_splines_v),
@@ -322,11 +181,9 @@ stan_data <- lst(
     arrange(cluster_id) %>% 
     pull(assigned.treatment),
   takeup = monitored_nosms_data$dewormed,
-  # standard_dist = monitored_nosms_data$standard_cluster.dist.to.pot,
   cluster_standard_dist = distinct(monitored_nosms_data, cluster_id, standard_cluster.dist.to.pot) %>% 
     arrange(cluster_id) %>% 
     pull(standard_cluster.dist.to.pot),
-  # assigned_dist_group_treatment = group_indices(monitored_nosms_data, assigned.treatment, dist.pot.group),
   cluster_assigned_dist_group_treatment = distinct(monitored_nosms_data, cluster_id, assigned.treatment, dist.pot.group) %>% 
     arrange(cluster_id) %>% 
     group_indices(assigned.treatment, dist.pot.group),
@@ -345,37 +202,41 @@ stan_data <- lst(
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
 
-stan_list <- function(models_info, stan_fun = partial(stan, 
-                                                      iter = 500,
-                                                      warmup = 300,
-                                                      chains = 6,
-                                                      save_warmup = FALSE,
-                                                      refresh = 100)) {
+
+stan_list <- function(models_info) {
   get_sample_file_name <- . %>% 
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
- 
-  models_info[-1] %>% 
-    accumulate2(names(.),
-               function(last_fit, next_model, next_model_name) {
-                 try(
-                   stan_fun(fit = last_fit, 
-                            data = stan_data %>% 
-                              list_modify(!!!next_model) %>% 
-                              map_if(is.factor, as.integer),
-                            sample_file = get_sample_file_name(next_model_name))
-                 )
-               },
-               .init = stan_fun(file = file.path("stan_models", "dist_splines3.stan"), 
-                                data = stan_data %>% 
-                                  list_modify(!!!models_info[[1]]) %>% 
-                                  map_if(is.factor, as.integer),
-                                sample_file = get_sample_file_name(names(models_info)[1]))) %>%
-    set_names(names(models_info))
+  
+  models_info %>% 
+    # imap(function(curr_model, model_name, dist_model) {
+    # future_imap(function(curr_model, model_name, dist_model) {
+    mclapply(function(curr_model, model_name, dist_model) {
+      sampling(dist_model,
+      # stan(file.path("stan_models", "dist_splines3.stan"),
+               iter = 4000,
+               thin = 4,
+               chains = 4,
+               control = lst(adapt_delta = 0.9),
+               save_warmup = FALSE,
+               refresh = 500,
+               data = stan_data %>%
+                 list_modify(!!!curr_model) %>%
+                 map_if(is.factor, as.integer))
+      # stan_fun(dist_model,
+      #          data = stan_data %>% 
+      #                     list_modify(!!!curr_model) %>% 
+      #                     map_if(is.factor, as.integer))
+               # sample_file = get_sample_file_name(model_name))
+    },
+    dist_model = stan_model(file.path("stan_models", "dist_splines3.stan"))) 
+    # .progress = TRUE)
 }
 ```
 
 ```{r}
+dist_fit <- models[1:2] %>% stan_list()
+
 dist_fit <- models[-8] %>% stan_list()
 
 write_rds(dist_fit, file.path("stan_analysis_data", "dist_fit.rds"))
@@ -383,6 +244,15 @@ write_rds(dist_fit, file.path("stan_analysis_data", "dist_fit.rds"))
 # sim_takeup <- dist2_fit %>% extract_sim_level("sim_takeup") 
 # sim_v <- dist2_fit %>% extract_sim_level("sim_v") 
 # sim_reputation <- dist2_fit %>% extract_sim_level("sim_reputation")
+```
+
+```{r}
+dist_neff_ratio <- map(dist_fit, neff_ratio)
+
+dist_neff_ratio %>% 
+  map(~ magrittr::extract(., . < 0.1)) 
+  # map(mcmc_neff)
+
 ```
 
 ```{r, eval=FALSE}
@@ -421,8 +291,8 @@ semiparam_fit <- read_rds(file.path("stan_analysis_data", "semiparam_fit.rds"))
 ```{r, fig.width=16, fig.height=4}
 dist_fit[c(
   # "LINEAR_DIST", 
-  "QUADRATIC_NONLINEAR_DIST",
-  "SEMIPARAM_NONLINEAR_DIST_BSPLINE"
+  "QUADRATIC_NONLINEAR_DIST"
+  # "SEMIPARAM_NONLINEAR_DIST_BSPLINE"
   # "SEMIPARAM_NONLINEAR_DIST_OSULLIVAN"
   )] %>%
 # dist_fit[3:7] %>%
@@ -434,8 +304,11 @@ dist_fit[c(
          ) %>% 
   unnest(wide_quantiles) %>% 
   ggplot(aes(grid_dist, mean_est, group = model)) +
-  geom_line(aes(color = model)) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model), alpha = 0.25) +
+  geom_line(aes(color = model), 
+            show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model), 
+              show.legend = FALSE,
+              alpha = 0.25) +
   # geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
   # geom_point(aes(cluster.dist.to.pot, prop_takeup, color = dist.pot.group),
   geom_point(aes(cluster.dist.to.pot, prop_takeup), inherit.aes = FALSE,
@@ -481,7 +354,12 @@ semiparam_fit %>%
 ```
 
 ```{r, fig.width=12, fig.height=4}
-semiparam_fit %>%
+dist_fit[c(
+  # "LINEAR_DIST", 
+  "QUADRATIC_NONLINEAR_DIST"
+  # "SEMIPARAM_NONLINEAR_DIST_BSPLINE"
+  # "SEMIPARAM_NONLINEAR_DIST_OSULLIVAN"
+  )] %>%
   map_dfr(extract_sim_level, "sim_v", .id = "model") %>% 
   mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
            map(spread, per, est),
@@ -489,8 +367,11 @@ semiparam_fit %>%
          ) %>% 
   unnest(wide_quantiles) %>% 
   ggplot(aes(grid_dist, mean_est, group = model)) +
-  geom_line(aes(color = model)) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model), alpha = 0.25) +
+  geom_line(aes(color = model),
+              show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model), 
+              show.legend = FALSE,
+              alpha = 0.25) +
   # geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
   geom_rug(aes(cluster.dist.to.pot, prop_takeup), inherit.aes = FALSE,
            alpha = 0.5,
@@ -501,7 +382,7 @@ semiparam_fit %>%
   labs(x = "Distance from PoT", 
        y = bquote(~ v^"*"~"(z,d)"), 
        caption = "Points: observed village level proportion of take-up.
-                  Grey ribbons: 80% and 90% credible intervals.") +
+                  Grey ribbons: 80% credible intervals.") +
   facet_wrap(vars(assigned_treatment), nrow = 1) +
   theme_minimal() +
   theme(legend.position = "top")
@@ -539,7 +420,7 @@ tibble(
 ```
 
 ```{r}
-loo_obj <- dist_fit[1:7] %>% 
+loo_obj <- dist_fit[1:2] %>% 
   map(extract_log_lik, merge_chains = FALSE) %>% 
   map(~ loo(.x, r_eff = relative_eff(exp(.x)), cores = 2))
 

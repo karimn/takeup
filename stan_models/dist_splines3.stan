@@ -63,6 +63,11 @@ data {
   // Hyper parameters
   
   real<lower = 0> u_splines_v_sigma_sd;
+  
+  // K-fold CV 
+  
+  int<lower = 0> num_excluded_clusters;
+  int<lower = 1, upper = num_clusters> excluded_clusters[num_excluded_clusters];
 }
 
 transformed data {
@@ -105,6 +110,17 @@ transformed data {
   int<lower = 1, upper = num_dist_group_treatments> assigned_dist_group_treatment[num_obs] = cluster_assigned_dist_group_treatment[obs_cluster_id];
   
   real<lower = 0> dist_param_sd = 1;
+ 
+  int<lower = 0, upper = num_clusters> num_included_clusters = num_clusters - num_excluded_clusters;
+  int<lower = 1, upper = num_clusters> included_clusters[num_included_clusters] = num_excluded_clusters > 0 ? which(seq(1, num_clusters, 1), excluded_clusters, 0) : seq(1, num_clusters, 1);
+  int<lower = 0, upper = num_obs> num_included_obs = sum(cluster_size[included_clusters]);
+  int<lower = 0, upper = num_obs> num_excluded_obs = num_obs - num_included_obs;
+  int<lower = 0, upper = num_obs> included_obs[num_included_obs] = num_included_obs != num_obs ? which(obs_cluster_id, included_clusters, 1) : seq(1, num_obs, 1);
+  int<lower = 0, upper = num_obs> excluded_obs[num_excluded_obs]; 
+  
+  if (num_excluded_obs > 0) {
+    excluded_obs = which(obs_cluster_id, included_clusters, 0);
+  }
   
   treatment_map_design_matrix[, 1] = rep_vector(1, num_actual_treatments);
 
@@ -128,15 +144,11 @@ transformed data {
 }
 
 parameters {
-  // vector[use_cluster_effects ? num_clusters : 0] cluster_effects;
-  // real<lower = 0> cluster_effects_sd;
-  
   vector[num_actual_treatments] beta; // Threatment intercepts
   
   matrix[use_cluster_effects ? num_clusters : 0, num_actual_treatments] beta_cluster_raw;
   row_vector<lower = 0>[use_cluster_effects ? num_actual_treatments : 0] beta_cluster_sd;
   
-  // vector[model_type >= MODEL_TYPE_LINEAR_DIST ? num_treatments : 0] dist_beta_v; // Linear distance*treatment effects
   vector[num_treatments_linear] dist_beta_v; // Linear distance*treatment effects
   vector[num_treatments_quadratic] dist_beta_v_quadratic;
   vector[num_treatments_cubic] dist_beta_v_cubic;
@@ -154,31 +166,24 @@ parameters {
 transformed parameters {
   matrix<lower = u_splines_lb>[num_treatments_semiparam, num_knots_v] u_splines_v;
   vector[num_clusters] cluster_obs_v = cluster_treatment_design_matrix * beta; // v^* in the social signaling model
-  // vector[num_obs] obs_v = cluster_obs_v[obs_cluster_id]; // cluster_treatment_design_matrix[obs_cluster_id] * beta + cluster_effects[obs_cluster_id]; // v^* in the social signaling model
-  // vector[num_obs] obs_takeup_prob;
   vector[num_clusters] cluster_takeup_prob;
   
   if (use_cluster_effects) {
     matrix[num_clusters, num_actual_treatments] beta_cluster = beta_cluster_raw .* rep_matrix(beta_cluster_sd, num_clusters);
     
     cluster_obs_v += rows_dot_product(cluster_treatment_design_matrix, beta_cluster);
-     
-     // cluster_obs_v += cluster_effects;
   }
   
   if (in_array(model_type, { MODEL_TYPE_LINEAR_DIST,
                              MODEL_TYPE_QUADRATIC_NONLINEAR_DIST, 
                              MODEL_TYPE_CUBIC_NONLINEAR_DIST })) {
-    // obs_v += (cluster_treatment_design_matrix[obs_cluster_id] * dist_beta_v) .* standard_dist; // Add a linear component to all models using a continuous distance effect
     cluster_obs_v += (cluster_treatment_design_matrix * dist_beta_v) .* cluster_standard_dist; // Add a linear component to all models using a continuous distance effect
     
     if (in_array(model_type, { MODEL_TYPE_QUADRATIC_NONLINEAR_DIST, 
                                MODEL_TYPE_CUBIC_NONLINEAR_DIST })) {
-      // obs_v += (cluster_treatment_design_matrix[obs_cluster_id] * dist_beta_v_quadratic) .* standard_dist_square; 
       cluster_obs_v += (cluster_treatment_design_matrix * dist_beta_v_quadratic) .* cluster_standard_dist_square; 
       
       if (model_type == MODEL_TYPE_CUBIC_NONLINEAR_DIST) {
-        // obs_v += (cluster_treatment_design_matrix[obs_cluster_id] * dist_beta_v_cubic) .* standard_dist_cube;
         cluster_obs_v += (cluster_treatment_design_matrix * dist_beta_v_cubic) .* cluster_standard_dist_cube;
       }
     }
@@ -189,7 +194,6 @@ transformed parameters {
       u_splines_v[treatment_index] = u_splines_v_raw[treatment_index] * u_splines_v_sigma;
     }
     
-    // obs_v += rows_dot_product(u_splines_v[assigned_treatment], Z_splines_v);
     cluster_obs_v += rows_dot_product(u_splines_v[cluster_assigned_treatment], Z_splines_v);
   } else if (model_type == MODEL_TYPE_SEMIPARAM_NONLINEAR_DIST_BSPLINE) {
     cluster_obs_v += (cluster_treatment_design_matrix * dist_beta_v) .* cluster_standard_dist; // Add a linear component to all models using a continuous distance effect
@@ -198,7 +202,6 @@ transformed parameters {
       u_splines_v[treatment_index] = cumulative_sum(append_col(1, rep_row_vector(u_splines_v_sigma, num_knots_v - 1)) .* u_splines_v_raw[treatment_index]); // Random walk
     }
     
-    // obs_v += rows_dot_product(u_splines_v[assigned_treatment], Z_splines_v);
     cluster_obs_v += rows_dot_product(u_splines_v[cluster_assigned_treatment], Z_splines_v);
   } else if (model_type == MODEL_TYPE_SEMIPARAM_NONLINEAR_DIST_ISPLINE) {
     cluster_obs_v += (cluster_treatment_design_matrix * dist_beta_v) .* cluster_standard_dist; // Add a linear component to all models using a continuous distance effect
@@ -211,11 +214,9 @@ transformed parameters {
       }
     }
     
-    // obs_v += rows_dot_product(u_splines_v[assigned_treatment], Z_splines_v);
     cluster_obs_v += rows_dot_product(u_splines_v[cluster_assigned_treatment], Z_splines_v);
   }
   
-  // obs_takeup_prob = Phi(- obs_v);
   cluster_takeup_prob = Phi(- cluster_obs_v);
 }
 
@@ -224,19 +225,11 @@ model {
   beta[2:num_actual_treatments] ~ normal(0, 1);
   
   u_splines_v_sigma ~ normal(0, u_splines_v_sigma_sd);
-  // cluster_effects_sd ~ normal(0, 1);
   beta_link_kappa ~ normal(0, 1);
   
-  
   if (use_cluster_effects) {
-    beta_cluster_sd ~ normal(0, 1);
+    beta_cluster_sd ~ normal(0, 0.25);
     to_vector(beta_cluster_raw) ~ normal(0, 1);
-    
-    // for (cluster_index in 1:num_clusters) {
-    //   beta_cluster[cluster_index] ~ normal(0, beta_cluster_sd);
-    // }
-    
-    // cluster_effects ~ normal(0, cluster_effects_sd);
   }
  
   if (in_array(model_type, { MODEL_TYPE_LINEAR_DIST,
@@ -263,9 +256,9 @@ model {
   // mu_rep ~ exponential(1); 
  
   if (use_binomial) { 
-    cluster_takeup_count ~ binomial(cluster_size, cluster_takeup_prob);
+    cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], cluster_takeup_prob[included_clusters]);
   } else {
-    takeup ~ bernoulli(cluster_takeup_prob[obs_cluster_id]);
+    takeup[included_obs] ~ bernoulli(cluster_takeup_prob[obs_cluster_id[included_obs]]);
   }
 }
 
@@ -275,7 +268,8 @@ generated quantities {
   
   // matrix[num_grid_obs, num_treatments] sim_reputation;
   
-  vector[use_binomial ? num_clusters : num_obs] log_lik; // loo
+  vector[use_binomial ? num_included_clusters : num_included_obs] log_lik; // loo
+  vector[use_binomial ? num_excluded_clusters : num_excluded_obs] log_lik_heldout; // loo
   
   if (in_array(model_type, { MODEL_TYPE_LINEAR_DIST,
                              MODEL_TYPE_QUADRATIC_NONLINEAR_DIST, 
@@ -305,12 +299,28 @@ generated quantities {
   sim_takeup_prob = Phi(- sim_v);
  
   if (use_binomial) {
-    for (cluster_index in 1:num_clusters) {
-      log_lik[cluster_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], cluster_takeup_prob[cluster_index]);
+    for (cluster_index_index in 1:num_included_clusters) {
+      int cluster_index = included_clusters[cluster_index_index];
+      
+      log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], cluster_takeup_prob[cluster_index]);
+    }
+    
+    for (cluster_index_index in 1:num_excluded_clusters) {
+      int cluster_index = excluded_clusters[cluster_index_index];
+      
+      log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], cluster_takeup_prob[cluster_index]);
     }
   } else {
-    for (obs_index in 1:num_obs) {
-      log_lik[obs_index] = bernoulli_lpmf(takeup[obs_index] | cluster_takeup_prob[obs_cluster_id[obs_index]]);
+    for (obs_index_index in 1:num_included_obs) {
+      int obs_index = included_obs[obs_index_index];
+      
+      log_lik[obs_index_index] = bernoulli_lpmf(takeup[obs_index] | cluster_takeup_prob[obs_cluster_id[obs_index]]);
+    }
+    
+    for (obs_index_index in 1:num_excluded_obs) {
+      int obs_index = excluded_obs[obs_index_index];
+      
+      log_lik_heldout[obs_index_index] = bernoulli_lpmf(takeup[obs_index] | cluster_takeup_prob[obs_cluster_id[obs_index]]);
     }
   }
 }
