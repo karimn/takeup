@@ -29,6 +29,7 @@ abstract: "Can social image concerns motivate adults to internalize health exter
 nocite: |
   @R
 urlcolor: blue
+bibliography: /home/karim/Documents/library.bib
 ---
 
 \newpage
