@@ -4,17 +4,15 @@ if (!interactive()) withr::with_dir("..", source(file.path("packrat", "init.R"))
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist fit [--structural=<structural type> --no-save --sequential --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-dist-cluster-effects --model-file=<stan model>]
-  run_stan_dist cv [--structural=<structural type> --folds=<number of folds> --no-save --sequential --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --no-dist-cluster-effects --model-file=<stan model>]
+  run_stan_dist fit [--no-save --sequential --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-dist-cluster-effects]
+  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --no-dist-cluster-effects]
   
 Options:
-  --model-file<stan model>  Stan model file to use [default: dist_spline3.stan]
   --folds=<number of folds>  Cross validation folds [default: 10]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
-  --thin=<thin>  Thin samples [default: 1]
-  --structural=<structural type>  Specify structural model type [default: 0]", 
+  --thin=<thin>  Thin samples [default: 1]",
 
-  args = if (interactive()) "fit --structural=1 --sequential --iter=4000 --thin=1 --force-iter --models=6 --model-file=dist_splines4.stan" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "fit --sequential --models=9" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -35,7 +33,6 @@ output_name <- if (!is_null(script_options$outputname)) { script_options$outputn
 output_file_name <- file.path("stan_analysis_data", str_c(output_name, ".RData"))
 use_dist_cluster_effects <- !(script_options$`no-dist-cluster-effects` %||% FALSE)
 models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
-structural_type <- as.integer(script_options$structural) 
 thin_by <- as.integer(script_options$thin)
 model_file <- file.path("stan_models", script_options$`model-file`)
 
@@ -155,15 +152,13 @@ stan_list <- function(models_info, stan_data) {
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
   
-  dist_model <- stan_model(model_file)
-  
   if (script_options$fit) {
-    inner_sampler <- function(curr_model, dist_model, stan_data) {
+    inner_sampler <- function(curr_model, stan_data) {
       curr_stan_data <- stan_data %>%
         list_modify(!!!curr_model) %>%
         map_if(is.factor, as.integer)
-      
-      browser() 
+        
+      dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
       
       fit <- sampling(
         dist_model,
@@ -182,34 +177,22 @@ stan_list <- function(models_info, stan_data) {
     if (script_options$sequential) {
       models_info %>% 
         map(inner_sampler,
-            dist_model = dist_model,
             stan_data = stan_data)
       
     } else {
       models_info %>% 
-        # future_imap(function(curr_model, model_name, dist_model) {
         pbmclapply(inner_sampler,
-                   dist_model = dist_model,
                    stan_data = stan_data,
                    ignore.interactive = TRUE,
                    mc.silent = TRUE,
                    mc.cores = 3)
     }
-    
-    models_info %>% 
-      # imap(function(curr_model, model_name, dist_model) {
-      # future_imap(function(curr_model, model_name, dist_model) {
-      pbmclapply(,
-      dist_model = dist_model,
-      stan_data = stan_data,
-      ignore.interactive = TRUE,
-      mc.silent = !script_options$sequential,
-      mc.cores = if (script_options$sequential) 1 else 3)
-      # .progress = TRUE)
   } else if (script_options$cv) {
     models_info %>% 
-      imap(function(curr_model, model_name, dist_model, stan_data) {
+      imap(function(curr_model, model_name, stan_data) {
         kfold_groups <- kfold_split_stratified(K = folds, x = stan_data$cluster_assigned_dist_group_treatment)
+        
+        dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
         
         log_lik_list <- map(seq(folds), ~ which(kfold_groups == .)) %>% 
           pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data) {
@@ -247,7 +230,6 @@ stan_list <- function(models_info, stan_data) {
                           return(log_lik_list)
                         }))
       },
-      dist_model = dist_model,
       stan_data = stan_data) 
   }
 }
@@ -270,8 +252,6 @@ Z_grid_osullivan <- calculate_splines(cluster_standard_dist, num_interior_knots 
 Z_grid_i_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "i-spline")
 Z_grid_b_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "b-spline")
 
-
-
 # Models ------------------------------------------------------------------
 
 num_treatments <- n_distinct(monitored_nosms_data$assigned.treatment)
@@ -286,46 +266,47 @@ generate_initializer <- function(base_init = function() lst(beta_cluster_sd = ab
       if (structural_type > 0) {
         base_list %>% 
           list_modify(
-            mu_rep = abs(rnorm(num_treatments)),
-            mu_rep_raw = abs(rnorm(num_treatments)),
+            mu_rep_raw = abs(rnorm(num_treatments, 0, 0.1)),
+            mu_rep = abs(rnorm(num_treatments, 0, 0.1)),
             structural_beta = rnorm(num_treatments),
-            # dist_cost_k = abs(rnorm(num_treatments)),
-            dist_cost_k = abs(rnorm(1)),
-            structural_beta_cluster_raw = matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments),
+            dist_cost_k = abs(rnorm(1, 1, 0.1)),
             structural_beta_cluster = matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments),
-            structural_beta_cluster_sd = abs(rnorm(num_treatments)),
-            
-            cluster_takeup_prob = runif(num_clusters),
-            structural_cluster_takeup_prob = runif(num_clusters)
+            structural_beta_cluster_raw = matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments),
+            structural_beta_cluster_sd = abs(rnorm(num_treatments))
           )
                       
       } else {
-        return(ret_list) 
+        return(base_list) 
       }
     }
   } else return(NULL)
 }
 
 models <- lst(
-  NO_DIST = lst(model_type = 1),
+  NO_DIST = lst(model_type = 1,
+                model_file = "dist_splines3.stan"),
   
   DISCRETE_DIST = lst(model_type = 2),
   
   LINEAR_DIST = lst(model_type = 3,
-                    use_dist_cluster_effects = FALSE),
+                    use_dist_cluster_effects = FALSE,
+                    model_file = "dist_splines3.stan"),
   
   QUADRATIC_NONLINEAR_DIST = lst(model_type = 4,
-                                 use_dist_cluster_effects = FALSE),
+                                 use_dist_cluster_effects = FALSE,
+                                 model_file = "dist_splines3.stan"),
   
   CUBIC_NONLINEAR_DIST = lst(model_type = 5,
                              use_dist_cluster_effects = FALSE),
   
   SEMIPARAM_NONLINEAR_DIST_OSULLIVAN = lst(model_type = 6,
+                                           model_file = "dist_splines3.stan",
                                            use_dist_cluster_effects = FALSE,
-                                           init = generate_initializer(structural_type = structural_type)),
+                                           init = generate_initializer(structural_type = 0)),
                                            # init = function() lst(u_splines_cluster_v_sigma = abs(rnorm(num_clusters, 0, 0.25)))),
   
   SEMIPARAM_NONLINEAR_DIST_BSPLINE = lst(model_type = 7, 
+                                         model_file = "dist_splines3.stan",
                                          Z_splines_v = Z_b_spline,
                                          num_knots_v = ncol(Z_splines_v),
                                          Z_grid_v = Z_grid_b_spline,
@@ -333,27 +314,41 @@ models <- lst(
                                          init = function() lst(u_splines_cluster_v_sigma = abs(rnorm(num_clusters, 0, 0.25)))),
   
   SEMIPARAM_NONLINEAR_DIST_ISPLINE = lst(model_type = 8,
+                                         model_file = "dist_splines3.stan",
                                          Z_splines_v = Z_i_spline,
                                          num_knots_v = ncol(Z_splines_v),
                                          Z_grid_v = Z_grid_i_spline,
                                          init = function() lst(u_splines_cluster_v_sigma = abs(rnorm(num_clusters, 0, 0.25)))),
   
+  GP = lst(model_type = 9,
+           model_file = "dist_splines3.stan",
+           use_dist_cluster_effects = FALSE,
+           init = generate_initializer(structural_type = 0)),
+  
+  STRUCTURAL = lst(model_type = 10,
+                   model_file = "dist_splines5.stan",
+                   iter = 4000,
+                   init = generate_initializer(structural_type = 1)),
+  
   LINEAR_DIST_CE = lst(model_type = 3,
-                    use_dist_cluster_effects = TRUE,
-                    init = function() lst(dist_beta_cluster_linear_sd = abs(rnorm(num_treatments, 0, 0.25)))),
+                       model_file = "dist_splines3.stan",
+                       use_dist_cluster_effects = TRUE,
+                       init = function() lst(dist_beta_cluster_linear_sd = abs(rnorm(num_treatments, 0, 0.25)))),
   
   QUADRATIC_NONLINEAR_DIST_CE = lst(model_type = 4,
-                                 use_dist_cluster_effects = TRUE,
-                                 init = function() lst(dist_beta_cluster_linear_sd = abs(rnorm(num_treatments, 0, 0.25)),
-                                                       dist_beta_cluster_quadratic_sd = abs(rnorm(num_treatments, 0, 0.25)))),
+                                    model_file = "dist_splines3.stan",
+                                    use_dist_cluster_effects = TRUE,
+                                    init = function() lst(dist_beta_cluster_linear_sd = abs(rnorm(num_treatments, 0, 0.25)),
+                                                          dist_beta_cluster_quadratic_sd = abs(rnorm(num_treatments, 0, 0.25)))),
   
   CUBIC_NONLINEAR_DIST_CE = lst(model_type = 5,
-                             use_dist_cluster_effects = TRUE,
-                             init = function() lst(dist_beta_cluster_linear_sd = abs(rnorm(num_treatments, 0, 0.25)),
-                                                   dist_beta_cluster_quadratic_sd = abs(rnorm(num_treatments, 0, 0.25)),
-                                                   dist_beta_cluster_cubic_sd = abs(rnorm(num_treatments, 0, 0.25)))),
+                                model_file = "dist_splines3.stan",
+                                use_dist_cluster_effects = TRUE,
+                                init = function() lst(dist_beta_cluster_linear_sd = abs(rnorm(num_treatments, 0, 0.25)),
+                                                      dist_beta_cluster_quadratic_sd = abs(rnorm(num_treatments, 0, 0.25)),
+                                                      dist_beta_cluster_cubic_sd = abs(rnorm(num_treatments, 0, 0.25)))),
+  
 )
-
 
 # Stan Run ----------------------------------------------------------------
 
@@ -389,7 +384,6 @@ stan_data <- lst(
   use_binomial = 0,
   use_cluster_effects = 1,
   use_dist_cluster_effects,
-  is_structural = structural_type,
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
 
