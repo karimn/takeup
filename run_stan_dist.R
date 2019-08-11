@@ -4,11 +4,12 @@ if (!interactive()) withr::with_dir("..", source(file.path("packrat", "init.R"))
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist fit [--no-save --sequential --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-dist-cluster-effects]
-  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --no-dist-cluster-effects]
+  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-cluster-effects --no-dist-cluster-effects]
+  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-cluster-effects --no-dist-cluster-effects]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
+  --chains=<chains>  Number of Stan chains [default: 4]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]",
 
@@ -28,9 +29,11 @@ options(mc.cores = 12)
 rstan_options(auto_write = TRUE)
 
 folds <- as.integer(script_options$folds %||% 10)
+chains <- as.integer(script_options$chains)
 iter <- as.integer(script_options$iter)
 output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else if (script_options$fit) { "dist_fit" } else { "dist_kfold" }
 output_file_name <- file.path("stan_analysis_data", str_c(output_name, ".RData"))
+use_cluster_effects <- !(script_options$`no-cluster-effects` %||% FALSE)
 use_dist_cluster_effects <- !(script_options$`no-dist-cluster-effects` %||% FALSE)
 models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
 thin_by <- as.integer(script_options$thin)
@@ -106,7 +109,7 @@ extract_sim_level <- function(fit, par, grid_dist) {
            grid_dist = unstandardize(grid_dist, analysis_data$cluster.dist.to.pot)) 
 }
 
-extract_obs_fit_level <- function(fit, par, stan_data) {
+extract_obs_fit_level <- function(fit, par, stan_data, cluster_level = FALSE) {
   analysis_data <- monitored_nosms_data
   
   fit %>% 
@@ -122,8 +125,8 @@ extract_obs_fit_level <- function(fit, par, stan_data) {
                                  enframe(name = NULL, value = "est") %>% 
                                  mutate(per = probs),
                                probs = c(0.05, 0.1, 0.5, 0.9, 0.95)),
-           assigned_treatment = stan_data$assigned_treatment,
-           assigned_dist = unstandardize(stan_data$standard_dist, analysis_data$cluster.dist.to.pot)) 
+           assigned_treatment = if (cluster_level) stan_data$cluster_assigned_treatment else stan_data$assigned_treatment,
+           assigned_dist = unstandardize(if (cluster_level) stan_data$cluster_standard_dist else stan_data$standard_dist, analysis_data$cluster.dist.to.pot)) 
 }
 
 extract_sim_diff <- function(level) {
@@ -164,7 +167,7 @@ stan_list <- function(models_info, stan_data) {
         dist_model,
         iter = if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter),
         thin = thin_by,
-        chains = 4,
+        chains = chains,
         control = lst(adapt_delta = 0.9),
         save_warmup = FALSE,
         refresh = 100,
@@ -203,7 +206,7 @@ stan_list <- function(models_info, stan_data) {
               map_if(is.factor, as.integer)
             
             curr_iter <- if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter)
-            curr_chains <- 4
+            curr_chains <- chains
             
             sampling(dist_model,
                      iter = curr_iter,
@@ -258,7 +261,8 @@ num_treatments <- n_distinct(monitored_nosms_data$assigned.treatment)
 num_clusters <- n_distinct(monitored_nosms_data$cluster_id)
 
 generate_initializer <- function(base_init = function() lst(beta_cluster_sd = abs(rnorm(num_treatments))), 
-                                 structural_type = 0) {
+                                 structural_type = 0,
+                                 num_mix = 1) {
   base_list <- base_init()
   
   if (structural_type > 0 || !is_empty(base_list)) {
@@ -268,11 +272,25 @@ generate_initializer <- function(base_init = function() lst(beta_cluster_sd = ab
           list_modify(
             mu_rep_raw = abs(rnorm(num_treatments, 0, 0.1)),
             mu_rep = abs(rnorm(num_treatments, 0, 0.1)),
-            structural_beta = rnorm(num_treatments),
-            dist_cost_k = abs(rnorm(1, 1, 0.1)),
-            structural_beta_cluster = matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments),
-            structural_beta_cluster_raw = matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments),
-            structural_beta_cluster_sd = abs(rnorm(num_treatments))
+            # structural_beta = rnorm(num_treatments),
+            dist_cost_k_raw = abs(rnorm(num_treatments, 1, 0.1)),
+            dist_cost_k = abs(rnorm(num_treatments, 1, 0.1)),
+            structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
+            structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, 4)),
+            structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_treatments, 0, 0.25)) else array(dim = 0),
+            structural_cluster_takeup_prob = matrix(rbeta(num_clusters * num_mix, 10, 10), nrow = num_mix),
+            lambda_v_mix = rep(1 /num_mix, num_mix),
+            v_mix_mean = as.array(0.1),
+            
+            # mu_rep_raw = rep(0.05, num_treatments),
+            # mu_rep = rep(0.1, num_treatments),
+            structural_beta = rep(0.2, num_treatments),
+            # dist_cost_k_raw = rep(0.05, num_treatments),
+            # dist_cost_k = rep(0.05, num_treatments),
+            # structural_beta_cluster = if (use_cluster_effects) matrix(rep(0.2, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
+            # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rep(0.2, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, 4)),
+            # structural_beta_cluster_sd = if (use_cluster_effects) rep(0.1, num_treatments) else array(dim = 0),
+            # structural_cluster_takeup_prob = rep(0.5, num_clusters) 
           )
                       
       } else {
@@ -326,9 +344,11 @@ models <- lst(
            init = generate_initializer(structural_type = 0)),
   
   STRUCTURAL = lst(model_type = 10,
-                   model_file = "dist_splines5.stan",
+                   model_file = "dist_struct_fixedpoint.stan",
+                   v_dist_type = 1, # Normal
+                   num_v_mix = 2,
                    iter = 4000,
-                   init = generate_initializer(structural_type = 1)),
+                   init = generate_initializer(structural_type = 1, num_mix = num_v_mix)),
   
   LINEAR_DIST_CE = lst(model_type = 3,
                        model_file = "dist_splines3.stan",
@@ -380,10 +400,12 @@ stan_data <- lst(
  
   num_excluded_clusters = 0,
   excluded_clusters = array(dim = 0),
-  
+ 
+  is_structural = 0, 
   use_binomial = 0,
-  use_cluster_effects = 1,
+  use_cluster_effects,
   use_dist_cluster_effects,
+  use_cost_k_restrictions = 1,
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
 

@@ -60,10 +60,9 @@ plot_takeup <- . %>%
 ```
 
 ```{r, fig.width=16, fig.height=4}
-dist_fit$value[1] %>% 
+dist_fit[1] %>% 
   plot_takeup()
 ```
-
 
 ```{r, fig.width=16, fig.height=4}
 dist_fit %>% 
@@ -173,6 +172,16 @@ dist_fit[c(
   theme(legend.position = "top")
 ```
 
+```{r, fig.width=8, fig.height=12}
+dist_fit[[1]] %>% 
+  extract_obs_fit_level("cluster_takeup_prob", stan_data = stan_data, cluster_level = TRUE) %>% 
+  ggplot(aes(assigned_dist, mean_est, group = assigned_treatment)) +
+  geom_line(aes(color = assigned_treatment)) +
+  geom_point(aes(cluster.dist.to.pot, prop_takeup), inherit.aes = FALSE,
+             data = cluster_analysis_data %>% mutate(assigned_treatment = assigned.treatment)) +
+  facet_wrap(vars(assigned_treatment), ncol = 1)
+```
+
 ```{r, fig.width=12, fig.height=4}
 sim_reputation %>%
   mutate(wide_quantiles = map(quantiles_est, mutate, per = str_c("per_", per)) %>% 
@@ -195,13 +204,19 @@ sim_reputation %>%
 ```
 
 ```{r}
+rep_normal <- function(v) dnorm(v) / (pnorm(v) * pnorm(v, lower.tail = FALSE))
+
 tibble(
-  v = seq(-1, 1, 0.1),
-  r = Vectorize(reputational_returns_normal)(v)
+  v = seq(-5, 5, 0.1),
+  # r = Vectorize(reputational_returns_normal)(v)
+  # r = rep_normal(v)
+  
+  r = 0.75 * dnorm(v, mean = -2) + 0.25 * dnorm(v, mean = 2, sd = 2)
 ) %>% 
   ggplot(aes(v, r)) +
   geom_line() +
-  geom_line(linetype = "dashed", data = . %>% mutate(r = r * 0.75))
+  # geom_line(linetype = "dashed", data = . %>% mutate(r = r * 0.75)) +
+  NULL
 ```
 
 ```{r}
@@ -218,7 +233,8 @@ loo_obj %>% #[c("LINEAR_DIST", "QUADRATIC_NONLINEAR_DIST", "SEMIPARAM_NONLINEAR_
 ```{r}
 dist_kfold %>% kfold_compare(x = .)
 
-dist_kfold[3:6] %>% 
+# dist_kfold[3:6] %>% 
+dist_kfold %>% 
   map(pluck, "pointwise") %>% 
   do.call(rbind, .) %>% 
   t() %>% 
