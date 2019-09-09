@@ -4,7 +4,7 @@ if (!interactive()) withr::with_dir("..", source(file.path("packrat", "init.R"))
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-cluster-effects --no-dist-cluster-effects]
+  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-cluster-effects --no-dist-cluster-effects --simulate-new]
   run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --no-cluster-effects --no-dist-cluster-effects]
   
 Options:
@@ -38,204 +38,11 @@ use_dist_cluster_effects <- !(script_options$`no-dist-cluster-effects` %||% FALS
 models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
 thin_by <- as.integer(script_options$thin)
 model_file <- file.path("stan_models", script_options$`model-file`)
+simulate_new_data <- as.logical(script_options$`simulate-new`)
 
 source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
-
-# Data --------------------------------------------------------------------
-
-load(file.path("data", "analysis.RData"))
-
-standardize <- as_mapper(~ (. - mean(.)) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
-
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
-         cluster_id = group_indices(., cluster.id))
-
-cluster_analysis_data <- monitored_nosms_data %>% 
-  group_by(cluster.id, assigned.treatment, cluster.dist.to.pot, dist.pot.group) %>% 
-  summarize(prop_takeup = mean(dewormed)) %>% 
-  ungroup() %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
-         standard_prop_takeup = standardize(prop_takeup))
-
-
-# Functions ---------------------------------------------------------------
-
-get_spline_range <- function(x) {
-  lst(lower_range = 1.01 * min(x) - 0.01 * max(x),
-      upper_range = 1.01 * max(x) - 0.01 * min(x))
-}
-
-calculate_splines <- function(x, num_interior_knots, splines_for = x, spline_type = c("osullivan", "i-spline", "b-spline"), ...) {
-  spline_type <- match.arg(spline_type)
-  
-  spline_range <- get_spline_range(x)
-  
-  interior_knots <- quantile(unique(x), seq(0, 1, length = num_interior_knots + 2)) %>% 
-    magrittr::extract(2:(num_interior_knots + 1))
-
-  switch(
-    spline_type,
-    
-    "osullivan" = ZOSull(splines_for, range.x = unlist(spline_range), intKnots = interior_knots, ...),
-    "i-spline" = iSpline(splines_for, knots = interior_knots,  Boundary.knots = unlist(spline_range), ...),
-    "b-spline" = bSpline(splines_for, knots = interior_knots,  Boundary.knots = unlist(spline_range), ...)
-  )
-}
-
-extract_sim_level <- function(fit, par, grid_dist) {
-  analysis_data <- monitored_nosms_data
-  
-  fit %>% 
-    as.data.frame(par = par) %>% 
-    mutate(iter_id = seq_len(n())) %>% 
-    gather(indices, iter_est, -iter_id) %>% 
-    tidyr::extract(indices, c("grid_index", "assigned_treatment"), "(\\d+),(\\d+)", convert = TRUE) %>% 
-    group_nest(grid_index, assigned_treatment, .key = "iter_data") %>% 
-    mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
-           quantiles_est = map(iter_data, 
-                               function(iter, probs) 
-                                 quantile(iter$iter_est, probs = probs, names = FALSE) %>% 
-                                 enframe(name = NULL, value = "est") %>% 
-                                 mutate(per = probs),
-                               probs = c(0.05, 0.1, 0.5, 0.9, 0.95))) %>% 
-    left_join(tibble(grid_dist) %>% mutate(grid_index = seq_len(n())), by = "grid_index") %>% 
-    mutate(assigned_treatment = factor(assigned_treatment, labels = levels(analysis_data$assigned.treatment)),
-           grid_dist = unstandardize(grid_dist, analysis_data$cluster.dist.to.pot)) 
-}
-
-extract_obs_fit_level <- function(fit, par, stan_data, cluster_level = FALSE) {
-  analysis_data <- monitored_nosms_data
-  
-  fit %>% 
-    as.data.frame(par = par) %>% 
-    mutate(iter_id = seq_len(n())) %>% 
-    gather(indices, iter_est, -iter_id) %>% 
-    tidyr::extract(indices, "obs_index", "(\\d+)", convert = TRUE) %>% 
-    group_nest(obs_index, .key = "iter_data") %>% 
-    mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
-           quantiles_est = map(iter_data, 
-                               function(iter, probs) 
-                                 quantile(iter$iter_est, probs = probs, names = FALSE) %>% 
-                                 enframe(name = NULL, value = "est") %>% 
-                                 mutate(per = probs),
-                               probs = c(0.05, 0.1, 0.5, 0.9, 0.95)),
-           assigned_treatment = if (cluster_level) stan_data$cluster_assigned_treatment else stan_data$assigned_treatment,
-           assigned_dist = unstandardize(if (cluster_level) stan_data$cluster_standard_dist else stan_data$standard_dist, analysis_data$cluster.dist.to.pot)) 
-}
-
-extract_sim_diff <- function(level) {
-  level %>% 
-    select(-mean_est, -quantiles_est) %>% 
-    rename(assigned_treatment_left = assigned_treatment) %>% 
-    mutate(assigned_treatment_right = "control") %>% 
-    left_join(select(., -grid_dist, -assigned_treatment_right), 
-              by = c("assigned_treatment_right" = "assigned_treatment_left", "grid_index"), 
-              suffix = c("_left", "_right")) %>% 
-    filter(assigned_treatment_left != assigned_treatment_right) %>% 
-    mutate(iter_diff = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
-             map(mutate, iter_est = iter_est_left - iter_est_right)) %>% 
-    mutate(mean_est = map_dbl(iter_diff, ~ mean(.$iter_est)),
-           quantiles_est = map(iter_diff, 
-                                       function(iter, probs) 
-                                         quantile(iter$iter_est, probs = probs, names = FALSE) %>% 
-                                         enframe(name = NULL, value = "est") %>% 
-                                         mutate(per = probs),
-                                                # interval_size = round(2 * abs(probs - 0.5), 4)),
-                                       probs = c(0.05, 0.1, 0.5, 0.9, 0.95))) 
-}
-
-stan_list <- function(models_info, stan_data) {
-  get_sample_file_name <- . %>% 
-    sprintf("dist_model_%s.csv") %>% 
-    file.path("stanfit", .) 
-  
-  if (script_options$fit) {
-    inner_sampler <- function(curr_model, stan_data) {
-      curr_stan_data <- stan_data %>%
-        list_modify(!!!curr_model) %>%
-        map_if(is.factor, as.integer)
-        
-      dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
-      
-      fit <- sampling(
-        dist_model,
-        iter = if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter),
-        thin = thin_by,
-        chains = chains,
-        control = lst(adapt_delta = 0.9),
-        save_warmup = FALSE,
-        refresh = 100,
-        init = curr_model$init %||% "random",
-        data = curr_stan_data)
-      
-      return(fit)
-    }
-    
-    if (script_options$sequential) {
-      models_info %>% 
-        map(inner_sampler,
-            stan_data = stan_data)
-      
-    } else {
-      models_info %>% 
-        pbmclapply(inner_sampler,
-                   stan_data = stan_data,
-                   ignore.interactive = TRUE,
-                   mc.silent = TRUE,
-                   mc.cores = 3)
-    }
-  } else if (script_options$cv) {
-    models_info %>% 
-      imap(function(curr_model, model_name, stan_data) {
-        kfold_groups <- kfold_split_stratified(K = folds, x = stan_data$cluster_assigned_dist_group_treatment)
-        
-        dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
-        
-        log_lik_list <- map(seq(folds), ~ which(kfold_groups == .)) %>% 
-          pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data) {
-            curr_stan_data <- stan_data %>%
-              list_modify(!!!curr_model,
-                          excluded_clusters = excluded_clusters,
-                          num_excluded_clusters = length(excluded_clusters)) %>%
-              map_if(is.factor, as.integer)
-            
-            curr_iter <- if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter)
-            curr_chains <- chains
-            
-            sampling(dist_model,
-                     iter = curr_iter,
-                     thin = thin_by, # (curr_chains * curr_iter) %/% 1000,
-                     chains = curr_chains,
-                     control = lst(adapt_delta = 0.9),
-                     save_warmup = FALSE,
-                     refresh = 1000,
-                     init = curr_model$init %||% "random",
-                     pars = "log_lik_heldout", 
-                     data = curr_stan_data) %>% 
-              extract_log_lik("log_lik_heldout") 
-          },
-          dist_model = dist_model,
-          stan_data = stan_data,
-          model_name = model_name,
-          ignore.interactive = TRUE,
-          mc.silent = !script_options$sequential,
-          mc.cores = if (script_options$sequential) 1 else 3)
-          
-        return(tryCatch(kfold(log_lik_list), 
-                        error = function(err) { 
-                          print(err)
-                          return(log_lik_list)
-                        }))
-      },
-      stan_data = stan_data) 
-  }
-}
+source("dist_structural_util.R")
 
 # Splines -----------------------------------------------------------------
 
@@ -255,6 +62,18 @@ Z_grid_osullivan <- calculate_splines(cluster_standard_dist, num_interior_knots 
 Z_grid_i_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "i-spline")
 Z_grid_b_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "b-spline")
 
+treatment_dist <- distinct(monitored_nosms_data, assigned.treatment, standard_cluster.dist.to.pot) %>% 
+  group_by(assigned.treatment) %>% 
+  group_map(~ pull(.x, "standard_cluster.dist.to.pot"))
+
+grid_dist2 <- treatment_dist %>% 
+  map(get_spline_range) %>% 
+  map(unname) %>% 
+  map(list_modify, length = 1001) %>% 
+  map(~ do.call(seq, .))
+
+Z_grid_osullivan2 <- map2(treatment_dist, grid_dist2, ~ calculate_splines(.x, num_interior_knots = num_interior_knots, splines_for = .y, spline_type = "osullivan")) 
+
 # Models ------------------------------------------------------------------
 
 num_treatments <- n_distinct(monitored_nosms_data$assigned.treatment)
@@ -262,21 +81,30 @@ num_clusters <- n_distinct(monitored_nosms_data$cluster_id)
 
 generate_initializer <- function(base_init = function() lst(beta_cluster_sd = abs(rnorm(num_treatments))), 
                                  structural_type = 0,
-                                 num_mix = 1) {
+                                 num_mix = 1,
+                                 restricted_private_incentive = FALSE,
+                                 semiparam = FALSE,
+                                 suppress_reputation = FALSE) {
   base_list <- base_init()
   
   if (structural_type > 0 || !is_empty(base_list)) {
     function() {
       if (structural_type > 0) {
+        num_beta_param <- if (restricted_private_incentive) num_treatments - 1 else num_treatments
+        # num_beta_param <- num_treatments
+        
         base_list %>% 
           list_modify(
-            mu_rep_raw = abs(rnorm(num_treatments, 0, 0.1)),
-            mu_rep = abs(rnorm(num_treatments, 0, 0.1)),
+            mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+            mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
             # structural_beta = rnorm(num_treatments),
-            dist_cost_k_raw = abs(rnorm(num_treatments, 1, 0.1)),
-            dist_cost_k = abs(rnorm(num_treatments, 1, 0.1)),
+            dist_cost_k_raw = if (semiparam) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+            dist_cost_k = if (semiparam) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+            # structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = 0),
+            # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = c(0, num_beta_param)),
+            # structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_beta_param, 0, 0.25)) else array(dim = 0),
             structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
-            structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, 4)),
+            structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
             structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_treatments, 0, 0.25)) else array(dim = 0),
             structural_cluster_takeup_prob = matrix(rbeta(num_clusters * num_mix, 10, 10), nrow = num_mix),
             lambda_v_mix = rep(1 /num_mix, num_mix),
@@ -284,7 +112,7 @@ generate_initializer <- function(base_init = function() lst(beta_cluster_sd = ab
             
             # mu_rep_raw = rep(0.05, num_treatments),
             # mu_rep = rep(0.1, num_treatments),
-            structural_beta = rep(0.2, num_treatments),
+            structural_beta = rep(0.2, num_beta_param),
             # dist_cost_k_raw = rep(0.05, num_treatments),
             # dist_cost_k = rep(0.05, num_treatments),
             # structural_beta_cluster = if (use_cluster_effects) matrix(rep(0.2, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
@@ -345,10 +173,92 @@ models <- lst(
   
   STRUCTURAL = lst(model_type = 10,
                    model_file = "dist_struct_fixedpoint.stan",
-                   v_dist_type = 1, # Normal
-                   num_v_mix = 2,
+                   num_v_mix = 1,
+                   use_semiparam_cost = 1,
+                   use_private_incentive_restrictions = 0,
+                   suppress_reputation = 0,
+                   simulate_new_data,
                    iter = 4000,
-                   init = generate_initializer(structural_type = 1, num_mix = num_v_mix)),
+                   init = generate_initializer(structural_type = 1, 
+                                               num_mix = num_v_mix, 
+                                               restricted_private_incentive = use_private_incentive_restrictions,
+                                               semiparam = use_semiparam_cost,
+                                               suppress_reputation = suppress_reputation)),
+  
+  STRUCTURAL_RESTRICTED_PRIVATE = 
+    lst(model_type = 10,
+        model_file = "dist_struct_fixedpoint.stan",
+        control = lst(max_treedepth = 12),
+        num_v_mix = 1,
+        use_semiparam_cost = 1,
+        use_private_incentive_restrictions = 1,
+        suppress_reputation = 0,
+        simulate_new_data,
+        iter = 4000,
+        init = generate_initializer(structural_type = 1, 
+                                    num_mix = num_v_mix, 
+                                    restricted_private_incentive = use_private_incentive_restrictions,
+                                    semiparam = use_semiparam_cost,
+                                    suppress_reputation = suppress_reputation)),
+  
+  STRUCTURAL_NO_REPUTATION = 
+    lst(model_type = 10,
+        model_file = "dist_struct_fixedpoint.stan",
+        num_v_mix = 1,
+        use_semiparam_cost = 1,
+        use_private_incentive_restrictions = 1,
+        suppress_reputation = 1,
+        simulate_new_data,
+        iter = 4000,
+        init = generate_initializer(structural_type = 1, 
+                                    num_mix = num_v_mix, 
+                                    restricted_private_incentive = use_private_incentive_restrictions,
+                                    semiparam = use_semiparam_cost,
+                                    suppress_reputation = suppress_reputation)),
+  
+  STRUCTURAL_PARAM = lst(model_type = 10,
+                   model_file = "dist_struct_fixedpoint.stan",
+                   num_v_mix = 1,
+                   use_semiparam_cost = 0,
+                   use_private_incentive_restrictions = 0,
+                   suppress_reputation = 0,
+                   simulate_new_data,
+                   iter = 4000,
+                   init = generate_initializer(structural_type = 1, 
+                                               num_mix = num_v_mix, 
+                                               restricted_private_incentive = use_private_incentive_restrictions,
+                                               semiparam = use_semiparam_cost,
+                                               suppress_reputation = suppress_reputation)),
+  
+  STRUCTURAL_PARAM_RESTRICTED_PRIVATE = 
+    lst(model_type = 10,
+        model_file = "dist_struct_fixedpoint.stan",
+        num_v_mix = 1,
+        use_semiparam_cost = 0,
+        use_private_incentive_restrictions = 1,
+        suppress_reputation = 0,
+        simulate_new_data,
+        iter = 4000,
+        init = generate_initializer(structural_type = 1, 
+                                    num_mix = num_v_mix, 
+                                    restricted_private_incentive = use_private_incentive_restrictions,
+                                    semiparam = use_semiparam_cost,
+                                    suppress_reputation = suppress_reputation)),
+  
+  STRUCTURAL_PARAM_NO_REPUTATION = 
+    lst(model_type = 10,
+        model_file = "dist_struct_fixedpoint.stan",
+        num_v_mix = 1,
+        use_semiparam_cost = 0,
+        use_private_incentive_restrictions = 1,
+        suppress_reputation = 1,
+        simulate_new_data,
+        iter = 4000,
+        init = generate_initializer(structural_type = 1, 
+                                    num_mix = num_v_mix, 
+                                    restricted_private_incentive = use_private_incentive_restrictions,
+                                    semiparam = use_semiparam_cost,
+                                    suppress_reputation = suppress_reputation)),
   
   LINEAR_DIST_CE = lst(model_type = 3,
                        model_file = "dist_splines3.stan",
@@ -390,11 +300,13 @@ stan_data <- lst(
     group_indices(assigned.treatment, dist.pot.group),
   num_dist_group_treatments = n_distinct(cluster_assigned_dist_group_treatment),
   grid_dist,
+  grid_dist2,
   
   Z_splines_v = Z_osullivan,
   num_knots_v = ncol(Z_splines_v),
   
   Z_grid_v = Z_grid_osullivan,
+  Z_grid_v2 = Z_grid_osullivan2,
   
   u_splines_v_sigma_sd = 1,
  
@@ -444,7 +356,7 @@ if (script_options$fit) {
 
 if (!script_options$`no-save`) {
   if (script_options$fit) {
-    save(dist_fit, models, monitored_nosms_data, cluster_analysis_data, grid_dist, extract_sim_level, extract_obs_fit_level, extract_sim_diff, standardize, unstandardize,
+    save(dist_fit, models, monitored_nosms_data, cluster_analysis_data, grid_dist, extract_sim_level, extract_obs_fit_level, extract_sim_diff, standardize, unstandardize, stan_data,
          file = output_file_name)
   } else if (script_options$cv) {
     save(dist_kfold, models, monitored_nosms_data, 
