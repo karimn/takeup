@@ -1,0 +1,305 @@
+---
+title: "Structural Distance Model Results"
+output:
+  html_notebook:
+    fig_caption: yes
+  pdf_document:
+    number_sections: yes
+    fig_caption: yes
+    keep_tex: yes
+header-includes:
+   - \usepackage{mathtools}
+   - \usepackage{bbm}
+---
+
+```{r setup}
+library(magrittr)
+library(tidyverse)
+library(rstan)
+library(loo)
+library(bayesplot)
+library(latex2exp)
+library(ggdag)
+
+options(mc.cores = 12)
+rstan_options(auto_write = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+```
+
+```{r util-scripts}
+source("analysis_util.R")
+source(file.path("multilvlr", "multilvlr_util.R"))
+source("dist_structural_util.R")
+```
+
+```{r load-data}
+load(file.path("stan_analysis_data", "dist_fit.RData"))
+load(file.path("stan_analysis_data", "dist_cv.RData"))
+```
+
+# Model
+
+```{r}
+dagitty::dagitty("dag {
+                    Z -> R <- B
+                    Z -> B -> Y <- V
+                    R -> Y
+                    D -> B
+                    
+                    Z[exposure]
+                    D[exposure]
+                    R[latent]
+                    B[latent]
+                    Y[outcome]
+                  }") %>% 
+  tidy_dagitty() %>%
+  ggdag() +
+  theme_dag_blank() +
+  NULL
+```
+
+Define:
+
+* $Z_j \in \{\textrm{control, ink, calendar, bracelet}\}$, assigned incentive/signal treatment.
+* $D_j \in \mathbb{R}^+$, distance to point of treatment.
+* $V_i \sim \mathtt{Normal(0, 1)}$ is the prosocial type of $i$.
+* $B_j = f_B(z, d; \beta_j, \boldsymbol{\delta}) = z \cdot \beta_j + s(d; \boldsymbol{\delta})$, the consumption benefit - cost. $s(d)$ is a semiparametric function of the effect of distance. 
+* $R_j = f_R(z, b; \mu) = (z\cdot \mu) \Delta(V^*(z, b; \mu))$, the reputational/signaling returns to take-up, where
+    - $\Delta(v^*) = E[V| V > v^*] - E[V | V \leq v^*]$,
+    - $V^*(z,b;\mu)$ solves $V^*(z,b;\mu) + b + (z\cdot\mu)\Delta(V^*(z,b;\mu)) = 0$, and
+    - $\mu = x\lambda$, where $x$ is the signal's visibility and $\lambda$ depends on the social value of being pro-social.
+* $Y_i = f_Y(b, r, v) = \textbf{1}(v + b + r > 0)$
+    
+Therefore, the take-up outcomes is modeled as a probit model
+
+$$
+\Pr[Y_i = 1 | z, d, b = B(z,d; \beta_{j[i]})] = \Phi(b + R(z, b))
+$$
+
+We model parameters as
+
+\begin{align}
+  \beta_j &\sim \mathtt{Normal(\beta, \sigma_\beta)} \\
+  \beta_z &\sim \mathtt{Normal(0, 1)}, z \in \{\textrm{control, ink, calendar}\} \\
+  \beta_\textrm{bracelet} &\sim \beta_\textrm{calendar} - \mathtt{HalfNormal(0, 1)} \\
+  \tau_\beta &\sim \mathtt{HalfNormal}(0, 1) \\
+  \\
+  \boldsymbol{\delta} &\sim \mathtt{MultiNormal}(\mathbf{0}, \mathsf{diag}(1)) \\
+  \\
+  \mu_z &\sim \mathtt{HalfNormal}(0, 1)
+\end{align}
+
+# Analysis
+
+```{r}
+quant_probs <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
+
+cluster_dist_cost <- map(dist_fit, extract_obs_fit_level, par = "cluster_dist_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs) 
+linear_dist_cost <- map(dist_fit, extract_obs_fit_level, par = "linear_dist_cost", stan_data = stan_data, iter_level = "treatment", quant_probs = quant_probs) 
+
+net_benefit <- map(dist_fit, extract_obs_fit_level, par = "structural_cluster_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs) 
+
+cluster_effects <- map(dist_fit, extract_obs_fit_level, par = "cluster_effects", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs) 
+
+v_cutoff <- map(dist_fit, extract_obs_fit_level, par = "structural_cluster_obs_v", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs) 
+
+takeup_prob <- map(dist_fit, extract_obs_fit_level, par = "structural_cluster_takeup_prob", stan_data = stan_data, iter_level = "cluster", mix = TRUE, quant_probs = quant_probs) 
+
+structural_beta <- map(dist_fit, extract_obs_fit_level, par = "beta", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs) 
+dist_beta_v <- map(dist_fit, extract_obs_fit_level, par = "dist_beta_v", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs) 
+
+mu_rep <- map(dist_fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs) %>% 
+  map(mutate, compare_to = "control") %>% 
+  map(~ left_join(., select(., assigned_treatment, iter_data), by = c("compare_to" = "assigned_treatment"), suffix = c("", "_compare"))) %>% 
+  map(mutate, 
+      iter_data = map2(iter_data, iter_data_compare, left_join, by = "iter_id", suffix = c("", "_compare")) %>% 
+        map(mutate, 
+            iter_est_vs_compare = iter_est - iter_est_compare,
+            iter_est_vs_compare_ratio = iter_est / iter_est_compare),
+      mean_est_vs_compare = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare)),
+      mean_est_vs_compare_ratio = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare_ratio)),
+      quantiles_est_vs_compare = map(iter_data, quantilize_est, iter_est_vs_compare, quant_probs = quant_probs), 
+      quantiles_est_vs_compare_ratio = map(iter_data, quantilize_est, iter_est_vs_compare_ratio, quant_probs = quant_probs)) 
+
+reduced_mu_rep <- map(mu_rep, mutate, iter_data = map(iter_data, arrange, iter_est) %>% map(filter, (row_number() %% 100) == 0))
+
+structural_param <- pmap(lst(cluster_dist_cost, net_benefit, v_cutoff, cluster_effects, takeup_prob, mu_rep),
+                         function(cluster_dist_cost, net_benefit, v_cutoff, cluster_effects, takeup_prob, mu_rep) {
+                           inner_join(net_benefit, v_cutoff, by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), suffix = c("", "_v_cutoff")) %>% 
+                             inner_join(cluster_dist_cost, by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), suffix = c("", "_cluster_dist_cost")) %>% 
+                             inner_join(cluster_effects, by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), suffix = c("", "_cluster_effects")) %>% 
+                             inner_join(takeup_prob, by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), suffix = c("", "_takeup_prob")) %>% 
+                              left_join(mu_rep, by = c("assigned_treatment"), suffix = c("_net_benefit", "_mu_rep")) %>% 
+                              mutate(
+                                iter_data = map2(iter_data_net_benefit, iter_data_v_cutoff, inner_join, by = "iter_id", suffix = c("", "_v_cutoff")) %>% 
+                                  map2(iter_data_cluster_effects, inner_join, by = "iter_id", suffix = c("", "_cluster_effects")) %>% 
+                                  map2(iter_data_takeup_prob, inner_join, by = "iter_id", suffix = c("", "_takeup_prob")) %>% 
+                                  map2(iter_data_mu_rep, left_join, by = "iter_id", suffix = c("_net_benefit", "_mu_rep")) %>% 
+                                  map(mutate, 
+                                      iter_est_rep = - iter_est_v_cutoff - iter_est_net_benefit,
+                                      iter_est_super_net_benefit = iter_est_net_benefit - iter_est_cluster_effects),
+                                mean_est_super_net_benefit = map_dbl(iter_data, ~ mean(.$iter_est_super_net_benefit)),
+                                quantiles_est_super_net_benefit = map(iter_data, quantilize_est, iter_est_super_net_benefit, quant_probs = quant_probs)
+                              ) %>% 
+                              left_join(
+                                monitored_nosms_data %>% 
+                                  group_by(cluster_id) %>% 
+                                  summarize(prop_takeup = mean(dewormed), 
+                                            se = sqrt(prop_takeup * (1 - prop_takeup) / n()),
+                                            prop_takeup_ub = prop_takeup + se,
+                                            prop_takeup_lb = prop_takeup - se) %>% 
+                                  ungroup(),
+                                by = c("obs_index" = "cluster_id")
+                              )
+                         })
+```
+
+```{r, fig.height=4, fig.width=8}
+mu_rep %>%
+  bind_rows(.id = "model_type") %>% 
+  filter(!fct_match(assigned_treatment, "control")) %>% 
+  mutate_at(vars(starts_with("quantiles_est_vs_compare")), 
+            ~ map(., mutate, per = str_c("per_", per)) %>% 
+              map(spread, per, est)) %>% 
+  mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>% 
+  ggplot(aes(assigned_treatment)) +
+  geom_linerange(aes(ymin = per_0.1, ymax = per_0.9), data = . %>%  unnest(quantiles_est_vs_compare)) +
+  geom_crossbar(aes(y = per_0.5, ymin = per_0.25, ymax = per_0.75), width = 0.15, data = . %>%  unnest(quantiles_est_vs_compare)) +
+  geom_point(aes(y = mean_est_vs_compare)) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  labs(x = "Assigned Treatment (z)",
+       y = TeX("Reputational Returns Coefficient Compared to Control ($\\mu_z - \\mu_{control}$)"),
+       caption = "Vertical line: median
+                  Point: mean
+                  Horizontal line: 80% credible interval
+                  Box: 50% credible interval",
+       title = "Reputational Returns Cofficients") +
+  facet_wrap(vars(model_type)) +
+  NULL
+```
+
+```{r, fig.width=12, fig.height=6}
+structural_param %>%
+  bind_rows(.id = "model_type") %>% 
+  mutate_at(vars(quantiles_est_net_benefit, quantiles_est_super_net_benefit), 
+            ~ map(., mutate, per = str_c("per_", per)) %>% 
+              map(spread, per, est)) %>% 
+  mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+  ggplot(aes(assigned_dist)) +
+  geom_line(aes(y = mean_est_super_net_benefit), color = "darkgrey") +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25,
+                  data = . %>% unnest(quantiles_est_super_net_benefit)) +
+  geom_pointrange(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9), size = 0.5, fatten = 0.5, alpha = 0.75,
+                  data = . %>% unnest(quantiles_est_net_benefit)) +
+  facet_grid(rows = vars(model_type), cols = vars(assigned_treatment)) +
+  theme_minimal() +
+  labs(
+    x = "Assigned Distance",
+    y = TeX("Direct Benefit"),
+    title = "Direct Benefits",
+    caption = "Points: median cluster direct benefit at assigned distance
+               Vertical line: cluster direct benefit 50% credible interval
+               Line plot: mean cluster direct benefit net cluster effects
+               Grey ribbon: cluster direct benefit net cluster effects 50% credible interval"
+  ) +
+  NULL
+```
+
+```{r, fig.width=12, fig.height=6}
+structural_param %>%
+  bind_rows(.id = "model_type") %>% 
+  # mutate_at(vars(quantiles_est_net_benefit, quantiles_est_super_net_benefit), 
+  #           ~ map(., mutate, per = str_c("per_", per)) %>% 
+  #             map(spread, per, est)) %>% 
+  mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+  ggplot(aes(assigned_dist)) +
+  geom_line(aes(y = mean_est_cluster_dist_cost, group = assigned_treatment, color = assigned_treatment)) +
+  geom_point(aes(y = mean_est_cluster_dist_cost, group = assigned_treatment, color = assigned_treatment)) +
+  # geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25,
+  #                 data = . %>% unnest(quantiles_est_super_net_benefit)) +
+  # geom_pointrange(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9), size = 0.5, fatten = 0.5, alpha = 0.75,
+  #                 data = . %>% unnest(quantiles_est_net_benefit)) +
+  facet_wrap(vars(model_type), nrow = 1) +
+  theme_minimal() +
+  labs(
+    x = "Assigned Distance",
+    y = TeX("Direct Benefit"),
+    title = "Direct Benefits",
+    caption = "Points: median cluster direct benefit at assigned distance
+               Vertical line: cluster direct benefit 50% credible interval
+               Line plot: mean cluster direct benefit net cluster effects
+               Grey ribbon: cluster direct benefit net cluster effects 50% credible interval"
+  ) +
+  NULL
+```
+```{r, fig.width=12}
+structural_param %>% 
+  bind_rows(.id = "model_type") %>% 
+  unnest(iter_data) %>% 
+  mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+  ggplot(aes(iter_est_net_benefit, iter_est_v_cutoff)) +
+  geom_point(aes(color = iter_est_mu_rep), alpha = 0.05) +
+  geom_abline(intercept = 0, slope = -1, linetype = "dotted") +
+  scale_color_viridis_c(TeX("Reputational\nReturns Coefficient ($\\mu_z$)")) +
+  # facet_wrap(vars(assigned_treatment), nrow = 2) +
+  facet_grid(rows = vars(model_type), cols = vars(assigned_treatment)) +
+  theme_minimal() +
+  coord_fixed() +
+  labs(
+    x = "Direct Benefit",
+    y = TeX("Procial Type Cutoff ($V^*$)")
+  ) +
+  NULL
+```
+
+```{r, fig.width=10}
+structural_param %>% 
+  bind_rows(.id = "model_type") %>% 
+  unnest(iter_data) %>% 
+  mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+  ggplot(aes(iter_est_v_cutoff, iter_est_rep)) +
+  geom_point(aes(color = iter_est_mu_rep), alpha = 0.05) +
+  # facet_wrap(vars(assigned_treatment), nrow = 1) +
+  facet_grid(rows = vars(model_type), cols = vars(assigned_treatment)) +
+  scale_color_viridis_c(TeX("Reputational\nReturns Coefficient ($\\mu_z$)")) +
+  labs(
+    x = TeX("Procial Type Cutoff ($V^*$)"),
+    y = "Reputational Returns (R)"
+  ) +
+  theme_minimal() +
+  NULL
+```
+
+```{r, fig.width=16, fig.height=10}
+structural_param %>% 
+  bind_rows(.id = "model_type") %>% 
+  mutate(quantiles_est_takeup_prob = map(quantiles_est_takeup_prob, mutate, per = str_c("per_", per)) %>% 
+           map(spread, per, est),
+         assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+  ggplot(aes(assigned_dist)) +
+  geom_crossbar(aes(y = prop_takeup, ymin = prop_takeup_lb, ymax = prop_takeup_ub, color = "Observed"), size = 0.5, width = 60) +
+  geom_pointrange(aes(y = per_0.5, ymin = per_0.25, ymax = per_0.75, color = "Estimated"), size = 0.5, fatten = 0.75, data = . %>% unnest(quantiles_est_takeup_prob)) +
+  # facet_wrap(vars(assigned_treatment), ncol = 2) +
+  facet_grid(rows = vars(model_type), cols = vars(assigned_treatment)) +
+  scale_color_manual("", values = c(Observed = "darkred", Estimated = "black")) +
+  labs(
+    x = "Assigned Distance",
+    y = ""
+  ) +
+  theme_minimal() +
+  NULL
+```
+
+# Cross Validation
+
+```{r}
+dist_kfold %>% {
+  mutate(kfold_compare(x = .),
+         stacking_weight = map(., pluck, "pointwise") %>% 
+           do.call(rbind, .) %>% 
+           t() %>% 
+           stacking_weights())
+}
+```
