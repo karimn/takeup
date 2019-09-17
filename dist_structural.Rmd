@@ -25,7 +25,7 @@ source("dist_structural_util.R")
 
 ```{r load-data}
 load(file.path("stan_analysis_data", "dist_fit.RData"))
-load(file.path("stan_analysis_data", "dist_kfold.RData"))
+load(file.path("stan_analysis_data", "dist_cv.RData"))
 ```
 
 ```{r}

@@ -22,7 +22,6 @@ cluster_analysis_data <- monitored_nosms_data %>%
   mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
          standard_prop_takeup = standardize(prop_takeup))
 
-
 # Functions ---------------------------------------------------------------
 
 get_spline_range <- function(x) {
@@ -68,10 +67,6 @@ extract_sim_level <- function(fit, par, grid_dist, quant_probs = c(0.05, 0.1, 0.
     mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
            quantiles_est = map(iter_data, quantilize_est, 
                                iter_est,
-                               # function(iter, quant_probs) 
-                               #   quantile(iter$iter_est, probs = quant_probs, names = FALSE) %>% 
-                               #   enframe(name = NULL, value = "est") %>% 
-                               #   mutate(per = quant_probs),
                                quant_probs = quant_probs),
            assigned_treatment = factor(assigned_treatment, labels = levels(analysis_data$assigned.treatment))) %>% 
     {
@@ -84,7 +79,6 @@ extract_sim_level <- function(fit, par, grid_dist, quant_probs = c(0.05, 0.1, 0.
     mutate(grid_dist = unstandardize(grid_dist, analysis_data$cluster.dist.to.pot)) 
 }
 
-# extract_obs_fit_level <- function(fit, par, stan_data, cluster_level = FALSE, mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
 extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- monitored_nosms_data
   
@@ -106,21 +100,19 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
     mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
            quantiles_est = map(iter_data, quantilize_est, 
                                iter_est,
-                               # function(iter, quant_probs) 
-                               #   quantile(iter$iter_est, probs = quant_probs, names = FALSE) %>% 
-                               #   enframe(name = NULL, value = "est") %>% 
-                               #   mutate(per = quant_probs),
                                quant_probs = quant_probs),
-           # assigned_treatment = if (cluster_level) stan_data$cluster_assigned_treatment else stan_data$assigned_treatment,
            assigned_treatment = switch(iter_level,
                                        cluster = stan_data$cluster_assigned_treatment,
                                        obs = stan_data$assigned_treatment,
                                        treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment))), 
-           # assigned_dist = unstandardize(if (cluster_level) stan_data$cluster_standard_dist else stan_data$standard_dist, analysis_data$cluster.dist.to.pot)) 
+           assigned_dist_standard = switch(iter_level,
+                                           cluster = stan_data$cluster_standard_dist,
+                                           obs = stan_data$standard_dist,
+                                           treatment = NULL),
            assigned_dist = switch(iter_level,
-                                  cluster = unstandardize(stan_data$cluster_standard_dist, analysis_data$cluster.dist.to.pot),
-                                  obs = unstandardize(stan_data$standard_dist, analysis_data$cluster.dist.to.pot),
-                                  treatment = NA))
+                                  cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
+                                  obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
+                                  treatment = NULL))
 }
 
 extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
@@ -136,12 +128,78 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
              map(mutate, iter_est = iter_est_left - iter_est_right)) %>% 
     mutate(mean_est = map_dbl(iter_diff, ~ mean(.$iter_est)),
            quantiles_est = map(iter_diff, quantilize_est, iter_est, 
-                                       # function(iter, quant_probs) 
-                                       #   quantile(iter$iter_est, probs = quant_probs, names = FALSE) %>% 
-                                       #   enframe(name = NULL, value = "est") %>% 
-                                       #   mutate(per = quant_probs),
-                                                # interval_size = round(2 * abs(probs - 0.5), 4)),
                                        probs = quant_probs)) 
+}
+
+generate_initializer <- function(num_treatments,
+                                 num_clusters,
+                                 base_init = function() lst(beta_cluster_sd = abs(rnorm(num_treatments))), 
+                                 structural_type = 0,
+                                 num_mix = 1,
+                                 use_cluster_effects = use_cluster_effects,
+                                 use_mu_cluster_effects = use_cluster_effects,
+                                 restricted_private_incentive = FALSE,
+                                 semiparam = FALSE,
+                                 param_kappa = FALSE,
+                                 suppress_reputation = FALSE) {
+  base_list <- base_init()
+  
+  if (structural_type > 0 || !is_empty(base_list)) {
+    function() {
+      if (structural_type > 0) {
+        num_beta_param <- if (restricted_private_incentive) num_treatments - 1 else num_treatments
+        # num_beta_param <- num_treatments
+        
+        init <- lst(
+          mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          beta_control = rnorm(1, 0, 0.1), 
+          beta_ink_effect = rnorm(1, 0, 0.1), 
+          beta_calendar_effect = if (restricted_private_incentive) abs(rnorm(1, 0, 0.1)) else rnorm(1, 0, 0.1), 
+          # beta_bracelet_effect = if (restricted_private_incentive) -abs(rnorm(1, 0, 0.1)) else rnorm(1, 0, 0.1), # %>% c(.[3] - abs(rnorm(num_treatments - num_beta_param))),
+          beta_bracelet_effect = if (restricted_private_incentive) abs(rnorm(1, 0, 0.1)) else rnorm(1, 0, 0.1), 
+          beta_salience = abs(rnorm(1, 0, 0.1)),
+          dist_beta_salience = abs(rnorm(1, 0, 0.1)),
+          # onesided_structural_beta = as.array(- abs(rnorm(num_treatments - num_beta_param, 0, 0.1))),
+          dist_cost_k_raw = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          dist_cost_k = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          # structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = 0),
+          # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = c(0, num_beta_param)),
+          # structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_beta_param, 0, 0.25)) else array(dim = 0),
+          structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
+          structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
+          structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          structural_cluster_takeup_prob = matrix(rbeta(num_clusters * num_mix, 10, 10), nrow = num_mix),
+          # mu_cluster_effects_raw = if (use_cluster_effects && !suppress_reputation) matrix(0, num_clusters, num_treatments) else array(dim = c(0, num_treatments)),
+          mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_treatments)),
+          mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          cluster_mu_rep = if (use_mu_cluster_effects && !suppress_reputation) matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE) else array(0, num_treatments),
+          lambda_v_mix = rep(1 / num_mix, num_mix),
+          v_mix_mean = as.array(0.1),
+          v_sd = rbeta(1, 8, 1),
+          
+          # mu_rep_raw = rep(0.05, num_treatments),
+          # mu_rep = rep(0.1, num_treatments),
+          # structural_beta = rep(0.2, num_beta_param), 
+          # onesided_structural_beta = as.array(-0.01), 
+          # dist_cost_k_raw = rep(0.05, num_treatments),
+          # dist_cost_k = rep(0.05, num_treatments),
+          # structural_beta_cluster = if (use_cluster_effects) matrix(rep(0.1, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
+          # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rep(0.2, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, 4)),
+          # structural_beta_cluster_sd = if (use_cluster_effects) rep(0.1, num_treatments) else array(dim = 0),
+          # structural_cluster_takeup_prob = rep(0.5, num_clusters) 
+          
+          # cluster_mu_rep = if (suppress_reputation) array(dim = c(0, num_treatments)) else matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE),
+        )
+        
+        base_list %>% 
+          list_modify(!!!init)
+                      
+      } else {
+        return(base_list) 
+      }
+    }
+  } else return(NULL)
 }
 
 stan_list <- function(models_info, stan_data) {
@@ -237,3 +295,38 @@ stan_list <- function(models_info, stan_data) {
       stan_data = stan_data) 
   }
 }
+
+create_stan_enum <- function(enum_names, prefix) {
+  enum_names %>% 
+    set_names(seq(length(.)), .) %>% 
+    structure(prefix = prefix, class = "stan_enum") 
+}
+
+enum2stan <- function(x) UseMethod("enum2stan")
+enum2stan.stan_enum <- function(enum) { 
+  upper_prefix <- str_to_upper(attr(enum, 'prefix'))
+  min_const_name <- str_glue("MIN_{upper_prefix}_VALUE")
+  max_const_name <- str_glue("MAX_{upper_prefix}_VALUE")
+  values <- str_glue("int<lower = {min_const_name}, upper = {max_const_name}> {upper_prefix}_{str_to_upper(names(enum))};")
+  
+  print(
+    str_glue("int {min_const_name};"),
+    str_glue("int {max_const_name};"),
+    values)
+}
+
+enum2stan_data <- function(x) UseMethod("enum2stan_data")
+enum2stan_data.stan_enum <- function(enum) { 
+  upper_prefix <- str_to_upper(attr(enum, 'prefix'))
+  min_const_name <- str_glue("MIN_{upper_prefix}_VALUE")
+  max_const_name <- str_glue("MAX_{upper_prefix}_VALUE")
+  
+  as.list(enum) %>% 
+    set_names(str_c(upper_prefix, "_", str_to_upper(names(enum)))) %>% 
+    list_modify(!!min_const_name := min(enum),
+                !!max_const_name := max(enum))
+}
+
+# Constants ---------------------------------------------------------------
+
+cost_model_types <- create_stan_enum(c("param_kappa", "param_linear", "param_quadratic", "semiparam", "param_linear_salience"), "cost_model_type") 

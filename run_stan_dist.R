@@ -79,55 +79,6 @@ Z_grid_osullivan2 <- map2(treatment_dist, grid_dist2, ~ calculate_splines(.x, nu
 num_treatments <- n_distinct(monitored_nosms_data$assigned.treatment)
 num_clusters <- n_distinct(monitored_nosms_data$cluster_id)
 
-generate_initializer <- function(base_init = function() lst(beta_cluster_sd = abs(rnorm(num_treatments))), 
-                                 structural_type = 0,
-                                 num_mix = 1,
-                                 restricted_private_incentive = FALSE,
-                                 semiparam = FALSE,
-                                 suppress_reputation = FALSE) {
-  base_list <- base_init()
-  
-  if (structural_type > 0 || !is_empty(base_list)) {
-    function() {
-      if (structural_type > 0) {
-        num_beta_param <- if (restricted_private_incentive) num_treatments - 1 else num_treatments
-        # num_beta_param <- num_treatments
-        
-        base_list %>% 
-          list_modify(
-            mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
-            mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
-            # structural_beta = rnorm(num_treatments),
-            dist_cost_k_raw = if (semiparam) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
-            dist_cost_k = if (semiparam) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
-            # structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = 0),
-            # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = c(0, num_beta_param)),
-            # structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_beta_param, 0, 0.25)) else array(dim = 0),
-            structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
-            structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
-            structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_treatments, 0, 0.25)) else array(dim = 0),
-            structural_cluster_takeup_prob = matrix(rbeta(num_clusters * num_mix, 10, 10), nrow = num_mix),
-            lambda_v_mix = rep(1 /num_mix, num_mix),
-            v_mix_mean = as.array(0.1),
-            
-            # mu_rep_raw = rep(0.05, num_treatments),
-            # mu_rep = rep(0.1, num_treatments),
-            structural_beta = rep(0.2, num_beta_param),
-            # dist_cost_k_raw = rep(0.05, num_treatments),
-            # dist_cost_k = rep(0.05, num_treatments),
-            # structural_beta_cluster = if (use_cluster_effects) matrix(rep(0.2, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
-            # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rep(0.2, num_clusters * num_treatments), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, 4)),
-            # structural_beta_cluster_sd = if (use_cluster_effects) rep(0.1, num_treatments) else array(dim = 0),
-            # structural_cluster_takeup_prob = rep(0.5, num_clusters) 
-          )
-                      
-      } else {
-        return(base_list) 
-      }
-    }
-  } else return(NULL)
-}
-
 models <- lst(
   NO_DIST = lst(model_type = 1,
                 model_file = "dist_splines3.stan"),
@@ -148,7 +99,7 @@ models <- lst(
   SEMIPARAM_NONLINEAR_DIST_OSULLIVAN = lst(model_type = 6,
                                            model_file = "dist_splines3.stan",
                                            use_dist_cluster_effects = FALSE,
-                                           init = generate_initializer(structural_type = 0)),
+                                           init = generate_initializer(num_treatments, num_clusters, structural_type = 0)),
                                            # init = function() lst(u_splines_cluster_v_sigma = abs(rnorm(num_clusters, 0, 0.25)))),
   
   SEMIPARAM_NONLINEAR_DIST_BSPLINE = lst(model_type = 7, 
@@ -169,34 +120,123 @@ models <- lst(
   GP = lst(model_type = 9,
            model_file = "dist_splines3.stan",
            use_dist_cluster_effects = FALSE,
-           init = generate_initializer(structural_type = 0)),
+           init = generate_initializer(num_treatments, num_clusters, structural_type = 0)),
   
   STRUCTURAL = lst(model_type = 10,
                    model_file = "dist_struct_fixedpoint.stan",
+                   control = lst(max_treedepth = 12, adapt_delta = 0.9),
                    num_v_mix = 1,
-                   use_semiparam_cost = 1,
-                   use_private_incentive_restrictions = 0,
-                   suppress_reputation = 0,
+                   use_cost_model = cost_model_types["semiparam"],
+                   use_private_incentive_restrictions = FALSE,
+                   use_salience_effect = FALSE,
+                   use_cluster_effects = TRUE,
+                   use_mu_cluster_effects = FALSE,
+                   suppress_reputation = FALSE,
+                   suppress_shocks = FALSE,
                    simulate_new_data,
                    iter = 4000,
-                   init = generate_initializer(structural_type = 1, 
+                   init = generate_initializer(num_treatments, 
+                                               num_clusters,
+                                               structural_type = 1, 
                                                num_mix = num_v_mix, 
+                                               use_cluster_effects = use_cluster_effects,
+                                               use_mu_cluster_effects = use_mu_cluster_effects,
                                                restricted_private_incentive = use_private_incentive_restrictions,
-                                               semiparam = use_semiparam_cost,
-                                               suppress_reputation = suppress_reputation)),
+                                               semiparam = use_cost_model == cost_model_types["semiparam"],
+                                               suppress_reputation = suppress_reputation)) %>% 
+    list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_SALIENCE = lst(
+    model_type = 10,
+                   model_file = "dist_struct_fixedpoint.stan",
+                   control = lst(max_treedepth = 12, adapt_delta = 0.9),
+                   num_v_mix = 1,
+                   use_cost_model = cost_model_types["param_linear_salience"],
+                   use_private_incentive_restrictions = TRUE,
+                   use_salience_effect = TRUE,
+                   use_cluster_effects = TRUE,
+                   use_mu_cluster_effects = FALSE,
+                   suppress_reputation = FALSE,
+                   suppress_shocks = FALSE,
+                   simulate_new_data,
+                   iter = 4000,
+                   init = generate_initializer(num_treatments, 
+                                               num_clusters,
+                                               structural_type = 1, 
+                                               num_mix = num_v_mix, 
+                                               use_cluster_effects = use_cluster_effects,
+                                               use_mu_cluster_effects = use_mu_cluster_effects,
+                                               restricted_private_incentive = use_private_incentive_restrictions,
+                                               semiparam = use_cost_model == cost_model_types["semiparam"],
+                                               suppress_reputation = suppress_reputation)) %>% 
+    list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_LINEAR_COST = lst(
+    model_type = 10,
+    model_file = "dist_struct_fixedpoint.stan",
+    control = lst(max_treedepth = 12, adapt_delta = 0.9),
+    num_v_mix = 1,
+    use_cost_model = cost_model_types["param_linear"],
+    use_private_incentive_restrictions = FALSE,
+    use_cluster_effects = TRUE,
+    use_mu_cluster_effects = FALSE,
+    suppress_reputation = FALSE,
+    suppress_shocks = FALSE,
+    simulate_new_data,
+    iter = 4000,
+    init = generate_initializer(num_treatments,
+                                num_clusters,
+                                structural_type = 1, 
+                                num_mix = num_v_mix, 
+                                use_cluster_effects = use_cluster_effects,
+                                use_mu_cluster_effects = use_mu_cluster_effects,
+                                restricted_private_incentive = use_private_incentive_restrictions,
+                                semiparam = FALSE,
+                                suppress_reputation = suppress_reputation)) %>% 
+    list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_QUADRATIC_COST = lst(
+    model_type = 10,
+    model_file = "dist_struct_fixedpoint.stan",
+    control = lst(max_treedepth = 12, adapt_delta = 0.9),
+    num_v_mix = 1,
+    use_cost_model = cost_model_types["param_quadratic"],
+    use_private_incentive_restrictions = FALSE,
+    use_cluster_effects = TRUE,
+    use_mu_cluster_effects = FALSE,
+    suppress_reputation = FALSE,
+    suppress_shocks = FALSE,
+    simulate_new_data,
+    iter = 4000,
+    init = generate_initializer(num_treatments,
+                                num_clusters,
+                                structural_type = 1, 
+                                num_mix = num_v_mix, 
+                                use_cluster_effects = use_cluster_effects,
+                                use_mu_cluster_effects = use_mu_cluster_effects,
+                                restricted_private_incentive = use_private_incentive_restrictions,
+                                semiparam = FALSE,
+                                suppress_reputation = suppress_reputation)) %>% 
+    list_modify(!!!enum2stan_data(cost_model_types)),
   
   STRUCTURAL_RESTRICTED_PRIVATE = 
     lst(model_type = 10,
         model_file = "dist_struct_fixedpoint.stan",
-        control = lst(max_treedepth = 12),
+        control = lst(max_treedepth = 12, adapt_delta = 0.9),
         num_v_mix = 1,
-        use_semiparam_cost = 1,
-        use_private_incentive_restrictions = 1,
-        suppress_reputation = 0,
+        use_semiparam_cost = TRUE,
+        use_private_incentive_restrictions = TRUE,
+        use_cluster_effects = TRUE,
+        use_mu_cluster_effects = TRUE,
+        suppress_reputation = FALSE,
+        suppress_shocks = FALSE,
         simulate_new_data,
         iter = 4000,
-        init = generate_initializer(structural_type = 1, 
+        init = generate_initializer(num_treatments, num_clusters,
+                                    structural_type = 1, 
                                     num_mix = num_v_mix, 
+                                    use_cluster_effects = use_cluster_effects,
+                                    use_mu_cluster_effects = use_cluster_effects,
                                     restricted_private_incentive = use_private_incentive_restrictions,
                                     semiparam = use_semiparam_cost,
                                     suppress_reputation = suppress_reputation)),
@@ -210,7 +250,8 @@ models <- lst(
         suppress_reputation = 1,
         simulate_new_data,
         iter = 4000,
-        init = generate_initializer(structural_type = 1, 
+        init = generate_initializer(num_treatments, num_clusters,
+                                    structural_type = 1, 
                                     num_mix = num_v_mix, 
                                     restricted_private_incentive = use_private_incentive_restrictions,
                                     semiparam = use_semiparam_cost,
@@ -224,7 +265,8 @@ models <- lst(
                    suppress_reputation = 0,
                    simulate_new_data,
                    iter = 4000,
-                   init = generate_initializer(structural_type = 1, 
+                   init = generate_initializer(num_treatments, num_clusters,
+                                               structural_type = 1, 
                                                num_mix = num_v_mix, 
                                                restricted_private_incentive = use_private_incentive_restrictions,
                                                semiparam = use_semiparam_cost,
@@ -239,7 +281,8 @@ models <- lst(
         suppress_reputation = 0,
         simulate_new_data,
         iter = 4000,
-        init = generate_initializer(structural_type = 1, 
+        init = generate_initializer(num_treatments, num_clusters,
+                                    structural_type = 1, 
                                     num_mix = num_v_mix, 
                                     restricted_private_incentive = use_private_incentive_restrictions,
                                     semiparam = use_semiparam_cost,
@@ -254,7 +297,8 @@ models <- lst(
         suppress_reputation = 1,
         simulate_new_data,
         iter = 4000,
-        init = generate_initializer(structural_type = 1, 
+        init = generate_initializer(num_treatments, num_clusters,
+                                    structural_type = 1, 
                                     num_mix = num_v_mix, 
                                     restricted_private_incentive = use_private_incentive_restrictions,
                                     semiparam = use_semiparam_cost,
@@ -309,6 +353,7 @@ stan_data <- lst(
   Z_grid_v2 = Z_grid_osullivan2,
   
   u_splines_v_sigma_sd = 1,
+  mu_rep_sd = 0.1,
  
   num_excluded_clusters = 0,
   excluded_clusters = array(dim = 0),
@@ -316,8 +361,10 @@ stan_data <- lst(
   is_structural = 0, 
   use_binomial = 0,
   use_cluster_effects,
+  use_mu_cluster_effects = use_cluster_effects,
   use_dist_cluster_effects,
   use_cost_k_restrictions = 1,
+  suppress_shocks = FALSE
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
 
@@ -328,7 +375,6 @@ models <- if (!is_null(models_to_run)) {
 } 
 
 if (script_options$fit) {
-  # dist_fit <- models[-c(7,8)] %>% stan_list(stan_data)
   dist_fit <- models %>% stan_list(stan_data)
   
   if (script_options$`update-output`) {
@@ -356,7 +402,7 @@ if (script_options$fit) {
 
 if (!script_options$`no-save`) {
   if (script_options$fit) {
-    save(dist_fit, models, monitored_nosms_data, cluster_analysis_data, grid_dist, extract_sim_level, extract_obs_fit_level, extract_sim_diff, standardize, unstandardize, stan_data,
+    save(dist_fit, models, monitored_nosms_data, cluster_analysis_data, grid_dist, stan_data,
          file = output_file_name)
   } else if (script_options$cv) {
     save(dist_kfold, models, monitored_nosms_data, 
