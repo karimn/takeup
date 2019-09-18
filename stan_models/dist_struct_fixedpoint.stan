@@ -113,6 +113,7 @@ data {
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE;
   
   int<lower = 1> num_v_mix;
   
@@ -156,11 +157,11 @@ data {
   
   // Simulation
   
-  // int<lower = 1> num_grid_obs; // Simulation observations
+  int<lower = 1> num_grid_obs; // Simulation observations
   // vector[num_grid_obs] grid_dist2[num_treatments]; // Simulation distances
+  vector[num_grid_obs] grid_dist; // Simulation distances
   // matrix[num_grid_obs, num_knots_v] Z_grid_v2[num_treatments];
-  // vector[num_grid_obs] grid_dist; // Simulation distances
-  // matrix[num_grid_obs, num_knots_v] Z_grid_v;
+  matrix[num_grid_obs, num_knots_v] Z_grid_v;
 }
 
 transformed data {
@@ -180,14 +181,30 @@ transformed data {
   int<lower = 0, upper = num_obs> included_obs[num_included_obs] = num_included_obs != num_obs ? which(obs_cluster_id, included_clusters, 1) : seq(1, num_obs, 1);
   int<lower = 0, upper = num_obs> excluded_obs[num_excluded_obs]; 
   
+  int<lower = 0, upper = 1> use_dist_salience = in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE });
+  
   int num_treatments_param_kappa = use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA ? num_treatments : 0;
   int num_treatments_param;
-  int num_treatments_param_quadratic = in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_QUADRATIC }) ? num_treatments : 0;
+  int num_treatments_param_quadratic; 
+  
+  int<lower = 1> num_shocks = 3;
+  
+  vector[num_shocks] sim_grid_mu[num_grid_obs];
+  
+  for (grid_index in 1:num_grid_obs) {
+    sim_grid_mu[grid_index] = rep_vector(0, num_shocks);
+  }
   
   if (in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_PARAM_LINEAR, COST_MODEL_TYPE_PARAM_QUADRATIC })) {
     num_treatments_param = num_treatments;
-  } else if (use_cost_model == COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE) {
+  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE })) {
     num_treatments_param = 1;
+  }
+  
+  if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_QUADRATIC })) {
+    num_treatments_param_quadratic = num_treatments;
+  } else if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
+    num_treatments_param_quadratic = 1;
   }
   
   if (num_excluded_obs > 0) {
@@ -223,6 +240,7 @@ parameters {
   
   real<lower = 0> beta_salience;
   real<lower = 0> dist_beta_salience;
+  real<lower = 0> dist_quadratic_beta_salience;
   
   // V Mixture
   
@@ -235,8 +253,8 @@ parameters {
   
   row_vector<lower = 0>[suppress_reputation ? 0 : num_treatments] mu_rep_raw;
   // real<lower = 0, upper = 1> v_sd;
-  vector<lower = 0>[suppress_shocks ? 0 : 2] ub_ur_sd;
-  cholesky_factor_corr[suppress_shocks ? 0 : 3] L_all_u_corr;
+  vector<lower = 0>[suppress_shocks ? 0 : num_shocks - 1] ub_ur_sd;
+  cholesky_factor_corr[suppress_shocks ? 0 : num_shocks] L_all_u_corr;
   
   matrix[use_mu_cluster_effects && !suppress_reputation ? num_clusters : 0, num_treatments] mu_cluster_effects_raw;
   row_vector<lower = 0>[use_mu_cluster_effects && !suppress_reputation ? num_treatments : 0] mu_cluster_effects_sd;
@@ -247,22 +265,17 @@ parameters {
   
   // Semiparameteric Cost Model
   
-  vector[num_treatments_param] dist_beta_v; // Linear distance*treatment effects
-  vector[num_treatments_param_quadratic] dist_quadratic_beta_v; // Quadratic distance*treatment effects
+  vector<lower = (use_dist_salience ? 0 : negative_infinity())>[num_treatments_param] dist_beta_v; // Linear distance*treatment effects
+  vector<lower = (use_dist_salience ? 0 : negative_infinity())>[num_treatments_param_quadratic] dist_quadratic_beta_v; // Quadratic distance*treatment effects
   
   matrix[use_cost_model == COST_MODEL_TYPE_SEMIPARAM ? num_treatments_param : 0, num_knots_v] u_splines_v_raw;
   real<lower = 0> u_splines_v_sigma;
-  
-  // Simulation
-  
-  // matrix[use_cluster_effects && simulate_new_data ? num_grid_obs : 0, use_private_incentive_restrictions ? num_treatments - 1 : num_treatments] sim_structural_beta_cluster_raw;
-  
 }
 
 transformed parameters {
   // vector[num_treatments] restricted_structural_beta;
-  vector[num_treatments] beta;
-  vector[num_treatments] structural_treatment_effect;
+  vector[num_treatments] beta = [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+  vector[num_treatments] structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
   vector[num_clusters] structural_cluster_benefit_cost;
   vector[num_clusters] cluster_effects = rep_vector(0, num_clusters);
   
@@ -281,24 +294,8 @@ transformed parameters {
   matrix[num_treatments, num_knots_v] u_splines_v = rep_matrix(0, num_treatments, num_knots_v);
   vector[num_clusters] cluster_dist_cost = rep_vector(0, num_clusters);
   
+  cholesky_factor_cov[num_shocks] L_all_u_vcov;
   real total_error_sd;
-  
-  // Simulation
-  // matrix[num_grid_obs, num_treatments] sim_benefit_cost = rep_matrix(0, num_grid_obs, num_treatments); 
-  // matrix[num_grid_obs, num_treatments] sim_cluster_effects = rep_matrix(0, num_grid_obs, num_treatments);
-  // matrix[num_grid_obs, num_treatments] sim_v = rep_matrix(0, num_grid_obs, num_treatments);
-  // matrix<lower = 0, upper = 1>[num_grid_obs, num_treatments] sim_takeup_prob = rep_matrix(0, num_grid_obs, num_treatments);
-  
-  // if (use_private_incentive_restrictions) {
-  //   restricted_structural_beta = append_row(structural_beta, structural_beta[3] + onesided_structural_beta[1]);
-  // } else {
-  //   restricted_structural_beta = structural_beta;
-  // }
-  
-  beta = [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
-  
-  structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
-  
   
   if (num_v_mix > 1) {
     lambda_v_mix[1] = recursive_lambda_v_mix[1];
@@ -332,15 +329,7 @@ transformed parameters {
     structural_treatment_effect += use_salience_effect * mu_rep';
   }
   
-  if (use_cost_model == COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE) {
-    linear_dist_cost = rep_vector(dist_beta_v[1], num_treatments) + dist_beta_salience * mu_rep';
-    
-    cluster_dist_cost = param_dist_cost(cluster_standard_dist, 
-                                        linear_dist_cost[cluster_assigned_treatment],
-                                        quadratic_dist_cost[cluster_assigned_treatment],
-                                        u_splines_v[cluster_assigned_treatment],
-                                        Z_splines_v[cluster_assigned_treatment]);
-  } else if (num_treatments_param_kappa > 0) { 
+  if (use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA) { 
     dist_cost_k = dist_cost_k_raw;
    
     if (use_cost_k_restrictions) { 
@@ -351,19 +340,25 @@ transformed parameters {
     
     cluster_dist_cost = param_kappa_dist_cost(cluster_standard_dist, dist_cost_k[cluster_assigned_treatment]);
   } else {
-    if (num_treatments_param > 0) {
+    if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE })) {
+      linear_dist_cost = rep_vector(dist_beta_v[1], num_treatments) + dist_beta_salience * mu_rep';
+      
+      if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
+        quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_treatments) + dist_quadratic_beta_salience * mu_rep';
+      }
+    } else {
       linear_dist_cost = treatment_map_design_matrix * dist_beta_v;
+      
+      if (num_treatments_param_quadratic > 0) {
+        quadratic_dist_cost = treatment_map_design_matrix * dist_quadratic_beta_v;
+      }
+      
+      if (use_cost_model == COST_MODEL_TYPE_SEMIPARAM) {
+        for (treatment_index in 1:num_treatments_param) {
+          u_splines_v[treatment_index] = u_splines_v_raw[treatment_index] * u_splines_v_sigma;
+        }        
+      }
     } 
-    
-    if (num_treatments_param_quadratic > 0) {
-      quadratic_dist_cost = treatment_map_design_matrix * dist_quadratic_beta_v;
-    }
-     
-    if (use_cost_model == COST_MODEL_TYPE_SEMIPARAM) {
-      for (treatment_index in 1:num_treatments_param) {
-        u_splines_v[treatment_index] = u_splines_v_raw[treatment_index] * u_splines_v_sigma;
-      }        
-    }
       
     cluster_dist_cost = param_dist_cost(cluster_standard_dist, 
                                         linear_dist_cost[cluster_assigned_treatment],
@@ -403,11 +398,12 @@ transformed parameters {
   }
   
   if (!suppress_shocks) {
-    vector[3] all_u_sd = append_row(1, ub_ur_sd);
-    matrix[3, 3] L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
+    vector[num_shocks] all_u_sd = append_row(1, ub_ur_sd);
     
+    L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
     total_error_sd = sqrt(sum(L_all_u_vcov * L_all_u_vcov'));
   } else {
+    L_all_u_vcov = diag_matrix(append_row(1, rep_vector(0, num_shocks - 1)));
     total_error_sd = 1;
   }
   
@@ -418,55 +414,6 @@ transformed parameters {
       structural_cluster_takeup_prob[mix_index] = Phi(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
     }
   }
-  
-  /*if (simulate_new_data) { 
-    if (use_cluster_effects) {
-      matrix[num_grid_obs, num_treatments] sim_structural_beta_cluster;
-      
-      if (use_private_incentive_restrictions) {
-        sim_structural_beta_cluster[, 1:3] = sim_structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_grid_obs);
-        sim_structural_beta_cluster[, 4] = sim_structural_beta_cluster[, 3];
-      } else {
-        sim_structural_beta_cluster = sim_structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_grid_obs);
-      }
-      
-      for (treatment_index in 1:num_treatments) {
-        sim_cluster_effects[, treatment_index] = sim_structural_beta_cluster * treatment_map_design_matrix[treatment_index]';
-      }
-    }
-    
-    sim_benefit_cost = rep_matrix(structural_treatment_effect', num_grid_obs) + sim_cluster_effects;  
-    
-    for (treatment_index in 1:num_treatments) {
-      if (use_cost_model == COST_MODEL_TYPE_SEMIPARAM) {
-        sim_benefit_cost[, treatment_index] -= param_dist_cost(grid_dist2[treatment_index], [ linear_dist_cost[treatment_index] ]', rep_matrix(u_splines_v[treatment_index], num_grid_obs), Z_grid_v2[treatment_index]);
-      } else {
-        sim_benefit_cost[, treatment_index] -= param_kappa_dist_cost(grid_dist2[treatment_index], [ dist_cost_k[treatment_index] ]');
-      }
-      
-      if (suppress_reputation) {
-        sim_v[, treatment_index] = - sim_benefit_cost[, treatment_index];
-      } else {
-        for (sim_obs_index in 1:num_grid_obs) {
-          sim_v[sim_obs_index, treatment_index] = algebra_solver(v_fixedpoint_solution_normal,
-                                                                 [ -sim_benefit_cost[sim_obs_index, treatment_index] ]',
-                                                                 prepare_solver_theta(sim_benefit_cost[sim_obs_index, treatment_index],
-                                                                                      mu_rep[treatment_index],
-                                                                                      lambda_v_mix,
-                                                                                      v_mix_mean,
-                                                                                      suppress_shocks ? 1 : v_sd,
-                                                                                      v_mix_sd),
-                                                                 { 0.0 },
-                                                                 { num_v_mix },
-                                                                 1e-10,
-                                                                 1e-5,
-                                                                 1e6)[1];
-        }
-      }
-      
-      sim_takeup_prob[, treatment_index] = Phi(- sim_v[, treatment_index]);
-    }
-  }*/
 }
 
 model {
@@ -477,6 +424,7 @@ model {
   
   beta_salience ~ normal(0, 1);
   dist_beta_salience ~ normal(0, 1);
+  dist_quadratic_beta_salience ~ normal(0, 1);
 
   if (!suppress_reputation) { 
     mu_rep_raw ~ normal(0, mu_rep_sd);
@@ -508,10 +456,6 @@ model {
   if (use_cluster_effects) {
     to_vector(structural_beta_cluster_raw) ~ normal(0, 1);
     structural_beta_cluster_sd ~ normal(0, 0.25);
-    
-    // if (simulate_new_data) {
-    //   to_vector(sim_structural_beta_cluster_raw) ~ normal(0, 1);
-    // }
   }
   
   if (!suppress_shocks) {
@@ -540,17 +484,16 @@ model {
 }
 
 generated quantities { 
+  corr_matrix[num_shocks] all_u_corr = L_all_u_corr * L_all_u_corr';
+  
   // Cross Validation
   vector[use_binomial ? num_included_clusters : num_included_obs] log_lik = rep_vector(negative_infinity(), use_binomial ? num_included_clusters : num_included_obs); 
   vector[use_binomial ? num_excluded_clusters : num_excluded_obs] log_lik_heldout = rep_vector(negative_infinity(), use_binomial ? num_excluded_clusters : num_excluded_obs); 
   
-  corr_matrix[3] all_u_corr = L_all_u_corr * L_all_u_corr';
-  
   // Simulation
-  // matrix[num_grid_obs, num_treatments] sim_benefit_cost = rep_matrix((treatment_map_design_matrix * restricted_structural_beta)', num_grid_obs); 
-  // matrix[num_grid_obs, num_treatments] sim_v;
-  // matrix<lower = 0, upper = 1>[num_grid_obs, num_treatments] sim_takeup_prob;
-  // matrix[num_grid_obs, num_treatments] sim_cluster_effect = rep_matrix(0, num_grid_obs, num_treatments);
+  
+  vector[num_shocks] sim_obs_shocks[num_grid_obs]; //, num_treatments]; 
+  matrix[num_grid_obs, num_treatments] sim_benefit_cost; 
   
   // Cross Validation 
   
@@ -600,31 +543,26 @@ generated quantities {
  
   // Simulation 
   
-  // for (treatment_index in 1:num_treatments) {
-  //   if (use_semiparam_cost) {
-  //     sim_benefit_cost[, treatment_index] -= param_dist_cost(grid_dist2[treatment_index], [ dist_beta_v[treatment_index] ]', rep_matrix(u_splines_v[treatment_index], num_grid_obs), Z_grid_v2[treatment_index]);
-  //   } else {
-  //     sim_benefit_cost[, treatment_index] -= param_kappa_dist_cost(grid_dist2[treatment_index], [ dist_cost_k[treatment_index] ]');
-  //   }
-  //   
-  //   for (sim_obs_index in 1:num_grid_obs) {
-  //     // sim_cluster_effect[sim_obs_index, treatment_index] = normal_rng(0, structural_beta_cluster_sd[min(treatment_index, 3)]);
-  //     // sim_benefit_cost[sim_obs_index, treatment_index] += sim_cluster_effect[sim_obs_index, treatment_index];
-  //     
-  //     sim_v[sim_obs_index, treatment_index] = algebra_solver(v_fixedpoint_solution_normal,
-  //                                                            [ -sim_benefit_cost[sim_obs_index, treatment_index] ]',
-  //                                                            prepare_solver_theta(sim_benefit_cost[sim_obs_index, treatment_index],
-  //                                                                                 mu_rep[treatment_index],
-  //                                                                                 lambda_v_mix,
-  //                                                                                 v_mix_mean,
-  //                                                                                 v_mix_sd),
-  //                                                            { 0.0 },
-  //                                                            { num_v_mix },
-  //                                                            1e-10,
-  //                                                            1e-4,
-  //                                                            1e10)[1];
-  //                                                              
-  //     sim_takeup_prob[sim_obs_index, treatment_index] = Phi(- sim_v[sim_obs_index, treatment_index]);
-  //   }
-  // }
+  {
+    matrix[num_grid_obs, num_treatments] sim_dist_cost; 
+    matrix[num_grid_obs, num_treatments] sim_cluster_effects = 
+      to_matrix(normal_rng(rep_vector(0, num_grid_obs * num_treatments), rep_vector(1, num_grid_obs * num_treatments)), num_grid_obs, num_treatments)
+      .* rep_matrix(structural_beta_cluster_sd, num_grid_obs);
+  
+    sim_obs_shocks = multi_normal_cholesky_rng(sim_grid_mu, L_all_u_vcov);
+    
+    for (treatment_index in 1:num_treatments) {
+      if (use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA) {
+        sim_dist_cost[, treatment_index] = param_kappa_dist_cost(grid_dist, [ dist_cost_k[treatment_index] ]');
+      } else {
+        sim_dist_cost[, treatment_index] = param_dist_cost(grid_dist, 
+                                                           [ linear_dist_cost[treatment_index] ]',
+                                                           [ quadratic_dist_cost[treatment_index] ]',
+                                                           rep_matrix(u_splines_v[treatment_index], num_grid_obs),
+                                                           Z_grid_v);
+      }
+    }
+    
+    sim_benefit_cost = rep_matrix(structural_treatment_effect', num_grid_obs) + sim_cluster_effects * treatment_map_design_matrix' - sim_dist_cost;
+  }
 }
