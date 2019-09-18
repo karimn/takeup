@@ -172,8 +172,6 @@ transformed data {
   int<lower = 0> cluster_takeup_count[num_clusters] = count_by_group_test(takeup, obs_cluster_id, { 1 }, 1);
   
   int<lower = 1, upper = num_treatments> assigned_treatment[num_obs] = cluster_assigned_treatment[obs_cluster_id]; 
-  
-  // Cross validation data variables
  
   int<lower = 0, upper = num_clusters> num_included_clusters = num_clusters - num_excluded_clusters;
   int<lower = 1, upper = num_clusters> included_clusters[num_included_clusters] = num_excluded_clusters > 0 ? which(seq(1, num_clusters, 1), excluded_clusters, 0) : seq(1, num_clusters, 1);
@@ -181,8 +179,6 @@ transformed data {
   int<lower = 0, upper = num_obs> num_excluded_obs = num_obs - num_included_obs;
   int<lower = 0, upper = num_obs> included_obs[num_included_obs] = num_included_obs != num_obs ? which(obs_cluster_id, included_clusters, 1) : seq(1, num_obs, 1);
   int<lower = 0, upper = num_obs> excluded_obs[num_excluded_obs]; 
-  
-  // Cost model variables
   
   int num_treatments_param_kappa = use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA ? num_treatments : 0;
   int num_treatments_param;
@@ -220,8 +216,8 @@ parameters {
   real <lower = (use_private_incentive_restrictions ? 0 : negative_infinity())> beta_calendar_effect;
   real <lower = (use_private_incentive_restrictions ? 0 : negative_infinity())> beta_bracelet_effect;
   
-  matrix[use_cluster_effects ? num_clusters : 0, num_treatments] beta_cluster_raw;
-  row_vector<lower = 0>[use_cluster_effects ? num_treatments : 0] beta_cluster_sd;
+  matrix[use_cluster_effects ? num_clusters : 0, num_treatments] structural_beta_cluster_raw;
+  row_vector<lower = 0>[use_cluster_effects ? num_treatments : 0] structural_beta_cluster_sd;
   
   // Salience
   
@@ -235,14 +231,12 @@ parameters {
   vector<lower = 0>[num_v_mix - 1] v_mix_mean_diff;
   vector<lower = 0>[num_v_mix - 1] v_mix_sd;
   
-  // Noise
-  
-  vector<lower = 0>[suppress_shocks ? 0 : 2] ub_ur_sd;
-  cholesky_factor_corr[suppress_shocks ? 0 : 3] L_all_u_corr;
-  
   // Reputational Returns
   
   row_vector<lower = 0>[suppress_reputation ? 0 : num_treatments] mu_rep_raw;
+  // real<lower = 0, upper = 1> v_sd;
+  vector<lower = 0>[suppress_shocks ? 0 : 2] ub_ur_sd;
+  cholesky_factor_corr[suppress_shocks ? 0 : 3] L_all_u_corr;
   
   matrix[use_mu_cluster_effects && !suppress_reputation ? num_clusters : 0, num_treatments] mu_cluster_effects_raw;
   row_vector<lower = 0>[use_mu_cluster_effects && !suppress_reputation ? num_treatments : 0] mu_cluster_effects_sd;
@@ -267,8 +261,8 @@ parameters {
 
 transformed parameters {
   // vector[num_treatments] restricted_structural_beta;
-  vector[num_treatments] beta = [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
-  vector[num_treatments] structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
+  vector[num_treatments] beta;
+  vector[num_treatments] structural_treatment_effect;
   vector[num_clusters] structural_cluster_benefit_cost;
   vector[num_clusters] cluster_effects = rep_vector(0, num_clusters);
   
@@ -300,6 +294,11 @@ transformed parameters {
   // } else {
   //   restricted_structural_beta = structural_beta;
   // }
+  
+  beta = [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+  
+  structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
+  
   
   if (num_v_mix > 1) {
     lambda_v_mix[1] = recursive_lambda_v_mix[1];
@@ -376,9 +375,9 @@ transformed parameters {
   structural_cluster_benefit_cost = structural_treatment_effect[cluster_assigned_treatment] - cluster_dist_cost;
   
   if (use_cluster_effects) {
-    matrix[num_clusters, num_treatments] beta_cluster = beta_cluster_raw .* rep_matrix(beta_cluster_sd, num_clusters);
+    matrix[num_clusters, num_treatments] structural_beta_cluster = structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_clusters);
     
-    cluster_effects = rows_dot_product(cluster_treatment_design_matrix, beta_cluster); 
+    cluster_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_cluster); 
     structural_cluster_benefit_cost += cluster_effects;
   }
 
@@ -507,8 +506,8 @@ model {
   }
   
   if (use_cluster_effects) {
-    to_vector(beta_cluster_raw) ~ normal(0, 1);
-    beta_cluster_sd ~ normal(0, 0.25);
+    to_vector(structural_beta_cluster_raw) ~ normal(0, 1);
+    structural_beta_cluster_sd ~ normal(0, 0.25);
     
     // if (simulate_new_data) {
     //   to_vector(sim_structural_beta_cluster_raw) ~ normal(0, 1);
@@ -541,7 +540,7 @@ model {
 }
 
 generated quantities { 
-  // Cross validation
+  // Cross Validation
   vector[use_binomial ? num_included_clusters : num_included_obs] log_lik = rep_vector(negative_infinity(), use_binomial ? num_included_clusters : num_included_obs); 
   vector[use_binomial ? num_excluded_clusters : num_excluded_obs] log_lik_heldout = rep_vector(negative_infinity(), use_binomial ? num_excluded_clusters : num_excluded_obs); 
   
@@ -552,6 +551,8 @@ generated quantities {
   // matrix[num_grid_obs, num_treatments] sim_v;
   // matrix<lower = 0, upper = 1>[num_grid_obs, num_treatments] sim_takeup_prob;
   // matrix[num_grid_obs, num_treatments] sim_cluster_effect = rep_matrix(0, num_grid_obs, num_treatments);
+  
+  // Cross Validation 
   
   if (use_binomial) {
     for (cluster_index_index in 1:num_included_clusters) {
@@ -596,6 +597,8 @@ generated quantities {
       }
     }
   }
+ 
+  // Simulation 
   
   // for (treatment_index in 1:num_treatments) {
   //   if (use_semiparam_cost) {
