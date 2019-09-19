@@ -114,6 +114,7 @@ data {
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM_SALIENCE; 
   
   int<lower = 1> num_v_mix;
   
@@ -155,6 +156,7 @@ data {
   int<lower = 0> num_excluded_clusters;
   int<lower = 1, upper = num_clusters> excluded_clusters[num_excluded_clusters];
   
+  
   // Simulation
   
   int<lower = 1> num_grid_obs; // Simulation observations
@@ -181,11 +183,14 @@ transformed data {
   int<lower = 0, upper = num_obs> included_obs[num_included_obs] = num_included_obs != num_obs ? which(obs_cluster_id, included_clusters, 1) : seq(1, num_obs, 1);
   int<lower = 0, upper = num_obs> excluded_obs[num_excluded_obs]; 
   
-  int<lower = 0, upper = 1> use_dist_salience = in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE });
+  int<lower = 0, upper = 1> use_dist_salience = in_array(use_cost_model, 
+                                                         { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE });
+  int<lower = 0, upper = 1> use_semiparam = in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_SEMIPARAM_SALIENCE }); 
   
   int num_treatments_param_kappa = use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA ? num_treatments : 0;
-  int num_treatments_param;
-  int num_treatments_param_quadratic; 
+  int num_treatments_param = 0;
+  int num_treatments_param_quadratic = 0; 
+  int num_treatments_semiparam = 0;
   
   int<lower = 1> num_shocks = 3;
   
@@ -197,7 +202,7 @@ transformed data {
   
   if (in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_PARAM_LINEAR, COST_MODEL_TYPE_PARAM_QUADRATIC })) {
     num_treatments_param = num_treatments;
-  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE })) {
+  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
     num_treatments_param = 1;
   }
   
@@ -205,6 +210,14 @@ transformed data {
     num_treatments_param_quadratic = num_treatments;
   } else if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
     num_treatments_param_quadratic = 1;
+  }
+  
+  if (use_semiparam) {
+    if (use_cost_model == COST_MODEL_TYPE_SEMIPARAM) {
+      num_treatments_semiparam = num_treatments;
+    } else {
+      num_treatments_semiparam = 1;
+    }
   }
   
   if (num_excluded_obs > 0) {
@@ -225,7 +238,7 @@ transformed data {
   
   cluster_treatment_design_matrix = treatment_map_design_matrix[cluster_assigned_treatment];
 }
-
+ 
 parameters {
   // Levels: control ink calendar bracelet
   real beta_control;
@@ -268,7 +281,7 @@ parameters {
   vector<lower = (use_dist_salience ? 0 : negative_infinity())>[num_treatments_param] dist_beta_v; // Linear distance*treatment effects
   vector<lower = (use_dist_salience ? 0 : negative_infinity())>[num_treatments_param_quadratic] dist_quadratic_beta_v; // Quadratic distance*treatment effects
   
-  matrix[use_cost_model == COST_MODEL_TYPE_SEMIPARAM ? num_treatments_param : 0, num_knots_v] u_splines_v_raw;
+  matrix[num_treatments_semiparam, num_knots_v] u_splines_v_raw;
   real<lower = 0> u_splines_v_sigma;
 }
 
@@ -340,7 +353,7 @@ transformed parameters {
     
     cluster_dist_cost = param_kappa_dist_cost(cluster_standard_dist, dist_cost_k[cluster_assigned_treatment]);
   } else {
-    if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE })) {
+    if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
       linear_dist_cost = rep_vector(dist_beta_v[1], num_treatments) + dist_beta_salience * mu_rep';
       
       if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
@@ -352,12 +365,16 @@ transformed parameters {
       if (num_treatments_param_quadratic > 0) {
         quadratic_dist_cost = treatment_map_design_matrix * dist_quadratic_beta_v;
       }
-      
-      if (use_cost_model == COST_MODEL_TYPE_SEMIPARAM) {
-        for (treatment_index in 1:num_treatments_param) {
+    } 
+    
+    if (use_semiparam) {
+      for (treatment_index in 1:num_treatments_semiparam) {
+        if (use_dist_salience) {
+          u_splines_v[treatment_index] = u_splines_v_raw[1] * u_splines_v_sigma * mu_rep[treatment_index];
+        } else {
           u_splines_v[treatment_index] = u_splines_v_raw[treatment_index] * u_splines_v_sigma;
-        }        
-      }
+        }
+      }        
     } 
       
     cluster_dist_cost = param_dist_cost(cluster_standard_dist, 
@@ -443,10 +460,10 @@ model {
   
   if (num_treatments_param > 0) {
     dist_beta_v ~ normal(0, 1);
-    
-    if (use_cost_model == COST_MODEL_TYPE_SEMIPARAM) {
-      to_vector(u_splines_v_raw) ~ normal(0, 1);
-    }
+  }
+  
+  if (num_treatments_semiparam > 0) {
+    to_vector(u_splines_v_raw) ~ normal(0, 1);
   }
   
   if (num_treatments_param_quadratic > 0) {

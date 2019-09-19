@@ -141,8 +141,9 @@ models <- lst(
                                                num_mix = num_v_mix, 
                                                use_cluster_effects = use_cluster_effects,
                                                use_mu_cluster_effects = use_mu_cluster_effects,
-                                               restricted_private_incentive = use_private_incentive_restrictions,
-                                               semiparam = use_cost_model == cost_model_types["semiparam"],
+                                               restricted_private_incentive = use_private_incentive_restrictions, 
+                                               cost_model_type = use_cost_model,
+                                               num_knots = ncol(Z_osullivan),
                                                suppress_reputation = suppress_reputation)) %>% 
     list_modify(!!!enum2stan_data(cost_model_types)),
   
@@ -151,7 +152,7 @@ models <- lst(
                    model_file = "dist_struct_fixedpoint.stan",
                    control = lst(max_treedepth = 12, adapt_delta = 0.9),
                    num_v_mix = 1,
-                   use_cost_model = cost_model_types["param_linear_salience"],
+                   use_cost_model = cost_model_types["param_quadratic_salience"],
                    use_private_incentive_restrictions = TRUE,
                    use_salience_effect = TRUE,
                    use_cluster_effects = TRUE,
@@ -167,7 +168,34 @@ models <- lst(
                                                use_cluster_effects = use_cluster_effects,
                                                use_mu_cluster_effects = use_mu_cluster_effects,
                                                restricted_private_incentive = use_private_incentive_restrictions,
-                                               semiparam = use_cost_model == cost_model_types["semiparam"],
+                                               cost_model_type = use_cost_model,
+                                               num_knots = ncol(Z_osullivan),
+                                               suppress_reputation = suppress_reputation)) %>% 
+    list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_SEMIPARAM_SALIENCE = lst(
+    model_type = 10,
+                   model_file = "dist_struct_fixedpoint.stan",
+                   control = lst(max_treedepth = 12, adapt_delta = 0.9),
+                   num_v_mix = 1,
+                   use_cost_model = cost_model_types["semiparam_salience"],
+                   use_private_incentive_restrictions = TRUE,
+                   use_salience_effect = TRUE,
+                   use_cluster_effects = TRUE,
+                   use_mu_cluster_effects = FALSE,
+                   suppress_reputation = FALSE,
+                   suppress_shocks = FALSE,
+                   simulate_new_data,
+                   iter = 4000,
+                   init = generate_initializer(num_treatments, 
+                                               num_clusters,
+                                               structural_type = 1, 
+                                               num_mix = num_v_mix, 
+                                               use_cluster_effects = use_cluster_effects,
+                                               use_mu_cluster_effects = use_mu_cluster_effects,
+                                               restricted_private_incentive = use_private_incentive_restrictions,
+                                               cost_model_type = use_cost_model,
+                                               num_knots = ncol(Z_osullivan),
                                                suppress_reputation = suppress_reputation)) %>% 
     list_modify(!!!enum2stan_data(cost_model_types)),
   
@@ -191,7 +219,6 @@ models <- lst(
                                 use_cluster_effects = use_cluster_effects,
                                 use_mu_cluster_effects = use_mu_cluster_effects,
                                 restricted_private_incentive = use_private_incentive_restrictions,
-                                semiparam = FALSE,
                                 suppress_reputation = suppress_reputation)) %>% 
     list_modify(!!!enum2stan_data(cost_model_types)),
   
@@ -215,7 +242,6 @@ models <- lst(
                                 use_cluster_effects = use_cluster_effects,
                                 use_mu_cluster_effects = use_mu_cluster_effects,
                                 restricted_private_incentive = use_private_incentive_restrictions,
-                                semiparam = FALSE,
                                 suppress_reputation = suppress_reputation)) %>% 
     list_modify(!!!enum2stan_data(cost_model_types)),
   
@@ -238,7 +264,6 @@ models <- lst(
                                     use_cluster_effects = use_cluster_effects,
                                     use_mu_cluster_effects = use_cluster_effects,
                                     restricted_private_incentive = use_private_incentive_restrictions,
-                                    semiparam = use_semiparam_cost,
                                     suppress_reputation = suppress_reputation)),
   
   STRUCTURAL_NO_REPUTATION = 
@@ -254,7 +279,6 @@ models <- lst(
                                     structural_type = 1, 
                                     num_mix = num_v_mix, 
                                     restricted_private_incentive = use_private_incentive_restrictions,
-                                    semiparam = use_semiparam_cost,
                                     suppress_reputation = suppress_reputation)),
   
   STRUCTURAL_PARAM = lst(model_type = 10,
@@ -269,7 +293,6 @@ models <- lst(
                                                structural_type = 1, 
                                                num_mix = num_v_mix, 
                                                restricted_private_incentive = use_private_incentive_restrictions,
-                                               semiparam = use_semiparam_cost,
                                                suppress_reputation = suppress_reputation)),
   
   STRUCTURAL_PARAM_RESTRICTED_PRIVATE = 
@@ -285,7 +308,6 @@ models <- lst(
                                     structural_type = 1, 
                                     num_mix = num_v_mix, 
                                     restricted_private_incentive = use_private_incentive_restrictions,
-                                    semiparam = use_semiparam_cost,
                                     suppress_reputation = suppress_reputation)),
   
   STRUCTURAL_PARAM_NO_REPUTATION = 
@@ -301,7 +323,6 @@ models <- lst(
                                     structural_type = 1, 
                                     num_mix = num_v_mix, 
                                     restricted_private_incentive = use_private_incentive_restrictions,
-                                    semiparam = use_semiparam_cost,
                                     suppress_reputation = suppress_reputation)),
   
   LINEAR_DIST_CE = lst(model_type = 3,

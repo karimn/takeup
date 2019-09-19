@@ -33,13 +33,6 @@ sigma_rep <- 0.0
 sigma_v <- 1
 sigma_cluster <- 0.0
 
-rep_normal <- function(v, ...) dnorm(v, ...) / (pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE))
-generate_v_cutoff_fixedpoint <- function(b, mu) {
-  function(v_cutoff) {
-    v_cutoff + b + mu * rep_normal(v_cutoff)
-  }
-}
-
 sim_data <- tibble(
   cluster_id = seq(num_clusters),
   assigned_treatment = rep(as_factor(c("control", "ink", "calendar", "bracelet")), each = num_clusters %/% 4) %>% 

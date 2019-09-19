@@ -54,7 +54,7 @@ quantilize_est <- function(iter, var, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)
     mutate(per = quant_probs)
 }
 
-extract_sim_level <- function(fit, par, grid_dist, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+extract_sim_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- monitored_nosms_data
   dist_as_data <- is.data.frame(grid_dist)
   
@@ -69,14 +69,9 @@ extract_sim_level <- function(fit, par, grid_dist, quant_probs = c(0.05, 0.1, 0.
                                iter_est,
                                quant_probs = quant_probs),
            assigned_treatment = factor(assigned_treatment, labels = levels(analysis_data$assigned.treatment))) %>% 
-    {
-      if (dist_as_data) {
-        left_join(., grid_dist, by = c("grid_index", "assigned_treatment"))
-      } else {
-        left_join(., tibble(grid_dist) %>% mutate(grid_index = seq_len(n())), by = "grid_index")  
-      }
-    } %>% 
-    mutate(grid_dist = unstandardize(grid_dist, analysis_data$cluster.dist.to.pot)) 
+    arrange(assigned_treatment, grid_index) %>%
+    mutate(assigned_dist_standard = rep(stan_data$grid_dist, nlevels(assigned_treatment)),
+           assigned_dist = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot))
 }
 
 extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
@@ -139,8 +134,10 @@ generate_initializer <- function(num_treatments,
                                  use_cluster_effects = use_cluster_effects,
                                  use_mu_cluster_effects = use_cluster_effects,
                                  restricted_private_incentive = FALSE,
-                                 semiparam = FALSE,
-                                 param_kappa = FALSE,
+                                 cost_model_type = NA,
+                                 num_knots = NA,
+                                 # semiparam = FALSE,
+                                 # param_kappa = FALSE,
                                  suppress_reputation = FALSE) {
   base_list <- base_init()
   
@@ -150,19 +147,34 @@ generate_initializer <- function(num_treatments,
         num_beta_param <- if (restricted_private_incentive) num_treatments - 1 else num_treatments
         # num_beta_param <- num_treatments
         
+        salience <- cost_model_type %in% cost_model_types[c("param_linear_salience", "param_quadratic_salience", "semiparam_salience")] 
+        param_kappa <- cost_model_type == cost_model_types["param_kappa"]
+        linear <- !param_kappa
+        quadratic <- cost_model_type %in% cost_model_types[c("param_quadratic", "param_quadratic_salience")] 
+        semiparam <- cost_model_type %in% cost_model_types[c("semiparam", "semiparam_salience")] 
+        
         init <- lst(
           mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           beta_control = rnorm(1, 0, 0.1), 
           beta_ink_effect = rnorm(1, 0, 0.1), 
           beta_calendar_effect = if (restricted_private_incentive) abs(rnorm(1, 0, 0.1)) else rnorm(1, 0, 0.1), 
-          # beta_bracelet_effect = if (restricted_private_incentive) -abs(rnorm(1, 0, 0.1)) else rnorm(1, 0, 0.1), # %>% c(.[3] - abs(rnorm(num_treatments - num_beta_param))),
           beta_bracelet_effect = if (restricted_private_incentive) abs(rnorm(1, 0, 0.1)) else rnorm(1, 0, 0.1), 
           beta_salience = abs(rnorm(1, 0, 0.1)),
           dist_beta_salience = abs(rnorm(1, 0, 0.1)),
+          dist_quadratic_beta_salience = abs(rnorm(1, 0, 0.1)),
           # onesided_structural_beta = as.array(- abs(rnorm(num_treatments - num_beta_param, 0, 0.1))),
           dist_cost_k_raw = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           dist_cost_k = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          dist_beta_v = if (!linear) array(dim = 0) else if (salience) as.array(abs(rnorm(1, 0, 0.1))) else rnorm(num_treatments, 0, 0.1), 
+          dist_quadratic_beta_v = if (!quadratic) array(dim = 0) else if (salience) as.array(abs(rnorm(1, 0, 0.1))) else rnorm(num_treatments, 0, 0.1), 
+          u_splines_v_raw = if (!semiparam) {
+            array(dim = c(0, num_knots)) 
+          } else {
+            num_semiparam_treatments <- if (salience) 1 else num_treatments
+            array(rnorm(num_semiparam_treatments * num_knots, 0, 0.1), dim = c(num_semiparam_treatments, num_knots))
+          },
+          u_splines_v = u_splines_v_raw,
           # structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = 0),
           # structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_beta_param), nrow = num_clusters, ncol = num_beta_param) else array(dim = c(0, num_beta_param)),
           # structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_beta_param, 0, 0.25)) else array(dim = 0),
@@ -327,6 +339,16 @@ enum2stan_data.stan_enum <- function(enum) {
                 !!max_const_name := max(enum))
 }
 
+rep_normal <- function(v, ...) dnorm(v, ...) / (pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE))
+
+generate_v_cutoff_fixedpoint <- function(b, mu) {
+  function(v_cutoff) {
+    v_cutoff + b + mu * rep_normal(v_cutoff)
+  }
+}
+
+
 # Constants ---------------------------------------------------------------
 
-cost_model_types <- create_stan_enum(c("param_kappa", "param_linear", "param_quadratic", "semiparam", "param_linear_salience"), "cost_model_type") 
+cost_model_types <- create_stan_enum(c("param_kappa", "param_linear", "param_quadratic", "semiparam", 
+                                       "param_linear_salience", "param_quadratic_salience", "semiparam_salience"), "cost_model_type") 
