@@ -74,40 +74,47 @@ extract_sim_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
            assigned_dist = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot))
 }
 
-extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment", "none"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- monitored_nosms_data
   
   iter_level <- rlang::arg_match(iter_level)
   
   obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
   
-  fit %>% 
+  fit_data <- fit %>% 
     as.data.frame(par = par) %>% 
     mutate(iter_id = seq_len(n())) %>% 
-    gather(indices, iter_est, -iter_id) %>% 
-    tidyr::extract(indices, 
-                   if (mix) c("mix_index", obs_index_col) else obs_index_col, 
-                   if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
-                   convert = TRUE) %>% 
-    group_by_at(vars(obs_index_col, one_of("mix_index"))) %>% 
-    group_nest(.key = "iter_data") %>% 
-    ungroup() %>% 
-    mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
-           quantiles_est = map(iter_data, quantilize_est, 
-                               iter_est,
-                               quant_probs = quant_probs),
-           assigned_treatment = switch(iter_level,
-                                       cluster = stan_data$cluster_assigned_treatment,
-                                       obs = stan_data$assigned_treatment,
-                                       treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment))), 
-           assigned_dist_standard = switch(iter_level,
-                                           cluster = stan_data$cluster_standard_dist,
-                                           obs = stan_data$standard_dist,
-                                           treatment = NULL),
-           assigned_dist = switch(iter_level,
-                                  cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
-                                  obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
-                                  treatment = NULL))
+    gather(indices, iter_est, -iter_id)
+  
+  if (iter_level == "none") {
+    fit_data %>% 
+      select(-indices)
+  } else {
+    fit_data %>% 
+      tidyr::extract(indices, 
+                     if (mix) c("mix_index", obs_index_col) else obs_index_col, 
+                     if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
+                     convert = TRUE) %>% 
+      group_by_at(vars(obs_index_col, one_of("mix_index"))) %>% 
+      group_nest(.key = "iter_data") %>% 
+      ungroup() %>% 
+      mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
+             quantiles_est = map(iter_data, quantilize_est, 
+                                 iter_est,
+                                 quant_probs = quant_probs),
+             assigned_treatment = switch(iter_level,
+                                         cluster = stan_data$cluster_assigned_treatment,
+                                         obs = stan_data$assigned_treatment,
+                                         treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment))), 
+             assigned_dist_standard = switch(iter_level,
+                                             cluster = stan_data$cluster_standard_dist,
+                                             obs = stan_data$standard_dist,
+                                             treatment = NULL),
+             assigned_dist = switch(iter_level,
+                                    cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
+                                    obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
+                                    treatment = NULL))
+  }
 }
 
 extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
@@ -339,7 +346,7 @@ enum2stan_data.stan_enum <- function(enum) {
                 !!max_const_name := max(enum))
 }
 
-rep_normal <- function(v, ...) dnorm(v, ...) / (pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE))
+rep_normal <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
 generate_v_cutoff_fixedpoint <- function(b, mu) {
   function(v_cutoff) {
