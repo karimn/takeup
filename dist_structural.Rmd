@@ -421,8 +421,6 @@ structural_param %>%
 ```
 
 ```{r}
-rep_normal <- function(v) dnorm(v) / (pnorm(v) * pnorm(v, lower.tail = FALSE))
-
 tibble(
   v = seq(-5, 5, 0.1),
   # r = Vectorize(reputational_returns_normal)(v)
