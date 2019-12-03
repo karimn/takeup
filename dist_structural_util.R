@@ -66,6 +66,33 @@ extract_sim_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
            assigned_dist = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot))
 }
 
+extract_rep_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed) {
+  analysis_data <- stan_data$analysis_data
+  
+  fit_data <- fit %>% 
+    as.array(par = par) %>% {
+      if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
+    } %>% 
+    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (thin > 1) ess_bulk(cell), 
+                                                                            ess_tail = if (thin > 1) ess_tail(cell),
+                                                                            rhat = if (thin > 1) Rhat(cell),)) %>% 
+    tidyr::extract(parameters, "cluster_id", "(\\d+)", convert = TRUE) %>%  
+    mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
+           assigned_dist_standard = stan_data$cluster_standard_dist[cluster_id],
+           assigned_dist = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot)) %>% 
+    # left_join(stan_data$analysis_data %>% count(cluster_id, assigned_treatment = assigned.treatment, name = "cluster_size"), by = "cluster_id") 
+    left_join(stan_data$analysis_data %>%
+                select(cluster_id, assigned_treatment = assigned.treatment, dewormed) %>%
+                add_count(cluster_id, name = "cluster_size") %>% 
+                group_by(cluster_id, assigned_treatment, cluster_size) %>%
+                summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
+                ungroup(),
+              by = c("cluster_id")) 
+  
+  fit_data %<>% 
+    as_tibble()
+}
+
 extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster"), quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed) {
   analysis_data <- stan_data$analysis_data
   
@@ -311,6 +338,8 @@ stan_list <- function(models_info, stan_data) {
         refresh = 100,
         pars = c("total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
                  "beta", "dist_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
+                 "cluster_rep_benefit_cost",
+                 "group_dist_mean", "group_dist_sd",
                  "dist_beta_county_raw", "dist_beta_county_sd"),
         init = curr_model$init %||% "random",
         data = curr_stan_data)
