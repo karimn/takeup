@@ -100,58 +100,35 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
   
   obs_index_col <- switch(iter_level, obs = "obs_index", cluster = "cluster_id")
   
-  fit_data <- fit %>% 
+  cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
+    # rename(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>% 
+    mutate(treatment_index = seq(n()))
+  
+  fit %>% 
     as.array(par = par) %>% {
       if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
     } %>% 
     plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (thin > 1) ess_bulk(cell), 
                                                                             ess_tail = if (thin > 1) ess_tail(cell),
                                                                             rhat = if (thin > 1) Rhat(cell),)) %>% 
-    # tidyr::extract(parameters, c("treatment_index", "dist_index", obs_index_col), "(\\d+),(\\d+),(\\d+)", convert = TRUE) %>% 
     tidyr::extract(parameters, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
     mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
            cluster_id = switch(iter_level,
                                cluster = cluster_id, 
                                obs = stan_data$obs_cluster_id[!!sym(obs_index_col)]),
-           assigned_dist_standard = stan_data$cluster_standard_dist[cluster_id],
-           assigned_dist = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot)) %>% 
-    left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") 
-  
-  if (max(fit_data$treatment_index) > 4) {
-    fit_data %<>% 
-      mutate(
-        assigned_dist_group_treatment = factor(treatment_index, levels = 1:8, labels = levels(stan_data$cluster_assigned_dist_group_treatment)) %>% 
-          as.character()
-      ) %>% 
-      tidyr::separate(assigned_dist_group_treatment, into = c("assigned_treatment", "assigned_dist_group")) %>% 
-      left_join(stan_data$analysis_data %>%
-                  select(cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, dewormed) %>%
-                  group_by(cluster_id, assigned_treatment, assigned_dist_group) %>%
-                  summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
-                  ungroup(),
-                by = c("cluster_id", "assigned_treatment", "assigned_dist_group")) 
-  } else {
-    fit_data %<>% 
-      mutate(assigned_treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment))) %>% 
-      left_join(stan_data$analysis_data %>%
-                  select(cluster_id, assigned_treatment = assigned.treatment, dewormed) %>%
-                  group_by(cluster_id, assigned_treatment) %>%
-                  summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
-                  ungroup(),
-                by = c("cluster_id", "assigned_treatment")) 
-  }
-  
-  fit_data %<>% 
-    #   if (exclude_observed) {
-    #     anti_join(.,
-    #               tibble(assigned_treatment = stan_data$cluster_assigned_treatment[.$cluster_id]) %>%
-    #                 mutate(!!sym(obs_index_col) := seq(n())),
-    #               by = c("cluster_id", "assigned_treatment"))
-    #   } else .
-    # } %>%
+           treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
+           assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
+           assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot)) %>% 
+    left_join(cluster_treatment_map, by = "treatment_index") %>% 
+    left_join(cluster_treatment_map, by = c("treatment_index_obs" = "treatment_index"), suffix = c("", "_obs")) %>% 
+    left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
+    left_join(stan_data$analysis_data %>%
+                select(cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
+                group_by(cluster_id, assigned_treatment, assigned_dist_group) %>%
+                summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
+                ungroup(),
+              by = c("cluster_id", "assigned_treatment", "assigned_dist_group")) %>% 
     as_tibble()
-  
-  return(fit_data)
 }
 
 extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment", "none"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
@@ -296,6 +273,8 @@ generate_initializer <- function(num_treatments,
           lambda_v_mix = rep(1 / num_mix, num_mix),
           v_mix_mean = as.array(0.1),
           v_sd = rbeta(1, 8, 1),
+          
+          group_dist_mix = MCMCpack::rdirichlet(2, rep(10, 2))
         )
         
         base_list %>% 
@@ -339,7 +318,7 @@ stan_list <- function(models_info, stan_data) {
         pars = c("total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
                  "beta", "dist_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
                  "cluster_rep_benefit_cost",
-                 "group_dist_mean", "group_dist_sd",
+                 "group_dist_mean", "group_dist_sd", "group_dist_mix",
                  "dist_beta_county_raw", "dist_beta_county_sd"),
         init = curr_model$init %||% "random",
         data = curr_stan_data)

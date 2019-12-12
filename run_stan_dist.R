@@ -193,7 +193,7 @@ models <- lst(
   STRUCTURAL_QUADRATIC = lst(
     model_type = 10,
     model_file = "dist_struct_fixedpoint.stan",
-    control = lst(max_treedepth = 12, adapt_delta = 0.99),
+    control = lst(max_treedepth = 12, adapt_delta = 0.999),
     use_binomial = FALSE,
     num_v_mix = 1,
     use_cost_model = cost_model_types["param_quadratic"],
@@ -210,7 +210,7 @@ models <- lst(
     suppress_reputation = FALSE,
     suppress_shocks = FALSE,
     simulate_new_data,
-    iter = 1000,
+    iter = 2000,
     thin = 1,
     init = generate_initializer(
       num_treatments = num_treatments, 
@@ -389,7 +389,7 @@ models <- lst(
   REDUCED_FORM_NO_RESTRICT = lst(
     model_type = 10,
     model_file = "dist_struct_fixedpoint.stan",
-    control = lst(max_treedepth = 12, adapt_delta = 0.99),
+    control = lst(max_treedepth = 12, adapt_delta = 0.999),
     num_v_mix = 1,
     use_single_cost_model = TRUE,
     use_cost_model = cost_model_types["discrete"],
@@ -403,9 +403,9 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = TRUE,
-    suppress_shocks = FALSE,
+    suppress_shocks = TRUE,
     simulate_new_data,
-    iter = 1000,
+    iter = 2000,
     thin = 1,
     init = generate_initializer(
       num_treatments = num_treatments, 
@@ -441,7 +441,7 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = TRUE,
-    suppress_shocks = FALSE,
+    suppress_shocks = TRUE,
     simulate_new_data,
     iter = 1500,
     thin = 1,
@@ -483,19 +483,30 @@ stan_data <- lst(
     arrange(cluster_id) %>% 
     pull(assigned.treatment),
   takeup = if (use_name_matched_obs) analysis_data$dewormed.any else analysis_data$dewormed,
+  
   cluster_standard_dist = distinct(analysis_data, cluster_id, standard_cluster.dist.to.pot) %>% 
     arrange(cluster_id) %>% 
     pull(standard_cluster.dist.to.pot),
+  
+  cluster_treatment_map = distinct(analysis_data, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>% 
+    arrange(assigned_dist_group, assigned_treatment),
+  
   cluster_assigned_dist_group = distinct(analysis_data, cluster_id, dist.pot.group) %>% 
     arrange(cluster_id) %>% 
     pull(dist.pot.group),
-  cluster_assigned_dist_group_treatment = distinct(analysis_data, cluster_id, assigned.treatment, dist.pot.group) %>% 
-    unite(cluster_assigned_dist_group_treatment, assigned.treatment, dist.pot.group, sep = "-") %>% 
-    mutate(cluster_assigned_dist_group_treatment = factor(cluster_assigned_dist_group_treatment, 
-                                                          levels = levels(cluster_assigned_treatment) %>% str_c(rep(levels(cluster_assigned_dist_group), each = length(.)), sep = "-"))) %>% 
-    arrange(cluster_id) %>%
-    pull(cluster_assigned_dist_group_treatment),
-    # group_indices(assigned.treatment, dist.pot.group),
+  
+  # cluster_assigned_dist_group_treatment = distinct(analysis_data, cluster_id, assigned.treatment, dist.pot.group) %>% 
+  #   unite(cluster_assigned_dist_group_treatment, assigned.treatment, dist.pot.group, sep = "-") %>% 
+  #   mutate(cluster_assigned_dist_group_treatment = factor(cluster_assigned_dist_group_treatment, 
+  #                                                         levels = levels(cluster_assigned_treatment) %>% str_c(rep(levels(cluster_assigned_dist_group), each = length(.)), sep = "-"))) %>% 
+  #   arrange(cluster_id) %>%
+  #   pull(cluster_assigned_dist_group_treatment),
+  
+  cluster_assigned_dist_group_treatment = distinct(analysis_data, cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>% 
+    left_join(cluster_treatment_map %>% mutate(treatment_id = seq(n())), by = c("assigned_treatment", "assigned_dist_group")) %>% 
+    arrange(cluster_id) %>% 
+    pull(treatment_id),
+  
   num_dist_group_treatments = n_distinct(cluster_assigned_dist_group_treatment),
   grid_dist,
   grid_dist2,
@@ -532,6 +543,7 @@ stan_data <- lst(
   use_shifting_v_dist = FALSE,
   suppress_shocks = FALSE,
   cluster_log_lik = TRUE,
+  generate_rep = TRUE,
   
   thin = thin_by,
   

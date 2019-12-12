@@ -33,6 +33,7 @@ library(nleqslv)
 library(parallel)
 library(pbmcapply)
 library(ggstance)
+library(ggridges)
 library(latex2exp)
 library(withr)
 
@@ -57,8 +58,8 @@ load(file.path("stan_analysis_data", "takeup_model_4_always_predict_processed.RD
 
 
 ```{r load-data}
-load(file.path("stan_analysis_data", "dist_fit13.RData"))
-load(file.path("stan_analysis_data", "dist_kfold14.RData"))
+load(file.path("stan_analysis_data", "dist_fit15.RData"))
+load(file.path("stan_analysis_data", "dist_kfold_15.RData"))
 ```
 
 \usetikzlibrary{arrows,decorations.pathmorphing,backgrounds,positioning,fit,petri,calc}
@@ -68,19 +69,20 @@ load(file.path("stan_analysis_data", "dist_kfold14.RData"))
 Define the following variables:
 
 * $Z \in \{\textrm{control, ink, calendar, bracelet}\}$, village assigned incentive/signal treatment.
-* $D \in \mathbb{R}^+$, village assigned distance to point of treatment.
+* $G \in \{\textrm{close, far}\}$, is the village assigned distance group to deworming treatment.
+* $D \in \mathbb{R}^+$, is the actual village distance to deworming treatment.
 
 <!-- \widetilde{Y}_{zd} &= \beta_z - \delta_1 \times d - \delta_2 \times d^2 + \mu_z \cdot \Delta^*_{zd} + \overbrace{u_B + u_R + u_Y + v}^{u} \\ -->
 
 Our model of take-up is
 \begin{align*}
-\widetilde{Y}_{zd} &= \beta_z - \delta_d + \mu_z \cdot \Delta^*_{zd} + \overbrace{u_B + u_R + u_Y + v}^{u} \\
+\widetilde{Y}_{zd} &= \beta_z - c(d) + \mu_z \cdot \Delta^*_{zd} + \overbrace{u_B + u_R + u_Y + v}^{u} \\
 \nonumber \\
 Y_{zd} &= \mathbbm{1}(\widetilde{Y}_{zd} > 0), 
 \end{align*}
-where $\widetilde{Y}_{zd}$ is the latent utility in response to assigned incentive treatment $z$ and distance to deworming treatment $d$, and $Y_{zd}$ is a binary indicator of deworming take-up. 
+where $\widetilde{Y}_{zd}$ is the latent utility in response to assigned incentive treatment $z$ and distance to deworming treatment $d$, $c(d)$ is the cost function in response to distance to deworming $d$,  and $Y_{zd}$ is a binary indicator of deworming take-up. 
 
-\[\Delta^*_{zd} = \Delta(V^*_{zd}) = E[V > V^*_{zd}] - E[V < V^*_{zd}]\] 
+\[\Delta^*_{zd} = \Delta(V^*_{zd}) = E[V | V > V^*_{zd}] - E[V | V < V^*_{zd}]\] 
 is the reputational utility of signaling, where the variable $V \sim N(0, 1)$ is the latent prosocial type and $V^*_{zd}$ is the cutoff prosocial level, in response to $z$ and $d$, such that
 <!-- \[ V^*_{zd} = - \beta_z + \delta_1 \times d + \delta_2 \times d^2 - \mu_z \cdot \Delta(V^*_{zd}). \] -->
 \[ V^*_{zd} = - \beta_z + \delta_d - \mu_z \cdot \Delta(V^*_{zd}). \]
@@ -88,16 +90,16 @@ $\mu_z > 0$ is a coefficient combining the observability of the signal $z$ and t
 
 To faciliate our discussion of counterfactuals, we use a graphical model to the causal relationship between the different structural components of the take-up decision making process. This model is defined as $\mathcal{M} = \langle \mathcal{U,W,F} \rangle$, where:
 
-1. $\mathcal{U} = \{U_B, U_R, U_Y, V\}$, are the background variables. $U_B, U_R,$ and $U_Y$ are background variables affecting $B, R,$ and $Y$, respectively, while $V$ is the prosocial type described above. To put no restrictions on the joint distribution of these variables, will refer to them jointly as the variable $U$.
+1. $\mathcal{U} = \{U_D, U_B, U_R, U_Y, V\}$, are the background variables. $U_D, U_B, U_R,$ and $U_Y$ are background variables affecting $D$, $B, R,$ and $Y$, respectively, while $V$ is the prosocial type described above. We model $U_D$ as independent of the other background variables. We use $U^*$ to represent the combination of $\{U_B, U_R, U_Y, V\}$.
   
-2. $\mathcal{W} = \{Z, D, \bar{B}, B, R, Y\}$, are the observed and unobserved endogenous variable determined by other variables in the model, $\mathcal{U} \cup \mathcal{W}$.
+2. $\mathcal{W} = \{Z, G, D, \bar{B}, B, R, Y\}$, are the observed and unobserved endogenous variable determined by other variables in the model, $\mathcal{U} \cup \mathcal{W}$.
 
-    i) $Z$ and $D$ as above.
+    i) $Z$, $G$ and $D$ as above.
     ii) $\bar{B}$ is the latent consumption utility of incentives, excluding any individual level background, while $B = \bar{B} + U_B$.
     iii) $R$ is the latent reputational utility.
     iv) $Y$ is a binary variable indicating take-up.
     
-3. $\mathcal{F} = \{f_{\bar{B}}, f_B, f_R, f_Y\}$, are the set of functions such that, for each $W_i \in \mathcal{W}$, it is determined from its parent variables $PA_i\subseteq \mathcal{W}\setminus W_i$ and the latent background variable $R_i$. 
+3. $\mathcal{F} = \{f_D, f_{\bar{B}}, f_B, f_R, f_Y\}$, are the set of functions such that, for each $W_i \in \mathcal{W}$, it is determined from its parent variables $PA_i\subseteq \mathcal{W}\setminus W_i$ and the latent background variable $R_i$. 
 
 The directed acyclic graph for this model is show in Figure \ref{fig:dag}. 
 
@@ -125,12 +127,16 @@ The directed acyclic graph for this model is show in Figure \ref{fig:dag}.
 \node[latent] (Bbar) [label=below:$\bar{B}$,left=of B] {}
   edge[->] (R)
   edge[->] (B);
-\node[observed] (D) [label=above:$D$,left=of Bbar] {}
+\node[observed] (D) [label=below:$D$,left=of Bbar] {}
   edge[->] (Bbar);
+\node[observed] (G) [label=left:$G$,left=of D] {}
+  edge[->] (D);
+\node[latent] (U_D) [label=below:$U_D$,above=of G] {}
+  edge[latent-edge] (D);
 \node[observed] (Z) [label=above:$Z$,above=of D] {}
   edge[->] (R)
   edge[->] (Bbar);
-\node[latent] (U) [label=60:$U$,right=of Y] {}
+\node[latent] (U) [label=60:$U^*$,right=of Y] {}
   edge[latent-edge,bend right=60] (R)
   edge[latent-edge] (Y)
   edge[latent-edge,bend left=30] (B);
@@ -144,7 +150,8 @@ The functions in $\mathcal{F}$ are defined as
   <!-- \bar{b} &= f_{\bar{B}}(z, d) = \beta_z + \delta_1 \times d + \delta_2 \times d^2 \\ -->
 
 \begin{align*}
-  \bar{b} &= f_{\bar{B}}(z, d) = \beta_z - \delta_d \\
+  d &= f_D(g, u_G) = \alpha_g + u_G \\ 
+  \bar{b} &= f_{\bar{B}}(z, d) = \beta_z - c(d) \\
   b &= f_{B}(\bar{b}, u_B) = \bar{b} + u_B \\
   r &= f_{R}(z, \bar{b}, u_R) = \mu_z \cdot \Delta^*_{z,\bar{b}} + u_R \\
   y &= f_Y(b, r, u_Y) = \mathbbm{1}(b + r + u_Y + v > 0)
@@ -154,14 +161,14 @@ We will consider a number of models:
 
 * Reduced form models, in which we eliminate the reputational component of the model: we restrict $\mu_z = 0$. We consider the following reduced form models: 
 
-    i) **Discrete cost model**, we use a discrete specification for cost, such that \[\delta_d = \delta\times\mathbbm{1}(d>D^*),\] where $D^*$ is the cutoff distance splitting our experiment into randomly assigned _close_ and _far_ clusters. 
-    ii) **Semiparameteric cost model**, in which we use splines to model the continuous cost function, $\delta_d = c(d)$.
+    i) **Discrete cost model**, we use a discrete specification for cost, such that we only use the $G$ to represent distance. This means the cost function is \[ c(g) = \delta_g. \]
+    ii) **Semiparameteric cost model**, in which we use splines to model the continuous cost function.
     
 * Structural models, in which the only restriction we place on $\mu_z$ is $\mu_\textrm{ink},\mu_\textrm{calendar},\mu_\textrm{bracelet} \geq \mu_\textrm{control} \geq 0$. We consider the following structural models:
 
-    i) **Quadratic cost model**, where \[\delta_d = \delta_1 \times d + \delta_2 \times d^2,\] with the restriction that $\delta_1,\delta_2 \geq 0$.
-    ii) **Semiparameteric cost model**, in which we use splines to model the continuous cost function, $\delta_d = c(d)$.
-    iii) **Quadratic cost with salience model**, where cost is quadratic as above, and in addition, we add a salience term to capture any effects due to the signals' observability that is not reputational: \[\delta_{zd} = \delta_1 \times d + \delta_2 \times d^2 + \gamma\cdot \mu_z\times d,\] with $\delta_1,\delta_2,\gamma \geq 0$.
+    i) **Quadratic cost model**, where \[c(d) = \delta_1 \times d + \delta_2 \times d^2,\] with the restriction that $\delta_1,\delta_2 \geq 0$.
+    ii) **Semiparameteric cost model**, in which we use splines to model the continuous cost function.
+    iii) **Quadratic cost with salience model**, where cost is quadratic as above, and in addition, we add a salience term to capture any effects due to the signals' observability that is not reputational: \[c(z,d) = \delta_1 \times d + \delta_2 \times d^2 + \gamma\cdot \mu_z\times d,\] with $\delta_1,\delta_2,\gamma \geq 0$.
 
 ```{r, eval=FALSE}
 dagitty::dagitty("dag {
@@ -205,7 +212,6 @@ quant_probs <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
 total_error_sd <- map(dist_fit, extract_obs_fit_level, stan_data = stan_data, par = "total_error_sd", iter_level = "none")
 
 cluster_dist_cost <- map(dist_fit, extract_obs_fit_level, par = "cluster_dist_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs) 
-# linear_dist_cost <- map(dist_fit, extract_obs_fit_level, par = "linear_dist_cost", stan_data = stan_data, iter_level = "treatment", quant_probs = quant_probs) 
 
 net_benefit <- map(dist_fit, extract_obs_fit_level, par = "structural_cluster_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs) 
 
@@ -280,10 +286,57 @@ structural_param <- pmap(lst(cluster_dist_cost, net_benefit, v_cutoff, takeup_pr
                               left_join(select(observed_takeup, -c(assigned_treatment, assigned_dist)), by = c("obs_index" = "cluster_id")
                               )
                          })
+
+group_dist_param <- dist_fit[[1]] %>% 
+  as.data.frame(pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+  sample_n(1500) %>% 
+  mutate(iter_id = seq(n())) %>% 
+  pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id) %>% 
+  mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 ```
 
+```{r, fig.width=8, fig.cap="Fit and observed distance to deworming treatment, conditional on assigned distance group."}
+group_dist_param %>% 
+  group_by(assigned_dist_group, mix_index) %>%
+  # summarize(
+  #   median_mean = median(group_dist_mean), 
+  #   median_sd = median(group_dist_sd)) %>%
+  # ungroup() %>%
+  # mutate(distrib_samples = map2(median_mean, median_sd,
+  mutate(distrib_samples = map2(group_dist_mean, group_dist_sd,
+                                ~ tibble(x = seq(-500, 3000, 10),
+                                         density = dnorm(x, mean = ..1 * ..3, sd = ..2 * ..3)),
+                                original_dist_sd = sd(stan_data$analysis_data$cluster.dist.to.pot))) %>%
+  ungroup() %>% 
+  select(iter_id:mix_index, group_dist_mix, distrib_samples) %>% 
+  pivot_wider(id_cols = c(iter_id, assigned_dist_group), names_from = mix_index, values_from = c(group_dist_mix, distrib_samples)) %>% 
+  mutate(distrib_samples = map2(distrib_samples_1, distrib_samples_2, inner_join, by = "x", suffix = c("_1", "_2")) %>% 
+           map2(group_dist_mix_1, ~ mutate(.x, density = .y * density_1 + (1 - .y) * density_2))) %>% 
+  select(-distrib_samples_1, -distrib_samples_2) %>% 
+  # mutate(distrib_samples = map2(group_dist_mean, group_dist_sd, ~ tibble(x = seq(-3, 6, 0.5), density = dnorm(x, mean = .x, sd = .y)))) %>%
+  unnest(distrib_samples) %>% 
+  ggplot() +
+  geom_line(aes(x, density, group = iter_id, color = "Posterior Samples"), alpha = 0.008) +
+  geom_freqpoly(aes(x = cluster.dist.to.pot, y = stat(density), color = "Observed Sample Frequency"),
+                 binwidth = 200,
+                 data = stan_data$analysis_data %>% distinct(cluster_id, assigned_dist_group = dist.pot.group, cluster.dist.to.pot)) +
+  scale_color_manual("", values = c("Posterior Samples" = "black", "Observed Sample Frequency" = "firebrick3")) +
+  labs(
+    title = "Fit and observed distance to deworming treatment, conditional on assigned distance group (g).",
+    x = "Distance",
+    y = "",
+    caption = "The observed sample distance frequency plot was calculated using bins of width 200 meters.
+               Posterior sample distributions are shown using 1,500 iterations."
+  ) +
+  coord_cartesian(xlim = c(0, 3000)) +
+  theme(axis.text.y = element_blank()) +
+  facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .))) +
+  NULL
+```
+
+
 ```{r cf, eval=FALSE}
-cluster_cf_benefit_cost <- map(dist_fit, extract_obs_cf, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = 2)  
+cluster_cf_benefit_cost <- map(dist_fit, extract_obs_cf, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = 1)  
 
 # cluster_cf_benefit_cost %>% map(summarize_at, vars(starts_with("ess")), min) 
 
@@ -329,103 +382,117 @@ cluster_cf_benefit_cost %<>%
       lst(iter_data = ., cluster_size) %>%
       pmap(~ mutate(..1, iter_num_takeup = if_else(!is.na(obs_num_takeup), obs_num_takeup, rbinom(n(), ..2, prob))))
   ) %>% 
-  map(mutate, iter_data = map(iter_data, group_by_at, vars(treatment_index, matches("^assigned_(treatment|dist_group)$"), obs_num_takeup)) %>% 
+  map(mutate, iter_data = map(iter_data, group_by_at, vars(treatment_index, matches("^(mu_)?assigned_(treatment|dist_group)$"), obs_num_takeup)) %>% 
         map(group_nest,  .key = "iter_data")) %>% 
-  map(unnest, iter_data) %>% 
-  map(left_join, stan_data$analysis_data %>% distinct(cluster_id, dist.pot.group), by = "cluster_id") %>% 
-  map_if(~ "assigned_dist_group" %in% names(.), 
-         ~ filter(., dist.pot.group == assigned_dist_group) %>% select(-assigned_dist_group)) 
+  map(unnest, iter_data)  
 
 est_takeup_level <- cluster_cf_benefit_cost %>% 
-  pbmclapply(
-    mc.cores = 3,
-    as_mapper(
-      ~ select(., cluster_id, assigned_treatment, assigned_dist, dist.pot.group, cluster_size, iter_data) %>% 
-        mutate(iter_data = map(iter_data, select, iter_id, mu_assigned_treatment, prob, iter_num_takeup)) %>% 
-        unnest(cols = iter_data) %>% 
-        group_by_at(vars(iter_id, mu_assigned_treatment, assigned_treatment)) %>% 
-        group_nest(.key = "cluster_data") %>%
-        mutate(
-          iter_prop_takeup = map_dbl(cluster_data, ~ sum(.$iter_num_takeup) / sum(.$cluster_size)),
-          cluster_data = map(cluster_data, group_nest, dist.pot.group, .key = "dist_group_cluster_data") %>%
-            map(mutate, iter_prop_takeup = map_dbl(dist_group_cluster_data, ~ sum(.$iter_num_takeup) / sum(.$cluster_size))) %>% 
-            map(select, -dist_group_cluster_data)
+  # pbmclapply(
+  #   mc.cores = 3,
+  map(
+    function(.data) {
+      .data %>%
+        select(cluster_id, 
+               assigned_treatment, assigned_dist_group, mu_assigned_treatment, 
+               assigned_dist_obs, assigned_treatment_obs, assigned_dist_group_obs, cluster_size, 
+               iter_data) %>% 
+        # mutate(iter_data = pbmclapply(mc.cores = 12, iter_data, select, iter_id, prob, iter_num_takeup)) %>% 
+        mutate(iter_data = map(iter_data, select, iter_id, prob, iter_num_takeup)) %>%
+        unnest(iter_data) %>% 
+        group_by(iter_id, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
+        # group_nest(.key = "cluster_data") %>%
+        # mutate(
+        summarize(
+          # iter_prop_takeup = map_dbl(cluster_data, ~ sum(.$iter_num_takeup) / sum(.$cluster_size)),
+          # iter_prop_takeup = unlist(pbmclapply(mc.cores = 12, cluster_data, as_mapper(~ sum(.$iter_num_takeup) / sum(.$cluster_size)))),
+          iter_prop_takeup = sum(iter_num_takeup) / sum(cluster_size),
         ) %>% 
-        nest(iter_data = c(iter_id, iter_prop_takeup, cluster_data)) %>%
+        ungroup() %>% 
+        nest(iter_data = c(iter_id, iter_prop_takeup)) %>%
+        # nest(iter_data = c(iter_id, iter_prop_takeup, cluster_data)) %>%
         mutate(
-          dist_group_data = map(iter_data, select, iter_id, cluster_data) %>% 
-            map(unnest, cluster_data) %>% 
-            map(nest, iter_data = c(iter_id, iter_prop_takeup)) %>% 
-            map(mutate, 
-                mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
-                takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = quant_probs)) %>% 
-            map(unnest, takeup_quantiles),
-          iter_data = map(iter_data, select, -cluster_data),
           mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
           takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = quant_probs)
         ) %>% 
         unnest(takeup_quantiles)
-    )
-  )
+    })
 
-est_takeup_te <- cluster_cf_benefit_cost %>% 
-  pbmclapply(mc.cores = 3,
-    as_mapper(
-      ~ select(., cluster_id, assigned_treatment, assigned_dist, dist.pot.group, cluster_size, iter_data) %>% 
-        mutate(
-          iter_data = map(iter_data, select, iter_id, mu_assigned_treatment, prob, iter_num_takeup),
-        ) %>% 
-        unnest(cols = iter_data) %>% 
-        mutate(
-          compare_to = "control", # if_else(fct_match(mu_assigned_treatment, "bracelet") | fct_match(assigned_treatment, c("bracelet", "ink", "control", "calendar")), "control", NA_character_) %>% as_factor(),
-          mu_compare_to = if_else(is.na(mu_assigned_treatment), NA_character_, "control"),
-        ) %>% 
-        group_by_at(vars(iter_id, assigned_treatment, mu_assigned_treatment, compare_to, mu_compare_to, )) %>% 
-        group_nest(.key = "cluster_data") %>%
-        mutate(
-          iter_prop_takeup = map_dbl(cluster_data, ~ sum(.$iter_num_takeup) / sum(.$cluster_size)),
-          cluster_data = map(cluster_data, group_nest, dist.pot.group, .key = "dist_group_cluster_data") %>%
-            map(mutate, iter_prop_takeup = map_dbl(dist_group_cluster_data, ~ sum(.$iter_num_takeup) / sum(.$cluster_size))) %>% 
-            map(select, -dist_group_cluster_data)
-        ) %>% 
-        inner_join(select(., iter_id, assigned_treatment, mu_assigned_treatment, iter_prop_takeup, cluster_data), 
-                   by = c("iter_id", "compare_to" = "assigned_treatment", "mu_compare_to" = "mu_assigned_treatment"), suffix = c("_left", "_right")) %>% 
-        mutate(
-          iter_takeup_te = iter_prop_takeup_left - iter_prop_takeup_right,
-          cluster_te_data = map2(cluster_data_left, cluster_data_right, inner_join, by = "dist.pot.group", suffix = c("_left", "_right")) %>% 
-            map(mutate, iter_takeup_te = iter_prop_takeup_left - iter_prop_takeup_right)
-        ) %>%
-        select(-cluster_data_left, -cluster_data_right) %>% 
-        group_by(assigned_treatment, mu_assigned_treatment, compare_to, mu_compare_to) %>% 
-        group_nest(.key = "iter_data") %>% 
-        mutate(
-          dist_group_data = map(iter_data, select, iter_id, cluster_te_data) %>% 
-            map(unnest, cluster_te_data) %>% 
-            map(nest, iter_data = c(iter_id, starts_with("iter_prop_takeup"), iter_takeup_te)) %>% 
-            map(mutate, 
-                mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te)),
-                takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = quant_probs)) %>% 
-            map(unnest, takeup_te_quantiles),
-          iter_data = map(iter_data, select, -cluster_te_data),
-          mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te)),
-          takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = quant_probs)
-        ) %>% 
-        unnest(takeup_te_quantiles)
-    )
-  )
+ate_combo <- est_takeup_level[[1]] %>% 
+  select(mu_assigned_treatment:assigned_dist_group) %>% {
+    bind_cols(rename_all(., str_c, "_left"), rename_all(., str_c, "_right")) 
+  } %>%
+  expand(crossing(!!!syms(names(.)))) %>% 
+  filter(mu_assigned_treatment_left != mu_assigned_treatment_right |
+           assigned_treatment_left != assigned_treatment_right |
+           (fct_match(assigned_dist_group_left, "far") & fct_match(assigned_dist_group_right, "close")))
 
-est_bbar_vs_takeup <- cluster_cf_benefit_cost %>% 
-  map(filter, !is.na(obs_num_takeup)) %>% 
-  map(mutate, iter_data = map2(iter_data, assigned_treatment, 
-                               ~ if (is.factor(.x$mu_assigned_treatment)) filter(.x, fct_match(mu_assigned_treatment, c("control", as.character(.y)))) else .x))
+est_takeup_te <- est_takeup_level %>% 
+  map(select, mu_assigned_treatment:assigned_dist_group, iter_data) %>%
+  map(select_if, ~ !all(is.na(.))) %>% # Get rid of the NA mu_assigned_treatment in the reduced form results 
+  map(function(level_data) {
+    present_col <- intersect(names(level_data), c("mu_assigned_treatment", "assigned_treatment", "assigned_dist_group"))
+    
+    left_data <- inner_join(select(ate_combo, str_c(rep(present_col, each = 2), c("_left", "_right"))) %>% 
+                              distinct_all(.keep_all = TRUE),
+                            level_data,
+                            by = present_col %>% set_names(str_c(.,"_left")))
+    
+    inner_join(left_data,
+               level_data,
+               by = present_col %>% set_names(str_c(., "_right")),
+               suffix = c("_left", "_right"))
+  }) %>% 
+  map_if(
+    ~ any(str_detect(names(.), "mu_assigned_treatment")),
+    ~ filter(., 
+      mu_assigned_treatment_left != mu_assigned_treatment_right |
+      assigned_treatment_left != assigned_treatment_right |
+      assigned_dist_group_left != assigned_dist_group_right),
+    .else = ~ filter(., 
+      assigned_treatment_left != assigned_treatment_right |
+      assigned_dist_group_left != assigned_dist_group_right)) %>% 
+  map(mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+        map(mutate, iter_takeup_te = iter_prop_takeup_left - iter_prop_takeup_right)) %>% 
+  map(select, -iter_data_left, -iter_data_right) %>% 
+  map(mutate, 
+      mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te)),
+      takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = quant_probs)) %>% 
+  map(unnest, takeup_te_quantiles)
 
-save(cluster_cf_benefit_cost, est_takeup_level, est_takeup_te, file = file.path("temp-data", "cluster_cf_benefit_cost.RData"))
+est_takeup_dist_te <- est_takeup_te %>% 
+  map_if(~ any(str_detect(names(.), "mu_assigned_treatment")), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+  map_if(~ any(str_detect(names(.), "mu_assigned_treatment")), select, -starts_with("mu_assigned_treatment")) %>% 
+  map(filter, assigned_treatment_left == assigned_treatment_right, fct_match(assigned_dist_group_left, "far"), fct_match(assigned_dist_group_right, "close")) %>% 
+  map(mutate, assigned_treatment_right = "control") %>% 
+  map(select, -mean_est, -starts_with("per_"), -starts_with("assigned_dist_group")) %>% 
+  map(~ inner_join(., select(., -assigned_treatment_right), by = c("assigned_treatment_right" = "assigned_treatment_left"), suffix = c("_left", "_right"))) %>% 
+  map(filter, assigned_treatment_left != assigned_treatment_right) %>% 
+  map(mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+        map(transmute, iter_id, iter_takeup_dist_te = iter_takeup_te_left - iter_takeup_te_right)) %>% 
+  map(select, -iter_data_left, -iter_data_right) %>% 
+  map(mutate, 
+      mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_dist_te)),
+      takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_dist_te, wide = TRUE, quant_probs = quant_probs)) %>% 
+  map(unnest, takeup_te_quantiles)
+
+# est_bbar_vs_takeup <- cluster_cf_benefit_cost %>% 
+#   map(filter, !is.na(obs_num_takeup)) %>% 
+#   map(mutate, iter_data = map2(iter_data, assigned_treatment, 
+#                                ~ if (is.factor(.x$mu_assigned_treatment)) filter(.x, fct_match(mu_assigned_treatment, c("control", as.character(.y)))) else .x))
+
+save(cluster_cf_benefit_cost, 
+     file = file.path("temp-data", "cluster_cf_benefit_cost.RData"))
+
+save(est_takeup_level, est_takeup_te, est_takeup_dist_te, file = file.path("temp-data", "est_takeup.RData")) 
 ```
 
-```{r}
+```{r, eval=FALSE}
 load(file.path("temp-data", "cluster_cf_benefit_cost.RData"))
 ```
 
+```{r}
+load(file.path("temp-data", "est_takeup.RData"))
+```
 
 ```{r}
 plot_pos <- position_dodgev(height = 0.75)
@@ -439,12 +506,12 @@ model_names <- c(
   "STRUCTURAL_QUADRATIC" = "Structural Quadratic Cost",
   "STRUCTURAL_SEMIPARAM" = "Structural Semiparametric Cost",
   "STRUCTURAL_QUADRATIC_SALIENCE" = "Structural Quadratic Cost\nWith Salience",
-  # "REDUCED_FORM" = "Discrete Cost",
+  "REDUCED_FORM" = "Discrete Cost",
   "OLD_REDUCED_FORM" = "Old Discrete Cost"
 )
 ```
 
-```{r, fig.width=8, fig.height=5, fig.cap="Take-up levels in response to an incentive treatment intervention."}
+```{r, fig.width=8, fig.height=5, fig.cap="Take-up levels in response to an incentive treatment intervention.", eval=FALSE}
 est_takeup_level %>%
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
@@ -470,7 +537,7 @@ est_takeup_level %>%
   NULL
 ```
 
-```{r, fig.width=8, fig.height=4.25,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
+```{r, fig.width=8, fig.height=4.25,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level.", eval=FALSE}
 est_takeup_level %>%
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
@@ -537,16 +604,12 @@ est_takeup_level[c("REDUCED_FORM", "REDUCED_FORM_NO_RESTRICT")] %>%
   NULL
 ```
 
-
 ```{r, fig.width=8,fig.height=10, fig.cap="Take-up levels in response to an incentive treatment intervention, split by assigned distance group."}
 est_takeup_level %>%
+  map(filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment) %>% 
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
   mutate(model = factor(model, levels = names(model_names))) %>% 
-  select(-starts_with("per_"), -mean_est, -iter_data) %>% 
-  unnest(dist_group_data) %>% 
-  filter(is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment) %>%
-  # bind_rows(reduced_form_results %>% mutate(model = "Reduced Form")) %>% 
   ggplot(aes(x = per_0.5, y = assigned_treatment, group = model), position = plot_pos) +
   ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
   ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
@@ -558,26 +621,24 @@ est_takeup_level %>%
   scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
     labs(
       title = "Take-up levels in response to an incentive treatment intervention,\nsplit by assigned distance group",
-      subtitle = TeX("E\\[Y_{z} | D \\in{}D^*\\]"),
+      subtitle = TeX("E\\[Y_{z} | G = g\\]"),
       x = "Take-up Probability",
       caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
                  Thick vertical line: median. Point: mean.") +
   coord_cartesian(xlim = c(0, 0.6)) +
-  facet_wrap(vars(dist.pot.group), ncol = 1, labeller = as_labeller(. %>% str_to_title() %>% str_c("D^* = ", .) %>% TeX(), default = label_parsed)) +
+  facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
   theme(legend.position = "top", legend.direction = "vertical") +
   guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
-```{r, fig.width=8,fig.height=7, fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level, and split by assigned distance group."}
+```{r, fig.width=8,fig.height=7, fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level, and split by assigned distance group.", eval=FALSE}
 est_takeup_level %>%
+  keep(~ any(!is.na(.$mu_assigned_treatment))) %>% 
+  map(filter, fct_match(assigned_treatment, "control")) %>% 
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
   mutate(model = factor(model, levels = names(model_names))) %>% 
-  filter(fct_match(assigned_treatment, "control"), !is.na(mu_assigned_treatment)) %>%
-  select(-starts_with("per_"), -mean_est, -iter_data) %>% 
-  unnest(dist_group_data) %>% 
-  filter(fct_match(assigned_treatment, "control")) %>%
   ggplot(aes(x = per_0.5, y = mu_assigned_treatment, group = model)) +
   ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
   ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
@@ -588,18 +649,18 @@ est_takeup_level %>%
   scale_y_discrete(TeX("Assigned Signaling Treatment (z')"), labels = str_to_title) +
     labs(
       title = "Take-up levels in response to a signaling intervention,\nholding the private consumption utility at the control level,\nand split by assigned distance group",
-      subtitle = TeX("E\\[Y_{z=control,\\bar{B}_{z'}} | D \\in{}D^*\\]"),
+      subtitle = TeX("E\\[Y_{z=control,\\bar{B}_{z'}} | G = g\\]"),
       x = "Take-up Probability",
       caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
                  Thick vertical line: median. Point: mean.") +
   coord_cartesian(xlim = c(0, 0.6)) +
-  facet_wrap(vars(dist.pot.group), ncol = 1, labeller = as_labeller(. %>% str_to_title() %>% str_c("D^* = ", .) %>% TeX(), default = label_parsed)) +
+  facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
   theme(legend.position = "top", legend.direction = "vertical") +
   guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
-```{r, fig.width=8, fig.height=4.5, fig.cap="Average treatment effect on take-up, compared to control."}
+```{r, fig.width=8, fig.height=4.5, fig.cap="Average treatment effect on take-up, compared to control.",eval=FALSE}
 est_takeup_te %>%
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
@@ -628,7 +689,7 @@ est_takeup_te %>%
   NULL
 ```
 
-```{r, fig.width=8, fig.height=4, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
+```{r, fig.width=8, fig.height=4, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control.", eval=FALSE}
 est_takeup_te %>%
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
@@ -706,17 +767,12 @@ est_takeup_te[c("REDUCED_FORM", "REDUCED_FORM_NO_RESTRICT")] %>%
 
 ```{r, fig.width=8,fig.height=9, fig.cap="Average treatment effect in response to an incentive treatment intervention, split by assigned distance group."}
 est_takeup_te %>%
+  map_if(~ any(str_detect(names(.), "mu_assigned_treatment")), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+  map(filter, assigned_dist_group_left == assigned_dist_group_right, assigned_treatment_right == "control") %>% 
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
   mutate(model = factor(model, levels = names(model_names))) %>% 
-  select(-starts_with("per_"), -mean_est, -iter_data) %>% 
-  unnest(dist_group_data) %>% 
-  filter(
-    is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment,
-    (!is.na(mu_compare_to) & (assigned_treatment != compare_to |  assigned_treatment != mu_compare_to)) |
-       (is.na(mu_compare_to) & assigned_treatment != compare_to)  
-  ) %>%
-  ggplot(aes(x = per_0.5, y = assigned_treatment, group = model)) +
+  ggplot(aes(x = per_0.5, y = assigned_treatment_left, group = model)) +
   ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
   ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
   ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, position = plot_pos) +
@@ -727,11 +783,63 @@ est_takeup_te %>%
   scale_color_manual("Model", values = model_colors, labels = model_names) +
     labs(
       title = "Average treatment effect in response to an incentive treatment intervention,\nsplit by assigned distance group", 
-      subtitle = TeX("E\\[Y_{z} | D \\in{}D^*\\] - E\\[Y_{control} | D \\in{}D^*\\]"),
+      subtitle = TeX("E\\[Y_{z} | G = g \\] - E\\[Y_{control} | G = g\\]"),
       x = "Average Treatment Effect",
       caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
                  Thick vertical line: median. Point: mean.") +
-  facet_wrap(vars(dist.pot.group), ncol = 1, labeller = as_labeller(. %>% str_to_title() %>% str_c("D^* = ", .) %>% TeX(), default = label_parsed)) +
+  facet_wrap(vars(assigned_dist_group_left), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
+  theme(legend.position = "top", legend.direction = "vertical") +
+  guides(color = guide_legend(ncol = 3)) +
+  NULL
+```
+
+```{r, fig.width=8,fig.height=9, fig.cap="Average treatment effect in response to a change is assigned distance to treatment, split by assigned incentive treatment."}
+est_takeup_te %>%
+  map_if(~ any(str_detect(names(.), "mu_assigned_treatment")), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+  map(filter, assigned_treatment_left == assigned_treatment_right, fct_match(assigned_dist_group_left, "far"), fct_match(assigned_dist_group_right, "close")) %>% 
+  magrittr::extract(names(model_names)) %>% 
+  bind_rows(.id = "model") %>% 
+  mutate(model = factor(model, levels = names(model_names))) %>% 
+  ggplot(aes(x = per_0.5, y = assigned_treatment_left, group = model)) +
+  ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
+  ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
+  ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, position = plot_pos) +
+  geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos) +
+  geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  scale_color_manual("Model", values = model_colors, labels = model_names) +
+    labs(
+      title = "Average treatment effect in response to an incentive treatment intervention,\nsplit by assigned distance group", 
+      subtitle = TeX("E\\[Y_{z} | G = far\\] - E\\[Y_{z} | G = close\\]"),
+      x = "Average Treatment Effect",
+      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean.") +
+  theme(legend.position = "top", legend.direction = "vertical") +
+  guides(color = guide_legend(ncol = 3)) +
+  NULL
+```
+
+```{r, fig.width=9,fig.height=9, fig.cap="Average difference in the average treatment effect in response to a change in assigned distance to treatment, compared against the control average treatment effect."}
+est_takeup_dist_te %>%
+  magrittr::extract(names(model_names)) %>% 
+  bind_rows(.id = "model") %>% 
+  mutate(model = factor(model, levels = names(model_names))) %>% 
+  ggplot(aes(x = per_0.5, y = assigned_treatment_left, group = model)) +
+  ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
+  ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
+  ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, position = plot_pos) +
+  geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos) +
+  geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  scale_color_manual("Model", values = model_colors, labels = model_names) +
+    labs(
+      title = "Average difference in the average treatment effect in response to a change in\nassigned distance to treatment, compared against the control average treatment effect",
+      subtitle = TeX("(E\\[Y_{z} | G = far \\] - E\\[Y_{z} | G = close\\]) - (E\\[Y_{control} | G = far\\] - E\\[Y_{control} | G = close\\])"),
+      x = "Average Treatment Effect",
+      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean.") +
   theme(legend.position = "top", legend.direction = "vertical") +
   guides(color = guide_legend(ncol = 3)) +
   NULL
@@ -739,17 +847,18 @@ est_takeup_te %>%
 
 ```{r, fig.width=8, fig.height=7, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control, and split by assigned distance group."}
 est_takeup_te %>% 
+  keep(~ any(str_detect(names(.), "mu_assigned_treatment"))) %>% 
+  map(
+    filter, 
+    mu_assigned_treatment_left != mu_assigned_treatment_right, 
+    fct_match(mu_assigned_treatment_right, "control"),
+    assigned_dist_group_left == assigned_dist_group_right, 
+    assigned_treatment_left == assigned_treatment_right,  assigned_treatment_right == "control"
+  ) %>% 
   magrittr::extract(names(model_names)) %>% 
   bind_rows(.id = "model") %>% 
   mutate(model = factor(model, levels = names(model_names))) %>% 
-  select(-starts_with("per_"), -mean_est, -iter_data) %>% 
-  unnest(dist_group_data) %>% 
-  filter(
-    fct_match(assigned_treatment, "control"),
-    !is.na(mu_assigned_treatment),
-    assigned_treatment != mu_assigned_treatment,
-  ) %>%
-  ggplot(aes(x = per_0.5, y = mu_assigned_treatment, group = model)) +
+  ggplot(aes(x = per_0.5, y = mu_assigned_treatment_left, group = model)) +
   ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
   ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
   ggstance::geom_pointrangeh(aes(x = mean_est, xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, position = plot_pos) +
@@ -759,11 +868,11 @@ est_takeup_te %>%
   scale_y_discrete("Assigned Signaling Treatment (z')", labels = str_to_title) +
     labs(
       title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control, and split by assigned distance group",
-      subtitle = TeX("E\\[Y_{z=control,\\bar{B}_{z'}} | D \\in{}D^*\\] - E\\[Y_{control} | D \\in{}D^*\\]"),
+      subtitle = TeX("E\\[Y_{z=control,\\bar{B}_{z'}} | G = g\\] - E\\[Y_{z=control} | G = g\\]"),
       x = "Average Treatment Effect",
       caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
                  Thick vertical line: median. Point: mean.") +
-  facet_wrap(vars(dist.pot.group), ncol = 1, labeller = as_labeller(. %>% str_to_title() %>% str_c("D^* = ", .) %>% TeX(), default = label_parsed)) +
+  facet_wrap(vars(assigned_dist_group_left), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
   theme(legend.position = "top", legend.direction = "vertical") +
   guides(color = guide_legend(ncol = 3)) +
   NULL
@@ -778,6 +887,25 @@ est_bbar_vs_takeup %>%
   scale_color_viridis_c() + 
   facet_grid(row = vars(mu_assigned_treatment), cols = vars(assigned_treatment)) +
   NULL
+```
+
+```{r, eval=FALSE}
+cluster_cf_benefit_cost$REDUCED_FORM_NO_RESTRICT %>% 
+  group_nest(assigned_treatment, assigned_dist_group, .key = "treatment_data") %>% 
+  mutate(treatment_data = map(treatment_data, unnest, iter_data) %>% 
+           map(group_by, iter_id) %>% 
+           map(summarize, iter_prop_takeup = sum(iter_num_takeup) / sum(cluster_size)) %>% 
+           map(ungroup)) %>% 
+  mutate(compare_assigned_treatment = assigned_treatment) %>% 
+  left_join(., ., by = c("compare_assigned_treatment" = "assigned_treatment"), suffix = c("_left", "_right")) %>% 
+  filter(assigned_dist_group_left != assigned_dist_group_right) %>% 
+  mutate(
+    te_data = map2(treatment_data_left, treatment_data_right, inner_join, .x, .y, by = c("iter_id"), suffix = c("_left", "_right")) %>% 
+      map(mutate, iter_te = iter_prop_takeup_left - iter_prop_takeup_right),
+    te_quantiles = map(te_data, quantilize_est, iter_te, quant_probs = quant_probs)
+  ) %>% 
+  select(-starts_with("treatment_data")) %>% 
+  filter(assigned_dist_group == "far")
 ```
 
 ## Model Parameters
@@ -946,169 +1074,6 @@ structural_param %>%
   NULL
 ```
 
-<!-- ## Simulation Results -->
-
-```{r, eval=FALSE}
-sim_benefit_cost <- map(dist_fit, extract_sim_level, par = "sim_benefit_cost", stan_data = stan_data, quant_probs = quant_probs) 
-  
-cf_prob_z_b_zd <- sim_benefit_cost %>%
-  map(select, assigned_treatment, cf_iter_data = iter_data, starts_with("assigned_dist")) %>% 
-  map(filter, assigned_treatment %in% c("control", "bracelet")) %>% 
-  lst(benefit_cost = ., mu_rep, total_error_sd) %>% 
-  pmap(function(benefit_cost, mu_rep, total_error_sd) {
-         mutate(benefit_cost, 
-                cf_iter_data = pbmclapply(mc.cores = 12,
-                                          cf_iter_data, 
-                                          left_join, 
-                                          unnest(mu_rep, iter_data) %>% 
-                                            filter(assigned_treatment %in% c("control", "bracelet")) %>% 
-                                            select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
-                                            inner_join(total_error_sd, by = "iter_id", suffix = c("_mu", "_error_sd")),
-                                          by = "iter_id"))
-       }) %>% 
-  # map_at(
-  #   "STRUCTURAL_SALIENCE",
-  map(
-    mutate,
-    cf_iter_data = pbmclapply(mc.cores = 12,
-                              cf_iter_data, 
-                              mutate,
-                              no_rep_prob = pnorm(iter_est, sd = iter_est_error_sd),
-                              v_cutoff = map2_dbl(iter_est, iter_est_mu, ~ nleqslv(x = - ..1, fn = generate_v_cutoff_fixedpoint(..1, ..2)) %>% pluck("x")),
-                              delta_rep = rep_normal(v_cutoff), 
-                              prob = pnorm(- v_cutoff, sd = iter_est_error_sd))) %>% 
-  map(
-  # map_at(
-  #   "STRUCTURAL_SALIENCE",
-    mutate,
-    cf_iter_data = pbmclapply(mc.cores = 12, cf_iter_data, group_nest, mu_assigned_treatment, .key = "cf_iter_data")) %>% 
-  # map_at(
-  #   "STRUCTURAL_SALIENCE", 
-  map(
-    unnest, cf_iter_data) %>% 
-  # map_at(
-  #   "STRUCTURAL_SALIENCE",
-  map(
-    mutate,
-    cf_quantiles = pbmclapply(mc.cores = 12, cf_iter_data, quantilize_est, prob, quant_probs),
-    cf_no_rep_quantiles = pbmclapply(mc.cores = 12, cf_iter_data, quantilize_est, no_rep_prob, quant_probs),
-    cf_mean = map_dbl(cf_iter_data, ~ mean(.$prob)),
-    cf_no_rep_mean = map_dbl(cf_iter_data, ~ mean(.$no_rep_prob)),
-    cf_delta_rep_mean = map_dbl(cf_iter_data, ~ mean(.$delta_rep)))
-
-save(cf_prob_z_b_zd, file = file.path("stan_analysis_data", "cf.RData"))
-```
-
-```{r, fig.width=10, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  mutate(cf_no_rep_mean = map_dbl(cf_iter_data, ~ mean(.$no_rep_prob))) %>% 
-  mutate_at(vars(cf_quantiles), 
-            ~ map(., mutate, per = str_c("per_", per)) %>% 
-              map(spread, per, est)) %>% 
-  ggplot(aes(assigned_dist, cf_mean)) +
-  geom_line(aes(group = mu_assigned_treatment, color = mu_assigned_treatment, linetype = "with rep")) +
-  geom_line(aes(y = cf_no_rep_mean, group = mu_assigned_treatment, color = mu_assigned_treatment, linetype = "no rep")) +
-  # geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = mu_assigned_treatment), alpha = 0.25,
-  #                 data = . %>% unnest(cf_quantiles)) +
-  facet_wrap(vars(assigned_treatment))
-```
-
-```{r, fig.width=10, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  mutate_at(vars(cf_quantiles), 
-            ~ map(., mutate, per = str_c("per_", per)) %>% 
-              map(spread, per, est)) %>% 
-  ggplot(aes(assigned_dist, cf_mean)) +
-  geom_line(aes(group = mu_assigned_treatment, color = mu_assigned_treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = mu_assigned_treatment), alpha = 0.25,
-                  data = . %>% unnest(cf_quantiles)) 
-```
-
-```{r, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  mutate(cf_iter_data = map(cf_iter_data, sample_frac, 0.1)) %>% 
-  unnest(cf_iter_data) %>% 
-  ggplot(aes(v_cutoff, delta_rep)) +
-  geom_point(aes(color = assigned_dist), position = "jitter", alpha = 0.05) +
-  scale_color_viridis_c() +
-  facet_wrap(vars(assigned_treatment)) +
-  NULL
-```
-
-```{r, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  mutate(cf_iter_data = map(cf_iter_data, sample_frac, 0.1)) %>% 
-  unnest(cf_iter_data) %>% 
-  ggplot(aes(v_cutoff, iter_est_mu * delta_rep)) +
-  geom_point(aes(color = assigned_dist), alpha = 0.05) +
-  scale_color_viridis_c() +
-  facet_wrap(vars(assigned_treatment)) +
-  NULL
-```
-
-```{r, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  mutate(cf_iter_data = map(cf_iter_data, sample_frac, 0.1)) %>% 
-  unnest(cf_iter_data) %>% 
-  ggplot(aes(v_cutoff, iter_est_mu * delta_rep)) +
-  geom_point(aes(color = iter_est_mu), alpha = 0.05) +
-  geom_rug(aes(v_cutoff), inherit.aes = FALSE,
-           alpha = 0.05,
-           sides = "b") +
-  scale_color_viridis_c() +
-  labs(x = TeX("$v^*(z,b)$"), y = TeX("$R(z,b) = \\mu_z\\Delta(v^*(z,b))$")) +
-  facet_wrap(vars(assigned_treatment)) +
-  NULL
-```
-
-```{r, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  mutate(cf_iter_data = map(cf_iter_data, sample_frac, 0.1)) %>% 
-  unnest(cf_iter_data) %>% 
-  ggplot(aes(v_cutoff, iter_est)) +
-  geom_point(aes(color = assigned_dist), alpha = 0.1) +
-  scale_color_viridis_c() +
-  facet_wrap(vars(assigned_treatment)) +
-  NULL
-```
-
-```{r, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  mutate(cf_iter_data = map(cf_iter_data, sample_frac, 0.1)) %>% 
-  unnest(cf_iter_data) %>% 
-  ggplot(aes(assigned_dist, v_cutoff)) +
-  geom_point(aes(color = assigned_dist), alpha = 0.1) +
-  scale_color_viridis_c() +
-  facet_wrap(vars(assigned_treatment)) +
-  NULL
-```
-
-```{r, eval=FALSE}
-cf_prob_z_b_zd$STRUCTURAL_SALIENCE %>% 
-  select(assigned_treatment, mu_assigned_treatment, cf_iter_data, starts_with("assigned_dist")) %>% 
-  filter(assigned_treatment == mu_assigned_treatment) %>% 
-  pivot_wider(names_from = c(assigned_treatment, mu_assigned_treatment), values_from = cf_iter_data) %>% 
-  mutate(cf_diff = map2(bracelet_bracelet, control_control, inner_join, by = "iter_id", suffix = c("_bracelet", "_control")) %>% 
-           map(transmute, iter_id, diff_prob = prob_bracelet - prob_control),
-         mean_diff = map_dbl(cf_diff, ~ mean(.$diff_prob)),
-         diff_quantiles = map(cf_diff, quantilize_est, diff_prob, quant_probs) %>% 
-            map(mutate, per = str_c("per_", per)) %>% 
-            map(pivot_wider, names_from = per, values_from = est)) %>% 
-  select(-bracelet_bracelet, -control_control) %>% 
-  ggplot(aes(assigned_dist, mean_diff)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25, data = . %>% unnest(diff_quantiles)) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25, data = . %>% unnest(diff_quantiles)) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25, data = . %>% unnest(diff_quantiles)) +
-  geom_hline(yintercept = 0, linetype = "dotted")
-```
-
 # Model Checking
 
 ## Cross Validation
@@ -1161,8 +1126,68 @@ dist_kfold %>%
   stacking_weights()
 ```
 
+## Posterior Prediction Checks
 
-```{r}
+```{r, eval=FALSE}
+rep_benefit_cost <- dist_fit %>% 
+  map(extract_rep_level, "cluster_rep_benefit_cost", stan_data = stan_data) %>% 
+  map(arrange, assigned_dist) %>% 
+  map(mutate,
+      cluster_id = factor(cluster_id, levels = cluster_id),
+      obs_prop = obs_num_takeup / cluster_size) %>% 
+  map(nest, iter_data = c(assigned_treatment, iter_data)) %>% 
+  map(mutate, iter_data = map(iter_data, unnest, iter_data)) %>% 
+  lst(benefit_cost = ., mu_rep, total_error_sd) %>%
+  pmap(function(benefit_cost, mu_rep, total_error_sd) {
+    if (!is_null(mu_rep)) {
+      mutate(benefit_cost, 
+             iter_data = pbmclapply(mc.cores = 12,
+                                    iter_data, 
+                                    left_join, 
+                                    unnest(mu_rep, iter_data) %>% 
+                                      select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
+                                      inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "_error_sd")),
+                                    by = c("iter_id", "assigned_treatment" = "mu_assigned_treatment")))
+    } else {
+      mutate(benefit_cost, 
+             iter_data = pbmclapply(mc.cores = 12,
+                                    iter_data, 
+                                    inner_join, 
+                                    total_error_sd, 
+                                    by = c("iter_id"), 
+                                    suffix = c("", "_error_sd")) %>% 
+               map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
+    } 
+  }) %>% 
+  map(
+    mutate,
+    iter_data = pbmclapply(mc.cores = 12,
+                           iter_data,
+                           function(curr_iter_data) {
+                             mutate(
+                               curr_iter_data,
+                               no_rep_prob = pnorm(iter_est, sd = iter_est_error_sd),
+                               v_cutoff = map2_dbl(iter_est, iter_est_mu, ~ nleqslv(x = - ..1, fn = generate_v_cutoff_fixedpoint(..1, ..2)) %>% pluck("x")),
+                               delta_rep = rep_normal(v_cutoff), 
+                               prob = pnorm(- v_cutoff, sd = iter_est_error_sd)
+                             ) %>% 
+                               group_nest(assigned_treatment, .key = "iter_data")
+                           }) 
+  ) %>% 
+  map(unnest, iter_data)
+```
+
+```{r, fig.height=16, eval=FALSE}
+rep_benefit_cost %>% 
+# rep_benefit_cost["STRUCTURAL_QUADRATIC"] %>% 
+  bind_rows(.id = "model") %>% 
+  ggplot(aes(y = cluster_id)) +
+  geom_point(aes(x = obs_prop), color = "darkred") +
+  geom_density_ridges(aes(prob, fill = model), quantile_lines = TRUE, quantiles = c(0.05, 0.95), alpha = 0.5,
+                      data = . %>% unnest(iter_data)) +
+  labs(x = "Takeup Prop", y = "") +
+  facet_wrap(vars(assigned_treatment), scales = "free") + 
+  theme(axis.text.y = element_blank())
 ```
 
 <!-- # Diagnostics -->
