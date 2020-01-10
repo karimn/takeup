@@ -93,7 +93,7 @@ extract_rep_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
     as_tibble()
 }
 
-extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster"), quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed) {
+extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster"), quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
   
   iter_level <- rlang::arg_match(iter_level)
@@ -108,9 +108,9 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
     as.array(par = par) %>% {
       if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
     } %>% 
-    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (thin > 1) ess_bulk(cell), 
-                                                                            ess_tail = if (thin > 1) ess_tail(cell),
-                                                                            rhat = if (thin > 1) Rhat(cell),)) %>% 
+    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (thin > 1 || always_diagnose) ess_bulk(cell), 
+                                                                            ess_tail = if (thin > 1 || always_diagnose) ess_tail(cell),
+                                                                            rhat = if (thin > 1 || always_diagnose) Rhat(cell),)) %>% 
     tidyr::extract(parameters, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
     mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
            cluster_id = switch(iter_level,
@@ -139,25 +139,41 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
   obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
   
   fit_data <- tryCatch(
-    as.data.frame(fit, par = par) %>%
-      mutate(iter_id = seq_len(n())) %>% 
-      gather(indices, iter_est, -iter_id),
+    fit %>% 
+      as.array(par = par) %>% 
+      #   if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
+      # } %>% 
+      plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
+                                                                              ess_tail = ess_tail(cell),
+                                                                              rhat = Rhat(cell),)) %>%  
+      mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.))))) %>% 
+      as_tibble(),
     error = function(err) NULL)
+  
+  # fit_data <- tryCatch(
+  #   as.data.frame(fit, par = par) %>%
+  #     mutate(iter_id = seq_len(n())) %>%
+  #     gather(indices, iter_est, -iter_id),
+  #   error = function(err) NULL)
    
   if (is_null(fit_data)) return(NULL) 
   
   if (iter_level == "none") {
     fit_data %>% 
-      select(-indices)
+      select(-parameters) 
   } else {
     fit_data %>% 
-      tidyr::extract(indices, 
+      tidyr::extract(parameters, 
                      if (mix) c("mix_index", obs_index_col) else obs_index_col, 
                      if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
                      convert = TRUE) %>% 
-      group_by_at(vars(obs_index_col, one_of("mix_index"))) %>% 
-      group_nest(.key = "iter_data") %>% 
-      ungroup() %>% 
+      # tidyr::extract(indices, 
+      #                if (mix) c("mix_index", obs_index_col) else obs_index_col, 
+      #                if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
+      #                convert = TRUE) %>% 
+      # group_by_at(vars(obs_index_col, one_of("mix_index"))) %>% 
+      # group_nest(.key = "iter_data") %>% 
+      # ungroup() %>% 
       mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
              quantiles_est = map(iter_data, quantilize_est, 
                                  iter_est,
@@ -200,6 +216,7 @@ generate_initializer <- function(num_treatments,
                                  structural_type = 0,
                                  num_mix = 1,
                                  use_cluster_effects = use_cluster_effects,
+                                 use_county_effects = use_cluster_effects,
                                  use_param_dist_cluster_effects = use_cluster_effects,
                                  use_mu_cluster_effects = use_cluster_effects,
                                  use_mu_county_effects = FALSE,
@@ -219,11 +236,13 @@ generate_initializer <- function(num_treatments,
         
         salience <- cost_model_type %in% cost_model_types[c("param_linear_salience", "param_quadratic_salience", "semiparam_salience")] 
         param_kappa <- cost_model_type == cost_model_types["param_kappa"]
-        linear <- !param_kappa
+        discrete_cost <- cost_model_type == cost_model_types["discrete"]
+        linear <- !param_kappa && !discrete_cost
         quadratic <- cost_model_type %in% cost_model_types[c("param_quadratic", "param_quadratic_salience")] 
         semiparam <- cost_model_type %in% cost_model_types[c("semiparam", "semiparam_salience")] 
         
         num_discrete_dist <- if (cost_model_type %in% cost_model_types["discrete"]) 2 else 1
+        num_incentive_treatments <- num_treatments
         num_treatments <- if (cost_model_type %in% cost_model_types["discrete"]) num_treatments * num_discrete_dist else num_treatments
         
         init <- lst(
@@ -241,7 +260,7 @@ generate_initializer <- function(num_treatments,
           dist_cost_k_raw = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           dist_cost_k = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           dist_beta_v = if (!linear) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else rnorm(num_treatments, 0, 0.1), 
-          dist_quadratic_beta_v = if (!quadratic) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else rnorm(num_treatments, 0, 0.1), 
+          dist_quadratic_beta_v = if (!quadratic) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else abs(rnorm(num_treatments, 0, 0.1)), 
           u_splines_v_raw = if (!semiparam) {
             array(dim = c(0, num_knots)) 
           } else {
@@ -249,14 +268,24 @@ generate_initializer <- function(num_treatments,
             array(rnorm(num_semiparam_treatments * num_knots, 0, 0.1), dim = c(num_semiparam_treatments, num_knots))
           },
           u_splines_v = u_splines_v_raw,
+          
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
           structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          
+          structural_beta_county = if (use_county_effects) matrix(rnorm(num_counties * num_treatments, 0, 0.1), nrow = num_counties, ncol = num_treatments) else array(dim = 0),
+          structural_beta_county_raw = if (use_county_effects) matrix(rnorm(num_counties * num_treatments, 0, 0.1), nrow = num_counties, ncol = num_treatments) else array(dim = c(0, num_treatments)),
+          structural_beta_county_sd = if (use_county_effects) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          
           beta_nm_effect_cluster = if (use_cluster_effects && name_matched) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
           beta_nm_effect_cluster_raw = if (use_cluster_effects && name_matched) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
           beta_nm_effect_cluster_sd = if (use_cluster_effects && name_matched) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          
           structural_cluster_takeup_prob = matrix(rbeta(num_clusters * num_mix, 10, 10), nrow = num_mix),
-          dist_beta_cluster_raw = if (!use_param_dist_cluster_effects) { 
+          
+          dist_beta_cluster_raw = if (discrete_cost) {
+            array(0, dim = c(0, 0))
+          } else if (!use_param_dist_cluster_effects) { 
             if (salience || use_single_cost_model) array(dim = c(0, 1)) else array(dim = c(0, num_treatments)) 
           } else {
             if (salience || use_single_cost_model) matrix(rnorm(num_clusters, 0, 0.1), nrow = num_clusters, ncol = 1)
@@ -265,9 +294,9 @@ generate_initializer <- function(num_treatments,
           dist_beta_cluster_sd = if (!use_param_dist_cluster_effects) array(dim = 0) 
             else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1)))
             else abs(rnorm(num_treatments, 0, 0.1)),
-          mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_treatments)),
+          mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_incentive_treatments)),
           mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
-          mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_treatments)),
+          mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_incentive_treatments)),
           mu_county_effects_sd = if (use_mu_county_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
           cluster_mu_rep = if (use_mu_cluster_effects && !suppress_reputation) matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE) else array(0, num_treatments),
           lambda_v_mix = rep(1 / num_mix, num_mix),
@@ -317,7 +346,7 @@ stan_list <- function(models_info, stan_data) {
         refresh = 100,
         pars = c("total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
                  "beta", "dist_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
-                 "cluster_rep_benefit_cost",
+                 "cluster_rep_benefit_cost", "sim_benefit_cost",
                  "group_dist_mean", "group_dist_sd", "group_dist_mix",
                  "dist_beta_county_raw", "dist_beta_county_sd"),
         init = curr_model$init %||% "random",
