@@ -20,3 +20,4 @@ stanfit/*.csv
 stan_analysis_data/*.RData
 packrat/lib*/
 
+temp-data/
