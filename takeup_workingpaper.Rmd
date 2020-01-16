@@ -2,29 +2,19 @@
 title: |
     | Social Signaling and Prosocial Behavior
     | Experimental Evidence in Community Deworming in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; Supreet Kaur, Dmitry Taubinsky, Seema Jayachandran, Nancy Qian and seminar participants at Berkeley, Northwestern Rookiefest, Oxford CSAE Conference 2018 and PacDev 2018 for helpful discussions and feedback; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
-date: "December 2018"
+date: "January 2020"
 subtitle: "Please find the latest version of the paper [here](https://drive.google.com/file/d/164wP0_dqOFfKvUenHVixlY3Js7oFPFhg/view)"
 author:
-- Anne Karing^[University of California Berkeley, `akaring@econ.berkeley.edu`.]
-- Karim Naguib^[Evidence Action, `karim.naguib@evidenceaction.org`.]
+- Anne Karing^[Princeton University, `akaring@princeton.edu`.]
+- Karim Naguib^[`karim.a.naguib@gmail.com`.]
 output: 
   pdf_document:
     number_sections: yes
     fig_caption: yes
     keep_tex: yes
     pandoc_args: "../commonrmd.yaml"
-header-includes:
-   - \usepackage{mathtools}
-   - \usepackage{pxfonts}
-   - \usepackage{bbm}
-   - \usepackage{setspace}
-   - \usepackage{booktabs}
-   - \usepackage[table,dvipsnames]{xcolor}
-   - \usepackage{pdflscape}
-   - \usepackage{threeparttable}
-   - \usepackage{todonotes}
-   - \usepackage{tikz}
-   - \usepackage[nomarkers]{endfloat}
+    includes:
+      in_header: takeup_workingpaper_header.sty
 abstract: "Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. To separate social signaling preferences from reminder and learning effects, we offer free text messages to a random subset of adults. Further, we exogenously vary the travel distance to treatment locations. We find that (1) bracelets as signals increase deworming take-up by 24 percent, outperforming a material incentive; (2) the effects are not due to pure reminder or learning effects; (3) there is no detectable effect for the ink signal, which we attribute to its lower visibility; (4) adults are highly sensitive to distance and both signaling treatments have a larger impact on take-up at far distances. The latter finding is consistent with the theoretical prediction that signaling returns increase as signals become more informative. Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision."
 nocite: |
   @R
@@ -32,59 +22,10 @@ urlcolor: blue
 bibliography: /home/karim/Documents/library.bib
 ---
 
+<!-- Old Abstract -->
+<!-- abstract: "Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. To separate social signaling preferences from reminder and learning effects, we offer free text messages to a random subset of adults. Further, we exogenously vary the travel distance to treatment locations. We find that (1) bracelets as signals increase deworming take-up by 24 percent, outperforming a material incentive; (2) the effects are not due to pure reminder or learning effects; (3) there is no detectable effect for the ink signal, which we attribute to its lower visibility; (4) adults are highly sensitive to distance and both signaling treatments have a larger impact on take-up at far distances. The latter finding is consistent with the theoretical prediction that signaling returns increase as signals become more informative. Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision." -->
+
 \newpage
-
-\onehalfspacing
-\newtheorem{assumption}{Assumption}
-
-\usetikzlibrary{arrows,positioning,shapes.geometric,fit}
-
-\tikzset{
-  >=stealth',
-  county/.style={
-    ellipse,
-    draw=black, very thick,
-    fill=white,
-    text width=8.5em,
-    minimum height=2em,
-    text centered},
-  punkt/.style={
-    rectangle,
-    rounded corners,
-    draw=black, very thick,
-    fill=white,
-    text width=8.5em,
-    minimum height=2em,
-    text centered},
-  expgroup/.style 2 args={
-    rectangle,
-    rounded corners, 
-    draw=black!50, dashed,
-    fill=black!10,
-    fit=(#1) (#2)},
-  pil/.style={
-    <-,
-    thick,
-    shorten <=2pt,
-    shorten >=2pt},
-  greypil/.style={
-    <-,
-    draw=black, dotted,
-    shorten <=2pt,
-    shorten >=2pt},
-  triangle/.style={
-    regular polygon,
-    draw=black, very thick,
-    fill=white,
-    regular polygon sides=3
-  },
-  popcircle/.style={
-    circle,
-    fill=white,
-    draw=black, very thick
-  }
-}
-
 
 ```{r workingpaper-setup, include=FALSE}
 library(plyr)
@@ -109,6 +50,8 @@ source("takeup_rct_assign_clusters.R")
 source("analysis_util.R")
 
 knitr::read_chunk("analysis_util.R", labels = "analysis-util")
+
+knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage[table,dvipsnames]{xcolor}', x, fixed = TRUE)})
 
 read_chunk(purl("takeup_analysis2.Rmd")) 
 
@@ -154,19 +97,33 @@ load(file.path("data", "analysis.RData"))
 Externalities play an important role in many health behaviors. Prominent examples are deworming, smoking, open defecation and vaccination. Individuals frequently undervalue the social costs and benefits of their actions and under-invest in public goods like deworming. There is an extensive theoretical literature on the role of social signaling and image concerns [@Bernheim1994; @Benabou2006;@Benabou2012a]. Recent field experiments show that social image concerns affect important behaviors, such as consumption, the decision to vote, and student effort [@Dellavigna2017; @Bursztyn2017a; @Bursztyn2015]. However, empirical evidence from field settings in low-income countries is scarce. Developing countries are a particularly important context, since formal enforcement mechanisms are often missing to produce efficient contributions to public goods and signaling incentives could be an inexpensive substitute.^[For example, the United States and Germany have laws that require children to be immunized in order to attend daycare. There is an extensive literature showing the effectiveness of material and financial incentives in encouraging positive health behaviors [@Thornton2008; @Banerjee2010;@Sato2015] However, governments often raise concerns about the scalability and financial sustainability of these incentives.] We chose community deworming, as an empirical setting, to manipulate social signaling concerns. Deworming is a public good for which most of its benefits accrue through reduced disease transmission [@Miguel2004]. Worm infections in adults present a large disease burden as they lead to continuous reinfections among children [@Anderson2013;@Anderson2014;@Truscott2014;@Njenga2011]. In this paper, we ask two questions: Can social signals increase adults' willingness to take up deworming treatment? To what extent do differences in peer take-up affect the reputational returns of signals? 
 
 <!-- Experimental design and identification -->
-We answer these questions by implementing a large-scale field experiment that is closely tied to Bénabou and Tirole's theory of social signaling [-@Benabou2006;-@Benabou2012a]. In collaboration with the Kenyan Government, we launch a new community deworming program where health volunteers offer free deworming treatment to over 200,000 adults at central locations (instead of through a traditional door-to-door campaign) over a period of 12 days. We inform adults, prior to the program, about the health benefits of deworming with an explicit emphasis on the public good aspect of treatment. Our main experimental manipulations are (i) to increase the observability of deworming decisions and (ii) to vary the distance that adults have to travel to receive treatment. Specifically, we introduce two social signals in the form of a colorful bracelet and ink applied to adults' thumbs, both of which are given to adults upon coming for deworming treatment. As a third treatment, we introduce a private material incentive in the form of a one-page wall calendar that allows us to hold constant the consumption value of the bracelet. We randomize 144 treatment locations and their surrounding communities into the ink, bracelet and calendar treatments or a control group where no incentive is given. The cluster randomization identifies the combined effect of social signaling, salience and social learning effects. To separately identify the extent to which deworming decisions are driven by a desire to signal, we offer free text messages to a small random subset of adults in each of the study communities. The text messages (a) remind individuals of the availability of deworming and (b) provide information about the share of adults that have come for deworming in their community. Lastly, to exogenously vary the cost of deworming, we randomly assign communities to close (less than 1.25 kilometers) or far (between 1.25 and 2.5 kilometers) walking distances to treatment locations. The distance randomization allows us to exogenously shift the level of deworming take-up at community level. 
+We answer these questions by implementing a large-scale field experiment that is closely tied to Bénabou and Tirole's theory of social signaling [-@Benabou2006;-@Benabou2012a]. In collaboration with the Kenyan Government, we launch a new community deworming program where health volunteers offer free deworming treatment to over 200,000 adults at central locations (instead of through a traditional door-to-door campaign) over a period of 12 days. We inform adults, prior to the program, about the health benefits of deworming with an explicit emphasis on the public good aspect of treatment. Our main experimental manipulations are (i) to increase the observability of deworming decisions and (ii) to vary the distance that adults have to travel to receive treatment. 
+
+Specifically, we introduce two social signals in the form of a colorful bracelet and ink applied to adults' thumbs, both of which are given to adults upon coming for deworming treatment. As a third treatment, we introduce a private material incentive in the form of a one-page wall calendar that allows us to hold constant the consumption value of the bracelet. We randomize 144 treatment locations and their surrounding communities into the ink, bracelet and calendar treatments or a control group where no incentive is given. 
+
+In addition, we randomly assign the distance communities must cover in order to reach their closest treatment location allowing us to exogenous vary the cost of deworming. Communities are assigned to be either _close_ (less than 1.25 kilometers) or _far_ (between 1.25 and 2.5 kilometers) in terms of distance to deworming treatment. This cost manipulation is critical to our approach in learning about how signaling responds to changes in cost; reputational returns change as an action is perceived as more or less difficult to do.
+
+Our second goal is to estimate the treatment effect of social signaling. The experiment identifies the combined effect of social signaling, salience and social learning effects. To separately identify the extent to which deworming decisions are driven by a desire to signal, we use two approaches. First, we use the calendar treatment arm to eliminate the private consumption value from the bracelets' effect. Second, we use a structural model reflecting the theoretical model's data generating process, permitting us to estimate counterfactuals not possible to observe in the experiment, namely holding constant private consumption utility while manipulating the ability to signal. 
+
+<!-- Talk about SMS if the model is added back -->
+<!-- The cluster randomization identifies the combined effect of social signaling, salience and social learning effects. To separately identify the extent to which deworming decisions are driven by a desire to signal, we offer free text messages to a small random subset of adults in each of the study communities. The text messages (a) remind individuals of the availability of deworming and (b) provide information about the share of adults that have come for deworming in their community. Lastly, to exogenously vary the cost of deworming, we randomly assign communities to close (less than 1.25 kilometers) or far (between 1.25 and 2.5 kilometers) walking distances to treatment locations. The distance randomization allows us to exogenously shift the level of deworming take-up at community level.  -->
 
 <!-- Summary of results / Data collected -->
-We monitor deworming decision of 38,000 adults at the points of treatment, avoiding to rely on self-reported data on take-up. In addition, we collect detailed survey data on adults' knowledge about deworming, social norm concerns, and first- and second-order beliefs to speak to the mechanisms underlying social signaling. We show that bracelets as signals increased the visibility of deworming decisions, compared to the ink and calendar treatments, and reduced perceived information asymmetries. Adults were significantly more likely to think that others had knowledge about their own deworming decision. The survey data further reveals that adults have a limited understanding of the externalities from deworming, and think of it as "the right thing to do" for a person that looks after their own health. 
-We then build a static and dynamic hierarchical Bayesian model to impute the counterfactuals necessary to estimate the partial effect of social signaling on deworming take-up decisions. Our Bayesian analysis allowed for the flexible construction of statistical models accounting for the complexity of the experiment in terms of the population studied and experimental treatment.[^why-bayes] This allowed us to manage the large number of treatment comparisons, using regularization, while allowing us to efficiently learn from the data using partial pooling [@Imbens2015;@Gelman2013a;@Carpenter2017].^[Reduced form OLS regression analysis plots are included in Appendix A for comparison.] In the static model, we show that bracelets as signals meaningfully increase individuals' probability to deworm, and that these effects persist when also providing text message reminders and information about others' take-up decisions. Bracelets increase deworming take-up by 8.4 percentage points, a 24 percent increase compared to the control group. We find no detectable effect for the ink incentive, which we attribute to the lower visibility of ink and its strong association with voting in Kenya. Our experiment took place shortly before the presidential election in Kenya, which might have created suspicion among adults. The calendar incentive increased take-up only marginally by 2.7 percentage points. Its effect on take-up is one-third of that of bracelets, despite adults preferring the calendar as consumption item. Building a dynamic model, we explicitly account for potential salience and social learning effects that were introduced as individuals could observe other people's deworming decision. Same as in the static model with the text message treatment, we find no evidence that visibility of actions, through ink or bracelets, affected take-up decisions through reminders or social learning. Lastly, our distance treatment shows that adults are highly sensitive to increases in cost. An increase in the mean walking distance by 1 kilometer leads to a decline in take-up from 44 to 28 percent in the control group. We find that both signals have a larger impact on take-up at far distances, which is consistent with a model of social signaling where returns to signaling increase as signals are more informative about individuals' types.  
+We monitor deworming decision of 38,000 adults at the points of treatment, avoiding the reliance on self-reported data on take-up. In addition, we collect detailed survey data on adults' knowledge about deworming, social norm concerns, and first- and second-order beliefs to speak to the mechanisms underlying social signaling. We show that bracelets as signals increased the visibility of deworming decisions, compared to the ink and calendar treatments, and reduced perceived information asymmetries. Adults were significantly more likely to think that others had knowledge about their own deworming decision. The survey data further reveals that adults have a limited understanding of the externalities from deworming, and think of it as "the right thing to do" for a person that looks after their own health. 
 
-[^why-bayes]: These are,
+For our analysis we build four models to investigate different aspects of the data generating process. To estimate these models we use hierarchical Bayesian statistical. Two of the models are reduced-form models data that use the experimental intervention to identify treatment effects and the two other models are parameteric models that rely on structural assumptions to identify unobservable counterfactuals. Our Bayesian statistical analysis allows for the flexible construction of statistical models accounting for the complexity of the experiment in terms of the population studied (stratification) and experimental treatment; it allows us to conduct a large number of comparisons over the four experiments, using regularization; it allows us to more efficiently learn from the data using partial pooling; and finally it allows us to efficiently average treatment effects over the four statistical models used [@Imbens2015;@Gelman2013a;@stan;@Yao2018].^[Reduced form OLS regression analysis plots are included in Appendix A for comparison.]
 
-    (i) The population studied: treatment was stratified over counties and clustered over villages, and household sampling was stratified over phone-ownership.
-    (ii) The experimental treatments: four village level incentivization/signaling treatment arms, two village level distance assignment arms, and three individual level SMS treatment arms.
+<!-- TODO summarize results -->
+
+<!-- We then build a static and dynamic hierarchical Bayesian model to impute the counterfactuals necessary to estimate the partial effect of social signaling on deworming take-up decisions. Our Bayesian analysis allowed for the flexible construction of statistical models accounting for the complexity of the experiment in terms of the population studied and experimental treatment.[^why-bayes] This allowed us to manage the large number of treatment comparisons, using regularization, while allowing us to efficiently learn from the data using partial pooling [@Imbens2015;@Gelman2013a;@stan].^[Reduced form OLS regression analysis plots are included in Appendix A for comparison.] In the static model, we show that bracelets as signals meaningfully increase individuals' probability to deworm, and that these effects persist when also providing text message reminders and information about others' take-up decisions. Bracelets increase deworming take-up by 8.4 percentage points, a 24 percent increase compared to the control group. We find no detectable effect for the ink incentive, which we attribute to the lower visibility of ink and its strong association with voting in Kenya. Our experiment took place shortly before the presidential election in Kenya, which might have created suspicion among adults. The calendar incentive increased take-up only marginally by 2.7 percentage points. Its effect on take-up is one-third of that of bracelets, despite adults preferring the calendar as consumption item. Building a dynamic model, we explicitly account for potential salience and social learning effects that were introduced as individuals could observe other people's deworming decision. Same as in the static model with the text message treatment, we find no evidence that visibility of actions, through ink or bracelets, affected take-up decisions through reminders or social learning. Lastly, our distance treatment shows that adults are highly sensitive to increases in cost. An increase in the mean walking distance by 1 kilometer leads to a decline in take-up from 44 to 28 percent in the control group. We find that both signals have a larger impact on take-up at far distances, which is consistent with a model of social signaling where returns to signaling increase as signals are more informative about individuals' types.   -->
+
+<!-- [^why-bayes]: These are, -->
+
+<!--     (i) The population studied: treatment was stratified over counties and clustered over villages, and household sampling was stratified over phone-ownership. -->
+<!--     (ii) The experimental treatments: four village level incentivization/signaling treatment arms, two village level distance assignment arms, and three individual level SMS treatment arms. -->
 
 <!-- Contribution -->
-Our work contributes to the literature of social signaling in four ways. First, we provide direct evidence of the effectiveness of making actions observable through a low-cost signal. Recent empirical studies have highlighted the potential negative effects of visibility like in the case of student effort [@Bursztyn2015] and career ambitions [@Bursztyn2017a]. This study shows how social image concerns can be leveraged to increase public goods. Even in the absence of an understanding of externalities, social signals can increase the direct benefits of deworming - as individuals care to be perceived as doing the ``right thing'' - and as a result by acting in their own best interest, internalize the interests of others (namely reduce the reinfection risk of children whose health is most affected by worms). 
+Our work contributes to the literature of social signaling in four ways. First, we provide direct evidence of the effectiveness of making actions observable through a low-cost signal. Recent empirical studies have highlighted the potential negative effects of visibility like in the case of student effort [@Bursztyn2015] and career ambitions [@Bursztyn2017a]. This study shows how social image concerns can be leveraged to increase public goods. Even in the absence of an understanding of externalities, social signals can increase the direct benefits of deworming - as individuals care to be perceived as doing the ``right thing'' - and as a result by acting in their own best interest, they internalize the interests of others (namely reduce the reinfection risk of children whose health is most affected by worms). 
 
 Second, this study makes a contribution by exogenously varying distance and with that deworming take-up at the community level. Such is in most settings impossible and allows us to investigate the relationship between equilibrium take-up levels, the informativeness of signals and subsequent differences in the impact of signals on individuals' decision to deworm. By generating large exogenous differences in take-up levels, we show that signals have much larger effects at far distances and can undo the negative demand response observed in the control group. We observe no such effect for the material incentive. This result has the potential to inform policy decisions about optimal treatment locations: as reputational returns are higher at far compared to close distances, increasing individuals' willingness to walk, optimal treatment locations can be set up further apart and with the same number of locations larger geographic areas can be covered.  
 <!-- Think about this more later in terms of optimal Pigouvian tax, B&T paper; also this claim may need to be substantiated further  -->
@@ -219,42 +176,42 @@ Community deworming and the context of Western Kenya provide an empirically rele
 
 # Theoretical Framework 
 
-We adapt Bénabou and Tirole's [-@Benabou2006;-@Benabou2012a] framework of prosocial behavior and social signaling to generate predictions and lay out testable assumptions that inform our experimental design. In this framework, individual $i$ decides to take a prosocial action $a_i \in \{0,1\}$ and values the inference that others will make about her type, based on her observed action:
+We adapt Bénabou and Tirole's [-@Benabou2006;-@Benabou2012a] framework of prosocial behavior and social signaling to generate predictions and lay out testable assumptions that inform our experimental design. In this framework, individual $i$ decides to take a prosocial action $y_i \in \{0,1\}$ and values the inference that others will make about her type, based on her observed action:
 
 \begin{align}
-U(a_i;v_i,x,\lambda) =  B(a_i;v_i) - C(a_i) + \lambda E_{-i}(v|a_i) \label{equ:signal1}
+U(y_i;v_i,x,\lambda) =  B(y_i;v_i) - C(y_i) + x\lambda E_{-i}(v|y_i) \label{equ:signal1}
 \end{align}
 
-In our context, $a_i$ is the decision to deworm or not deworm. Individuals differ in their intrinsic motivation $v_i$, which is their valuation to contribute to deworming or more generally the community's health. $v_i$ is drawn from the type distribution $G(v)$ which is assumed to be public knowledge. $v_i$ is known to individual $i$ but not observable to others. $B(a_i;v_i)$ denotes the private benefit of deworming, which is a function of $i$'s choice $a_i$ and $i$'s type. Deworming treatment is offered for free but adults have to incur a cost $C(a_i)$ of walking to a treatment location.^[We omit from the model $e\bar{a}$, that is, the utility that individuals derive from the externality benefits of deworming. Its inclusion does not affect predictions.] 
+In our context, $y_i$ is the decision to deworm or not deworm. Individuals differ in their intrinsic motivation $v_i$, which is their valuation to contribute to deworming or more generally the community's health. $v_i$ is drawn from the type distribution $G(v)$ which is assumed to be public knowledge. $v_i$ is known to individual $i$ but not observable to others. $B(y_i;v_i)$ denotes the private benefit of deworming, which is a function of $i$'s choice $y_i$ and $i$'s type. Deworming treatment is offered for free but adults have to incur a cost $C(y_i)$ of walking to a treatment location.^[We omit from the model $e\bar{a}$, that is, the utility that individuals derive from the externality benefits of deworming. Its inclusion does not affect predictions.]
 
-Ignoring the third term of the model, we have a simple maximization problem where individual $i$ chooses to deworm or not, by maximizing $U(a_i;v_i) = B(a_i;v_i) - C(a_i)$. Assuming that $B(a_i;v_i)$ is increasing and concave, and $C(a_i)$ is weakly convex, there is a unique function that maps for each individual $i$ her type $v_i$ to her optimal action: $a_i^{*} =a(v_i)$. Without loss of generality, assume that $\frac{\partial B(a_i;v_i)}{\partial v_i} > 0$, such that higher types receive greater utility from deworming.^[Formally $a > a^{'}$ if $v > v^{'}$, $\forall v, v^{'}$.] 
+Ignoring the third term of the model, we have a simple maximization problem where individual $i$ chooses to deworm or not, by maximizing $U(y_i;v_i) = B(y_i;v_i) - C(y_i)$. Assuming that $B(y_i;v_i)$ is increasing and concave, and $C(y_i)$ is weakly convex, there is a unique function that maps for each individual $i$ her type $v_i$ to her optimal action: $y_i^{*} =y(v_i)$. Without loss of generality, assume that $\frac{\partial B(y_i;v_i)}{\partial v_i} > 0$, such that higher types receive greater utility from deworming.^[Formally $y > y^{'}$ if $v > v^{'}$, $\forall v, v^{'}$.] 
 
-The key part of the model is the third term, the reputational benefits and costs associated with the expectations that others, indexed by $-i$, will form about $i$'s type as actions become visible. Let $x \in [0,1]$ denote the probability that others observe $i$'s choice. The parameter $\lambda$ measures how much individual $i$ cares about the expectations that others form about her. Following the literature, I assume that $\lambda\geq 0$ given that deworming is socially desirable. In equilibrium, different types choose different actions, leading others to form expectations about $i$'s type conditional on the action observed, that is, $E_{-i}(v| a_i = 0)$ or $E_{-i}(v| a_i = 1)$. Importantly, the expectations of others enter directly into $i$'s utility as expressed in equation \ref{equ:signal1}. Following the logic of Bénabou and Tirole [-@Benabou2006;-@Benabou2012a] there exists a unique set of actions under visibility such that each individual chooses an action, given the equilibrium actions of all other individuals. This equilibrium is characterized by the cut-off type $\hat{v_s}$ (who is indifferent between choosing the optimal $a_i^{*}=0$ without visibility and deviating to $a_i^{*}=1$) and the reputational returns which solve the fixed-point equation:
+The key part of the model is the third term, the reputational benefits and costs associated with the expectations that others, indexed by $-i$, will form about $i$'s type as actions become visible. Let $x \in [0,1]$ denote the probability that others observe $i$'s choice. The parameter $\lambda$ measures how much individual $i$ cares about the expectations that others form about her. Following the literature, I assume that $\lambda\geq 0$ given that deworming is socially desirable. In equilibrium, different types choose different actions, leading others to form expectations about $i$'s type conditional on the action observed, that is, $E_{-i}(v| y_i = 0)$ or $E_{-i}(v| y_i = 1)$. Importantly, the expectations of others enter directly into $i$'s utility as expressed in equation \ref{equ:signal1}. Following the logic of Bénabou and Tirole [-@Benabou2006;-@Benabou2012a] there exists a unique set of actions under visibility such that each individual chooses an action, given the equilibrium actions of all other individuals. This equilibrium is characterized by the cut-off type $v^*$ (who is indifferent between choosing the optimal $y_i^{*}=0$ without visibility and deviating to $y_i^{*}=1$) and the reputational returns which solve the fixed-point equation:
 
 \begin{align}
-U(a_i^{*}=1) - U(a_i^{*}=0) = \underbrace{B(a_i^{*}=1;\hat{v}) - C(a_i^{*}=1)}_{\text{Difference in direct benefits}} + \underbrace{\lambda \triangle(\hat{v})}_{\text{Reputational returns }} = 0  \label{equ:signal2}
+U(y_i^{*}=1) - U(y_i^{*}=0) = \underbrace{B(y_i^{*}=1;v^*) - C(y_i^{*}=1)}_{\text{Difference in direct benefits}} + \underbrace{x\lambda \Delta(v^*)}_{\text{Reputational returns }} = 0  \label{equ:signal2}
 \end{align}
 
-where^[To make the link between types and actions more transparent, note that $E(v| a_i^{*}=1) - E(v|a_i^{*}=0) = E(v| v  \geq \hat{v}) - E(v| v < \hat{v})$.]  \[\triangle(\hat{v})= \underbrace{E(v| a^{*}_{i} =1 ) - E(v|a_i^{*} =0)}_{\text{Difference in the average type based on \bf{observed} \rm actions}}.\] 
-Given our previous assumption $\frac{\partial B(a_i;v_i)}{\partial v_i} > 0$, in equilibrium individuals with higher types will be more likely to take-up deworming treatment than those with lower types.^[It is relatively straight-forward: Suppose, for the sake of contradiction, that there exists an equilibrium in which the action taken by $v, v^{'}$ with $v > v^{'}$ is $a < a^{'}$. By definition the third term concerning other people's inferences, given actions, is the same for all types v. Consequently, if a lower type $v$ prefers to take the action $a^{'}$ instead of $a$, then it must be that a higher type must also prefer the action. That contradicts the initial supposition that they higher type prefers $a$ to $a^{'}$.]
+where^[To make the link between types and actions more transparent, note that $\expect{v| y_i^{*}=1} - \expect{v|y_i^{*}=0} = \expect{v| v \geq v^*} - \expect{v| v < v^*}$.]  \[\Delta(v^*)= \underbrace{\expect{v| y^{*}_{i} =1} - \expect{v|y_i^{*} =0}}_{\text{Difference in the average type based on \bf{observed} \rm actions}}.\] 
+Given our previous assumption $\frac{\partial B(y_i;v_i)}{\partial v_i} > 0$, in equilibrium individuals with higher types will be more likely to take-up deworming treatment than those with lower types.^[It is relatively straight-forward: Suppose, for the sake of contradiction, that there exists an equilibrium in which the action taken by $v, v^{'}$ with $v > v^{'}$ is $a < a^{'}$. By definition the third term concerning other people's inferences, given actions, is the same for all types v. Consequently, if a lower type $v$ prefers to take the action $y^{'}$ instead of $y$, then it must be that a higher type must also prefer the action. That contradicts the initial supposition that they higher type prefers $y$ to $y^{'}$.]
 
-\noindent \bf{Prediction 1.} \rm \it{If it is socially desirable to deworm and individuals care about their reputation (i.e., $E(v|a_i=1) > E(v|a_i=0)$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x$), the larger the increase in take-up.} \rm \\
+\noindent \bf{Prediction 1.} \rm \it{If it is socially desirable to deworm and individuals care about their reputation (i.e., $\expect{v|y_i=1} > \expect{v|y_i=0}$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x$), the larger the increase in take-up.} \rm \\
 
 \begin{itemize}
 \renewcommand\labelitemi{*}
 \item \bf{Assumption and mechanism: }\rm \it{Signals increase the visibility of deworming decisions and reduce (perceived) information asymmetries.}\rm \\
 \end{itemize} 
 
-\noindent The framework further provides insights into how changes in cost affect equilibrium take-up. Following B\'enabou \& Tirole [-@Benabou2012a], we assume that the type distribution $G(v)$ has finite support $V \equiv [v_{\text{max}},v_{\text{min}} ]$ and a continuously differentiable density $g(v) > 0$. For simplicity, define the equilibrium take-up level of deworming treatment as a function of the cost $c$ as $a(c) = 1-G(\hat{v}(c))$, with its derivative $\frac{d y(c)}{d c} = -g(\hat{v}) \frac{\partial \hat{v}}{\partial c}$. Further, we assume that cost enter individuals' utility function linearly and that the type distribution is unimodal.^[If the type distribution is uniform, reputational returns will be constant, such that a change in $c$ has the same effect on take-up as in the no visibility case.] In the absence of visibility ($x=0$), a one unit increase in $c$ will reduce take-up by $g(\hat{v})$. As actions become visible (asssume $x=1$), there is an indirect effect ($\sim$ _social multiplier_) of cost on take-up through reputational returns: 
+\noindent The framework further provides insights into how changes in cost affect equilibrium take-up. Following Bénabou and Tirole [-@Benabou2012a], we assume that the type distribution $G(v)$ has finite support $V \equiv [v_{\text{max}},v_{\text{min}} ]$ and a continuously differentiable density $g(v) > 0$. For simplicity, define the equilibrium take-up level of deworming treatment as a function of the cost $c$ as $y(c) = 1-G(v^*(c))$, with its derivative $\frac{d y(c)}{d c} = -g(v^*) \frac{\partial v^*}{\partial c}$. Further, we assume that cost enter individuals' utility function linearly and that the type distribution is unimodal.^[If the type distribution is uniform, reputational returns will be constant, such that a change in $c$ has the same effect on take-up as in the no visibility case.] In the absence of visibility ($x=0$), a one unit increase in $c$ will reduce take-up by $g(v^*)$. As actions become visible (asssume $x=1$), there is an indirect effect ($\sim$ _social multiplier_) of cost on take-up through reputational returns: 
 
 \begin{align}
-\frac{\partial \hat{v}}{\partial c} = \frac{1}{1 + r^{'}(\hat{v})}
+\frac{\partial v^*}{\partial c} = \frac{1}{1 + r^{'}(v^*)}
 \end{align}
 
-where $r^{'}(\hat{v})$ is the change in reputational returns, caused by a shift in the cut-off type $\hat{v}$ through the change in cost. Reputational returns change as signals become more or less informative, that is, the difference between $E(v|v \geq \hat{v})$ and $E(v|v < \hat{v})$ increases or decreases:
+where $r^{'}(v^*)$ is the change in reputational returns, caused by a shift in the cut-off type $v^*$ through the change in cost. Reputational returns change as signals become more or less informative, that is, the difference between $\expect{v|v \geq v^*}$ and $\expect{v|v < v^*}$ increases or decreases:
 
-* If $r^{'}(\hat{v}) <0$ i.e., $\frac{\partial E(v|v \geq \hat{v})}{\partial \hat{v}} < \frac{\partial E(v|v <\hat{v})}{\partial \hat{v}}$ the effect of an increase in cost on take-up will be amplified by a decrease in reputational returns, as signals become less informative. This is the case if take-up of deworming is high (``everyone but the worst people do it'') and increases in $c$ lower the pressure on those that do not deworm as the share of non-dewormers increases. 
-* If $r^{'}(\hat{v}) >0$ i.e., $\frac{\partial E(v|v \geq \hat{v})}{\partial \hat{v}} > \frac{\partial E(v|v <\hat{v})}{\partial \hat{v}}$ the effect of an increase in cost will be mitigated by an increase in reputational returns, as signals become more informative. This is the case if take-up of deworming is low and increases in $c$ increase the praise for those individuals that deworm.^[For their to be a unique equilibrium, we follow @Benabou2012a assuming that $1 + \lambda r^{'}(v_r^{*}) > 0$, which holds for $\lambda$ not too large.] 
+* If $r^{'}(v^*) <0$ i.e., $\frac{\partial \expect{v|v \geq v^*}}{\partial v^*} < \frac{\partial \expect{v|v <v^*}}{\partial v^*}$ the effect of an increase in cost on take-up will be amplified by a decrease in reputational returns, as signals become less informative. This is the case if take-up of deworming is high (``everyone but the worst people do it'') and increases in $c$ lower the pressure on those that do not deworm as the share of non-dewormers increases. 
+* If $r^{'}(v^*) >0$ i.e., $\frac{\partial \expect{v|v \geq v^*}}{\partial v^*} > \frac{\partial \expect{v|v <v^*}}{\partial v^*}$ the effect of an increase in cost will be mitigated by an increase in reputational returns, as signals become more informative. This is the case if take-up of deworming is low and increases in $c$ increase the praise for those individuals that deworm.^[For their to be a unique equilibrium, we follow @Benabou2012a assuming that $1 + \lambda r^{'}(v_r^{*}) > 0$, which holds for $\lambda$ not too large.] 
 
 \noindent \bf{Prediction 2. }\rm \it{Changes in the cost of deworming (by causing changes in the take-up level of deworming treatment) lead to increases (decreases) in reputational returns, increasing (decreasing) the effect of signals and the share of individuals taking up deworming treatment.} \\
 
@@ -267,10 +224,6 @@ where $r^{'}(\hat{v})$ is the change in reputational returns, caused by a shift 
     * _Social learning:_ If adults have inaccurate beliefs about others' deworming take-up, observing others could cause them to update their beliefs about aggregate take-up and the benefits of deworming.
 
 # Experimental Design 
-
-\pgfdeclarelayer{background}
-\pgfdeclarelayer{foreground}
-\pgfsetlayers{background,main,foreground}
 
 \begin{figure}
   \centering
@@ -382,7 +335,6 @@ where $r^{'}(\hat{v})$ is the change in reputational returns, caused by a shift 
   \caption{Experiment Design: grey boxes identity the types of population units over which treatment was assigned. The study was stratified over counties (ellipses) and clustered over villages (triangles). Boxes identify cluster (village) level treatments while circles identify individual level treatments.}
 \end{figure}
 
-
 The first part of this section introduces the different experimental treatments and discusses the identification of signaling preferences. Next, we describe the selection and randomization of treatment points and communities. We then provide an overview of the different data collected and the relevant outcomes. 
 
 ## Treatments 
@@ -394,7 +346,6 @@ To create visibility in actions, we experimentally introduce two signals - in th
 ```{r bracelet-img, fig.cap="Note: In Swahili it says on the bracelet \"Treat worms improve the health of your community\"."}
 knitr::include_graphics(file.path("images", "signal_bracelet.png"))
 ```
-
 
 We introduce two different types of signals to increase the visibility of deworming decisions $x$: a green silicone bracelet (Figure \ref{fig:bracelet-img}) and green ink that is applied to a person's thumb. Bracelets and ink were randomized at the cluster level: at 39 treatment locations individuals received a bracelet when coming for deworming and at 36 locations they received ink. The color green was chosen as it is not associated with any political parties and was liked by most individuals during piloting. We test two different signals since it was unclear upfront which one could be more effective.[^signals]
 
@@ -446,13 +397,13 @@ verify.vill.pot.dist %>%
 
 We vary the cost of deworming and with that the marginal person by varying the distance that individuals have to walk to treatment locations. We randomly assigned communities to either a "close" (0-1.25 kilometers) or "far" (1.25-2. kilometers) deworming location. Due to small changes in the actual location of treatment and the dispersion of households within targeted areas, actual distances to points of treatments were distributed as shown in Figure \ref{fig:act-dist}. While there does appear to be some slight overlap between close and far clusters (i.e. non-compliance with assigned treatment), this does not affect the intention-to-treat analysis. Table 1 shows that individuals from far communities had to travel more than twice the distance to treatment locations compared to individuals from close communities: the randomization shifted the mean distance from 0.84 kilometers to 1.86 kilometers. Figure \ref{fig:dist-to-pot} shows the distribution of targeted communities' distances (in meters) to their own treatment locations and to the closest other treatment locations. The distance to the assigned treatment location was for all clusters, except for two, shorter than the distance to the closest other treatment location. 
 
-### Reminder and Social Info Text Messages {-} 
+<!-- ### Reminder and Social Info Text Messages {-}  -->
 
-We introduced a separate treatment at the individual level to hold constant salience and learning effects, and isolate the effect of social signaling. We recruited a random sample of adults in each signal/incentive treatment and the control group to receive text messages with reminders and information about aggregate take-up in their community. The text messages included two statements: "Free deworming now at [Central Location]." (=Reminder) "[No/few/almost half/half/more than half/almost all/all] of your village came, that is X in 10 adults." (=Social Info). We recruited 30 individuals per cluster in the control arm and 25 individuals per cluster in the signal/incentive treatments. In the control arm, we divided the sample into two groups of 15: one group received reminder messages only, and a second group received reminders and social information. In the signal/incentive treatments, individuals always received both. The text message sample was drawn from the population of phone owners, from which we also drew a comparison sample, that did not receive any text messages and also no recruitment visit. The majority of adults (65 percent to 80 percent) in our study sample own a phone. Text messages were sent the day before the deworming program started and after that every other day (on the second, fourth, sixth, eight and tenth deworming day). The first text message, on the day before treatment started, only included the Reminder message in the Social Info treatment since deworming had not yet started. The recruitment for treatment took place one to three weeks before the start of the deworming program. 387 adults were recruited for the reminder treatment in the control group and 2,637 adults across all signal/incentive and control groups for the Social Info treatment.  
+<!-- We introduced a separate treatment at the individual level to hold constant salience and learning effects, and isolate the effect of social signaling. We recruited a random sample of adults in each signal/incentive treatment and the control group to receive text messages with reminders and information about aggregate take-up in their community. The text messages included two statements: "Free deworming now at [Central Location]." (=Reminder) "[No/few/almost half/half/more than half/almost all/all] of your village came, that is X in 10 adults." (=Social Info). We recruited 30 individuals per cluster in the control arm and 25 individuals per cluster in the signal/incentive treatments. In the control arm, we divided the sample into two groups of 15: one group received reminder messages only, and a second group received reminders and social information. In the signal/incentive treatments, individuals always received both. The text message sample was drawn from the population of phone owners, from which we also drew a comparison sample, that did not receive any text messages and also no recruitment visit. The majority of adults (65 percent to 80 percent) in our study sample own a phone. Text messages were sent the day before the deworming program started and after that every other day (on the second, fourth, sixth, eight and tenth deworming day). The first text message, on the day before treatment started, only included the Reminder message in the Social Info treatment since deworming had not yet started. The recruitment for treatment took place one to three weeks before the start of the deworming program. 387 adults were recruited for the reminder treatment in the control group and 2,637 adults across all signal/incentive and control groups for the Social Info treatment.   -->
 
-### SMS Airtime Reward {-} 
+<!-- ### SMS Airtime Reward {-}  -->
 
-To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of adults conditional on texting back and confirming the receipt of the text message.^[We only implemented the reward scheme during the second wave of deworming treatment. The reason being, we only decided to add the treatment shortly before we started deworming in wave one communities and had to wait for ethical approval for this added component before we could implement it.] In each control group cluster four adults were randomly selected (two from Reminder and two from Social Info treatment) and in each signal/incentive treatment cluster two adults got selected. The following reward text message was sent to adults on day 2 and 6 of deworming treatment: "Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message [1234] to [XXX]. The text is free." We sent a reminder text message to adults that had not taken up the reward two days after the original reward text was sent^["Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message [1234] to [XXX] to receive the reward. The text is free."]. The reminder messages were sent on day 4 (for reward messages sent on day 2) and on day 8 (for reward messages sent on day 6). The SMS airtime reward treatment gives us a lower bound for information take-up for our text message treatment.
+<!-- To verify that adults were reading the text messages, we offered an airtime reward of 50 Kenyan Shillings (50 US Cents) to a random subset of adults conditional on texting back and confirming the receipt of the text message.^[We only implemented the reward scheme during the second wave of deworming treatment. The reason being, we only decided to add the treatment shortly before we started deworming in wave one communities and had to wait for ethical approval for this added component before we could implement it.] In each control group cluster four adults were randomly selected (two from Reminder and two from Social Info treatment) and in each signal/incentive treatment cluster two adults got selected. The following reward text message was sent to adults on day 2 and 6 of deworming treatment: "Thank you for signing up for this text message from Evidence Action. To receive your 50Ksh airtime reward, message [1234] to [XXX]. The text is free." We sent a reminder text message to adults that had not taken up the reward two days after the original reward text was sent^["Thank you for signing up for text messages from Evidence Action. Don't forget to reclaim your 50Ksh airtime. Message [1234] to [XXX] to receive the reward. The text is free."]. The reminder messages were sent on day 4 (for reward messages sent on day 2) and on day 8 (for reward messages sent on day 6). The SMS airtime reward treatment gives us a lower bound for information take-up for our text message treatment. -->
 
 ## Information Campaign Prior to Deworming
 
@@ -469,7 +420,7 @@ One week before the launch of the community deworming program Community Health V
 ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner") 
 ```
 
-We randomly selected 158 clusters in the three study counties, of which 144 were used in the study.^[We only intended to use 150 clusters, and only included eight extra clusters as fallback clusters. For various practical reasons, implementation was only possible in 144 clusters.] Each cluster was defined as a treatment location and targeted community pair. We used the location of primary schools as proxies to (i) identify acceptable locations to set up our treatment locations and (ii) to find villages to target with our informational campaign and data collection. We relied on the high geographic density of primary schools in the study counties to select both treatment locations and targeted communities.^[Geographic coordinates for primary schools were retrieved from the Kenya Open Data Portal (http://www.opendata.go.ke/).] To select our clusters from the pool of a total of 1,451 primary schools in our study area, we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius catchment circle and 3-4 kilometer radius buffer circle. A cluster was considered acceptable if its buffer circle did not leave any of the already selected clusters' non-overlapping catchment circles smaller than an a pre-specified size. Figure \ref{fig:all-clusters-map} shows the final cluster selection. After all clusters were selected, we randomly assigned^[Randomization was stratified within counties to increase statistical power.] each cluster to be either a "close" or "far" cluster. We then selected for each cluster, from its non-overlapping catchment circle and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted community.^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan.] Clusters were then randomly assigned, stratified over counties and distance treatment, to the different signal/incentive treatments: control, ink, calendar and bracelet. To finalize the cluster selection process, we surveyed the treatment location and target community anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified alternative treatment locations, close to the selected schools, as potential backups. For the anchor schools, we identified all the communities near them and randomly selected one community to target.^[In some cases because the initial village was too small, we added a second village.] 
+We randomly selected 158 clusters in the three study counties, of which 144 were used in the study.^[We only intended to use 150 clusters, and only included eight extra clusters as fallback clusters. For various practical reasons, implementation was only possible in 144 clusters.] Each cluster was defined as a treatment location and targeted community pair. We used the location of primary schools as proxies to (i) identify acceptable locations to set up our treatment locations and (ii) to find villages to target with our informational campaign and data collection. We relied on the high geographic density of primary schools in the study counties to select both treatment locations and targeted communities.^[Geographic coordinates for primary schools were retrieved from the Kenya Open Data Portal (http://www.opendata.go.ke/).] To select our clusters from the pool of a total of 1,451 primary schools in our study area, we used an acceptance-rejection method whereby we randomly picked schools, checked their acceptability based on their overlap with already selected clusters, and if accepted added them to our selected sample. This process was repeated until we had selected the requisite number of clusters. If no acceptable schools remained before completion, the whole process was restarted. Each cluster, centered on its treatment location, had a 2.5 kilometer radius catchment circle and 3-4 kilometer radius buffer circle. A cluster was considered acceptable if its buffer circle did not leave any of the already selected clusters' non-overlapping catchment circles smaller than an a pre-specified size. Figure \ref{fig:all-clusters-map} shows the final cluster selection. After all clusters were selected, we randomly assigned^[Randomization was stratified within counties.] each cluster to be either a _close_ or _far_ cluster. We then selected for each cluster, from its non-overlapping catchment circle and according to its assigned distance treatment, a primary school as an anchor for us to locate its targeted community.^[For further details on the cluster selection algorithm refer to the study's pre-analysis plan.] Clusters were then randomly assigned, stratified over counties and distance treatment, to the different signal/incentive treatments: control, ink, calendar and bracelet. To finalize the cluster selection process, we surveyed the treatment location and target community anchor schools. For the treatment locations we confirmed that treatment would be feasible there and identified alternative treatment locations, close to the selected schools, as potential backups. For the anchor schools, we identified all the communities near them and randomly selected one community to target.^[In some cases because the initial village was too small, we added a second village.] 
 
 ## Data and Outcomes
 
@@ -525,10 +476,7 @@ mda.dates.dist.plot <- endline.data %>%
 grid.arrange(know.mda.cat.plot, mda.dates.dist.plot, layout_matrix = as.matrix(c(1, 1, 1, 2, 2)))
 ```
 
-<!-- Two figure were referenced but I only found one -->
-
 Figure \ref{fig:know-about-mda} shows how well adults were informed about the deworming program. At endline (2-14 days after the end of treatment), 89 percent of individuals knew that deworming treatment was offered to adults in their community. 74 percent reported to have received an information visit from a CHV before the start of the program. 69 percent of adults were able to recall the number of days that treatment was offered. Almost all individuals that came for deworming treatment, reported that they had received the assigned signal/incentive at the point of treatment (95 percent for ink, 97 percent for bracelet and 95 percent for calendar). All adults who were recruited for the text message treatment, consented to receiving the messages (confirm this, some did not have phone?). 82 percent of endline respondents that had been assigned to the text message treatment reported to have received messages. When asked about the content of the messages, 98 percent said that the message was a reminder for deworming and 47 percent said that the messages told them about how many people had dewormed. The average number of reported messages received was 4, with 75 percent of people reporting to have received between 3 and 6 text messages. It is possible that individuals do not precisely recall the number of messages received, given that the endline survey took place 2-14 days after deworming treatment had ended.
-
 
 # Descriptive Statistics 
 
@@ -816,117 +764,505 @@ takeup.data %>%
 
 # Empirical Models
 
-## Model subscripts 
+## Take-Up Deworming Models
 
-* $i$: individuals
-* $j$: clusters (villages)
-* $k$: strata (counties)
-* $m \in \{1,\ldots,12\}$, deworming day index.
+In order to answer our research questions we will take a multipronged approach. We will build and use different causal models to query different aspects of the mechanism of social signaling. First, we will use reduced form models that rely on the experiment's randomized intervention to identify the causal quantities of interest. We will use these models to estimate straight forward estimands such as the average treatment effect of signals/incentives on deworming take-up, and the effect a change in cost (distance) has on such estimands. We will compare bracelets and ink incentives with calendar incentives to separate the social effect (combiningg social signaling with salience and social learning) from the the private consumption effect. We will test the theoretical prediction of how an increase in cost can be mitigated by an increase in reputational returns by comparing the difference in average treatment effects between _close_ and _far_ distance assignment.
 
-## Variables
+Second, we will construct and fit two parameteric models mirroring the theoretical framework laid out in Section \ref{theoretical-framework}. Such models permit us to explicitly model such latent variables as the private benefit of deworming and incentives, the reputational returns to signaling, and the salience/social learning effect of signals. We can repeat any estimation done with the reduced form models, but we can also estimate counterfactuals in response to manipulations difficult or impossible to conduct in an experimental setting, such as holding private benefits fixed at the control level while allowing signaling at the level of bracelets or ink. To effectively communicate our identification strategy and the assumptions it relies on, we will use graphical models to elucidate the causal relationships and the independencies between the models' variables [@Pearl2009]. 
 
-* $Y_i \in \{0, 1\}$, is observed take-up over the whole intervention duration. $Y_{im} \in \{0, 1\}$, is observed take-up on day $m$.
-* $\mathbf{Z}_i$, assigned treatment: incentive treatments, SMS treatment, distance treatment 
-* $\mathbf{X}_i$, covariates: phone-ownership, and name-matching indicators. 
+Before listing the estimands we will be analyzing, we need to describe the notation used. These are the variables we will be using:
 
-## Static Model
+* $Z \in \mathcal{Z} = \{\textrm{control, calendar, bracelet, ink}\}$, the incentive/signal treatment assignment.
+* $G \in \mathcal{G} = \{\textrm{close, far}\}$, the distance to deworming treatment assignment.
+* $D \in \mathbb{R}^{+}$, the actual distance to deworming treatment in meters.
+* $Y \in \{0,1\}$, the deworming treatment take-up outcome.
+* $\overline{Y} \in \mathbb{Z}^{+}$, is the number of dewormed households in a village. 
+* $\overline{B} \in \mathbb{R}$, is the latent village-level private consumption benefit. 
 
-### Likelihood Model
+We will reserve uppercase letters for random variables and lowercase letters for fixed values. Potential outcomes will be expressed as $Y(z)$, indicating the outcome of $Z$ in response to the intervention $z$.  Subscripts $i, j$, and $k$ will be used to denote membership in households, villages, and clusters, respectively. In addition to the fixed value version of the above random variables ($z, g, d, y, \bar{y}$), we also have some others constants: 
+* $n_j$, the number of households in village $j$.
+* $N = \sum_j n_j$, the total number of households in the study.
 
-This is the model's likelihood, the data generating process for observed outcomes:
+In all of the above mentioned models, we will interested in estimating the follow intention-to-treatment estimands:
 
-$$
+* The treatment effect of bracelets, ink, and calendars compared against the control arm. 
+    - Leaving the distance to treatment as assigned. 
+    \begin{equation}
+    \begin{aligned}
+      \fsexpect{Y(\textrm{bracelet})} - \fsexpect{Y(\textrm{control})} \\
+      \fsexpect{Y(\textrm{ink})} - \fsexpect{Y(\textrm{control})}  \\
+      \fsexpect{Y(\textrm{calendar})} - \fsexpect{Y(\textrm{control})}. 
+    \end{aligned}
+    \end{equation}
+    - Holding fixed the distance at _close_ and _far_. 
+    \begin{equation}
+    \begin{aligned}
+      \fsexpect{Y(\textrm{bracelet},\textrm{close})} &- \fsexpect{Y(\textrm{control},\textrm{close})} \\
+      \fsexpect{Y(\textrm{bracelet},\textrm{far})} &- \fsexpect{Y(\textrm{control},\textrm{far})} \\
+      \fsexpect{Y(\textrm{ink},\textrm{close})} &- \fsexpect{Y(\textrm{control},\textrm{close})} \\
+      \fsexpect{Y(\textrm{ink},\textrm{far})} &- \fsexpect{Y(\textrm{control},\textrm{far})} \\
+      \fsexpect{Y(\textrm{calendar},\textrm{close})} &- \fsexpect{Y(\textrm{control},\textrm{close})} \\
+      \fsexpect{Y(\textrm{calendar},\textrm{far})} &- \fsexpect{Y(\textrm{control},\textrm{far})}.
+    \end{aligned}
+    \end{equation}
+* The treatment effect of bracelets and ink compared against the calendar arm. 
+    - Leaving the distance to treatment as assigned.
+    \begin{equation}
+    \begin{aligned}
+      \fsexpect{Y(\textrm{bracelet})} - \fsexpect{Y(\textrm{calendar})} \\
+      \fsexpect{Y(\textrm{ink})} - \fsexpect{Y(\textrm{calendar})}.  
+    \end{aligned}
+    \end{equation}
+    - Holding fixed the distance at _close_ and _far_. 
+    \begin{equation}
+    \begin{aligned}
+      \fsexpect{Y(\textrm{bracelet},\textrm{close})} &- \fsexpect{Y(\textrm{calendar},\textrm{close})} \\
+      \fsexpect{Y(\textrm{bracelet},\textrm{far})} &- \fsexpect{Y(\textrm{calendar},\textrm{far})} \\
+      \fsexpect{Y(\textrm{ink},\textrm{close})} &- \fsexpect{Y(\textrm{calendar},\textrm{close})} \\
+      \fsexpect{Y(\textrm{ink},\textrm{far})} &- \fsexpect{Y(\textrm{calendar},\textrm{far})}. 
+    \end{aligned} 
+    \end{equation}
+* The difference in the treatment effect of assigned distance to treatment, comparing bracelet, ink, and calendar with control:
+    \begin{equation}
+    \begin{aligned}
+      \left(\fsexpect{Y(\textrm{bracelet},\textrm{far})} - \fsexpect{Y(\textrm{bracelet},\textrm{close})}\right) &- \left(\fsexpect{Y(\textrm{control},\textrm{far})} - \fsexpect{Y(\textrm{control},\textrm{close})}\right) \\ 
+      \left(\fsexpect{Y(\textrm{ink},\textrm{far})} - \fsexpect{Y(\textrm{ink},\textrm{close})}\right) &- \left(\fsexpect{Y(\textrm{control},\textrm{far})} - \fsexpect{Y(\textrm{control},\textrm{close})}\right) \\ 
+      \left(\fsexpect{Y(\textrm{calendar},\textrm{far})} - \fsexpect{Y(\textrm{calendar},\textrm{close})}\right) &- \left(\fsexpect{Y(\textrm{control},\textrm{far})} - \fsexpect{Y(\textrm{control},\textrm{close})}\right).  
+    \end{aligned}
+    \end{equation}
+
+We will use the $\hat{E}$ notation to indicate the finite sample mean, such that 
+\[ \fsexpect{Y(z,g)} = \frac{1}{N} \sum_j \tilde{\bar{Y}}_j(z,g) \]
+where
+\begin{align}
+\tilde{\bar{Y}}_j(z,g) =
+  \begin{cases} 
+    \bar{y}_j & \text{if } Z_j = z \wedge G_j = g  \\
+    n_j \prob{Y_j(z,g) = 1} & \text{otherwise.}
+  \end{cases} \label{eq:finite-sample-mean} 
+\end{align}
+
+If we use $\theta$ to generically represent the statistical parameters of our models, $\bf{X}$ as the matrix of all observed data $(z,g,y)$, and $\prob{\theta|\bf{X}}$ as the posterior distribution of $\theta$, we can write the posterior probability of any estimand as
+\[ \expect*{\fsexpect{Y(z,g)}} = \int_\theta \frac{1}{N} \sum_j \tilde{\bar{Y}}(z,g;\theta_j) \prob{\theta|\bf{X}}\,\mathrm{d}\theta. \]
+$\tilde{\bar{Y}}(z,g;\theta_j)$ is the parameteric version of equation \eqref{eq:finite-sample-mean}. Since we will be relying on Markov Chain Monte Carlo (MCMC) simulations [@stan] for out statistical inference we actually compute this posterior mean^[To calculate credibility intervals, we need to determine the quantiles needed from the $S$ simulations.] as
+\[ \expect*{\fsexpect{Y(z,g)}} \approx \frac{1}{S} \frac{1}{N} \sum_s \sum_j \tilde{\bar{Y}}_{js}(z,g), \]
+where $s \in \{1,\ldots,S\}$ is the simulation index,
+\begin{align}
+\tilde{\bar{Y}}_{js}(z,g) =
+  \begin{cases} 
+    \bar{y}_j & \text{if } Z_j = z \wedge G_j = g  \\
+    \sum_{i=1}^{n_j} Y^{*}(z,g;\theta_{js}) & \text{otherwise},
+  \end{cases} \label{eq:mcmc-finite-sample-mean} 
+\end{align}
+and $Y^{*}(z,g;\theta_{js})$ is drawn from the probability distribution $\prob{Y(z,g) = y | \theta_{js}}$.
+
+For the structural models we will exploit our fine grained control over the mechanisms governing take-up to compute the following estimands:
+
+* The reputational treatment effect of bracelets, ink, and calendar. 
+    - Leaving the distance treatment as assigned.
+      \begin{equation}
+      \begin{aligned}
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{bracelet}))} - \fsexpect{Y(\textrm{control})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{ink}))} - \fsexpect{Y(\textrm{control})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{calendar}))} - \fsexpect{Y(\textrm{control})} 
+      \end{aligned} \label{eq:struct-estimand-1}
+      \end{equation}
+    - Holding fixed the distance at _close_ and _far_. 
+      \begin{equation}
+      \begin{aligned}
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{bracelet,close}))} &- \fsexpect{Y(\textrm{control, close})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{bracelet,far}))} &- \fsexpect{Y(\textrm{control, far})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{ink, close}))} &- \fsexpect{Y(\textrm{control, close})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{ink, far}))} &- \fsexpect{Y(\textrm{control, far})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{calendar, close}))} &- \fsexpect{Y(\textrm{control, close})} \\
+        \fsexpect{Y(\textrm{control},\overline{B}(\textrm{calendar, far}))} &- \fsexpect{Y(\textrm{control, far})} 
+      \end{aligned} \label{eq:struct-estimand-2}
+      \end{equation}
+
+### Reduced Form Model
+
+The primary task in describing the reduced form models is laying the statistical structure of these models; the causal structural is trivially derived from the experimental design. Therefore, we need to explain how the term $\prob{Y(z,g)}$ in \eqref{eq:finite-sample-mean} is estimated.
+
+The reduced form model parameterizes the treatment effect of incentive/signal treatment and distance treatment, using a probit model, as 
+\begin{align}
+  \prob{Y_j(z,g) = y} &= \prob{Y_j = y|Z = z, G = g, \boldsymbol{\beta}_j} \nonumber \\
+  &= \Phi\left(\beta_{0j} + \sum_{\zeta \in \mathcal{Z}}\sum_{\gamma\in\mathcal{G}} \beta_{1j}(\zeta)\cdot\mathbbm{1}(z = \zeta) +  \beta_{2j}(\gamma)\cdot\mathbbm{1}(g = \gamma) + \beta_{3j}(\zeta,\gamma) \cdot\mathbbm{1}(z = \zeta \wedge g = \gamma)\right) \label{eq:P-Y-reduced}
+\end{align}
+where $\mathbbm{1}(\cdot)$ is the indicator function, $\Phi(\cdot)$ is the standard normal cumulative density function, and the vector $\boldsymbol{\beta_j}$ has the hierarchical distribution[^discrete-param] 
+\begin{equation}
 \begin{aligned}
-\Pr[Y_i = 1 | \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_i | \theta_{j[i]}) \\
-\eta_i &=  f(\mathbf{Z}_i, \mathbf{X}_i | \theta_{j[i]})   
-\end{aligned}
-$$
+\boldsymbol{\beta}_j &\sim \mathtt{Normal}\left(\boldsymbol{\beta}_{k[j]}, \mathsf{diag}(\boldsymbol{\sigma}^\textrm{village})\right) \\
+\boldsymbol{\beta}_k &\sim \mathtt{Normal}\left(\boldsymbol{\beta}, \mathsf{diag}(\boldsymbol{\sigma}^\textrm{county})\right) \\
+\boldsymbol{\beta}_j &\sim \mathtt{Normal}\left(\boldsymbol{\beta}_{k[j]}, \mathsf{diag}(\boldsymbol{\sigma}^\textrm{village})\right) \\
+\boldsymbol{\beta}_k &\sim \mathtt{Normal}\left(\boldsymbol{\beta}, \mathsf{diag}(\boldsymbol{\sigma}^\textrm{county})\right) \\
+\beta(\textrm{control}) &\sim \mathtt{Normal}\left(0, \tau(\textrm{control})\right) \\
+\beta(\textrm{ink}) &\sim \mathtt{Normal}\left(0, \tau(\textrm{ink})\right) \\
+\beta(\textrm{calendar}) &\sim \mathtt{HalfNormal}\left(0, \tau(\textrm{calendar})\right) \\
+\beta(\textrm{bracelet}) &\sim \mathtt{HalfNormal}\left(0, \tau(\textrm{bracelet})\right) \\
+\boldsymbol{\sigma}^\textrm{village} &\sim \mathtt{HalfNormal}\left(\bf{0}, \mathsf{diag}(\boldsymbol{\tau^\textrm{village}})\right) \\
+\boldsymbol{\sigma}^\textrm{county} &\sim \mathtt{HalfNormal}\left(\bf{0}, \mathsf{diag}(\boldsymbol{\tau^\textrm{county}})\right).
+\end{aligned} \label{eq:hier-beta-model}
+\end{equation}
+We restrict $\beta(\textrm{calendar})$ and $\beta(\textrm{bracelet})$ to be positive; these incentives are voluntary to use/wear and therefore they are not likely to have a negative effect on utility.
 
-where 
+From equation \eqref{eq:P-Y-reduced} we can interpret the causal function of $Y$ to be
+\[y \leftarrow f_y(z,g;\boldsymbol{\beta}_j,u_y) = \mathbbm{1}(\beta_{0j} + \sum_{\zeta \in \mathcal{Z}}\sum_{\gamma\in\mathcal{G}} \beta_{1j}(\zeta)\cdot\mathbbm{1}(z = \zeta) +  \beta_{2j}(\gamma)\cdot\mathbbm{1}(g = \gamma) + \beta_{3j}(\zeta,\gamma) \cdot\mathbbm{1}(z = \zeta \wedge g = \gamma) + u_y > 0),\]
+with $U_y \sim \mathtt{Normal}(0, 1)$. Figure \ref{dag:reduced} show the simple causal structure of this model.
 
-* $g$ is a binary link function (e.g., logit or probit link functions).
-* $f$ is a linear function of $\mathbf{Z}$ and $\mathbf{X}$.^[I'm writing it this way so I don't have to write the whole linear model with treatment indicators, covariates and, their interactions. I can specify it separately, it would just distract from the overall model here.] 
-* $\theta_j = (\alpha_j, \beta_j)'$, where $\alpha_j$ and $\beta_j$ are the model parameters for the village-level intercept and the village-level vector of slope coefficients, respectively.
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  [
+    node distance=2cm,
+    line width=1.25,
+    every label/.append style={font=\Large},
+    observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm},
+    latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm},
+    latent-edge/.style={->,dashed},
+    place/.style={circle,draw=blue!50,fill=blue!20,thick,
+    inner sep=0pt,minimum size=6mm},
+    transition/.style={rectangle,draw=black!50,fill=black!20,thick,
+    inner sep=0pt,minimum size=4mm}
+  ]
 
-### Parameters Model
+\node[observed] (Y) [label=right:$Y$] {};
+\node[latent] (U_Y) [label=above:$U_y$,above=of Y] {}
+  edge[latent-edge,->] (Y);
+\node[observed] (G) [label=left:$G$,left=of Y] {}
+  edge[->] (Y);
+\node[observed] (Z) [label=left:$Z$,above=of G] {}
+  edge[->] (Y);
+\end{tikzpicture}
+\caption{DAG for discrete distance treatment effect reduced form model.}
+\label{dag:reduced}
+\end{figure}
 
-This section describe the hierarchical model for parameters. Distribution that have $\mathtt{Multi}$ prefix are multivariate distributions and distributions with $\mathtt{Half}$ prefix are restricted to have non-negative values. 
+We use the notation $k[j]$ to denote the county that village $j$ belongs to. The function $\mathsf{diag}(v)$ constructs a diagonal matrix using its vector argument $v$. We use $\mathtt{HalfNormal}$ to reprsent a normal distribution restricted to be positive. 
 
-The vector of village-level parameters has the following multivariate distribution:
+The hyperparameters $\boldsymbol{\tau}, \boldsymbol{\tau}^\textrm{village}$, and $\boldsymbol{\tau}^\textrm{county}$ define our priors. We set these to: $\tau(\textrm{control}) = 5, \tau(\textrm{ink}) = \tau(\textrm{bracelet}) = \tau(\textrm{calendar}) = 1$, $\boldsymbol{\tau}^\textrm{village} = \frac{1}{4} \boldsymbol{\iota}_4$, and $\boldsymbol{\tau}^\textrm{county} = \frac{1}{4} \boldsymbol{\iota}_4$.^[$\boldsymbol{\iota}_n$ is a $n$-vector of ones.]   
 
-$$
-\forall j: \theta_j \sim \mathtt{MultiStudentT}(\nu^\text{village}, \theta_{k[j]}, \Sigma_{k[j]}^\text{village})
-$$
-while the county-level parameters have the following distribution
-$$
-\forall k: \theta_k \sim \mathtt{MultiStudentT}(\nu^\text{county}, \theta^o, \Sigma^\text{county})
-$$
-where $\theta^o = (\alpha^o, \beta^o)$ are the hyperparameters of the linear model:
-$$
+We can write the posterior probability of these parameters as
+\[\prob{\theta|\bf{X}} \propto \underbrace{\prod_i \prob{Y = y_i|\theta_{j[i]},Z = z_j, G = g_j}}_\text{likelihood}\underbrace{\prod_j \prob{\theta_j} \prod_k \prob{\theta_k}}_\text{prior}.\]
+
+<!-- The second reduced form model parameterizes the continuous effect of distance to deworming treatment, so we have  -->
+<!-- \[P(Y_j(z,d)) = P(Y_j|Z = z, D = d, \boldsymbol{\beta}_j) = \mathsf{logit}^{-1}\left(\beta_{0j} + \beta_{1j}\cdot z + f(z,d;\nu)\right),\] -->
+<!-- where $f(z,d;\nu)$ is the continuous distance effect function, potentially varying by incentive/signal treatment, $z$. We will a _penalized spline regression model_ so that  -->
+<!-- \[ f(z,d;\nu) = \sum_{\zeta\in\mathcal{Z}} \mathbbm{1}(z = \zeta) \left[\nu_0(z)\cdot d + \sum_{q=1}^Q \nu_{1q}(z)\cdot w_q(d)\right].  \] -->
+<!-- $\nu_0(\cdot)$ is linear effect, varying by $z$, while $\nu_{1q}(\cdot)$ are the spline coefficients and $w_q(d)$ are the O'Sullivan spline basis functions. We set $Q = 102$ to produce smooth functions while relying on the Bayesian model's priors for regularization of unneeded parameters [@Jaro;@Kharratzadeh2017]. The spline coefficients are modeled as -->
+<!-- \begin{align*} -->
+<!-- \boldsymbol{\nu_0} &\sim \mathtt{Normal}(\bf{0},\boldsymbol{\iota}_4) \\ -->
+<!-- \nu_{1q}(\zeta) &\sim \mathtt{Normal}(0, \sigma^\textrm{spline}),\forall 1 \leq q \leq Q, \zeta \in \mathcal{Z} \\ -->
+<!-- \sigma^\textrm{spline} &\sim \mathtt{HalfNormal}(0, 1). -->
+<!-- \end{align*} -->
+
+<!-- \begin{figure} -->
+<!-- \centering -->
+<!-- \begin{tikzpicture} -->
+<!--   [ -->
+<!--     node distance=2cm, -->
+<!--     line width=1.25, -->
+<!--     every label/.append style={font=\Large}, -->
+<!--     observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm}, -->
+<!--     latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm}, -->
+<!--     latent-edge/.style={->,dashed}, -->
+<!--     place/.style={circle,draw=blue!50,fill=blue!20,thick, -->
+<!--     inner sep=0pt,minimum size=6mm}, -->
+<!--     transition/.style={rectangle,draw=black!50,fill=black!20,thick, -->
+<!--     inner sep=0pt,minimum size=4mm} -->
+<!--   ] -->
+
+<!-- \node[observed] (Y) [label=right:$Y$] {}; -->
+<!-- \node[latent] (U_Y) [label=right:$U_Y$,above=of Y] {} -->
+<!--   edge[latent-edge,->] (Y); -->
+<!-- \node[observed] (D) [label=above:$D$,left=of Y] {} -->
+<!--   edge[->] (Y); -->
+<!-- \node[latent] (U_D) [label=right:$U_D$,below=of D] {} -->
+<!--   edge[latent-edge,->] (D); -->
+<!-- \node[observed] (G) [label=left:$G$,left=of D] {} -->
+<!--   edge[->] (Y); -->
+<!-- \node[observed] (Z) [label=left:$Z$,above=of D] {} -->
+<!--   edge[->] (Y); -->
+<!-- \end{tikzpicture} -->
+<!-- \caption{DAG for continuous distance treatment effect reduced form model.} -->
+<!-- \end{figure} -->
+
+[^discrete-param]: For all the incentive/signal treatments we have the parameters $\beta_{1j}(\textrm{control}) = 0$ (omitted), $\beta_{1j}(\textrm{calendar}), \beta_{1j}(\textrm{ink})$, and $\beta_{1j}(\textrm{bracelet})$; for the distance treatment we have $\beta_{2j}(\textrm{close}) = 0$ (omitted) and $\beta_{2j}(\textrm{far})$; and for the interaction of both treatments we have $\beta_{3j}(\textrm{control,close}) = 0$ (omitted), $\beta_{3j}(\textrm{control,far}), \beta_{3j}(\textrm{calendar,close}), \beta_{3j}(\textrm{calendar,far}), \beta_{3j}(\textrm{ink,close}), \beta_{3j}(\textrm{ink,far}), \beta_{3j}(\textrm{bracelet,close})$, and $\beta_{3j}(\textrm{bracelet,far})$. 
+
+### Structural Model
+
+#### Distance {-}
+
+For the structural model we will model the continuous effect of distance to deworming treatment; for us to be able to generate counterfactuals with respect to assigned distance we need to model how the assignment to _close_ and _far_ distances generates real continuous distances. We model this as
+\begin{align}
+\prob{D(g) = d) = P(D = g | G = g, \boldsymbol{\rho}, \boldsymbol{\pi}, \boldsymbol{\eta}} = \sum_m^M \rho_m \frac{\phi(d; \pi_m(g), \eta_m(g))}{1 - \Phi(d; \pi_m(g), \eta_m(g))}. \label{eq:P-D-struct}
+\end{align}
+For each distance assignment, $G$, the continuous distance, $D$, has a finite mixture positive normal distribution (truncated at zero). $\phi(\cdot;\pi,\eta)$ is the probability density function and $\Phi(\cdot;\pi,\eta)$ is the cumulative density function, for the $\mathtt{Normal}(\pi,\eta)$ distribution. $M$ (we set equal to 2) is the number of mixtures and $\boldsymbol{\rho}(g)$ is an $M$-simplex.
+For the parameters in equation \eqref{eq:P-D-struct} we set the priors, for every $g \in \mathcal{G}$,
+\begin{align*}
+  \boldsymbol{\rho(g)} &\sim \mathtt{Dirichlet}(\boldsymbol{\iota}_M) \\
+  \pi_m(g) &\sim \mathtt{HalfNormal}(0, 1), \forall 1 < m < M \\
+  \eta_m(g) &\sim \mathtt{HalfNormal}(0, 1), \forall 1 < m < M,  
+\end{align*}
+and $\pi_m(\textrm{close}) \leq \pi_m(\textrm{far})$, for all $1 < m < M$. This corresponds to the causal function
+\begin{equation} 
+  d \leftarrow f_D(g; \boldsymbol{\pi}_m, u_D) = \pi_m(g) + u_D, \label{eq:D-causal}
+\end{equation}
+where $u_D \sim \mathtt{HalfNormal}(0, \eta_m(g))$.
+
+#### Causal Structure {-}
+
+The structural model is based on the theoretical framework laid out in section \ref{theoretical-framework}. To correspond to that framework, we need to introduce two latent variables representing the private consumption utility of incentives and the reputational utility of signaling. 
+
+For private consumption utility we will introduce the variable $\overline{B}$ to represent the village-level private utility, such that 
+\begin{equation} 
+  \bar{b} \leftarrow f_{\overline{B}}(z, d; \boldsymbol{\beta}_j, \boldsymbol{\delta}) = \beta_{0j} + \sum_{\zeta \in \mathcal{Z}} \beta_{1j}(\zeta)\cdot\mathbbm{1}(z = \zeta) + c(d;\delta), \label{eq:Bbar-causal}
+\end{equation}
+where $c(\cdot;\delta)$ is a convex cost (distance) function parameterized by $\delta$. We will consider linear and quadratic cost functions. We separately model the household private consumption utility as
+\begin{equation}
+  b \leftarrow f_B(\bar{b}; u_b) = \bar{b} + u_b. \label{eq:B-causal}
+\end{equation}
+We separate the village level private consumption utility from the overall household utility because we model reputational utility as dependent on the community's private utility; households calculate the reputational returns to signaling based on level of consumption utility shared by the group they are signaling to. We assume any private shocks, $U_b$, to consumption utility are unobservable to other households in the community and does not figure into the reputational utility calculation. 
+
+The second latent variable in the structural model will be $R$ representing the reputational utility of signaling. We will model this as
+\begin{align}
+ r \leftarrow f_R(z,\bar{b}; \boldsymbol{\mu},u_r) = \mu(z)\cdot\Delta[v^*(z,\bar{b})] + u_r, \label{eq:R-causal}
+\end{align}
+where $u_r$ is latent reputational shock and
+\begin{equation}
 \begin{aligned}
-\alpha^o &\sim \mathtt{Normal}(0, 5) \\
-\beta^o &\sim \mathtt{MultiNormal}(0, \mathsf{diag}(1))
-\end{aligned}
-$$
-($\mathsf{diag}(x)$ is a matrix with the diagonal vector $x$.)
+\Delta[v^*(z,\bar{b})] &= \expect{V | V > v^*(z,\bar{b})} - \expect{V | V < v^*(z,\bar{b})} \\
+v^*(z,\bar{b}) &= \bar{b} + \mu(z)\Delta[v^*(z,\bar{b})]. 
+\end{aligned} \label{eq:V-equil}
+\end{equation}
+Equation \eqref{eq:R-causal} corresponds to the the reputational returns term in \eqref{equ:signal2} where we use $\mu(z) = x(z)\lambda$ since we cannot separate the observability effect of the signal, $x(z)$, from the value placed on reputation, $lambda$.
 
-The covariance matrices for $\theta_j$ and $\theta_k$ are defined as
-$$
-\begin{aligned}
-\forall k: \Sigma_k^\text{village} &= \mathsf{diag}(\sigma^\text{village}) \Omega_k^\text{village} \mathsf{diag}(\sigma^\text{village}) \\
-\Sigma^\text{county} &= \mathsf{diag}(\sigma^\text{county}) \Omega^\text{county} \mathsf{diag}(\sigma^\text{county})
-\end{aligned}
-$$
-where $\Omega_k^\text{village}$ and $\Omega^\text{county}$ are correlation matrices with their own prior distributions.
+Finally, we model the decision to take-up deworming treatment as 
+\begin{equation}
+y \leftarrow f_Y(b,r;v,u_y) = \mathbbm{1}(b + r + v + u_y > 0), \label{eq:Y-causal}
+\end{equation}
+where $v$ is the unobservable prosocial type and $u_y$ are other unmodeled shocks. 
 
-Other hyper parameters have the following prior distributions
-$$
-\begin{aligned}
-\nu^\text{village} &\sim \Gamma(2, 0.1) \\
-\nu^\text{county} &\sim \Gamma(2, 0.1) \\
-\sigma^\text{village} &\sim \mathtt{HalfMultiNormal}(0, \mathsf{diag}(1)) \\
-\sigma^\text{county} &\sim \mathtt{HalfMultiNormal}(0, \mathsf{diag}(1)) \\
-\end{aligned}
-$$
+Figure \ref{dag:struct} presents the causal structure corresponding to equations \eqref{eq:D-causal}, \eqref{eq:Bbar-causal}, \eqref{eq:B-causal}, \eqref{eq:R-causal}, and \eqref{eq:Y-causal}. We represent latent variables using hollow nodes and observed variables using solid nodes. We combine the $U_b, U_r, U_y$, and $V$ latent background variables using the variable $U$ since we make no claims about their indepdence from each other.
 
-### Posterior Distribution of Model Parameters
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  [
+    node distance=2cm,
+    line width=1.25,
+    every label/.append style={font=\Large},
+    observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm},
+    latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm},
+    latent-edge/.style={->,dashed},
+    place/.style={circle,draw=blue!50,fill=blue!20,thick,
+    inner sep=0pt,minimum size=6mm},
+    transition/.style={rectangle,draw=black!50,fill=black!20,thick,
+    inner sep=0pt,minimum size=4mm}
+  ]
 
-Let $\theta$ be a vector of all linear model parameters at all levels and $\phi$ is a vector of all hyperparameters, and $\mathbf{Y}$ is a matrix of all observed outcomes. To conduct our inference we need to calculate the distribution
-$$
-p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X}) = p(\mathbf{Y}^\text{observed} | \mathbf{Z}^\text{observed}, \mathbf{X}, \theta, \phi) p(\theta | \phi) p(\phi)
-$$
+\node[observed] (Y) [label=above:$Y$] {};
+\node[latent] (B) [label=right:$B$,below=of Y] {}
+  edge[->] (Y);
+\node[latent] (R) [label=above:$R$,left=of Y] {}
+  edge[->] (Y);
+\node[latent] (Bbar) [label=below:$\overline{B}$,left=of B] {}
+  edge[->] (B)
+  edge[->] (R);
+\node[observed] (Z) [label=left:$Z$,left=of R] {}
+  edge[->] (R)
+  edge[->] (Bbar);
+\node[observed] (D) [label=above:$D$,left=of Bbar] {}
+  edge[->] (Bbar);
+\node[observed] (G) [label=left:$G$,left=of D] {}
+  edge[->] (D);
+\node[latent] (U_D) [label=right:$U_D$,below=of D] {}
+  edge[latent-edge,->] (D);
+\node[latent] (U) [label=right:$U$,right=of Y] {}
+  edge[latent-edge,->] (B)
+  edge[latent-edge,->,bend right=45] (R)
+  edge[latent-edge,->] (Y);
+\end{tikzpicture}
+\caption{DAG for the structural social signaling model.}
+\label{dag:struct}
+\end{figure}
 
-### Inference
+To work out how we will be able to identify the estimands in equations \eqref{eq:struct-estimand-1} and \eqref{eq:struct-estimand-2} from statistical model's conditional probabilities, we follow the approach used by @Pearl2009. Consider the counterfactual quantity $P[Y(z,\overline{B}(z',g)) = y]$: the probability of $Y = y$ under the intervention $Z = z$ and $\overline{B} = \overline{B}(z',g)$. In other words, for the private consumption utility the incentive/signal assignment is held at $z'$ and the distance assignment at $g$, while the reputational utility is determined by the incentive/signal assignment $z$, possibly different from $z'$.
+\begin{align}
+&\prob{Y(z,\overline{B}(z',g)) = y} = \prob{Y(z,\overline{B}(z',D(g))) = y}  \label{eq:add-D} \\
+                                 &= \int_d \prob*{Y(z,\overline{B}(z',d)) | D(g) = d} \cdot \prob*{D(g) = d}\,\mathrm{d}d \\ 
+                                 &= \int_d \prob*{Y(z,\overline{B}(z',d)) | D(g) = d, G = g} \cdot \prob*{D(g) = d | G = g}\,\mathrm{d}d \\ 
+                                 &= \int_d \prob*{Y(z,\overline{B}(z',d)) | D = d, G = g} \cdot \prob*{D = d | G = g}\,\mathrm{d}d \\ 
+                                 &= \int_d \prob*{Y(z,\overline{B}(z',d)) | D = d} \cdot \prob*{D = d | G = g}\,\mathrm{d}d \\ 
+                                 &= \int_{\bar{b}} \int_d \prob*{Y(z,\bar{b}) | \overline{B}(z',d) = \bar{b}, D = d}\cdot\prob*{\overline{B}(z',d) = \bar{b}}\cdot \prob*{D = d | G = g}\,\mathrm{d}d\,\mathrm{d}\bar{b} \\
+                                 &= \int_{\bar{b}} \int_d \prob*{Y(z,\bar{b}) | \overline{B}(z',g) = \bar{b},D = d,Z = z'}\cdot\prob*{\overline{B}(z',d) = \bar{b} | Z = z', D = d}\cdot\prob*{D = d | G = g}\,\mathrm{d}d\,\mathrm{d}\bar{b} \\
+                                 &= \int_{\bar{b}} \int_d \prob*{Y(z,\bar{b}) | \overline{B} = \bar{b},D = d,Z = z'}\cdot\prob*{\overline{B} = \bar{b} | Z = z', D = d}\cdot\prob*{D = d | G = g}\,\mathrm{d}d\,\mathrm{d}\bar{b} \\
+                                 &= \int_{\bar{b}} \int_d \prob*{Y(z) | \overline{B} = \bar{b},D = d,Z = z'}\cdot\prob*{\overline{B} = \bar{b} | Z = z', D = d}\cdot\prob*{D = d | G = g}\,\mathrm{d}d\,\mathrm{d}\bar{b} \\
+                                 &= \int_{\bar{b}} \int_d \prob*{Y(z) | \overline{B} = \bar{b},D = d,Z = z}\cdot\prob*{\overline{B} = \bar{b} | Z = z', D = d}\cdot\prob*{D = d | G = g}\,\mathrm{d}d\,\mathrm{d}\bar{b} \\
+                                 &= \int_{\bar{b}} \int_d \prob*{Y | \overline{B} = \bar{b},D = d,Z = z}\cdot\prob*{\overline{B} = \bar{b} | Z = z', D = d}\cdot\prob*{D = d | G = g}\,\mathrm{d}d\,\mathrm{d}\bar{b}. \label{eq:struct-cond-prob}
+\end{align}
+This results in an equation with no causal terms (potential outcomes) but only conditional probabilities that are calculated by the statistical model. 
 
-After calculating the posterior distribution of the model's parameters we want to be able to calculate, for any two treatments $z$ and $z'$, the distribution of the average treatment effect
-$$
-\frac{1}{N} \Sigma_i Y_i(z) - Y_i(z')
-$$
+#### Statistical Model {-}
 
-Since we only observe at most one outcome of $Y_i(\cdot)$, we need to quantify the distribution of _missing_ counterfactuals:
-$$
-p(\mathbf{Y}^\text{missing} | \mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{Z}^\text{missing}, \mathbf{X}) = \int p(\mathbf{Y}^\text{missing} | \mathbf{Z}^\text{missing}, \mathbf{X}, \theta, \phi) \cdot p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X})\, d\theta d\phi
-$$
+So far we have restricted ourselves to the causal structural model. Now we turn to the statistical model used to estimate our estimands. We have already defined the statistical model for distance  determined by $G$. Now, we defined the probability
+\begin{align*}
+  \prob{Y(z,d) = y | \boldsymbol{\beta},\boldsymbol{\delta},\boldsymbol{\mu},\sigma^\textrm{struct}} &= \prob{Y = y | Z = z, D = d; \boldsymbol{\beta},\boldsymbol{\delta},\boldsymbol{\mu},\sigma^\textrm{struct}} \\ 
+  &= \Phi\left(f_B(z,d; \boldsymbol{\beta},\boldsymbol{\delta}) + f_R(z,f_B(z,d; \boldsymbol{\beta},\boldsymbol{\delta});\boldsymbol{\mu}); 0, \sigma^\textrm{struct}\right),  
+\end{align*}
+where  $U = U_B + U_R + U_Y + V \sim \mathtt{Normal}(0, \sigma^\textrm{struct})$. We normalize the distribution of the prosocial type of households, $V$, to have a standard normal distribution. For the other background variables we model their standard deviation as
+\begin{align*}
+  U_{B,R,Y} = U_B + U_R + U_Y &\sim \mathtt{Normal}(0, \sigma_{B,R,Y}) \\
+  \sigma_{B,R,Y} &\sim \mathtt{HalfNormal}(0, 1).
+\end{align*}
+We model the correlation between $V$ and $U_{B,R,Y}$ and the their variance-covariance matrix as
+\begin{align*}
+  \Omega^\textrm{struct} &\sim \mathtt{LKJCorr}(2) \\
+  \sigma_{V,B,R,Y} &= \begin{pmatrix} 1 \\ \sigma_{B,R,Y}\end{pmatrix} \\
+  \Sigma^\textrm{struct} &= \mathsf{diag}(\sigma_{V,B,R,Y})\Omega^\textrm{struct}\mathsf{diag}(\sigma_{V,B,R,Y}).
+\end{align*}
+From $\Sigma^\textrm{struct}$ we can easily calculate $\sigma^\textrm{struct}$. 
 
-## Dynamic Model
+For $\boldsymbol{\beta}$ we use the same hierarchical model as in equations \eqref{eq:hier-beta-model}. For the cost function we use a simple linear cost function
+\[ c(d;\delta) = \delta\cdot d, \]
+with
+\[ \delta \sim \mathtt{HalfNormal}(0, 1), \]
+restricted to be positive. We place no restrictions on the reputational returns coefficient, $\mu$, other than being positive:
+\begin{align*}
+\mu(z) \sim \mathtt{HalfNormal}(0, 1),~\forall z \in \mathcal{Z}.
+\end{align*}
 
-The text message treatment may only imperfectly capture the potential salience and information effects of the bracelet and ink signals. Individuals might become inattentive to text messages over time, due to the repetitiveness of the reminder messages, or not pay sufficient attention to information about peer take-up as it is communicated in an abstract way (e.g. "few" versus "half" of people dewormed). The possible difference in salience and information effects of text messages, and bracelets or ink is a valid concern. Individuals might become inattentive to text messages as the reminder content is the same each time, and information about peers' take-up might appear abstract (e.g., "few" versus "half" of people dewormed). Signals on the other hand, allow adults to observe on a daily basis who dewormed, providing information about the take-up decisions of specific friends, neighbors or family members. Further, despite adults' low private valuation of bracelets, bracelets could gain popularity and a fad could emerge as more adults start wearing the item. To separately identify these dynamic effects, we estimate a piecewise-constant proportional hazard model [@Wooldridge2010] that uses the full information about changes in take-up levels across the twelve days of deworming. We model the probability to deworm, conditional on not having already done so, extending the static model to twelve deworming days $m \in \{1,...,12\}$.^[The estimation is restricted to the sample of name-matched individuals.]
+Statistical inference is carried out in two stages. First, given a draw of $\boldsymbol{\beta}$ and $\delta$, $\overline{B}$ is evaluated conditional on observed treatment assignment and distance to deworming treatment. Second, we plug this into the algebraic equation solver available in the statistical modeling software, Stan [@stan], to solve equation \refeq{eq:V-equil}, resulting in $V^*$. Since we model $V$ as normally distributed we make use of the close form solutions for the expectations:
+\begin{align*}
+\expect{V|V>v^*} = \frac{\phi(v^*)}{1 - \Phi(v^*)} \text{ and } \expect{V|V<v^*} = - \frac{\phi(v^*)}{\Phi(v^*)}. 
+\end{align*}
 
-### Likelihood Model
+Now that we have described the statistical model for distance and take-up, we can also provide the posterior probability function for all the model's parameters, $\theta$, 
+\[\prob{\theta|\bf{X}} \propto \underbrace{\prod_i \prob{Y = y_i|Z = z_j, D = d_j;\theta_{j[i]}}\prod_j\prob{D = d_j|G = g_j;\theta_{j[i]}}}_\text{likelihood}\underbrace{\prod_j \prob{\theta_j} \prod_k \prob{\theta_k}}_\text{prior}.\]
 
-The dynamic model is extends the static model to the 12 deworming days.
+Finally, we need to explain how we will use the MCMC simulation to compute the estimand in equation \eqref{eq:struct-cond-prob}.
 
-$$
-\begin{aligned}
-\Pr[Y_{im} = 1 | Y_{i,m-1} = 0, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_{im} | \theta_{j[i]}) \\
-\eta_{im} &= \log(\lambda_{k[i],m}) + f(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{static}_{j[i]}) + f_m(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{dynamic}_{k[i]}) \\
+\begin{align*}
+\expect*{\fsexpect*{Y(z,\overline{B}(z',g))}} &\approx \frac{1}{S}\frac{1}{N}\sum_s\sum_j \tilde{\bar{Y}}_{js}\left(z,z',g,\tilde{\bar{B}}_{js}\left(z',\tilde{D}_{js}(g)\right)\right) 
+\end{align*}
+<!-- \begin{align*} -->
+<!-- \expect*{\fsexpect*{Y(z,\overline{B}(z',g))}} &\approx \frac{1}{S}\frac{1}{N}\sum_s\sum_j \tilde{\bar{Y}}_j\left(z,z',g,\tilde{\bar{B}}_j\left(z',\tilde{D}_j(g;\theta_{js});\theta_{js}\right);\theta_{js}\right)  -->
+<!-- \end{align*} -->
+where
+\begin{align*}
+\tilde{\bar{Y}}_{js}(z,z',g,\bar{b}) &= 
+\begin{cases}
+  \bar{y}_j & \text{if }Z_j = z = z' \wedge G_j = g \\ 
+  \sum_{i=1}^{n_j} Y^*(z,\bar{b};\theta_{js}) & \text{otherwise}
+\end{cases} \\
 \\
-\Pr[Y_{im} = 1 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 1 \\
-\Pr[Y_{im} = 0 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 0
-\end{aligned}
-$$
+\tilde{B}_{js}(z,d) &= B^*(z,d;\theta_{js}) \\
+\\
+\tilde{D}_j(g) &=  
+  \begin{cases} 
+    d_j & \text{if } G_j = g  \\
+    D^*(g;\theta_{js}) & \text{otherwise.}
+  \end{cases} 
+\end{align*}
+$D^*$ is a simulation draw, given $\theta_{js}$, from the probability defined in equation \eqref{eq:P-D-struct}, $B^*$ is a simulation draw defined by $f_{\overline{B}}(z,d;\boldsymbol{\beta}_{js},\boldsymbol{\delta}_{js})$, and $Y^*$ is a simulation draw from the probability distribution $\Phi\left(\bar{b} + f_R(z,\bar{b};\boldsymbol{\mu}_s); 0, \sigma_s^\textrm{struct}\right)$.
 
-The link function $g$ here is a complementary log-log.^[Logit and probit work just as well.] $\lambda_{km}$ the is the piecewise-constant proportional hazard for deworming day $m$, that is, the the probability of deworming on day $m$ conditional on not having dewormed on day $m-1$. The term captures individuals' preferences for deworming on particular days, e.g., given individuals' different work arrangements some might prefer to come for deworming on weekends than weekdays. The linear function $f$ is the same as in the static model. Indicators for treatments (ink, calendar, bracelet; far distance; reminder and social info) enter linearly and are interacted. Dynamic treatment effect are captured by the $f_m$ quadratic function, where $m$ is interacted with treatment indicators. 
+<!-- ## Static Model -->
+
+<!-- ### Likelihood Model -->
+
+<!-- This is the model's likelihood, the data generating process for observed outcomes: -->
+
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!-- \Pr[Y_i = 1 | \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_i | \theta_{j[i]}) \\ -->
+<!-- \eta_i &=  f(\mathbf{Z}_i, \mathbf{X}_i | \theta_{j[i]})    -->
+<!-- \end{aligned} -->
+<!-- $$ -->
+
+<!-- where  -->
+
+<!-- * $g$ is a binary link function (e.g., logit or probit link functions). -->
+<!-- * $f$ is a linear function of $\mathbf{Z}$ and $\mathbf{X}$.^[I'm writing it this way so I don't have to write the whole linear model with treatment indicators, covariates and, their interactions. I can specify it separately, it would just distract from the overall model here.]  -->
+<!-- * $\theta_j = (\alpha_j, \beta_j)'$, where $\alpha_j$ and $\beta_j$ are the model parameters for the village-level intercept and the village-level vector of slope coefficients, respectively. -->
+
+<!-- ### Parameters Model -->
+
+<!-- This section describe the hierarchical model for parameters. Distribution that have $\mathtt{Multi}$ prefix are multivariate distributions and distributions with $\mathtt{Half}$ prefix are restricted to have non-negative values.  -->
+
+<!-- The vector of village-level parameters has the following multivariate distribution: -->
+
+<!-- $$ -->
+<!-- \forall j: \theta_j \sim \mathtt{MultiStudentT}(\nu^\text{village}, \theta_{k[j]}, \Sigma_{k[j]}^\text{village}) -->
+<!-- $$ -->
+<!-- while the county-level parameters have the following distribution -->
+<!-- $$ -->
+<!-- \forall k: \theta_k \sim \mathtt{MultiStudentT}(\nu^\text{county}, \theta^o, \Sigma^\text{county}) -->
+<!-- $$ -->
+<!-- where $\theta^o = (\alpha^o, \beta^o)$ are the hyperparameters of the linear model: -->
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!-- \alpha^o &\sim \mathtt{Normal}(0, 5) \\ -->
+<!-- \beta^o &\sim \mathtt{MultiNormal}(0, \mathsf{diag}(1)) -->
+<!-- \end{aligned} -->
+<!-- $$ -->
+<!-- ($\mathsf{diag}(x)$ is a matrix with the diagonal vector $x$.) -->
+
+<!-- The covariance matrices for $\theta_j$ and $\theta_k$ are defined as -->
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!-- \forall k: \Sigma_k^\text{village} &= \mathsf{diag}(\sigma^\text{village}) \Omega_k^\text{village} \mathsf{diag}(\sigma^\text{village}) \\ -->
+<!-- \Sigma^\text{county} &= \mathsf{diag}(\sigma^\text{county}) \Omega^\text{county} \mathsf{diag}(\sigma^\text{county}) -->
+<!-- \end{aligned} -->
+<!-- $$ -->
+<!-- where $\Omega_k^\text{village}$ and $\Omega^\text{county}$ are correlation matrices with their own prior distributions. -->
+
+<!-- Other hyperparameters have the following prior distributions -->
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!-- \nu^\text{village} &\sim \Gamma(2, 0.1) \\ -->
+<!-- \nu^\text{county} &\sim \Gamma(2, 0.1) \\ -->
+<!-- \sigma^\text{village} &\sim \mathtt{HalfMultiNormal}(0, \mathsf{diag}(1)) \\ -->
+<!-- \sigma^\text{county} &\sim \mathtt{HalfMultiNormal}(0, \mathsf{diag}(1)) \\ -->
+<!-- \end{aligned} -->
+<!-- $$ -->
+
+<!-- ### Posterior Distribution of Model Parameters -->
+
+<!-- Let $\theta$ be a vector of all linear model parameters at all levels and $\phi$ is a vector of all hyperparameters, and $\mathbf{Y}$ is a matrix of all observed outcomes. To conduct our inference we need to calculate the distribution -->
+<!-- $$ -->
+<!-- p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X}) = p(\mathbf{Y}^\text{observed} | \mathbf{Z}^\text{observed}, \mathbf{X}, \theta, \phi) p(\theta | \phi) p(\phi) -->
+<!-- $$ -->
+
+<!-- ### Inference -->
+
+<!-- After calculating the posterior distribution of the model's parameters we want to be able to calculate, for any two treatments $z$ and $z'$, the distribution of the average treatment effect -->
+<!-- $$ -->
+<!-- \frac{1}{N} \Sigma_i Y_i(z) - Y_i(z') -->
+<!-- $$ -->
+
+<!-- Since we only observe at most one outcome of $Y_i(\cdot)$, we need to quantify the distribution of _missing_ counterfactuals: -->
+<!-- $$ -->
+<!-- p(\mathbf{Y}^\text{missing} | \mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{Z}^\text{missing}, \mathbf{X}) = \int p(\mathbf{Y}^\text{missing} | \mathbf{Z}^\text{missing}, \mathbf{X}, \theta, \phi) \cdot p(\theta,\phi|\mathbf{Y}^\text{observed}, \mathbf{Z}^\text{observed}, \mathbf{X})\, d\theta d\phi -->
+<!-- $$ -->
+
+<!-- ## Dynamic Model -->
+
+<!-- The text message treatment may only imperfectly capture the potential salience and information effects of the bracelet and ink signals. Individuals might become inattentive to text messages over time, due to the repetitiveness of the reminder messages, or not pay sufficient attention to information about peer take-up as it is communicated in an abstract way (e.g. "few" versus "half" of people dewormed). The possible difference in salience and information effects of text messages, and bracelets or ink is a valid concern. Individuals might become inattentive to text messages as the reminder content is the same each time, and information about peers' take-up might appear abstract (e.g., "few" versus "half" of people dewormed). Signals on the other hand, allow adults to observe on a daily basis who dewormed, providing information about the take-up decisions of specific friends, neighbors or family members. Further, despite adults' low private valuation of bracelets, bracelets could gain popularity and a fad could emerge as more adults start wearing the item. To separately identify these dynamic effects, we estimate a piecewise-constant proportional hazard model [@Wooldridge2010] that uses the full information about changes in take-up levels across the twelve days of deworming. We model the probability to deworm, conditional on not having already done so, extending the static model to twelve deworming days $m \in \{1,...,12\}$.^[The estimation is restricted to the sample of name-matched individuals.] -->
+
+<!-- ### Likelihood Model -->
+
+<!-- The dynamic model is extends the static model to the 12 deworming days. -->
+
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!-- \Pr[Y_{im} = 1 | Y_{i,m-1} = 0, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= g^{-1}(\eta_{im} | \theta_{j[i]}) \\ -->
+<!-- \eta_{im} &= \log(\lambda_{k[i],m}) + f(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{static}_{j[i]}) + f_m(\mathbf{Z}_i, \mathbf{X}_i | \theta^\text{dynamic}_{k[i]}) \\ -->
+<!-- \\ -->
+<!-- \Pr[Y_{im} = 1 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 1 \\ -->
+<!-- \Pr[Y_{im} = 0 | Y_{i,m-1} = 1, \mathbf{Z}_i, \mathbf{X}_i, \theta_{j[i]}] &= 0 -->
+<!-- \end{aligned} -->
+<!-- $$ -->
+
+<!-- The link function $g$ here is a complementary log-log.^[Logit and probit work just as well.] $\lambda_{km}$ the is the piecewise-constant proportional hazard for deworming day $m$, that is, the the probability of deworming on day $m$ conditional on not having dewormed on day $m-1$. The term captures individuals' preferences for deworming on particular days, e.g., given individuals' different work arrangements some might prefer to come for deworming on weekends than weekdays. The linear function $f$ is the same as in the static model. Indicators for treatments (ink, calendar, bracelet; far distance; reminder and social info) enter linearly and are interacted. Dynamic treatment effect are captured by the $f_m$ quadratic function, where $m$ is interacted with treatment indicators.  -->
 
 
 ## Willingness-to-Pay Model
@@ -945,7 +1281,7 @@ Let
   \sigma &\sim \mathtt{HalfStudentT}(\nu_\sigma, 0, \tau_\sigma)
 \end{align*}
 
-with fixed hyper parameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
+with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
 
 <!-- TODO Specify fixed hyperparameter values -->
 
@@ -1623,7 +1959,7 @@ This paper provides field experimental evidence on the effects of social signali
 
 # Appendix A: Reduced Form Regression Results {-}
 
-Figures \ref{fig:ols-no-sms}-\ref{fig:ols-sms-dist} present the OLS stratified regression analysis results, using robust standard errors clustered at the village level [@Imbens2015]. The overall pattern of effects (direction and magnitudes) is similar to the main analysis results in section \ref{results}. As expected, estimates are not exactly the same. Regression analyses report sample and null hypothesis test statistics, while multilevel Bayesian analyses rely on generative models to impute counterfactuals and calculate causal estimands. Using a null hypothesis testing framework with multiple comparisons is vulnerable to picking up spurious statistically significant effects [@Gelman2008;@Young2015], and thus we use a multilevel model to provide more conservative estimands and to avoid over-fitting.
+Figures \ref{fig:ols-no-sms}-\ref{fig:ols-sms-dist} present the OLS stratified regression analysis results, using robust standard errors clustered at the village level [@Imbens2015]. The overall pattern of effects (direction and magnitudes) is similar to the main analysis results in section \ref{results}. As expected, estimates are not exactly the same. Regression analyses report sample and null hypothesis test statistics, while multilevel Bayesian analyses rely on generative models to impute counterfactuals and calculate causal estimands. Using a null hypothesis testing framework with multiple comparisons is vulnerable to picking up spurious statistically significant effects [@Gelman2008;@Young2017], and thus we use a multilevel model to provide more conservative estimands and to avoid over-fitting.
 
 ```{r ols-basic-reg}
 reg.output.sms.ctrl.covar <- analysis.data %>%  
