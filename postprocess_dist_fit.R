@@ -1,5 +1,6 @@
 library(magrittr)
 library(tidyverse)
+library(rlang)
 library(rstan)
 library(pbmcapply)
 library(nleqslv)
@@ -8,53 +9,79 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
-load(file.path("stan_analysis_data", "dist_fit21.RData"))
+load(file.path("stan_analysis_data", "dist_fit27.RData"))
 
 dist_fit_data <- enframe(dist_fit, name = "model", value = "fit")
 
 rm(dist_fit)
 
-load(file.path("stan_analysis_data", "dist_kfold_16.RData"))
-
-dist_fit_data %<>%
-  left_join(enframe(dist_kfold, name = "model", value = "kfold") %>% 
-              mutate(stacking_weight = map(kfold, pluck, "pointwise") %>% 
-                       do.call(rbind, .) %>% 
-                       t() %>% 
-                       loo::stacking_weights()),
-            by = "model") %>% 
-  mutate(kfold = set_names(kfold, model)) %>% 
-  left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") 
-
-rm(dist_kfold)
-
-# load(file.path("stan_analysis_data", "dist_fit_prior18.RData"))
-# 
-# dist_fit_data %<>%
-#   bind_rows("fit" = .,
-#             "prior-predict" = enframe(dist_fit, name = "model", value = "fit"))
-
-
-model_names <- c(
-  "REDUCED_FORM_NO_RESTRICT" = "Reduced Form Discrete Cost",
-  "REDUCED_FORM_SEMIPARAM" = "Reduced Form Semiparametric Cost",
-  "STRUCTURAL_LINEAR" = "Structural Linear Cost",
-  "STRUCTURAL_LINEAR_SALIENCE" = "Structural Linear Cost With Salience"
-)
+model_info <- tribble(
+  ~ model,                         ~ model_name,                                ~ model_type,
+  
+  "REDUCED_FORM_NO_RESTRICT",      "Reduced Form Discrete Cost",                "reduced form",
+  "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
+  "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
+  
+  "STACKED",                        "Stacked Model",                            "combined",
+  "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
+) %>% 
+  mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
 thin_model <- c(
   "REDUCED_FORM_NO_RESTRICT" = 1L,
   "REDUCED_FORM_SEMIPARAM" = 1L,
-  "STRUCTURAL_LINEAR" = 1L
+  "STRUCTURAL_LINEAR" = 1L,
+  "STRUCTURAL_QUADRATIC" = 1L,
+  "STRUCTURAL_QUADRATIC_SALIENCE" = 4L
 )
 
 dist_fit_data %<>% 
-  left_join(enframe(model_names, name = "model", value = "model_name"), by = "model") %>% 
-  left_join(enframe(thin_model, name = "model", value = "thin"), by = "model") %>% 
-  mutate(
-    model = factor(model, levels = names(model_names)),
-    thin = coalesce(thin, 1L)
-  )
+  left_join(enframe(thin_model, name = "model", value = "thin"), by = "model") 
+
+load(file.path("stan_analysis_data", "dist_fit_prior27.RData"))
+
+dist_fit_data %<>%
+  bind_rows("fit" = .,
+            "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
+              mutate(thin = 1L),
+            .id = "fit_type") 
+
+rm(dist_fit)
+
+dist_fit_data %<>% 
+  mutate(fit_type = factor(fit_type))
+
+dist_fit_data <- tryCatch({
+  load(file.path("stan_analysis_data", "dist_kfold27.RData"))
+      
+  enframe(dist_kfold, name = "model", value = "kfold") %>% 
+    inner_join(select(model_info, model, model_type), by = "model") %>% 
+    mutate(
+      fit_type = factor("fit"),
+      stacking_weight = map(kfold, pluck, "pointwise") %>% 
+        do.call(rbind, .) %>% 
+        t() %>% 
+        loo::stacking_weights(),
+      
+      kfold = set_names(kfold, model)
+    ) %>% 
+    group_by(model_type) %>% 
+    mutate(
+      stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
+        do.call(rbind, .) %>% 
+        t() %>% { 
+        tryCatch(loo::stacking_weights(.), error = function(err) NA)
+        }
+    ) %>% 
+    ungroup() %>% 
+    left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
+    left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
+    select(-one_of("model_type"))
+}, error = function(err) dist_fit_data)
+
+dist_fit_data %<>% 
+  inner_join(select(model_info, model, model_type), by = "model") %>% 
+  mutate(thin = coalesce(thin, 1L))
 
 observed_takeup <- monitored_nosms_data %>% 
   group_by(cluster_id, assigned_treatment = assigned.treatment, assigned_dist = cluster.dist.to.pot) %>% 
@@ -65,8 +92,39 @@ observed_takeup <- monitored_nosms_data %>%
   ungroup()
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
+multiplier_v_range <- seq(-2, 2, 0.25)
 postprocess_cores <- 12
 
+organize_by_treatment <- function(.data, ...) {
+  .data %>%
+    select(
+      cluster_id, 
+      assigned_treatment, assigned_dist_group, mu_assigned_treatment, 
+      assigned_dist_obs, assigned_treatment_obs, assigned_dist_group_obs, cluster_size, 
+      iter_data
+    ) %>% 
+    mutate(iter_data = map(iter_data, select, iter_id, prob, iter_num_takeup)) %>%
+    unnest(iter_data) %>% 
+    group_by(iter_id, !!!exprs(...)) %>% 
+    summarize(iter_prop_takeup = sum(iter_num_takeup) / sum(cluster_size)) %>% 
+    ungroup() %>% 
+    nest(iter_data = c(iter_id, iter_prop_takeup)) %>%
+    mutate(
+      mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
+      takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs))
+    ) %>% 
+    unnest(takeup_quantiles)
+}
+
+prep_multiple_est <- function(accum_data, next_col) {
+  group_name <- str_remove(as.character(next_col), "^iter_")
+                                           
+  mutate(accum_data,
+         mean_est = map_dbl(iter_data, ~ mean(pull(., !!next_col))), 
+         quants = map(iter_data, quantilize_est, !!next_col, wide = TRUE, quant_probs = c(quant_probs))) %>% 
+    unnest(quants) %>% 
+    pack({{ group_name }} := c(mean_est, starts_with("per_"))) 
+}
 
 dist_fit_data %<>% 
   mutate(
@@ -133,7 +191,6 @@ dist_fit_data %<>%
     #                  }),
     
     cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
-      # map(select, -starts_with("ess"), -one_of("rhat")) %>% 
       map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
       map(mutate, iter_data = map(iter_data, unnest, iter_data)) %>% 
       lst(benefit_cost = ., 
@@ -182,83 +239,142 @@ dist_fit_data %<>%
             map(group_nest,  .key = "iter_data")) %>% 
       map(unnest, iter_data),
     
-    est_takeup_level = map(cluster_cf_benefit_cost,
-      function(.data) {
-        .data %>%
-          select(
-            cluster_id, 
-            assigned_treatment, assigned_dist_group, mu_assigned_treatment, 
-            assigned_dist_obs, assigned_treatment_obs, assigned_dist_group_obs, cluster_size, 
-            iter_data
-          ) %>% 
-          mutate(iter_data = map(iter_data, select, iter_id, prob, iter_num_takeup)) %>%
-          unnest(iter_data) %>% 
-          group_by(iter_id, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
-          summarize(iter_prop_takeup = sum(iter_num_takeup) / sum(cluster_size)) %>% 
-          ungroup() %>% 
-          nest(iter_data = c(iter_id, iter_prop_takeup)) %>%
+    y_rate_of_change = pmap(lst(mu_rep, total_error_sd, fit_type),
+                            function(mu_rep, total_error_sd, fit_type) {
+                              if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
+                                mu_sd <- mu_rep %>% 
+                                  select(assigned_treatment, iter_data) %>% 
+                                  unnest(iter_data) %>% 
+                                  select(assigned_treatment, iter_id, iter_est) %>% 
+                                  left_join(total_error_sd %>% 
+                                              select(iter_data) %>% 
+                                              unnest(iter_data),
+                                            by = "iter_id", suffix = c("_mu", "_sd"))
+                                
+                                multiplier_v_range %>% 
+                                  map_df(~ mu_sd %>% 
+                                           mutate(
+                                             v = .x,
+                                             iter_prob_takeup = pnorm(v, sd = iter_est_sd, lower.tail = FALSE),  
+                                             iter_social_multiplier = social_multiplier(v, iter_est_mu),
+                                             iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_sd)
+                                           ) %>% 
+                                  nest(iter_data = c(iter_id, iter_est_mu, iter_est_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar))) %>% 
+                                  reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), prep_multiple_est, .init = .)
+                              } 
+                            }),
+    
+    est_takeup_level = map(cluster_cf_benefit_cost, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
+      map2(cluster_cf_benefit_cost, 
+           ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>% 
+             organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>% 
+             bind_rows(.x, .))
+  ) 
+
+if (has_name(dist_fit_data, "stacking_weight")) {
+  level_stack_reducer <- function(accum, est_takeup_level, stacking_weight) {
+    if (is.na(stacking_weight)) {
+      return(accum)
+    } else {
+      weighed_level <- est_takeup_level %>% 
+        select(-mean_est, -starts_with("per_")) %>% 
+        mutate(iter_data = map(iter_data, mutate, iter_prop_takeup = iter_prop_takeup * stacking_weight),
+               mu_assigned_treatment = if (!is.factor(mu_assigned_treatment)) factor(mu_assigned_treatment) else mu_assigned_treatment,
+               mu_assigned_treatment = if_else(is.na(mu_assigned_treatment), assigned_treatment, mu_assigned_treatment))
+       
+      if (is_empty(accum)) {
+        return(weighed_level)
+      } else {
+        inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
+          mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
+                   map(mutate, iter_prop_takeup = iter_prop_takeup_accum + iter_prop_takeup_weighed) %>% 
+                   map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
+          select(-ends_with("_accum"), -ends_with("_weighed"))
+      }
+    }
+  }
+  
+  rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight) {
+    if (is.na(stacking_weight)) {
+      return(accum)
+    } else {
+      weighed_level <- rate_of_change %>% 
+        select(-c(prob_takeup, social_multiplier, partial_bbar)) %>% 
+        mutate(iter_data = map(iter_data, mutate_at, vars(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), ~ . * stacking_weight))
+       
+      if (is_empty(accum)) {
+        return(weighed_level)
+      } else {
+        inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
+          mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
+                   map(mutate, 
+                       iter_prob_takeup = iter_prob_takeup_accum + iter_prob_takeup_weighed,
+                       iter_social_multiplier = iter_social_multiplier_accum + iter_social_multiplier_weighed,
+                       iter_partial_bbar = iter_partial_bbar_accum + iter_partial_bbar_weighed) %>% 
+                   map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
+          select(-ends_with("_accum"), -ends_with("_weighed"))
+      }
+    }
+  }
+  
+  dist_fit_data %<>% 
+    add_row(
+      model = factor("STACKED"), 
+      model_type = factor("combined"),
+      fit_type = factor("fit"),
+      est_takeup_level = list(
+        reduce2(.$est_takeup_level, .$stacking_weight, level_stack_reducer, .init = tibble()) %>% 
           mutate(
             mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
             takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs))
           ) %>% 
           unnest(takeup_quantiles)
-      }),
-    
-    # stacked_est_takeup_level = map2(stacking_weight, est_takeup_level, {
-    #   if (!is.na(.x)) {
-    #     .y %>% 
-    #       select(-mean_est, -starts_with("per_")) %>% 
-    #       mutate(iter_data = map(iter_data, mutate, iter_prop_takeup = iter_prop_takeup * .x))
-    #   } else {
-    #     return(NULL)
-    #   }
-    # }),
-  ) 
+      ),
+    ) %>%  
+    add_row(
+      model = factor("STRUCTURAL_STACKED"), 
+      model_type = factor("structural"),
+      fit_type = factor("fit"),
+      est_takeup_level = list(
+        reduce2(.$est_takeup_level, .$stacking_weight_by_type, level_stack_reducer, .init = tibble()) %>% 
+          mutate(
+            mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
+            takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs))
+          ) %>% 
+          unnest(takeup_quantiles)
+      ),
+      
+      y_rate_of_change = list(
+        reduce2(.$y_rate_of_change, .$stacking_weight_by_type, rate_of_change_stack_reducer, .init = tibble()) %>% 
+          reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), prep_multiple_est, .init = .)
+      ) 
+    ) 
+}
 
-dist_fit_data %<>% 
-  add_row(
-    model = "STACKED", 
-    model_name = "Stacked Model", 
-    est_takeup_level = list(
-      reduce2(.$est_takeup_level, .$stacking_weight, 
-              function(accum, est_takeup_level, stacking_weight) {
-                if (is.na(stacking_weight)) {
-                  return(accum)
-                } else {
-                  weighed_level <- est_takeup_level %>% 
-                    select(-mean_est, -starts_with("per_")) %>% 
-                    mutate(iter_data = map(iter_data, mutate, iter_prop_takeup = iter_prop_takeup * stacking_weight),
-                           mu_assigned_treatment = if (!is.factor(mu_assigned_treatment)) factor(mu_assigned_treatment) else mu_assigned_treatment,
-                           mu_assigned_treatment = if_else(is.na(mu_assigned_treatment), assigned_treatment, mu_assigned_treatment))
-                   
-                  if (is_empty(accum)) {
-                    return(weighed_level)
-                  } else {
-                    inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
-                      mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
-                               map(mutate, iter_prop_takeup = iter_prop_takeup_accum + iter_prop_takeup_weighed) %>% 
-                               map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
-                      select(-ends_with("_accum"), -ends_with("_weighed"))
-                  }
-                }
-              },
-              .init = tibble()) %>% 
-        mutate(
-          mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
-          takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs))
-        ) %>% 
-        unnest(takeup_quantiles)
-    ))
+dist_fit_data %<>%
+  right_join(select(model_info, model, model_name), by = "model") %>% 
+  mutate(
+    model = factor(model, levels = model_info$model),
+    fit_type = factor(fit_type),
+  ) %>% 
+  arrange(model)
 
 ate_combo <- dist_fit_data %>% 
-  filter(fct_match(model, "STRUCTURAL_LINEAR")) %$%
+  filter(fct_match(model, "STRUCTURAL_QUADRATIC")) %$%
   select(est_takeup_level[[1]], mu_assigned_treatment:assigned_dist_group) %>% {
     bind_cols(rename_all(., str_c, "_left"), rename_all(., str_c, "_right"))
-  } %>%
-  expand(crossing(!!!syms(names(.)))) %>%
-  filter(mu_assigned_treatment_left != mu_assigned_treatment_right |
-           assigned_treatment_left != assigned_treatment_right |
-           (fct_match(assigned_dist_group_left, "far") & fct_match(assigned_dist_group_right, "close")))
+  } %>% {
+    bind_rows(
+      expand(., crossing(!!!syms(names(.)))) %>%
+        filter(mu_assigned_treatment_left != mu_assigned_treatment_right |
+                 assigned_treatment_left != assigned_treatment_right |
+                 (fct_match(assigned_dist_group_left, "far") & fct_match(assigned_dist_group_right, "close"))),
+      select(., -contains("dist_group")) %>% 
+        expand(crossing(!!!syms(names(.)))) %>%
+        filter(mu_assigned_treatment_left != mu_assigned_treatment_right |
+                 assigned_treatment_left != assigned_treatment_right) 
+    )
+  }
 
 dist_fit_data %<>% 
   mutate(
@@ -280,13 +396,15 @@ dist_fit_data %<>%
       },
       ate_combo = ate_combo) %>% 
     map_if(
-      ~ any(str_detect(names(.), "mu_assigned_treatment")),
+      fct_match(model_type, "structural"),
       ~ filter(., 
         mu_assigned_treatment_left != mu_assigned_treatment_right |
         assigned_treatment_left != assigned_treatment_right |
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
         assigned_dist_group_left != assigned_dist_group_right),
       .else = ~ filter(., 
         assigned_treatment_left != assigned_treatment_right |
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
         assigned_dist_group_left != assigned_dist_group_right)) %>% 
     map(mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
           map(mutate, iter_takeup_te = iter_prop_takeup_left - iter_prop_takeup_right)) %>% 
@@ -296,9 +414,29 @@ dist_fit_data %<>%
         takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs))) %>% 
     map(unnest, takeup_te_quantiles),
     
-    est_takeup_dist_te = est_takeup_te %>% 
-      map_if(~ any(str_detect(names(.), "mu_assigned_treatment")), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
-      map_if(~ any(str_detect(names(.), "mu_assigned_treatment")), select, -starts_with("mu_assigned_treatment")) %>% 
+    diff_y_rate_of_change = y_rate_of_change %>% 
+      map_if(~ !is_null(.x), select, assigned_treatment, v, iter_data) %>% 
+      map_if(~ !is_null(.x),
+           function(level_data, ate_combo) {
+             ate_combo %>% 
+               select(str_c("assigned_treatment", c("_left", "_right"))) %>% 
+               distinct_all(.keep_all = TRUE) %>% 
+               inner_join(level_data, by = c("assigned_treatment_left" = "assigned_treatment")) %>% 
+               inner_join(level_data, by = c("assigned_treatment_right" = "assigned_treatment", "v"), suffix = c("_left", "_right"))
+          },
+         ate_combo = ate_combo) %>% 
+      map_if(~ !is_null(.x), mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+            map(mutate, 
+                iter_diff_prob_takeup = iter_prob_takeup_left - iter_prob_takeup_right,
+                iter_diff_social_multiplier = iter_social_multiplier_left - iter_social_multiplier_right,
+                iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right)) %>% 
+      map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
+      map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar), prep_multiple_est, .init = .)), 
+    
+    est_takeup_dist_te = est_takeup_te %>%
+      map(filter, !is.na(assigned_dist_group_left), !is.na(assigned_dist_group_right)) %>% 
+      map_if(fct_match(model_type, "structural"), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+      map_if(fct_match(model_type, "structural"), select, -starts_with("mu_assigned_treatment")) %>% 
       map(filter, assigned_treatment_left == assigned_treatment_right, fct_match(assigned_dist_group_left, "far"), fct_match(assigned_dist_group_right, "close")) %>% 
       map(mutate, assigned_treatment_right = "control") %>% 
       map(select, -mean_est, -starts_with("per_"), -starts_with("assigned_dist_group")) %>% 
@@ -310,17 +448,19 @@ dist_fit_data %<>%
       map(mutate, 
           mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_dist_te)),
           takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_dist_te, wide = TRUE, quant_probs = quant_probs)) %>% 
-      map(unnest, takeup_te_quantiles)
+      map(unnest, takeup_te_quantiles),
+    
+      est_takeup_level = map(est_takeup_level, mutate, iter_data = map(iter_data, as_tibble))  
   )
 
-dist_fit_data %<>% 
-  mutate(est_takeup_level = map(est_takeup_level, mutate, iter_data = map(iter_data, as_tibble)))  
-
-group_dist_param <- dist_fit[[1]] %>% 
+group_dist_param <- dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit")) %>% 
+  pull(fit) %>% 
+  first() %>% 
   as.data.frame(pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
   sample_n(1500) %>% 
   mutate(iter_id = seq(n())) %>% 
   pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id) %>% 
   mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
-save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", "processed_dist_fit21.RData")) 
+save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", "processed_dist_fit27.RData")) 

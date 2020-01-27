@@ -193,7 +193,7 @@ models <- lst(
   STRUCTURAL_QUADRATIC = lst(
     model_type = 10,
     model_file = "dist_struct_fixedpoint.stan",
-    control = lst(max_treedepth = 12, adapt_delta = 0.999),
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
     use_binomial = FALSE,
     num_v_mix = 1,
     use_cost_model = cost_model_types["param_quadratic"],
@@ -208,10 +208,15 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = FALSE,
-    suppress_shocks = TRUE,
-    # simulate_new_data,
+    suppress_shocks = FALSE,
+    generate_sim = FALSE,
     iter = 2000,
     thin = 1,
+    
+    mu_rep_sd = 1,
+    structural_beta_county_sd_sd = 0.25,
+    structural_beta_cluster_sd_sd = 0.25,
+    
     init = generate_initializer(
       num_treatments = num_treatments, 
       num_clusters = num_clusters,
@@ -219,6 +224,7 @@ models <- lst(
       structural_type = 1, 
       num_mix = num_v_mix, 
       use_cluster_effects = use_cluster_effects,
+      use_county_effects = use_county_effects,
       use_param_dist_cluster_effects = use_param_dist_cluster_effects,
       use_mu_cluster_effects = use_mu_cluster_effects,
       use_mu_county_effects = use_mu_county_effects,
@@ -353,7 +359,7 @@ models <- lst(
   STRUCTURAL_LINEAR = lst(
     model_type = 10,
     model_file = "dist_struct_fixedpoint.stan",
-    control = lst(max_treedepth = 12, adapt_delta = 0.8),
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
     use_binomial = FALSE,
     num_v_mix = 1,
     use_cost_model = cost_model_types["param_linear"],
@@ -372,7 +378,11 @@ models <- lst(
     generate_sim = FALSE,
     iter = 2000,
     thin = 1,
+    
     mu_rep_sd = 1,
+    structural_beta_county_sd_sd = 0.25,
+    structural_beta_cluster_sd_sd = 0.25,
+    
     init = generate_initializer(
       num_treatments = num_treatments, 
       num_clusters = num_clusters,
@@ -530,8 +540,12 @@ models <- lst(
     use_shifting_v_dist = FALSE,
     suppress_reputation = FALSE,
     suppress_shocks = FALSE,
-    # simulate_new_data,
-    iter = 8000,
+    
+    mu_rep_sd = 1,
+    structural_beta_county_sd_sd = 0.25,
+    structural_beta_cluster_sd_sd = 0.25,
+    
+    iter = 2000,
     thin = 1,
     init = generate_initializer(
       num_treatments = num_treatments, 
@@ -629,7 +643,7 @@ models <- lst(
   REDUCED_FORM_NO_RESTRICT = lst(
     model_type = 10,
     model_file = "dist_struct_fixedpoint.stan",
-    control = lst(max_treedepth = 12, adapt_delta = 0.999),
+    control = lst(max_treedepth = 10, adapt_delta = 0.99),
     num_v_mix = 1,
     use_single_cost_model = FALSE,
     use_cost_model = cost_model_types["discrete"],
@@ -644,7 +658,10 @@ models <- lst(
     use_shifting_v_dist = FALSE,
     suppress_reputation = TRUE,
     suppress_shocks = TRUE,
-    # simulate_new_data,
+    
+    structural_beta_county_sd_sd = 1,
+    structural_beta_cluster_sd_sd = 1,
+    
     iter = 2000,
     thin = 1,
     init = generate_initializer(
@@ -654,6 +671,7 @@ models <- lst(
       structural_type = 1, 
       num_mix = num_v_mix, 
       use_cluster_effects = use_cluster_effects,
+      use_county_effects = use_county_effects,
       use_param_dist_cluster_effects = use_param_dist_cluster_effects,
       use_mu_cluster_effects = use_mu_cluster_effects,
       restricted_private_incentive = use_private_incentive_restrictions,
@@ -797,6 +815,9 @@ stan_data <- lst(
   beta_ink_effect_sd = 1,
   beta_calendar_effect_sd = 1,
   beta_bracelet_effect_sd = 1,
+  
+  structural_beta_county_sd_sd = 0.25,
+  structural_beta_cluster_sd_sd = 0.25,
   
   analysis_data
 ) %>% 

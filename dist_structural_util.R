@@ -22,6 +22,41 @@ nosms_data <- analysis.data %>%
   mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
          cluster_id = group_indices(., cluster.id))
 
+# Model Classes -----------------------------------------------------------
+
+# setClass("TakeUpModel", 
+#          contains = "stanmodel",
+#          slots = c("pars" = "character"))
+# 
+# setClass("ReducedFormTakeUpModel",  
+#          contains = "TakeUpModel")
+# 
+# setClass("StructuralTakeUpModel",  
+#          contains = "TakeUpModel")
+# 
+# create_initializer <- function(model_file, pars) {
+#   compiled_model <- stan_model(model_file)
+#   
+#   function(.Object, ...) {
+#     .Object <- callNextMethod()
+#     
+#     .Object@pars <- pars 
+#     return(.Object)
+#   }
+# }
+# 
+# setMethod("initialize", "ReducedFormTakeUpModel", 
+#           create_initializer(file.path("stan_models", "takeup_reduced.stan"), 
+#                              pars = c("structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob", "beta", "cluster_cf_benefit_cost", "cluster_rep_benefit_cost")))
+# 
+# setMethod("initialize", "StructuralTakeUpModel", 
+#           create_initializer(file.path("stan_models", "dist_struct_fixedpoint.stan"), 
+#                              pars = c("total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
+#                                       "beta", "dist_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", 
+#                                       "cluster_rep_benefit_cost", "sim_benefit_cost",
+#                                       "group_dist_mean", "group_dist_sd", "group_dist_mix",
+#                                       "dist_beta_county_raw", "dist_beta_county_sd")))
+
 # Functions ---------------------------------------------------------------
 
 get_spline_range <- function(x) {
@@ -101,7 +136,6 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
   obs_index_col <- switch(iter_level, obs = "obs_index", cluster = "cluster_id")
   
   cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
-    # rename(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>% 
     mutate(treatment_index = seq(n()))
   
   fit %>% 
@@ -345,7 +379,7 @@ stan_list <- function(models_info, stan_data) {
         save_warmup = FALSE,
         refresh = 100,
         pars = c("total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
-                 "beta", "dist_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
+                 "beta", "dist_beta_v", "dist_quadratic_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
                  "cluster_rep_benefit_cost", "sim_benefit_cost",
                  "group_dist_mean", "group_dist_sd", "group_dist_mix",
                  "dist_beta_county_raw", "dist_beta_county_sd"),
@@ -454,6 +488,20 @@ generate_v_cutoff_fixedpoint <- function(b, mu) {
   }
 }
 
+rep_normal_1std <- function(v, ...) {
+  phi_v <- dnorm(v, ...)
+  Phi_1mPhi_v <- ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+  
+  (phi_v / Phi_1mPhi_v^2) * (-(v * Phi_1mPhi_v) + (phi_v * (2 * pnorm(v, ...) - 1))) 
+}
+
+social_multiplier <- function(v, mu) {
+  - 1 / (1 + mu * rep_normal_1std(v))
+}
+
+expect_y_partial_bbar <- function(v, mu, sigma) {
+  - dnorm(v, sd = sigma) * social_multiplier(v, mu) 
+}
 
 # Constants ---------------------------------------------------------------
 

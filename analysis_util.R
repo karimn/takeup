@@ -214,12 +214,12 @@ bstrp.uniquify <- function(.data) {
     mutate(KEY.individ = KEY.individ.unique)
 }
 
-nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
-  dplyr::select_vars(colnames(data), everything()) %>% 
-    unname %>% 
-    dplyr::setdiff(exclude_nest_cols) %>% 
-    nest_(data, key_col = key_col, nest_cols = .)
-}
+# nest_exclude <- function(data, key_col, exclude_nest_cols = character()) {
+#   dplyr::select_vars(colnames(data), everything()) %>%
+#     unname %>%
+#     dplyr::setdiff(exclude_nest_cols) %>%
+#     nest_(data, key_col = key_col, nest_cols = .)
+# }
 
 calc.strata.stats <- function(.data, 
                               .treatment = c("assigned.treatment"), 
@@ -274,13 +274,15 @@ calc.strata.stats <- function(.data,
   strata.data %>% {
     left_join(distinct_(., .dots = c(.strat.by, "treatment.group", .interact.with), .keep_all = TRUE) %>% 
                 select(-c(rhs.treatment.group, stratum.ate, stratum.size, stratum.sample.var)) %>%
-                nest_exclude("strata.data", c("treatment.group", .interact.with)),
+                group_nest(vars(c("treatment.group", .interact.with)), .key = "strata.data"),
+                # nest_exclude("strata.data", c("treatment.group", .interact.with)),
               group_by_(., .dots = c("treatment.group", "rhs.treatment.group", .interact.with)) %>%
                 summarize(ate = weighted.mean(stratum.ate, stratum.size),
                           sample.var = sum(stratum.sample.var * ((stratum.size/total.size)^2)),
                           treatment.mean.dewormed = first(treatment.mean.dewormed)) %>% 
                 ungroup %>% 
-                nest_exclude("treatment.data", c("treatment.group", .interact.with)),
+                group_nest(vars(c("treatment.group", .interact.with)), .key = "treatment.data"),
+                # nest_exclude("treatment.data", c("treatment.group", .interact.with)),
               c("treatment.group", .interact.with))
   }
 }
@@ -310,7 +312,8 @@ analyze.neyman.blk.bs <- function(.data, .reps = 1000, .interact.with = NULL, ..
        original.stats %<>% 
          unnest(treatment.data) %>% 
          left_join(bs.analysis, c("treatment.group", "rhs.treatment.group", .interact.with)) %>% 
-         nest_exclude("treatment.data", c("treatment.group", .interact.with)) %>% 
+         group_nest(vars(c("treatment.group", .interact.with)), .key = "treatment.data")  %>% 
+         # nest_exclude("treatment.data", c("treatment.group", .interact.with)) %>% 
          left_join(original.stats %>% select(-treatment.data), ., c("treatment.group", .interact.with))
      } 
      
@@ -345,13 +348,60 @@ get_treatment_map_design_matrix <- function(analysis_data, analysis_formula, tre
     set_colnames(str_replace_all(colnames(.), "([^:\\[]+)\\[T\\.([^\\]]+)]", "\\2"))
 }
 
+str_credible_interval <- function(fit_data, .model, est_col, ..., prob = 0.8, round_by = 3, use_fit_type = "fit", as_data = FALSE) {
+  prob_col_names <- (prob / 2) %>% { c(0.5 - ., 0.5 + .) } %>% str_c("per_", .)
+  
+  data_rows <- fit_data %>% 
+    filter(model == .model, fct_match(fit_type, use_fit_type)) %>% 
+    select({{ est_col }}) %>% 
+    unnest({{ est_col }}) %>% 
+    filter(!!!rlang::exprs(...))
+  
+  if (as_data) {
+    return(data_rows)
+  } else {
+    prob_col <- data_rows %>% 
+      select(!!!syms(prob_col_names)) %>% 
+      mutate_all(round, round_by) %>% 
+      as.list()
+    
+    exec(str_c, !!!prob_col, sep = ", ") %>% 
+      str_c("[", ., "]")
+  }
+}
+
+str_mean <- function(fit_data, .model, est_col, ..., round_by = 3, use_fit_type = "fit") {
+  fit_data %>% 
+    filter(model == .model, fct_match(fit_type, use_fit_type)) %>% 
+    select({{ est_col }}) %>% 
+    unnest({{ est_col }}) %>% 
+    filter(!!!rlang::exprs(...)) %>% 
+    pull(mean_est) %>% {
+      if (!is.na(round_by)) round(., round_by) else .
+    } 
+}
+
+str_percentile <- function(fit_data, .model, est_col, ..., per = 0.5, round_by = 3, use_fit_type = "fit") {
+  per_col <- str_c("per_", per)
+  
+  fit_data %>% 
+    filter(model == .model, fct_match(fit_type, use_fit_type)) %>% 
+    select({{ est_col }}) %>% 
+    unnest({{ est_col }}) %>% 
+    filter(!!!rlang::exprs(...)) %>% 
+    pull(!!sym(per_col)) %>% {
+      if (!is.na(round_by)) round(., round_by) else .
+    } 
+}
+
 # Plotting code -----------------------------------------------------------
 
 know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data = endline.data, na.rm = FALSE) {
   list(Baseline = .baseline.data, Endline = .endline.data) %>% 
     compact %>% 
     map_df(select_, .dots = c(var, "KEY"), .id = "survey.type") %>% 
-    unnest_(var) %>% { 
+    # unnest_(var) %>% { 
+    unnest(var) %>% { 
       if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
     } %>% 
     group_by(survey.type) %>% 
@@ -394,7 +444,7 @@ multi.know.bel.cat.plot <- function(question.info,
                      .[[.col.name]] <- map(.[[.col.name]], as.character)
                    }
                    
-                   unnest_(., .col.name) 
+                   unnest(., .col.name) 
                  } else return(.)
                } %>% {
                  if(na.rm) filter_(., sprintf("!is.na(%s)", .col.name)) else return(.)

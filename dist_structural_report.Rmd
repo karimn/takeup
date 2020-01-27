@@ -58,8 +58,8 @@ load(file.path("stan_analysis_data", "takeup_model_4_always_predict_processed.RD
 
 
 ```{r load-data}
-load(file.path("stan_analysis_data", "dist_fit21.RData"))
-load(file.path("temp-data", "processed_dist_fit21.RData")) 
+# load(file.path("stan_analysis_data", "dist_fit21.RData"))
+load(file.path("temp-data", "processed_dist_fit26.RData")) 
 ```
 
 \usetikzlibrary{arrows,decorations.pathmorphing,backgrounds,positioning,fit,petri,calc}
@@ -782,12 +782,13 @@ dist_fit_data %>%
   mutate(est_takeup_te =
 # est_takeup_te %>%
     map_if(est_takeup_te, ~ any(str_detect(names(.), "mu_assigned_treatment")), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
-    map(filter, assigned_dist_group_left == assigned_dist_group_right, assigned_treatment_right == "control")) %>% 
-  # magrittr::extract(names(model_names)) %>% 
-  # bind_rows(.id = "model") %>% 
-  # mutate(model = factor(model, levels = names(model_names))) %>% 
+    map(filter, 
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | assigned_dist_group_left == assigned_dist_group_right,
+        assigned_treatment_left != assigned_treatment_right,
+        fct_match(assigned_treatment_right, c("control", "calendar")))) %>% 
   select(model, model_name, est_takeup_te) %>% 
-  unnest(est_takeup_te) %>% 
+  unnest(est_takeup_te) %>%
+  mutate_at(vars(starts_with("assigned_dist_group")), fct_explicit_na, "Combined") %>% 
   ggplot(aes(x = per_0.5, y = assigned_treatment_left, group = model)) +
   ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
   ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
@@ -798,7 +799,7 @@ dist_fit_data %>%
   geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
   geom_vline(xintercept = 0, linetype = "dotted") +
   scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
-  scale_color_manual("Model", values = model_colors) + #, labels = model_names) +
+  scale_color_manual("Model", values = model_colors, labels = dist_fit_data %>% select(model, model_name) %>% deframe()) + #, labels = model_names) +
     labs(
       title = "Average treatment effect in response to an incentive treatment intervention,\nsplit by assigned distance group", 
       subtitle = TeX("E\\[Y_{zg}\\] - E\\[Y_{control,g}\\]"),
@@ -806,8 +807,10 @@ dist_fit_data %>%
       caption = "Dotted line range: 98% credible interval. Line range: 90% credible interval. 
                  Outer box: 80% credible interval. Inner box: 50% credible interval. 
                  Thick vertical line: median. Point: mean.") +
-  facet_wrap(vars(assigned_dist_group_left), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
-  theme(legend.position = "top", legend.direction = "vertical") +
+  facet_grid(rows = vars(assigned_dist_group_left), cols = vars(assigned_treatment_right), labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
+  # facet_wrap(vars(assigned_dist_group_left), ncol = 1) + #, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
+  theme(legend.position = "top", legend.direction = "vertical",
+        panel.border = element_rect(colour = "darkgrey", fill = NA)) +
   guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
@@ -1258,11 +1261,10 @@ mcmc_pairs(
  # pars = c("mu_cluster_effects_raw[2,2]", "mu_cluster_effects_sd[2]"),
 ```
 
-```{r, fig.width=10, eval=FALSE}
+```{r, fig.width=10, eval=FALSE,fig.width=12}
 mcmc_pairs(
   fit_post[[1]], np = fit_np[[1]], 
-  pars = c("dist_beta_county_raw[2,1]", "dist_beta_county_sd[1]", "mu_cluster_effects_raw[2,2]", "mu_cluster_effects_sd[2]"),
-  regex_pars = c("^mu_rep_raw")
+  regex_pars = c("^beta\\[", "^mu_rep\\[", "^dist(_quadratic)?_beta_v\\[[1-2]", "structural_beta_cluster_sd\\[[1-2]")
 )
 ```
 
