@@ -1,3 +1,9 @@
+#
+# This script is used to postprocess Stan fit for the various models. In addition to putting our analysis in a format that allows for easy extraction of all
+# levels and treatment effects, it allows handles imputing take-up levels for counterfactuals using Stan-generated cost-benefits and reputational returns 
+# parameters: using these we can calculate the probability of take-up after calculating the v^* fixed point solution.
+#
+
 library(magrittr)
 library(tidyverse)
 library(rlang)
@@ -9,12 +15,15 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
+# Stan fit 
 load(file.path("data", "stan_analysis_data", "dist_fit27.RData"))
 
+# Convert to tibble with list column of fit objects
 dist_fit_data <- enframe(dist_fit, name = "model", value = "fit")
 
 rm(dist_fit)
 
+# Metadata on the models fit
 model_info <- tribble(
   ~ model,                         ~ model_name,                                ~ model_type,
   
@@ -22,11 +31,12 @@ model_info <- tribble(
   "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
   "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
   
-  "STACKED",                        "Stacked Model",                            "combined",
+  "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
+# How much to thin the posterior samples, mostly so the postprocessing fits in memory
 thin_model <- c(
   "REDUCED_FORM_NO_RESTRICT" = 1L,
   "REDUCED_FORM_SEMIPARAM" = 1L,
@@ -38,6 +48,7 @@ thin_model <- c(
 dist_fit_data %<>% 
   left_join(enframe(thin_model, name = "model", value = "thin"), by = "model") 
 
+# Prior predicted fit for same models
 load(file.path("data", "stan_analysis_data", "dist_fit_prior27.RData"))
 
 dist_fit_data %<>%
