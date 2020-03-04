@@ -22,3 +22,6 @@ packrat/lib*/
 
 temp-data/
 .Rproj.user
+.Rhistory
+
+commonrmd.yaml
