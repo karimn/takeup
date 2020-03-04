@@ -9,7 +9,7 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
-load(file.path("stan_analysis_data", "dist_fit27.RData"))
+load(file.path("data", "stan_analysis_data", "dist_fit27.RData"))
 
 dist_fit_data <- enframe(dist_fit, name = "model", value = "fit")
 
@@ -38,7 +38,7 @@ thin_model <- c(
 dist_fit_data %<>% 
   left_join(enframe(thin_model, name = "model", value = "thin"), by = "model") 
 
-load(file.path("stan_analysis_data", "dist_fit_prior27.RData"))
+load(file.path("data", "stan_analysis_data", "dist_fit_prior27.RData"))
 
 dist_fit_data %<>%
   bind_rows("fit" = .,
@@ -52,7 +52,7 @@ dist_fit_data %<>%
   mutate(fit_type = factor(fit_type))
 
 dist_fit_data <- tryCatch({
-  load(file.path("stan_analysis_data", "dist_kfold27.RData"))
+  load(file.path("data", "stan_analysis_data", "dist_kfold27.RData"))
       
   enframe(dist_kfold, name = "model", value = "kfold") %>% 
     inner_join(select(model_info, model, model_type), by = "model") %>% 
