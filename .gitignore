@@ -29,3 +29,4 @@ commonrmd.yaml
 
 # Packrat
 packrat/
+packrat/lib*/
