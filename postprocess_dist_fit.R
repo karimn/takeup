@@ -60,7 +60,7 @@ dist_fit_data %<>%
 rm(dist_fit)
 
 dist_fit_data %<>% 
-  mutate(fit_type = factor(fit_type))
+  mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
 
 dist_fit_data <- tryCatch({
   load(file.path("data", "stan_analysis_data", "dist_kfold27.RData"))
@@ -68,7 +68,7 @@ dist_fit_data <- tryCatch({
   enframe(dist_kfold, name = "model", value = "kfold") %>% 
     inner_join(select(model_info, model, model_type), by = "model") %>% 
     mutate(
-      fit_type = factor("fit"),
+      fit_type = factor("fit", levels = c("fit", "prior-predict")),
       stacking_weight = map(kfold, pluck, "pointwise") %>% 
         do.call(rbind, .) %>% 
         t() %>% 
@@ -332,7 +332,7 @@ if (has_name(dist_fit_data, "stacking_weight")) {
     add_row(
       model = factor("STACKED"), 
       model_type = factor("combined"),
-      fit_type = factor("fit"),
+      fit_type = factor("fit", levels = c("fit", "prior-predict")),
       est_takeup_level = list(
         reduce2(.$est_takeup_level, .$stacking_weight, level_stack_reducer, .init = tibble()) %>% 
           mutate(
@@ -345,7 +345,7 @@ if (has_name(dist_fit_data, "stacking_weight")) {
     add_row(
       model = factor("STRUCTURAL_STACKED"), 
       model_type = factor("structural"),
-      fit_type = factor("fit"),
+      fit_type = factor("fit", levels = c("fit", "prior-predict")),
       est_takeup_level = list(
         reduce2(.$est_takeup_level, .$stacking_weight_by_type, level_stack_reducer, .init = tibble()) %>% 
           mutate(
@@ -364,10 +364,7 @@ if (has_name(dist_fit_data, "stacking_weight")) {
 
 dist_fit_data %<>%
   right_join(select(model_info, model, model_name), by = "model") %>% 
-  mutate(
-    model = factor(model, levels = model_info$model),
-    fit_type = factor(fit_type),
-  ) %>% 
+  mutate(model = factor(model, levels = model_info$model)) %>% 
   arrange(model)
 
 ate_combo <- dist_fit_data %>% 
