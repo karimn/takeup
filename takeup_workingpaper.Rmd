@@ -11,8 +11,8 @@ output:
   pdf_document:
     number_sections: yes
     fig_caption: yes
-    keep_tex: yes
-    pandoc_args: "../commonrmd.yaml"
+    keep_tex: no
+    pandoc_args: "commonrmd.yaml"
     includes:
       in_header: takeup_workingpaper_header.sty
 abstract: "Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. Further, we exogenously vary the travel distance to treatment locations. To separate reputational utility from private consumption utility and social learning/salience, we combine experimental identification with a structural model's non-experimental identification. We find that (1) bracelets as signals increase deworming take-up by roughly 13 percent, net the private consumption and learning/salience effects; (2) there is no detectable effect for the ink signal, which we attribute to its private disutility which outweighs any reputational utility from signaling; (3) adults are highly sensitive to distance but signaling treatments see little change; (4) the rate-of-change in take-up in response to increased distance is negligibly small compared against the control.  Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision."
@@ -39,6 +39,7 @@ library(gridExtra)
 library(cowplot)
 library(rgeos)
 library(sp)
+library(rgdal)
 library(knitr)
 library(modelr)
 library(car)
@@ -48,7 +49,7 @@ library(latex2exp)
 
 library(econometr)
 
-source("takeup_rct_assign_clusters.R")
+source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source("analysis_util.R")
 
 knitr::read_chunk("analysis_util.R", labels = "analysis-util")
@@ -132,6 +133,15 @@ plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     scale_color_manual("Model", values = select(dist_fit_data, model, model_color) %>% deframe(), labels = dist_fit_data %>% select(model, model_name) %>% deframe()) + 
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
     NULL
 }
 ```
@@ -1644,7 +1654,7 @@ The first-order beliefs model is the same as the second-order model.
 # Results
 
 ```{r load-beliefs-prep-data}
-load(file.path("stan_analysis_data", "beliefs_processed.RData"))
+load(file.path("data", "stan_analysis_data", "beliefs_processed.RData"))
 ```
 
 ## Assumptions and Mechanisms
@@ -1814,7 +1824,7 @@ wtp_stan_data <- analysis.data %>%
 ```
 
 ```{r load-wtp-fit}
-wtp_model_0_fit <- dir("stanfit", pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
+wtp_model_0_fit <- dir(file.path("data", "stanfit"), pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
   read_stan_csv()
 ```
 
@@ -1875,15 +1885,7 @@ To test the assumption that the consumption value of the bracelet is equal to th
 Before discussing the main analysis results, we present some relevant analyses. First, we present in Figure \ref{fig:dist-results} the posterior distribution of distance in kilometers in response to assigned distance groups. We include a frequency plot to compare it against distances observed in the experiment. 
 
 ```{r dist-results, fig.width=8, fig.cap="Fit and observed distance to deworming treatment, conditional on assigned distance group."}
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
-  pull(fit) %>% 
-  first() %>% 
-  as.data.frame(pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-  sample_n(500) %>% 
-  mutate(iter_id = seq(n())) %>% 
-  pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id) %>% 
-  mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels())) %>% 
+group_dist_param %>% 
   mutate(distrib_samples = map2(group_dist_mean, group_dist_sd,
                                 ~ tibble(x = seq(-500, 3000, 10),
                                          density = dnorm(x, mean = ..1 * ..3, sd = ..2 * ..3)),
@@ -1940,13 +1942,7 @@ dist_fit_data %>%
     labs(
       title = "Take-up levels in response to an incentive treatment intervention",
       subtitle = TeX("\\hat{E}\\[Y(z)\\]"),
-      x = "Take-up Probability",
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
+      x = "Take-up Probability") +
   NULL
 ```
 
@@ -1968,14 +1964,8 @@ dist_fit_data %>%
     labs(
       title = "Average treatment effect in response to an incentive treatment intervention", 
       subtitle = TeX("\\hat{E}\\[Y(z)\\] - \\hat{E}\\[Y(z')\\]"),
-      x = "Average Treatment Effect",
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
+      x = "Average Treatment Effect") +
   facet_wrap(vars(assigned_treatment_right), ncol = 1, labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), scales = "free_y") +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
@@ -2007,11 +1997,7 @@ dist_fit_data %>%
     labs(
       title = "Take-up levels in response to a signaling intervention, holding the private\nconsumption utility at the control level",
       subtitle = TeX("\\hat{E}\\[Y(z,\\bar{B}(control))\\]"),
-      x = "Take-up Probability",
-      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
+      x = "Take-up Probability") +
   NULL
 ```
 
@@ -2032,11 +2018,7 @@ dist_fit_data %>%
     labs(
       title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
       subtitle = TeX("\\hat{E}\\[Y(z,\\bar{B}(control))\\] - \\hat{E}\\[Y(control)\\]"),
-      x = "Average Treatment Effect",
-      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
+      x = "Average Treatment Effect") +
   NULL
 ```
 
@@ -2056,16 +2038,8 @@ dist_fit_data %>%
     labs(
       title = "Take-up levels in response to an incentive treatment intervention, split by assigned distance group",
       subtitle = TeX("\\hat{E}\\[Y(z,g)\\]"),
-      x = "Take-up Probability",
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  # coord_cartesian(xlim = c(0, 0.6)) +
-  # coord_cartesian(xlim = c(0, 1)) +
+      x = "Take-up Probability") +
   facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
@@ -2086,14 +2060,7 @@ dist_fit_data %>%
     labs(
       title = "Average treatment effect in response to a change in distance", 
       subtitle = TeX("\\hat{E}\\[Y(z,far)\\] - \\hat{E}\\[Y(z,close)\\]"),
-      x = "Average Treatment Effect",
-      caption = #"Dotted line range: 98% credible interval." 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  theme(legend.position = "top", legend.direction = "vertical",
-        panel.border = element_rect(colour = "darkgrey", fill = NA)) +
-  guides(color = guide_legend(ncol = 3)) +
+      x = "Average Treatment Effect") +
   NULL
 ```
 
@@ -2115,47 +2082,40 @@ dist_fit_data %>%
     labs(
       title = "Average treatment effect in response to an incentive treatment intervention", 
       subtitle = TeX("\\hat{E}\\[Y(z,g)\\] - \\hat{E}\\[Y(z',g)\\]"),
-      x = "Average Treatment Effect",
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
+      x = "Average Treatment Effect") +
   facet_grid(rows = vars(assigned_treatment_right), cols = vars(assigned_dist_group_right), 
              labeller = labeller(assigned_treatment_right = as_labeller( . %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed),
                                  assigned_dist_group_right = as_labeller(. %>% str_c("g = ", .))), 
              scales = "free_y") +
-  theme(legend.position = "top", legend.direction = "vertical",
-        panel.border = element_rect(colour = "darkgrey", fill = NA)) +
-  guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
-```{r take-up-ate-diff-dist-effect, fig.width=8,fig.height=5, fig.cap="Average difference in the average treatment effect in response to a change in assigned distance to treatment, compared against the control average treatment effect.", eval=FALSE}
+```{r take-up-ate-diff-dist-effect, fig.width=8,fig.height=6, fig.cap="Average difference in the average treatment effect in response to a change in assigned distance to treatment, compared against the control average treatment effect.", eval=FALSE}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
-  select(est_takeup_dist_te, model) %>% 
-  unnest(est_takeup_dist_te) %>% 
-  ggplot(aes(x = per_0.5, y = assigned_treatment_left, group = model)) +
-  ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
-  ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
-  # ggstance::geom_linerangeh(aes(xmin = per_0.01, xmax = per_0.99, color = model), linetype = "dotted", fatten = 3, size = 0.75, position = plot_pos) +
-  ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, size = 0.8, position = plot_pos) +
-  geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos) +
-  geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
-  geom_vline(xintercept = 0, linetype = "dotted") +
+  select(est_takeup_dist_te, model, fit_type) %>% 
+  unnest(est_takeup_dist_te) %>%
+  plot_estimands(assigned_treatment_left) +
   scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
-  scale_color_manual("Model", values = model_colors, labels = select(dist_fit_data, model, model_name) %>% deframe()) +
-    labs(
-      title = "Average difference in the average treatment effect in response to a change in\nassigned distance to treatment, compared against the control average treatment effect",
-      subtitle = TeX("(\\hat{E}\\[Y_{z,g=far}\\] - \\hat{E}\\[Y_{z,g=close}\\]) - (\\hat{E}\\[Y_{control,g=far}\\] - \\hat{E}\\[Y_{control,g=close}\\])"),
-      x = "Average Treatment Effect",
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
+  labs(
+    title = "Average difference in the average treatment effect in response to a change in\nassigned distance to treatment, compared against the control average treatment effect",
+    subtitle = TeX("(\\hat{E}\\[Y_{z,g=far}\\] - \\hat{E}\\[Y_{z,g=close}\\]) - (\\hat{E}\\[Y_{control,g=far}\\] - \\hat{E}\\[Y_{control,g=close}\\])"),
+    x = "Average Treatment Effect") +
   NULL
+  
+  # ggplot(aes(x = per_0.5, y = assigned_treatment_left, group = model)) +
+  # ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
+  # ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
+  # # ggstance::geom_linerangeh(aes(xmin = per_0.01, xmax = per_0.99, color = model), linetype = "dotted", fatten = 3, size = 0.75, position = plot_pos) +
+  # ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, size = 0.8, position = plot_pos) +
+  # geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos) +
+  # geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
+  # geom_vline(xintercept = 0, linetype = "dotted") +
+  # scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  # scale_color_manual("Model", values = model_colors, labels = select(dist_fit_data, model, model_name) %>% deframe()) +
+  # theme(legend.position = "top", legend.direction = "vertical") +
+  # guides(color = guide_legend(ncol = 3)) +
+  # NULL
 ```
 
 <!-- Similar to previous findings in the literature [@Kremer2007] a small increase in cost leads to a dramatic reduction in the demand for deworming treatment. Figure \ref{fig:static_level_smsctrl_dist} shows that an increase in the mean walking distance by 1 kilometer (from 0.86km to 1.86km) led to a drop in deworming take-up from 44 percent to 28 percent in the control group. This is a decrease of 64  percent. Since we randomly assigned individuals to far and close treatment locations, we were able to hold the underlying preference distribution $G(v)$ and the private valuation that individuals assign to incentives constant, while _only_ shifting the marginal person $\hat{v}$. Figure \ref{fig:static_ate_smsctrl_dist} shows the treatment effects by distance. The effect of calendar, a consumption incentive, is constant for far and close communities, increasing take-up by 3  percentage points. The average treatment effects of ink and bracelet, however, sizably increased at far distances where take-up is lower. The average treatment effect of bracelets doubled from 5.5  percentage points to 11  percentage points. As a result, the take-up level for far communities in the bracelet treatment is 41 percent which is close to the take-up level for close communities in the control group. In other words, the signaling effect almost fully compensated for the increase in deworming cost. This is provides suggestive evidence for that changes in $\hat{v}$ can lead to significant changes in reputational returns.   -->
@@ -2167,7 +2127,7 @@ Figure \ref{fig:take-up-ate-dist-split} shows how the incentive/signal treatment
 ```{r take-up-ate-struct-dist-effect, fig.width=8,fig.height=6, fig.cap="Average treatment effect in response to a change in distance.", eval=FALSE}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_te) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
   filter(
     mu_assigned_treatment_left == mu_assigned_treatment_right,
@@ -2176,28 +2136,36 @@ dist_fit_data %>%
     fct_match(assigned_dist_group_left, "far"),
     fct_match(assigned_dist_group_right, "close")
   ) %>% 
-  ggplot(aes(x = per_0.5, y = mu_assigned_treatment_left, group = model)) +
-  ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
-  ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
-  # ggstance::geom_linerangeh(aes(xmin = per_0.01, xmax = per_0.99, color = model), linetype = "dotted", fatten = 3, size = 0.75, position = plot_pos) +
-  ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, size = 0.8, position = plot_pos) +
-  geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos) +
-  geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
-  geom_vline(xintercept = 0, linetype = "dotted") +
-  scale_color_manual("Model", values = select(dist_fit_data, model, model_color) %>% deframe(), labels = dist_fit_data %>% select(model, model_name) %>% deframe()) +
+  plot_estimands(mu_assigned_treatment_left) +
   scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
     labs(
       title = "Average treatment effect in response to a change in distance", 
       subtitle = TeX("\\hat{E}\\[Y_{z,\\bar{B}_{control,g=far}}\\] - \\hat{E}\\[Y_{z,\\bar{B}_{control,g=close}}\\]"),
-      x = "Average Treatment Effect",
-      caption = #"Dotted line range: 98% credible interval." 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
-  theme(legend.position = "top", legend.direction = "vertical",
-        panel.border = element_rect(colour = "darkgrey", fill = NA)) +
-  guides(color = guide_legend(ncol = 3)) +
+      x = "Average Treatment Effect") +
   NULL
+
+  # ggplot(aes(x = per_0.5, y = mu_assigned_treatment_left, group = model)) +
+  # ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), width = 0.25, position = plot_pos) +
+  # ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), width = 0.4, position = plot_pos) +
+  # # ggstance::geom_linerangeh(aes(xmin = per_0.01, xmax = per_0.99, color = model), linetype = "dotted", fatten = 3, size = 0.75, position = plot_pos) +
+  # ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), fatten = 3, size = 0.8, position = plot_pos) +
+  # geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos) +
+  # geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) +
+  # geom_vline(xintercept = 0, linetype = "dotted") +
+  # scale_color_manual("Model", values = select(dist_fit_data, model, model_color) %>% deframe(), labels = dist_fit_data %>% select(model, model_name) %>% deframe()) +
+  # scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  #   labs(
+  #     title = "Average treatment effect in response to a change in distance", 
+  #     subtitle = TeX("\\hat{E}\\[Y_{z,\\bar{B}_{control,g=far}}\\] - \\hat{E}\\[Y_{z,\\bar{B}_{control,g=close}}\\]"),
+  #     x = "Average Treatment Effect",
+  #     caption = #"Dotted line range: 98% credible interval." 
+  #               "Line range: 90% credible interval. 
+  #                Outer box: 80% credible interval. Inner box: 50% credible interval. 
+  #                Thick vertical line: median. Point: mean.") +
+  # theme(legend.position = "top", legend.direction = "vertical",
+  #       panel.border = element_rect(colour = "darkgrey", fill = NA)) +
+  # guides(color = guide_legend(ncol = 3)) +
+  # NULL
 ```
 
 ```{r take-up-level-struct-dist-split, fig.width=8, fig.height=9.5,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
@@ -2213,12 +2181,8 @@ dist_fit_data %>%
     labs(
       title = "Take-up levels in response to a signaling intervention,\nholding the private consumption utility at the control level",
       subtitle = TeX("\\hat{E}\\[Y(control,g,\\bar{B}(z'))\\]"),
-      x = "Take-up Probability",
-      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
+      x = "Take-up Probability") +
   facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
@@ -2238,15 +2202,11 @@ dist_fit_data %>%
   ) %>%
   plot_estimands(mu_assigned_treatment_left) +
   scale_y_discrete("Assigned\nSignaling Treatment (z')", labels = str_to_title) +
-    labs(
-      title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
-      subtitle = TeX("\\hat{E}\\[Y(control,g,\\bar{B}(z'))\\] - \\hat{E}\\[Y(control,g)\\]"),
-      x = "Average Treatment Effect",
-      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean.") +
+  labs(
+    title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
+    subtitle = TeX("\\hat{E}\\[Y(control,g,\\bar{B}(z'))\\] - \\hat{E}\\[Y(control,g)\\]"),
+    x = "Average Treatment Effect") +
   facet_wrap(vars(assigned_dist_group_right), ncol = 1, labeller = as_labeller(. %>% str_c("g = ", .) %>% TeX(), default = label_parsed)) +
-  theme(legend.position = "top", legend.direction = "vertical") +
-  guides(color = guide_legend(ncol = 3)) +
   NULL
 ```
 
