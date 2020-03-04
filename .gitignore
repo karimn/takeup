@@ -27,6 +27,7 @@ commonrmd.yaml
 # Rmd cache etc.
 *_cache/
 *.pdf
+*.log
 
 # Packrat
 packrat/
