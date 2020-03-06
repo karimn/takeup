@@ -1,3 +1,4 @@
+#!/usr/bin/Rscript
 #
 # This script is used to postprocess Stan fit for the various models. In addition to putting our analysis in a format that allows for easy extraction of all
 # levels and treatment effects, it allows handles imputing take-up levels for counterfactuals using Stan-generated cost-benefits and reputational returns 
@@ -62,6 +63,7 @@ rm(dist_fit)
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
 
+# Load cross-validation data
 dist_fit_data <- tryCatch({
   load(file.path("data", "stan_analysis_data", "dist_kfold27.RData"))
       
@@ -103,9 +105,71 @@ observed_takeup <- monitored_nosms_data %>%
   ungroup()
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
-multiplier_v_range <- seq(-2, 2, 0.25)
 postprocess_cores <- 12
 
+# Join benefit-cost, reputation mu, and total error sd
+join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd) {
+  if (!is_null(mu_rep)) {
+    mutate(benefit_cost, 
+           iter_data = pbmclapply(mc.cores = postprocess_cores,
+                                  iter_data, 
+                                  left_join, 
+                                  unnest(mu_rep, iter_data) %>% 
+                                    select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
+                                    inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "_error_sd")),
+                                  by = c("iter_id")) %>% 
+             map(mutate, obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_)))
+  } else {
+    mutate(benefit_cost, 
+           iter_data = pbmclapply(mc.cores = postprocess_cores,
+                                  iter_data, 
+                                  inner_join, 
+                                  total_error_sd, 
+                                  by = c("iter_id"), 
+                                  suffix = c("", "_error_sd")) %>% 
+             map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
+  } 
+}
+
+# Given multiple variables, generate quantiles and pack them
+prep_multiple_est <- function(accum_data, next_col) {
+  group_name <- str_remove(as.character(next_col), "^iter_")
+                                           
+  mutate(accum_data,
+         mean_est = map_dbl(iter_data, ~ mean(pull(., !!next_col))), 
+         quants = map(iter_data, quantilize_est, !!next_col, wide = TRUE, quant_probs = c(quant_probs))) %>% 
+    unnest(quants) %>% 
+    pack({{ group_name }} := c(mean_est, starts_with("per_"))) 
+}
+
+# For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
+simulate_social_multiplier <- function(mu_rep, total_error_sd, fit_type) {
+  multiplier_v_range <- seq(-2, 2, 0.25) # Simulated values for v^*, used calculate reputational multiplier effect 
+  
+  if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
+    mu_sd <- mu_rep %>% 
+      select(assigned_treatment, iter_data) %>% 
+      unnest(iter_data) %>% 
+      select(assigned_treatment, iter_id, iter_est) %>% 
+      left_join(total_error_sd %>% 
+                  select(iter_data) %>% 
+                  unnest(iter_data),
+                by = "iter_id", suffix = c("_mu", "_sd"))
+    
+    multiplier_v_range %>% 
+      map_df(~ mu_sd %>% 
+               mutate(
+                 v = .x,
+                 iter_prob_takeup = pnorm(v, sd = iter_est_sd, lower.tail = FALSE),  
+                 iter_social_multiplier = social_multiplier(v, iter_est_mu),
+                 iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_sd)
+               ) %>% 
+      nest(iter_data = c(iter_id, iter_est_mu, iter_est_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar))) %>% 
+      reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), prep_multiple_est, .init = .)
+  } 
+}
+
+# Combine cluster level nested data to produce treatment level nested data
 organize_by_treatment <- function(.data, ...) {
   .data %>%
     select(
@@ -127,79 +191,32 @@ organize_by_treatment <- function(.data, ...) {
     unnest(takeup_quantiles)
 }
 
-prep_multiple_est <- function(accum_data, next_col) {
-  group_name <- str_remove(as.character(next_col), "^iter_")
-                                           
-  mutate(accum_data,
-         mean_est = map_dbl(iter_data, ~ mean(pull(., !!next_col))), 
-         quants = map(iter_data, quantilize_est, !!next_col, wide = TRUE, quant_probs = c(quant_probs))) %>% 
-    unnest(quants) %>% 
-    pack({{ group_name }} := c(mean_est, starts_with("per_"))) 
-}
 
 dist_fit_data %<>% 
   mutate(
-    total_error_sd = map(fit, extract_obs_fit_level, stan_data = stan_data, par = "total_error_sd", iter_level = "none"),
-    # cluster_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_dist_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs),
-    # net_benefit = map(fit, extract_obs_fit_level, par = "structural_cluster_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs),
-    # v_cutoff = map(fit, extract_obs_fit_level, par = "structural_cluster_obs_v", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs),
-    # takeup_prob = map(fit, extract_obs_fit_level, par = "structural_cluster_takeup_prob", stan_data = stan_data, iter_level = "cluster", mix = TRUE, quant_probs = quant_probs),
-    # structural_beta = map(fit, extract_obs_fit_level, par = "beta", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs),
-    # dist_beta_v = map(fit, extract_obs_fit_level, par = "dist_beta_v", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs),
-    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs) %>% 
-        map_if(~ !is_null(.), mutate, compare_to = "control") %>% 
-        map_if(~ !is_null(.), ~ left_join(., select(., assigned_treatment, iter_data), by = c("compare_to" = "assigned_treatment"), suffix = c("", "_compare"))) %>% 
-        map_if(~ !is_null(.),
-            mutate, 
-            iter_data = map2(iter_data, iter_data_compare, left_join, by = "iter_id", suffix = c("", "_compare")) %>% 
-              map(mutate, 
-                  iter_est_vs_compare = iter_est - iter_est_compare,
-                  iter_est_vs_compare_ratio = iter_est / iter_est_compare,
-                  per = if_else(rank(iter_est) %in% c((n() + 1) %/% 2, ((n() + 1) %/% 2) + ((n() + 1) %% 2)), 0.5, NA_real_)
-              ) %>% 
-              map2(quantiles_est, ~ mutate(.x, 
-                                           per_group = unlist(.y) %>%
-                                             set_names(str_extract(names(.), "0\\.\\d+")) %>% { 
-                                               cut(iter_est, breaks = c(0, ., Inf), labels = c("0.0", names(.))) } %>% 
-                                             as.numeric())),
-            mean_est_vs_compare = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare)),
-            mean_est_vs_compare_ratio = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare_ratio)),
-            quantiles_est_vs_compare = map(iter_data, quantilize_est, iter_est_vs_compare, quant_probs = quant_probs), 
-            quantiles_est_vs_compare_ratio = map(iter_data, quantilize_est, iter_est_vs_compare_ratio, quant_probs = quant_probs)
-        ),
-    reduced_mu_rep = map_if(mu_rep, ~ !is_null(.), mutate, iter_data = map(iter_data, arrange, iter_est) %>% map(filter, (row_number() %% 100) == 0)),
+    total_error_sd = map(fit, extract_obs_fit_level, par = "total_error_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
     
-    # structural_param = pmap(lst(cluster_dist_cost, net_benefit, v_cutoff, takeup_prob, mu_rep),
-    #                  function(cluster_dist_cost, net_benefit, v_cutoff, takeup_prob, mu_rep) {
-    #                    inner_join(net_benefit, v_cutoff, by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), suffix = c("", "_v_cutoff")) %>% 
-    #                      inner_join(cluster_dist_cost, 
-    #                                 by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), 
-    #                                 suffix = c("", "_cluster_dist_cost")) %>% { 
-    #                        if (!is_null(mu_rep)) {
-    #                          inner_join(., takeup_prob, by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), suffix = c("", "_takeup_prob")) %>% 
-    #                            left_join(., mu_rep, by = c("assigned_treatment"), suffix = c("_net_benefit", "_mu_rep")) 
-    #                        } else {
-    #                          inner_join(., 
-    #                                     takeup_prob, 
-    #                                     by = c("obs_index", "assigned_treatment", "assigned_dist", "assigned_dist_standard"), 
-    #                                     suffix = c("_net_benefit", "_takeup_prob")) 
-    #                        }
-    #                      } %>% 
-    #                       mutate(
-    #                         iter_data = map2(iter_data_net_benefit, iter_data_v_cutoff, inner_join, by = "iter_id", suffix = c("", "_v_cutoff")) %>% {
-    #                           if (!is_null(mu_rep)) {
-    #                             map2(., iter_data_takeup_prob, inner_join, by = "iter_id", suffix = c("", "_takeup_prob")) %>% 
-    #                               map2(iter_data_mu_rep, left_join, by = "iter_id", suffix = c("_net_benefit", "_mu_rep")) 
-    #                           } else {
-    #                             map2(., iter_data_takeup_prob, inner_join, by = "iter_id", suffix = c("_net_benefit", "_takeup_prob"))  
-    #                           }
-    #                         } %>%  
-    #                           map(mutate, 
-    #                               iter_est_rep = - iter_est_v_cutoff - iter_est_net_benefit)
-    #                       ) %>% 
-    #                       left_join(select(observed_takeup, -c(assigned_treatment, assigned_dist)), by = c("obs_index" = "cluster_id")
-    #                       )
-    #                  }),
+    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs),
+        # # Most of the belows is to be able to compare mu parameters between treatments. We don't actually end up using this.
+        # map_if(~ !is_null(.), mutate, compare_to = "control") %>% 
+        # map_if(~ !is_null(.), ~ left_join(., select(., assigned_treatment, iter_data), by = c("compare_to" = "assigned_treatment"), suffix = c("", "_compare"))) %>% 
+        # map_if(~ !is_null(.),
+        #     mutate, 
+        #     iter_data = map2(iter_data, iter_data_compare, left_join, by = "iter_id", suffix = c("", "_compare")) %>% 
+        #       map(mutate, 
+        #           iter_est_vs_compare = iter_est - iter_est_compare,
+        #           iter_est_vs_compare_ratio = iter_est / iter_est_compare,
+        #       ) %>% 
+        #       map2(quantiles_est, ~ mutate(.x, 
+        #                                    per_group = unlist(.y) %>%
+        #                                      set_names(str_extract(names(.), "0\\.\\d+")) %>% { 
+        #                                        cut(iter_est, breaks = c(0, ., Inf), labels = c("0.0", names(.))) } %>% 
+        #                                      as.numeric())),
+        #     mean_est_vs_compare = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare)),
+        #     mean_est_vs_compare_ratio = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare_ratio)),
+        #     quantiles_est_vs_compare = map(iter_data, quantilize_est, iter_est_vs_compare, quant_probs = quant_probs), 
+        #     quantiles_est_vs_compare_ratio = map(iter_data, quantilize_est, iter_est_vs_compare_ratio, quant_probs = quant_probs)
+        # ),
     
     cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
       map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
@@ -208,72 +225,30 @@ dist_fit_data %<>%
           mu_rep, 
           total_error_sd = map(total_error_sd, select, -rhat, -starts_with("ess")) %>% 
             map(unnest, iter_data)) %>%
-      pmap(function(benefit_cost, mu_rep, total_error_sd) {
-        if (!is_null(mu_rep)) {
-          mutate(benefit_cost, 
-                 iter_data = pbmclapply(mc.cores = postprocess_cores,
-                                        iter_data, 
-                                        left_join, 
-                                        unnest(mu_rep, iter_data) %>% 
-                                          select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
-                                          inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "_error_sd")),
-                                        by = c("iter_id")) %>% 
-                   map(mutate, obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_)))
-        } else {
-          mutate(benefit_cost, 
-                 iter_data = pbmclapply(mc.cores = postprocess_cores,
-                                        iter_data, 
-                                        inner_join, 
-                                        total_error_sd, 
-                                        by = c("iter_id"), 
-                                        suffix = c("", "_error_sd")) %>% 
-                   map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
-        } 
-      }) %>% 
+      pmap(join_benefit_cost_mu_error_sd) %>% 
       map(
         mutate,
         iter_data = pbmclapply(mc.cores = postprocess_cores,
                                iter_data,
+                               # In this function solve for the fixed point equilibrium level v^*, given current benefit-cost and mu
                                function(curr_iter_data) {
                                  mutate(
                                    curr_iter_data,
-                                   no_rep_prob = pnorm(iter_est, sd = iter_est_error_sd),
-                                   v_cutoff = map2_dbl(iter_est, iter_est_mu, ~ nleqslv(x = - ..1, fn = generate_v_cutoff_fixedpoint(..1, ..2)) %>% pluck("x")),
+                                   no_rep_prob = pnorm(iter_est, sd = iter_est_error_sd), # Probability of take-up in cluster without reputation
+                                   v_cutoff = map2_dbl(iter_est, iter_est_mu, ~ nleqslv(x = - ..1, fn = generate_v_cutoff_fixedpoint(..1, ..2)) %>% pluck("x")), # v^* solution
                                    delta_rep = rep_normal(v_cutoff), 
-                                   prob = pnorm(- v_cutoff, sd = iter_est_error_sd)
+                                   prob = pnorm(- v_cutoff, sd = iter_est_error_sd) # Probability of take-up in cluster
                                  )
                                }) %>% 
           lst(iter_data = ., cluster_size) %>%
-          pmap(~ mutate(..1, iter_num_takeup = if_else(!is.na(obs_num_takeup), obs_num_takeup, rbinom(n(), ..2, prob))))
+          pmap(~ mutate(..1, iter_num_takeup = if_else(!is.na(obs_num_takeup), obs_num_takeup, rbinom(n(), ..2, prob)))) # If not observed treatment, draw random number of takers for cluster
       ) %>% 
-      map(mutate, iter_data = map(iter_data, group_by_at, vars(treatment_index, matches("^(mu_)?assigned_(treatment|dist_group)$"), obs_num_takeup)) %>% 
+      # Change nesting to be at the treatment level
+      map(mutate, iter_data = map(iter_data, group_by_at, vars(treatment_index, matches("^(mu_)?assigned_(treatment|dist_group)$"), obs_num_takeup)) %>%  
             map(group_nest,  .key = "iter_data")) %>% 
       map(unnest, iter_data),
     
-    y_rate_of_change = pmap(lst(mu_rep, total_error_sd, fit_type),
-                            function(mu_rep, total_error_sd, fit_type) {
-                              if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
-                                mu_sd <- mu_rep %>% 
-                                  select(assigned_treatment, iter_data) %>% 
-                                  unnest(iter_data) %>% 
-                                  select(assigned_treatment, iter_id, iter_est) %>% 
-                                  left_join(total_error_sd %>% 
-                                              select(iter_data) %>% 
-                                              unnest(iter_data),
-                                            by = "iter_id", suffix = c("_mu", "_sd"))
-                                
-                                multiplier_v_range %>% 
-                                  map_df(~ mu_sd %>% 
-                                           mutate(
-                                             v = .x,
-                                             iter_prob_takeup = pnorm(v, sd = iter_est_sd, lower.tail = FALSE),  
-                                             iter_social_multiplier = social_multiplier(v, iter_est_mu),
-                                             iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_sd)
-                                           ) %>% 
-                                  nest(iter_data = c(iter_id, iter_est_mu, iter_est_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar))) %>% 
-                                  reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), prep_multiple_est, .init = .)
-                              } 
-                            }),
+    y_rate_of_change = pmap(lst(mu_rep, total_error_sd, fit_type), simulate_social_multiplier),
     
     est_takeup_level = map(cluster_cf_benefit_cost, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_benefit_cost, 
@@ -282,7 +257,10 @@ dist_fit_data %<>%
              bind_rows(.x, .))
   ) 
 
+# Combine models using stacking
 if (has_name(dist_fit_data, "stacking_weight")) {
+  # The two functions below are used to combined multiple takeup levels, from different models, into a single (stacked) takeup level.
+  
   level_stack_reducer <- function(accum, est_takeup_level, stacking_weight) {
     if (is.na(stacking_weight)) {
       return(accum)
@@ -367,6 +345,7 @@ dist_fit_data %<>%
   mutate(model = factor(model, levels = model_info$model)) %>% 
   arrange(model)
 
+# Select all the estimate differences that need to be calculated
 ate_combo <- dist_fit_data %>% 
   filter(fct_match(model, "STRUCTURAL_QUADRATIC")) %$%
   select(est_takeup_level[[1]], mu_assigned_treatment:assigned_dist_group) %>% {
@@ -386,6 +365,7 @@ ate_combo <- dist_fit_data %>%
 
 dist_fit_data %<>% 
   mutate(
+    # Calculate treatment effects
     est_takeup_te = est_takeup_level %>% 
       map(select, mu_assigned_treatment:assigned_dist_group, iter_data) %>%
       map(select_if, ~ !all(is.na(.))) %>% # Get rid of the NA mu_assigned_treatment in the reduced form results 
@@ -422,6 +402,7 @@ dist_fit_data %<>%
         takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs))) %>% 
     map(unnest, takeup_te_quantiles),
     
+    # Calculate differences in the rate of change of E[Y] wrt to benefit-cost
     diff_y_rate_of_change = y_rate_of_change %>% 
       map_if(~ !is_null(.x), select, assigned_treatment, v, iter_data) %>% 
       map_if(~ !is_null(.x),
@@ -440,7 +421,8 @@ dist_fit_data %<>%
                 iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right)) %>% 
       map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
       map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar), prep_multiple_est, .init = .)), 
-    
+   
+    # Calculate treatment effects based on distance 
     est_takeup_dist_te = est_takeup_te %>%
       map(filter, !is.na(assigned_dist_group_left), !is.na(assigned_dist_group_right)) %>% 
       map_if(fct_match(model_type, "structural"), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
@@ -461,6 +443,7 @@ dist_fit_data %<>%
       est_takeup_level = map(est_takeup_level, mutate, iter_data = map(iter_data, as_tibble))  
   )
 
+# Posterior samples for assigned distance model
 group_dist_param <- dist_fit_data %>% 
   filter(fct_match(fit_type, "fit")) %>% 
   pull(fit) %>% 
