@@ -1,8 +1,8 @@
 #!/usr/bin/Rscript
 #
-# This script is used to postprocess Stan fit for the various models. In addition to putting our analysis in a format that allows for easy extraction of all
-# levels and treatment effects, it allows handles imputing take-up levels for counterfactuals using Stan-generated cost-benefits and reputational returns 
-# parameters: using these we can calculate the probability of take-up after calculating the v^* fixed point solution.
+# This script is used to postprocess Stan fit for the various models, reduced form and structural. In addition to putting our analysis in a format that 
+# allows for easy extraction of all levels and treatment effects, it allows handles imputing take-up levels for counterfactuals using Stan-generated cost-benefits 
+# and reputational returns parameters: using these we can calculate the probability of take-up after calculating the v^* fixed point solution.
 #
 
 library(magrittr)
