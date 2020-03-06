@@ -197,26 +197,6 @@ dist_fit_data %<>%
     total_error_sd = map(fit, extract_obs_fit_level, par = "total_error_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
     
     mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs),
-        # # Most of the belows is to be able to compare mu parameters between treatments. We don't actually end up using this.
-        # map_if(~ !is_null(.), mutate, compare_to = "control") %>% 
-        # map_if(~ !is_null(.), ~ left_join(., select(., assigned_treatment, iter_data), by = c("compare_to" = "assigned_treatment"), suffix = c("", "_compare"))) %>% 
-        # map_if(~ !is_null(.),
-        #     mutate, 
-        #     iter_data = map2(iter_data, iter_data_compare, left_join, by = "iter_id", suffix = c("", "_compare")) %>% 
-        #       map(mutate, 
-        #           iter_est_vs_compare = iter_est - iter_est_compare,
-        #           iter_est_vs_compare_ratio = iter_est / iter_est_compare,
-        #       ) %>% 
-        #       map2(quantiles_est, ~ mutate(.x, 
-        #                                    per_group = unlist(.y) %>%
-        #                                      set_names(str_extract(names(.), "0\\.\\d+")) %>% { 
-        #                                        cut(iter_est, breaks = c(0, ., Inf), labels = c("0.0", names(.))) } %>% 
-        #                                      as.numeric())),
-        #     mean_est_vs_compare = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare)),
-        #     mean_est_vs_compare_ratio = map_dbl(iter_data, ~ mean(.$iter_est_vs_compare_ratio)),
-        #     quantiles_est_vs_compare = map(iter_data, quantilize_est, iter_est_vs_compare, quant_probs = quant_probs), 
-        #     quantiles_est_vs_compare_ratio = map(iter_data, quantilize_est, iter_est_vs_compare_ratio, quant_probs = quant_probs)
-        # ),
     
     cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
       map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
