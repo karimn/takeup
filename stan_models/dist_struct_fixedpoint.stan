@@ -19,16 +19,6 @@ parameters {
   real<lower = 0> dist_beta_salience;
   real<lower = 0> dist_quadratic_beta_salience;
   
-  // Name Matched
-  
-  // vector[num_treatments_name_matched] beta_nm_effect;
-  // 
-  // matrix[use_cluster_effects && use_name_matched_obs ? num_clusters : 0, (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments)] beta_nm_effect_cluster_raw;
-  // row_vector<lower = 0>[use_cluster_effects && use_name_matched_obs ? (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments) : 0] beta_nm_effect_cluster_sd;
-  // 
-  // matrix[use_county_effects && use_name_matched_obs ? num_clusters : 0, (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments)] beta_nm_effect_county_raw;
-  // row_vector<lower = 0>[use_county_effects && use_name_matched_obs ? (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments) : 0] beta_nm_effect_county_sd;
-  
   // V Mixture
   
   vector<lower = 0.5, upper = 1>[num_v_mix - 1] recursive_lambda_v_mix;
@@ -41,7 +31,6 @@ parameters {
   real v_mu;
   
   row_vector<lower = 0>[suppress_reputation ? 0 : num_treatments] mu_rep_raw;
-  // real<lower = 0, upper = 1> v_sd;
   vector<lower = 0>[suppress_shocks ? 0 : num_shocks - 1] ub_ur_sd;
   cholesky_factor_corr[suppress_shocks ? 0 : num_shocks] L_all_u_corr;
   
@@ -78,8 +67,6 @@ parameters {
   
   simplex[num_dist_group_mix] group_dist_mix[num_discrete_dist];
   
-  // vector<lower = 0>[num_discrete_dist] group_dist_mean;
-  // vector<lower = 0>[num_discrete_dist] group_dist_sd;
   ordered[num_dist_group_mix] group_dist_mean[num_discrete_dist];
   vector<lower = 0>[num_dist_group_mix] group_dist_sd[num_discrete_dist];
   
@@ -91,11 +78,7 @@ transformed parameters {
   vector[num_dist_group_treatments] structural_treatment_effect;
   vector[num_clusters] structural_cluster_benefit_cost;
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
-  // matrix[num_clusters, num_actual_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_actual_treatments);
-  // matrix[num_clusters, num_actual_treatments] structural_beta_cluster_nm = rep_matrix(0, num_clusters, num_actual_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
-  // matrix[num_counties, num_actual_treatments] structural_beta_county = rep_matrix(0, num_counties, num_actual_treatments);
-  // matrix[num_counties, num_actual_treatments] structural_beta_county_nm = rep_matrix(0, num_counties, num_actual_treatments);
   
   row_vector<lower = 0>[suppress_reputation ? 0 : num_treatments] mu_rep = mu_rep_raw;
   matrix<lower = 0>[!suppress_reputation ? num_clusters : 0, num_treatments] cluster_mu_rep;
@@ -109,11 +92,8 @@ transformed parameters {
   ordered[num_v_mix - 1] v_mix_mean = cumulative_sum(v_mix_mean_diff);
   
   vector<lower = 0>[num_treatments_param_kappa] dist_cost_k;
-  // vector[num_treatments] linear_dist_cost = rep_vector(0, num_treatments);
-  // vector[num_treatments] quadratic_dist_cost = rep_vector(0, num_treatments);
   vector[num_dist_group_treatments] linear_dist_cost = rep_vector(0, num_dist_group_treatments);
   vector[num_dist_group_treatments] quadratic_dist_cost = rep_vector(0, num_dist_group_treatments);
-  // matrix[num_clusters, num_treatments] cluster_linear_dist_cost = rep_matrix(0, num_clusters, num_treatments);
   matrix[num_clusters, num_dist_group_treatments] cluster_linear_dist_cost = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_treatments, num_knots_v] u_splines_v = rep_matrix(0, num_treatments, num_knots_v);
   vector[num_clusters] cluster_dist_cost = rep_vector(0, num_clusters);
@@ -315,24 +295,6 @@ transformed parameters {
     }
   }
   
-  // if (use_name_matched_obs) {
-  //   vector[num_clusters] cluster_effects_nm = rep_vector(0, num_clusters);
-  //   vector[num_clusters] county_effects_nm = rep_vector(0, num_clusters);
-  //   
-  //   if (use_cluster_effects) {
-  //     structural_beta_cluster_nm = beta_nm_effect_cluster_raw .* rep_matrix(beta_nm_effect_cluster_sd, num_clusters);
-  //     cluster_effects_nm = rows_dot_product(cluster_treatment_design_matrix, structural_beta_cluster_nm); 
-  //   }
-  //   
-  //   if (use_county_effects) {
-  //     structural_beta_county_nm = beta_nm_effect_county_raw .* rep_matrix(beta_nm_effect_county_sd, num_counties);
-  //     county_effects_nm = rows_dot_product(cluster_treatment_design_matrix, structural_beta_county_nm[cluster_county_id]); 
-  //   }
-  //   
-  //   structural_cluster_obs_v_nm = structural_cluster_obs_v 
-  //                               - (structural_treatment_effect_nm[cluster_assigned_treatment] + cluster_effects_nm + county_effects_nm); 
-  // }
-  
   if (!suppress_shocks) {
     vector[num_shocks] all_u_sd = append_row(1, ub_ur_sd);
     
@@ -346,13 +308,9 @@ transformed parameters {
     if (mix_index == 1) {
       structural_cluster_takeup_prob[1] = Phi(- structural_cluster_obs_v / total_error_sd)';
       structural_cluster_takeup_prob_nm[1] = Phi(- structural_cluster_obs_v_nm / total_error_sd)';
-      
-      // structural_obs_takeup_prob[1] = structural_cluster_takeup_prob[1, obs_cluster_id]; // BUGBUG no name matching yet 
     } else {
       structural_cluster_takeup_prob[mix_index] = Phi(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
       structural_cluster_takeup_prob_nm[mix_index] = Phi(- (structural_cluster_obs_v_nm - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
-      
-      // structural_obs_takeup_prob[mix_index] = structural_cluster_takeup_prob[mix_index, obs_cluster_id]; // BUGBUG no name matching yet 
     }
   }
 }
@@ -374,12 +332,6 @@ model {
   
   v_mu ~ normal(0, 1);
   
-  // beta_salience_nm_effect ~ normal(0, 1);
-  
-  // if (num_treatments_name_matched > 0) {
-  //   beta_nm_effect ~ normal(0, 1);
-  // }
-
   if (!suppress_reputation) { 
     mu_rep_raw ~ normal(0, mu_rep_sd);
     
@@ -425,21 +377,11 @@ model {
   if (use_cluster_effects) {
     to_vector(structural_beta_cluster_raw) ~ std_normal();
     structural_beta_cluster_sd ~ normal(0, structural_beta_cluster_sd_sd);
-    
-    // if (use_name_matched_obs) {
-    //   to_vector(beta_nm_effect_cluster_raw) ~ normal(0, 1);
-    //   beta_nm_effect_cluster_sd ~ normal(0, 0.25);
-    // }
   }
   
   if (use_county_effects) {
     to_vector(structural_beta_county_raw) ~ std_normal();
     structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
-    
-    // if (use_name_matched_obs) {
-    //   to_vector(beta_nm_effect_county_raw) ~ normal(0, 1);
-    //   beta_nm_effect_county_sd ~ normal(0, 0.25);
-    // }
   }
   
   if (!suppress_shocks) {

@@ -12,16 +12,6 @@ parameters {
   
   matrix[use_county_effects ? num_counties : 0, num_dist_group_treatments] structural_beta_county_raw;
   row_vector<lower = 0>[use_county_effects ? num_dist_group_treatments : 0] structural_beta_county_sd;
-  
-  // Name Matched
-  
-  // vector[num_treatments_name_matched] beta_nm_effect;
-  // 
-  // matrix[use_cluster_effects && use_name_matched_obs ? num_clusters : 0, (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments)] beta_nm_effect_cluster_raw;
-  // row_vector<lower = 0>[use_cluster_effects && use_name_matched_obs ? (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments) : 0] beta_nm_effect_cluster_sd;
-  // 
-  // matrix[use_county_effects && use_name_matched_obs ? num_clusters : 0, (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments)] beta_nm_effect_county_raw;
-  // row_vector<lower = 0>[use_county_effects && use_name_matched_obs ? (use_cost_model == COST_MODEL_TYPE_DISCRETE ? num_treatments * num_discrete_dist : num_treatments) : 0] beta_nm_effect_county_sd;
 }
 
 transformed parameters {
@@ -35,7 +25,8 @@ transformed parameters {
   vector<lower = 0, upper = 1>[num_clusters] structural_cluster_takeup_prob;
   
   for (dist_index in 1:num_discrete_dist) {
-    beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = [ beta_control[dist_index], beta_ink_effect[dist_index], beta_calendar_effect[dist_index], beta_bracelet_effect[dist_index] ]';
+    beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
+      [ beta_control[dist_index], beta_ink_effect[dist_index], beta_calendar_effect[dist_index], beta_bracelet_effect[dist_index] ]';
   }
  
   structural_treatment_effect = treatment_map_design_matrix * beta;
