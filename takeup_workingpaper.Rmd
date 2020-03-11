@@ -3,7 +3,7 @@ title: |
     | Social Signaling and Prosocial Behavior
     | Experimental Evidence in Community Deworming in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; Supreet Kaur, Dmitry Taubinsky, Seema Jayachandran, Nancy Qian and seminar participants at Berkeley, Northwestern Rookiefest, Oxford CSAE Conference 2018 and PacDev 2018 for helpful discussions and feedback; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
 date: "January 2020"
-subtitle: "Please find the latest version of the paper [here](https://drive.google.com/file/d/164wP0_dqOFfKvUenHVixlY3Js7oFPFhg/view)"
+subtitle: "Please find the latest version of the paper [here](https://github.com/karimn/takeup/blob/master/takeup_workingpaper.pdf)"
 author:
 - Anne Karing^[Princeton University, `akaring@princeton.edu`.]
 - Karim Naguib^[`karim.a.naguib@gmail.com`.]
