@@ -1,6 +1,10 @@
 # TakeUp: RCT Design, Data Preparation, and Analysis
 
-This repo is used to manage the R and Stan code used to design the TakeUp (see [working paper](takeup_workingpaper.pdf) for details no the study), prepare survey data and conduct analysis.
+This repo is used to manage the R and Stan code used to design the TakeUp, prepare survey data and conduct analysis.
+
+Abstract (see [working paper](takeup_workingpaper.pdf)):
+
+> Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. Further, we exogenously vary the travel distance to treatment locations. To separate reputational utility from private consumption utility and social learning/salience, we combine experimental identification with a structural model's non-experimental identification. We find that (1) bracelets as signals increase deworming take-up by roughly 13 percent, net the private consumption and learning/salience effects; (2) there is no detectable effect for the ink signal, which we attribute to its private disutility which outweighs any reputational utility from signaling; (3) adults are highly sensitive to distance but signaling treatments see little change; (4) the rate-of-change in take-up in response to increased distance is negligibly small compared against the control.  Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision.
 
 Here are the main files:
 
