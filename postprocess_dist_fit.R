@@ -453,7 +453,7 @@ dist_fit_data %<>%
 
 # Posterior samples for assigned distance model
 group_dist_param <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), !is_null(fit), fct_match(model_type, "structural")) %>% 
   pull(fit) %>% 
   first() %>% 
   as.data.frame(pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
