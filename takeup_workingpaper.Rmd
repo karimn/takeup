@@ -96,7 +96,7 @@ load(file.path("data", "analysis.RData"))
 ```
 
 ```{r load-processed-dist-fit, cache=TRUE}
-load(file.path("temp-data", "processed_dist_fit27.RData"))
+load(file.path("temp-data", "processed_dist_fit28.RData"))
 
 dist_fit_data %<>% 
   left_join(distinct(., model) %>% 
@@ -380,7 +380,7 @@ baseline.data %>%
   group_by(praise.stigma, topic) %>% 
   mutate(n = n/sum(n)) %>% 
   ungroup %>%
-  mutate_at(vars(praise.stigma, response), funs(fct_relabel(factor(.), str_to_title))) %>% 
+  mutate_at(vars(praise.stigma, response), ~ fct_relabel(factor(.), str_to_title)) %>% 
   mutate(topic = fct_recode(factor(topic), 
                             "Wearing/not wearing nice clothes to church" = "clothe",
                             "Use Latrine/open defecation" = "defecat",
@@ -1013,7 +1013,7 @@ plot.aggreg.takeup <- function(.data) {
 }
 
 takeup.data %>% 
-  mutate_at(vars(dist.pot.group, assigned.treatment), funs(factor(.) %>% fct_relabel(str_to_title))) %>% 
+  mutate_at(vars(dist.pot.group, assigned.treatment), ~ factor(.) %>% fct_relabel(str_to_title)) %>% 
   plot.aggreg.takeup 
 ```
 
@@ -2437,7 +2437,7 @@ est_deworming_day_dist %>%
          incentive_treatment_static == incentive_treatment_dynamic,
          sms.treatment.2_static == sms.treatment.2_dynamic,
          dist.pot.group_static == dist.pot.group_dynamic) %>% 
-  mutate_at(vars(starts_with("dist.pot.group_static")), funs(fct_relabel(., str_to_title))) %>% 
+  mutate_at(vars(starts_with("dist.pot.group_static")), fct_relabel, str_to_title) %>% 
   plot_dyn_takeup_daily(control_observation = FALSE, include_sms_treatment = TRUE) +
   # scale_color_brewer("SMS Treatment", type = "qual", palette = "Set2") +
   labs(subtitle = "Split by distance to point of treatment. For phone owners only.") + #+ facet_wrap(~ name_matched_left)
