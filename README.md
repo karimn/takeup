@@ -13,6 +13,8 @@ Here are the main files:
 * [data/](data/) points to a **private** submodule with survey data. This data has not yet been publicly shared.
 * [images/](images/) stores all images used in producing the working paper.
 * [stan_models/](stan_models/) contains all the Stan models used for analysis.
+    - [takeup_reduced.stan](stan_models/takeup_reduced.stan) Reduced form model.
+    - [takeup_struct.stan](stan_models/takeup_struct.stan) Structural model.
 * [multilvlr/](multilvlr/) points to a public submodule. This is only used for some utility functions.
 
 * [prepare_analysis_data.R](prepare_analysis_data.R) this script is used to prepare the survey data for analysis.
