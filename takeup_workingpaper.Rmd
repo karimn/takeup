@@ -126,13 +126,19 @@ plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
   }
   
   ggplot_obj +
-    ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), size = 0.7, alpha = 0.05, width = 0.25, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), size = 0.7,  width = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.7, fatten = 3, size = 0.8, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    geom_point(aes(x = mean_est, color = model), fatten = 3, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_linerangeh(aes(xmin = per_0.25, xmax = per_0.75, color = model), alpha = 0.4, size = 3, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_crossbarh(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model), fatten = 0, size = 0.4, width = 0.5, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) + 
+    
+    # ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), size = 0.7, alpha = 0.05, width = 0.25, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    # ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), size = 0.7,  width = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    # ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.7, fatten = 3, size = 0.8, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_point(aes(x = mean_est, color = model), position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("Model", values = select(dist_fit_data, model, model_color) %>% deframe(), labels = dist_fit_data %>% select(model, model_name) %>% deframe()) + 
+    scale_color_manual("Model", 
+                       values = select(dist_fit_data, model, model_color) %>% deframe(), 
+                       labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
     labs(
       caption = #"Dotted line range: 98% credible interval. 
                 "Line range: 90% credible interval. 
@@ -1930,7 +1936,7 @@ dist_fit_data %>%
 
 ### Result 1. The Effect of Visibility $x$ on Take-up Decisions {-}
 
-```{r take-up-levels, fig.width=8,fig.height=7, fig.cap="Take-up levels in response to an incentive treatment intervention.",cache=FALSE}
+```{r take-up-levels, fig.width=8,fig.height=6, fig.cap="Take-up levels in response to an incentive treatment intervention.",cache=FALSE}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>% 
@@ -1946,7 +1952,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate, fig.width=8,fig.height=11.5, fig.cap="Average treatment effect in response to an incentive treatment intervention."}
+```{r take-up-ate, fig.width=8,fig.height=8.5, fig.cap="Average treatment effect in response to an incentive treatment intervention."}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -1984,7 +1990,7 @@ Figure \ref{fig:take-up-levels} shows deworming take-up levels for the four main
 
 <!-- Figure \ref{fig:static_ate_combined_sms} shows that the text message treatment had a large effect on deworming take-up. Text messages increased the average take-up level by 13 percentage points in the control, ink and calendar treatment and by 16 percentage points in the bracelet treatment. However, it is difficult to interpret these effects since the text message treatment was bundled with a recruitment visit. Only individuals in the Social Info/Reminder treatments were visited by a surveyor who explained the text messages, obtained individuals' consent to participate in the intervention and reminded them about the upcoming community deworming program. Individuals in the SMS control group did not receive a visit. To shed further light on the potential mechanism we can look at the dynamic effect of Social Info/Reminders across the twelve days of deworming. Figure 15 shows that text messages had the largest effect on day one and two, as a result of the reminder that was sent the day before treatment started. The treatment effects become negligible on later days, suggesting that text messages sent on days 4, 6, 8 and 10 and the social information contained in them had no relevant effect on deworming decisions. It is therefore likely that the initial "nudge" and/or the private recruitment visit is what most influenced individuals' decision to take up treatment. -->
 
-```{r take-up-level-struct, fig.width=8, fig.height=7,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
+```{r take-up-level-struct, fig.width=8, fig.height=5.15,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
 dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>% 
   select(est_takeup_level, model, model_name, fit_type) %>% 
@@ -2001,7 +2007,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate-struct, fig.width=8, fig.height=6, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
+```{r take-up-ate-struct, fig.width=8, fig.height=4.5, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -2026,7 +2032,7 @@ Figure \ref{fig:take-up-level-struct} shows the take-up levels of the four incen
 
 ### Result 2: The Effect of Cost on Deworming Take-up {-} 
 
-```{r take-up-levels-dist-split, fig.width=8,fig.height=12, fig.cap="Take-up levels in response to an incentive treatment intervention, split by assigned\ndistance group."}
+```{r take-up-levels-dist-split, fig.width=8,fig.height=10.25, fig.cap="Take-up levels in response to an incentive treatment intervention, split by assigned\ndistance group."}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>%  
@@ -2043,7 +2049,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate-dist-effect, fig.width=8,fig.height=8, fig.cap="Average treatment effect in response to a change in distance."}
+```{r take-up-ate-dist-effect, fig.width=8,fig.height=6, fig.cap="Average treatment effect in response to a change in distance."}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -2064,7 +2070,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate-dist-split, fig.width=8,fig.height=10, fig.cap="Average treatment effect in response to an incentive treatment intervention, split by distance."}
+```{r take-up-ate-dist-split, fig.width=8,fig.height=8, fig.cap="Average treatment effect in response to an incentive treatment intervention, split by distance."}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -2168,7 +2174,7 @@ dist_fit_data %>%
   # NULL
 ```
 
-```{r take-up-level-struct-dist-split, fig.width=8, fig.height=9.5,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
+```{r take-up-level-struct-dist-split, fig.width=8, fig.height=8.5,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
 dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>% 
   select(est_takeup_level, model, model_name, fit_type) %>% 
@@ -2187,7 +2193,7 @@ dist_fit_data %>%
 ```
 
 
-```{r take-up-ate-struct-dist-split, fig.width=8, fig.height=9, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
+```{r take-up-ate-struct-dist-split, fig.width=8, fig.height=7.25, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
