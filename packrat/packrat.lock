@@ -54,6 +54,12 @@ Source: CRAN
 Version: 1.1-2
 Hash: c0d56cd15034f395874c870141870c25
 
+Package: RSQLite
+Source: CRAN
+Version: 2.2.0
+Hash: 370ec58b357ea8561fd748264789215e
+Requires: BH, DBI, Rcpp, bit64, blob, memoise, pkgconfig, plogr
+
 Package: Rcpp
 Source: CRAN
 Version: 1.0.3
@@ -147,10 +153,27 @@ Source: CRAN
 Version: 0.1.3
 Hash: 0054f67755bfacbe8a4b68624f071c3b
 
+Package: bit
+Source: CRAN
+Version: 1.1-15.2
+Hash: 8d0ff944906d362413913f08f7a2d781
+
+Package: bit64
+Source: CRAN
+Version: 0.9-7
+Hash: 4b195615d19ba49c114eb04e09e30a96
+Requires: bit
+
 Package: bitops
 Source: CRAN
 Version: 1.0-6
 Hash: 67d0775189fd0041d95abca618c5c07e
+
+Package: blob
+Source: CRAN
+Version: 1.2.1
+Hash: de88fed092924767ccb739b695f35d2b
+Requires: rlang, vctrs
 
 Package: boot
 Source: CRAN
@@ -585,6 +608,12 @@ Package: mcmc
 Source: CRAN
 Version: 0.9-6.1
 Hash: a45118d98e51ee13235c01b13f8e2c34
+
+Package: memoise
+Source: CRAN
+Version: 1.1.0
+Hash: 410fcd334bc626db100237cc1370f2e9
+Requires: digest
 
 Package: mime
 Source: CRAN
