@@ -283,10 +283,14 @@ generate_initializer <- function(num_treatments,
           mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           v_mu = rnorm(1, 0, 0.1),
-          beta_control = rnorm(num_discrete_dist, 0, 0.1) %>% as.array(), 
-          beta_ink_effect = rnorm(num_discrete_dist, 0, 0.1) %>% as.array(), 
-          beta_calendar_effect = if (restricted_private_incentive) as.array(abs(rnorm(num_discrete_dist, 0, 0.1))) else as.array(rnorm(num_discrete_dist, 0, 0.1)), 
-          beta_bracelet_effect = if (restricted_private_incentive) as.array(abs(rnorm(num_discrete_dist, 0, 0.1))) else as.array(rnorm(num_discrete_dist, 0, 0.1)), 
+          beta_control = rnorm(num_discrete_dist, 0, 0.1) %>% { if (num_discrete_dist > 1) as.array(.) else . }, 
+          beta_ink_effect = rnorm(num_discrete_dist, 0, 0.1) %>% { if (num_discrete_dist > 1) as.array(.) else . },
+          beta_calendar_effect = { 
+            if (restricted_private_incentive) abs(rnorm(num_discrete_dist, 0, 0.1)) else rnorm(num_discrete_dist, 0, 0.1) 
+          } %>% { if (num_discrete_dist > 1) as.array(.) else . },
+          beta_bracelet_effect = { 
+            if (restricted_private_incentive) abs(rnorm(num_discrete_dist, 0, 0.1)) else rnorm(num_discrete_dist, 0, 0.1)
+          } %>% { if (num_discrete_dist > 1) as.array(.) else . },
           beta_salience = abs(rnorm(1, 0, 0.1)),
           dist_beta_salience = abs(rnorm(1, 0, 0.1)),
           dist_quadratic_beta_salience = abs(rnorm(1, 0, 0.1)),

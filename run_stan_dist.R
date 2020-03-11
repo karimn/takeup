@@ -1,7 +1,5 @@
 #!/usr/bin/Rscript
 
-if (!interactive()) withr::with_dir("..", source(file.path("packrat", "init.R")))
-
 script_options <- docopt::docopt(
 "Usage:
   run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior]
@@ -13,7 +11,7 @@ Options:
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]",
 
-  args = if (interactive()) "fit --sequential --models=4 --outputname=dist_fit28" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -81,7 +79,7 @@ num_treatments <- n_distinct(analysis_data$assigned.treatment)
 num_clusters <- n_distinct(analysis_data$cluster_id)
 num_counties <- n_distinct(analysis_data$county)
 
-# Models not using "dist_struct_fixedpoint.stan" can be ignored
+# Models not using "takeup_struct.stan" can be ignored
 
 struct_model_stan_pars <- c(
   "total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
@@ -97,7 +95,7 @@ reduced_model_stan_pars <- c(
 
 models <- lst(
   STRUCTURAL_QUADRATIC = lst(
-    model_file = "dist_struct_fixedpoint.stan",
+    model_file = "takeup_struct.stan",
     pars = struct_model_stan_pars,
     control = lst(max_treedepth = 12, adapt_delta = 0.99),
     use_binomial = FALSE,
@@ -145,7 +143,7 @@ models <- lst(
   
   # STRUCTURAL_SEMIPARAM = lst(
   #   model_type = 10,
-  #   model_file = "dist_struct_fixedpoint.stan",
+  #   model_file = "takeup_struct.stan",
   #   control = lst(max_treedepth = 12, adapt_delta = 0.99),
   #   use_binomial = FALSE,
   #   num_v_mix = 1,
@@ -184,7 +182,7 @@ models <- lst(
   #   list_modify(!!!enum2stan_data(cost_model_types)),
   
   STRUCTURAL_LINEAR = lst(
-    model_file = "dist_struct_fixedpoint.stan",
+    model_file = "takeup_struct.stan",
     pars = struct_model_stan_pars,
     control = lst(max_treedepth = 12, adapt_delta = 0.99),
     use_binomial = FALSE,
@@ -231,7 +229,7 @@ models <- lst(
   
   # REDUCED_FORM_LINEAR = lst(
   #   model_type = 10,
-  #   model_file = "dist_struct_fixedpoint.stan",
+  #   model_file = "takeup_struct.stan",
   #   control = lst(max_treedepth = 12, adapt_delta = 0.99),
   #   use_binomial = FALSE,
   #   num_v_mix = 1,
@@ -271,7 +269,7 @@ models <- lst(
   
   STRUCTURAL_QUADRATIC_SALIENCE = lst(
     model_type = 10,
-    model_file = "dist_struct_fixedpoint.stan",
+    model_file = "takeup_struct.stan",
     control = lst(max_treedepth = 12, adapt_delta = 0.99),
     num_v_mix = 1,
     use_single_cost_model = TRUE,
@@ -313,7 +311,7 @@ models <- lst(
   
   # STRUCTURAL_LINEAR_SALIENCE = lst(
   #   model_type = 10,
-  #   model_file = "dist_struct_fixedpoint.stan",
+  #   model_file = "takeup_struct.stan",
   #   control = lst(max_treedepth = 12, adapt_delta = 0.99),
   #   num_v_mix = 1,
   #   use_single_cost_model = TRUE,
@@ -394,7 +392,7 @@ models <- lst(
   
   # REDUCED_FORM_NO_LEVELS = lst(
   #   model_type = 10,
-  #   model_file = "dist_struct_fixedpoint.stan",
+  #   model_file = "takeup_struct.stan",
   #   control = lst(max_treedepth = 12, adapt_delta = 0.99),
   #   num_v_mix = 1,
   #   use_single_cost_model = TRUE,

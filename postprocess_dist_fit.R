@@ -5,6 +5,13 @@
 # and reputational returns parameters: using these we can calculate the probability of take-up after calculating the v^* fixed point solution.
 #
 
+script_options <- docopt::docopt(
+"Usage:
+  postprocess_dist_fit <fit-version>",
+
+  args = if (interactive()) "28" else commandArgs(trailingOnly = TRUE) 
+) 
+
 library(magrittr)
 library(tidyverse)
 library(rlang)
@@ -16,8 +23,13 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
+fit_version <- script_options$`fit-version`
+
+
+# Load Data ---------------------------------------------------------------
+
 # Stan fit 
-load(file.path("data", "stan_analysis_data", "dist_fit27.RData"))
+load(file.path("data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
 
 # Convert to tibble with list column of fit objects
 dist_fit_data <- enframe(dist_fit, name = "model", value = "fit")
@@ -50,47 +62,55 @@ dist_fit_data %<>%
   left_join(enframe(thin_model, name = "model", value = "thin"), by = "model") 
 
 # Prior predicted fit for same models
-load(file.path("data", "stan_analysis_data", "dist_fit_prior27.RData"))
-
-dist_fit_data %<>%
-  bind_rows("fit" = .,
-            "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
-              mutate(thin = 1L),
-            .id = "fit_type") 
-
-rm(dist_fit)
+dist_fit_data <- tryCatch({
+  load(file.path("data", "stan_analysis_data", str_interp("dist_fit_prior${fit_version}.RData")))
+  
+  dist_fit_data %<>%
+    bind_rows("fit" = .,
+              "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
+                mutate(thin = 1L),
+              .id = "fit_type") 
+  
+  rm(dist_fit)
+  
+  dist_fit_data
+},
+error = function(err) {
+  dist_fit_data %>% 
+    mutate(fit_type = "fit")
+})
 
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
 
 # Load cross-validation data
-dist_fit_data <- tryCatch({
-  load(file.path("data", "stan_analysis_data", "dist_kfold27.RData"))
-      
-  enframe(dist_kfold, name = "model", value = "kfold") %>% 
-    inner_join(select(model_info, model, model_type), by = "model") %>% 
-    mutate(
-      fit_type = factor("fit", levels = c("fit", "prior-predict")),
-      stacking_weight = map(kfold, pluck, "pointwise") %>% 
-        do.call(rbind, .) %>% 
-        t() %>% 
-        loo::stacking_weights(),
-      
-      kfold = set_names(kfold, model)
-    ) %>% 
-    group_by(model_type) %>% 
-    mutate(
-      stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
-        do.call(rbind, .) %>% 
-        t() %>% { 
-        tryCatch(loo::stacking_weights(.), error = function(err) NA)
-        }
-    ) %>% 
-    ungroup() %>% 
-    left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
-    left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
-    select(-one_of("model_type"))
-}, error = function(err) dist_fit_data)
+load(file.path("data", "stan_analysis_data", str_interp("dist_kfold${fit_version}.RData")))
+    
+dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
+  inner_join(select(model_info, model, model_type), by = "model") %>% 
+  mutate(
+    fit_type = factor("fit", levels = c("fit", "prior-predict")),
+    stacking_weight = map(kfold, pluck, "pointwise") %>% 
+      do.call(rbind, .) %>% 
+      t() %>% 
+      loo::stacking_weights(),
+    
+    kfold = set_names(kfold, model)
+  ) %>% 
+  group_by(model_type) %>% 
+  mutate(
+    stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
+      do.call(rbind, .) %>% 
+      t() %>% { 
+      tryCatch(loo::stacking_weights(.), error = function(err) NA)
+      }
+  ) %>% 
+  ungroup() %>% 
+  left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
+  left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
+  select(-one_of("model_type"))
+
+rm(dist_kfold)
 
 dist_fit_data %<>% 
   inner_join(select(model_info, model, model_type), by = "model") %>% 
@@ -103,6 +123,9 @@ observed_takeup <- monitored_nosms_data %>%
             prop_takeup_ub = prop_takeup + se,
             prop_takeup_lb = prop_takeup - se) %>% 
   ungroup()
+
+
+# Functions ---------------------------------------------------------------
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 postprocess_cores <- 12
@@ -119,7 +142,7 @@ join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd) 
                                     inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "_error_sd")),
                                   by = c("iter_id")) %>% 
              map(mutate, obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_)))
-  } else {
+  } else if (!is_null(total_error_sd)) { 
     mutate(benefit_cost, 
            iter_data = pbmclapply(mc.cores = postprocess_cores,
                                   iter_data, 
@@ -127,6 +150,10 @@ join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd) 
                                   total_error_sd, 
                                   by = c("iter_id"), 
                                   suffix = c("", "_error_sd")) %>% 
+             map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
+  } else {
+    mutate(benefit_cost,
+           iter_data = map(iter_data, mutate, iter_est_error_sd = 1, iter_est_mu = 0) %>% 
              map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
   } 
 }
@@ -191,6 +218,52 @@ organize_by_treatment <- function(.data, ...) {
     unnest(takeup_quantiles)
 }
 
+level_stack_reducer <- function(accum, est_takeup_level, stacking_weight) {
+  if (is.na(stacking_weight)) {
+    return(accum)
+  } else {
+    weighed_level <- est_takeup_level %>% 
+      select(-mean_est, -starts_with("per_")) %>% 
+      mutate(iter_data = map(iter_data, mutate, iter_prop_takeup = iter_prop_takeup * stacking_weight),
+             mu_assigned_treatment = if (!is.factor(mu_assigned_treatment)) factor(mu_assigned_treatment) else mu_assigned_treatment,
+             mu_assigned_treatment = if_else(is.na(mu_assigned_treatment), assigned_treatment, mu_assigned_treatment))
+     
+    if (is_empty(accum)) {
+      return(weighed_level)
+    } else {
+      inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
+        mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
+                 map(mutate, iter_prop_takeup = iter_prop_takeup_accum + iter_prop_takeup_weighed) %>% 
+                 map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
+        select(-ends_with("_accum"), -ends_with("_weighed"))
+    }
+  }
+}
+
+rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight) {
+  if (is.na(stacking_weight)) {
+    return(accum)
+  } else {
+    weighed_level <- rate_of_change %>% 
+      select(-c(prob_takeup, social_multiplier, partial_bbar)) %>% 
+      mutate(iter_data = map(iter_data, mutate_at, vars(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), ~ . * stacking_weight))
+     
+    if (is_empty(accum)) {
+      return(weighed_level)
+    } else {
+      inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
+        mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
+                 map(mutate, 
+                     iter_prob_takeup = iter_prob_takeup_accum + iter_prob_takeup_weighed,
+                     iter_social_multiplier = iter_social_multiplier_accum + iter_social_multiplier_weighed,
+                     iter_partial_bbar = iter_partial_bbar_accum + iter_partial_bbar_weighed) %>% 
+                 map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
+        select(-ends_with("_accum"), -ends_with("_weighed"))
+    }
+  }
+}
+
+# Postprocessing ----------------------------------------------------------
 
 dist_fit_data %<>% 
   mutate(
@@ -203,8 +276,8 @@ dist_fit_data %<>%
       map(mutate, iter_data = map(iter_data, unnest, iter_data)) %>% 
       lst(benefit_cost = ., 
           mu_rep, 
-          total_error_sd = map(total_error_sd, select, -rhat, -starts_with("ess")) %>% 
-            map(unnest, iter_data)) %>%
+          total_error_sd = map_if(total_error_sd, ~ !is_null(.x), select, -rhat, -starts_with("ess")) %>% 
+            map_if(~ !is_null(.x), unnest, iter_data)) %>%
       pmap(join_benefit_cost_mu_error_sd) %>% 
       map(
         mutate,
@@ -240,51 +313,6 @@ dist_fit_data %<>%
 # Combine models using stacking
 if (has_name(dist_fit_data, "stacking_weight")) {
   # The two functions below are used to combined multiple takeup levels, from different models, into a single (stacked) takeup level.
-  
-  level_stack_reducer <- function(accum, est_takeup_level, stacking_weight) {
-    if (is.na(stacking_weight)) {
-      return(accum)
-    } else {
-      weighed_level <- est_takeup_level %>% 
-        select(-mean_est, -starts_with("per_")) %>% 
-        mutate(iter_data = map(iter_data, mutate, iter_prop_takeup = iter_prop_takeup * stacking_weight),
-               mu_assigned_treatment = if (!is.factor(mu_assigned_treatment)) factor(mu_assigned_treatment) else mu_assigned_treatment,
-               mu_assigned_treatment = if_else(is.na(mu_assigned_treatment), assigned_treatment, mu_assigned_treatment))
-       
-      if (is_empty(accum)) {
-        return(weighed_level)
-      } else {
-        inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
-          mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
-                   map(mutate, iter_prop_takeup = iter_prop_takeup_accum + iter_prop_takeup_weighed) %>% 
-                   map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
-          select(-ends_with("_accum"), -ends_with("_weighed"))
-      }
-    }
-  }
-  
-  rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight) {
-    if (is.na(stacking_weight)) {
-      return(accum)
-    } else {
-      weighed_level <- rate_of_change %>% 
-        select(-c(prob_takeup, social_multiplier, partial_bbar)) %>% 
-        mutate(iter_data = map(iter_data, mutate_at, vars(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), ~ . * stacking_weight))
-       
-      if (is_empty(accum)) {
-        return(weighed_level)
-      } else {
-        inner_join(accum, weighed_level, by = setdiff(intersect(names(accum), names(weighed_level)), "iter_data"), suffix = c("_accum", "_weighed")) %>% 
-          mutate(iter_data = map2(iter_data_accum, iter_data_weighed, inner_join, by = "iter_id", suffix = c("_accum", "_weighed")) %>% 
-                   map(mutate, 
-                       iter_prob_takeup = iter_prob_takeup_accum + iter_prob_takeup_weighed,
-                       iter_social_multiplier = iter_social_multiplier_accum + iter_social_multiplier_weighed,
-                       iter_partial_bbar = iter_partial_bbar_accum + iter_partial_bbar_weighed) %>% 
-                   map(select, -ends_with("_accum"), -ends_with("_weighed"))) %>% 
-          select(-ends_with("_accum"), -ends_with("_weighed"))
-      }
-    }
-  }
   
   dist_fit_data %<>% 
     add_row(
@@ -434,4 +462,4 @@ group_dist_param <- dist_fit_data %>%
   pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id) %>% 
   mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
-save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", "processed_dist_fit27.RData")) 
+save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
