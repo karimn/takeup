@@ -15,6 +15,7 @@ Here are the main files:
 * [stan_models/](stan_models/) contains all the Stan models used for analysis.
     - [takeup_reduced.stan](stan_models/takeup_reduced.stan) Reduced form model.
     - [takeup_struct.stan](stan_models/takeup_struct.stan) Structural model.
+    - [wtp_model.stan](stan_models/wtp_model.stan) Willingness-to-pay model.
 * [multilvlr/](multilvlr/) points to a public submodule. This is only used for some utility functions.
 
 * [prepare_analysis_data.R](prepare_analysis_data.R) this script is used to prepare the survey data for analysis.
