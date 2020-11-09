@@ -1,0 +1,811 @@
+---
+title: "Social Signaling and Prosocial Behavior"
+subtitle: "Experimental Evidence in Community Deworming in Kenya"
+author: "Anne Karing (Princeton) and Karim Naguib"
+date: "10/20/2020"
+output: 
+  beamer_presentation:
+    includes:
+      in_header: takeup_beamer_header.sty
+bibliography: /home/karim/Documents/library.bib
+---
+
+```{r takeup-present-setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+library(broom)
+library(ggrepel)
+library(ggmap)
+library(ggstance)
+library(gridExtra)
+library(cowplot)
+library(rgeos)
+library(sp)
+library(rgdal)
+library(knitr)
+library(modelr)
+library(car)
+library(rstan)
+library(latex2exp)
+
+library(econometr)
+
+source(file.path("..", "rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
+source(file.path("..", "analysis_util.R"))
+
+knitr::read_chunk(file.path("..", "analysis_util.R"), labels = "analysis-util")
+
+# knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage[table,dvipsnames]{xcolor}', x, fixed = TRUE)})
+
+# read_chunk(purl(file.path("..", "takeup_analysis2.Rmd")))
+
+# read_chunk(purl(file.path("..", "takeup_bayesian_analysis.Rmd")))
+
+options(dplyr.show_progress = FALSE, digits = 4, knitr.kable.NA = '')
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup_beamer-cache/", fig.path = "takeup_beamer-fig/", fig.align = "center")
+```
+
+```{r ggplot-theme, cache=FALSE}
+theme_set(theme_minimal() +
+            theme(legend.position = "bottom",
+                  panel.border = element_rect(colour = "darkgrey", fill = NA))) 
+```
+
+```{r proj4}
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+```
+
+```{r load-analysis-data}
+load(file.path("..", "data", "analysis.RData"))
+```
+
+```{r load-experiment-design-data}
+rct.schools.data <- read_rds(file.path("..", "data", "takeup_rct_schools.rds"))
+rct.cluster.selection <- read_rds(file.path("..", "data", "rct_cluster_selection_2.0.rds"))
+cluster.strat.data <- read_rds(file.path("..", "data", "takeup_processed_cluster_strat.rds"))
+
+load(file.path("..", "data", "takeup_village_pot_dist.RData"))
+```
+
+```{r load-processed-dist-fit}
+load(file.path("..", "temp-data", "processed_dist_fit28.RData"))
+
+dist_fit_data %<>% 
+  left_join(distinct(., model) %>% 
+              mutate(model_color = RColorBrewer::brewer.pal(n(), "Dark2")),
+            by = "model") %>% 
+  bind_rows(
+    filter(., fct_match(model, c("STACKED", "STRUCTURAL_STACKED"))) %>% 
+      mutate(fit_type = factor("prior-predict")) %>% 
+      mutate_at(vars(starts_with("est_takeup")), map, mutate_at, vars(starts_with("per_"), mean_est), ~ per_0.5) # Add fake prior-predict so plots align/dodge properly
+  )
+
+dist_fit_data %<>% 
+  select(fit_type, model, model_name, model_type, model_color, starts_with("stacking_weight"), contains("elpd"), starts_with("est"), contains("y_rate_of_change")) %>% 
+  mutate_if(~ is.list(.x), map_if, ~ !is_empty(.x), ~ select(.x, -one_of("iter_data")))
+
+plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
+  plot_pos <- position_dodgev(height = 0.8)
+  
+  ggplot_obj <- if (include_prior_predict) {
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
+      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      NULL
+  } else {
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) 
+  }
+  
+  ggplot_obj +
+    ggstance::geom_linerangeh(aes(xmin = per_0.25, xmax = per_0.75, color = model), alpha = 0.4, size = 3, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_crossbarh(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model), fatten = 0, size = 0.4, width = 0.5, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) + 
+    
+    # ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), size = 0.7, alpha = 0.05, width = 0.25, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    # ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), size = 0.7,  width = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    # ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.7, fatten = 3, size = 0.8, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_point(aes(x = mean_est, color = model), position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    scale_color_manual("", 
+                       values = select(dist_fit_data, model, model_color) %>% deframe(), 
+                       labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+}
+```
+
+# Introduction
+
+## Motivation
+
+* According to WHO approx. 2 billion people are infected with soil-transmitted helminths (STH) worldwide.
+* Development burden for children and adults in many developing countries. Mild infections often are asymptomatic. More severe infections lead to abdominal pain, iron-deficiency, anemia, malnutrition, and stunting.  
+
+## Motivation 
+
+* Deworming is a public good: 
+    - Low private returns for many individuals. 
+    - Most of social benefits come through reduced disease transmission. 
+    - Children are dewormed in schools but remaining reservoir among adult population fosters reinfection. 
+* Cost of screening is 4 to 10 times that of deworming treatment. Deworming drugs are safe, no side effects for uninfected. 
+
+## Motivation
+
+**How can we get adults to take up deworming treatment within a short time and cheap way? **
+
+We can think of other behaviors that have similar public good characteristics, where we observe insufficient take-up and where formal enforcement mechanisms are very costly.
+
+<!-- ## Motivation -->
+
+<!-- * Worms are a significant development burden for children and adults: according to WHO approx. 2 billion people are infected with soil-transmitted helminths (STH) worldwide. -->
+<!-- * Deworming is a public good: -->
+<!--     - Low private returns for most adults. Mild infections are asymptomatic. More severe infections lead to abdominal pain, iron-deficiency, anemia, malnutrition, and stunting. -->
+<!--     - Significant externalities of untreated. Children are dewormed in schools. But remaining worm reservoir among adult population fosters reinfection. -->
+<!--     - Treatment improves children’s health in short term, is one of the most cost-effective ways to increase school attendance and productivity in long-run. -->
+
+<!-- ## Motivation  -->
+
+<!-- * Deworming drugs are safe, no side effects for uninfected. Cost of screening is 4 to 10 times that of deworming treatment. -->
+
+<!-- * How to achieve high take-up of deworming treatment among adults within a short time in a cost-effective way? -->
+
+## Contribution
+
+Manipulate the visibility of individuals' actions by introducing social signals in the context of a novel community deworming program: 
+
+* Can we increase adults' willingness to take-up deworming treatment by making (in)actions visible?
+* Does visibility in actions affect deworming decisions through social image concerns, or social influence through others? 
+* Changing the cost of deworming, how do different marginal types respond (differently) to signals/material incentives, how do changes in average take-up affect deworming decisions/the returns to signaling?
+<!-- * (What are the social welfare effects of deworming? What type of people respond to material vs. signaling incentives?)  -->
+
+
+## Results 
+
+* Social signals significantly increase the demand for deworming treatment.
+* Main mechanism is social image concerns. Deworming take-up of others has no significant effect on individuals’ deworming decision.
+
+## Outline
+
+1. Theoretical Framework
+
+2. Empirical Context
+
+3. Experiment Design
+
+4. Statistical Model
+
+5. Results
+
+6. Conclusion
+
+<!-- ## Empirical Context: Western Kenya -->
+
+<!-- * Worms are endemic, infection prevalence is over 20%. -->
+
+<!-- * Kenyan Government deworms children for free in schools. School-based deworming is a well-known program. -->
+
+<!-- * Adults can purchase deworming treatment at pharmacies and clinics for 150 KSh. -->
+
+<!-- * Baseline survey -->
+<!--     - 78% of adults knew about deworming treatment. -->
+<!--     - 68% had taken deworming treatment before. -->
+<!--     - 37% reported to have dewormed in the past 12 months. -->
+<!--     - 31% of adults had knowledge of externalities. -->
+
+<!-- ## Empirical Context: Western Kenya -->
+
+<!-- * Working with Government of Kenya provided free deworming treatment to approximately 200,000 adults in Busia, Siaya and Kakamega. -->
+
+<!-- * Community Health Volunteers provided deworming at 144 central locations over 12 days, Monday-Sunday 8am-5pm. -->
+
+<!-- * Treatment was offered in two waves from October 3-14 and October 24-November 4 2016. -->
+
+<!-- * Community deworming program first of its kind. -->
+
+<!-- ## Contribution -->
+
+<!-- Manipulate visibility of actions by introducing social signals in an empirically relevant setting: -->
+
+<!-- * Can social signals increase adults’ willingness to contribute to public goods? -->
+
+<!-- * Do social signals affect decisions through social influence (salience/nudges, social learning) from others, or concerns about social image? -->
+
+<!-- * (How do shifts in aggregate demand affect the effectiveness of social signals?) -->
+
+# Theoretical Framework
+
+## Social Signaling
+
+**Social Signaling** [@Benabou2006;@Benabou2012]: Individuals have different typesthat are unobservable to others. Others can use your actions to draw inferences about your type.
+
+\[ U(y_i;v_i,x,\lambda) =  \overbrace{B(y_i;v_i) - C(y_i)}^\text{Private/direct returns} + \overbrace{x\lambda E_{-i}(v|y_i)}^\text{Reputational returns} \]
+
+* Pro-social activity, $y_i \in \{0, 1\}$, dewormed or not. 
+* Intrinsic motivation, $v_i \sim F_v$. 
+    <!-- - look after own health to "be a clean person" -->
+    <!-- - contribute to community's health -->
+* Signaling visibility, $x \in [0,1]$.
+* Social diserability of deworming, $\lambda \geq 0$. 
+* $E_{-i}(v|y_i)$ is the inference that others make about own type $v_i$ based on your action $y$.
+
+<!-- : health-conscious vs. careless, or good vs. bad citizen -->
+
+## Equilibrium
+
+Equilibrium $v^*$:
+
+\[ B(y_i=1;v^*) - C(y_i=1) + x\lambda \Delta(v^*) = 0 \]
+
+where \[\Delta(v^*) = E(v| y_{i} =1) - E(v|y_i =0) = E(v| v > v^*) - E(v| v \leq v^*)\]
+
+is the difference in the average type based on observed actions.
+
+Without signaling the equilibrium would be $$B(y_i=1;\tilde{v}) - C(y_i=1) = 0$$ and thus, with $v^* < \tilde{v}$, signaling induces greater take-up of deworming. 
+
+## Prediction 1
+
+**Prediction 1.** _If it is socially desirable to deworm and individuals care about their reputation (i.e., $\Delta(v^*) > 0$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x > 0$), the larger the increase in take-up._
+
+## Prediction 2: Social Multiplier
+
+$$\frac{\partial v^*}{\partial c} = \frac{1}{1 + r'(v^*)},$$
+where $r'(v^*) = x\lambda \Delta'(v^*)$, is the change in reputational returns in response to a change in $v^*$. It mitigates (amplifies) the effect of an increase in $c$ on take-up if it is greater (less) than zero.
+
+**Prediction 2.** _Changes in the cost of deworming (by causing changes in the take-up level of deworming treatment) lead to increases (decreases) in reputational returns, increasing (decreasing) the effect of signals and the share of individuals taking up deworming treatment._ 
+
+<!-- ## Alternative Mechanisms -->
+
+<!-- 1. Signals have a private consumption value. -->
+<!-- 2. Salience and social learning. -->
+
+# Empirical Context
+
+## Western Kenya
+
+* Worms are endemic, infection prevalence is over 20%.
+* Kenyan Government deworms children for free in schools. School-based deworming is a well-known program.
+* Adults can purchase deworming treatment at pharmacies and clinics for 150 KSh.
+
+* Baseline survey
+    - 78% of adults knew about deworming treatment.
+    - 68% had taken deworming treatment before.
+    - 37% reported to have dewormed in the past 12 months.
+    - 31% of adults had knowledge of externalities.
+    
+## Reported Social Value
+
+```{r praise-stigma-plot, fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
+baseline.data %>% 
+  select(matches("^(praise|stigma)_[^_]+$")) %>% 
+  gather(key = key, value = response) %>% 
+  separate(key, c("praise.stigma", "topic"), "_") %>% 
+  separate(topic, c("topic", "question.group"), -2) %>% 
+  filter(!is.na(response)) %>% 
+  count(praise.stigma, topic, response) %>% 
+  group_by(praise.stigma, topic) %>% 
+  mutate(n = n/sum(n)) %>% 
+  ungroup %>%
+  mutate_at(vars(praise.stigma, response), ~ fct_relabel(factor(.), str_to_title)) %>% 
+  mutate(topic = fct_recode(factor(topic), 
+                            "Wearing/not wearing nice clothes to church" = "clothe",
+                            "Use Latrine/open defecation" = "defecat",
+                            "Deworming/not deworming during MDA" = "dewor",
+                            "Immunize/not immunize children" = "immuniz")) %>% 
+  ggplot(aes(response)) +
+  geom_col(aes(y = n), alpha = 0.5) +
+  labs(y = "Proportion", x = "") +
+  scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
+  coord_flip() +
+  facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20)) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+      strip.text.y = element_text(angle = 0), 
+      strip.background = element_rect(colour = NA), 
+      panel.border = element_blank()) 
+```
+
+## Community-based Deworming Program
+
+* Working with Government of Kenya provided free deworming treatment to approximately 200,000 adults in Busia, Siaya and Kakamega. 
+* Community Health Volunteers (CHVs) provided deworming at 144 central locations over 12 days, Monday-Sunday 8am-5pm. 
+* CHVs informed communities prior to deworming about the social benefits of deworming, the dates and location.  
+* Community deworming program first of its kind. 
+
+# Experimental Design
+
+## Interventions 
+
+Two primary interventions:
+
+1. _Incentive_: incentivizing deworming take-up using.
+    a) _Control_: no incentives.
+    b) _Calendars_: a private incentive with low visibility.
+    c) _Bracelets_: a social signal with some potential private valuation.
+    d) _Indelible Ink_: a social signal with no private valuation.
+    
+    $Z \in \{\textrm{control, calendar, bracelet, ink}\}$
+    
+2. _Cost to Deworm_: manipulating cost by randomly varying the distance to deworming location.
+
+    $G \in \{\textrm{close, far}\}$
+    
+## Reduced-form Estimands
+
+* Incentive/signal average treatment effect: 
+    \begin{align*}
+      E[Y(\textrm{bracelet})] &- E[Y(\textrm{control})]  \\
+      E[Y(\textrm{ink})] &- E[Y(\textrm{control})]  \\
+      E[Y(\textrm{calendar})] &- E[Y(\textrm{control})] \\
+      E[Y(\textrm{bracelet})] &- E[Y(\textrm{calendar})] 
+    \end{align*}
+* Conditional on assigned distance, $g$:
+    \begin{align*}
+      E[Y(\textrm{bracelet}) \mid G = g] &- E[Y(\textrm{control}) \mid G = g]  \\
+      E[Y(\textrm{ink}) \mid G = g] &- E[Y(\textrm{control}) \mid G = g]  \\
+      E[Y(\textrm{calendar}) \mid G = g] &- E[Y(\textrm{control}) \mid G = g] \\
+      E[Y(\textrm{bracelet}) \mid G = g] &- E[Y(\textrm{calendar}) \mid G = g] 
+    \end{align*}
+
+## Social Signals
+
+We introduce two signals for individuals to show they came for deworming treatment: (1) green bracelet and (2) indelible green ink.
+
+![](../images/signal_bracelet.png){height=60%}
+
+Bracelet saying "Treat worms: improve the health of your community"
+
+## Private Incentive 
+We introduce a (private) material reward, in form of a 2017 one-page calendar. We assume that the consumption value of the calendar is equal to that of the bracelet.
+
+![](../images/calendar.png){height=65%}
+
+## Site Selection
+
+```{r all-clusters-map, message=FALSE, warning=FALSE, fig.width=5, fig.height=5}
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner") 
+```
+
+## Random Distance to Treatment Assignment
+
+```{r act-dist, fig.width=8, fig.height=6}
+analysis.data %>%  
+  mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
+  ggplot(aes(dist.to.pot)) +
+  geom_density(aes(color = dist.pot.group, linetype = "Household")) +
+  geom_density(aes(color = dist.pot.group, linetype = "Cluster Center"),
+               data = mutate(village.centers, assigned.treatment = fct_relabel(assigned.treatment, str_to_title))) +
+  geom_vline(xintercept = c(1250), linetype = "dashed") +
+  labs(y = "Density", 
+       caption = "Cluster centers were calculated as the centroid location of all households in cluster.") +
+  scale_x_continuous("Distance to Treatment Location (meters)", breaks = seq(0, 10000, 2500/4)) +
+  scale_color_discrete("Cluster Distance Assignment", labels = c("Close", "Far")) +
+  scale_linetype_discrete("Distance From") +
+  facet_wrap(~ assigned.treatment) +
+  theme_minimal() +
+  theme(legend.position = "bottom") 
+```
+
+## Experiment Diagram
+
+![](../images/exp_diagram_nosms.pdf)
+
+# Statistical Model
+
+## Reduced Form Model
+
+We estimate our reduced form estimands using the conditional probability,
+
+\begin{align*}
+E[Y_i(z) | G_i = g] &= P[Y_i = 1 | Z_i = z, G_i = g] \\
+                &= \Phi\left(\beta_{0,j[i]} + \beta_{1,j[i]}(z) + \beta_{2,j[i]}(g) + \beta_{3,j[i]}(z,g)\right).
+\end{align*}
+
+We use a hierarchical Bayesian model to compute the posterior mean of our estimand. This allows us to model heterogeneity over villages and counties (experiment strata).
+
+## Structural Causal Model DAG
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  [
+    node distance=2cm,
+    line width=1.25,
+    every label/.append style={font=\Large},
+    observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm},
+    latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm},
+    latent-edge/.style={->,dashed},
+    place/.style={circle,draw=blue!50,fill=blue!20,thick,
+    inner sep=0pt,minimum size=6mm},
+    transition/.style={rectangle,draw=black!50,fill=black!20,thick,
+    inner sep=0pt,minimum size=4mm}
+  ]
+
+\node[observed] (Y) [label=above:$Y$] {};
+\node[latent] (B) [label=right:$B$,below=of Y] {}
+  edge[->] (Y);
+\node[latent] (R) [label=above:$R$,left=of Y] {}
+  edge[->] (Y);
+\node[latent] (Bbar) [label=below:$\overline{B}$,left=of B] {}
+  edge[->] (B)
+  edge[->] (R);
+\node[observed] (Z) [label=left:$Z$,left=of R] {}
+  edge[->] (R)
+  edge[->] (Bbar);
+\node[observed] (D) [label=above:$D$,left=of Bbar] {}
+  edge[->] (Bbar);
+\node[observed] (G) [label=left:$G$,left=of D] {}
+  edge[->] (D);
+\node[latent] (U_D) [label=right:$U_D$,below=of D] {}
+  edge[latent-edge,->] (D);
+\node[latent] (U) [label=right:$U$,right=of Y] {}
+  edge[latent-edge,->] (B)
+  edge[latent-edge,->,bend right=45] (R)
+  edge[latent-edge,->] (Y);
+\end{tikzpicture}
+\end{figure}
+
+## Structural Causal Model Functions
+
+\begin{align*} 
+  \bar{b} &\leftarrow f_{\overline{B}}(z, d; \boldsymbol{\beta}_j, \boldsymbol{\delta}) = \beta_{0j} + \beta_{1j}(z) - c(d;\boldsymbol{\delta}) \\
+  b &\leftarrow f_B(\bar{b}; u_b) = \bar{b} + u_b \\
+  r &\leftarrow f_R(z,\bar{b}; \boldsymbol{\mu},u_r) = \mu(z)\cdot\Delta[v^*(z,\bar{b})] + u_r \\
+  y &\leftarrow f_Y(b,r;v,u_y) = \mathbbm{1}(b + r + v + u_y > 0)
+\end{align*}
+and
+\begin{align*}
+v^*(z,\bar{b}) &= - \bar{b} - \mu(z)\Delta[v^*(z,\bar{b})] \\ 
+\Delta[v^*(z,\bar{b})] &= \expect{V | V > v^*(z,\bar{b})} - \expect{V | V < v^*(z,\bar{b})}. 
+\end{align*}
+
+## Structural Counterfactual Identification
+
+\begin{multline*}
+\prob{Y(z,\overline{B}(z',g)) = y} =\\ \int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z}\cdot\prob*{D = d | G = g}\,\mathrm{d}d
+\end{multline*}
+
+## Statistical Model
+
+\begin{align*}
+  &\prob{Y_i(z,d) = y | \boldsymbol{\theta}} \\
+  &= \prob{Y_i = y | Z_i = z, D_i = d; \boldsymbol{\theta}} \\
+  &= \prob*{\overline{B}(z,d) + \mu(z)\cdot\Delta[v^*(z,\overline{B}(z,d))] + V + U_{bry} > 0}
+\end{align*}
+where 
+\begin{align*}
+  \overline{B}(z,d) &= \beta_{0,j[i]} + \beta_{1,j[i]}(z) - \delta_1\cdot d - \delta_2\cdot d^2 \\
+  U_{bry} &= U_b + U_r + U_y \\
+  \begin{pmatrix}V \\ U_{bry}\end{pmatrix} &\sim \mathtt{Normal}\left(\mathbf{0}, \begin{pmatrix}1 & \sigma^{\textrm{corr}} \\ \sigma^{\textrm{corr}} & \sigma^2_{bry}\end{pmatrix}\right) \\
+  \Delta(v^*) &= \expect{V | V > v^*} - \expect{V | V < v^*} = \frac{\phi(v^*)}{(1 - \Phi(v^*))\Phi(v^*)} 
+\end{align*}
+
+## Structural Counterfactual Identification
+
+\begin{multline*}
+\text{E}_{\textrm{post}}\left[\prob{Y(z,\overline{B}(z',g)) = y|\boldsymbol{\theta}}\right] =\\ \int_{\boldsymbol{\theta}}\int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z|\boldsymbol{\theta}}\cdot\prob*{D = d | G = g; \boldsymbol{\theta}}\cdot\text{P}_{\textrm{post}}[\boldsymbol{\theta}]\,\mathrm{d}d\,\mathrm{d}\boldsymbol{\theta}
+\end{multline*}
+\begin{multline*}
+\prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z; \boldsymbol{\theta}} =\\ \prob*{\overline{B}(z',d) + \mu(z)\cdot\Delta[v^*(z,\overline{B}(z',d))] + V + U_{bry} > 0 | \boldsymbol{\theta}}
+\end{multline*}
+
+# Results
+
+## Distance
+
+```{r dist-results, fig.width=7, fig.height=5}
+group_dist_param %>% 
+  mutate(distrib_samples = map2(group_dist_mean, group_dist_sd,
+                                ~ tibble(x = seq(-500, 3000, 10),
+                                         density = dnorm(x, mean = ..1 * ..3, sd = ..2 * ..3)),
+                                original_dist_sd = sd(stan_data$analysis_data$cluster.dist.to.pot))) %>%
+  ungroup() %>% 
+  select(iter_id:mix_index, group_dist_mix, distrib_samples) %>% 
+  pivot_wider(id_cols = c(iter_id, assigned_dist_group), names_from = mix_index, values_from = c(group_dist_mix, distrib_samples)) %>% 
+  mutate(distrib_samples = map2(distrib_samples_1, distrib_samples_2, inner_join, by = "x", suffix = c("_1", "_2")) %>% 
+           map2(group_dist_mix_1, ~ mutate(.x, density = .y * density_1 + (1 - .y) * density_2))) %>% 
+  select(-distrib_samples_1, -distrib_samples_2) %>% 
+  unnest(distrib_samples) %>% 
+  ggplot() +
+  geom_line(aes(x, density, group = iter_id, color = "Posterior Samples"), alpha = 0.04) +
+  geom_freqpoly(aes(x = cluster.dist.to.pot, y = stat(density), color = "Observed Sample Frequency"),
+                 binwidth = 200,
+                 size = 0.8,
+                 data = stan_data$analysis_data %>% distinct(cluster_id, assigned_dist_group = dist.pot.group, cluster.dist.to.pot)) +
+  scale_color_manual("", values = c("Posterior Samples" = "black", "Observed Sample Frequency" = "firebrick3")) +
+  labs(
+    title = "Fit and observed distance to deworming treatment, conditional on assigned distance group (G).",
+    x = "Distance",
+    y = "",
+    caption = "The observed sample distance frequency plot was calculated using bins of width 200 meters.
+               Posterior sample distributions are shown using 500 iterations."
+  ) +
+  coord_cartesian(xlim = c(0, 3000)) +
+  theme(axis.text.y = element_blank()) +
+  facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("G = ", .))) +
+  NULL
+```
+
+## Take-up Levels
+
+```{r take-up-levels, fig.width=7.5,fig.height=4.5,cache=FALSE}
+dist_fit_data %>%
+  filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>% 
+  select(est_takeup_level, model, model_name, fit_type) %>% 
+  unnest(est_takeup_level) %>% 
+  filter(is.na(assigned_dist_group)) %>% 
+  plot_estimands(assigned_treatment) +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+    labs(
+      # title = "Take-up levels in response to an incentive treatment intervention",
+      # subtitle = TeX("\\hat{E}\\[Y(z)\\]"),
+      x = "Take-up Probability") +
+  NULL
+```
+
+## Average Treatment Effects of Incentives
+
+```{r take-up-ate, fig.width=7.5,fig.height=6.5,cache=FALSE}
+dist_fit_data %>% 
+  filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  mutate(est_takeup_te =
+    map_if(est_takeup_te, 
+           fct_match(model_type, "structural"), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+    map(filter, 
+        is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right),
+        assigned_treatment_left != assigned_treatment_right,
+        fct_match(assigned_treatment_right, c("control", "calendar")))) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  mutate_at(vars(starts_with("assigned_dist_group")), fct_explicit_na, "Combined") %>% 
+  plot_estimands(assigned_treatment_left) +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+    labs(
+      # title = "Average treatment effect in response to an incentive treatment intervention", 
+      # subtitle = TeX("\\hat{E}\\[Y(z)\\] - \\hat{E}\\[Y(z')\\]"),
+      x = "Average Treatment Effect") +
+  facet_wrap(vars(assigned_treatment_right), ncol = 1, labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), scales = "free_y") +
+  NULL
+```
+
+## Take-up Levels, Conditional on Distance
+
+```{r take-up-levels-dist-split, fig.width=7.5,fig.height=7}
+dist_fit_data %>%
+  filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>%  
+  select(est_takeup_level, model, model_name, fit_type) %>% 
+  unnest(est_takeup_level) %>% 
+  filter(!is.na(assigned_dist_group)) %>% 
+  plot_estimands(assigned_treatment) +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+    labs(
+      # title = "Take-up levels in response to an incentive treatment intervention, split by assigned distance group",
+      # subtitle = TeX("\\hat{E}\\[Y(z,g)\\]"),
+      x = "Take-up Probability") +
+  facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("G = ", .) %>% TeX(), default = label_parsed)) +
+  theme(legend.key.size = unit(0.4, "cm"), legend.box.margin = margin(0, 0, 0, 0, "cm")) +
+  NULL
+```
+
+## Average Treatment Effect of Incentives, Conditional on Distance
+
+```{r take-up-ate-dist-split, fig.width=7.5, fig.height=5.5}
+dist_fit_data %>% 
+  filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  mutate(est_takeup_te =
+    map_if(est_takeup_te, 
+           fct_match(model_type, "structural"), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+    map(filter, 
+        !is.na(assigned_dist_group_left) & !is.na(assigned_dist_group_right),
+        assigned_dist_group_left == assigned_dist_group_right,
+        assigned_treatment_left != assigned_treatment_right,
+        fct_match(assigned_treatment_right, c("control", "calendar")))) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  plot_estimands(assigned_treatment_left) +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+    labs(
+      # title = "Average treatment effect in response to an incentive treatment intervention", 
+      # subtitle = TeX("E\\[Y(z,g)\\] - E\\[Y(z',g)\\]"),
+      x = "Average Treatment Effect") +
+  facet_grid(rows = vars(assigned_treatment_right), cols = vars(assigned_dist_group_right), 
+             labeller = labeller(assigned_treatment_right = as_labeller( . %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed),
+                                 assigned_dist_group_right = as_labeller(. %>% str_c("G = ", .))), 
+             scales = "free_y") +
+  theme(legend.key.size = unit(0.4, "cm"), legend.box.margin = margin(0, 0, 0, 0, "cm"), plot.caption = element_blank()) +
+  NULL
+```
+
+## Average Treatment Effect of Distance
+
+```{r take-up-ate-dist-effect, fig.width=7.5,fig.height=5}
+dist_fit_data %>% 
+  filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  mutate(est_takeup_te =
+    map_if(est_takeup_te, 
+           fct_match(model_type, "structural"), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+    map(filter, 
+        !is.na(assigned_dist_group_left) & !is.na(assigned_dist_group_right),
+        fct_match(assigned_dist_group_left, "far"), fct_match(assigned_dist_group_right, "close"),
+        assigned_treatment_left == assigned_treatment_right)) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  plot_estimands(assigned_treatment_left) +
+  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+    labs(
+      # title = "Average treatment effect in response to a change in distance", 
+      subtitle = TeX("E\\[Y(z,far)\\] - E\\[Y(z,close)\\]"),
+      x = "Average Treatment Effect") +
+  NULL
+```
+
+## Structural Average Treatment Effects of Incentives
+
+
+```{r take-up-ate-struct, fig.width=7.5, fig.height=4}
+dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  filter(
+    is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right),
+    fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control"),
+    !is.na(mu_assigned_treatment_left),
+    !fct_match(mu_assigned_treatment_left, "control"),
+    fct_match(mu_assigned_treatment_right, "control"),
+  ) %>%
+  plot_estimands(mu_assigned_treatment_left) +
+  scale_y_discrete("Assigned\nSignaling Treatment (z)", labels = str_to_title) +
+    labs(
+      # title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
+      subtitle = TeX("E\\[Y(z,\\bar{B}(control))\\] - E\\[Y(control)\\]"),
+      x = "Average Treatment Effect") +
+  NULL
+```
+
+## Structural Average Treatment Effects of Incentives, Conditional on Distance
+
+```{r take-up-ate-struct-dist-split, fig.width=7.5, fig.height=5.5}
+dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  filter(
+    !is.na(assigned_dist_group_left) & !is.na(assigned_dist_group_right),
+    assigned_dist_group_left == assigned_dist_group_right,
+    fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control"),
+    !is.na(mu_assigned_treatment_left),
+    !fct_match(mu_assigned_treatment_left, "control"),
+    fct_match(mu_assigned_treatment_right, "control"),
+  ) %>%
+  plot_estimands(mu_assigned_treatment_left) +
+  scale_y_discrete("Assigned\nSignaling Treatment (z')", labels = str_to_title) +
+  labs(
+    # title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
+    # subtitle = TeX("\\hat{E}\\[Y(control,g,\\bar{B}(z'))\\] - \\hat{E}\\[Y(control,g)\\]"),
+    x = "Average Treatment Effect") +
+  facet_wrap(vars(assigned_dist_group_right), ncol = 1, labeller = as_labeller(. %>% str_c("G = ", .) %>% TeX(), default = label_parsed)) +
+  theme(plot.caption = element_blank()) +
+  NULL
+```
+
+## Structural Characteristics  
+
+```{r cost-mitig-level, fig.width=7.5, fig.height=5.5}
+treatment_colors <- set_names(RColorBrewer::brewer.pal(4, "Set1"), c("control", "ink", "calendar", "bracelet"))
+
+takeup_v_plot <- dist_fit_data %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  select(model, model_name, y_rate_of_change, fit_type) %>% 
+  unnest(y_rate_of_change) %>% 
+  unpack(prob_takeup) %>% 
+  filter(fct_match(assigned_treatment, "control")) %>% 
+  ggplot(aes(v, per_0.5)) +
+  geom_line() + 
+  coord_cartesian(xlim = c(-1, 1)) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+  labs(subtitle = "Take-up", 
+       y = TeX("E\\[Y\\]")) +
+       # caption = "Ribbon represents the 80% credible interval.") +
+  NULL
+
+social_mult_v_plot <- dist_fit_data %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  select(model, model_name, y_rate_of_change, fit_type) %>% 
+  unnest(y_rate_of_change) %>% 
+  unpack(social_multiplier) %>% 
+  ggplot(aes(v, -per_0.5, color = assigned_treatment)) +
+  geom_line() + 
+  coord_cartesian(xlim = c(-1, 1)) +
+  scale_color_manual("Assigned Treatment (z)", values = treatment_colors, labels = str_to_title) +
+  labs(subtitle = "Social Multiplier", y = bquote(frac(partialdiff ~ V^"*", partialdiff ~ bar(C)))) + # TeX("Change in $V^*$")) +
+  theme(legend.position = "right") +
+  NULL
+
+takeup_partial_v_plot <- dist_fit_data %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  select(model, model_name, y_rate_of_change, fit_type) %>% 
+  unnest(y_rate_of_change) %>% 
+  unpack(partial_bbar) %>% 
+  ggplot(aes(v, -per_0.5, color = assigned_treatment)) +
+  geom_line(show.legend = FALSE) + 
+  coord_cartesian(xlim = c(-1, 1)) +
+  scale_color_manual("Assigned Treatment (z)", values = treatment_colors) +
+  labs(subtitle = "Rate-of-change of Take-up", y = bquote(frac(partialdiff ~ "E[Y]", partialdiff ~ bar(C)))) + # TeX("Change in $E\\[Y(z,\\bar{b})\\]$")) +
+  theme(legend.position = "right") +
+  NULL
+
+plot_grid(
+  takeup_v_plot, 
+  social_mult_v_plot + theme(legend.position = "none"), 
+  takeup_partial_v_plot,
+  get_legend(social_mult_v_plot), 
+ 
+  labels = c("(a)", "(b)", "(c)"), 
+  label_fontface = "plain"
+)
+```
+
+## Effect on Social Multiplier and Take-up Rate-of-change
+
+```{r cost-mitig-diff, fig.width=7.5,fig.height=5.5}
+diff_social_mult_v_plot <- dist_fit_data %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  select(model, model_name, diff_y_rate_of_change, fit_type) %>% 
+  unnest(diff_y_rate_of_change) %>%
+  filter(!fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control")) %>% 
+  unpack(diff_social_multiplier) %>% 
+  ggplot(aes(v, -per_0.5)) +
+  geom_line(show.legend = FALSE) + 
+  geom_ribbon(aes(ymin = -per_0.1, ymax = -per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  coord_cartesian(xlim = c(-1, 1)) +
+  labs(subtitle = "Social Multiplier Compared to Control Level", y = bquote(frac(partialdiff ~ V^"*", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $V^*$")) +
+  theme(legend.position = "bottom") +
+  facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
+  NULL
+
+diff_takeup_partial_v_plot <- dist_fit_data %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  select(model, model_name, diff_y_rate_of_change, fit_type) %>% 
+  unnest(diff_y_rate_of_change) %>% 
+  unpack(diff_partial_bbar) %>% 
+  filter(!fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control")) %>% 
+  ggplot(aes(v, -per_0.5)) +
+  geom_line(show.legend = FALSE) + 
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_ribbon(aes(ymin = -per_0.1, ymax = -per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
+  coord_cartesian(xlim = c(-1, 1)) +
+  labs(subtitle = "Rate-of-change of Take-up Compared to Control Level", y = bquote(frac(partialdiff ~ "E[Y]", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $E\\[Y(z,\\bar{b})\\]$")) +
+  facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
+  NULL
+
+plot_grid(
+  diff_social_mult_v_plot, 
+  diff_takeup_partial_v_plot,
+  # get_legend(diff_social_mult_v_plot), 
+ 
+  labels = c("(a)", "(b)"), 
+  label_fontface = "plain", 
+  align = "h", axis = "b",
+  ncol = 1
+)
+```
+
+# Conclusion
+
+## References
+
