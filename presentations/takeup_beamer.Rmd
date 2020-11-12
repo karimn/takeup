@@ -502,6 +502,64 @@ where
 
 # Results
 
+## Willingness-to-Pay
+
+```{r load-wtp-fit}
+wtp_model_0_fit <- read_rds(file.path("..", "data", "stanfit", "wtp_model_fit.rds"))
+```
+
+```{r wtp-prefer-calendar-plot, fig.height=4, fig.width=7}
+wtp_model_0_fit %>% 
+  as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
+  mutate(iter_id = seq(n())) %>% 
+  pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
+  tidyr::extract(parameter, c("parameter", "strata_index"), "([^\\[]+)(?:\\[(\\d+)\\])?") %>% 
+  group_by(parameter, strata_index) %>% 
+  summarize(
+    per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+    quant = quantile(iter_value, probs = per),
+    mean_est = mean(iter_value),
+    
+    .groups = "drop"
+  ) %>% 
+  pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% { 
+    cowplot::plot_grid(
+      filter(., fct_match(parameter, "prob_prefer_calendar")) %>% 
+        ggplot(aes(y = "")) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+        geom_point(aes(x = mean_est), size = 2) +
+        geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+        labs(
+          title = "Probability of Preference for Calendars vs. Bracelets",
+          x = "", y = ""
+        ),
+      
+      filter(., fct_match(parameter, "strata_mu")) %>% 
+        mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
+        ggplot(aes(y = str_c(parameter, strata_index))) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+        geom_point(aes(x = mean_est), size = 2) +
+        geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+        scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
+        theme(axis.text.y = element_blank()) +
+        labs(
+          title = "Mean Difference in Valuation of Calendars and Bracelets",
+          subtitle = "For Each County",
+          y = "",
+          caption = "Line range: 90% credible interval. 
+                     Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                     Thick vertical line: median. Point: mean."
+        ),
+      
+      ncol = 1, rel_heights = c(1, 2.2)
+    )
+  }
+```
+
 ## Distance
 
 ```{r dist-results, fig.width=7, fig.height=5}

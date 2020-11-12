@@ -1934,7 +1934,7 @@ wtp_model_0_fit %>%
         scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
         theme(axis.text.y = element_blank()) +
         labs(
-          title = "Difference in Valuation of Calendars and Bracelets",
+          title = "Mean Difference in Valuation of Calendars and Bracelets",
           subtitle = "For Each County",
           y = "",
           caption = "Line range: 90% credible interval. 
