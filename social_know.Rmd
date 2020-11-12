@@ -32,9 +32,6 @@ library(tidyverse)
 library(lubridate)
 library(forcats)
 library(haven)
-library(lmtest)
-library(car)
-library(mlogit)
 library(broom)
 library(ggrepel)
 library(sp)
@@ -47,19 +44,13 @@ library(bayesplot)
 
 library(econometr)
 
-source("takeup_rct_assign_clusters.R")
+source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source("analysis_util.R")
 
 knitr::read_chunk("analysis_util.R", labels = "analysis-util")
 
-config <- yaml::yaml.load_file("../local_config.yaml")
-
-# doParallel::registerDoParallel(cores = config$cores)
-
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
-
-do.neyman.analysis <- TRUE
 
 options(dplyr.show_progress = FALSE, digits = 4)
 ```
@@ -251,7 +242,7 @@ sms.content.data %>%
 ```{r load-stanfit}
 # fit_version <- "param_beliefs_2981815"
 fit_version <- "know_table_poolsms"
-model_fit <- dir("stanfit", pattern = str_interp("model_${fit_version}_\\d+.csv"), full.names = TRUE) %>%
+model_fit <- dir(file.path("data", "stanfit"), pattern = str_interp("model_${fit_version}_\\d+.csv"), full.names = TRUE) %>%
   read_stan_csv()
 
 check_hmc_diagnostics(model_fit)

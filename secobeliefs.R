@@ -14,22 +14,26 @@ rstan_options(auto_write = TRUE)
 # Prepare Data ------------------------------------------------------------
 
 beliefs_data <- analysis.data %>% 
-  add_count(cluster.id, village) %>% 
-  rename(village_size = n) %>% 
+  add_count(cluster.id, village, name = "village_size") %>% 
   select(KEY.individ, county, village, KEY.individ, phone_owner, village_size) %>% 
   inner_join(endline.know.table.data, "KEY.individ") %>% 
   filter(know.table.type == "table.A") %>% 
-  mutate(sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")) %>% 
-           fct_recode(control = "sms.control"),
-         num.recognized = coalesce(num.recognized, 0L))
+  mutate(
+    sms.treatment = factor(sms.treatment, levels = c("sms.control", "reminder.only", "social.info")) %>% 
+      fct_recode(control = "sms.control"),
+    num.recognized = coalesce(num.recognized, 0L)
+  )
 
 social_links <- beliefs_data %>% 
   group_by(KEY.individ, assigned.treatment, dist.pot.group, sms.treatment, phone_owner, village_size) %>% 
-  summarize(obs_know_person = sum(num.recognized),
-            obs_know_person_prop = mean(num.recognized),
-            thinks_other_knows = sum(second.order %in% c("yes", "no"), na.rm = TRUE),
-            thinks_other_knows_yes = sum(second.order == "yes", na.rm = TRUE)) %>% 
-  ungroup() %>% 
+  summarize(
+    obs_know_person = sum(num.recognized),
+    obs_know_person_prop = mean(num.recognized),
+    thinks_other_knows = sum(second.order %in% c("yes", "no"), na.rm = TRUE),
+    thinks_other_knows_yes = sum(second.order == "yes", na.rm = TRUE),
+    
+    .groups = "drop"
+  ) %>% 
   mutate(obs_index = seq_len(n())) 
 
 treatment_map <- social_links %>% 
@@ -42,11 +46,12 @@ control_treatment_map <- treatment_map %>%
 treatment_map %<>% 
   left_join(control_treatment_map, c("phone_owner", "sms.treatment", "dist.pot.group"), suffix = c("", "_control"))
 
-treatment_map_design_matrix <- model_matrix(treatment_map, ~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment)) %>% 
+treatment_map_design_matrix <- treatment_map %>% 
+  model_matrix(~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment)) %>% 
   magrittr::extract(, -1)
 
 social_links %<>% 
-  left_join(treatment_map) 
+  left_join(treatment_map, by = c("assigned.treatment", "dist.pot.group", "sms.treatment", "phone_owner")) 
 
 obs_missing_data <- treatment_map %>% 
   group_by(treatment_id) %>% 
@@ -56,7 +61,7 @@ obs_missing_data <- treatment_map %>%
 
 # Sample ------------------------------------------------------------------
 
-secobeliefs_model <- stan_model(file = "secobeliefs.stan")
+secobeliefs_model <- stan_model(file = file.path("stan_models", "secobeliefs.stan"))
 
 secobeliefs_fit <- 
   sampling(secobeliefs_model, 
@@ -111,5 +116,5 @@ secobeliefs_fit <-
            iter = 600, 
            # control = lst(max_treedepth = , 
            #               adapt_delta = ), 
-           sample_file = file.path("stanfit", "secobeliefs_fit.csv"))
+           sample_file = file.path("data", "stanfit", "secobeliefs_fit.csv"))
 
