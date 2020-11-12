@@ -1582,15 +1582,16 @@ where $k$ is the model index.
 Let
 
 * $V^c_i$ and $V^b_i$ be an individual's monetary valuation of calendars and bracelets, respectively.
-* $G_i \in \{0, 1\}$ indicates initial gift choice of calendar (vs bracelet). Also, let $\widetilde{G}_i \equiv 2\cdot G_i - 1 \in \{-1, 1\}$.
+* $G_i \in \{-1, 1\}$ indicates initial gift choice of bracelet or calendar, respectively. 
 * $M_i \in \{0, 10, 20,\ldots, 100\}$ be the randomly assigned offer (in Ksh) to switch gifts choice (calendar instead of bracelet and v.v.)
-* $W_i(m) \in \{0, 1\}$ indicates accepting $m$ Ksh to switch gift choice.
+* $W_i(m) \in \{0, 1\}$ indicates acceptance of $m$ Ksh to switch gift choice, respectively.
 
+where,
 \begin{align*}
   V_i \equiv V^c_i - V^b_i &\sim \mathtt{StudentT}(\nu_v, \mu_{k[i]}, \sigma) \\
   \mu_k &\sim \mathtt{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
   \mu &\sim \mathtt{StudentT}(\nu_\mu, 0, \tau_\mu) \\
-  \sigma &\sim \mathtt{HalfStudentT}(\nu_\sigma, 0, \tau_\sigma)
+  \sigma &\sim \mathtt{HalfStudentT}(\nu_\sigma, 0, \tau_\sigma),
 \end{align*}
 
 with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
@@ -1600,8 +1601,17 @@ with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
 We estimate these model parameters using the likelihood probability:
 
 \begin{equation*}
-\mathcal{L}_i = \left\{\widetilde{G}_i\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{k[i]}, \sigma) - F_V(0|\mu, \mu_{k[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{k[i]}, \sigma)\right\}^{(1 - W_i)} 
+\mathcal{L}_i = 
+  \begin{cases}
+    \prob{V < -m_i} & w_i = 0 \land g_i = -1 \\ 
+    \prob{V > m_i} & w_i = 0 \land g_i = 1 \\ 
+    g_i(\prob{V < g_i \cdot m_i} - \prob{V < 0}) & w_i = 1
+  \end{cases}
 \end{equation*}
+
+<!-- \begin{equation*} -->
+<!-- \mathcal{L}_i = \left\{\widetilde{G}_i\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{k[i]}, \sigma) - F_V(0|\mu, \mu_{k[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{k[i]}, \sigma)\right\}^{(1 - W_i)}  -->
+<!-- \end{equation*} -->
 
 ## Beliefs and Knowledge Model
 
@@ -1829,12 +1839,31 @@ wtp_stan_data <- analysis.data %>%
   )
 ```
 
-```{r load-wtp-fit}
-wtp_model_0_fit <- dir(file.path("data", "stanfit"), pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
-  read_stan_csv()
+```{r, eval=FALSE}
+options(mc.cores = 12)
+rstan_options(auto_write = TRUE)
+
+wtp_model_0 <- stan_model(file = file.path("stan_models", "wtp_model.stan"), model_name = "wtp_model_0")
+wtp_model_0_fit <- sampling(
+  wtp_model_0, 
+  data = wtp_stan_data, 
+  chains = 8, 
+  iter = 4000,
+  control = lst(
+    adapt_delta = 0.999,
+  ),
+  sample_file = file.path("data", "stanfit", "wtp_model_2.csv")) 
+
+write_rds(wtp_model_0_fit, file.path("data", "stanfit", "wtp_model_fit.rds"))
 ```
 
-```{r prepare-wtp-sim-data}
+```{r load-wtp-fit}
+# wtp_model_0_fit <- dir(file.path("data", "stanfit"), pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
+#   read_stan_csv()
+wtp_model_0_fit <- read_rds(file.path("data", "stanfit", "wtp_model_fit.rds"))
+```
+
+```{r prepare-wtp-sim-data, eval=FALSE}
 wtp_sim_data <- as.data.frame(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response")) %>% 
   mutate(run_id = seq_len(n())) %>% 
   gather(outcome_id, sim_outcome, -run_id) %>% 
@@ -1842,7 +1871,7 @@ wtp_sim_data <- as.data.frame(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_
   mutate_at(vars(obs_id), as.integer) 
 ```
 
-```{r wtp-table, results="asis"}
+```{r wtp-table, results="asis", eval=FALSE}
 wtp_model_0_fit %>% 
   summary(par = c("hyper_mu_wtp_diff", "sigma_wtp_diff", "mu_wtp_diff", "hyper_prob_prefer_calendar", "prob_prefer_calendar"), 
           probs = c(0.025, 0.05, 0.5, 0.95, 0.975)) %$% 
@@ -1866,7 +1895,59 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
-To test the assumption that the consumption value of the bracelet is equal to that of the calendar, we conducted a separate willingness-to-pay experiment with a random subsample of adults in the control group as part of the endline survey. Adults had no prior exposure to the bracelet or calendar incentives. The experiment was conducted in two stages. First, as a gift for completing the survey, adults were offered a bracelet or calendar. The majority of people (75 percent) chose the calendar, 23 percent chose the bracelet and 2 percent wanted neither of the items. After choosing their preferred item, respondents were offered to exchange it for the not chosen item, plus a randomly assigned Kenyan Shilling (KSh) value between 0 and 100 (0 and \$1). We estimate the average utility difference between the two items. Table \ref{tab:wtp} shows the summary of the posterior distribution of the willingness-to-pay model. On average, individuals value the calendar between 42-53 KSh more than the bracelet (see $\mu_1$, $\mu_2$ and $\mu_3$ as separately estimated for each strata i.e., county). The calendar is therefore a valid control for the consumption value of the bracelet. In the following estimation we assume that the private value of bracelets is equal to calendars, which is a conservative assumption given the greater preference for calendars. 
+```{r wtp-prefer-calendar-plot, fig.height=4, fig.width=8, fig.cap = "Willingness-to-pay experiment results."}
+wtp_model_0_fit %>% 
+  as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
+  mutate(iter_id = seq(n())) %>% 
+  pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
+  tidyr::extract(parameter, c("parameter", "strata_index"), "([^\\[]+)(?:\\[(\\d+)\\])?") %>% 
+  group_by(parameter, strata_index) %>% 
+  summarize(
+    per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+    quant = quantile(iter_value, probs = per),
+    mean_est = mean(iter_value),
+    
+    .groups = "drop"
+  ) %>% 
+  pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% { 
+    cowplot::plot_grid(
+      filter(., fct_match(parameter, "prob_prefer_calendar")) %>% 
+        ggplot(aes(y = "")) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+        geom_point(aes(x = mean_est), size = 2) +
+        geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+        labs(
+          title = "Probability of Preference for Calendars vs. Bracelets",
+          x = "", y = ""
+        ),
+      
+      filter(., fct_match(parameter, "strata_mu")) %>% 
+        mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
+        ggplot(aes(y = str_c(parameter, strata_index))) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+        geom_point(aes(x = mean_est), size = 2) +
+        geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+        scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
+        theme(axis.text.y = element_blank()) +
+        labs(
+          title = "Difference in Valuation of Calendars and Bracelets",
+          subtitle = "For Each County",
+          y = "",
+          caption = "Line range: 90% credible interval. 
+                     Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                     Thick vertical line: median. Point: mean."
+        ),
+      
+      ncol = 1, rel_heights = c(1, 2.2)
+    )
+  }
+```
+
+To test the assumption that the consumption value of the bracelet is equal to that of the calendar, we conducted a separate willingness-to-pay experiment with a random subsample of adults in the control group as part of the endline survey. Adults had no prior exposure to the bracelet or calendar incentives. The experiment was conducted in two stages. First, as a gift for completing the survey, adults were offered a bracelet or calendar. The majority of people (75 percent) chose the calendar, 23 percent chose the bracelet and 2 percent wanted neither of the items. After choosing their preferred item, respondents were offered to exchange it for the not chosen item, plus a randomly assigned Kenyan Shilling (KSh) value between 0 and 100 (0 and \$1). We estimate the average utility difference between the two items. Figure \ref{fig:wtp-prefer-calendar-plot} shows the posterior distribution of the probability of preference for calendars to bracelets and the difference in valuation between these two incentives. Individuals value calendars around 50 KSh more than the bracelets. The calendar is therefore a valid control for the consumption value of the bracelet. In the following estimation we assume that the private value of bracelets is equal to calendars, which is a conservative assumption given the greater preference for calendars. 
 
 <!-- ### Reminders and Information about Community Take-up Levels {-}  -->
 
