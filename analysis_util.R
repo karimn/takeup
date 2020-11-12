@@ -2409,7 +2409,7 @@ prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroup
     subgroup_combiner(outcome_var, subgroups) %>% 
     group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
     summarize_at(., vars(ends_with("wtd_iter_est")), list(mean_est = ~ mean(., na.rm = na_rm),
-                                                          ub_80 = ~ quantile(., 0.8, na.rm = na_rm),
+                                                          ub_80 = ~ quantile(., 0.9, na.rm = na_rm),
                                                           ub_90 = ~ quantile(., 0.95, na.rm = na_rm),
                                                           ub_95 = ~ quantile(., 0.975, na.rm = na_rm),
                                                           lb_80 = ~ quantile(., 0.1, na.rm = na_rm),
