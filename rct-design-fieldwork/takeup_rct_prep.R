@@ -21,8 +21,8 @@ library(rgeos)
 library(maptools)
 library(lme4)
 
-config <- yaml::yaml.load_file("local_config.yaml")
-doParallel::registerDoParallel(cores = config$cores) 
+# config <- yaml::yaml.load_file(file.path("..", "local_config.yaml"))
+doParallel::registerDoParallel(cores = 12) 
 # Constants ---------------------------------------------------------------
 
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
@@ -158,13 +158,13 @@ rct.counties <- c("Busia", "Siaya", "Kakamega")
 busia.subcounties <- c("butula", "nambale", "teso south", "teso north") 
 siaya.subcounties <- c("gem", "ugenya", "ugunja")
 
-ke.constit.pop.data <- read_csv("~/Data/TakeUp/ke_constit_pop_2009.csv") %>%
+ke.constit.pop.data <- read_csv("~/Dropbox/Data/TakeUp/ke_constit_pop_2009.csv") %>%
   rename(subcounty = Constituency) %>% 
   filter(subcounty %in% str_to_upper(c("butula", "nambale", "gem", "ugenya"))) %>% 
   mutate(Total = as.numeric(Total)) %>% 
   select(subcounty, Total)
 
-ke.teso.pop.data <- read_csv("~/Data/TakeUp/ke_pop_2009.csv") %>% 
+ke.teso.pop.data <- read_csv("~/Dropbox/Data/TakeUp/ke_pop_2009.csv") %>% 
   rename(area = `Area in Sq. Km.`) %>% 
   filter(grepl("TESO (SOUTH|NORTH)", District)) %>% 
   group_by(District) %>% 
@@ -172,7 +172,7 @@ ke.teso.pop.data <- read_csv("~/Data/TakeUp/ke_pop_2009.csv") %>%
   rename(subcounty = District) %>% 
   select(subcounty, Total)
 
-ke.siaya.ugenya.pop.data <- read_csv("~/Data/TakeUp/ke_pop_2009.csv") %>% 
+ke.siaya.ugenya.pop.data <- read_csv("~/Dropbox/Data/TakeUp/ke_pop_2009.csv") %>% 
   filter(Division == "UGUNJA") %>% 
   summarize_each(funs(sum), Male, Female, Total, Households) %>% 
   mutate(subcounty = "UGUNJA") %>% 
@@ -185,8 +185,8 @@ rct.subcounty.pop.data <- bind_rows(ke.constit.pop.data, ke.teso.pop.data, ke.si
 
 # Geographic admin boundaries ---------------------------------------------
 
-ke.lvl2.adm.data <- read_rds("~/Data/TakeUp/KEN_adm2.rds")
-ke.lvl3.adm.data <- read_rds("~/Data/TakeUp/KEN_adm3.rds")
+ke.lvl2.adm.data <- read_rds("~/Dropbox/Data/TakeUp/KEN_adm2.rds")
+ke.lvl3.adm.data <- read_rds("~/Dropbox/Data/TakeUp/KEN_adm3.rds")
 
 counties.adm.data <- ke.lvl2.adm.data[ke.lvl2.adm.data$NAME_1 %in% rct.counties, ] #, "Vihiga"), ]
 subcounties.adm.data <- counties.adm.data[!counties.adm.data$NAME_1 %in% c("Busia", "Siaya") | counties.adm.data$NAME_2 %in% str_to_title(c(busia.subcounties, siaya.subcounties)), ]
@@ -214,7 +214,7 @@ kakamega.wards <- ke.ward.lvl.adm.data %>%
 
 # Health facilities geolocations ------------------------------------------
 
-ke.health.facilities <- read_csv("~/Data/TakeUp/ke_health_facil.csv") %>% 
+ke.health.facilities <- read_csv("~/Dropbox/Data/TakeUp/ke_health_facil.csv") %>% 
   mutate(lat = str_extract(Geolocation, "(?<=\\()-?\\d+(\\.\\d+)"),
          lon = str_extract(Geolocation, "-?\\d+(\\.\\d+)(?=\\))"),
          facility.type.code = `Facility Type`,
@@ -236,7 +236,7 @@ sp.ke.health.facilities@data %<>%
          county = County) %>% 
   as.data.frame
 
-hc.mapping.data <- haven::read_dta("~/Data/KE Health Facilities Mapping/KenyaMappingData.dta") %>% 
+hc.mapping.data <- haven::read_dta("~/Dropbox/Data/KE Health Facilities Mapping/KenyaMappingData.dta") %>% 
   # select(County, District, ClinicName, FPrimary, Province, GPSlatitude1, GPSlongitude1, ends_with("1_corrected"), FacilityType) %>% 
   select(County, District, ClinicName, GPSlatitude1, GPSlongitude1, FacilityType) %>% 
   mutate(FacilityType = as_factor(FacilityType)) %>% 
@@ -287,7 +287,19 @@ rct.health.facilities$cluster.id <- as.character(seq_len(nrow(rct.health.facilit
 
 # Schools -----------------------------------------------------------------
 
-ke.schools.data <- read_csv("~/Data/TakeUp/Kenya_Primary_Schools.csv") %>% 
+pilot.selected.sch.data <- read_csv("~/Dropbox/Data/TakeUp/pilot_selected_schools.csv") %>% 
+  mutate(selected=TRUE)
+
+kakamega.sch.geo.data <- read_csv("~/Dropbox/Data/TakeUp/Kakamega schools geolocation.csv") %>% 
+  rename(lat=OQ2_sch_gps_latitude,
+         lon=OQ2_sch_gps_longitude,
+         school_id=SI5_schlid) %>% 
+  mutate(school_id=gsub("_", "-", school_id)) %>% 
+  left_join(pilot.selected.sch.data %>% select(school_id, selected)) %>% 
+  mutate(selected=ifelse(!is.na(selected), selected, FALSE)) 
+
+# ke.schools.data <- read_csv("~/Data/TakeUp/Kenya_Primary_Schools.csv") %>% 
+ke.schools.data <- read_csv("~/Dropbox/Data/TakeUp/Kenya_Primary_Schools.csv") %>% 
   mutate(lat = str_extract(Geolocation, "(?<=\\()-?\\d+(\\.\\d+)"),
          lon = str_extract(Geolocation, "-?\\d+(\\.\\d+)(?=\\))")) %>% 
   rename(school.name = `Name of School`) %>% 
