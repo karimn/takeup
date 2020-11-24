@@ -662,7 +662,7 @@ Our main outcomes are deworming take-up and beliefs about individual and aggrega
 
 ## Compliance with Implementation Protocol
 
-```{r know-about-mda, warning=FALSE, message=FALSE, fig.width=8, fig.height=6.5, fig.cap="Knowledge of RCT intervention."}
+```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=6.5, fig.cap="Knowledge of RCT intervention."}
 know.mda.cat.plot <- tribble(~ col.name,      ~ label,
         "know_deworm",    "Know about community-based MDA?",
         "treat_begin",    "Know when MDA starts?",
@@ -1272,7 +1272,7 @@ We can write the posterior probability of these parameters as
 
 For the structural model we will model the continuous effect of distance to deworming treatment; for us to be able to generate counterfactuals with respect to assigned distance we need to model how the assignment to _close_ and _far_ distances generates real continuous distances. We model this as
 \begin{align}
-\prob{D(g) = d} = \prob{D = g | G = g, \boldsymbol{\rho}, \boldsymbol{\pi}, \boldsymbol{\eta}} = \sum_m^M \rho_m \frac{\phi(d; \pi_m(g), \eta_m(g))}{1 - \Phi(d; \pi_m(g), \eta_m(g))}. \label{eq:P-D-struct}
+\prob{D(g) = d) = P(D = g | G = g, \boldsymbol{\rho}, \boldsymbol{\pi}, \boldsymbol{\eta}} = \sum_m^M \rho_m \frac{\phi(d; \pi_m(g), \eta_m(g))}{1 - \Phi(d; \pi_m(g), \eta_m(g))}. \label{eq:P-D-struct}
 \end{align}
 For each distance assignment, $G$, the continuous distance, $D$, has a finite mixture positive normal distribution (truncated at zero). $\phi(\cdot;\pi,\eta)$ is the probability density function and $\Phi(\cdot;\pi,\eta)$ is the cumulative density function, for the $\mathtt{Normal}(\pi,\eta)$ distribution. $M$ (we set equal to 2) is the number of mixtures and $\boldsymbol{\rho}(g)$ is an $M$-simplex.
 For the parameters in equation \eqref{eq:P-D-struct} we set the priors, for every $g \in \mathcal{G}$,
@@ -1281,7 +1281,7 @@ For the parameters in equation \eqref{eq:P-D-struct} we set the priors, for ever
   \pi_m(g) &\sim \mathtt{HalfNormal}(0, 1), \forall 1 < m < M \\
   \eta_m(g) &\sim \mathtt{HalfNormal}(0, 1), \forall 1 < m < M,  
 \end{align*}
-and $\pi_m(\textrm{close}) \leq \pi_m(\textrm{far})$, for all $1 \leq m \leq M$. This corresponds to the causal function
+and $\pi_m(\textrm{close}) \leq \pi_m(\textrm{far})$, for all $1 < m < M$. This corresponds to the causal function
 \begin{equation} 
   d \leftarrow f_D(g; \boldsymbol{\pi}_m, u_D) = \pi_m(g) + u_D, \label{eq:D-causal}
 \end{equation}
@@ -1421,7 +1421,7 @@ and
 \[\mu(\textrm{bracelet}),\mu(\textrm{ink}),\mu(\textrm{calendar}) > \mu(\textrm{control}),\]
 since all incentives might have some signaling power which cannot be less than the control arm.
 
-Statistical inference is carried out in two stages. First, given a draw of $\boldsymbol{\beta}$ and $\delta$, $\overline{B}$ is evaluated conditional on observed treatment assignment and distance to deworming treatment. Second, we plug this into the algebraic equation solver available in the statistical modeling software, Stan [@stan], to solve equation \eqref{eq:V-equil}, resulting in $V^*$. Since we model $V$ as normally distributed we make use of the closed form solutions for the expectations:
+Statistical inference is carried out in two stages. First, given a draw of $\boldsymbol{\beta}$ and $\delta$, $\overline{B}$ is evaluated conditional on observed treatment assignment and distance to deworming treatment. Second, we plug this into the algebraic equation solver available in the statistical modeling software, Stan [@stan], to solve equation \refeq{eq:V-equil}, resulting in $V^*$. Since we model $V$ as normally distributed we make use of the closed form solutions for the expectations:
 \begin{align*}
 \expect{V|V>v^*} = \frac{\phi(v^*)}{1 - \Phi(v^*)} \text{ and } \expect{V|V<v^*} = - \frac{\phi(v^*)}{\Phi(v^*)}. 
 \end{align*}
@@ -1742,6 +1742,29 @@ endline.know.table.data %>%
 Figure \ref{fig:table-A-relationships} shows that the majority of recognized adults are neighbors (49 percent) and extended family (29 percent). Figures \ref{fig:first-order-deworm-status} and \ref{fig:second-order-deworm-status} show that adults generally (believe to) have more information about the deworming status of household members and extended family, than of neighbors or community members.  
 
 ```{r fp-2ord-prop-knows-mean-all, fig.width=8, fig.height=3, fig.cap="Second order beliefs (levels)."}
+fp_2ord_prop_knows_mean %>% 
+  filter(!fct_match(incentive_treatment, "bracelet social")) %>% 
+  group_by(incentive_treatment) %>% 
+  mutate(iter_value = fp_2ord_prop_knows_mean) %>% 
+  summarize(
+    per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+    quant = quantile(iter_value, probs = per),
+    mean_est = mean(iter_value),
+    
+    .groups = "drop"
+  ) %>% 
+  pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% 
+  ggplot(aes(y = incentive_treatment)) +
+  geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+  geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+  geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+  geom_point(aes(x = mean_est), size = 2) +
+  geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+  labs(
+  title = "",
+  x = "", y = ""
+  )
+
 plot_takeup(
   takeup_summ_data = fp_2ord_prop_knows_mean_all,
   data_preparer = . %>%
@@ -1831,6 +1854,9 @@ wtp_stan_data <- analysis.data %>%
   prepare_bayes_wtp_data(
     wtp.data,
     
+    preference_value_diff = -seq(0, 100, 10), 
+    num_preference_value_diff = length(preference_value_diff), 
+    
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
     mu_wtp_df_student_t = 7,
@@ -1851,6 +1877,7 @@ wtp_model_0_fit <- sampling(
   iter = 4000,
   control = lst(
     adapt_delta = 0.999,
+    max_treedepth = 15
   ),
   sample_file = file.path("data", "stanfit", "wtp_model_2.csv")) 
 
@@ -1858,8 +1885,6 @@ write_rds(wtp_model_0_fit, file.path("data", "stanfit", "wtp_model_fit.rds"))
 ```
 
 ```{r load-wtp-fit}
-# wtp_model_0_fit <- dir(file.path("data", "stanfit"), pattern = "wtp_model_2_[1-8].csv", full.names = TRUE) %>% 
-#   read_stan_csv()
 wtp_model_0_fit <- read_rds(file.path("data", "stanfit", "wtp_model_fit.rds"))
 ```
 
@@ -1895,13 +1920,13 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
-```{r wtp-prefer-calendar-plot, fig.height=4, fig.width=8, fig.cap = "Willingness-to-pay experiment results."}
+```{r wtp-prefer-calendar-plot, fig.height=6, fig.width=8, fig.cap = "Willingness-to-pay experiment results.", dependson="load-wtp-fit"}
 wtp_model_0_fit %>% 
   as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
   mutate(iter_id = seq(n())) %>% 
   pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
-  tidyr::extract(parameter, c("parameter", "strata_index"), "([^\\[]+)(?:\\[(\\d+)\\])?") %>% 
-  group_by(parameter, strata_index) %>% 
+  tidyr::extract(parameter, c("parameter", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+  group_by(parameter, index) %>% 
   summarize(
     per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
     quant = quantile(iter_value, probs = per),
@@ -1912,20 +1937,22 @@ wtp_model_0_fit %>%
   pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% { 
     cowplot::plot_grid(
       filter(., fct_match(parameter, "prob_prefer_calendar")) %>% 
-        ggplot(aes(y = "")) +
-        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
-        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
-        geom_point(aes(x = mean_est), size = 2) +
-        geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+        left_join(tibble(index = 1:11, val_diff = seq(0, 100, 10)), by = "index") %>% 
+        ggplot(aes(x = val_diff)) +
+        geom_line(aes(y = per_0.5)) +
+        geom_point(aes(y = per_0.5), size = 1) +
+        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+        scale_x_continuous("Added Value", breaks = seq(0, 100, 10), labels = scales::label_number(suffix = " KSh")) +
         labs(
           title = "Probability of Preference for Calendars vs. Bracelets",
-          x = "", y = ""
-        ),
+          y = "" 
+        ) +
+        coord_cartesian(ylim = c(0.7, 1)) +
+        NULL,
       
       filter(., fct_match(parameter, "strata_mu")) %>% 
         mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
-        ggplot(aes(y = str_c(parameter, strata_index))) +
+        ggplot(aes(y = str_c(parameter, index))) +
         geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
         geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
         geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
@@ -1934,15 +1961,14 @@ wtp_model_0_fit %>%
         scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
         theme(axis.text.y = element_blank()) +
         labs(
-          title = "Mean Difference in Valuation of Calendars and Bracelets",
+          title = "Difference in Valuation of Calendars and Bracelets",
           subtitle = "For Each County",
           y = "",
-          caption = "Line range: 90% credible interval. 
-                     Outer box: 80% credible interval. Inner box: 50% credible interval. 
+          caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
                      Thick vertical line: median. Point: mean."
         ),
       
-      ncol = 1, rel_heights = c(1, 2.2)
+      ncol = 1, rel_heights = c(1.3, 1)
     )
   }
 ```
@@ -2304,7 +2330,7 @@ As mentioned in section \ref{theoretical-framework}, the signaling effect can be
 
 In Figure \ref{fig:cost-mitig-level}, subfigure (a) shows the expected level of take-up over a range of simulated cutoff values, to clarify how the range of simulated $v$ alters take-up. As expected the lower the $v$ the higher the level of take-up. In subfigure (b) we show the rate of change of the equilibrium $V^*$ cutoff in response to cost, $\overline{C}$, at different initial cutoffs, $v$. We do observe both the amplification effect for $v<0$ and the cost mitigation effect for $v > 0$, for all treatments, but stronger (and very similar) for the bracelet, ink, and calendar. Subfigure (c) presents the same result but in terms of the probability of deworming take-up and how it changes in response to $\overline{C}$. However, neither looking at the rate of change in utility nor the probability of take-up is very informative; it is difficult to have a clear interpretation for utility outcomes and we cannot consider the incentive/signal treatments without comparing them to their control counterfactual. 
 
-In Figure \ref{fig:cost-mitig-diff} we compare the estimated changes in $V^*$ and $\expect{Y}$ in response to cost, $\overline{C}$, between the three incentive arms and the control arm, as in equations \eqref{eq:partials-diff}. The main pattern to notice is that the change in the take-up probability in response to changes to cost/benefit is quite low for all signals, even at high levels of $v$ (high cost, low take-up). The highest credible (with 80% probability) change, for bracelets, is no more than 0.02: bracelets are only 0.02 higher than control in response to a unit change in $\overline{C}$. Therefore, we conclude that cost mitigation likely played a small role in this experiment; the increase in cost driven by the assigned distance to deworming locations did not result in a pattern of take-up for the incentive arms that is very different from the control arm. We do not conclude that there is no cost mitigation, only that the signals provided did not generate enough reputational utility to counter the increasing cost of deworming in comparison with the control and its own natural level of social signaling. On the other hand, the magnitude of the amplification effect as $V^*$ drops and take-up becomes more of a norm appears to be relatively higher for the signal treatments than the control. However, since in this experiment take-up is not observed at such high levels we do not consider the model's predictions at this range of $V^*$ to be reliable. 
+In Figure \ref{fig:cost-mitig-diff} we compare the estimated changes in $V*$ and $\expect{Y}$ in response to cost, $\overline{C}$, between the three incentive arms and the control arm, as in equations \eqref{eq:partials-diff}. The main pattern to notice is that the change in the take-up probability in response to changes to cost/benefit is quite low for all signals, even at high levels of $v$ (high cost, low take-up). The highest credible (with 80% probability) change, for bracelets, is no more than 0.02: bracelets are only 0.02 higher than control in response to a unit change in $\overline{C}$. Therefore, we conclude that cost mitigation likely played a small role in this experiment; the increase in cost driven by the assigned distance to deworming locations did not result in a pattern of take-up for the incentive arms that is very different from the control arm. We do not conclude that there is no cost mitigation, only that the signals provided did not generate enough reputational utility to counter the increasing cost of deworming in comparison with the control and its own natural level of social signaling. On the other hand, the magnitude of the amplification effect as $V^*$ drops and take-up becomes more of a norm appears to be relatively higher for the signal treatments than the control. However, since in this experiment take-up is not observed at such high levels we do not consider the model's predictions at this range of $V^*$ to be reliable. 
 
 
 ```{r cost-mitig-level, fig.width=8,fig.height=6,fig.cap="Changes in $V^*$ and $E[Y]$ in response $\\overline{C}$."}
