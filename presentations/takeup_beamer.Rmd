@@ -59,6 +59,20 @@ kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
 ```{r load-analysis-data}
 load(file.path("..", "data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
+# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
 ```
 
 ```{r load-experiment-design-data}
@@ -137,8 +151,8 @@ plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
 
 * Deworming is a public good: 
     - Low private returns for many individuals. 
-    - Most of social benefits come through reduced disease transmission. 
     - Children are dewormed in schools but remaining reservoir among adult population fosters reinfection. 
+    - Most of social benefits come through reduced disease transmission. 
 * Cost of screening is 4 to 10 times that of deworming treatment. Deworming drugs are safe, no side effects for uninfected. 
 
 ## Motivation
@@ -174,7 +188,8 @@ Manipulate the visibility of individuals' actions by introducing social signals 
 ## Results 
 
 * Social signals significantly increase the demand for deworming treatment.
-* Main mechanism is social image concerns. Deworming take-up of others has no significant effect on individuals’ deworming decision.
+* Main mechanism is social image concerns. 
+* Deworming take-up of others has no significant effect on individuals’ deworming decision.
 
 ## Outline
 
@@ -228,17 +243,16 @@ Manipulate the visibility of individuals' actions by introducing social signals 
 
 ## Social Signaling
 
-**Social Signaling** [@Benabou2006;@Benabou2012]: Individuals have different typesthat are unobservable to others. Others can use your actions to draw inferences about your type.
+**Social Signaling** [@Benabou2006;@Benabou2012]: Individuals have different _pro-social_ types that are unobservable to others. Others can use your actions to draw inferences about your type.
 
-\[ U(y_i;v_i,x,\lambda) =  \overbrace{B(y_i;v_i) - C(y_i)}^\text{Private/direct returns} + \overbrace{x\lambda E_{-i}(v|y_i)}^\text{Reputational returns} \]
+<!-- \[ U(y_i;v_i,x,\lambda) =  \overbrace{B(y_i;v_i) - C(y_i)}^{\textrm{private returns}} + \overbrace{x\lambda E_{-i}(v|y_i)}^{\mathclap{\textrm{reputational returns}}} \] -->
+\[ U_i(y;v,x,\lambda) =  \overbrace{B_i(y;v) - C_i(y)}^{\textrm{private returns}} + \overbrace{x\lambda \textrm{E}_{-i}[V\mid y]}^{\mathclap{\textrm{reputational returns}}} \]
 
-* Pro-social activity, $y_i \in \{0, 1\}$, dewormed or not. 
-* Intrinsic motivation, $v_i \sim F_v$. 
-    <!-- - look after own health to "be a clean person" -->
-    <!-- - contribute to community's health -->
+* Pro-social activity, $y \in \{0, 1\}$, dewormed or not. 
+* Intrinsic motivation, $V \sim F_V$. 
 * Signaling visibility, $x \in [0,1]$.
-* Social diserability of deworming, $\lambda \geq 0$. 
-* $E_{-i}(v|y_i)$ is the inference that others make about own type $v_i$ based on your action $y$.
+* Social desirability of deworming, $\lambda \geq 0$. 
+* $\textrm{E}_{-i}[V\mid y]$ is the inference that others make about own type $v$ based on your action $y$.
 
 <!-- : health-conscious vs. careless, or good vs. bad citizen -->
 
@@ -246,24 +260,54 @@ Manipulate the visibility of individuals' actions by introducing social signals 
 
 Equilibrium $v^*$:
 
-\[ B(y_i=1;v^*) - C(y_i=1) + x\lambda \Delta(v^*) = 0 \]
+\[ B(y=1;v^*) - C(y=1) + \overbrace{x\lambda \Delta[v^*]}^{\mathclap{\textrm{net reputational incentive}}} = 0 \]
 
-where \[\Delta(v^*) = E(v| y_{i} =1) - E(v|y_i =0) = E(v| v > v^*) - E(v| v \leq v^*)\]
+where \[\Delta[v^*] = \expect{V | y =1} - \expect{V|y =0} = \overbrace{\expect{V| V > v^*}}^{\textrm{honor}} - \overbrace{\expect{V| V \leq v^*}}^{\textrm{stigma}}\]
 
 is the difference in the average type based on observed actions.
 
-Without signaling the equilibrium would be $$B(y_i=1;\tilde{v}) - C(y_i=1) = 0$$ and thus, with $v^* < \tilde{v}$, signaling induces greater take-up of deworming. 
+Without signaling the equilibrium would be $$B(y=1;\tilde{v}) - C(y=1) = 0$$ and thus, with $v^* < \tilde{v}$, signaling induces greater take-up of deworming. 
 
 ## Prediction 1
 
-**Prediction 1.** _If it is socially desirable to deworm and individuals care about their reputation (i.e., $\Delta(v^*) > 0$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x > 0$), the larger the increase in take-up._
+**Prediction 1.** _If it is socially desirable to deworm and individuals care about their reputation (i.e., $\Delta[v^*] > 0$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x > 0$), the larger the increase in take-up._
 
-## Prediction 2: Social Multiplier
+## The Social Multiplier
 
-$$\frac{\partial v^*}{\partial c} = \frac{1}{1 + r'(v^*)},$$
-where $r'(v^*) = x\lambda \Delta'(v^*)$, is the change in reputational returns in response to a change in $v^*$. It mitigates (amplifies) the effect of an increase in $c$ on take-up if it is greater (less) than zero.
+Let the cost of deworming be $C(y) = yc$, and define the average take-up to be \[\bar{y}(c) = 1 - F_V(v^*(c)),\] the slope of which is 
+\[ \bar{y}'(c) = f_V(v^*(c))\cdot\overbrace{\frac{-1}{1 + x\lambda \Delta'[v^*(c)]}}^{\textrm{social multiplier}} \]
+<!-- \[ \frac{d\bar{y}(c)}{dc} = - g(v^*(c)) \frac{dv^*(c)}{dc} = -g(v^*(c))\cdot\overbrace{\frac{1}{1 + x\lambda \Delta(v^*(c))}}^{\textrm{social multiplier}} \] -->
 
-**Prediction 2.** _Changes in the cost of deworming (by causing changes in the take-up level of deworming treatment) lead to increases (decreases) in reputational returns, increasing (decreasing) the effect of signals and the share of individuals taking up deworming treatment._ 
+## The Social Multiplier
+
+\[ -\frac{\textrm{d}v^*(c)}{\textrm{d}c} = \frac{-1}{1 + x\lambda \Delta'[v^*(c)]} \]
+
+* $\Delta'[v^*] < 0 \implies$ More sensitive to changes in cost/benefits (respectable or normal acts) 
+* $\Delta'[v^*] > 0 \implies$ Less sensitive to changes in cost/benefits (admirable or heroic acts) 
+
+```{r, message=FALSE, fig.width=7.5, fig.height=3}
+delta_deriv <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+
+tibble(v = seq(-1, 1, 0.1),
+       delta_deriv = delta_deriv(v)) %>% 
+  ggplot() +
+  geom_smooth(aes(v, delta_deriv), color = "darkgrey") +
+  geom_text(aes(x, y, label = t), 
+            data = tibble(x = c(-0.75, 0, 0.75), y = c(1.85, 1.65, 1.85), t = c("Respectable Acts", "Modal Acts", "Admirable Acts"))) +
+            # data = tibble(x = c(-0.75, 0, 0.75), y = c(1.85, 1.65, 1.85), t = c("Admirable Acts", "Modal Acts", "Respectable Acts"))) +
+  # labs(x = latex2exp::TeX("Fraction who participate, $1-F(v^*)$"), y = latex2exp::TeX("Net reputational incentive, $x\\lambda\\Delta(v^*)$")) +
+  labs(x = latex2exp::TeX("v^*$"), y = latex2exp::TeX(r"{$\Delta\[v^*\]$}")) +
+  theme_minimal() +
+  theme(axis.text = element_blank(), panel.grid = element_blank(), axis.line = element_line())
+```
+
+## Prediction 2
+
+**Prediction 2.** _Changes in the cost of deworming lead to increases (decreases) in reputational returns, increasing (decreasing) the effect of signals and the share of individuals taking up deworming treatment._ 
+<!-- **Prediction 2.** _Changes in the cost of deworming (by causing changes in the take-up level of deworming treatment) lead to increases (decreases) in reputational returns, increasing (decreasing) the effect of signals and the share of individuals taking up deworming treatment._  -->
+
+* If the cost to deworming is high, because of distance, would signaling mitigate the drop in take-up?
+* If the cost to deworming is low, and take-up is a norm, would signaling amplify the effect of other incentives?
 
 <!-- ## Alternative Mechanisms -->
 
@@ -286,7 +330,7 @@ where $r'(v^*) = x\lambda \Delta'(v^*)$, is the change in reputational returns i
     
 ## Reported Social Value
 
-```{r praise-stigma-plot, fig.width=8, fig.height=3, fig.cap="Reported social perception of some observable activities."}
+```{r praise-stigma-plot, fig.width=8, fig.height=3}
 baseline.data %>% 
   select(matches("^(praise|stigma)_[^_]+$")) %>% 
   gather(key = key, value = response) %>% 
@@ -318,7 +362,7 @@ baseline.data %>%
 
 ## Community-based Deworming Program
 
-* Working with Government of Kenya provided free deworming treatment to approximately 200,000 adults in Busia, Siaya and Kakamega. 
+* We worked with the government of Kenya and its county governments, providing free deworming treatment to approximately 200,000 adults in Busia, Siaya and Kakamega. 
 * Community Health Volunteers (CHVs) provided deworming at 144 central locations over 12 days, Monday-Sunday 8am-5pm. 
 * CHVs informed communities prior to deworming about the social benefits of deworming, the dates and location.  
 * Community deworming program first of its kind. 
@@ -341,28 +385,31 @@ Two primary interventions:
 
     $G \in \{\textrm{close, far}\}$
     
-## Reduced-form Estimands
+## Experiment Diagram
 
-* Incentive/signal average treatment effect: 
-    \begin{align*}
-      E[Y(\textrm{bracelet})] &- E[Y(\textrm{control})]  \\
-      E[Y(\textrm{ink})] &- E[Y(\textrm{control})]  \\
-      E[Y(\textrm{calendar})] &- E[Y(\textrm{control})] \\
-      E[Y(\textrm{bracelet})] &- E[Y(\textrm{calendar})] 
-    \end{align*}
-* Conditional on assigned distance, $g$:
-    \begin{align*}
-      E[Y(\textrm{bracelet}) \mid G = g] &- E[Y(\textrm{control}) \mid G = g]  \\
-      E[Y(\textrm{ink}) \mid G = g] &- E[Y(\textrm{control}) \mid G = g]  \\
-      E[Y(\textrm{calendar}) \mid G = g] &- E[Y(\textrm{control}) \mid G = g] \\
-      E[Y(\textrm{bracelet}) \mid G = g] &- E[Y(\textrm{calendar}) \mid G = g] 
-    \end{align*}
+![](../images/exp_diagram_nosms.pdf)
 
+## Site Selection
+
+```{r all-clusters-map, message=FALSE, warning=FALSE, fig.width=3.8}
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = FALSE, 
+                source = "stamen", maptype = "toner") +
+  theme(legend.position = "none", axis.text = element_blank())
+```
+
+## Site Selection
+
+```{r, message=FALSE, warning=FALSE, fig.width=3.8}
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = TRUE, 
+                source = "stamen", maptype = "toner") +
+  theme(axis.text = element_blank())
+```
+    
 ## Social Signals
 
 We introduce two signals for individuals to show they came for deworming treatment: (1) green bracelet and (2) indelible green ink.
 
-![](../images/signal_bracelet.png){height=60%}
+![](../images/signal_bracelet.png){height=58%}
 
 Bracelet saying "Treat worms: improve the health of your community"
 
@@ -371,13 +418,7 @@ We introduce a (private) material reward, in form of a 2017 one-page calendar. W
 
 ![](../images/calendar.png){height=65%}
 
-## Site Selection
-
-```{r all-clusters-map, message=FALSE, warning=FALSE, fig.width=5, fig.height=5}
-ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, source = "stamen", maptype = "toner") 
-```
-
-## Random Distance to Treatment Assignment
+## Random Distance to Treatment Location 
 
 ```{r act-dist, fig.width=8, fig.height=6}
 analysis.data %>%  
@@ -397,23 +438,76 @@ analysis.data %>%
   theme(legend.position = "bottom") 
 ```
 
-## Experiment Diagram
-
-![](../images/exp_diagram_nosms.pdf)
-
 # Statistical Model
 
-## Reduced Form Model
+## Models
 
-We estimate our reduced form estimands using the conditional probability,
+Auxiliary Models
+
+* Willingness-to-pay
+
+Primary Models
+
+* Reduced-form
+* Distance
+* Structural
+
+## Wilingness-to-pay Experiment
+
+1. Subjects (from the control arm) were asked to choose one of two gifts, a calendar or a bracelet (2% wanted neither).
+2. Subjects were offered payment in order to switch to the gift not selected. Offer was randomly chosen from ${0, 10,\ldots,100}$ KSh.
+
+## Wilingness-to-pay Experiment
+
+* $G_i \in \{-1, 1\}$ indicates initial gift choice.
+* $M_i \in \{0, 10, 20,\ldots, 100\}$ be the randomly assigned offer (in KSh).
+* $W_i(m) \in \{0, 1\}$ indicates acceptance of $m$ KSh offer. 
+
+\begin{align*}
+  \text{Difference in valuation,}~V_i &\sim \mathtt{Normal}(\mu_{k[i]}, \sigma) \\
+  \text{Strata mean difference,}~\mu_k &\sim \mathtt{Normal}(\mu, \tau_\mu) \\
+  \mu &\sim \mathtt{Normal}(0, 200) \\
+  \sigma &\sim \mathtt{Normal^{+}}(0, 100) \\
+  \tau_\mu &\sim \mathtt{Normal^+}(0, 100)
+\end{align*}
+\begin{equation*}
+\mathcal{L}_i = 
+  \begin{cases}
+    \prob{V < -m_i} & w_i = 0 \land g_i = -1 \\ 
+    \prob{V > m_i} & w_i = 0 \land g_i = 1 \\ 
+    g_i(\prob{V < g_i \cdot m_i} - \prob{V < 0}) & w_i = 1
+  \end{cases}
+\end{equation*}
+
+## Reduced-Form Model
+
+We estimate our reduced-form estimands as 
 
 \begin{align*}
 E[Y_i(z) | G_i = g] &= P[Y_i = 1 | Z_i = z, G_i = g] \\
-                &= \Phi\left(\beta_{0,j[i]} + \beta_{1,j[i]}(z) + \beta_{2,j[i]}(g) + \beta_{3,j[i]}(z,g)\right).
+                &= \Phi\left(\beta_z + \beta_g + \beta_{zg}\right).
 \end{align*}
+                <!-- &= \Phi\left(\beta_{0,j[i]} + \boldsymbol{\beta}_{1,j[i]}(z) + \boldsymbol{\beta}_{2,j[i]}(g) + \boldsymbol{\beta}_{3,j[i]}(z,g)\right). -->
 
 We use a hierarchical Bayesian model to compute the posterior mean of our estimand. This allows us to model heterogeneity over villages and counties (experiment strata).
 
+## Reduced-form Estimands
+
+* Incentive/signal average treatment effect: 
+    \begin{align*}
+      \expect{Y(\textrm{bracelet})} &- \expect{Y(\textrm{control})}  \\
+      \expect{Y(\textrm{ink})} &- \expect{Y(\textrm{control})}  \\
+      \expect{Y(\textrm{calendar})} &- \expect{Y(\textrm{control})} \\
+      \expect{Y(\textrm{bracelet})} &- \expect{Y(\textrm{calendar})} 
+    \end{align*}
+* Conditional on assigned distance, $g$:
+    \begin{align*}
+      \expect{Y(\textrm{bracelet}) | G = g} &- \expect{Y(\textrm{control}) | G = g}  \\
+      \expect{Y(\textrm{ink}) | G = g} &- \expect{Y(\textrm{control}) | G = g}  \\
+      \expect{Y(\textrm{calendar}) | G = g} &- \expect{Y(\textrm{control}) | G = g} \\
+      \expect{Y(\textrm{bracelet}) | G = g} &- \expect{Y(\textrm{calendar}) | G = g} 
+    \end{align*}
+    
 ## Structural Causal Model DAG
 
 \begin{figure}
@@ -421,19 +515,15 @@ We use a hierarchical Bayesian model to compute the posterior mean of our estima
 \begin{tikzpicture}
   [
     node distance=2cm,
-    line width=1.25,
+    line width=1,
     every label/.append style={font=\Large},
-    observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm},
-    latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm},
+    observed/.style={circle,fill=black,inner sep=0pt,minimum size=2mm},
+    latent/.style={circle,draw=black,inner sep=0pt,minimum size=2mm},
     latent-edge/.style={->,dashed},
-    place/.style={circle,draw=blue!50,fill=blue!20,thick,
-    inner sep=0pt,minimum size=6mm},
-    transition/.style={rectangle,draw=black!50,fill=black!20,thick,
-    inner sep=0pt,minimum size=4mm}
   ]
 
 \node[observed] (Y) [label=above:$Y$] {};
-\node[latent] (B) [label=right:$B$,below=of Y] {}
+\node[latent] (B) [label=below:$B$,below=of Y] {}
   edge[->] (Y);
 \node[latent] (R) [label=above:$R$,left=of Y] {}
   edge[->] (Y);
@@ -443,12 +533,10 @@ We use a hierarchical Bayesian model to compute the posterior mean of our estima
 \node[observed] (Z) [label=left:$Z$,left=of R] {}
   edge[->] (R)
   edge[->] (Bbar);
-\node[observed] (D) [label=above:$D$,left=of Bbar] {}
+\node[observed] (D) [label=below:$D$,left=of Bbar] {}
   edge[->] (Bbar);
 \node[observed] (G) [label=left:$G$,left=of D] {}
   edge[->] (D);
-\node[latent] (U_D) [label=right:$U_D$,below=of D] {}
-  edge[latent-edge,->] (D);
 \node[latent] (U) [label=right:$U$,right=of Y] {}
   edge[latent-edge,->] (B)
   edge[latent-edge,->,bend right=45] (R)
@@ -456,49 +544,151 @@ We use a hierarchical Bayesian model to compute the posterior mean of our estima
 \end{tikzpicture}
 \end{figure}
 
+\begin{align*}
+  y_i(z,d) &= \mathbbm{1}\{\overbrace{B_i(y=1;v_i,z) - C_i(y=1;d)}^{B} + \overbrace{x\lambda\Delta[v^*(z,d)] + u_{ir}}^{R} + u_{iy} > 0\} \\
+           &= \mathbbm{1}\{\overline{B}(z,d)  + x\lambda\Delta[v^*(z,d)] + u_{ib} + u_{ir} + u_{iy} > 0\}
+\end{align*}
+    
+
 ## Structural Causal Model Functions
 
+  <!-- \bar{b} &\leftarrow f_{\overline{B}}(z, d; \boldsymbol{\beta}_j, \boldsymbol{\delta}) = \beta_{0j} + \beta_{1j}(z) - c(d;\boldsymbol{\delta}) \\ -->
 \begin{align*} 
-  \bar{b} &\leftarrow f_{\overline{B}}(z, d; \boldsymbol{\beta}_j, \boldsymbol{\delta}) = \beta_{0j} + \beta_{1j}(z) - c(d;\boldsymbol{\delta}) \\
-  b &\leftarrow f_B(\bar{b}; u_b) = \bar{b} + u_b \\
-  r &\leftarrow f_R(z,\bar{b}; \boldsymbol{\mu},u_r) = \mu(z)\cdot\Delta[v^*(z,\bar{b})] + u_r \\
-  y &\leftarrow f_Y(b,r;v,u_y) = \mathbbm{1}(b + r + v + u_y > 0)
+  \bar{b} &\leftarrow f_{\overline{B}}(z, d) = \beta_{z} - (d\cdot\delta_1 + d^2\cdot\delta_2) \\
+  b &\leftarrow f_B(\bar{b}; v, u_b) = \bar{b} + v + u_b \\
+  r &\leftarrow f_R(z,\bar{b}; u_r) = \mu_z\cdot\Delta[v^*(z,\bar{b})] + u_r \\
+  y &\leftarrow f_Y(b,r;u_y) = \mathbbm{1}(b + r + u_y > 0)
 \end{align*}
 and
 \begin{align*}
-v^*(z,\bar{b}) &= - \bar{b} - \mu(z)\Delta[v^*(z,\bar{b})] \\ 
-\Delta[v^*(z,\bar{b})] &= \expect{V | V > v^*(z,\bar{b})} - \expect{V | V < v^*(z,\bar{b})}. 
+v^*(z,\bar{b}) + \bar{b} + \mu_z \overbrace{\left(\expect{V | V > v^*(z,\bar{b})} - \expect{V | V < v^*(z,\bar{b})}\right)}^{\Delta[v^*(z,\bar{b})]} = 0 
 \end{align*}
-
-## Structural Counterfactual Identification
-
-\begin{multline*}
-\prob{Y(z,\overline{B}(z',g)) = y} =\\ \int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z}\cdot\prob*{D = d | G = g}\,\mathrm{d}d
-\end{multline*}
 
 ## Statistical Model
 
 \begin{align*}
-  &\prob{Y_i(z,d) = y | \boldsymbol{\theta}} \\
-  &= \prob{Y_i = y | Z_i = z, D_i = d; \boldsymbol{\theta}} \\
-  &= \prob*{\overline{B}(z,d) + \mu(z)\cdot\Delta[v^*(z,\overline{B}(z,d))] + V + U_{bry} > 0}
+  \expect{Y(z,d)} = \expect{Y | Z = z, D = d} = \prob*{\overline{B}(z,d) + R(z,\overline{B}(z,d)) + U_y > 0} 
 \end{align*}
 where 
 \begin{align*}
-  \overline{B}(z,d) &= \beta_{0,j[i]} + \beta_{1,j[i]}(z) - \delta_1\cdot d - \delta_2\cdot d^2 \\
-  U_{bry} &= U_b + U_r + U_y \\
-  \begin{pmatrix}V \\ U_{bry}\end{pmatrix} &\sim \mathtt{Normal}\left(\mathbf{0}, \begin{pmatrix}1 & \sigma^{\textrm{corr}} \\ \sigma^{\textrm{corr}} & \sigma^2_{bry}\end{pmatrix}\right) \\
-  \Delta(v^*) &= \expect{V | V > v^*} - \expect{V | V < v^*} = \frac{\phi(v^*)}{(1 - \Phi(v^*))\Phi(v^*)} 
+  \begin{pmatrix}V \\ U_b + U_r + U_y\end{pmatrix} &\sim \mathtt{Normal}\left(\mathbf{0}, \begin{pmatrix}1 & \rho\sigma \\ \rho\sigma & \sigma^2\end{pmatrix}\right) \\
+  \mu_z &\sim \mathtt{Normal^+}(0, 1),
+\end{align*}
+with $\mu_{\textrm{bracelet}}, \mu_{\textrm{calendar}}, \mu_{\textrm{ink}} > \mu_{\textrm{control}}$. 
+
+Since $V \sim \mathtt{Normal}(0,1)$, 
+\begin{align*}
+  \Delta(v^*) = \frac{\phi(v^*)}{(1 - \Phi(v^*))\Phi(v^*)} 
 \end{align*}
 
 ## Structural Counterfactual Identification
 
-\begin{multline*}
-\text{E}_{\textrm{post}}\left[\prob{Y(z,\overline{B}(z',g)) = y|\boldsymbol{\theta}}\right] =\\ \int_{\boldsymbol{\theta}}\int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z|\boldsymbol{\theta}}\cdot\prob*{D = d | G = g; \boldsymbol{\theta}}\cdot\text{P}_{\textrm{post}}[\boldsymbol{\theta}]\,\mathrm{d}d\,\mathrm{d}\boldsymbol{\theta}
-\end{multline*}
-\begin{multline*}
-\prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z; \boldsymbol{\theta}} =\\ \prob*{\overline{B}(z',d) + \mu(z)\cdot\Delta[v^*(z,\overline{B}(z',d))] + V + U_{bry} > 0 | \boldsymbol{\theta}}
-\end{multline*}
+\begin{align*}
+&\expect{Y(z,\overline{B}(z',g))} \\
+&= \int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z}\cdot\prob*{D = d | G = g}\,\mathrm{d}d \\
+&= \int_d \prob*{\overline{B}(z',d) + R(z,\overline{B}(z',d)) + U_y > 0}\cdot\prob*{D = d | G = g}\,\mathrm{d}d
+\end{align*}
+Estimands
+\begin{align*}
+\expect{Y(\textrm{bracelet},\overline{B}(\textrm{control}))} &- \expect{Y(\textrm{control},\overline{B}(\textrm{control}))} \\ 
+\expect{Y(\textrm{ink},\overline{B}(\textrm{control}))} &- \expect{Y(\textrm{control},\overline{B}(\textrm{control}))} \\
+\expect{Y(\textrm{calendar},\overline{B}(\textrm{control}))} &- \expect{Y(\textrm{control},\overline{B}(\textrm{control}))} 
+\end{align*}
+Also conditional on distance.
+
+## Distance Model
+
+Casual model function
+\begin{equation*} 
+  d \leftarrow f_D(g; m, \boldsymbol{\pi}, u_D) = \pi_{gm} + u_D
+\end{equation*}
+
+Finite-mixture statistical model ($M = 2$)
+\begin{align*}
+\prob{D(g) = d} = \prob{D = g | G = g} = \sum_m^M \lambda_m \frac{\phi\left(\frac{d - \pi_{gm}}{\eta_{gm}}\right)}{1 - \Phi\left(\frac{d - \pi_{gm}}{\eta_{gm}}\right)} 
+\end{align*}
+and
+\begin{align*}
+  \boldsymbol{\rho} &\sim \mathtt{Dirichlet}(\boldsymbol{\iota}_M) \\
+  \pi_{gm} &\sim \mathtt{Normal^+}(0, 1) \\
+  \eta_{gm} &\sim \mathtt{Normal^+}(0, 1).
+\end{align*}
+We also restrict $\pi_{\textrm{far},m} > \pi_{\textrm{close},m}$.
+
+## Structural Causal Model DAG -- With Salience
+
+<!-- \begin{figure} -->
+<!-- \centering -->
+<!-- \begin{tikzpicture} -->
+<!--   [ -->
+<!--     node distance=1cm, -->
+<!--     line width=0.75, -->
+<!--     every label/.append style={font=\footnotesize}, -->
+<!--     observed/.style={circle,fill=black,inner sep=0pt,minimum size=2.5mm}, -->
+<!--     latent/.style={circle,draw=black,inner sep=0pt,minimum size=2.5mm}, -->
+<!--     latent-param/.style={rectangle,draw=black,inner sep=0pt,minimum size=2.5mm}, -->
+<!--     latent-edge/.style={->,dashed}, -->
+<!--     place/.style={circle,draw=blue!50,fill=blue!20, -->
+<!--     inner sep=0pt,minimum size=6mm}, -->
+<!--     transition/.style={rectangle,draw=black!50,fill=black!20, -->
+<!--     inner sep=0pt,minimum size=4mm} -->
+<!--   ] -->
+
+<!-- \node[observed] (Y) [label=above:$Y$] {}; -->
+<!-- \node[latent] (B) [label=right:$B$,below=of Y] {} -->
+<!--   edge[->] (Y); -->
+<!-- \node[latent] (R) [label=-45:$R$,left=of Y] {} -->
+<!--   edge[->] (Y); -->
+<!-- \node[latent-param] (mu) [label=right:$\mu$,above=of R] {} -->
+<!--   edge[latent-edge,->] (R); -->
+<!-- \node[latent] (L) [label=above:$L$,above=of mu] {} -->
+<!--   edge[->] (Y) -->
+<!--   edge[latent-edge,<-] (mu); -->
+<!-- \node[latent] (Bbar) [label=left:$\overline{B}$,left=of B] {} -->
+<!--   edge[->] (B) -->
+<!--   edge[->] (R); -->
+<!-- \node[observed] (D) [label=below:$D$,left=of R] {} -->
+<!--   edge[->] (Bbar) -->
+<!--   edge[->] (L); -->
+<!-- \node[observed] (G) [label=left:$G$,left=of D] {} -->
+<!--   edge[->] (D); -->
+<!-- \node[observed] (Z) [label=left:$Z$,left=of mu] {} -->
+<!--   edge[->] (R) -->
+<!--   edge[->] (L) -->
+<!--   edge[->] (Bbar); -->
+<!-- \node[latent] (U) [label=right:$U$,right=of Y] {} -->
+<!--   edge[latent-edge,->] (B) -->
+<!--   edge[latent-edge,->,bend right=45] (R) -->
+<!--   edge[latent-edge,->] (L) -->
+<!--   edge[latent-edge,->] (Y); -->
+<!-- \end{tikzpicture} -->
+<!-- \end{figure} -->
+
+We consider an alternative model allowing for other types of social influence, e.g., salience or learning.
+
+\begin{align*} 
+\bar{b} &\leftarrow f_{\overline{B}}(z, d) = \beta_{z} - (d\cdot\delta_1 + d^2\cdot\delta_2) - \overbrace{\mu_z(d\cdot\psi_1 + d^2\cdot\psi_2)}^{\textrm{salience/learning}} 
+\end{align*}
+
+## The Social Multiplier and the Take-up Rates of Change 
+
+We want to estimate the causal effect of signals on the _social multiplier_ and the _take-up rate-of-change_. 
+
+Let $v^{*-1}(z,v)$ be the cost that would make the equilibrium $v^* = v$ when $Z = z$. We want to estimate 
+\begin{align*}
+-\frac{\mathrm{d}v^*(c)}{\mathrm{d}c}\Biggr|_{\substack{c=v^{*-1}(z,v)}}+\frac{\mathrm{d}v^*(c)}{\mathrm{d}c}\Biggr|_{\substack{c=v^{*-1}(\textrm{control},v)}} \\
+\frac{\mathrm{d}\expect{Y}}{\mathrm{d}c}\Biggr|_{\substack{c=v^{*-1}(z,v)}}-\frac{\mathrm{d}\expect{Y}}{\mathrm{d}c}\Biggr|_{\substack{c=v^{*-1}(\textrm{control},v)}} 
+\end{align*}
+where $z \in \{\textrm{bracelet, ink, calendar}\}$.
+
+<!-- ## Structural Counterfactual Identification -->
+
+<!-- \begin{multline*} -->
+<!-- \text{E}_{\textrm{post}}\left[\prob{Y(z,\overline{B}(z',g)) = y|\boldsymbol{\theta}}\right] =\\ \int_{\boldsymbol{\theta}}\int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z|\boldsymbol{\theta}}\cdot\prob*{D = d | G = g; \boldsymbol{\theta}}\cdot\text{P}_{\textrm{post}}[\boldsymbol{\theta}]\,\mathrm{d}d\,\mathrm{d}\boldsymbol{\theta} -->
+<!-- \end{multline*} -->
+<!-- \begin{multline*} -->
+<!-- \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z; \boldsymbol{\theta}} =\\ \prob*{\overline{B}(z',d) + \mu(z)\cdot\Delta[v^*(z,\overline{B}(z',d))] + V + U_{bry} > 0 | \boldsymbol{\theta}} -->
+<!-- \end{multline*} -->
 
 # Results
 
@@ -508,13 +698,13 @@ where
 wtp_model_0_fit <- read_rds(file.path("..", "data", "stanfit", "wtp_model_fit.rds"))
 ```
 
-```{r wtp-prefer-calendar-plot, fig.height=4, fig.width=7}
+```{r wtp-prefer-calendar-plot, fig.height=5.0, fig.width=7, dependson="load-wtp-fit"}
 wtp_model_0_fit %>% 
   as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
   mutate(iter_id = seq(n())) %>% 
   pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
-  tidyr::extract(parameter, c("parameter", "strata_index"), "([^\\[]+)(?:\\[(\\d+)\\])?") %>% 
-  group_by(parameter, strata_index) %>% 
+  tidyr::extract(parameter, c("parameter", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+  group_by(parameter, index) %>% 
   summarize(
     per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
     quant = quantile(iter_value, probs = per),
@@ -525,20 +715,22 @@ wtp_model_0_fit %>%
   pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% { 
     cowplot::plot_grid(
       filter(., fct_match(parameter, "prob_prefer_calendar")) %>% 
-        ggplot(aes(y = "")) +
-        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
-        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
-        geom_point(aes(x = mean_est), size = 2) +
-        geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+        left_join(tibble(index = 1:11, val_diff = seq(0, 100, 10)), by = "index") %>% 
+        ggplot(aes(x = val_diff)) +
+        geom_line(aes(y = per_0.5)) +
+        geom_point(aes(y = per_0.5), size = 1) +
+        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+        scale_x_continuous("Added Value", breaks = seq(0, 100, 10), labels = scales::label_number(suffix = " KSh")) +
         labs(
           title = "Probability of Preference for Calendars vs. Bracelets",
-          x = "", y = ""
-        ),
+          y = "" 
+        ) +
+        coord_cartesian(ylim = c(0.7, 1)) +
+        NULL,
       
       filter(., fct_match(parameter, "strata_mu")) %>% 
         mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
-        ggplot(aes(y = str_c(parameter, strata_index))) +
+        ggplot(aes(y = str_c(parameter, index))) +
         geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
         geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
         geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
@@ -547,15 +739,14 @@ wtp_model_0_fit %>%
         scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
         theme(axis.text.y = element_blank()) +
         labs(
-          title = "Mean Difference in Valuation of Calendars and Bracelets",
+          title = "Difference in Valuation of Calendars and Bracelets",
           subtitle = "For Each County",
           y = "",
-          caption = "Line range: 90% credible interval. 
-                     Outer box: 80% credible interval. Inner box: 50% credible interval. 
+          caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
                      Thick vertical line: median. Point: mean."
         ),
       
-      ncol = 1, rel_heights = c(1, 2.2)
+      ncol = 1, rel_heights = c(1.1, 1)
     )
   }
 ```
@@ -605,17 +796,18 @@ dist_fit_data %>%
   unnest(est_takeup_level) %>% 
   filter(is.na(assigned_dist_group)) %>% 
   plot_estimands(assigned_treatment) +
-  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
-    labs(
-      # title = "Take-up levels in response to an incentive treatment intervention",
-      # subtitle = TeX("\\hat{E}\\[Y(z)\\]"),
-      x = "Take-up Probability") +
+  scale_y_discrete("", labels = str_to_title) +
+  labs(
+    # title = "Take-up levels in response to an incentive treatment intervention",
+    # subtitle = TeX("\\hat{E}\\[Y(z)\\]"),
+    x = "Take-up Probability") +
+  theme(legend.title = element_blank()) +
   NULL
 ```
 
 ## Average Treatment Effects of Incentives
 
-```{r take-up-ate, fig.width=7.5,fig.height=6.5,cache=FALSE}
+```{r take-up-ate, fig.width=7.5,fig.height=6,cache=FALSE}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -629,18 +821,17 @@ dist_fit_data %>%
   unnest(est_takeup_te) %>%
   mutate_at(vars(starts_with("assigned_dist_group")), fct_explicit_na, "Combined") %>% 
   plot_estimands(assigned_treatment_left) +
-  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
-    labs(
-      # title = "Average treatment effect in response to an incentive treatment intervention", 
-      # subtitle = TeX("\\hat{E}\\[Y(z)\\] - \\hat{E}\\[Y(z')\\]"),
-      x = "Average Treatment Effect") +
+  scale_y_discrete("", labels = str_to_title) +
+  labs(
+    x = "Average Treatment Effect") +
   facet_wrap(vars(assigned_treatment_right), ncol = 1, labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), scales = "free_y") +
+  theme(plot.caption = element_blank()) +
   NULL
 ```
 
 ## Take-up Levels, Conditional on Distance
 
-```{r take-up-levels-dist-split, fig.width=7.5,fig.height=7}
+```{r take-up-levels-dist-split, fig.width=7.5,fig.height=4.2}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>%  
@@ -648,19 +839,20 @@ dist_fit_data %>%
   unnest(est_takeup_level) %>% 
   filter(!is.na(assigned_dist_group)) %>% 
   plot_estimands(assigned_treatment) +
-  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  scale_y_discrete("", labels = str_to_title) +
     labs(
       # title = "Take-up levels in response to an incentive treatment intervention, split by assigned distance group",
       # subtitle = TeX("\\hat{E}\\[Y(z,g)\\]"),
       x = "Take-up Probability") +
-  facet_wrap(vars(assigned_dist_group), ncol = 1, labeller = as_labeller(. %>% str_c("G = ", .) %>% TeX(), default = label_parsed)) +
-  theme(legend.key.size = unit(0.4, "cm"), legend.box.margin = margin(0, 0, 0, 0, "cm")) +
+  facet_wrap(vars(assigned_dist_group), ncol = 2, labeller = as_labeller(. %>% str_c("G = ", .) %>% TeX(), default = label_parsed)) +
+  theme(legend.title = element_blank(), #legend.key.size = unit(0.1, "cm"), legend.box.margin = margin(0, 0, 0, 0, "cm"), 
+        plot.caption = element_blank()) +
   NULL
 ```
 
 ## Average Treatment Effect of Incentives, Conditional on Distance
 
-```{r take-up-ate-dist-split, fig.width=7.5, fig.height=5.5}
+```{r take-up-ate-dist-split, fig.width=7.5, fig.height=5.2}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -674,7 +866,7 @@ dist_fit_data %>%
   select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
   plot_estimands(assigned_treatment_left) +
-  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  scale_y_discrete("", labels = str_to_title) +
     labs(
       # title = "Average treatment effect in response to an incentive treatment intervention", 
       # subtitle = TeX("E\\[Y(z,g)\\] - E\\[Y(z',g)\\]"),
@@ -689,6 +881,8 @@ dist_fit_data %>%
 
 ## Average Treatment Effect of Distance
 
+$\expect{Y(z, \textrm{far})} - \expect{Y(z, \textrm{close})}$
+
 ```{r take-up-ate-dist-effect, fig.width=7.5,fig.height=5}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
@@ -702,18 +896,20 @@ dist_fit_data %>%
   select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
   plot_estimands(assigned_treatment_left) +
-  scale_y_discrete("Assigned Treatment (z)", labels = str_to_title) +
+  scale_y_discrete("", labels = str_to_title) +
     labs(
       # title = "Average treatment effect in response to a change in distance", 
-      subtitle = TeX("E\\[Y(z,far)\\] - E\\[Y(z,close)\\]"),
+      # subtitle = TeX("E\\[Y(z,far)\\] - E\\[Y(z,close)\\]"),
       x = "Average Treatment Effect") +
+  theme(plot.caption = element_blank()) +
   NULL
 ```
 
 ## Structural Average Treatment Effects of Incentives
 
+$\expect{Y(z,\overline{B}(\textrm{control}))} - \expect{Y(\textrm{control})}$
 
-```{r take-up-ate-struct, fig.width=7.5, fig.height=4}
+```{r take-up-ate-struct, fig.width=7.5, fig.height=3.0}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -726,17 +922,18 @@ dist_fit_data %>%
     fct_match(mu_assigned_treatment_right, "control"),
   ) %>%
   plot_estimands(mu_assigned_treatment_left) +
-  scale_y_discrete("Assigned\nSignaling Treatment (z)", labels = str_to_title) +
+  scale_y_discrete("", labels = str_to_title) +
     labs(
       # title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
-      subtitle = TeX("E\\[Y(z,\\bar{B}(control))\\] - E\\[Y(control)\\]"),
+      # subtitle = TeX("E\\[Y(z,\\bar{B}(control))\\] - E\\[Y(control)\\]"),
       x = "Average Treatment Effect") +
+  theme(plot.caption = element_blank()) +
   NULL
 ```
 
 ## Structural Average Treatment Effects of Incentives, Conditional on Distance
 
-```{r take-up-ate-struct-dist-split, fig.width=7.5, fig.height=5.5}
+```{r take-up-ate-struct-dist-split, fig.width=7.5, fig.height=5.25}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -750,7 +947,7 @@ dist_fit_data %>%
     fct_match(mu_assigned_treatment_right, "control"),
   ) %>%
   plot_estimands(mu_assigned_treatment_left) +
-  scale_y_discrete("Assigned\nSignaling Treatment (z')", labels = str_to_title) +
+  scale_y_discrete("", labels = str_to_title) +
   labs(
     # title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
     # subtitle = TeX("\\hat{E}\\[Y(control,g,\\bar{B}(z'))\\] - \\hat{E}\\[Y(control,g)\\]"),
@@ -785,11 +982,12 @@ social_mult_v_plot <- dist_fit_data %>%
   select(model, model_name, y_rate_of_change, fit_type) %>% 
   unnest(y_rate_of_change) %>% 
   unpack(social_multiplier) %>% 
-  ggplot(aes(v, -per_0.5, color = assigned_treatment)) +
+  ggplot(aes(v, per_0.5, color = assigned_treatment)) +
+  geom_hline(yintercept = -1, linetype = "dotted") +
   geom_line() + 
   coord_cartesian(xlim = c(-1, 1)) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors, labels = str_to_title) +
-  labs(subtitle = "Social Multiplier", y = bquote(frac(partialdiff ~ V^"*", partialdiff ~ bar(C)))) + # TeX("Change in $V^*$")) +
+  labs(subtitle = "Social Multiplier", y = bquote(-frac(partialdiff ~ V^"*", partialdiff ~ bar(C)))) + # TeX("Change in $V^*$")) +
   theme(legend.position = "right") +
   NULL
 
@@ -826,12 +1024,12 @@ diff_social_mult_v_plot <- dist_fit_data %>%
   unnest(diff_y_rate_of_change) %>%
   filter(!fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control")) %>% 
   unpack(diff_social_multiplier) %>% 
-  ggplot(aes(v, -per_0.5)) +
+  ggplot(aes(v, per_0.5)) +
   geom_line(show.legend = FALSE) + 
-  geom_ribbon(aes(ymin = -per_0.1, ymax = -per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   coord_cartesian(xlim = c(-1, 1)) +
-  labs(subtitle = "Social Multiplier Compared to Control Level", y = bquote(frac(partialdiff ~ V^"*", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $V^*$")) +
+  labs(subtitle = "Social Multiplier Compared to Control Level", y = bquote(-frac(partialdiff ~ V^"*", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $V^*$")) +
   theme(legend.position = "bottom") +
   facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
   NULL
