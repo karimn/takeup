@@ -3733,7 +3733,26 @@ all.endline.data %>%
 ## Knowledge Tables
 
 ```{r know-table-data}
-endline.know.table.data <- bind_rows(table.A = read_csv(raw.data.path("Endline Survey-survey-sec_D-tableA.csv")) %>% 
+endline.know.table.data <- bind_rows(table.A = read_csv(file.path("data", "raw-data", "Endline Survey-survey-sec_D-tableA.csv")) %>% 
                                        transmute(recognized = recogniseA,
-                                                 num.recognized = recogniseA,
-                                                 dewormed = de
+                                                 dewormed = dewormedA,
+                                                 second.order = order_2ndA,
+                                                 second.order.reason = order_2nd_reason,
+                                                 relationship = relationshipA,
+                                                 relationship.other = relationshipA_other,
+                                                 times.seen = times_seenA,
+                                                 visited = visitedA, 
+                                                 PARENT_KEY, KEY),
+                                     table.B = read_csv(file.path("data", "raw-data", "Endline Survey-survey-sec_D-tableB.csv")) %>% 
+                                       transmute(recognized = recogniseB,
+                                                 dewormed = dewormedB,
+                                                 dewormed.know.only = dewormedBB,
+                                                 PARENT_KEY, KEY),
+                                     .id = "know.table.type")
+```
+
+```{r, include=FALSE}  
+save(census.data, hh.census.data, cluster.strat.data, cluster.wave.county.data, pot.info, all.villages, file = "takeup_census.RData")
+save(takeup.data, takeup.data.individuals, all.takeup.survey.groups, file = "takeup_at_pot.RData")
+save(matched.tu.data.2, file = "takeup_matched_population.RData")
+```
