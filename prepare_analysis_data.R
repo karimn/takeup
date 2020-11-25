@@ -1,10 +1,7 @@
 # Setup -------------------------------------------------------------------
 
 library(magrittr)
-library(plyr)
 library(tidyverse)
-library(stringr)
-library(forcats)
 library(lubridate)
 library(sf)
 library(sp)
@@ -68,20 +65,20 @@ pot_geo_info <- pot.info %>%
 census.data %<>% 
   left_join(pot_geo_info, by = "cluster.id") %>% 
   group_by(cluster.id) %>%
-  do({
-    if (is.na(first(.$cluster.id))) {
+  group_modify(~ {
+    if (is.na(first(.y$cluster.id))) {
       individ.dist.to.pot <- NA
     } else {
-      cluster.pot.location <- convert.to.sp(slice(., 1), ~ pot.lon + pot.lat, wgs.84) %>% 
+      cluster.pot.location <- convert.to.sp(slice(.x, 1), ~ pot.lon + pot.lat, wgs.84) %>% 
         spTransform(kenya.proj4)
       
-      individ.locations <- convert.to.sp(., ~ lon + lat, wgs.84) %>% 
+      individ.locations <- convert.to.sp(.x, ~ lon + lat, wgs.84) %>% 
         spTransform(kenya.proj4)
       
       individ.dist.to.pot <- c(gDistance(individ.locations, cluster.pot.location, byid = TRUE))
     }
   
-    mutate(., dist.to.pot = individ.dist.to.pot)
+    mutate(.x, dist.to.pot = individ.dist.to.pot)
   }) %>% 
   ungroup()
 
@@ -102,7 +99,9 @@ village.centers %<>%
 
 # Core data prep --------------------------------------------------------------
 
-baseline.data %<>% prepare.baseline.data(cluster.strat.data) 
+baseline.data %<>% 
+  prepare.baseline.data(cluster.strat.data) 
+
 endline.data <- prepare.endline.data(all.endline.data, census.data, cluster.strat.data)
 consent.dewormed.reports <- prepare.consent.dewormed.data(all.endline.data, reconsent.data)
 analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, baseline.data, consent.dewormed.reports, cluster.strat.data, max.name.match.cost = 1)
@@ -112,7 +111,8 @@ analysis.data <- prepare.analysis.data(census.data, takeup.data, endline.data, b
 cell.takeup.data <- prepare.cluster.takeup.data(analysis.data, monitored.only = FALSE, 
                                                 add_group_by = c("phone_owner", "mon_status"))
 
-outlier.cells <- cell.takeup.data %>% filter(outlier) 
+outlier.cells <- cell.takeup.data %>% 
+  filter(outlier) 
 
 # WTP prep ----------------------------------------------------------------
 
@@ -121,15 +121,15 @@ wtp.data %<>%
          second_choice = if_else(first_choice == "bracelet", cal_plus_ksh, bra_plus_ksh) %>% 
            factor(levels = 1:2, labels = c("switch", "keep"))) %>% 
   select(-county) %>% # I want to use the more reliable one in cluster.strat.data 
-  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group, county), "cluster.id")
+  left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group, county), by = "cluster.id")
 
 # Social info report in SMS -----------------------------------------------
 
 social.info.data <- sms.content.data %>% 
   filter(!is.na(social.info)) %>% 
-  left_join(select(census.data, cluster.id, village, assigned.treatment, sms.treatment, KEY.individ), "KEY.individ") %>% 
+  left_join(select(census.data, cluster.id, village, assigned.treatment, sms.treatment, KEY.individ), by = "KEY.individ") %>% 
   filter(!is.na(cluster.id)) %>% 
-  left_join(select(cluster.strat.data, cluster.id, dist.pot.group), "cluster.id") %>% 
+  left_join(select(cluster.strat.data, cluster.id, dist.pot.group), by = "cluster.id") %>% 
   group_by(deworming.day, assigned.treatment, dist.pot.group) %>% 
   do({
     interq.info <- quantile(.$social.info/10, c(0.25, 0.75))
@@ -147,39 +147,64 @@ social.info.data <- sms.content.data %>%
 
 # Knowledge tables prep ---------------------------------------------------
 
-endline.know.table.data <- read_rds(file.path("data", "know_tables.rds"))
+# endline.know.table.data <- read_rds(file.path("data", "know_tables.rds"))
+
+endline.know.table.data <- bind_rows(table.A = read_csv(file.path("data", "raw-data", "Endline Survey-survey-sec_D-tableA.csv")) %>% 
+                                       transmute(num.recognized = recogniseA,
+                                                 dewormed = dewormedA,
+                                                 second.order = order_2ndA,
+                                                 second.order.reason = order_2nd_reason,
+                                                 relationship = relationshipA,
+                                                 relationship.other = relationshipA_other,
+                                                 times.seen = times_seenA,
+                                                 visited = visitedA, 
+                                                 know.other.index = instanceA,
+                                                 PARENT_KEY, KEY),
+                                     table.B = read_csv(file.path("data", "raw-data", "Endline Survey-survey-sec_D-tableB.csv")) %>% 
+                                       transmute(num.recognized = recogniseB,
+                                                 dewormed = dewormedB,
+                                                 dewormed.know.only = dewormedBB,
+                                                 know.other.index = instanceB + 0:9, 
+                                                 know.other.index.2 = know.other.index + 1, 
+                                                 PARENT_KEY, KEY),
+                                     .id = "know.table.type") %>% 
+  mutate(recognized = num.recognized > 0)
 
 survey.know.list <- file.path("instruments", "SurveyCTO Forms", "Endline Survey", "Deployed Form Version", 
                               c("knowledge_list.csv", "kak_knowledge_list.csv")) %>% 
-  map_df(read_csv, .id = "wave") %>% 
+  map_df(read_csv, col_types = cols(knowledge_person_key = col_character(), survey.type = col_character()), .id = "wave") %>% 
   mutate(wave = as.integer(wave)) %>% 
   filter(wave == 1 | !is.na(survey.type))
 
 endline.know.table.data %<>% 
-  inner_join(select(endline.data, KEY.individ, wave, cluster.id, assigned.treatment, sms.treatment, dist.pot.group, KEY), c("PARENT_KEY" = "KEY")) %>% 
+  inner_join(select(endline.data, KEY.individ, wave, cluster.id, assigned.treatment, sms.treatment, dist.pot.group, KEY), 
+             by = c("PARENT_KEY" = "KEY")) %>% 
   inner_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other),
-             c("KEY.individ" = "person_key", "know.other.index")) %>% 
+             by = c("KEY.individ" = "person_key", "know.other.index")) %>% 
   left_join(select(survey.know.list, person_key, know.other.index, KEY.individ.other), # Get the second person (table B)
-            c("KEY.individ" = "person_key", "know.other.index.2" = "know.other.index"),
+            by = c("KEY.individ" = "person_key", "know.other.index.2" = "know.other.index"),
             suffix = c(".1", ".2")) %>% 
-  mutate_at(vars(recognized, dewormed, dewormed.know.only), 
-            list(~ factor(., levels = c(0:1, 98), labels = c("no", "yes", "don't know")))) %>% 
-  mutate_at(vars(second.order), 
-            list(~ factor(., levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know")))) %>% 
-  mutate_at(vars(relationship), 
-            list(~ factor(., 
-                        levels = c(1:5, 99), 
-                        labels = c("hh member", "extended family", "friend", "neighbor", "church", "other")))) %>%
-  mutate(relationship = if_else(relationship == "other" & str_to_lower(relationship.other) %in% c("village member", "village mate", "same village", "village elder", "village mates", "villager"),
+  # mutate_at(vars(recognized, dewormed, dewormed.know.only), 
+  #           list(~ factor(., levels = c(0:1, 98), labels = c("no", "yes", "don't know")))) %>% 
+  mutate(across(c(recognized, dewormed, dewormed.know.only), factor, levels = c(0:1, 98), labels = c("no", "yes", "don't know"))) %>% 
+  # mutate_at(vars(second.order), 
+  #           list(~ factor(., levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know")))) %>% 
+  mutate(across(second.order, factor, levels = c(1:2, 97:98), labels = c("yes", "no", "prefer not say", "don't know"))) %>% 
+  # mutate_at(vars(relationship), 
+  #           list(~ factor(., 
+  #                       levels = c(1:5, 99), 
+  #                       labels = c("hh member", "extended family", "friend", "neighbor", "church", "other")))) %>%
+  mutate(across(relationship, factor, levels = c(1:5, 99), labels = c("hh member", "extended family", "friend", "neighbor", "church", "other"))) %>%
+  mutate(relationship = if_else(fct_match(relationship, "other") & fct_match(str_to_lower(relationship.other), c("village member", "village mate", "same village", "village elder", "village mates", "villager")),
                                 "village member", as.character(relationship)) %>% factor,
-         dewormed = if_else(know.table.type == "table.B" & is.na(dewormed), dewormed.know.only, dewormed)) %>% 
+         dewormed = if_else(fct_match(know.table.type, "table.B") & is.na(dewormed), dewormed.know.only, dewormed)) %>% 
   left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, respondent.dewormed.any = dewormed.any),
-            "KEY.individ") %>% 
+            by = "KEY.individ") %>% 
   left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, actual.other.dewormed.any.1 = dewormed.any),
-            c("KEY.individ.other.1" = "KEY.individ")) %>% 
+            by = c("KEY.individ.other.1" = "KEY.individ")) %>% 
   left_join(filter(analysis.data, monitored) %>% transmute(KEY.individ, actual.other.dewormed.any.2 = dewormed.any),
-            c("KEY.individ.other.2" = "KEY.individ")) %>% 
-  mutate(actual.other.dewormed.any.either = actual.other.dewormed.any.1 | (know.table.type == "table.B" & actual.other.dewormed.any.2)) 
+            by = c("KEY.individ.other.2" = "KEY.individ")) %>% 
+  mutate(actual.other.dewormed.any.either = actual.other.dewormed.any.1 | (fct_match(know.table.type, "table.B") & actual.other.dewormed.any.2)) 
   # left_join(select(cluster.strat.data, cluster.id, assigned.treatment, dist.pot.group), "cluster.id") # Get it from endline data 
 
 # Save data ---------------------------------------------------------------

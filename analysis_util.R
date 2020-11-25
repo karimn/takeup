@@ -9,9 +9,9 @@ name.match.monitored <- function(census.data,
     adist(census.data$last_name, takeup.data$last_name, ignore.case = TRUE)
   
   census.data %>% 
-    mutate(min.name.match.dist = aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
+    mutate(min.name.match.dist = plyr::aaply(dist.mat, 1, . %>% min(na.rm = TRUE)) %>% na_if(Inf),
            which.min.name.match.dist = ifelse(!is.na(min.name.match.dist), 
-                                              aaply(dist.mat, 1, . %>% 
+                                              plyr::aaply(dist.mat, 1, . %>% 
                                                       which.min %>% 
                                                       magrittr::extract(takeup.data$KEY.survey.individ, .)),
                                               NA),
@@ -42,23 +42,25 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .ba
     filter(!is.na(KEY.individ)) %>% 
     rename(dewormed.day = deworming.day) %>% 
     group_by(KEY.individ) %>% 
-    summarize_at(vars(dewormed.day, dewormed.date), min) %>% # If dewormed multiple times, take the first day only
+    summarize(across(c(dewormed.day, dewormed.date), min)) %>% # If dewormed multiple times, take the first day only
     ungroup()
   
   analysis.data <- .census.data %>% 
     filter(!is.na(wave)) %>%  # Remove clusters no longer in study
-    left_join(.consent.dewormed.reports, "KEY.individ") %>% 
-    mutate(dewormed = KEY.individ %in% discard(.takeup.data$KEY.individ, is.na), # TRUE if individual found in take-up data
-           dewormed = ifelse(true.monitored, dewormed, NA), # We don't know the deworming status of those not monitored
-           # hh.baseline.sample = KEY %in% .baseline.data$KEY, # We don't have a clear link between baseline surveys and the census. See the field notebook
-           monitor.consent = !is.na(monitor.consent) & monitor.consent,
-           sms.treated = sms.treatment %in% c("social.info", "reminder.only"),
-           sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control") %>% fct_relevel("sms.control"),
-           have.phone.bool = have_phone == "Yes",
-           sms.ctrl.subpop = if_else(is.na(sms.ctrl.subpop) & !sms.treated, 
-                                     if_else(have.phone.bool, "phone.owner", "non.phone.owner"),
-                                     sms.ctrl.subpop)) %>% # NA if not in the monitored group
-    left_join(dewormed.day.data, "KEY.individ") %>% 
+    left_join(.consent.dewormed.reports, by = "KEY.individ") %>% 
+    mutate(
+      dewormed = KEY.individ %in% discard(.takeup.data$KEY.individ, is.na), # TRUE if individual found in take-up data
+      dewormed = if_else(true.monitored, dewormed, NA), # We don't know the deworming status of those not monitored
+      # hh.baseline.sample = KEY %in% .baseline.data$KEY, # We don't have a clear link between baseline surveys and the census. See the field notebook
+      monitor.consent = !is.na(monitor.consent) & monitor.consent,
+      sms.treated = fct_match(sms.treatment, c("social.info", "reminder.only")),
+      sms.treatment.2 = fct_explicit_na(sms.treatment, "sms.control") %>% fct_relevel("sms.control"),
+      have.phone.bool = fct_match(have_phone, "Yes"),
+      sms.ctrl.subpop = if_else(is.na(sms.ctrl.subpop) & !sms.treated, 
+                                if_else(have.phone.bool, "phone.owner", "non.phone.owner"),
+                                sms.ctrl.subpop)
+    ) %>% # NA if not in the monitored group
+    left_join(dewormed.day.data, by = "KEY.individ") %>% 
     filter(!sms.treated | (!is.na(sms.consent) & sms.consent)) # Drop those assigned to SMS treatment but were not consented (hence not treated)
   
   analysis.data %>% 
@@ -66,9 +68,9 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .ba
     group_by(cluster.id) %>% 
     do(name.match.monitored(., filter(takeup.data, cluster.id %in% .$cluster.id), max.cost = max.name.match.cost)) %>% 
     ungroup %>% 
-    right_join(analysis.data, c("cluster.id", "KEY.individ")) %>% 
+    right_join(analysis.data, by = c("cluster.id", "KEY.individ")) %>% 
     left_join(transmute(takeup.data, KEY.survey.individ, dewormed.day.matched = deworming.day, dewormed.date.matched = dewormed.date), 
-              c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
+              by = c("which.min.name.match.dist" = "KEY.survey.individ")) %>% 
     # mutate(monitored = !is.na(monitored) & !is.na(wave) & monitored, # Remove those dropped from the study 
     mutate(monitored = !is.na(true.monitored) & !is.na(wave) & true.monitored, # Remove those dropped from the study 
            dewormed.any = (!is.na(dewormed) & dewormed) | dewormed.matched,
@@ -78,16 +80,16 @@ prepare.analysis.data <- function(.census.data, .takeup.data, .endline.data, .ba
     left_join(
         transmute(.endline.data, 
                   KEY.individ, age, school, floor, ethnicity, ethnicity2, any.sms.reported, gift_choice, hh_cal, cal_value, hh_bracelet, number_bracelet, 
-                  endline_deworm_rate = dworm_rate), "KEY.individ") %>% 
+                  endline_deworm_rate = dworm_rate), by = "KEY.individ") %>% 
     mutate_at(vars(age, age.census), list(squared = ~ (.)^2, group = ~ cut(., breaks = c(seq(18, 58, 10), 120), right = FALSE))) %>% 
-    left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), c("wave", "county", "cluster.id")) %>% 
+    left_join(select(.cluster.strat.data, wave, county, cluster.id, dist.pot.group), by = c("wave", "county", "cluster.id")) %>% 
     `attr<-`("class", c("takeup_df", class(.))) %>%
     unite(county_dist_stratum, county, dist.pot.group, remove = FALSE) %>% 
     unite(county_dist_mon_stratum, county, dist.pot.group, true.monitored, remove = FALSE) %>% 
-    mutate_at(vars(county, county_dist_stratum, county_dist_mon_stratum), factor) %>% 
+    mutate(across(c(county, county_dist_stratum, county_dist_mon_stratum), factor)) %>% 
     mutate(mon_status = factor(true.monitored, levels = c(TRUE, FALSE), labels = c("monitored", "unmonitored")),
            name_matched = !true.monitored,
-           phone_owner = sms.treatment.2 != "sms.control" | sms.ctrl.subpop == "phone.owner")
+           phone_owner = !fct_match(sms.treatment.2, "sms.control") | fct_match(sms.ctrl.subpop, "phone.owner"))
 }
 
 multi.factor <- function(.col, labels, levels, ...) {
@@ -136,25 +138,27 @@ base.prepare.baseline.endline.data <- function(.data, .cluster.strat.data) { #, 
 
 prepare.endline.data <- function(.data, .census.data, .cluster.strat.data) {
   .data %>% 
-    filter(present, interview, consent) %>% 
+    filter(across(c(present, interview, consent), ~ !is.na(.x) & .x == 1)) %>% 
     arrange(KEY.individ, SubmissionDate) %>% 
     group_by(KEY.individ) %>% 
     filter(row_number() == 1) %>% # If more than one entry for an individual, take first one (there are 22 such individuals)
     ungroup() %>% 
     base.prepare.baseline.endline.data(.cluster.strat.data) %>% 
-    mutate_at(vars(know_deworm, chv_visit, flyer, any.sms.reported, hh_bracelet, hh_cal, cal_value), 
-              list(~ yes.no.factor(., .yes.no = 1:0))) %>% 
-    mutate_at(vars(treat_begin, days_available, treat_end), list(~ factor(., levels = c(1, 98), c("knows", "DK")))) %>% 
-    mutate(treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
-           treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
-           #where_offered = labelled(where_offered, c("somewhere else" = 0, "home" = 3, "DK" = 98)) %>% as_factor)
-           find_out = multi.factor(find_out, 
-                                   levels = c(1:9, 99), 
-                                   labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
-                                              "other")),
-           gift_choice = factor(gift_choice, levels = 1:3, labels = c("bracelet", "calendar", "neither"))) %>%
-    left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop, true.monitored, monitored), "KEY.individ")  
-           # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
+    mutate(across(c(know_deworm, chv_visit, flyer, any.sms.reported, hh_bracelet, hh_cal, cal_value),
+                  yes.no.factor, .yes.no = 1:0)) %>% 
+    mutate(across(c(treat_begin, days_available, treat_end), factor, levels = c(1, 98), c("knows", "DK"))) %>% 
+    mutate(
+      treat_begin_date = ymd(sprintf("2016-%d-%d", month_treat_begin, day_treat_begin)),
+      treat_end_date = ymd(sprintf("2016-%d-%d", month_treat_end, day_treat_end)),
+      #where_offered = labelled(where_offered, c("somewhere else" = 0, "home" = 3, "DK" = 98)) %>% as_factor)
+      find_out = multi.factor(find_out, 
+                              levels = c(1:9, 99), 
+                              labels = c("friend", "family", "chv", "elder", "church", "flyer", "poster", "enumerator", "baraza",
+                                         "other")),
+      gift_choice = factor(gift_choice, levels = 1:3, labels = c("bracelet", "calendar", "neither"))
+    ) %>%
+    left_join(select(.census.data, KEY.individ, dist.to.pot, sms.ctrl.subpop, true.monitored, monitored), by = "KEY.individ")  
+       # text_content = factor(text_content, levels = c(1:3, 99), labels = c("reminders", "when/where", "social info", "other")))
 }
 
 prepare.baseline.data <- function(.data, .cluster.strat.data) {
@@ -197,11 +201,13 @@ prepare.cluster.takeup.data <- function(.data,
           !(hh.baseline.sample.pool & exclude.baseline.sample)) %>% 
    transmute(county, dist.pot.group, county_dist_stratum, cluster.id, assigned.treatment, sms.treatment = sms.treatment.2, dewormed.any, mon_status, phone_owner) %>% 
    # unite(stratum, county, dist.pot.group, sep = " ") %>% 
-   group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", "cluster.id", add_group_by)) %>% 
+   # group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", "cluster.id", add_group_by)) %>% 
+   group_by(assigned.treatment, sms.treatment, county_dist_stratum, cluster.id, !!!syms(add_group_by)) %>% 
    # group_by(assigned.treatment, sms.treatment, stratum, cluster.id) %>% 
    summarize(takeup.prop = mean(dewormed.any)) %>% 
    # group_by(assigned.treatment, sms.treatment, stratum) %>% 
-   group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", add_group_by)) %>% 
+   group_by(assigned.treatment, sms.treatment, county_dist_stratum, !!!syms(add_group_by)) %>% 
+   # group_by_(.dots = c("assigned.treatment", "sms.treatment", "county_dist_stratum", add_group_by)) %>% 
    mutate(outlier = is_outlier(takeup.prop)) %>% 
    ungroup
 }
@@ -272,7 +278,9 @@ calc.strata.stats <- function(.data,
     calc.strata.ate
   
   strata.data %>% {
-    left_join(distinct_(., .dots = c(.strat.by, "treatment.group", .interact.with), .keep_all = TRUE) %>% 
+    distinct_by <- c(.strat.by, "treatment.group", .interact.with)
+    # left_join(distinct_(., .dots = c(.strat.by, "treatment.group", .interact.with), .keep_all = TRUE) %>% 
+    left_join(distinct(., !!!syms(distinct_by), .keep_all = TRUE) %>% 
                 select(-c(rhs.treatment.group, stratum.ate, stratum.size, stratum.sample.var)) %>%
                 group_nest(vars(c("treatment.group", .interact.with)), .key = "strata.data"),
                 # nest_exclude("strata.data", c("treatment.group", .interact.with)),
@@ -1398,9 +1406,14 @@ get_unique_treatments <- function(ate_pairs, subgroups = NULL) {
     gather(key = treatment_key, value = id, matches("_(left|right)$")) %>% 
     separate(treatment_key, c("treatment_key", "left_right"), "_(?=left|right)") %>% 
     unite(row_id, row_id, left_right) %>% 
-    spread(treatment_key, id) %>% 
-    distinct_(.dots = c(str_subset(names(.), "(all|dynamic)_treatment_id$"), subgroups)) %>% 
-    arrange_(.dots = c(str_subset(names(.), "(all|dynamic)_treatment_id$"), subgroups)) %>% 
+    spread(treatment_key, id) %>% {
+      distinct_by <- c(str_subset(names(.), "(all|dynamic)_treatment_id$"), subgroups)
+  
+      distinct(., !!!syms(distinct_by)) %>% 
+        arrange(!!!syms(distinct_by))
+    } %>% 
+    # distinct_(.dots = c(str_subset(names(.), "(all|dynamic)_treatment_id$"), subgroups)) %>% 
+    # arrange_(.dots = c(str_subset(names(.), "(all|dynamic)_treatment_id$"), subgroups)) %>% 
     mutate(rank_id = seq_len(n()))
 }
 
@@ -1467,7 +1480,10 @@ prepare_treatment_map <- function(static_treatment_map, dynamic_treatment_maps,
                                   cluster_level_treatment = c("private_value", "social_value", "dist.pot.group")) { #, ate) {
   prepared <- static_treatment_map %>% 
     mutate(all_treatment_id = seq_len(n())) %>%
-    left_join(distinct_(., .dots = cluster_level_treatment) %>% mutate(cluster_treatment_id = seq_len(n())), cluster_level_treatment) %>% 
+    # left_join(distinct_(., .dots = cluster_level_treatment) %>% 
+    left_join(distinct(., !!!syms(cluster_level_treatment)) %>% 
+                mutate(cluster_treatment_id = seq_len(n())), 
+              by = cluster_level_treatment) %>% 
     mutate_if(is.factor, list(id = ~ as.integer(.))) 
   
   if (!missing(dynamic_treatment_maps)) {
@@ -1557,7 +1573,10 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     left_join(treatment_map, join_treatment_map_col) %>% 
     prep_data_arranger() %>% 
     mutate(obs_index = seq_len(n())) %>% 
-    left_join(nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), "KEY.individ") %>% 
+    left_join(
+      # nest(know_table_data, -KEY.individ, -know.table.type, .key = "know_table"), 
+      group_nest(know_table_data, KEY.individ, know.table.type, .key = "know_table"),
+      by = "KEY.individ") %>% 
     mutate(know_table_num_recognized = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$num.recognized) else NA_integer_),
            knows_other_dewormed = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$dewormed %in% c("yes", "no"), na.rm = TRUE) else NA_integer_),
            knows_other_dewormed_yes = map_int(know_table, ~ if (!is_empty(.x)) sum(.x$dewormed == "yes", na.rm = TRUE) else NA_integer_),
@@ -1636,13 +1655,13 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       
       if (!is_empty(subgroup_col)) {
         ate_treatments %<>% 
-          left_join(select(treatment_map, all_treatment_id, subgroup_col), c("static_all_treatment_id" = "all_treatment_id")) 
+          left_join(select(treatment_map, all_treatment_id, all_of(subgroup_col)), c("static_all_treatment_id" = "all_treatment_id")) 
       }
       
       missing_treatment <- ate_treatments %>%
         plyr::alply(1, function(treat_row) {
           (if (!is_empty(subgroup_col)) {
-            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+            semi_join(prepared_analysis_data, select(treat_row, all_of(subgroup_col)), by = subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id != treat_row$static_all_treatment_id | all_treatment_id != treat_row$dynamic_all_treatment_id) %>% 
             select(obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
@@ -1651,7 +1670,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       observed_stratum_treatment <- ate_treatments %>%
         plyr::adply(1, function(treat_row) {
           (if (!is_empty(subgroup_col)) {
-            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+            semi_join(prepared_analysis_data, select(treat_row, all_of(subgroup_col)), by = subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id == treat_row$static_all_treatment_id & all_treatment_id == treat_row$dynamic_all_treatment_id) %>% 
             select(stratum, stratum_id, obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
@@ -1689,16 +1708,19 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       
       num_ate_pairs <- nrow(all_ate)
       
-      ate_treatments <- all_ate %>% get_unique_treatments(subgroup_col)
+      ate_treatments <- all_ate %>% 
+        get_unique_treatments(subgroup_col)
       
       if (!is_empty(subgroup_col)) {
-        ate_treatments%<>% left_join(select(treatment_map, all_treatment_id, intersect(names(treatment_map), subgroup_col)), c("all_treatment_id", intersect(names(treatment_map), subgroup_col)))
+        ate_treatments %<>% 
+          left_join(select(treatment_map, all_treatment_id, intersect(names(treatment_map), subgroup_col)), 
+                    by = c("all_treatment_id", intersect(names(treatment_map), subgroup_col)))
       }
       
       missing_treatment <- ate_treatments %>%
         plyr::alply(1, function(treat_row) {
           (if (!is_empty(subgroup_col)) {
-            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+            semi_join(prepared_analysis_data, select(treat_row, all_of(subgroup_col)), by = subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id != treat_row$all_treatment_id) %>% 
             select(obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
@@ -1707,7 +1729,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
       observed_stratum_treatment <- ate_treatments %>%
         plyr::adply(1, function(treat_row) {
           (if (!is_empty(subgroup_col)) {
-            semi_join(prepared_analysis_data, select(treat_row, subgroup_col), subgroup_col) 
+            semi_join(prepared_analysis_data, select(treat_row, all_of(subgroup_col)), by = subgroup_col) 
           } else { prepared_analysis_data }) %>% 
             filter(all_treatment_id == treat_row$all_treatment_id) %>% 
             select(stratum, stratum_id, obs_index, know.table.type, matches("know_table_[AB]_obs_index"))
@@ -1804,8 +1826,8 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
   days_poly_trend <- ((1:num_deworming_days) - 1) %>% 
     divide_by(max(.)) %>% 
     matrix(num_deworming_days, param_poly_order) %>% 
-    plyr::aaply(1, accumulate, multiply_by) %>% 
-    magrittr::extract(, rep(seq_len(ncol(.)), each = num_all_treatment_coef - 1))  
+    plyr::aaply(1, accumulate, multiply_by, .drop = FALSE) %>% 
+    magrittr::extract(, rep(seq_len(ncol(.)), each = num_all_treatment_coef - 1))
   
   param_dyn_treatment_map <- treatment_map_design_matrix[, rep(2:num_all_treatment_coef, param_poly_order)] %>% 
     plyr::alply(1, function(mask_row) matrix(as.numeric(mask_row), num_deworming_days, length(mask_row), byrow = TRUE) * days_poly_trend)
@@ -1900,7 +1922,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     
     num_dynamic_treatments = if (is_empty(dynamic_treatment_map)) 0 else n_distinct(dynamic_treatment_map$dynamic_treatment_id),
     num_dynamic_treatment_col = if (is_empty(dynamic_treatment_map)) 0 else dynamic_treatment_map %>% ncol() %>% subtract(1),
-    all_treatment_dyn_id = treatment_map$dynamic_treatment_id,
+    all_treatment_dyn_id = if (is_empty(dynamic_treatment_map)) array(dim = c(0,0)) else treatment_map$dynamic_treatment_id,
     signal_observed_coef = dynamic_treatment_map %>% colnames() %>% str_which("signal_observed"),
     reminder_info_coef = dynamic_treatment_map %>% colnames() %>% str_which("reminder_info"),
     num_signal_observed_coef = length(signal_observed_coef),
@@ -2080,8 +2102,12 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     observed_dewormed_day = dewormed_day_any[observed_obs_ids],
     observed_dewormed_any = dewormed_any[observed_obs_ids],
     ...
-  ) %>% 
-    modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map, cluster_map))
+  )
+  
+  if (!is_null(wtp_data)) {
+    stan_data_list %<>% 
+      modifyList(prepare_bayes_wtp_data(origin_prepared_analysis_data, wtp_data, stratum_map, cluster_map))
+  }
   
   return(stan_data_list)
 } 
@@ -2236,7 +2262,8 @@ fast_estimate_deworm_prob <- function(iter_cluster_parameters,
   
   fast_est_group_prob <- function(treatment_group) {
     treatment_group %>%
-      distinct_(.dots = c("all_treatment_id", "dynamic_treatment_id"), .keep_all = TRUE) %>% 
+      distinct(all_treatment_id, dynamic_treatment_id, .keep_all = TRUE) %>% 
+      # distinct_(.dots = c("all_treatment_id", "dynamic_treatment_id"), .keep_all = TRUE) %>% 
       select(all_treatment_id, dynamic_treatment_id, one_of(subgroup_col)) %>% 
       bind_cols(treatment_map_dm[.$all_treatment_id, ], slice(dyn_treatment_mask_map, .$dynamic_treatment_id)) %>% 
       select(-dynamic_treatment_id) %>% 
@@ -2288,7 +2315,8 @@ estimate_deworm_prob <- function(iter_cluster_parameters,
   dyn_treatment_mask_map %<>% set_names(stringr::str_c("dyn_treatment_", names(.)))
   
   est_group_prob <- . %>% 
-      distinct_(.dots = c("all_treatment_id", "dynamic_treatment_id"), .keep_all = TRUE) %>% 
+      distinct(all_treatment_id, dynamic_treatment_id, .keep_all = TRUE) %>% 
+      # distinct_(.dots = c("all_treatment_id", "dynamic_treatment_id"), .keep_all = TRUE) %>% 
       select(all_treatment_id, dynamic_treatment_id, phone_owner, name_matched) %>% 
       bind_cols(treatment_map_dm[.$all_treatment_id, ], slice(dyn_treatment_mask_map, .$dynamic_treatment_id)) %>% 
       select(-dynamic_treatment_id) %>% 
@@ -2326,8 +2354,10 @@ estimate_deworm_prob_ate <- function(iter_parameters,
                             group_suffix = "right", other_group_suffix = "left") {
     group_id_colnames <- stringr::str_c(c("all_treatment_id_", "dynamic_treatment_id_"), group_suffix)
     obs_est <- ate_group %>%
-      distinct_(.dots = group_id_colnames, .keep_all = TRUE) %>% 
-      rename_(.dots = group_id_colnames %>% setNames(stringr::str_replace(., stringr::str_interp("_${group_suffix}$"), ""))) %>% 
+      distinct(!!!syms(group_id_colnames), .keep_all = TRUE) %>% 
+      # distinct_(.dots = group_id_colnames, .keep_all = TRUE) %>% 
+      rename_(.dots = group_id_colnames %>% 
+                setNames(stringr::str_replace(., stringr::str_interp("_${group_suffix}$"), ""))) %>% 
       select(all_treatment_id, dynamic_treatment_id, phone_owner, name_matched) %>% 
       bind_cols(treatment_map_dm[.$all_treatment_id, ], slice(dyn_treatment_mask_map, .$dynamic_treatment_id)) %>% 
       select(-dynamic_treatment_id) %>% 
@@ -2397,7 +2427,7 @@ create_incentive_treatment_col <- function(.data) {
 subgroup_combiner <- function(iter_data, outcome_var, subgroups = NULL, 
                               group_by_regex = "(incentive_treatment|(private|social)_value|sms.treatment.2)") {
   iter_data %>% 
-    group_by_at(c(vars(matches(group_by_regex), iter_id), subgroups)) %>% 
+    group_by_at(c(vars(matches(group_by_regex), iter_id), all_of(subgroups))) %>% 
     summarize_at(vars(outcome_var), list(wtd_iter_est = ~ weighted.mean(., treatment_size))) %>% 
     ungroup() 
 }
@@ -2407,7 +2437,7 @@ prepare_est_deworming <- function(est_data, outcome_var, daily = FALSE, subgroup
   
   est_data %>%
     subgroup_combiner(outcome_var, subgroups) %>% 
-    group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), subgroups)) %>% 
+    group_by_at(c(vars(matches("(incentive_treatment|(private|social)_value|sms.treatment.2)")), all_of(subgroups))) %>% 
     summarize_at(., vars(ends_with("wtd_iter_est")), list(mean_est = ~ mean(., na.rm = na_rm),
                                                           ub_80 = ~ quantile(., 0.9, na.rm = na_rm),
                                                           ub_90 = ~ quantile(., 0.95, na.rm = na_rm),
