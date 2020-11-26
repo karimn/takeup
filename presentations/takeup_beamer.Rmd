@@ -723,7 +723,7 @@ where $z \in \{\textrm{bracelet, ink, calendar}\}$.
 
 ## First and Second Order Beliefs
 
-```{r, fig.height=5.5, fig.width=7.5}
+```{r, fig.height=5.0, fig.width=7.5}
 cowplot::plot_grid(
   beliefs_results$prob_knows %>% 
     filter(ord == 1) %>% 
@@ -731,7 +731,7 @@ cowplot::plot_grid(
     ggplot(aes(y = assigned.treatment)) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
     geom_point(aes(x = per_0.5), size = 2) +
     geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
     labs(
@@ -747,7 +747,7 @@ cowplot::plot_grid(
     geom_vline(xintercept = 0, linetype = "dotted") +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
     geom_point(aes(x = per_0.5), size = 2) +
     geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
     labs(
@@ -763,7 +763,7 @@ cowplot::plot_grid(
     ggplot(aes(y = assigned.treatment)) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
     geom_point(aes(x = per_0.5), size = 2) +
     geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
     labs(
@@ -779,17 +779,19 @@ cowplot::plot_grid(
     geom_vline(xintercept = 0, linetype = "dotted") +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
     geom_point(aes(x = per_0.5), size = 2) +
     geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
     labs(
       title = "",
       subtitle = "Treatment Effect",
-      x = "", y = "") +
+      x = "", y = "",
+      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. Point: median."
+    ) +
     theme(axis.text.y = element_blank()) +
     NULL,
   
-  ncol = 2
+  ncol = 2, axis = "b", align = "h" 
 )
 ```
 
