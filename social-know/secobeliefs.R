@@ -31,6 +31,8 @@ social_links <- beliefs_data %>%
   summarize(
     obs_know_person = sum(num.recognized),
     obs_know_person_prop = mean(num.recognized),
+    knows_other_dewormed = sum(fct_match(dewormed, c("yes", "no")), na.rm = TRUE),
+    knows_other_dewormed_yes = sum(fct_match(dewormed, "yes"), na.rm = TRUE),
     thinks_other_knows = sum(fct_match(second.order, c("yes", "no")), na.rm = TRUE),
     thinks_other_knows_yes = sum(fct_match(second.order, "yes"), na.rm = TRUE),
 
@@ -39,9 +41,11 @@ social_links <- beliefs_data %>%
   filter(obs_know_person > 0) %>% 
   mutate(obs_index = seq_len(n()))
 
+treatment_formula <- ~ assigned.treatment  
+
 treatment_map <- social_links %>%
-  distinct(assigned.treatment, dist.pot.group) %>% #, phone_owner, sms.treatment) %>%
-  arrange(dist.pot.group, assigned.treatment) %>% 
+  distinct(!!!syms(all.vars(treatment_formula))) %>% 
+  arrange(!!!syms(all.vars(treatment_formula))) %>% 
   mutate(treatment_id = seq_len(n()))
 
 control_treatment_map <- treatment_map %>%
@@ -49,14 +53,16 @@ control_treatment_map <- treatment_map %>%
   select(-assigned.treatment) %>% 
   rename(treatment_id_control = treatment_id)
 
-treatment_map %<>%
-  left_join(control_treatment_map)
-  # left_join(control_treatment_map, by = c("phone_owner", "sms.treatment", "dist.pot.group"), suffix = c("", "_control"))
+if (ncol(control_treatment_map) > 1) {
+  treatment_map %<>%
+    left_join(control_treatment_map)
+} else {
+  treatment_map %<>%
+    bind_cols(control_treatment_map)
+}
 
 treatment_map_design_matrix <- treatment_map %>%
-  # model_matrix(~ assigned.treatment * dist.pot.group * (phone_owner + sms.treatment)) %>%
-  model_matrix(~ assigned.treatment * dist.pot.group)
-  # magrittr::extract(, -1)
+  model_matrix(treatment_formula)
 
 ate_pairs <- treatment_map %>% 
   filter(treatment_id != treatment_id_control) %>% 
@@ -65,15 +71,13 @@ ate_pairs <- treatment_map %>%
 
 social_links %<>%
   left_join(treatment_map)
-  # left_join(treatment_map, by = c("assigned.treatment", "dist.pot.group", "sms.treatment", "phone_owner"))
 
-obs_missing_data <- treatment_map %>%
-  group_by(treatment_id) %>%
-  do(treatment_obs_ids = semi_join(social_links, ., "treatment_id"),
-     treatment_missing_ids = anti_join(social_links, ., "treatment_id")) %>%
-     # treatment_missing_ids = anti_join(semi_join(social_links, ., "phone_owner"), ., "treatment_id")) %>%
-  ungroup() %>%
-  mutate(across(ends_with("_ids"), map, select, obs_index, obs_know_person, thinks_other_knows))
+# obs_missing_data <- treatment_map %>%
+#   group_by(treatment_id) %>%
+#   do(treatment_obs_ids = semi_join(social_links, ., "treatment_id"),
+#      treatment_missing_ids = anti_join(social_links, ., "treatment_id")) %>%
+#   ungroup() %>%
+#   mutate(across(ends_with("_ids"), map, select, obs_index, obs_know_person, thinks_other_knows))
 
 cluster_idx <- social_links %>% 
   group_by(cluster.id) %>% 
@@ -102,6 +106,7 @@ secobeliefs_stan_data <- lst(
   treatment_id = social_links$treatment_id,
   
   num_recognized = social_links$obs_know_person,
+  num_knows_1ord = social_links$knows_other_dewormed,
   num_knows_2ord = social_links$thinks_other_knows,
   
   ate_pairs,
@@ -113,7 +118,7 @@ secobeliefs_fit <- sampling(
   data = secobeliefs_stan_data,
   chains = chains,
   iter = 1000,
-  pars = c("prob_2ord", "ate_2ord"),
+  pars = c("prob_1ord", "ate_1ord", "prob_2ord", "ate_2ord"),
   control = lst(adapt_delta = 0.9),
 )
 
@@ -132,8 +137,7 @@ secobeliefs_results <- lst(
     ) %>% 
     ungroup() %>% 
     pivot_wider(treatment_id, names_from = per, values_from = per_val, names_prefix = "per_") %>% 
-    right_join(treatment_map, ., by = "treatment_id") %>% 
-    arrange(dist.pot.group, assigned.treatment),
+    right_join(treatment_map, ., by = "treatment_id"),
   
   ate_2ord = secobeliefs_fit %>% 
     as.data.frame(pars = c("ate_2ord")) %>% 
