@@ -156,7 +156,7 @@ secobeliefs_results <- lst(
     pivot_wider(c(ord, ate_pair_index), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
     right_join(mutate(ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
     right_join(treatment_map, ., by = c("treatment_id", "treatment_id_control")) %>% 
-    right_join(treatment_map, ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_left", "_right")) %>% 
+    right_join(treatment_map, ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>% 
     select(-starts_with("treatment_id"), -ate_pair_index) %>% 
     arrange(ord)
 )

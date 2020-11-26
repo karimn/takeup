@@ -84,7 +84,9 @@ load(file.path("..", "data", "takeup_village_pot_dist.RData"))
 ```
 
 ```{r load-beliefs-model-results}
-beliefs_results <- read_rds(file.path("..", "data", "stan_analysis_data", "secobeliefs_results.rds"))
+beliefs_results <- read_rds(file.path("..", "data", "stan_analysis_data", "secobeliefs_results.rds")) %>% 
+  map(mutate, across(starts_with("assigned.treatment"), fct_relabel, str_to_title)) %>% 
+  map(mutate, across(starts_with("assigned.treatment"), fct_relevel, "Bracelet", "Ink", "Calendar", "Control")) 
 ```
 
 
@@ -727,7 +729,6 @@ where $z \in \{\textrm{bracelet, ink, calendar}\}$.
 cowplot::plot_grid(
   beliefs_results$prob_knows %>% 
     filter(ord == 1) %>% 
-    mutate(assigned.treatment = str_to_title(assigned.treatment)) %>% 
     ggplot(aes(y = assigned.treatment)) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
@@ -742,14 +743,14 @@ cowplot::plot_grid(
   
   beliefs_results$ate_knows %>% 
     filter(ord == 1) %>% 
-    mutate(assigned.treatment_right = str_to_title(assigned.treatment_right)) %>% 
-    ggplot(aes(y = assigned.treatment_right)) +
+    ggplot(aes(y = assigned.treatment_left)) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
     geom_point(aes(x = per_0.5), size = 2) +
     geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    scale_y_discrete(drop = FALSE) +
     labs(
       title = "",
       subtitle = "Treatment Effect",
@@ -759,7 +760,6 @@ cowplot::plot_grid(
   
   beliefs_results$prob_knows %>% 
     filter(ord == 2) %>% 
-    mutate(assigned.treatment = str_to_title(assigned.treatment)) %>% 
     ggplot(aes(y = assigned.treatment)) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
@@ -774,14 +774,14 @@ cowplot::plot_grid(
   
   beliefs_results$ate_knows %>% 
     filter(ord == 2) %>% 
-    mutate(assigned.treatment_right = str_to_title(assigned.treatment_right)) %>% 
-    ggplot(aes(y = assigned.treatment_right)) +
+    ggplot(aes(y = assigned.treatment_left)) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
     geom_point(aes(x = per_0.5), size = 2) +
     geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    scale_y_discrete(drop = FALSE) +
     labs(
       title = "",
       subtitle = "Treatment Effect",
