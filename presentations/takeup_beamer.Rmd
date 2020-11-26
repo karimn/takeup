@@ -83,6 +83,11 @@ cluster.strat.data <- read_rds(file.path("..", "data", "takeup_processed_cluster
 load(file.path("..", "data", "takeup_village_pot_dist.RData"))
 ```
 
+```{r load-beliefs-model-results}
+beliefs_results <- read_rds(file.path("..", "data", "stan_analysis_data", "secobeliefs_results.rds"))
+```
+
+
 ```{r load-processed-dist-fit}
 load(file.path("..", "temp-data", "processed_dist_fit28.RData"))
 
@@ -118,9 +123,6 @@ plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
     ggstance::geom_crossbarh(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model), fatten = 0, size = 0.4, width = 0.5, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) + 
     
-    # ggstance::geom_crossbarh(aes(xmin = per_0.25, xmax = per_0.75, color = model), size = 0.7, alpha = 0.05, width = 0.25, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    # ggstance::geom_crossbarh(aes(xmin = per_0.1, xmax = per_0.9, color = model), size = 0.7,  width = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    # ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.7, fatten = 3, size = 0.8, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_point(aes(x = mean_est, color = model), position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_vline(xintercept = 0, linetype = "dotted") +
@@ -444,6 +446,7 @@ analysis.data %>%
 
 Auxiliary Models
 
+* First and second order beliefs
 * Willingness-to-pay
 
 Primary Models
@@ -451,6 +454,32 @@ Primary Models
 * Reduced-form
 * Distance
 * Structural
+
+## First and Second Order Beliefs
+
+* In the endline household survey, respondents were asked some questions about 10 random members of their community.
+* Among these questions, they were asked:
+    - Whether they knew the person.
+    - Whether they know if the other person got dewormed.
+    - Whether the other person knew if the respondent got dewormed.
+* We want to identify how the signaling treatments affect:
+    a) Perception of the observability of others' actions (first order)
+    b) Perception of the observability of their own actions (second order)
+    
+
+## First and Second Order Beliefs
+
+* $Z_i \in \{\textrm{control, ink, calendar, bracelet}\}$, $i$'s assigned incentive treatment.
+* $Y_i^{\textrm{rec}} \in \{0,\ldots,10\}$, number of recognized peers.
+* $Y_i^{\textrm{1ord}}$, number of recognized peers that $i$ has knowledge of whether they got dewormed or not, 
+  \[ Y_i^{\textrm{1ord}} \sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{1ord}}). \]
+* $Y_i^{\textrm{2ord}}$, number of recognized peers who have knowledge of $i$'s deworming choice, 
+  \[ Y_i^{\textrm{2ord}} \sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{2ord}}). \]
+
+\begin{align*}
+  p_i^{\textrm{1ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{1ord}}\cdot z) \\
+  p_i^{\textrm{2ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{2ord}}\cdot z)
+\end{align*}
 
 ## Wilingness-to-pay Experiment
 
@@ -691,6 +720,78 @@ where $z \in \{\textrm{bracelet, ink, calendar}\}$.
 <!-- \end{multline*} -->
 
 # Results
+
+## First and Second Order Beliefs
+
+```{r, fig.height=5.5, fig.width=7.5}
+cowplot::plot_grid(
+  beliefs_results$prob_knows %>% 
+    filter(ord == 1) %>% 
+    mutate(assigned.treatment = str_to_title(assigned.treatment)) %>% 
+    ggplot(aes(y = assigned.treatment)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_point(aes(x = per_0.5), size = 2) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    labs(
+      title = "First Order Beliefs",
+      subtitle = "Proportion",
+      x = "", y = "") +
+    NULL,
+  
+  beliefs_results$ate_knows %>% 
+    filter(ord == 1) %>% 
+    mutate(assigned.treatment_right = str_to_title(assigned.treatment_right)) %>% 
+    ggplot(aes(y = assigned.treatment_right)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_point(aes(x = per_0.5), size = 2) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    labs(
+      title = "",
+      subtitle = "Treatment Effect",
+      x = "", y = "") +
+    theme(axis.text.y = element_blank()) +
+    NULL,
+  
+  beliefs_results$prob_knows %>% 
+    filter(ord == 2) %>% 
+    mutate(assigned.treatment = str_to_title(assigned.treatment)) %>% 
+    ggplot(aes(y = assigned.treatment)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_point(aes(x = per_0.5), size = 2) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    labs(
+      title = "Second Order Beliefs",
+      subtitle = "Proportion",
+      x = "", y = "") +
+    NULL,
+  
+  beliefs_results$ate_knows %>% 
+    filter(ord == 2) %>% 
+    mutate(assigned.treatment_right = str_to_title(assigned.treatment_right)) %>% 
+    ggplot(aes(y = assigned.treatment_right)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+    geom_point(aes(x = per_0.5), size = 2) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    labs(
+      title = "",
+      subtitle = "Treatment Effect",
+      x = "", y = "") +
+    theme(axis.text.y = element_blank()) +
+    NULL,
+  
+  ncol = 2
+)
+```
 
 ## Willingness-to-Pay
 
