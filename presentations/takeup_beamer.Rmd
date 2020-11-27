@@ -733,8 +733,8 @@ cowplot::plot_grid(
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
-    geom_point(aes(x = per_0.5), size = 2) +
-    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
     labs(
       title = "First Order Beliefs",
       subtitle = "Proportion",
@@ -748,8 +748,8 @@ cowplot::plot_grid(
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
-    geom_point(aes(x = per_0.5), size = 2) +
-    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
     scale_y_discrete(drop = FALSE) +
     labs(
       title = "",
@@ -764,8 +764,8 @@ cowplot::plot_grid(
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
-    geom_point(aes(x = per_0.5), size = 2) +
-    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
     labs(
       title = "Second Order Beliefs",
       subtitle = "Proportion",
@@ -779,8 +779,8 @@ cowplot::plot_grid(
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.15) +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
-    geom_point(aes(x = per_0.5), size = 2) +
-    geom_point(aes(x = per_0.5), color = "white", size = 0.8) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
     scale_y_discrete(drop = FALSE) +
     labs(
       title = "",
