@@ -11,7 +11,8 @@ Options:
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]",
 
-  args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
+  # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "fit --sequential --outputname=dist_fit29 --models=5" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -33,7 +34,7 @@ output_name <- if (!is_null(script_options$outputname)) { script_options$outputn
 output_file_name <- file.path("data", "stan_analysis_data", str_c(output_name, ".RData"))
 models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
 thin_by <- as.integer(script_options$thin)
-predict_prior <- as.logical(script_options$`predict-prior`) # Prior prediction run
+predict_prior <- as.logical(script_options$predict_prior) # Prior prediction run
 
 source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
@@ -427,6 +428,48 @@ models <- lst(
   #     name_matched = FALSE,
   #     suppress_reputation = suppress_reputation)) %>% 
   #   list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_QUADRATIC_SALIENCE_NO_REP = lst(
+    model_type = 10,
+    model_file = "takeup_struct.stan",
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
+    num_v_mix = 1,
+    use_single_cost_model = TRUE,
+    use_cost_model = cost_model_types["param_quadratic_salience"],
+    use_private_incentive_restrictions = TRUE,
+    use_salience_effect = TRUE,
+    use_cluster_effects = TRUE,
+    use_county_effects = TRUE,
+    use_param_dist_cluster_effects = FALSE,
+    use_param_dist_county_effects = FALSE,
+    use_mu_cluster_effects = FALSE,
+    use_mu_county_effects = FALSE,
+    use_shifting_v_dist = FALSE,
+    suppress_reputation = TRUE,
+    suppress_shocks = FALSE,
+    
+    mu_rep_sd = 1,
+    structural_beta_county_sd_sd = 0.25,
+    structural_beta_cluster_sd_sd = 0.25,
+    
+    iter = 4000,
+    thin = 1,
+    init = generate_initializer(
+      num_treatments = num_treatments, 
+      num_clusters = num_clusters,
+      num_counties = num_counties,
+      structural_type = 1, 
+      num_mix = num_v_mix, 
+      use_cluster_effects = use_cluster_effects,
+      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+      use_mu_cluster_effects = use_mu_cluster_effects,
+      restricted_private_incentive = use_private_incentive_restrictions,
+      cost_model_type = use_cost_model,
+      use_single_cost_model = TRUE,
+      num_knots = ncol(Z_osullivan),
+      name_matched = FALSE,
+      suppress_reputation = suppress_reputation)) %>% 
+    list_modify(!!!enum2stan_data(cost_model_types)),
 )
 
 # Stan Run ----------------------------------------------------------------
@@ -526,7 +569,7 @@ models <- if (!is_null(models_to_run)) {
 if (script_options$fit) {
   dist_fit <- models %>% stan_list(stan_data)
   
-  if (script_options$`update-output`) {
+  if (script_options$update_output) {
     new_dist_fit <- dist_fit
   
     dist_fit <- tryCatch({
@@ -539,7 +582,7 @@ if (script_options$fit) {
 } else if (script_options$cv) {
   dist_kfold <- models %>% stan_list(stan_data)
   
-  if (script_options$`update-output`) {
+  if (script_options$update_output) {
     new_dist_kfold <- dist_kfold
   
     dist_kfold <- tryCatch({
@@ -551,7 +594,7 @@ if (script_options$fit) {
   }
 }
 
-if (!script_options$`no-save`) {
+if (!script_options$no_save) {
   if (script_options$fit) {
     save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
   } else if (script_options$cv) {

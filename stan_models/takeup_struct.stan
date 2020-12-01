@@ -30,15 +30,19 @@ parameters {
   
   real v_mu;
   
-  row_vector<lower = 0>[suppress_reputation ? 0 : num_treatments] mu_rep_raw;
+  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
   vector<lower = 0>[suppress_shocks ? 0 : num_shocks - 1] ub_ur_sd;
   cholesky_factor_corr[suppress_shocks ? 0 : num_shocks] L_all_u_corr;
   
-  matrix[use_mu_cluster_effects && !suppress_reputation ? num_clusters : 0, num_treatments] mu_cluster_effects_raw;
-  row_vector<lower = 0>[use_mu_cluster_effects && !suppress_reputation ? num_treatments : 0] mu_cluster_effects_sd;
+  // matrix[use_mu_cluster_effects && !suppress_reputation ? num_clusters : 0, num_treatments] mu_cluster_effects_raw;
+  matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
+  // row_vector<lower = 0>[use_mu_cluster_effects && !suppress_reputation ? num_treatments : 0] mu_cluster_effects_sd;
+  row_vector<lower = 0>[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_cluster_effects_sd;
   
-  matrix[use_mu_county_effects && !suppress_reputation ? num_counties : 0, num_treatments] mu_county_effects_raw;
-  row_vector<lower = 0>[use_mu_county_effects && !suppress_reputation ? num_treatments : 0] mu_county_effects_sd;
+  // matrix[use_mu_county_effects && !suppress_reputation ? num_counties : 0, num_treatments] mu_county_effects_raw;
+  // row_vector<lower = 0>[use_mu_county_effects && !suppress_reputation ? num_treatments : 0] mu_county_effects_sd;
+  matrix[!use_mu_county_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_counties, num_treatments] mu_county_effects_raw;
+  row_vector<lower = 0>[!use_mu_county_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_county_effects_sd;
   
   // Linear Parametric Cost
   
@@ -77,8 +81,8 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
   
-  row_vector<lower = 0>[suppress_reputation ? 0 : num_treatments] mu_rep = mu_rep_raw;
-  matrix<lower = 0>[!suppress_reputation ? num_clusters : 0, num_treatments] cluster_mu_rep;
+  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = mu_rep_raw;
+  matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
   matrix<lower = 0, upper = 1>[num_v_mix, num_clusters] structural_cluster_takeup_prob;
@@ -133,7 +137,7 @@ transformed parameters {
 
   // Levels: control ink calendar bracelet
  
-  if (!suppress_reputation) { 
+  if (!suppress_reputation || use_dist_salience) { 
     mu_rep[2] += mu_rep[1];
     mu_rep[3] += mu_rep[1];
     mu_rep[4] += mu_rep[1];
@@ -296,7 +300,7 @@ model {
   
   v_mu ~ normal(0, 1);
   
-  if (!suppress_reputation) { 
+  if (!suppress_reputation || use_dist_salience) { 
     mu_rep_raw ~ normal(0, mu_rep_sd);
     
     if (use_mu_cluster_effects) {

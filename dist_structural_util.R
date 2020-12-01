@@ -12,15 +12,19 @@ monitored_nosms_data <- analysis.data %>%
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
             by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
-         cluster_id = group_indices(., cluster.id))
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
 
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
             by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
-         cluster_id = group_indices(., cluster.id))
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
 
 # Model Classes -----------------------------------------------------------
 
@@ -280,8 +284,8 @@ generate_initializer <- function(num_treatments,
         num_treatments <- if (cost_model_type %in% cost_model_types["discrete"]) num_treatments * num_discrete_dist else num_treatments
         
         init <- lst(
-          mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
-          mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          mu_rep_raw = if (suppress_reputation && !salience) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          mu_rep = if (suppress_reputation && !salience) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           v_mu = rnorm(1, 0, 0.1),
           beta_control = rnorm(num_discrete_dist, 0, 0.1) %>% { if (num_discrete_dist > 1) as.array(.) else . }, 
           beta_ink_effect = rnorm(num_discrete_dist, 0, 0.1) %>% { if (num_discrete_dist > 1) as.array(.) else . },
@@ -332,11 +336,15 @@ generate_initializer <- function(num_treatments,
           dist_beta_cluster_sd = if (!use_param_dist_cluster_effects) array(dim = 0) 
             else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1)))
             else abs(rnorm(num_treatments, 0, 0.1)),
-          mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_incentive_treatments)),
-          mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
-          mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_incentive_treatments)),
-          mu_county_effects_sd = if (use_mu_county_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
-          cluster_mu_rep = if (use_mu_cluster_effects && !suppress_reputation) matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE) else array(0, num_treatments),
+          # mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_incentive_treatments)),
+          # mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          # mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_incentive_treatments)),
+          # mu_county_effects_sd = if (use_mu_county_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          mu_cluster_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments),
+          mu_cluster_effects_sd = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)) ,
+          mu_county_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) ,
+          mu_county_effects_sd = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          cluster_mu_rep = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(0, num_treatments) else matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE),
           lambda_v_mix = rep(1 / num_mix, num_mix),
           v_mix_mean = as.array(0.1),
           v_sd = rbeta(1, 8, 1),
@@ -376,7 +384,7 @@ stan_list <- function(models_info, stan_data) {
       
       fit <- sampling(
         dist_model,
-        iter = if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter),
+        iter = if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter),
         thin = (curr_stan_data$thin %||% 1),
         chains = chains,
         control = control,
@@ -417,7 +425,7 @@ stan_list <- function(models_info, stan_data) {
                           num_excluded_clusters = length(excluded_clusters)) %>%
               map_if(is.factor, as.integer)
             
-            curr_iter <- if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter)
+            curr_iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
             curr_chains <- chains
             
             sampling(dist_model,
