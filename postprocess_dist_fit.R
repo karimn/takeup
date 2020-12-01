@@ -23,8 +23,7 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
-fit_version <- script_options$`fit-version`
-
+fit_version <- script_options$fit_version
 
 # Load Data ---------------------------------------------------------------
 
@@ -108,7 +107,8 @@ dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>%
   ungroup() %>% 
   left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
   left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
-  select(-one_of("model_type"))
+  select(-one_of("model_type")) %>% 
+  mutate(across(where(~ is(.x, "stacking_weights")), as.numeric))
 
 rm(dist_kfold)
 
@@ -123,7 +123,6 @@ observed_takeup <- monitored_nosms_data %>%
             prop_takeup_ub = prop_takeup + se,
             prop_takeup_lb = prop_takeup - se) %>% 
   ungroup()
-
 
 # Functions ---------------------------------------------------------------
 
@@ -170,9 +169,7 @@ prep_multiple_est <- function(accum_data, next_col) {
 }
 
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
-simulate_social_multiplier <- function(mu_rep, total_error_sd, fit_type) {
-  multiplier_v_range <- seq(-2, 2, 0.25) # Simulated values for v^*, used calculate reputational multiplier effect 
-  
+simulate_social_multiplier <- function(mu_rep, total_error_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
   if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
       select(assigned_treatment, iter_data) %>% 
