@@ -62,8 +62,6 @@ load(file.path("..", "data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
-# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
-# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
 
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
@@ -73,7 +71,25 @@ nosms_data <- analysis.data %>%
   group_by(cluster.id) %>% 
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+analysis_data <- monitored_nosms_data
 ```
+
+```{r load-fit}
+fit_version <- 28 
+
+load(file.path("..", "data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
+```
+
 
 ```{r load-experiment-design-data}
 rct.schools.data <- read_rds(file.path("..", "data", "takeup_rct_schools.rds"))
@@ -89,9 +105,21 @@ beliefs_results <- read_rds(file.path("..", "data", "stan_analysis_data", "secob
   map(mutate, across(starts_with("assigned.treatment"), fct_relevel, "Bracelet", "Ink", "Calendar", "Control")) 
 ```
 
-
 ```{r load-processed-dist-fit}
 load(file.path("..", "temp-data", "processed_dist_fit28.RData"))
+
+# BUGBUG Handle this is the pre-processing
+model_info <- tribble(
+  ~ model,                         ~ model_name,                                ~ model_type,
+  
+  "REDUCED_FORM_NO_RESTRICT",      "Reduced Form Discrete Cost",                "reduced form",
+  "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
+  "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
+  
+  "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
+  "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
+) %>% 
+  mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
 dist_fit_data %<>% 
   left_join(distinct(., model) %>% 
@@ -142,7 +170,13 @@ plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
     guides(color = guide_legend(ncol = 3)) +
     NULL
 }
+
 ```
+
+```{r common-functions}
+delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+```
+
 
 # Introduction
 
@@ -290,16 +324,18 @@ Let the cost of deworming be $C(y) = yc$, and define the average take-up to be \
 * $\Delta'[v^*] > 0 \implies$ Less sensitive to changes in cost/benefits (admirable or heroic acts) 
 
 ```{r, message=FALSE, fig.width=7.5, fig.height=3}
-delta_deriv <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+delta_data <- tibble(v = seq(-25, 25, 0.1), delta = delta(v)) 
 
-tibble(v = seq(-1, 1, 0.1),
-       delta_deriv = delta_deriv(v)) %>% 
+delta_data %>% 
+  filter(abs(v) <= 1) %>% 
   ggplot() +
-  geom_smooth(aes(v, delta_deriv), color = "darkgrey") +
+  geom_smooth(aes(v, delta), color = "darkgrey") +
+  geom_smooth(aes(v, delta * 1.1), color = alpha("darkgrey", 0.25)) +
+  geom_smooth(aes(v, delta * 1.2), color = alpha("darkgrey", 0.25)) +
+  geom_smooth(aes(v, delta * 0.9), color = alpha("darkgrey", 0.25)) +
+  geom_smooth(aes(v, delta * 0.8), color = alpha("darkgrey", 0.25)) +
   geom_text(aes(x, y, label = t), 
             data = tibble(x = c(-0.75, 0, 0.75), y = c(1.85, 1.65, 1.85), t = c("Respectable Acts", "Modal Acts", "Admirable Acts"))) +
-            # data = tibble(x = c(-0.75, 0, 0.75), y = c(1.85, 1.65, 1.85), t = c("Admirable Acts", "Modal Acts", "Respectable Acts"))) +
-  # labs(x = latex2exp::TeX("Fraction who participate, $1-F(v^*)$"), y = latex2exp::TeX("Net reputational incentive, $x\\lambda\\Delta(v^*)$")) +
   labs(x = latex2exp::TeX("v^*$"), y = latex2exp::TeX(r"{$\Delta\[v^*\]$}")) +
   theme_minimal() +
   theme(axis.text = element_blank(), panel.grid = element_blank(), axis.line = element_line())
@@ -474,14 +510,16 @@ Primary Models
 * $Z_i \in \{\textrm{control, ink, calendar, bracelet}\}$, $i$'s assigned incentive treatment.
 * $Y_i^{\textrm{rec}} \in \{0,\ldots,10\}$, number of recognized peers.
 * $Y_i^{\textrm{1ord}}$, number of recognized peers that $i$ has knowledge of whether they got dewormed or not, 
-  \[ Y_i^{\textrm{1ord}} \sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{1ord}}). \]
+  \begin{align*}
+    Y_i^{\textrm{1ord}} &\sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{1ord}}) \\
+    p_i^{\textrm{1ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{1ord}}\cdot z).
+  \end{align*}
 * $Y_i^{\textrm{2ord}}$, number of recognized peers who have knowledge of $i$'s deworming choice, 
-  \[ Y_i^{\textrm{2ord}} \sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{2ord}}). \]
+  \begin{align*}
+    Y_i^{\textrm{2ord}} &\sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{2ord}}) \\
+    p_i^{\textrm{2ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{2ord}}\cdot z).
+  \end{align*}
 
-\begin{align*}
-  p_i^{\textrm{1ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{1ord}}\cdot z) \\
-  p_i^{\textrm{2ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{2ord}}\cdot z)
-\end{align*}
 
 ## Wilingness-to-pay Experiment
 
@@ -603,20 +641,24 @@ v^*(z,\bar{b}) + \bar{b} + \mu_z \overbrace{\left(\expect{V | V > v^*(z,\bar{b})
 where 
 \begin{align*}
   \begin{pmatrix}V \\ U_b + U_r + U_y\end{pmatrix} &\sim \mathtt{Normal}\left(\mathbf{0}, \begin{pmatrix}1 & \rho\sigma \\ \rho\sigma & \sigma^2\end{pmatrix}\right) \\
-  \mu_z &\sim \mathtt{Normal^+}(0, 1),
+  \mu_{\textrm{control}} &\sim \mathtt{Normal^+}(0, 1) \\
+  \mu_z &\sim \mathtt{Normal^+}(\mu_{\textrm{control}}, 1), z\in\{\textrm{bracelet, ink, calendar}\},
 \end{align*}
-with $\mu_{\textrm{bracelet}}, \mu_{\textrm{calendar}}, \mu_{\textrm{ink}} > \mu_{\textrm{control}}$. 
+such that $\mu_{\textrm{bracelet}}, \mu_{\textrm{calendar}}, \mu_{\textrm{ink}} > \mu_{\textrm{control}}$. 
+
+## Parametric $\Delta(v^*)$
 
 Since $V \sim \mathtt{Normal}(0,1)$, 
 \begin{align*}
-  \Delta(v^*) = \frac{\phi(v^*)}{(1 - \Phi(v^*))\Phi(v^*)} 
+  \Delta[v^*] &= \frac{\phi(v^*)}{(1 - \Phi(v^*))\Phi(v^*)}  
 \end{align*}
+  <!-- \Delta'(v^*) &= \frac{\phi(v^*)\left\{\phi(v^*)[2\Phi(v^*) - 1] - v^*\phi(v^*)\Phi(v^*)[1 - \Phi(v^*)]\right\}}{[(1 - \Phi(v^*))\Phi(v^*)]^2}  \\ -->
 
 ## Structural Counterfactual Identification
 
 \begin{align*}
 &\expect{Y(z,\overline{B}(z',g))} \\
-&= \int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z}\cdot\prob*{D = d | G = g}\,\mathrm{d}d \\
+&= \int_d \prob*{Y | \overline{B} = f_{\overline{B}}(z',d),Z = z}\cdot\overbrace{\prob*{D = d | G = g}}^{\textrm{distance model}}\,\mathrm{d}d \\
 &= \int_d \prob*{\overline{B}(z',d) + R(z,\overline{B}(z',d)) + U_y > 0}\cdot\prob*{D = d | G = g}\,\mathrm{d}d
 \end{align*}
 Estimands
@@ -856,7 +898,7 @@ wtp_model_0_fit %>%
 
 ## Distance
 
-```{r dist-results, fig.width=7, fig.height=5}
+```{r dist-results, fig.width=7, fig.height=5, dependson="load-processed-dist-fit"}
 group_dist_param %>% 
   mutate(distrib_samples = map2(group_dist_mean, group_dist_sd,
                                 ~ tibble(x = seq(-500, 3000, 10),
@@ -891,7 +933,7 @@ group_dist_param %>%
 
 ## Take-up Levels
 
-```{r take-up-levels, fig.width=7.5,fig.height=4.5,cache=FALSE}
+```{r take-up-levels, fig.width=7.5,fig.height=4.5,cache=FALSE, dependson="load-processed-dist-fit"}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>% 
@@ -910,7 +952,7 @@ dist_fit_data %>%
 
 ## Average Treatment Effects of Incentives
 
-```{r take-up-ate, fig.width=7.5,fig.height=6,cache=FALSE}
+```{r take-up-ate, fig.width=7.5,fig.height=6,cache=FALSE, dependson="load-processed-dist-fit"}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -926,7 +968,7 @@ dist_fit_data %>%
   plot_estimands(assigned_treatment_left) +
   scale_y_discrete("", labels = str_to_title) +
   labs(
-    x = "Average Treatment Effect") +
+    x = "") +
   facet_wrap(vars(assigned_treatment_right), ncol = 1, labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), scales = "free_y") +
   theme(plot.caption = element_blank()) +
   NULL
@@ -934,7 +976,7 @@ dist_fit_data %>%
 
 ## Take-up Levels, Conditional on Distance
 
-```{r take-up-levels-dist-split, fig.width=7.5,fig.height=4.2}
+```{r take-up-levels-dist-split, fig.width=7.5,fig.height=4.2, dependson="load-processed-dist-fit"}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>%  
@@ -955,7 +997,7 @@ dist_fit_data %>%
 
 ## Average Treatment Effect of Incentives, Conditional on Distance
 
-```{r take-up-ate-dist-split, fig.width=7.5, fig.height=5.2}
+```{r take-up-ate-dist-split, fig.width=7.5, fig.height=5.2, dependson="load-processed-dist-fit"}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -986,7 +1028,7 @@ dist_fit_data %>%
 
 $\expect{Y(z, \textrm{far})} - \expect{Y(z, \textrm{close})}$
 
-```{r take-up-ate-dist-effect, fig.width=7.5,fig.height=5}
+```{r take-up-ate-dist-effect, fig.width=7.5,fig.height=5, dependson="load-processed-dist-fit"}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -1012,7 +1054,7 @@ dist_fit_data %>%
 
 $\expect{Y(z,\overline{B}(\textrm{control}))} - \expect{Y(\textrm{control})}$
 
-```{r take-up-ate-struct, fig.width=7.5, fig.height=3.0}
+```{r take-up-ate-struct, fig.width=7.5, fig.height=3.0, dependson="load-processed-dist-fit"}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -1036,7 +1078,7 @@ dist_fit_data %>%
 
 ## Structural Average Treatment Effects of Incentives, Conditional on Distance
 
-```{r take-up-ate-struct-dist-split, fig.width=7.5, fig.height=5.25}
+```{r take-up-ate-struct-dist-split, fig.width=7.5, fig.height=5.25, dependson="load-processed-dist-fit"}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -1060,10 +1102,57 @@ dist_fit_data %>%
   NULL
 ```
 
+## Posterior Histogram of Equilibrium $v^*(z,g)$ 
+
+```{r, fig.width=7.5, fig.height=5.75, message=FALSE, warning=FALSE, dependson="load-processed-dist-fit"}
+annot_delta_data <- delta_data %>% 
+  filter(between(v, -3, 6)) %>% 
+  rename(x = v, y = delta)
+  
+v_cluster_data <- dist_fit[c("STRUCTURAL_QUADRATIC", "STRUCTURAL_QUADRATIC_SALIENCE")] %>% 
+  map(as.data.frame, pars = "structural_cluster_obs_v") %>% 
+  map_df(mutate, iter_id = seq(n()), .id = "model") %>% 
+  pivot_longer(-c(model, iter_id), values_to = "iter_value") %>% 
+  left_join(model_info, by = "model") %>% 
+  tidyr::extract(name, "cluster_index", r"{(\d+)}", convert = TRUE) %>% 
+  left_join(
+    analysis_data %>% 
+      distinct(cluster.id, assigned.treatment, dist.pot.group, cluster.dist.to.pot) %>% 
+      mutate(cluster_index = seq(n())),
+    by = "cluster_index")
+
+v_cluster_data %>% 
+  ggplot() +
+  geom_histogram(aes(iter_value, y = stat(ncount) * 5, fill = model), color = "black", position = "dodge", alpha = 0.75) +
+  annotate("text", x = 4, y = 3, label = latex2exp::TeX(r"{$\Delta\[v^*\]$}")) +
+  annotate("smooth", x = annot_delta_data$x, y = annot_delta_data$y, color = alpha("black", 0.5), size = 0.4) +
+  labs(
+    # title = latex2exp::TeX(r"{$v^*$ Density and $\Delta(v^*)$}"),
+    y = "", x = latex2exp::TeX(r"{$v^*$}")
+  ) +
+  scale_color_manual("", 
+                     values = select(dist_fit_data, model, model_color) %>% deframe(), 
+                     labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
+  coord_cartesian(xlim = c(-3, 5)) +
+  facet_grid(rows = vars(assigned.treatment), cols = vars(dist.pot.group), labeller = as_labeller(str_to_title)) +
+  theme(axis.text.y = element_blank(), legend.position = "top")
+```
+
+```{r, eval=FALSE}
+v_cluster_data %>% 
+  ggplot(aes(x = iter_value, y = cluster.dist.to.pot)) +
+  # geom_hex() +
+  # ggridges::geom_density_ridges() +
+  geom_density_2d_filled() +
+  facet_wrap(vars(assigned.treatment))
+```
+
+
 ## Structural Characteristics  
 
-```{r cost-mitig-level, fig.width=7.5, fig.height=5.5}
+```{r cost-mitig-level, fig.width=7.5, fig.height=5.5, dependson="load-processed-dist-fit"}
 treatment_colors <- set_names(RColorBrewer::brewer.pal(4, "Set1"), c("control", "ink", "calendar", "bracelet"))
+v_lim <- c(-3, 5)
 
 takeup_v_plot <- dist_fit_data %>% 
   filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
@@ -1073,7 +1162,7 @@ takeup_v_plot <- dist_fit_data %>%
   filter(fct_match(assigned_treatment, "control")) %>% 
   ggplot(aes(v, per_0.5)) +
   geom_line() + 
-  coord_cartesian(xlim = c(-1, 1)) +
+  coord_cartesian(xlim = v_lim) +
   geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
   labs(subtitle = "Take-up", 
        y = TeX("E\\[Y\\]")) +
@@ -1088,9 +1177,9 @@ social_mult_v_plot <- dist_fit_data %>%
   ggplot(aes(v, per_0.5, color = assigned_treatment)) +
   geom_hline(yintercept = -1, linetype = "dotted") +
   geom_line() + 
-  coord_cartesian(xlim = c(-1, 1)) +
+  coord_cartesian(xlim = v_lim) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors, labels = str_to_title) +
-  labs(subtitle = "Social Multiplier", y = bquote(-frac(partialdiff ~ V^"*", partialdiff ~ bar(C)))) + # TeX("Change in $V^*$")) +
+  labs(subtitle = "Social Multiplier", y = TeX(r"{$-\frac{\partial v^*}{\partial c}$}")) +
   theme(legend.position = "right") +
   NULL
 
@@ -1101,9 +1190,9 @@ takeup_partial_v_plot <- dist_fit_data %>%
   unpack(partial_bbar) %>% 
   ggplot(aes(v, -per_0.5, color = assigned_treatment)) +
   geom_line(show.legend = FALSE) + 
-  coord_cartesian(xlim = c(-1, 1)) +
+  coord_cartesian(xlim = v_lim) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors) +
-  labs(subtitle = "Rate-of-change of Take-up", y = bquote(frac(partialdiff ~ "E[Y]", partialdiff ~ bar(C)))) + # TeX("Change in $E\\[Y(z,\\bar{b})\\]$")) +
+  labs(subtitle = "Rate-of-change of Take-up", y = TeX(r"{$\frac{\partial E\[Y\]}{\partial c}$}")) +  
   theme(legend.position = "right") +
   NULL
 
@@ -1120,7 +1209,7 @@ plot_grid(
 
 ## Effect on Social Multiplier and Take-up Rate-of-change
 
-```{r cost-mitig-diff, fig.width=7.5,fig.height=5.5}
+```{r cost-mitig-diff, fig.width=7.5,fig.height=5.5, dependson="load-processed-dist-fit"}
 diff_social_mult_v_plot <- dist_fit_data %>% 
   filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
   select(model, model_name, diff_y_rate_of_change, fit_type) %>% 
@@ -1131,8 +1220,8 @@ diff_social_mult_v_plot <- dist_fit_data %>%
   geom_line(show.legend = FALSE) + 
   geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
   geom_hline(yintercept = 0, linetype = "dotted") +
-  coord_cartesian(xlim = c(-1, 1)) +
-  labs(subtitle = "Social Multiplier Compared to Control Level", y = bquote(-frac(partialdiff ~ V^"*", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $V^*$")) +
+  coord_cartesian(xlim = v_lim) +
+  labs(subtitle = "Social Multiplier Compared to Control Level", y = TeX(r"{$-\frac{\partial v^*}{\partial c}$ Difference}")) + 
   theme(legend.position = "bottom") +
   facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
   NULL
@@ -1147,8 +1236,8 @@ diff_takeup_partial_v_plot <- dist_fit_data %>%
   geom_line(show.legend = FALSE) + 
   geom_hline(yintercept = 0, linetype = "dotted") +
   geom_ribbon(aes(ymin = -per_0.1, ymax = -per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
-  coord_cartesian(xlim = c(-1, 1)) +
-  labs(subtitle = "Rate-of-change of Take-up Compared to Control Level", y = bquote(frac(partialdiff ~ "E[Y]", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $E\\[Y(z,\\bar{b})\\]$")) +
+  coord_cartesian(xlim = v_lim) +
+  labs(subtitle = "Rate-of-change of Take-up Compared to Control Level", y = TeX(r"{$\frac{\partial E\[Y\]}{\partial c}$ Difference}")) + 
   facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
   NULL
 
@@ -1162,6 +1251,7 @@ plot_grid(
   align = "h", axis = "b",
   ncol = 1
 )
+
 ```
 
 # Conclusion
