@@ -169,18 +169,20 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
     as_tibble()
 }
 
-extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment", "none"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "none"), by_treatment = FALSE, mix = FALSE, summarize_est = TRUE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- stan_data$analysis_data
   
   iter_level <- rlang::arg_match(iter_level)
   
-  obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
+  # obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
+  obs_index_col <- if (iter_level != "none") "obs_index"
+  
+  if (by_treatment) obs_index_col %<>% c("treatment_index") 
+  if (mix) obs_index_col %<>% c("mix_index", .) 
   
   fit_data <- tryCatch(
     fit %>% 
       as.array(par = par) %>% 
-      #   if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
-      # } %>% 
       plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
                                                                               ess_tail = ess_tail(cell),
                                                                               rhat = Rhat(cell),)) %>%  
@@ -188,46 +190,50 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
       as_tibble(),
     error = function(err) NULL)
   
-  # fit_data <- tryCatch(
-  #   as.data.frame(fit, par = par) %>%
-  #     mutate(iter_id = seq_len(n())) %>%
-  #     gather(indices, iter_est, -iter_id),
-  #   error = function(err) NULL)
-   
   if (is_null(fit_data)) return(NULL) 
   
-  if (iter_level == "none") {
+  if (iter_level == "none" && !by_treatment) {
     fit_data %>% 
       select(-parameters) 
   } else {
-    fit_data %>% 
+    extracted <- fit_data %>% 
       tidyr::extract(parameters, 
-                     if (mix) c("mix_index", obs_index_col) else obs_index_col, 
-                     if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
-                     convert = TRUE) %>% 
-      # tidyr::extract(indices, 
-      #                if (mix) c("mix_index", obs_index_col) else obs_index_col, 
-      #                if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
-      #                convert = TRUE) %>% 
-      # group_by_at(vars(obs_index_col, one_of("mix_index"))) %>% 
-      # group_nest(.key = "iter_data") %>% 
-      # ungroup() %>% 
-      mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
-             quantiles_est = map(iter_data, quantilize_est, 
-                                 iter_est,
-                                 quant_probs = quant_probs),
-             assigned_treatment = switch(iter_level,
-                                         cluster = stan_data$cluster_assigned_treatment,
-                                         obs = stan_data$assigned_treatment,
-                                         treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment))), 
-             assigned_dist_standard = switch(iter_level,
-                                             cluster = stan_data$cluster_standard_dist,
-                                             obs = stan_data$standard_dist,
-                                             treatment = NULL),
-             assigned_dist = switch(iter_level,
-                                    cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
-                                    obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
-                                    treatment = NULL))
+                     obs_index_col, 
+                     str_c(rep_along(obs_index_col, r"{(\d+)}"), collapse = ","),
+                     convert = TRUE)
+    
+    if (summarize_est) {
+      extracted %<>% 
+        mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
+               quantiles_est = map(iter_data, quantilize_est, 
+                                   iter_est,
+                                   quant_probs = quant_probs))
+    }
+    
+    if (by_treatment) {
+      extracted %<>% 
+        mutate(
+          assigned_treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
+          assigned_dist_standard = NULL,
+          assigned_dist = NULL 
+        )
+        
+    } else {
+      extracted %<>% 
+        mutate(
+          assigned_treatment = switch(iter_level,
+                                      cluster = stan_data$cluster_assigned_treatment,
+                                      obs = stan_data$assigned_treatment),
+          assigned_dist_standard = switch(iter_level,
+                                          cluster = stan_data$cluster_standard_dist,
+                                          obs = stan_data$standard_dist),
+          assigned_dist = switch(iter_level,
+                                 cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
+                                 obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot)),
+        )
+    }
+    
+    return(extracted)
   }
 }
 
@@ -510,6 +516,10 @@ social_multiplier <- function(v, mu) {
 expect_y_partial_bbar <- function(v, mu, sigma) {
   - dnorm(v, sd = sigma) * social_multiplier(v, mu) 
 }
+
+# expect_y_partial_d <- function(v, mu, sigma, ) {
+#   expect_y_partial_bbar(v, mu, sigma)
+# }
 
 # Constants ---------------------------------------------------------------
 

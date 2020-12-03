@@ -34,13 +34,9 @@ parameters {
   vector<lower = 0>[suppress_shocks ? 0 : num_shocks - 1] ub_ur_sd;
   cholesky_factor_corr[suppress_shocks ? 0 : num_shocks] L_all_u_corr;
   
-  // matrix[use_mu_cluster_effects && !suppress_reputation ? num_clusters : 0, num_treatments] mu_cluster_effects_raw;
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
-  // row_vector<lower = 0>[use_mu_cluster_effects && !suppress_reputation ? num_treatments : 0] mu_cluster_effects_sd;
   row_vector<lower = 0>[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_cluster_effects_sd;
   
-  // matrix[use_mu_county_effects && !suppress_reputation ? num_counties : 0, num_treatments] mu_county_effects_raw;
-  // row_vector<lower = 0>[use_mu_county_effects && !suppress_reputation ? num_treatments : 0] mu_county_effects_sd;
   matrix[!use_mu_county_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_counties, num_treatments] mu_county_effects_raw;
   row_vector<lower = 0>[!use_mu_county_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_county_effects_sd;
   
@@ -80,7 +76,7 @@ transformed parameters {
   vector[num_clusters] structural_cluster_benefit_cost;
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
-  
+ 
   row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = mu_rep_raw;
   matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
   
@@ -94,6 +90,7 @@ transformed parameters {
   vector[num_dist_group_treatments] linear_dist_cost = rep_vector(0, num_dist_group_treatments);
   vector[num_dist_group_treatments] quadratic_dist_cost = rep_vector(0, num_dist_group_treatments);
   matrix[num_clusters, num_dist_group_treatments] cluster_linear_dist_cost = rep_matrix(0, num_clusters, num_dist_group_treatments);
+  matrix[num_clusters, num_dist_group_treatments] cluster_quadratic_dist_cost = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_treatments, num_knots_v] u_splines_v = rep_matrix(0, num_treatments, num_knots_v);
   vector[num_clusters] cluster_dist_cost = rep_vector(0, num_clusters);
   
@@ -174,6 +171,14 @@ transformed parameters {
     
     if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
       quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_dist_group_treatments) + dist_quadratic_beta_salience * append_col(mu_rep, mu_rep)';
+      
+      if (use_param_dist_cluster_effects) {
+        // TODO
+      }
+      
+      if (use_param_dist_county_effects) {
+        // TODO
+      }
     }
   } else {
     if (use_single_cost_model) {
@@ -189,6 +194,14 @@ transformed parameters {
       
       if (num_treatments_param_quadratic > 0) {
         quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_dist_group_treatments);
+        
+        if (use_param_dist_cluster_effects) {
+          // TODO
+        }
+        
+        if (use_param_dist_county_effects) {
+          // TODO
+        }
       }
     } else {
       linear_dist_cost = treatment_map_design_matrix * append_row(append_row(dist_beta_v, 0), dist_beta_v[2:]);
@@ -203,10 +216,19 @@ transformed parameters {
       
       if (num_treatments_param_quadratic > 0) {
         quadratic_dist_cost = treatment_map_design_matrix * append_row(append_row(dist_quadratic_beta_v, 0), dist_quadratic_beta_v[2:]);
+        
+        if (use_param_dist_cluster_effects) {
+          // TODO
+        }
+        
+        if (use_param_dist_county_effects) {
+          // TODO
+        }
       }
     }
     
     cluster_linear_dist_cost += rep_matrix(linear_dist_cost', num_clusters);
+    cluster_quadratic_dist_cost += rep_matrix(quadratic_dist_cost', num_clusters);
   } 
   
   if (use_semiparam) {
@@ -221,7 +243,7 @@ transformed parameters {
     
   cluster_dist_cost = param_dist_cost(cluster_standard_dist, 
                                       to_vector(cluster_linear_dist_cost)[long_cluster_by_treatment_index],
-                                      quadratic_dist_cost[cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]],
+                                      to_vector(cluster_quadratic_dist_cost)[long_cluster_by_treatment_index],
                                       u_splines_v[cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]],
                                       Z_splines_v[cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]]);
   
@@ -426,13 +448,20 @@ model {
   }
 }
 
-generated quantities { 
+generated quantities {
+  matrix[num_clusters, num_dist_group_treatments] structural_cluster_benefit = 
+        rep_matrix(structural_treatment_effect', num_clusters) + 
+        (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix';
+  
   matrix[num_shocks, num_shocks] all_u_corr;
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   matrix[generate_sim ? num_grid_obs : 0, num_treatments] sim_benefit_cost; 
+
+  // vector[num_sim_sm_v] iter_social_multiplier;
+  // vector[num_sim_sm_v] iter_partial_bbar;
   
   // Cross Validation
   vector[use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs] log_lik = 
@@ -456,15 +485,11 @@ generated quantities {
       
       treatment_dist_cost = param_dist_cost(cf_cluster_standard_dist[, curr_assigned_dist_group], // cluster_standard_dist, 
                                             cluster_linear_dist_cost[, treatment_index],
-                                            rep_vector(quadratic_dist_cost[treatment_index], num_clusters),
+                                            cluster_quadratic_dist_cost[, treatment_index],
                                             u_splines_v[rep_array(curr_assigned_treatment, num_clusters)],
                                             Z_splines_v[rep_array(curr_assigned_treatment, num_clusters)]);
                                                                  
-      cluster_cf_benefit_cost[treatment_index] =
-        // Not using "restricted" design matrix because restrictions are only on the top-level parameters not village and county level effects
-        (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix[treatment_index]'
-        + rep_vector(structural_treatment_effect[treatment_index], num_clusters) 
-        - treatment_dist_cost;
+      cluster_cf_benefit_cost[treatment_index] = structural_cluster_benefit[, treatment_index] - treatment_dist_cost;
     }
   }
   
@@ -629,7 +654,7 @@ generated quantities {
         
       rep_dist_cost = param_dist_cost([ cluster_standard_dist[cluster_index] ]', 
                                       [ rep_linear_dist_cost ]',
-                                      [ quadratic_dist_cost[cluster_assigned_dist_group_treatment[cluster_index]] ]',
+                                      [ quadratic_dist_cost[cluster_assigned_dist_group_treatment[cluster_index]] ]', // TODO rep_quadratic_dist_cost
                                       to_matrix(u_splines_v[curr_assigned_treatment]),
                                       to_matrix(Z_splines_v[curr_assigned_treatment]))[1];
       

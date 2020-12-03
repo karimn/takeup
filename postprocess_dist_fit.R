@@ -9,7 +9,7 @@ script_options <- docopt::docopt(
 "Usage:
   postprocess_dist_fit <fit-version>",
 
-  args = if (interactive()) "28" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -37,11 +37,12 @@ rm(dist_fit)
 
 # Metadata on the models fit
 model_info <- tribble(
-  ~ model,                         ~ model_name,                                ~ model_type,
+  ~ model,                          ~ model_name,                                ~ model_type,
   
-  "REDUCED_FORM_NO_RESTRICT",      "Reduced Form Discrete Cost",                "reduced form",
-  "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
-  "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
+  "REDUCED_FORM_NO_RESTRICT",       "Reduced Form Discrete Cost",                "reduced form",
+  "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
+  "STRUCTURAL_QUADRATIC_NO_SHOCKS", "Structural Quadratic Cost (No Shocks)",     "structural",
+  "STRUCTURAL_QUADRATIC_SALIENCE",  "Structural Quadratic Cost With Salience",   "structural",
   
   "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
@@ -54,6 +55,7 @@ thin_model <- c(
   "REDUCED_FORM_SEMIPARAM" = 1L,
   "STRUCTURAL_LINEAR" = 1L,
   "STRUCTURAL_QUADRATIC" = 1L,
+  "STRUCTURAL_QUADRATIC_NO_SHOCKS" = 1L,
   "STRUCTURAL_QUADRATIC_SALIENCE" = 4L
 )
 
@@ -82,35 +84,39 @@ error = function(err) {
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
 
-# Load cross-validation data
-load(file.path("data", "stan_analysis_data", str_interp("dist_kfold${fit_version}.RData")))
     
-dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
-  inner_join(select(model_info, model, model_type), by = "model") %>% 
-  mutate(
-    fit_type = factor("fit", levels = c("fit", "prior-predict")),
-    stacking_weight = map(kfold, pluck, "pointwise") %>% 
-      do.call(rbind, .) %>% 
-      t() %>% 
-      loo::stacking_weights(),
-    
-    kfold = set_names(kfold, model)
-  ) %>% 
-  group_by(model_type) %>% 
-  mutate(
-    stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
-      do.call(rbind, .) %>% 
-      t() %>% { 
-      tryCatch(loo::stacking_weights(.), error = function(err) NA)
-      }
-  ) %>% 
-  ungroup() %>% 
-  left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
-  left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
-  select(-one_of("model_type")) %>% 
-  mutate(across(where(~ is(.x, "stacking_weights")), as.numeric))
+dist_fit_data <- tryCatch({
+  # Load cross-validation data
+  load(file.path("data", "stan_analysis_data", str_interp("dist_kfold${fit_version}.RData")))
+  
+  enframe(dist_kfold, name = "model", value = "kfold") %>% 
+    inner_join(select(model_info, model, model_type), by = "model") %>% 
+    mutate(
+      fit_type = factor("fit", levels = c("fit", "prior-predict")),
+      stacking_weight = map(kfold, pluck, "pointwise") %>% 
+        do.call(rbind, .) %>% 
+        t() %>% 
+        loo::stacking_weights(),
+      
+      kfold = set_names(kfold, model)
+    ) %>% 
+    group_by(model_type) %>% 
+    mutate(
+      stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
+        do.call(rbind, .) %>% 
+        t() %>% { 
+        tryCatch(loo::stacking_weights(.), error = function(err) NA)
+        }
+    ) %>% 
+    ungroup() %>% 
+    left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
+    left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
+    select(-one_of("model_type")) %>% 
+    mutate(across(where(~ is(.x, "stacking_weights")), as.numeric))
 
-rm(dist_kfold)
+  rm(dist_kfold)
+},
+error = function(error) dist_fit_data)
 
 dist_fit_data %<>% 
   inner_join(select(model_info, model, model_type), by = "model") %>% 
@@ -169,7 +175,8 @@ prep_multiple_est <- function(accum_data, next_col) {
 }
 
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
-simulate_social_multiplier <- function(mu_rep, total_error_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
+simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
+                                       mu_rep, total_error_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
   if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
       select(assigned_treatment, iter_data) %>% 
@@ -266,7 +273,11 @@ dist_fit_data %<>%
   mutate(
     total_error_sd = map(fit, extract_obs_fit_level, par = "total_error_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
     
-    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs),
+    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs),
+    
+    cluster_linear_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_linear_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
+    cluster_quadratic_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_quadratic_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
+    structural_cluster_benefit = map(fit, extract_obs_fit_level, par = "cluster_cluster_benefit", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
     
     cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
       map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
@@ -298,7 +309,8 @@ dist_fit_data %<>%
             map(group_nest,  .key = "iter_data")) %>% 
       map(unnest, iter_data),
     
-    y_rate_of_change = pmap(lst(mu_rep, total_error_sd, fit_type), simulate_social_multiplier),
+    y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
+                                mu_rep, total_error_sd, fit_type), simulate_social_multiplier),
     
     est_takeup_level = map(cluster_cf_benefit_cost, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_benefit_cost, 
