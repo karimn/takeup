@@ -14,6 +14,39 @@ functions {
     return rep;
   }
   
+  
+  vector rep_normal_1std(vector v) {
+    int num_v = num_elements(v);
+    vector[num_v] result;
+   
+    for (v_index in 1:num_v) {
+      real phi_v = exp(std_normal_lpdf(v[v_index])); 
+      real Phi_v = Phi_approx(v[v_index]); 
+      real Phi_1mPhi_v = Phi_v * (1- Phi_v);
+      
+      result[v_index] = (phi_v / Phi_1mPhi_v^2) * (-(v[v_index] * Phi_1mPhi_v) + (phi_v * (2 * Phi_v - 1)));
+    } 
+    
+    return result;
+  }
+
+  vector social_multiplier(vector delta_1st, real mu) {
+    return - 1.0 ./ (1 + mu * delta_1st);
+  }
+
+  vector expect_y_partial_bbar(vector v, vector sm) {
+    int num_v = num_elements(v);
+    vector[num_v] result = sm;
+   
+    for (v_index in 1:num_v) {
+      real phi_v = exp(std_normal_lpdf(v[v_index])); 
+      
+      result[v_index] *= - phi_v; 
+    } 
+    
+    return result;
+  }
+  
   vector param_kappa_dist_cost(vector dist, vector k) {
     if (num_elements(k) == 1) {
       return (k[1] * square(dist)) / 2;
@@ -208,6 +241,9 @@ data {
   vector[num_grid_obs] grid_dist; // Simulation distances
   vector[num_small_grid_obs] small_grid_dist; // Simulation distances
   matrix[num_grid_obs, num_knots_v] Z_grid_v;
+  
+  // int<lower = 0> num_sim_sm_v;
+  // vector[num_sim_sm_v] sim_sm_v;
   
   // Prior hyperparameters
   
