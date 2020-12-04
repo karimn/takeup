@@ -31,8 +31,8 @@ parameters {
   real v_mu;
   
   row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
-  vector<lower = 0>[suppress_shocks ? 0 : num_shocks - 1] ub_ur_sd;
-  cholesky_factor_corr[suppress_shocks ? 0 : num_shocks] L_all_u_corr;
+  real<lower = 0> u_sd;
+  cholesky_factor_corr[suppress_shocks ? 0 : 2] L_all_u_corr;
   
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
   row_vector<lower = 0>[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_cluster_effects_sd;
@@ -96,8 +96,16 @@ transformed parameters {
   
   matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
   
-  matrix[num_shocks, num_shocks] L_all_u_vcov;
   real total_error_sd;
+  
+  if (!suppress_shocks) {
+    vector[2] all_u_sd = [ 1.0, u_sd ]';
+    matrix[2, 2] L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
+    matrix[2, 2] all_u_vcov = L_all_u_vcov * L_all_u_vcov'; 
+    total_error_sd = sqrt(sum(all_u_vcov));
+  } else {
+    total_error_sd = 1;
+  }
   
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
@@ -281,23 +289,14 @@ transformed parameters {
                                                                                     lambda_v_mix,
                                                                                     v_mix_mean,
                                                                                     1,
-                                                                                    v_mix_sd),
+                                                                                    v_mix_sd,
+                                                                                    u_sd),
                                                                { 0.0 },
-                                                               { num_v_mix }, 
+                                                               { num_v_mix, use_u_in_delta }, 
                                                                1e-10,
                                                                1e-5,
                                                                1e6)[1];
-                                                               
     }
-  }
-  
-  if (!suppress_shocks) {
-    vector[num_shocks] all_u_sd = append_row(1, ub_ur_sd);
-    
-    L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
-    total_error_sd = sqrt(sum(L_all_u_vcov * L_all_u_vcov'));
-  } else {
-    total_error_sd = 1;
   }
   
   for (mix_index in 1:num_v_mix) {
@@ -370,10 +369,11 @@ model {
     structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
   }
   
-  if (!suppress_shocks) {
-    ub_ur_sd ~ normal(0, 1);
-    L_all_u_corr ~ lkj_corr_cholesky(2);
-  }
+  u_sd ~ normal(0, 1);
+  L_all_u_corr ~ lkj_corr_cholesky(2);
+  
+  // if (!suppress_shocks) {
+  // }
   
   if (num_v_mix > 1) {
     v_mix_mean_diff ~ normal(0, 1);
@@ -453,15 +453,12 @@ generated quantities {
         rep_matrix(structural_treatment_effect', num_clusters) + 
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix';
   
-  matrix[num_shocks, num_shocks] all_u_corr;
+  matrix[2, 2] all_u_corr;
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   matrix[generate_sim ? num_grid_obs : 0, num_treatments] sim_benefit_cost; 
-
-  // vector[num_sim_sm_v] iter_social_multiplier;
-  // vector[num_sim_sm_v] iter_partial_bbar;
   
   // Cross Validation
   vector[use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs] log_lik = 
@@ -469,7 +466,7 @@ generated quantities {
   vector[use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs] log_lik_heldout = 
     rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs); 
     
-  if (num_shocks > 0) {
+  if (!suppress_shocks) {
     all_u_corr = L_all_u_corr * L_all_u_corr';
   }
   

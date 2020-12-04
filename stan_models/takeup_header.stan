@@ -6,7 +6,7 @@ functions {
     real rep = 0; 
     
     for (mix_index in 1:num_mix) {
-      real mix_Phi_v = Phi((v - mix_mean[mix_index]) / mix_sd[mix_index]);
+      real mix_Phi_v = Phi_approx((v - mix_mean[mix_index]) / mix_sd[mix_index]);
       
       rep += lambda[mix_index] * exp(normal_lpdf(v | mix_mean[mix_index], mix_sd[mix_index])) / (mix_Phi_v * (1 - mix_Phi_v));
     }
@@ -74,19 +74,47 @@ functions {
     return cost;
   }
   
-  vector v_fixedpoint_solution_normal(vector model_param, vector theta, real[] x_r, int[] x_i) {
+  real normal_density(real x,          // Function argument
+                    real xc,         // Complement of function argument
+                                     //  on the domain (defined later)
+                    real[] theta,    // parameters
+                    real[] x_r,      // data (real)
+                    int[] x_i) {     // data (integer)
+    real mu = theta[1];
+    real sigma = theta[2];
+  
+    return 1 / (sqrt(2 * pi()) * sigma) * exp(-0.5 * ((x - mu) / sigma)^2);
+  } 
+  
+  real expected_delta(real u, real xc, real[] theta, data real[] x_r, data int[] x_i) {
+    real cutoff = theta[1] - u;
+    real u_sd = theta[2];
+
+    // return reputational_returns_normal(v - u, [ 1 ]', [ 0 ]', [ 1 ]') * exp(normal_lpdf(u | 0, u_sd));
+    return exp(normal_lpdf(cutoff | 0, 1) - normal_lcdf(cutoff| 0, 1) - normal_lccdf(cutoff | 0, 1) + normal_lpdf(u | 0, u_sd));
+  }
+  
+  vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[] x_r, data int[] x_i) {
     real v_cutoff = model_param[1];
     
     real benefit_cost = theta[1];
     real mu = theta[2];
     
     int num_v_mix = x_i[1];
+    int use_u_in_delta = x_i[2];
     
     vector[num_v_mix] lambda = theta[3:(3 + num_v_mix - 1)];
     vector[num_v_mix] mix_mean = theta[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)];
     vector[num_v_mix] mix_sd = theta[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)];
+    real u_sd = theta[3 + 3 * num_v_mix]; 
     
-    return [ v_cutoff + benefit_cost + mu * reputational_returns_normal(v_cutoff, lambda, mix_mean, mix_sd) ]';
+    if (use_u_in_delta && u_sd > 0) {
+      real delta = integrate_1d(expected_delta, negative_infinity(), positive_infinity(), { v_cutoff, u_sd }, x_r, x_i, 0.01);
+
+      return [ v_cutoff + benefit_cost + mu * delta ]';
+    } else {
+      return [ v_cutoff + benefit_cost + mu * reputational_returns_normal(v_cutoff, lambda, mix_mean, mix_sd) ]';
+    }
   }
   
   real mixed_binomial_lpmf(int[] outcomes, vector lambda, int[] N, matrix prob) {
@@ -125,14 +153,15 @@ functions {
     return logp;
   }
   
-  vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd) {
+  vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real u_sd) { //, vector u_shocks) {
     int num_v_mix = num_elements(lambda);
-    vector[2 + 3 * num_v_mix] solver_theta;
+    vector[2 + 3 * num_v_mix + 1] solver_theta;
     
     solver_theta[1:2] = [ benefit_cost, mu_rep ]';
     solver_theta[3:(3 + num_v_mix - 1)] = lambda;
     solver_theta[(3 + num_v_mix):(3 + num_v_mix + num_v_mix - 1)] = append_row(v_mu, mix_mean);
     solver_theta[(3 + num_v_mix + num_v_mix):(3 + 3 * num_v_mix - 1)] = append_row(v_sd, mix_sd);
+    solver_theta[3 + 3 * num_v_mix] = u_sd; 
  
     return solver_theta; 
   }
@@ -164,6 +193,7 @@ functions {
     real u = uniform_rng(p, 1);
     return (sigma * inv_Phi(u)) + mu;  // inverse cdf for value
   }
+  
 }
 
 data {
@@ -198,6 +228,7 @@ data {
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> use_cost_model;
   int<lower = 0, upper = 1> suppress_reputation;
   int<lower = 0, upper = 1> suppress_shocks; 
+  int<lower = 0, upper = 1> use_u_in_delta;
   int<lower = 0, upper = 1> generate_rep;
   int<lower = 0, upper = 1> generate_sim;
   int<lower = 0, upper = 1> predict_prior;
@@ -301,9 +332,7 @@ transformed data {
   int num_treatments_param_quadratic = 0; 
   int num_treatments_semiparam = 0;
   
-  int<lower = 0> num_shocks = suppress_shocks ? 0 : (use_cost_model == COST_MODEL_TYPE_DISCRETE ? 2 : 3); // U_v, U_b, U_r: shocks to altruism, private benefits and reputational benefits
-  
-  vector[num_shocks] sim_grid_mu[num_grid_obs];
+  vector[2] sim_grid_mu[num_grid_obs];
   
   int<lower = 1, upper = num_clusters * num_dist_group_treatments> long_cluster_by_treatment_index[num_clusters];
   
@@ -315,7 +344,7 @@ transformed data {
             seq(1, num_clusters, 1));
   
   for (grid_index in 1:num_grid_obs) {
-    sim_grid_mu[grid_index] = rep_vector(0, num_shocks);
+    sim_grid_mu[grid_index] = rep_vector(0, 2);
   }
   
   if (use_single_cost_model || in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, 
