@@ -1,4 +1,8 @@
-#include /takeup_header.stan
+functions {
+#include takeup_functions.stan
+}
+
+#include takeup_header.stan
 
 parameters {
   // Levels: control ink calendar bracelet
@@ -235,9 +239,12 @@ transformed parameters {
       }
     }
     
-    cluster_linear_dist_cost += rep_matrix(linear_dist_cost', num_clusters);
-    cluster_quadratic_dist_cost += rep_matrix(quadratic_dist_cost', num_clusters);
+    // cluster_linear_dist_cost += rep_matrix(linear_dist_cost', num_clusters);
+    // cluster_quadratic_dist_cost += rep_matrix(quadratic_dist_cost', num_clusters);
   } 
+  
+  cluster_linear_dist_cost += rep_matrix(linear_dist_cost', num_clusters);
+  cluster_quadratic_dist_cost += rep_matrix(quadratic_dist_cost', num_clusters);
   
   if (use_semiparam) {
     for (treatment_index in 1:num_treatments_semiparam) {
@@ -281,6 +288,7 @@ transformed parameters {
     structural_cluster_obs_v = - structural_cluster_benefit_cost;
   } else {
     for (cluster_index in 1:num_clusters) {
+      
       structural_cluster_obs_v[cluster_index] = algebra_solver(v_fixedpoint_solution_normal,
                                                                [ - structural_cluster_benefit_cost[cluster_index] ]',
                                                                prepare_solver_theta(structural_cluster_benefit_cost[cluster_index], 

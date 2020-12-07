@@ -1,4 +1,8 @@
-#include /takeup_header.stan
+functions {
+#include takeup_functions.stan
+}
+
+#include takeup_header.stan
 
 parameters {
   // Levels: control ink calendar bracelet
