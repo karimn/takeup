@@ -410,55 +410,13 @@ models <- lst(
   #     suppress_reputation = suppress_reputation)) %>% 
   #   list_modify(!!!enum2stan_data(cost_model_types)),
   
-  STRUCTURAL_QUADRATIC_SALIENCE = lst(
-    model_type = 10,
-    model_file = "takeup_struct.stan",
-    control = lst(max_treedepth = 12, adapt_delta = 0.99),
-    num_v_mix = 1,
-    use_single_cost_model = TRUE,
-    use_cost_model = cost_model_types["param_quadratic_salience"],
-    use_private_incentive_restrictions = TRUE,
-    use_salience_effect = TRUE,
-    use_cluster_effects = TRUE,
-    use_county_effects = TRUE,
-    use_param_dist_cluster_effects = FALSE,
-    use_param_dist_county_effects = FALSE,
-    use_mu_cluster_effects = FALSE,
-    use_mu_county_effects = FALSE,
-    use_shifting_v_dist = FALSE,
-    suppress_reputation = FALSE,
-    suppress_shocks = FALSE,
-    
-    mu_rep_sd = 1,
-    structural_beta_county_sd_sd = 0.25,
-    structural_beta_cluster_sd_sd = 0.25,
-    
-    iter = 2000,
-    thin = 1,
-    init = generate_initializer(
-      num_treatments = num_treatments, 
-      num_clusters = num_clusters,
-      num_counties = num_counties,
-      structural_type = 1, 
-      num_mix = num_v_mix, 
-      use_cluster_effects = use_cluster_effects,
-      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
-      use_mu_cluster_effects = use_mu_cluster_effects,
-      restricted_private_incentive = use_private_incentive_restrictions,
-      cost_model_type = use_cost_model,
-      use_single_cost_model = TRUE,
-      num_knots = ncol(Z_osullivan),
-      name_matched = FALSE,
-      suppress_reputation = suppress_reputation)) %>% 
-    list_modify(!!!enum2stan_data(cost_model_types)),
-  
-  # STRUCTURAL_LINEAR_SALIENCE = lst(
+  # STRUCTURAL_QUADRATIC_SALIENCE = lst(
   #   model_type = 10,
   #   model_file = "takeup_struct.stan",
   #   control = lst(max_treedepth = 12, adapt_delta = 0.99),
   #   num_v_mix = 1,
   #   use_single_cost_model = TRUE,
-  #   use_cost_model = cost_model_types["param_linear_salience"],
+  #   use_cost_model = cost_model_types["param_quadratic_salience"],
   #   use_private_incentive_restrictions = TRUE,
   #   use_salience_effect = TRUE,
   #   use_cluster_effects = TRUE,
@@ -470,7 +428,11 @@ models <- lst(
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = FALSE,
   #   suppress_shocks = FALSE,
-  #   # simulate_new_data,
+  #   
+  #   mu_rep_sd = 1,
+  #   structural_beta_county_sd_sd = 0.25,
+  #   structural_beta_cluster_sd_sd = 0.25,
+  #   
   #   iter = 2000,
   #   thin = 1,
   #   init = generate_initializer(
@@ -489,6 +451,44 @@ models <- lst(
   #     name_matched = FALSE,
   #     suppress_reputation = suppress_reputation)) %>% 
   #   list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_LINEAR_SALIENCE = lst(
+    model_type = 10,
+    model_file = "takeup_struct.stan",
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
+    num_v_mix = 1,
+    use_single_cost_model = TRUE,
+    use_cost_model = cost_model_types["param_linear_salience"],
+    use_private_incentive_restrictions = TRUE,
+    use_salience_effect = TRUE,
+    use_cluster_effects = TRUE,
+    use_county_effects = TRUE,
+    use_param_dist_cluster_effects = FALSE,
+    use_param_dist_county_effects = FALSE,
+    use_mu_cluster_effects = FALSE,
+    use_mu_county_effects = FALSE,
+    use_shifting_v_dist = FALSE,
+    suppress_reputation = FALSE,
+    suppress_shocks = FALSE,
+    # simulate_new_data,
+    iter = 2000,
+    thin = 1,
+    init = generate_initializer(
+      num_treatments = num_treatments,
+      num_clusters = num_clusters,
+      num_counties = num_counties,
+      structural_type = 1,
+      num_mix = num_v_mix,
+      use_cluster_effects = use_cluster_effects,
+      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+      use_mu_cluster_effects = use_mu_cluster_effects,
+      restricted_private_incentive = use_private_incentive_restrictions,
+      cost_model_type = use_cost_model,
+      use_single_cost_model = TRUE,
+      num_knots = ncol(Z_osullivan),
+      name_matched = FALSE,
+      suppress_reputation = suppress_reputation)) %>%
+    list_modify(!!!enum2stan_data(cost_model_types)),
   
   REDUCED_FORM_NO_RESTRICT = lst(
     model_type = 10,
