@@ -316,6 +316,8 @@ generate_initializer <- function(num_treatments,
             array(rnorm(num_semiparam_treatments * num_knots, 0, 0.1), dim = c(num_semiparam_treatments, num_knots))
           },
           u_splines_v = u_splines_v_raw,
+         
+          u_sd = abs(rnorm(1, 0, 0.5)),
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -517,9 +519,10 @@ expect_y_partial_bbar <- function(v, mu, sigma) {
   - dnorm(v, sd = sigma) * social_multiplier(v, mu) 
 }
 
-# expect_y_partial_d <- function(v, mu, sigma, ) {
-#   expect_y_partial_bbar(v, mu, sigma)
-# }
+expect_y_partial_d <- function(v, mu, sigma, linear_dist_cost) {
+  expect_y_partial_bbar(v, mu, sigma) %>% 
+    multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size)))
+}
 
 # Constants ---------------------------------------------------------------
 
