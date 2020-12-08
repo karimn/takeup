@@ -1854,7 +1854,7 @@ wtp_stan_data <- analysis.data %>%
   prepare_bayes_wtp_data(
     wtp.data,
     
-    preference_value_diff = -seq(0, 100, 10), 
+    preference_value_diff = seq(-100, 100, 10), 
     num_preference_value_diff = length(preference_value_diff), 
     
     wtp_utility_df = 3,
