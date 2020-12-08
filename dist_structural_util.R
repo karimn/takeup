@@ -142,14 +142,23 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
   cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
     mutate(treatment_index = seq(n()))
   
-  fit %>% 
-    as.array(par = par) %>% {
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit %>% {
+    if (is_stanfit) {
+      as.array(par = par) 
+    } else {
+      .$draws(par)
+    }
+  } %>% {
       if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
+    } %>%  
+    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (is_stanfit && (thin > 1 || always_diagnose)) ess_bulk(cell), 
+                                                                            ess_tail = if (is_stanfit && (thin > 1 || always_diagnose)) ess_tail(cell),
+                                                                            rhat = if (is_stanfit && (thin > 1 || always_diagnose)) Rhat(cell),)) %>% {
+      if (is_stanfit) rename(., variable = parameters) else .
     } %>% 
-    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (thin > 1 || always_diagnose) ess_bulk(cell), 
-                                                                            ess_tail = if (thin > 1 || always_diagnose) ess_tail(cell),
-                                                                            rhat = if (thin > 1 || always_diagnose) Rhat(cell),)) %>% 
-    tidyr::extract(parameters, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
+    tidyr::extract(variable, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
     mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
            cluster_id = switch(iter_level,
                                cluster = cluster_id, 
@@ -180,24 +189,46 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
   if (by_treatment) obs_index_col %<>% c("treatment_index") 
   if (mix) obs_index_col %<>% c("mix_index", .) 
   
-  fit_data <- tryCatch(
-    fit %>% 
-      as.array(par = par) %>% 
-      plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
-                                                                              ess_tail = ess_tail(cell),
-                                                                              rhat = Rhat(cell),)) %>%  
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit_data <- tryCatch({
+    fit_data <- if (is_stanfit) {
+      fit %>% 
+        as.array(par = par) %>% 
+        plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
+                                                                                ess_tail = ess_tail(cell),
+                                                                                rhat = Rhat(cell),)) 
+    } else {
+      fit_data <- fit$draws(par) 
+      
+      if (length(dim(fit_data)) == 3) {
+        plyr::adply(fit_data, 3, function(cell) tibble(iter_data = list(cell))) 
+      } else {
+        tibble(iter_data = list(fit_data)) %>% 
+          mutate(variable = par)
+      }
+    }
+    
+    fit_data %>% 
       mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.))))) %>% 
-      as_tibble(),
-    error = function(err) NULL)
+      as_tibble()
+  }, error = function(err) NULL)
   
   if (is_null(fit_data)) return(NULL) 
   
   if (iter_level == "none" && !by_treatment) {
-    fit_data %>% 
-      select(-parameters) 
+    if (is_stanfit) {
+      fit_data %>% 
+        select(-parameters) 
+    } else {
+      fit_data %>% 
+        select(-variable)
+    }
   } else {
-    extracted <- fit_data %>% 
-      tidyr::extract(parameters, 
+    extracted <- fit_data %>% {
+      if (is_stanfit) rename(., variable = parameters) else .
+    } %>% 
+      tidyr::extract(variable, 
                      obs_index_col, 
                      str_c(rep_along(obs_index_col, r"{(\d+)}"), collapse = ","),
                      convert = TRUE)
@@ -370,7 +401,7 @@ generate_initializer <- function(num_treatments,
   } else return(NULL)
 }
 
-stan_list <- function(models_info, stan_data) {
+stan_list <- function(models_info, stan_data, use_cmdstanr = FALSE, include_paths = ".") {
   get_sample_file_name <- . %>% 
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
@@ -387,20 +418,40 @@ stan_list <- function(models_info, stan_data) {
       curr_stan_data <- stan_data %>%
         list_modify(!!!curr_model) %>%
         map_if(is.factor, as.integer)
-        
-      dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
       
-      fit <- sampling(
-        dist_model,
-        iter = if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter),
-        thin = (curr_stan_data$thin %||% 1),
-        chains = chains,
-        control = control,
-        save_warmup = FALSE,
-        refresh = 100,
-        pars = curr_model$pars,
-        init = curr_model$init %||% "random",
-        data = curr_stan_data)
+      
+      iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
+        
+      fit <- if (use_cmdstanr) {
+        dist_model <- cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
+        
+        dist_model$sample(
+          data = curr_stan_data %>% 
+            discard(~ is_function(.x) | is.character(.)) %>% 
+            list_modify(analysis_data = NULL),
+          chains = chains,
+          parallel_chains = chains, 
+          iter_warmup = iter %/% 2, 
+          iter_sampling = iter %/% 2, 
+          save_warmup = FALSE,
+          thin = (curr_stan_data$thin %||% 1),
+          init = curr_model$init,
+          adapt_delta = control$adapt_delta,
+          max_treedepth = control$max_treedepth
+        )
+      } else { 
+        stan_model(file.path("stan_models", curr_model$model_file)) %>% 
+          sampling(
+            iter = iter, 
+            thin = (curr_stan_data$thin %||% 1),
+            chains = chains,
+            control = control,
+            save_warmup = FALSE,
+            pars = curr_model$pars,
+            init = curr_model$init %||% "random",
+            data = curr_stan_data
+          )
+      }
       
       return(fit)
     }
@@ -420,13 +471,17 @@ stan_list <- function(models_info, stan_data) {
     }
   } else if (script_options$cv) {
     models_info %>% 
-      imap(function(curr_model, model_name, stan_data) {
+      imap(function(curr_model, model_name, stan_data, use_cmdstanr) {
         kfold_groups <- kfold_split_stratified(K = folds, x = stan_data$cluster_assigned_dist_group_treatment)
         
-        dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
+        dist_model <- if (use_cmdstanr) {
+          cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
+        } else {
+          stan_model(file.path("stan_models", curr_model$model_file))
+        }
         
         log_lik_list <- map(seq(folds), ~ which(kfold_groups == .)) %>% 
-          pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data) {
+          pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data, use_cmdstanr) {
             curr_stan_data <- stan_data %>%
               list_modify(!!!curr_model,
                           excluded_clusters = excluded_clusters,
@@ -436,20 +491,36 @@ stan_list <- function(models_info, stan_data) {
             curr_iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
             curr_chains <- chains
             
-            sampling(dist_model,
-                     iter = curr_iter,
-                     thin = thin_by,
-                     chains = curr_chains,
-                     control = lst(adapt_delta = 0.9),
-                     save_warmup = FALSE,
-                     refresh = 1000,
-                     init = curr_model$init %||% "random",
-                     pars = "log_lik_heldout", 
-                     data = curr_stan_data) %>% 
-              extract_log_lik("log_lik_heldout") 
+            if (use_cmdstanr) {
+              fit <- dist_model$sample(
+                data = curr_stan_data,
+                iter_warmup = curr_iter %/% 2,
+                iter_sampling = curr_iter %/% 2,
+                save_warmup = FALSE,
+                thin = thin_by,
+                chains = curr_chains,
+                parallel_chains = chains,
+                adapt_delta = 0.9,,
+                init = curr_model$init
+              )
+              
+              fit$draws("log_lik_heldout")
+            } else {
+              sampling(dist_model,
+                       iter = curr_iter,
+                       thin = thin_by,
+                       chains = curr_chains,
+                       control = lst(adapt_delta = 0.9),
+                       save_warmup = FALSE,
+                       init = curr_model$init %||% "random",
+                       pars = "log_lik_heldout", 
+                       data = curr_stan_data) %>% 
+                extract_log_lik("log_lik_heldout") 
+            }
           },
           dist_model = dist_model,
           stan_data = stan_data,
+          use_cmdstanr = use_cmdstanr,
           model_name = model_name,
           ignore.interactive = TRUE,
           mc.silent = !script_options$sequential,
@@ -461,7 +532,7 @@ stan_list <- function(models_info, stan_data) {
                           return(log_lik_list)
                         }))
       },
-      stan_data = stan_data) 
+      stan_data = stan_data, use_cmdstanr = use_cmdstanr) 
   }
 }
 
@@ -519,9 +590,13 @@ expect_y_partial_bbar <- function(v, mu, sigma) {
   - dnorm(v, sd = sigma) * social_multiplier(v, mu) 
 }
 
+expect_y_partial_c <- function(v, mu, sigma) {
+  dnorm(v, sd = sigma) * social_multiplier(v, mu) 
+}
+
 expect_y_partial_d <- function(v, mu, sigma, linear_dist_cost) {
-  expect_y_partial_bbar(v, mu, sigma) %>% 
-    multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size)))
+  expect_y_partial_c(v, mu, sigma) %>% 
+    multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size))) 
 }
 
 # Constants ---------------------------------------------------------------

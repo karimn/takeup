@@ -2,17 +2,19 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior]
-  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output]
+  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior --cmdstanr --include-paths=<paths>]
+  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths>]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
   --chains=<chains>  Number of Stan chains [default: 4]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
-  --thin=<thin>  Thin samples [default: 1]",
+  --thin=<thin>  Thin samples [default: 1]
+  --include-paths=<paths>  Includes path for cmdstanr [default: .]
+",
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "fit --sequential --outputname=dist_fit29 --models=5" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "fit --sequential --outputname=test --models=4 --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -21,11 +23,17 @@ library(parallel)
 library(pbmcapply)
 library(HRW)
 library(splines2)
-library(rstan)
 library(loo)
 
 options(mc.cores = 12)
-rstan_options(auto_write = TRUE)
+
+if (script_options$cmdstanr) {
+  library(cmdstanr)
+} else {
+  library(rstan)
+  
+  rstan_options(auto_write = TRUE)
+}
 
 folds <- as.integer(script_options$folds %||% 10) # CV k-folds
 chains <- as.integer(script_options$chains) # Stan chains
@@ -710,7 +718,23 @@ models <- if (!is_null(models_to_run)) {
 }
 
 if (script_options$fit) {
-  dist_fit <- models %>% stan_list(stan_data)
+  dist_fit <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+  
+  if (script_options$cmdstanr) {
+    dist_fit_obj <- dist_fit
+    
+    dist_fit %<>%
+      imap(~ file.path("data", "stan_analysis_data",  str_c(output_name, "_", .y, ".rds")))
+    
+    # BUG spaces in paths causing problems. Wait till it is fixed.
+    # iwalk(dist_fit_obj, ~ .x$save_output_files(dir = file.path("data", "stan_analysis_data"), basename = str_c(output_name, .y, sep = "_")))
+    
+    dist_fit_obj %>% 
+      iwalk(~ {
+        cat(.y, "Diagnosis ---------------------------------\n")
+        .x$cmdstan_diagnose()
+      })
+  }
   
   if (script_options$update_output) {
     new_dist_fit <- dist_fit
@@ -723,7 +747,14 @@ if (script_options$fit) {
     }, error = function(e) dist_fit)  
   }
 } else if (script_options$cv) {
-  dist_kfold <- models %>% stan_list(stan_data)
+  dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+  
+  if (script_options$cmdstanr) {
+    dist_kfold_obj <- dist_kfold
+    
+    dist_kfold %<>%
+      imap(~ file.path("data", "stan_analysis_data",  str_c(output_name, "_", .y, ".rds")))
+  }
   
   if (script_options$update_output) {
     new_dist_kfold <- dist_kfold
@@ -740,8 +771,15 @@ if (script_options$fit) {
 if (!script_options$no_save) {
   if (script_options$fit) {
     save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
+    
+    if (script_options$cmdstanr) {
+      walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
+    }  
   } else if (script_options$cv) {
     save(dist_kfold, models, file = output_file_name)
+    
+    if (script_options$cmdstanr) {
+      walk2(dist_kfold, dist_kfold_obj, ~ .y$save_object(.x))
+    }  
   }
 }
-
