@@ -1345,7 +1345,7 @@ prepare_bayes_wtp_data <- function(
               response = second_choice) %>%
     bind_rows(incentive_choice_data) %>%
     left_join(stratum_map, c("county" = "stratum")) %>% {
-      if (!is_null(cluster_map)) left_join(., cluster_map, "cluster.id") else return(.) 
+      if (!is_null(cluster_map)) left_join(., cluster_map, "cluster.id") else . 
     } %>%
     mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
            response = 2 * (response == "switch") - 1) %>% 
