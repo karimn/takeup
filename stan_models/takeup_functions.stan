@@ -102,9 +102,7 @@ vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[
   real u_sd = theta[3 + 3 * num_v_mix]; 
   
   if (use_u_in_delta && u_sd > 0) {
-    // return [ cutoff + benefit_cost + mu * expected_delta(cutoff, u_sd) ]';
-    reject("Not supported yet."); // BUG This is temporary because we still can't compile the above line.
-    return [ cutoff + benefit_cost + mu * reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd) ]';
+    return [ cutoff + benefit_cost + mu * expected_delta(cutoff, u_sd) ]';
   } else {
     return [ cutoff + benefit_cost + mu * reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd) ]';
   }
