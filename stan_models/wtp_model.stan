@@ -17,13 +17,17 @@ data {
   vector<lower = -1, upper = 1>[num_wtp_obs] wtp_response;
   
   vector<lower = 0>[num_wtp_obs] wtp_offer;
+ 
+  int<lower = 0> num_preference_value_diff;
+  vector[num_preference_value_diff] preference_value_diff;
 }
 
 transformed data {
-  row_vector<lower = 0, upper = 1>[num_strata] strata_prop = to_row_vector(wtp_strata_sizes) / sum(wtp_strata_sizes);
+  vector<lower = 0, upper = 1>[num_strata] strata_prop = to_vector(wtp_strata_sizes) / sum(wtp_strata_sizes);
   real strata_mu_student_df = 3;
   
   vector<lower = 0>[num_wtp_obs] scaled_wtp_offer = wtp_offer / max(wtp_offer);
+  vector[num_preference_value_diff] scaled_preference_value_diff = preference_value_diff / max(wtp_offer);
 }
 
 parameters {
@@ -74,8 +78,8 @@ model {
 }
 
 generated quantities {
-  real<lower = 0, upper = 1> prob_prefer_calendar;
-  vector<lower = 0, upper = 1>[num_strata] strata_prob_prefer_calendar;
+  vector<lower = 0, upper = 1>[num_preference_value_diff] prob_prefer_calendar;
+  matrix<lower = 0, upper = 1>[num_preference_value_diff, num_strata] strata_prob_prefer_calendar;
   
   // vector<lower = -1, upper = 1>[num_wtp_obs] sim_gift_choice;
   // vector<lower = -1, upper = 1>[num_wtp_obs] sim_wtp_response; 
@@ -87,7 +91,9 @@ generated quantities {
       int curr_stratum_size = wtp_strata_sizes[stratum_index];
       int stratum_end = stratum_pos + curr_stratum_size - 1;
       
-      strata_prob_prefer_calendar[stratum_index] = 1 - normal_cdf(0, strata_mu[stratum_index], sigma);
+      for (val_diff_index in 1:num_preference_value_diff) {
+        strata_prob_prefer_calendar[val_diff_index, stratum_index] = 1 - normal_cdf(scaled_preference_value_diff[val_diff_index], strata_mu[stratum_index], sigma);
+      }
      
       // for (i in 1:curr_stratum_size) { 
       //   real val_diff = student_t_rng(strata_student_df[stratum_index], strata_mu[stratum_index], strata_sigma[stratum_index]);
@@ -100,5 +106,5 @@ generated quantities {
     }
   }
   
-  prob_prefer_calendar = strata_prop * strata_prob_prefer_calendar;
+  prob_prefer_calendar =  strata_prob_prefer_calendar * strata_prop;
 }

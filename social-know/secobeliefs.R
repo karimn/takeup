@@ -122,39 +122,43 @@ secobeliefs_fit <- sampling(
   control = lst(adapt_delta = 0.9),
 )
 
+write_rds(secobeliefs_fit, file.path("data", "stan_analysis_data", "secobeliefs_fit.rds"))
+
 # Results -----------------------------------------------------------------
 
 secobeliefs_results <- lst(
-  prob_2ord = secobeliefs_fit %>% 
-    as.data.frame(pars = c("prob_2ord")) %>% 
+  prob_knows = secobeliefs_fit %>% 
+    as.data.frame(pars = c("prob_1ord", "prob_2ord")) %>% 
     mutate(iter_id = seq(n())) %>% 
     pivot_longer(-iter_id) %>% 
-    tidyr::extract(name, "treatment_id", r"{\[(\d+)\]}", convert = TRUE) %>% 
-    group_by(treatment_id) %>% 
+    tidyr::extract(name, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+    group_by(ord, treatment_id) %>% 
     summarize(
-      per = c(0.1, 0.25, 0.5, 0.75, 0.9),
+      per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
       per_val = quantile(value, per)
     ) %>% 
     ungroup() %>% 
-    pivot_wider(treatment_id, names_from = per, values_from = per_val, names_prefix = "per_") %>% 
-    right_join(treatment_map, ., by = "treatment_id"),
+    pivot_wider(c(treatment_id, ord), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
+    right_join(treatment_map, ., by = "treatment_id") %>% 
+    arrange(ord),
   
-  ate_2ord = secobeliefs_fit %>% 
-    as.data.frame(pars = c("ate_2ord")) %>% 
+  ate_knows = secobeliefs_fit %>% 
+    as.data.frame(pars = c("ate_1ord", "ate_2ord")) %>% 
     mutate(iter_id = seq(n())) %>% 
     pivot_longer(-iter_id) %>% 
-    tidyr::extract(name, "ate_pair_index", r"{\[(\d+)\]}", convert = TRUE) %>% 
-    group_by(ate_pair_index) %>% 
+    tidyr::extract(name, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+    group_by(ord, ate_pair_index) %>% 
     summarize(
-      per = c(0.1, 0.25, 0.5, 0.75, 0.9),
+      per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
       per_val = quantile(value, per)
     ) %>% 
     ungroup() %>% 
-    pivot_wider(ate_pair_index, names_from = per, values_from = per_val, names_prefix = "per_") %>% 
+    pivot_wider(c(ord, ate_pair_index), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
     right_join(mutate(ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
     right_join(treatment_map, ., by = c("treatment_id", "treatment_id_control")) %>% 
-    right_join(treatment_map, ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_left", "_right")) %>% 
-    select(-starts_with("treatment_id"), -ate_pair_index)
+    right_join(treatment_map, ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>% 
+    select(-starts_with("treatment_id"), -ate_pair_index) %>% 
+    arrange(ord)
 )
 
 write_rds(secobeliefs_results, file.path("data", "stan_analysis_data", "secobeliefs_results.rds"))

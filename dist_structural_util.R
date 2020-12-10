@@ -12,15 +12,19 @@ monitored_nosms_data <- analysis.data %>%
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
             by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
-         cluster_id = group_indices(., cluster.id))
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
 
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
             by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot),
-         cluster_id = group_indices(., cluster.id))
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
 
 # Model Classes -----------------------------------------------------------
 
@@ -138,14 +142,23 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
   cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
     mutate(treatment_index = seq(n()))
   
-  fit %>% 
-    as.array(par = par) %>% {
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit %>% {
+    if (is_stanfit) {
+      as.array(par = par) 
+    } else {
+      .$draws(par)
+    }
+  } %>% {
       if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
+    } %>%  
+    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (is_stanfit && (thin > 1 || always_diagnose)) ess_bulk(cell), 
+                                                                            ess_tail = if (is_stanfit && (thin > 1 || always_diagnose)) ess_tail(cell),
+                                                                            rhat = if (is_stanfit && (thin > 1 || always_diagnose)) Rhat(cell),)) %>% {
+      if (is_stanfit) rename(., variable = parameters) else .
     } %>% 
-    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (thin > 1 || always_diagnose) ess_bulk(cell), 
-                                                                            ess_tail = if (thin > 1 || always_diagnose) ess_tail(cell),
-                                                                            rhat = if (thin > 1 || always_diagnose) Rhat(cell),)) %>% 
-    tidyr::extract(parameters, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
+    tidyr::extract(variable, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
     mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
            cluster_id = switch(iter_level,
                                cluster = cluster_id, 
@@ -165,65 +178,93 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
     as_tibble()
 }
 
-extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "treatment", "none"), mix = FALSE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cluster", "none"), by_treatment = FALSE, mix = FALSE, summarize_est = TRUE, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- stan_data$analysis_data
   
   iter_level <- rlang::arg_match(iter_level)
   
-  obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
+  # obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
+  obs_index_col <- if (iter_level != "none") "obs_index"
   
-  fit_data <- tryCatch(
-    fit %>% 
-      as.array(par = par) %>% 
-      #   if (thin > 1) magrittr::extract(., (seq_len(nrow(.)) %% thin) == 0,,) else .
-      # } %>% 
-      plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
-                                                                              ess_tail = ess_tail(cell),
-                                                                              rhat = Rhat(cell),)) %>%  
+  if (by_treatment) obs_index_col %<>% c("treatment_index") 
+  if (mix) obs_index_col %<>% c("mix_index", .) 
+  
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit_data <- tryCatch({
+    fit_data <- if (is_stanfit) {
+      fit %>% 
+        as.array(par = par) %>% 
+        plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
+                                                                                ess_tail = ess_tail(cell),
+                                                                                rhat = Rhat(cell),)) 
+    } else {
+      fit_data <- fit$draws(par) 
+      
+      if (length(dim(fit_data)) == 3) {
+        plyr::adply(fit_data, 3, function(cell) tibble(iter_data = list(cell))) 
+      } else {
+        tibble(iter_data = list(fit_data)) %>% 
+          mutate(variable = par)
+      }
+    }
+    
+    fit_data %>% 
       mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.))))) %>% 
-      as_tibble(),
-    error = function(err) NULL)
+      as_tibble()
+  }, error = function(err) NULL)
   
-  # fit_data <- tryCatch(
-  #   as.data.frame(fit, par = par) %>%
-  #     mutate(iter_id = seq_len(n())) %>%
-  #     gather(indices, iter_est, -iter_id),
-  #   error = function(err) NULL)
-   
   if (is_null(fit_data)) return(NULL) 
   
-  if (iter_level == "none") {
-    fit_data %>% 
-      select(-parameters) 
+  if (iter_level == "none" && !by_treatment) {
+    if (is_stanfit) {
+      fit_data %>% 
+        select(-parameters) 
+    } else {
+      fit_data %>% 
+        select(-variable)
+    }
   } else {
-    fit_data %>% 
-      tidyr::extract(parameters, 
-                     if (mix) c("mix_index", obs_index_col) else obs_index_col, 
-                     if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
-                     convert = TRUE) %>% 
-      # tidyr::extract(indices, 
-      #                if (mix) c("mix_index", obs_index_col) else obs_index_col, 
-      #                if (mix) "(\\d+),(\\d+)" else "(\\d+)", 
-      #                convert = TRUE) %>% 
-      # group_by_at(vars(obs_index_col, one_of("mix_index"))) %>% 
-      # group_nest(.key = "iter_data") %>% 
-      # ungroup() %>% 
-      mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
-             quantiles_est = map(iter_data, quantilize_est, 
-                                 iter_est,
-                                 quant_probs = quant_probs),
-             assigned_treatment = switch(iter_level,
-                                         cluster = stan_data$cluster_assigned_treatment,
-                                         obs = stan_data$assigned_treatment,
-                                         treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment))), 
-             assigned_dist_standard = switch(iter_level,
-                                             cluster = stan_data$cluster_standard_dist,
-                                             obs = stan_data$standard_dist,
-                                             treatment = NULL),
-             assigned_dist = switch(iter_level,
-                                    cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
-                                    obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
-                                    treatment = NULL))
+    extracted <- fit_data %>% {
+      if (is_stanfit) rename(., variable = parameters) else .
+    } %>% 
+      tidyr::extract(variable, 
+                     obs_index_col, 
+                     str_c(rep_along(obs_index_col, r"{(\d+)}"), collapse = ","),
+                     convert = TRUE)
+    
+    if (summarize_est) {
+      extracted %<>% 
+        mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
+               quantiles_est = map(iter_data, quantilize_est, 
+                                   iter_est,
+                                   quant_probs = quant_probs))
+    }
+    
+    if (by_treatment) {
+      extracted %<>% 
+        mutate(
+          assigned_treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
+          assigned_dist_standard = NULL,
+          assigned_dist = NULL 
+        )
+        
+    } else {
+      extracted %<>% 
+        mutate(
+          assigned_treatment = switch(iter_level,
+                                      cluster = stan_data$cluster_assigned_treatment,
+                                      obs = stan_data$assigned_treatment),
+          assigned_dist_standard = switch(iter_level,
+                                          cluster = stan_data$cluster_standard_dist,
+                                          obs = stan_data$standard_dist),
+          assigned_dist = switch(iter_level,
+                                 cluster = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot),
+                                 obs = unstandardize(assigned_dist_standard, analysis_data$cluster.dist.to.pot)),
+        )
+    }
+    
+    return(extracted)
   }
 }
 
@@ -280,8 +321,8 @@ generate_initializer <- function(num_treatments,
         num_treatments <- if (cost_model_type %in% cost_model_types["discrete"]) num_treatments * num_discrete_dist else num_treatments
         
         init <- lst(
-          mu_rep_raw = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
-          mu_rep = if (suppress_reputation) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          mu_rep_raw = if (suppress_reputation && !salience) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          mu_rep = if (suppress_reputation && !salience) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           v_mu = rnorm(1, 0, 0.1),
           beta_control = rnorm(num_discrete_dist, 0, 0.1) %>% { if (num_discrete_dist > 1) as.array(.) else . }, 
           beta_ink_effect = rnorm(num_discrete_dist, 0, 0.1) %>% { if (num_discrete_dist > 1) as.array(.) else . },
@@ -306,6 +347,8 @@ generate_initializer <- function(num_treatments,
             array(rnorm(num_semiparam_treatments * num_knots, 0, 0.1), dim = c(num_semiparam_treatments, num_knots))
           },
           u_splines_v = u_splines_v_raw,
+         
+          u_sd = abs(rnorm(1, 0, 0.5)),
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -332,11 +375,15 @@ generate_initializer <- function(num_treatments,
           dist_beta_cluster_sd = if (!use_param_dist_cluster_effects) array(dim = 0) 
             else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1)))
             else abs(rnorm(num_treatments, 0, 0.1)),
-          mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_incentive_treatments)),
-          mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
-          mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_incentive_treatments)),
-          mu_county_effects_sd = if (use_mu_county_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
-          cluster_mu_rep = if (use_mu_cluster_effects && !suppress_reputation) matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE) else array(0, num_treatments),
+          # mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_incentive_treatments)),
+          # mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          # mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_incentive_treatments)),
+          # mu_county_effects_sd = if (use_mu_county_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          mu_cluster_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments),
+          mu_cluster_effects_sd = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)) ,
+          mu_county_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) ,
+          mu_county_effects_sd = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
+          cluster_mu_rep = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(0, num_treatments) else matrix(mu_rep, num_clusters, num_treatments, byrow = TRUE),
           lambda_v_mix = rep(1 / num_mix, num_mix),
           v_mix_mean = as.array(0.1),
           v_sd = rbeta(1, 8, 1),
@@ -354,7 +401,7 @@ generate_initializer <- function(num_treatments,
   } else return(NULL)
 }
 
-stan_list <- function(models_info, stan_data) {
+stan_list <- function(models_info, stan_data, use_cmdstanr = FALSE, include_paths = ".") {
   get_sample_file_name <- . %>% 
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
@@ -371,20 +418,40 @@ stan_list <- function(models_info, stan_data) {
       curr_stan_data <- stan_data %>%
         list_modify(!!!curr_model) %>%
         map_if(is.factor, as.integer)
-        
-      dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
       
-      fit <- sampling(
-        dist_model,
-        iter = if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter),
-        thin = (curr_stan_data$thin %||% 1),
-        chains = chains,
-        control = control,
-        save_warmup = FALSE,
-        refresh = 100,
-        pars = curr_model$pars,
-        init = curr_model$init %||% "random",
-        data = curr_stan_data)
+      
+      iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
+        
+      fit <- if (use_cmdstanr) {
+        dist_model <- cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
+        
+        dist_model$sample(
+          data = curr_stan_data %>% 
+            discard(~ is_function(.x) | is.character(.)) %>% 
+            list_modify(analysis_data = NULL),
+          chains = chains,
+          parallel_chains = chains, 
+          iter_warmup = iter %/% 2, 
+          iter_sampling = iter %/% 2, 
+          save_warmup = FALSE,
+          thin = (curr_stan_data$thin %||% 1),
+          init = curr_model$init,
+          adapt_delta = control$adapt_delta,
+          max_treedepth = control$max_treedepth
+        )
+      } else { 
+        stan_model(file.path("stan_models", curr_model$model_file)) %>% 
+          sampling(
+            iter = iter, 
+            thin = (curr_stan_data$thin %||% 1),
+            chains = chains,
+            control = control,
+            save_warmup = FALSE,
+            pars = curr_model$pars,
+            init = curr_model$init %||% "random",
+            data = curr_stan_data
+          )
+      }
       
       return(fit)
     }
@@ -404,36 +471,56 @@ stan_list <- function(models_info, stan_data) {
     }
   } else if (script_options$cv) {
     models_info %>% 
-      imap(function(curr_model, model_name, stan_data) {
+      imap(function(curr_model, model_name, stan_data, use_cmdstanr) {
         kfold_groups <- kfold_split_stratified(K = folds, x = stan_data$cluster_assigned_dist_group_treatment)
         
-        dist_model <- stan_model(file.path("stan_models", curr_model$model_file))
+        dist_model <- if (use_cmdstanr) {
+          cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
+        } else {
+          stan_model(file.path("stan_models", curr_model$model_file))
+        }
         
         log_lik_list <- map(seq(folds), ~ which(kfold_groups == .)) %>% 
-          pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data) {
+          pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data, use_cmdstanr) {
             curr_stan_data <- stan_data %>%
               list_modify(!!!curr_model,
                           excluded_clusters = excluded_clusters,
                           num_excluded_clusters = length(excluded_clusters)) %>%
               map_if(is.factor, as.integer)
             
-            curr_iter <- if (script_options$`force-iter`) iter else (curr_stan_data$iter %||% iter)
+            curr_iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
             curr_chains <- chains
             
-            sampling(dist_model,
-                     iter = curr_iter,
-                     thin = thin_by,
-                     chains = curr_chains,
-                     control = lst(adapt_delta = 0.9),
-                     save_warmup = FALSE,
-                     refresh = 1000,
-                     init = curr_model$init %||% "random",
-                     pars = "log_lik_heldout", 
-                     data = curr_stan_data) %>% 
-              extract_log_lik("log_lik_heldout") 
+            if (use_cmdstanr) {
+              fit <- dist_model$sample(
+                data = curr_stan_data,
+                iter_warmup = curr_iter %/% 2,
+                iter_sampling = curr_iter %/% 2,
+                save_warmup = FALSE,
+                thin = thin_by,
+                chains = curr_chains,
+                parallel_chains = chains,
+                adapt_delta = 0.9,,
+                init = curr_model$init
+              )
+              
+              fit$draws("log_lik_heldout")
+            } else {
+              sampling(dist_model,
+                       iter = curr_iter,
+                       thin = thin_by,
+                       chains = curr_chains,
+                       control = lst(adapt_delta = 0.9),
+                       save_warmup = FALSE,
+                       init = curr_model$init %||% "random",
+                       pars = "log_lik_heldout", 
+                       data = curr_stan_data) %>% 
+                extract_log_lik("log_lik_heldout") 
+            }
           },
           dist_model = dist_model,
           stan_data = stan_data,
+          use_cmdstanr = use_cmdstanr,
           model_name = model_name,
           ignore.interactive = TRUE,
           mc.silent = !script_options$sequential,
@@ -445,7 +532,7 @@ stan_list <- function(models_info, stan_data) {
                           return(log_lik_list)
                         }))
       },
-      stan_data = stan_data) 
+      stan_data = stan_data, use_cmdstanr = use_cmdstanr) 
   }
 }
 
@@ -501,6 +588,15 @@ social_multiplier <- function(v, mu) {
 
 expect_y_partial_bbar <- function(v, mu, sigma) {
   - dnorm(v, sd = sigma) * social_multiplier(v, mu) 
+}
+
+expect_y_partial_c <- function(v, mu, sigma) {
+  dnorm(v, sd = sigma) * social_multiplier(v, mu) 
+}
+
+expect_y_partial_d <- function(v, mu, sigma, linear_dist_cost) {
+  expect_y_partial_c(v, mu, sigma) %>% 
+    multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size))) 
 }
 
 # Constants ---------------------------------------------------------------

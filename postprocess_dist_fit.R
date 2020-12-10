@@ -9,7 +9,7 @@ script_options <- docopt::docopt(
 "Usage:
   postprocess_dist_fit <fit-version>",
 
-  args = if (interactive()) "28" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -23,13 +23,21 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
-fit_version <- script_options$`fit-version`
-
+fit_version <- script_options$fit_version
 
 # Load Data ---------------------------------------------------------------
 
 # Stan fit 
 load(file.path("data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
+
+dist_fit %<>% 
+  map_if(is.character, read_rds)
+
+if (has_name(dist_fit, "value")) {
+  dist_fit_warnings <- dist_fit$warning
+  dist_fit %<>% 
+    list_modify(!!!.$value, value = NULL, warning = NULL)
+}
 
 # Convert to tibble with list column of fit objects
 dist_fit_data <- enframe(dist_fit, name = "model", value = "fit")
@@ -38,11 +46,15 @@ rm(dist_fit)
 
 # Metadata on the models fit
 model_info <- tribble(
-  ~ model,                         ~ model_name,                                ~ model_type,
+  ~ model,                          ~ model_name,                                ~ model_type,
   
-  "REDUCED_FORM_NO_RESTRICT",      "Reduced Form Discrete Cost",                "reduced form",
-  "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
-  "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
+  "REDUCED_FORM_NO_RESTRICT",       "Reduced Form",                              "reduced form",
+  "STRUCTURAL_LINEAR",              "Structural",                                "structural",
+  # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
+  # "STRUCTURAL_QUADRATIC_NO_SHOCKS", "Structural Quadratic Cost (No Shocks)",     "structural",
+  # "STRUCTURAL_LINEAR_NO_SHOCKS",    "Structural Linear Cost (No Shocks)",        "structural",
+  # "STRUCTURAL_QUADRATIC_SALIENCE",  "Structural Quadratic Cost With Salience",   "structural",
+  "STRUCTURAL_LINEAR_SALIENCE",     "Structural With Salience",                 "structural",
   
   "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
@@ -55,7 +67,9 @@ thin_model <- c(
   "REDUCED_FORM_SEMIPARAM" = 1L,
   "STRUCTURAL_LINEAR" = 1L,
   "STRUCTURAL_QUADRATIC" = 1L,
-  "STRUCTURAL_QUADRATIC_SALIENCE" = 4L
+  "STRUCTURAL_QUADRATIC_NO_SHOCKS" = 1L,
+  "STRUCTURAL_QUADRATIC_SALIENCE" = 4L,
+  "STRUCTURAL_LINEAR_SALIENCE" = 1L
 )
 
 dist_fit_data %<>% 
@@ -83,34 +97,41 @@ error = function(err) {
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
 
-# Load cross-validation data
-load(file.path("data", "stan_analysis_data", str_interp("dist_kfold${fit_version}.RData")))
     
-dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
-  inner_join(select(model_info, model, model_type), by = "model") %>% 
-  mutate(
-    fit_type = factor("fit", levels = c("fit", "prior-predict")),
-    stacking_weight = map(kfold, pluck, "pointwise") %>% 
-      do.call(rbind, .) %>% 
-      t() %>% 
-      loo::stacking_weights(),
-    
-    kfold = set_names(kfold, model)
-  ) %>% 
-  group_by(model_type) %>% 
-  mutate(
-    stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
-      do.call(rbind, .) %>% 
-      t() %>% { 
-      tryCatch(loo::stacking_weights(.), error = function(err) NA)
-      }
-  ) %>% 
-  ungroup() %>% 
-  left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
-  left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
-  select(-one_of("model_type"))
+dist_fit_data <- tryCatch({
+  # Load cross-validation data
+  load(file.path("data", "stan_analysis_data", str_interp("dist_kfold${fit_version}.RData")))
+  
+  dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
+    inner_join(select(model_info, model, model_type), by = "model") %>% 
+    mutate(
+      fit_type = factor("fit", levels = c("fit", "prior-predict")),
+      stacking_weight = map(kfold, pluck, "pointwise") %>% 
+        do.call(rbind, .) %>% 
+        t() %>% 
+        loo::stacking_weights(),
+      
+      kfold = set_names(kfold, model)
+    ) %>% 
+    group_by(model_type) %>% 
+    mutate(
+      stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
+        do.call(rbind, .) %>% 
+        t() %>% { 
+        tryCatch(loo::stacking_weights(.), error = function(err) NA)
+        }
+    ) %>% 
+    ungroup() %>% 
+    left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
+    left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
+    select(-one_of("model_type")) %>% 
+    mutate(across(where(~ is(.x, "stacking_weights")), as.numeric))
 
-rm(dist_kfold)
+  rm(dist_kfold)
+  
+  return(dist_fit_data)
+},
+error = function(error) dist_fit_data)
 
 dist_fit_data %<>% 
   inner_join(select(model_info, model, model_type), by = "model") %>% 
@@ -123,7 +144,6 @@ observed_takeup <- monitored_nosms_data %>%
             prop_takeup_ub = prop_takeup + se,
             prop_takeup_lb = prop_takeup - se) %>% 
   ungroup()
-
 
 # Functions ---------------------------------------------------------------
 
@@ -170,9 +190,8 @@ prep_multiple_est <- function(accum_data, next_col) {
 }
 
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
-simulate_social_multiplier <- function(mu_rep, total_error_sd, fit_type) {
-  multiplier_v_range <- seq(-2, 2, 0.25) # Simulated values for v^*, used calculate reputational multiplier effect 
-  
+simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
+                                       mu_rep, total_error_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
   if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
       select(assigned_treatment, iter_data) %>% 
@@ -181,18 +200,21 @@ simulate_social_multiplier <- function(mu_rep, total_error_sd, fit_type) {
       left_join(total_error_sd %>% 
                   select(iter_data) %>% 
                   unnest(iter_data),
-                by = "iter_id", suffix = c("_mu", "_sd"))
-    
+                by = "iter_id", suffix = c("_mu", "_sd")) %>% 
+      left_join(rename(cluster_linear_dist_cost, cluster_linear_dist_cost_data = cluster_data), by = "iter_id")
+   
     multiplier_v_range %>% 
       map_df(~ mu_sd %>% 
                mutate(
                  v = .x,
                  iter_prob_takeup = pnorm(v, sd = iter_est_sd, lower.tail = FALSE),  
                  iter_social_multiplier = social_multiplier(v, iter_est_mu),
-                 iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_sd)
+                 iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_sd),
+                 iter_partial_d = expect_y_partial_d(v, iter_est_mu, iter_est_sd, cluster_linear_dist_cost_data) 
                ) %>% 
-      nest(iter_data = c(iter_id, iter_est_mu, iter_est_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar))) %>% 
-      reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), prep_multiple_est, .init = .)
+      select(-cluster_linear_dist_cost_data) %>%  
+      nest(iter_data = c(iter_id, iter_est_mu, iter_est_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d))) %>% 
+      reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
   } 
 }
 
@@ -269,14 +291,29 @@ dist_fit_data %<>%
   mutate(
     total_error_sd = map(fit, extract_obs_fit_level, par = "total_error_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
     
-    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "treatment", mix = FALSE, quant_probs = quant_probs),
+    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs),
+    
+    cluster_linear_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_linear_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
+    cluster_quadratic_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_quadratic_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
+    structural_cluster_benefit = map(fit, extract_obs_fit_level, par = "structural_cluster_benefit", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
+    
+    across(c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), left_join, stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = c("obs_index" = "cluster_id")),
+    across(
+      c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), 
+      ~ select(.x, cluster_index = obs_index, cluster_size, treatment_index, assigned_treatment, iter_data) %>% 
+        unnest(iter_data) %>% 
+        nest(cluster_data = -iter_id)
+    ), 
+    
+    y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
+                                mu_rep, total_error_sd, fit_type), simulate_social_multiplier),
     
     cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
       map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
       map(mutate, iter_data = map(iter_data, unnest, iter_data)) %>% 
       lst(benefit_cost = ., 
           mu_rep, 
-          total_error_sd = map_if(total_error_sd, ~ !is_null(.x), select, -rhat, -starts_with("ess")) %>% 
+          total_error_sd = map_if(total_error_sd, ~ !is_null(.x), select, -any_of(c("rhat", "ess_bulk", "ess_tail"))) %>% 
             map_if(~ !is_null(.x), unnest, iter_data)) %>%
       pmap(join_benefit_cost_mu_error_sd) %>% 
       map(
@@ -300,8 +337,6 @@ dist_fit_data %<>%
       map(mutate, iter_data = map(iter_data, group_by_at, vars(treatment_index, matches("^(mu_)?assigned_(treatment|dist_group)$"), obs_num_takeup)) %>%  
             map(group_nest,  .key = "iter_data")) %>% 
       map(unnest, iter_data),
-    
-    y_rate_of_change = pmap(lst(mu_rep, total_error_sd, fit_type), simulate_social_multiplier),
     
     est_takeup_level = map(cluster_cf_benefit_cost, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_benefit_cost, 
@@ -343,19 +378,20 @@ if (has_name(dist_fit_data, "stacking_weight")) {
       
       y_rate_of_change = list(
         reduce2(.$y_rate_of_change, .$stacking_weight_by_type, rate_of_change_stack_reducer, .init = tibble()) %>% 
-          reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar), prep_multiple_est, .init = .)
+          reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
       ) 
     ) 
 }
 
 dist_fit_data %<>%
-  right_join(select(model_info, model, model_name), by = "model") %>% 
+  inner_join(select(model_info, model, model_name), by = "model") %>% 
   mutate(model = factor(model, levels = model_info$model)) %>% 
   arrange(model)
 
 # Select all the estimate differences that need to be calculated
 ate_combo <- dist_fit_data %>% 
-  filter(fct_match(model, "STRUCTURAL_QUADRATIC")) %$%
+  # filter(fct_match(model, "STRUCTURAL_QUADRATIC")) %$%
+  filter(fct_match(model, "STRUCTURAL_LINEAR")) %$%
   select(est_takeup_level[[1]], mu_assigned_treatment:assigned_dist_group) %>% {
     bind_cols(rename_all(., str_c, "_left"), rename_all(., str_c, "_right"))
   } %>% {
@@ -426,9 +462,10 @@ dist_fit_data %<>%
             map(mutate, 
                 iter_diff_prob_takeup = iter_prob_takeup_left - iter_prob_takeup_right,
                 iter_diff_social_multiplier = iter_social_multiplier_left - iter_social_multiplier_right,
-                iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right)) %>% 
+                iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right,
+                iter_diff_partial_d = iter_partial_d_left - iter_partial_d_right)) %>% 
       map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
-      map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar), prep_multiple_est, .init = .)), 
+      map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar, iter_diff_partial_d), prep_multiple_est, .init = .)), 
    
     # Calculate treatment effects based on distance 
     est_takeup_dist_te = est_takeup_te %>%
@@ -455,11 +492,17 @@ dist_fit_data %<>%
 group_dist_param <- dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), !is_null(fit), fct_match(model_type, "structural")) %>% 
   pull(fit) %>% 
-  first() %>% 
-  as.data.frame(pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-  sample_n(1500) %>% 
+  first() %>% {
+    if (is(., "stanfit")) {
+      as.data.frame(., pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) 
+    } else {
+      .$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        posterior::as_draws_df()
+    }
+  } %>% 
+  sample_n(min(nrow(.), 1500)) %>% 
   mutate(iter_id = seq(n())) %>% 
-  pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id) %>% 
+  pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) %>% 
   mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
 save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
