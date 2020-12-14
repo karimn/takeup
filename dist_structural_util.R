@@ -349,6 +349,8 @@ generate_initializer <- function(num_treatments,
           u_splines_v = u_splines_v_raw,
          
           u_sd = abs(rnorm(1, 0, 0.5)),
+          # u_sd = 0.01,
+          # test_w = 0.461662,
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
