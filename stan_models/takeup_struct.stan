@@ -4,7 +4,10 @@ functions {
 
 #include takeup_header.stan
 
+
 parameters {
+  // real test_w;
+  
   // Levels: control ink calendar bracelet
   real beta_control;
   real beta_ink_effect;
@@ -101,6 +104,9 @@ transformed parameters {
   matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
   
   real total_error_sd;
+  
+  // print("test_w = ", test_w, ", u_sd = ", u_sd, ", expected_delta(test_w, u_sd) = ", expected_delta(test_w, u_sd));
+  
   
   if (!suppress_shocks) {
     vector[2] all_u_sd = [ 1.0, u_sd ]';
@@ -288,22 +294,27 @@ transformed parameters {
     structural_cluster_obs_v = - structural_cluster_benefit_cost;
   } else {
     for (cluster_index in 1:num_clusters) {
-      
-      structural_cluster_obs_v[cluster_index] = algebra_solver(v_fixedpoint_solution_normal,
-                                                               [ - structural_cluster_benefit_cost[cluster_index] ]',
-                                                               prepare_solver_theta(structural_cluster_benefit_cost[cluster_index], 
-                                                                                    cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
-                                                                                    use_shifting_v_dist ? v_mu : 0,
-                                                                                    lambda_v_mix,
-                                                                                    v_mix_mean,
-                                                                                    1,
-                                                                                    v_mix_sd,
-                                                                                    u_sd),
-                                                               { 0.0 },
-                                                               { num_v_mix, use_u_in_delta }, 
-                                                               1e-10,
-                                                               1e-5,
-                                                               1e6)[1];
+      structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
+      // structural_cluster_obs_v[cluster_index] = algebra_solver(
+        v_fixedpoint_solution_normal,
+        [ - structural_cluster_benefit_cost[cluster_index] ]',
+        prepare_solver_theta(
+          structural_cluster_benefit_cost[cluster_index], 
+          cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
+          use_shifting_v_dist ? v_mu : 0,
+          lambda_v_mix,
+          v_mix_mean,
+          1,
+          v_mix_sd,
+          total_error_sd,
+          u_sd
+        ),
+        { 0.0 },
+        { num_v_mix, use_u_in_delta }, 
+        alg_sol_rel_tol, // 1e-10,
+        alg_sol_f_tol, // 1e-5,
+        alg_sol_max_steps
+      )[1];
     }
   }
   
