@@ -2,7 +2,7 @@
 title: |
     | Social Signaling and Prosocial Behavior
     | Experimental Evidence in Community Deworming in Kenya^[This study was funded by the Children's Investment Fund Foundation and implemented by Evidence Action. We thank Guillaume Kroll, the study's project manager; Arthur Baker, our research assistant; Doris Njomo and Rosemary Musuva for their qualitative research input during the study's pilot; Carol Nekesa and her implementation and data collection team; Ned Augenblick, Edward Miguel and Stefano DellaVigna for their research advice; Supreet Kaur, Dmitry Taubinsky, Seema Jayachandran, Nancy Qian and seminar participants at Berkeley, Northwestern Rookiefest, Oxford CSAE Conference 2018 and PacDev 2018 for helpful discussions and feedback; and Karen Levy and Grace Hollister for their advice and support. We received Internal Review Board clearance from the Kenya Medical Research Institute and the University of California Berkeley. The study pre-analysis plan was registered with the American Economic Association registry (<https://www.socialscienceregistry.org/trials/1643/history/17782>).]
-date: "January 2020"
+date: "December 2020"
 subtitle: "Please find the latest version of the paper [here](https://github.com/karimn/takeup/blob/master/takeup_workingpaper.pdf)"
 author:
 - Anne Karing^[Princeton University, `akaring@princeton.edu`.]
@@ -15,7 +15,7 @@ output:
     pandoc_args: "commonrmd.yaml"
     includes:
       in_header: takeup_workingpaper_header.sty
-abstract: "Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. Further, we exogenously vary the travel distance to treatment locations. To separate reputational utility from private consumption utility and social learning/salience, we combine experimental identification with a structural model's non-experimental identification. We find that (1) bracelets as signals increase deworming take-up by roughly 13 percent, net the private consumption and learning/salience effects; (2) there is no detectable effect for the ink signal, which we attribute to its private disutility which outweighs any reputational utility from signaling; (3) adults are highly sensitive to distance but signaling treatments see little change; (4) the rate-of-change in take-up in response to increased distance is negligibly small compared against the control.  Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision."
+abstract: "Can social image concerns motivate adults to internalize health externalities? In collaboration with the Kenyan Government, we implement a new community program that offers free deworming treatment to 200,000 adults and emphasizes the public good aspect of deworming. Importantly, we randomize the introduction of two types of social signals in the form of colorful bracelets and ink applied to the thumb. The bracelets and ink allow adults to signal that they contributed to protecting their community from worms. Further, we exogenously vary the travel distance to treatment locations. To separate reputational utility from private consumption utility and social learning/salience, we combine experimental identification with a structural model's non-experimental identification. We find that (1) bracelets as signals increase deworming take-up by roughly 13 percent, net the private consumption and learning/salience effects; (2) there is no detectable effect for the ink signal, which we attribute to its private disutility which outweighs any reputational utility from signaling; (3) adults are highly sensitive to distance; (4) the rate-of-change in take-up in response to distance is potentially high, playing an important role in mitigating the effect of increasing costs.  Detailed survey data on first and second-order beliefs shed light on the underlying mechanism: signals reduce information asymmetries, and adults are more likely to think that others have information about their deworming decision."
 nocite: |
   @R
 urlcolor: blue
@@ -58,8 +58,6 @@ knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackag
 
 read_chunk(purl("takeup_analysis2.Rmd")) 
 
-# read_chunk(purl("takeup_bayesian_analysis.Rmd")) 
-
 options(dplyr.show_progress = FALSE, digits = 4, knitr.kable.NA = '')
 
 opts_chunk$set(echo = FALSE, warning = FALSE, 
@@ -93,10 +91,52 @@ load(file.path("data", "takeup_village_pot_dist.RData"))
 
 ```{r load-analysis-data}
 load(file.path("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+analysis_data <- monitored_nosms_data
+```
+
+```{r load-beliefs-model-results}
+beliefs_results <- read_rds(file.path("data", "stan_analysis_data", "secobeliefs_results.rds")) %>% 
+  map(mutate, across(starts_with("assigned.treatment"), fct_relabel, str_to_title)) %>% 
+  map(mutate, across(starts_with("assigned.treatment"), fct_relevel, "Bracelet", "Ink", "Calendar", "Control")) 
 ```
 
 ```{r load-processed-dist-fit, cache=TRUE}
-load(file.path("temp-data", "processed_dist_fit28.RData"))
+
+load(file.path("data", "stan_analysis_data", "dist_fit29.RData"))
+
+# If using cmdstanr 
+dist_fit %<>% 
+  map_if(is.character, read_rds)
+
+if (has_name(dist_fit, "value")) {
+  dist_fit_warnings <- dist_fit$warning
+  dist_fit %<>% 
+    list_modify(!!!.$value, value = NULL, warning = NULL)
+}
+
+load(file.path("temp-data", "processed_dist_fit29.RData"))
 
 dist_fit_data %<>% 
   left_join(distinct(., model) %>% 
@@ -340,7 +380,7 @@ For our analysis we build three models to investigate different aspects of the d
 
 <!-- TODO summarize results -->
 
-Averaging the three models' estimation, we find that bracelets have the strongest effect on deworming take-up, with 80% credible interval of `r bracelet_vs_control_ate_ci` percentage points increase, and in terms of (posterior) averages, a `r round(bracelet_vs_control_ate_mean/control_level_mean, 3) * 100` percent change. When compared against the calendar treatment we still see social effect of `r bracelet_vs_calendar_ate_ci` percentage points, a `r round(bracelet_vs_calendar_ate_mean/control_level_mean, 3) * 100` percent increase. For the second signaling treatment, ink, we found no detectable effect: our analysis did not yield an informative credible interval. Averaging over the two structural models, we find that the pure social signaling treatment effect of bracelets, compared to the control arm, is `r bracelet_vs_control_struct_ate_ci` percentage points, and for the ink treatment `r ink_vs_control_struct_ate_ci` percentage points. Ink does have a similar social signaling effect to bracelets, however, it appears to be cancelled out by its private disutility. Calendars are found to have a `r calendar_vs_control_ate_ci` percentage points effect combining all models, and `r calendar_vs_control_struct_ate_ci` percentage points social signaling effect. Both the disutility of ink and the signaling effect of calendars were unexpected. With respect to the effect of signals in response to increasing costs, we do not find that any of the treatments have a significantly different rate-of-change from the control arm, over the observed cost range of the experiment.
+Averaging the three models' estimation, we find that bracelets have the strongest effect on deworming take-up, with 80% credible interval of `r bracelet_vs_control_ate_ci` percentage points increase, and in terms of (posterior) averages, a `r round(bracelet_vs_control_ate_mean/control_level_mean, 3) * 100` percent change. When compared against the calendar treatment we still see social effect of `r bracelet_vs_calendar_ate_ci` percentage points, a `r round(bracelet_vs_calendar_ate_mean/control_level_mean, 3) * 100` percent increase. For the second signaling treatment, ink, we found no detectable effect: our analysis did not yield an informative credible interval. Averaging over the two structural models, we find that the pure social signaling treatment effect of bracelets, compared to the control arm, is `r bracelet_vs_control_struct_ate_ci` percentage points, and for the ink treatment `r ink_vs_control_struct_ate_ci` percentage points. Ink does have a similar social signaling effect to bracelets, however, it appears to be cancelled out by its private disutility. Calendars are found to have a `r calendar_vs_control_ate_ci` percentage points effect combining all models, and `r calendar_vs_control_struct_ate_ci` percentage points social signaling effect. Both the disutility of ink and the signaling effect of calendars were unexpected. With respect to the effect of signals in response to increasing costs, we do find that all the signaling treatments have a significantly different rate-of-change from the control arm, over the observed cost range of the experiment, albeit with relatively high uncertainty. This points to the possibility that signaling was able mitigate the negative effect of increasing costs (distance to deworming treatment).
 
 <!-- We then build a static and dynamic hierarchical Bayesian model to impute the counterfactuals necessary to estimate the partial effect of social signaling on deworming take-up decisions. Our Bayesian analysis allowed for the flexible construction of statistical models accounting for the complexity of the experiment in terms of the population studied and experimental treatment.[^why-bayes] This allowed us to manage the large number of treatment comparisons, using regularization, while allowing us to efficiently learn from the data using partial pooling [@Imbens2015;@Gelman2013a;@stan].^[Reduced form OLS regression analysis plots are included in Appendix A for comparison.] In the static model, we show that bracelets as signals meaningfully increase individuals' probability to deworm, and that these effects persist when also providing text message reminders and information about others' take-up decisions. Bracelets increase deworming take-up by 8.4 percentage points, a 24 percent increase compared to the control group. We find no detectable effect for the ink incentive, which we attribute to the lower visibility of ink and its strong association with voting in Kenya. Our experiment took place shortly before the presidential election in Kenya, which might have created suspicion among adults. The calendar incentive increased take-up only marginally by 2.7 percentage points. Its effect on take-up is one-third of that of bracelets, despite adults preferring the calendar as consumption item. Building a dynamic model, we explicitly account for potential salience and social learning effects that were introduced as individuals could observe other people's deworming decision. Same as in the static model with the text message treatment, we find no evidence that visibility of actions, through ink or bracelets, affected take-up decisions through reminders or social learning. Lastly, our distance treatment shows that adults are highly sensitive to increases in cost. An increase in the mean walking distance by 1 kilometer leads to a decline in take-up from 44 to 28 percent in the control group. We find that both signals have a larger impact on take-up at far distances, which is consistent with a model of social signaling where returns to signaling increase as signals are more informative about individuals' types.   -->
 
@@ -403,41 +443,41 @@ Community deworming and the context of Western Kenya provide an empirically rele
 
 # Theoretical Framework 
 
-We adapt Bénabou and Tirole's [-@Benabou2006;-@Benabou2012a] framework of prosocial behavior and social signaling to generate predictions and lay out testable assumptions that inform our experimental design. In this framework, individual $i$ decides to take a prosocial action $y_i \in \{0,1\}$ and values the inference that others will make about her type, based on her observed action:
+We adapt Bénabou and Tirole's [-@Benabou2006;-@Benabou2012a] framework of prosocial behavior and social signaling to generate predictions and lay out testable assumptions that inform our experimental design. In this framework, individual $i$ decides to take a prosocial action $y \in \{0,1\}$ and values the inference that others will make about her type, based on her observed action:
 
 \begin{align}
-U(y_i;v_i,x,\lambda) =  B(y_i;v_i) - C(y_i) + x\lambda E_{-i}(v|y_i) \label{equ:signal1}
+U(y;v,x,\lambda) =  B(y;v) - C(y) + x\lambda \mathrm{E}_{-i}[v\mid y] \label{equ:signal1}
 \end{align}
 
-In our context, $y_i$ is the decision to deworm or not deworm. Individuals differ in their intrinsic motivation $v_i$, which is their valuation to contribute to deworming or more generally the community's health. $v_i$ is drawn from the type distribution $G(v)$ which is assumed to be public knowledge. $v_i$ is known to individual $i$ but not observable to others. $B(y_i;v_i)$ denotes the private benefit of deworming, which is a function of $i$'s choice $y_i$ and $i$'s type. Deworming treatment is offered for free but adults have to incur a cost $C(y_i)$ of walking to a treatment location.^[We omit from the model $e\bar{a}$, that is, the utility that individuals derive from the externality benefits of deworming. Its inclusion does not affect predictions.]
+In our context, $y$ is the decision to deworm or not deworm. Individuals differ in their intrinsic motivation $v$, which is their valuation to contribute to deworming or more generally the community's health. $v$ is drawn from the type distribution $F(v)$ which is assumed to be public knowledge. $v$ is known to individual $i$ but not observable to others. $B(y;v)$ denotes the private benefit of deworming, which is a function of $i$'s choice $y$ and $i$'s type. Deworming treatment is offered for free but adults have to incur a cost $C(y)$ of walking to a treatment location.^[We omit from the model the utility that individuals derive from the externality benefits of deworming. Its inclusion does not affect predictions.]
 
-Ignoring the third term of the model, we have a simple maximization problem where individual $i$ chooses to deworm or not, by maximizing $U(y_i;v_i) = B(y_i;v_i) - C(y_i)$. Assuming that $B(y_i;v_i)$ is increasing and concave, and $C(y_i)$ is weakly convex, there is a unique function that maps for each individual $i$ her type $v_i$ to her optimal action: $y_i^{*} =y(v_i)$. Without loss of generality, assume that $\frac{\partial B(y_i;v_i)}{\partial v_i} > 0$, such that higher types receive greater utility from deworming.^[Formally $y > y^{'}$ if $v > v^{'}$, $\forall v, v^{'}$.] 
+Ignoring the third term of the model, we have a simple maximization problem where individual $i$ chooses to deworm or not, by maximizing $U_i(y;v) = B(y;v) - C(y)$. Assuming that $B(y;v)$ is increasing and concave, and $C(y)$ is weakly convex, there is a unique function that maps for each individual $i$ her type $v$ to her optimal action: $y^{*} = y(v)$. Without loss of generality, assume that $\frac{\partial B(y;v)}{\partial v} > 0$, such that higher types receive greater utility from deworming.^[Formally $y > y^{'}$ if $v > v^{'}$, $\forall v, v^{'}$.] 
 
-The key part of the model is the third term, the reputational benefits and costs associated with the expectations that others, indexed by $-i$, will form about $i$'s type as actions become visible. Let $x \in [0,1]$ denote the probability that others observe $i$'s choice. The parameter $\lambda$ measures how much individual $i$ cares about the expectations that others form about her. Following the literature, I assume that $\lambda\geq 0$ given that deworming is socially desirable. In equilibrium, different types choose different actions, leading others to form expectations about $i$'s type conditional on the action observed, that is, $E_{-i}(v| y_i = 0)$ or $E_{-i}(v| y_i = 1)$. Importantly, the expectations of others enter directly into $i$'s utility as expressed in equation \ref{equ:signal1}. Following the logic of Bénabou and Tirole [-@Benabou2006;-@Benabou2012a] there exists a unique set of actions under visibility such that each individual chooses an action, given the equilibrium actions of all other individuals. This equilibrium is characterized by the cut-off type $v^*$ (who is indifferent between choosing the optimal $y_i^{*}=0$ without visibility and deviating to $y_i^{*}=1$) and the reputational returns which solve the fixed-point equation:
+The key part of the model is the third term, the reputational benefits and costs associated with the expectations that others will form about $i$'s type as actions become visible. Let $x \in [0,1]$ denote the probability that others observe $i$'s choice. The parameter $\lambda$ measures how much individual $i$ cares about the expectations that others form about her. Following the literature, we assume that $\lambda\geq 0$ given that deworming is socially desirable. In equilibrium, different types choose different actions, leading others to form expectations about $i$'s type conditional on the action observed, that is, $\mathrm{E}_{-i}[v \mid y = 0]$ or $\mathrm{E}_{-i}[v \mid y = 1]$. Importantly, the expectations of others enter directly into $i$'s utility as expressed in equation \ref{equ:signal1}. Following the logic of Bénabou and Tirole [-@Benabou2006;-@Benabou2012a] there exists a unique set of actions under visibility such that each individual chooses an action, given the equilibrium actions of all other individuals. This equilibrium is characterized by the cut-off type $v^*$ (who is indifferent between choosing the optimal $y^{*}=0$ without visibility and deviating to $y^{*}=1$) and the reputational returns which solve the fixed-point equation:
 
 \begin{align}
-U(y_i^{*}=1) - U(y_i^{*}=0) = \underbrace{B(y_i^{*}=1;v^*) - C(y_i^{*}=1)}_{\text{Difference in direct benefits}} + \underbrace{x\lambda \Delta(v^*)}_{\text{Reputational returns }} = 0  \label{equ:signal2}
+\underbrace{B(1;v^*) - C(1)}_{\text{Difference in direct benefits}} + \underbrace{x\lambda \Delta[v^*]}_{\text{Net reputational returns }} = 0  \label{equ:signal2}
 \end{align}
 
-where^[To make the link between types and actions more transparent, note that $\expect{v| y_i^{*}=1} - \expect{v|y_i^{*}=0} = \expect{v| v \geq v^*} - \expect{v| v < v^*}$.]  \[\Delta(v^*)= \underbrace{\expect{v| y^{*}_{i} =1} - \expect{v|y_i^{*} =0}}_{\text{Difference in the average type based on \bf{observed} \rm actions}}.\] 
-Given our previous assumption $\frac{\partial B(y_i;v_i)}{\partial v_i} > 0$, in equilibrium individuals with higher types will be more likely to take-up deworming treatment than those with lower types.^[It is relatively straight-forward: Suppose, for the sake of contradiction, that there exists an equilibrium in which the action taken by $v, v^{'}$ with $v > v^{'}$ is $a < a^{'}$. By definition the third term concerning other people's inferences, given actions, is the same for all types v. Consequently, if a lower type $v$ prefers to take the action $y^{'}$ instead of $y$, then it must be that a higher type must also prefer the action. That contradicts the initial supposition that they higher type prefers $y$ to $y^{'}$.]
+where^[To make the link between types and actions more transparent, note that $\mathrm{E}_{-i}[v \mid y^{*}=1] - \mathrm{E}_{-i}[v|y^{*}=0] = \mathrm{E}_{-i}[v| v \geq v^*] - \mathrm{E}[v| v < v^*]$.]  \[\Delta[v^*]= \underbrace{\mathrm{E}_{-i}[v \mid y^{*} =1] - \mathrm{E}_{-i}[v\mid y^{*} =0]}_{\mathclap{\textrm{Difference in the average type based on \bf{observed} \rm actions}}}.\] 
+Given our previous assumption $\frac{\partial B(y;v)}{\partial v} > 0$, in equilibrium individuals with higher types will be more likely to take-up deworming treatment than those with lower types.^[It is relatively straight-forward: Suppose, for the sake of contradiction, that there exists an equilibrium in which the action taken by $v, v^{'}$ with $v > v^{'}$ is $y < y^{'}$. By definition the third term concerning other people's inferences, given actions, is the same for all types v. Consequently, if a lower type $v$ prefers to take the action $y^{'}$ instead of $y$, then it must be that a higher type must also prefer the action. That contradicts the initial supposition that they higher type prefers $y$ to $y^{'}$.]
 
-\noindent \bf{Prediction 1.} \rm \it{If it is socially desirable to deworm and individuals care about their reputation (i.e., $\expect{v|y_i=1} > \expect{v|y_i=0}$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x$), the larger the increase in take-up.} \rm \\
+\noindent \bf{Prediction 1.} \rm \it{If it is socially desirable to deworm and individuals care about their reputation (i.e., $\mathrm{E}_{-i}[v\mid y=1] > \mathrm{E}_{-i}[v\mid y=0]$ and $\lambda >0$), deworming take-up will be higher when individuals can signal their participation. The greater the visibility of actions ($x$), the larger the increase in take-up.} \rm \\
 
 \begin{itemize}
 \renewcommand\labelitemi{*}
 \item \bf{Assumption and mechanism: }\rm \it{Signals increase the visibility of deworming decisions and reduce (perceived) information asymmetries.}\rm \\
 \end{itemize} 
 
-\noindent The framework further provides insights into how changes in cost affect equilibrium take-up. Following Bénabou and Tirole [-@Benabou2012a], we assume that the type distribution $G(v)$ has finite support $V \equiv [v_{\text{max}},v_{\text{min}} ]$ and a continuously differentiable density $g(v) > 0$. For simplicity, define the equilibrium take-up level of deworming treatment as a function of the cost $c$ as $y(c) = 1-G(v^*(c))$, with its derivative $\frac{d y(c)}{d c} = -g(v^*) \frac{\partial v^*}{\partial c}$. Further, we assume that cost enter individuals' utility function linearly and that the type distribution is unimodal.^[If the type distribution is uniform, reputational returns will be constant, such that a change in $c$ has the same effect on take-up as in the no visibility case.] In the absence of visibility ($x=0$), a one unit increase in $c$ will reduce take-up by $g(v^*)$. As actions become visible (asssume $x=1$), there is an indirect effect ($\sim$ _social multiplier_) of cost on take-up through reputational returns: 
+\noindent The framework further provides insights into how changes in cost affect equilibrium take-up. Following Bénabou and Tirole [-@Benabou2012a], we assume that the type distribution $F(v)$ has finite support $V \equiv [v_{\text{max}},v_{\text{min}} ]$ and a continuously differentiable density $f(v) > 0$. For simplicity, define the equilibrium take-up level of deworming treatment as a function of the cost $c$ as $\bar{y}(c) = 1-F(v^*(c))$, with its derivative $\frac{\mathrm{d} \bar{y}(c)}{\mathrm{d} c} = -f(v^*) \frac{\partial v^*}{\partial c}$. Further, we assume that cost enter individuals' utility function linearly and that the type distribution is unimodal.^[If the type distribution is uniform, reputational returns will be constant, such that a change in $c$ has the same effect on take-up as in the no visibility case.] In the absence of visibility ($x=0$), a one unit increase in $c$ will reduce take-up by $f(v^*)$. As actions become visible (asssume $x=1$), there is an indirect effect ($\sim$ _social multiplier_) of cost on take-up through reputational returns: 
 
 \begin{align}
-\frac{\partial v^*}{\partial c} = \frac{1}{1 + r^{'}(v^*)} \label{eq:social-mult-theory}
+-\frac{\partial v^*}{\partial c} = \frac{-1}{1 + r^{'}(v^*)} \label{eq:social-mult-theory}
 \end{align}
 
-where $r^{'}(v^*) = x\lambda\Delta'(v^*)$ is the change in reputational returns, caused by a shift in the cut-off type $v^*$ through the change in cost. Reputational returns change as signals become more or less informative, that is, the difference between $\expect{v|v \geq v^*}$ and $\expect{v|v < v^*}$ increases or decreases:
+where $r^{'}(v^*) = x\lambda\Delta'[v^*]$ is the change in reputational returns, caused by a shift in the cut-off type $v^*$ through the change in cost. Reputational returns change as signals become more or less informative, that is, the difference between $\mathrm{E}_{-i}[v\mid v \geq v^*]$ and $\mathrm{E}_{-i}[v\mid v < v^*]$ increases or decreases:
 
-* If $r^{'}(v^*) <0$ i.e., $\frac{\partial \expect{v|v \geq v^*}}{\partial v^*} < \frac{\partial \expect{v|v <v^*}}{\partial v^*}$ the effect of an increase in cost on take-up will be amplified by a decrease in reputational returns, as signals become less informative. This is the case if take-up of deworming is high (``everyone but the worst people do it'') and increases in $c$ lower the pressure on those that do not deworm as the share of non-dewormers increases. 
+* If $r^{'}(v^*) <0$ i.e., $\frac{\partial \expect{v|v \geq v^*}}{\partial v^*} < \frac{\partial \expect{v|v <v^*}}{\partial v^*}$ the effect of an increase in cost on take-up will be amplified by a decrease in reputational returns, as signals become less informative. This is the case if take-up of deworming is high ("everyone but the worst people do it") and increases in $c$ lower the pressure on those that do not deworm as the share of non-dewormers increases. 
 * If $r^{'}(v^*) >0$ i.e., $\frac{\partial \expect{v|v \geq v^*}}{\partial v^*} > \frac{\partial \expect{v|v <v^*}}{\partial v^*}$ the effect of an increase in cost will be mitigated by an increase in reputational returns, as signals become more informative. This is the case if take-up of deworming is low and increases in $c$ increase the praise for those individuals that deworm.^[For there to be a unique equilibrium, we follow @Benabou2012a assuming that $1 + \lambda r^{'}(v_r^{*}) > 0$, which holds for $\lambda$ not too large.] 
 
 \noindent \bf{Prediction 2. }\rm \it{Changes in the cost of deworming (by causing changes in the take-up level of deworming treatment) lead to increases (decreases) in reputational returns, increasing (decreasing) the effect of signals and the share of individuals taking up deworming treatment.} \\
@@ -452,10 +492,114 @@ where $r^{'}(v^*) = x\lambda\Delta'(v^*)$ is the change in reputational returns,
 
 # Experimental Design 
 
+<!--   \begin{tikzpicture}[node distance=1cm, auto,] -->
+
+<!--     \node[county] (kakamega) at (-5, -2) {Kakamega County}; -->
+<!--     \node[county] (siaya) at (0, -2) {Siaya County}; -->
+<!--     \node[county] (busia) at (5, -2) {Busia County}; -->
+
+<!--     \node[punkt] (close) at (-2, -4) {Close} -->
+<!--       edge[greypil] (kakamega) -->
+<!--       edge[greypil] (busia) -->
+<!--       edge[pil] (siaya); -->
+<!--     \node[punkt] (far) at (2, -4) {Far} -->
+<!--       edge[greypil] (kakamega) -->
+<!--       edge[greypil] (busia) -->
+<!--       edge[pil] (siaya); -->
+
+<!--     \node[punkt] (control) at (-6, -6) {Control} -->
+<!--       edge[pil] (close) -->
+<!--       edge[pil] (far); -->
+<!--     \node[punkt] (ink) at (-2, -6) {Ink} -->
+<!--       edge[pil] (close) -->
+<!--       edge[pil] (far); -->
+<!--     \node[punkt] (calendar) at (2, -6) {Calendar} -->
+<!--       edge[pil] (close) -->
+<!--       edge[pil] (far); -->
+<!--     \node[punkt] (bracelet) at (6, -6) {Bracelet} -->
+<!--       edge[pil] (close) -->
+<!--       edge[pil] (far); -->
+
+<!--     \node[triangle, below=of ink] (village1) {} -->
+<!--       edge[pil] (ink); -->
+<!--     \node[triangle, left=0.25cm of village1] (village2) {} -->
+<!--       edge[pil] (ink); -->
+<!--     \node[triangle, right=0.75cm of village1] (village3) {} -->
+<!--       edge[pil] (ink); -->
+
+<!--     \node[triangle, below=of control] (village1-control) {} -->
+<!--       edge[pil] (control); -->
+<!--     \node[triangle, left=0.25cm of village1-control] (village2-control) {} -->
+<!--       edge[pil] (control); -->
+<!--     \node[triangle, right=0.75cm of village1-control] (village3-control) {} -->
+<!--       edge[pil] (control); -->
+
+<!--     \node[triangle, below=of calendar] (village1-calendar) {} -->
+<!--       edge[pil] (calendar); -->
+<!--     \node[triangle, left=0.25cm of village1-calendar] (village2-calendar) {} -->
+<!--       edge[pil] (calendar); -->
+<!--     \node[triangle, right=0.75cm of village1-calendar] (village3-calendar) {} -->
+<!--       edge[pil] (calendar); -->
+
+<!--     \node[triangle, below=of bracelet] (village1-bracelet) {} -->
+<!--       edge[pil] (bracelet); -->
+<!--     \node[triangle, left=0.25cm of village1-bracelet] (village2-bracelet) {} -->
+<!--       edge[pil] (bracelet); -->
+<!--     \node[triangle, right=0.75cm of village1-bracelet] (village3-bracelet) {} -->
+<!--       edge[pil] (bracelet); -->
+
+<!--      \path (village1) -- node[auto=false,font=\bf]{\ldots} (village3);  -->
+<!--      \path (village1-control) -- node[auto=false,font=\bf]{\ldots} (village3-control);  -->
+<!--      \path (village1-calendar) -- node[auto=false,font=\bf]{\ldots} (village3-calendar);  -->
+<!--      \path (village1-bracelet) -- node[auto=false,font=\bf]{\ldots} (village3-bracelet);  -->
+
+<!--     \node[popcircle, below=1.5cm of village2-control, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control-control) {} -->
+<!--       edge[pil] (village1-control); -->
+<!--     \node[popcircle, below=3.5cm of village3-control, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-control-1) {} -->
+<!--       edge[pil] (village1-control); -->
+<!--     \node[popcircle, right=0.25cm of phone-sms-control-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Reminders Only}}}] (phone-sms-control-control-2) {} -->
+<!--       edge[pil] (village1-control); -->
+<!--     \node[popcircle, right=0.25cm of phone-sms-control-control-2, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-control-3) {} -->
+<!--       edge[pil] (village1-control); -->
+
+<!--     \node[popcircle, below=1.5cm of village2, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control) {} -->
+<!--       edge[pil] (village1); -->
+<!--     \node[popcircle, below=3.5cm of village3, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-1) {} -->
+<!--       edge[pil] (village1); -->
+<!--     \node[popcircle, right=0.25cm of phone-sms-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-2) {} -->
+<!--       edge[pil] (village1); -->
+
+<!--     \begin{pgfonlayer}{background} -->
+<!--       \coordinate (strata top right) at (8, -1.1); -->
+<!--       \coordinate (strata bottom left) at (-8, -2.9); -->
+
+<!--       \node[expgroup={strata bottom left}{strata top right}, label={[yshift=0.5cm,xshift=6cm]below:{\bf Strata} (Counties)}] (stratabox) {}; -->
+<!--       %% \node[rotate=-30, anchor=south] at (stratabox.east) {}; -->
+
+<!--       \coordinate (villages top right) at (8, -7.1); -->
+<!--       \coordinate (villages bottom left) at (-8, -8.5); -->
+
+<!--       \node[expgroup={villages bottom left}{villages top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Clusters} (Villages)}] (villagesbox) {}; -->
+
+<!--       %%\node[rotate=-30, anchor=south] at (villagesbox.east) {{\bf Clusters}};  -->
+
+<!--       \coordinate (non-phone top right) at (8, -9); -->
+<!--       \coordinate (non-phone bottom left) at (-8, -10.52); -->
+
+<!--       \node[expgroup={non-phone bottom left}{non-phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Non Phone Owners}}] (non-phonebox) {}; -->
+
+<!--       %%\node[rotate=-30, anchor=south] at (non-phonebox.east) {{\bf Non Phone Owners}};  -->
+
+<!--       \coordinate (phone top right) at (8, -11); -->
+<!--       \coordinate (phone bottom left) at (-8, -13.3); -->
+
+<!--       \node[expgroup={phone bottom left}{phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Phone Owners}}] {}; -->
+<!--     \end{pgfonlayer} -->
+<!--   \end{tikzpicture} -->
+
 \begin{figure}
   \centering
   \begin{tikzpicture}[node distance=1cm, auto,]
-    
     \node[county] (kakamega) at (-5, -2) {Kakamega County};
     \node[county] (siaya) at (0, -2) {Siaya County};
     \node[county] (busia) at (5, -2) {Busia County};
@@ -515,21 +659,6 @@ where $r^{'}(v^*) = x\lambda\Delta'(v^*)$ is the change in reputational returns,
      \path (village1-calendar) -- node[auto=false,font=\bf]{\ldots} (village3-calendar); 
      \path (village1-bracelet) -- node[auto=false,font=\bf]{\ldots} (village3-bracelet); 
      
-    \node[popcircle, below=1.5cm of village2-control, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control-control) {}
-      edge[pil] (village1-control);
-    \node[popcircle, below=3.5cm of village3-control, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-control-1) {}
-      edge[pil] (village1-control);
-    \node[popcircle, right=0.25cm of phone-sms-control-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Reminders Only}}}] (phone-sms-control-control-2) {}
-      edge[pil] (village1-control);
-    \node[popcircle, right=0.25cm of phone-sms-control-control-2, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-control-3) {}
-      edge[pil] (village1-control);
-     
-    \node[popcircle, below=1.5cm of village2, label={below:{\footnotesize\bf{SMS Control}}}] (non-phone-sms-control) {}
-      edge[pil] (village1);
-    \node[popcircle, below=3.5cm of village3, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{SMS Control}}}] (phone-sms-control-1) {}
-      edge[pil] (village1);
-    \node[popcircle, right=0.25cm of phone-sms-control-1, label={[text depth=-2ex,text width=4cm,rotate=-35]right:{\footnotesize\bf{Social Info}}}] (phone-sms-control-2) {}
-      edge[pil] (village1);
      
     \begin{pgfonlayer}{background}
       \coordinate (strata top right) at (8, -1.1);
@@ -548,16 +677,14 @@ where $r^{'}(v^*) = x\lambda\Delta'(v^*)$ is the change in reputational returns,
       \coordinate (non-phone top right) at (8, -9);
       \coordinate (non-phone bottom left) at (-8, -10.52);
       
-      \node[expgroup={non-phone bottom left}{non-phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Non Phone Owners}}] (non-phonebox) {};
-      
       %%\node[rotate=-30, anchor=south] at (non-phonebox.east) {{\bf Non Phone Owners}}; 
       
       \coordinate (phone top right) at (8, -11);
       \coordinate (phone bottom left) at (-8, -13.3);
       
-      \node[expgroup={phone bottom left}{phone top right}, label={[yshift=0.5cm, xshift=6cm]below:{\bf Phone Owners}}] {};
     \end{pgfonlayer}
   \end{tikzpicture}
+  
   \label{fig:exp-design-diagram}
   \caption{Experiment Design: grey boxes identity the types of population units over which treatment was assigned. The study was stratified over counties (ellipses) and clustered over villages (triangles). Boxes identify cluster (village) level treatments while circles identify individual level treatments.}
 \end{figure}
@@ -662,7 +789,8 @@ Our main outcomes are deworming take-up and beliefs about individual and aggrega
 
 ## Compliance with Implementation Protocol
 
-```{r know-about-mda, warning=FALSE, fig.width=8, fig.height=6.5, fig.cap="Knowledge of RCT intervention."}
+```{r know-about-mda, message=FALSE, warning=FALSE, fig.width=8, fig.height=6.5, fig.cap="Knowledge of RCT intervention."}
+
 know.mda.cat.plot <- tribble(~ col.name,      ~ label,
         "know_deworm",    "Know about community-based MDA?",
         "treat_begin",    "Know when MDA starts?",
@@ -1037,6 +1165,7 @@ Before listing the estimands we will be analyzing, we need to describe the notat
 * $\overline{B} \in \mathbb{R}$, is the latent village-level private consumption benefit. 
 
 We will reserve uppercase letters for random variables and lowercase letters for fixed values. Potential outcomes will be expressed as $Y(z)$, indicating the outcome of $Z$ in response to the intervention $z$.  Subscripts $i, j$, and $k$ will be used to denote membership in households, villages, and clusters, respectively. In addition to the fixed value version of the above random variables ($z, g, d, y, \bar{y}$), we also have some others constants: 
+
 * $n_j$, the number of households in village $j$.
 * $N = \sum_j n_j$, the total number of households in the study.
 
@@ -1096,11 +1225,11 @@ where
 \tilde{\bar{Y}}_j(z,g) =
   \begin{cases} 
     \bar{y}_j & \text{if } Z_j = z \wedge G_j = g  \\
-    n_j \prob{Y_j(z,g) = 1} & \text{otherwise.}
+    n_j \expect{Y_j(z,g)} & \text{otherwise.}
   \end{cases} \label{eq:finite-sample-mean} 
 \end{align}
 
-If we use $\theta$ to generically represent the statistical parameters of our models, $\bf{X}$ as the matrix of all observed data $(z,g,y)$, and $\prob{\theta|\bf{X}}$ as the posterior distribution of $\theta$, we can write the posterior probability of any estimand as
+If we use $\theta$ to generically represent the statistical parameters of our models, $\bf{X}$ as the matrix of all observed data $(z,g,y)$, and $\prob{\theta|\bf{X}}$ as the posterior distribution of $\theta$, we can write the posterior mean of any estimand as
 \[ \expect*{\fsexpect{Y(z,g)}} = \int_\theta \frac{1}{N} \sum_j \tilde{\bar{Y}}(z,g;\theta_j) \prob{\theta|\bf{X}}\,\mathrm{d}\theta. \]
 $\tilde{\bar{Y}}(z,g;\theta_j)$ is the parametric version of equation \eqref{eq:finite-sample-mean}. Since we will be relying on Markov Chain Monte Carlo (MCMC) simulations [@stan] for out statistical inference we actually compute this posterior mean^[To calculate credibility intervals, we need to determine the quantiles needed from the $S$ simulations.] as
 \[ \expect*{\fsexpect{Y(z,g)}} \approx \frac{1}{S} \frac{1}{N} \sum_s \sum_j \tilde{\bar{Y}}_{js}(z,g), \]
@@ -1136,20 +1265,25 @@ For the structural models we will exploit our fine grained control over the mech
     \end{aligned} \label{eq:struct-estimand-2}
     \end{equation}
     
-In addition, we will estimate equation \eqref{eq:social-mult-theory}, the _social multiplier_, except in response to a change in cost, $\overline{C}$,
-\[ \frac{\partial V^*}{\partial \overline{C}} = - \frac{\partial V^*}{\partial \overline{B}} = \frac{1}{1 + r'(V^*)}, \]
-as well as the multiplier effect on take-up
-\[ \frac{\expect{Y}}{\partial \overline{C}} = \frac{\partial \expect{Y}}{\partial V^*} \frac{\partial V^*}{\partial \overline{C}} = - \frac{g(V^*)}{1 + r'(V^*)}, \]
+In addition, we will estimate equation \eqref{eq:social-mult-theory}, the _social multiplier_, except in response to a change in utility cost, 
+<!-- \[ -\frac{\partial v^*}{\partial d} = \frac{-C'(d)}{1 + r'(v^*)}, \] -->
+\[ -\frac{\partial v^*}{\partial c} = \frac{-1}{1 + r'(v^*)}, \]
+as well as the multiplier effect on take-up in terms of meter distance, $d$, to treatment location,
+<!-- \[ \frac{\expect{Y}}{\partial \overline{C}} = \frac{\partial \expect{Y}}{\partial V^*} \frac{\partial V^*}{\partial \overline{C}} = - \frac{g(V^*)}{1 + r'(V^*)}, \] -->
+\[ \frac{\expect{Y}}{\partial d} = \frac{\partial \expect{Y}}{\partial v^*} \frac{\partial v^*}{\partial d} = - f(V^*)\frac{C'(d)}{1 + r'(v^*)}, \]
 <!-- \[ \frac{\expect{Y}}{\partial \overline{C}} = \frac{\partial \expect{Y}}{\partial V^*} \frac{\partial V^*}{\partial \overline{C}} = - \frac{\phi(V^*; \sigma^\textrm{struct})}{1 + r'(V^*)}, \] -->
-where $g$ is the probability density function of the distribution of prosocial types, $V$. In order for us to be able to compare the change in $V^*$ or $\expect{Y}$ we need to hold fixed the value $C$ (or $\overline{B}$) such that the result $V^*$ is the same: we want to compare the effect of social signaling in response to change in cost/benefit from the same initial takeup-level or $V^*$. If we define $V^{*-1}(z,v)$ as function returning the level of $\overline{C}$ that would produce the cutoff $v$ when incentive/signal treatment is $z$. Thus,
-\begin{equation} 
-\frac{\partial V^*}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(z,v)}}\text{ and } \frac{\expect{Y}}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(z,v)}}, \label{eq:partials-at-value} 
-\end{equation}
-and to understand the causal effect of signals we will estimate the differences
+where $f$ is the probability density function of the distribution of prosocial types, $V$. In order for us to be able to compare the change in $v^*$ or $\expect{Y}$ we need to hold fixed the value $v^*$: we want to compare the effect of social signaling in response to change in net benefit from the same initial takeup-level or $v^*$.  
+<!-- Thus, -->
+<!-- If we define $V^{*-1}(z,v)$ as function returning the level of $\overline{C}$ that would produce the cutoff $v$ when incentive/signal treatment is $z$. -->
+<!-- \begin{equation}  -->
+<!-- \frac{\partial V^*}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(z,v)}}\text{ and } \frac{\expect{Y}}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(z,v)}}, \label{eq:partials-at-value}  -->
+<!-- \end{equation} -->
+
+To understand the causal effect of signals we will estimate the differences
 \begin{equation}
 \begin{aligned} 
-\frac{\partial V^*}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(z,v)}} &- \frac{\partial V^*}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(\textrm{control},v)}} \\
-\frac{\expect{Y}}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(z,v)}} &- \frac{\expect{Y}}{\partial \overline{C}}\Biggr|_{\substack{\overline{C}=V^{*-1}(\textrm{control},v)}},
+-\frac{\partial v^*}{\partial d}\Biggr|_{\substack{v^*=v}} &+ \frac{\partial v^*}{\partial d}\Biggr|_{\substack{v^*=v}} \\
+\frac{\expect{Y}}{\partial d}\Biggr|_{\substack{v^*=v}} &- \frac{\expect{Y}}{\partial d}\Biggr|_{\substack{v^*=v}},
 \end{aligned} \label{eq:partials-diff}
 \end{equation}
 where $z \in \{\textrm{bracelet, ink, calendar}\}$ and $v$ will be simulated representing a range from low to high levels of take-up.
@@ -1176,51 +1310,51 @@ where we use the notation $\beta_{1j}(z)$ to indicate the linear parameter for $
 \boldsymbol{\beta}_k &\sim \mathtt{Normal}\left(\boldsymbol{\beta}, \mathsf{diag}(\boldsymbol{\sigma}^\textrm{county})\right) \\
 \beta(\textrm{control}) &\sim \mathtt{Normal}\left(0, \tau(\textrm{control})\right) \\
 \beta(\textrm{ink}) &\sim \mathtt{Normal}\left(0, \tau(\textrm{ink})\right) \\
-\beta(\textrm{calendar}) &\sim \mathtt{HalfNormal}\left(0, \tau(\textrm{calendar})\right) \\
-\beta(\textrm{bracelet}) &\sim \mathtt{HalfNormal}\left(0, \tau(\textrm{bracelet})\right) \\
-\boldsymbol{\sigma}^\textrm{village} &\sim \mathtt{HalfNormal}\left(\bf{0}, \mathsf{diag}(\boldsymbol{\tau^\textrm{village}})\right) \\
-\boldsymbol{\sigma}^\textrm{county} &\sim \mathtt{HalfNormal}\left(\bf{0}, \mathsf{diag}(\boldsymbol{\tau^\textrm{county}})\right).
+\beta(\textrm{calendar}) &\sim \mathtt{Normal}^{+}\left(0, \tau(\textrm{calendar})\right) \\
+\beta(\textrm{bracelet}) &\sim \mathtt{Normal}^{+}\left(0, \tau(\textrm{bracelet})\right) \\
+\boldsymbol{\sigma}^\textrm{village} &\sim \mathtt{Normal}^{+}\left(\bf{0}, \mathsf{diag}(\boldsymbol{\tau^\textrm{village}})\right) \\
+\boldsymbol{\sigma}^\textrm{county} &\sim \mathtt{Normal}^{+}\left(\bf{0}, \mathsf{diag}(\boldsymbol{\tau^\textrm{county}})\right).
 \end{aligned} \label{eq:hier-beta-model}
 \end{equation}
 
-From equation \eqref{eq:P-Y-reduced} we can interpret the causal function of $Y$ to be
-\[y \leftarrow f_y(z,g;\boldsymbol{\beta}_j,u_y) = \mathbbm{1}(\beta_{0j} + \beta_{1j}(z) + \beta_{2j}(g) + \beta_{3j}(z,g) + u_y > 0),\]
-with $U_y \sim \mathtt{Normal}(0, 1)$. Figure \ref{dag:reduced} show the simple causal structure of this model.
+<!-- From equation \eqref{eq:P-Y-reduced} we can interpret the causal function of $Y$ to be -->
+<!-- \[y \leftarrow f_y(z,g;\boldsymbol{\beta}_j,u_y) = \mathbbm{1}(\beta_{0j} + \beta_{1j}(z) + \beta_{2j}(g) + \beta_{3j}(z,g) + u_y > 0),\] -->
+<!-- with $U_y \sim \mathtt{Normal}(0, 1)$. Figure \ref{dag:reduced} show the simple causal structure of this model. -->
 
-\begin{figure}
-\centering
-\begin{tikzpicture}
-  [
-    node distance=2cm,
-    line width=1.25,
-    every label/.append style={font=\Large},
-    observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm},
-    latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm},
-    latent-edge/.style={->,dashed},
-    place/.style={circle,draw=blue!50,fill=blue!20,thick,
-    inner sep=0pt,minimum size=6mm},
-    transition/.style={rectangle,draw=black!50,fill=black!20,thick,
-    inner sep=0pt,minimum size=4mm}
-  ]
+<!-- \begin{figure} -->
+<!-- \centering -->
+<!-- \begin{tikzpicture} -->
+<!--   [ -->
+<!--     node distance=2cm, -->
+<!--     line width=1.25, -->
+<!--     every label/.append style={font=\Large}, -->
+<!--     observed/.style={circle,fill=black,inner sep=0pt,minimum size=3mm}, -->
+<!--     latent/.style={circle,draw=black,inner sep=0pt,minimum size=3mm}, -->
+<!--     latent-edge/.style={->,dashed}, -->
+<!--     place/.style={circle,draw=blue!50,fill=blue!20,thick, -->
+<!--     inner sep=0pt,minimum size=6mm}, -->
+<!--     transition/.style={rectangle,draw=black!50,fill=black!20,thick, -->
+<!--     inner sep=0pt,minimum size=4mm} -->
+<!--   ] -->
 
-\node[observed] (Y) [label=right:$Y$] {};
-\node[latent] (U_Y) [label=above:$U_y$,above=of Y] {}
-  edge[latent-edge,->] (Y);
-\node[observed] (G) [label=left:$G$,left=of Y] {}
-  edge[->] (Y);
-\node[observed] (Z) [label=left:$Z$,above=of G] {}
-  edge[->] (Y);
-\end{tikzpicture}
-\caption{DAG for discrete distance treatment effect reduced form model.}
-\label{dag:reduced}
-\end{figure}
+<!-- \node[observed] (Y) [label=right:$Y$] {}; -->
+<!-- \node[latent] (U_Y) [label=above:$U_y$,above=of Y] {} -->
+<!--   edge[latent-edge,->] (Y); -->
+<!-- \node[observed] (G) [label=left:$G$,left=of Y] {} -->
+<!--   edge[->] (Y); -->
+<!-- \node[observed] (Z) [label=left:$Z$,above=of G] {} -->
+<!--   edge[->] (Y); -->
+<!-- \end{tikzpicture} -->
+<!-- \caption{DAG for discrete distance treatment effect reduced form model.} -->
+<!-- \label{dag:reduced} -->
+<!-- \end{figure} -->
 
-We use the notation $k[j]$ to denote the county that village $j$ belongs to. The function $\mathsf{diag}(v)$ constructs a diagonal matrix using its vector argument $v$. We use $\mathtt{HalfNormal}$ to represent a normal distribution restricted to be positive. 
+We use the notation $k[j]$ to denote the county that village $j$ belongs to. The function $\mathsf{diag}(v)$ constructs a diagonal matrix using its vector argument $v$. We use $\mathtt{Normal}^{+}$ to represent a normal distribution restricted to be positive. 
 
 The hyperparameters $\boldsymbol{\tau}, \boldsymbol{\tau}^\textrm{village}$, and $\boldsymbol{\tau}^\textrm{county}$ define our priors. We set these to: $\tau(\textrm{control}) = 5, \tau(\textrm{ink}) = \tau(\textrm{bracelet}) = \tau(\textrm{calendar}) = 1$, $\boldsymbol{\tau}^\textrm{village} = \frac{1}{4} \boldsymbol{\iota}_4$, and $\boldsymbol{\tau}^\textrm{county} = \frac{1}{4} \boldsymbol{\iota}_4$.^[$\boldsymbol{\iota}_n$ is a $n$-vector of ones.]   
 
-We can write the posterior probability of these parameters as
-\[\prob{\theta|\bf{X}} \propto \underbrace{\prod_i \prob{Y = y_i|\theta_{j[i]},Z = z_j, G = g_j}}_\text{likelihood}\underbrace{\prod_j \prob{\theta_j} \prod_k \prob{\theta_k}}_\text{prior}.\]
+<!-- We can write the posterior probability of these parameters as -->
+<!-- \[\prob{\theta|\bf{X}} \propto \underbrace{\prod_i \prob{Y = y_i|\theta_{j[i]},Z = z_j, G = g_j}}_\text{likelihood}\underbrace{\prod_j \prob{\theta_j} \prod_k \prob{\theta_k}}_\text{prior}.\] -->
 
 <!-- The second reduced form model parameterizes the continuous effect of distance to deworming treatment, so we have  -->
 <!-- \[P(Y_j(z,d)) = P(Y_j|Z = z, D = d, \boldsymbol{\beta}_j) = \mathsf{logit}^{-1}\left(\beta_{0j} + \beta_{1j}\cdot z + f(z,d;\nu)\right),\] -->
@@ -1230,7 +1364,7 @@ We can write the posterior probability of these parameters as
 <!-- \begin{align*} -->
 <!-- \boldsymbol{\nu_0} &\sim \mathtt{Normal}(\bf{0},\boldsymbol{\iota}_4) \\ -->
 <!-- \nu_{1q}(\zeta) &\sim \mathtt{Normal}(0, \sigma^\textrm{spline}),\forall 1 \leq q \leq Q, \zeta \in \mathcal{Z} \\ -->
-<!-- \sigma^\textrm{spline} &\sim \mathtt{HalfNormal}(0, 1). -->
+<!-- \sigma^\textrm{spline} &\sim \mathtt{Normal}^{+}(0, 1). -->
 <!-- \end{align*} -->
 
 <!-- \begin{figure} -->
@@ -1272,20 +1406,20 @@ We can write the posterior probability of these parameters as
 
 For the structural model we will model the continuous effect of distance to deworming treatment; for us to be able to generate counterfactuals with respect to assigned distance we need to model how the assignment to _close_ and _far_ distances generates real continuous distances. We model this as
 \begin{align}
-\prob{D(g) = d) = P(D = g | G = g, \boldsymbol{\rho}, \boldsymbol{\pi}, \boldsymbol{\eta}} = \sum_m^M \rho_m \frac{\phi(d; \pi_m(g), \eta_m(g))}{1 - \Phi(d; \pi_m(g), \eta_m(g))}. \label{eq:P-D-struct}
+\prob{D(g) = d} = \prob{D = g | G = g, \boldsymbol{\rho}, \boldsymbol{\pi}, \boldsymbol{\eta}} = \sum_m^M \rho_m \frac{\phi(d; \pi_{mg}, \eta_{mg}}{1 - \Phi(d; \pi_{mg}, \eta_{mg})}. \label{eq:P-D-struct}
 \end{align}
 For each distance assignment, $G$, the continuous distance, $D$, has a finite mixture positive normal distribution (truncated at zero). $\phi(\cdot;\pi,\eta)$ is the probability density function and $\Phi(\cdot;\pi,\eta)$ is the cumulative density function, for the $\mathtt{Normal}(\pi,\eta)$ distribution. $M$ (we set equal to 2) is the number of mixtures and $\boldsymbol{\rho}(g)$ is an $M$-simplex.
 For the parameters in equation \eqref{eq:P-D-struct} we set the priors, for every $g \in \mathcal{G}$,
 \begin{align*}
-  \boldsymbol{\rho(g)} &\sim \mathtt{Dirichlet}(\boldsymbol{\iota}_M) \\
-  \pi_m(g) &\sim \mathtt{HalfNormal}(0, 1), \forall 1 < m < M \\
-  \eta_m(g) &\sim \mathtt{HalfNormal}(0, 1), \forall 1 < m < M,  
+  \boldsymbol{\rho} &\sim \mathtt{Dirichlet}(\boldsymbol{\iota}_M) \\
+  \pi_{mg} &\sim \mathtt{Normal}^{+}(0, 1), \forall m \\
+  \eta_{mg} &\sim \mathtt{Normal}^{+}(0, 1), \forall m,  
 \end{align*}
-and $\pi_m(\textrm{close}) \leq \pi_m(\textrm{far})$, for all $1 < m < M$. This corresponds to the causal function
+and $\pi_{m,\textrm{close}} \leq \pi_{m,\textrm{far}}$, for all $1 < m < M$. This corresponds to the causal function
 \begin{equation} 
-  d \leftarrow f_D(g; \boldsymbol{\pi}_m, u_D) = \pi_m(g) + u_D, \label{eq:D-causal}
+  d \leftarrow f_D(g; \boldsymbol{\pi}_m, u_D) = \pi_{mg} + u_D, \label{eq:D-causal}
 \end{equation}
-where $u_D \sim \mathtt{HalfNormal}(0, \eta_m(g))$.
+where $u_D \sim \mathtt{Normal}^{+}(0, \eta_{mg})$.
 
 #### Causal Structure {-}
 
@@ -1296,7 +1430,8 @@ For private consumption utility we introduce the variable $\overline{B}$ to repr
   \bar{b} &\leftarrow f_{\overline{B}}(z, d; \boldsymbol{\beta}_j, \boldsymbol{\delta}) = \beta_{0j} + \beta_{1j}(z) - c(d;\boldsymbol{\delta}), \label{eq:Bbar-causal} \\
   \bar{b} &\leftarrow f_{\overline{B}}(z, d; \boldsymbol{\beta}_j, \boldsymbol{\delta}) = \beta_{0j} + \beta_{1j}(z) - c(d;\boldsymbol{\delta}) - l(z,d;\boldsymbol{\psi},\boldsymbol{\mu}), \label{eq:Bbar-causal-salience}
 \end{align}
-where $c(d;\boldsymbol{\delta})$ and $l(z,d;\boldsymbol{\psi},\boldsymbol{\mu})$ are convex cost functions. We separately model the household private consumption utility as
+where $c(d;\boldsymbol{\delta})$ and $l(z,d;\boldsymbol{\psi},\boldsymbol{\mu})$ are linear cost functions. We separately model the household private consumption utility as
+<!-- where $c(d;\boldsymbol{\delta})$ and $l(z,d;\boldsymbol{\psi},\boldsymbol{\mu})$ are convex cost functions. We separately model the household private consumption utility as -->
 \begin{equation}
   b \leftarrow f_B(\bar{b}; u_b) = \bar{b} + u_b. \label{eq:B-causal}
 \end{equation}
@@ -1306,16 +1441,16 @@ We separate the village level private consumption utility from the overall house
 
 The second latent variable in the structural model will be $R$ representing the reputational utility of signaling. We will model this as
 \begin{align}
- r \leftarrow f_R(z,\bar{b}; \boldsymbol{\mu},u_r) = \mu(z)\cdot\Delta[v^*(z,\bar{b})] + u_r, \label{eq:R-causal}
+ r \leftarrow f_R(z,\bar{b}; \boldsymbol{\mu},u_r) = \mu_z\cdot\Delta[v^*(z,\bar{b})] + u_r, \label{eq:R-causal}
 \end{align}
 where $u_r$ is latent reputational shock and
 \begin{equation}
 \begin{aligned}
-v^*(z,\bar{b}) &= - \bar{b} - \mu(z)\Delta[v^*(z,\bar{b})] \\ 
+v^*(z,\bar{b}) &= - \bar{b} - \mu_z\Delta[v^*(z,\bar{b})] \\ 
 \Delta[v^*(z,\bar{b})] &= \expect{V | V > v^*(z,\bar{b})} - \expect{V | V < v^*(z,\bar{b})}. 
 \end{aligned} \label{eq:V-equil}
 \end{equation}
-Equation \eqref{eq:R-causal} corresponds to the the reputational returns term in \eqref{equ:signal2} where we use $\mu(z) = x(z)\lambda$ since we cannot separate the observability effect of the signal, $x(z)$, from the value placed on reputation, $\lambda$.
+Equation \eqref{eq:R-causal} corresponds to the the reputational returns term in \eqref{equ:signal2} where we use $\mu_z = x(z)\lambda$ since we cannot separate the observability effect of the signal, $x(z)$, from the value placed on reputation, $\lambda$.
 
 Finally, we model the decision to take-up deworming treatment as 
 \begin{equation}
@@ -1393,7 +1528,7 @@ So far we have restricted ourselves to the causal structural model. Now we turn 
 where  $U = U_B + U_R + U_Y + V \sim \mathtt{Normal}(0, \sigma^\textrm{struct})$. We normalize the distribution of the prosocial type of households, $V$, to have a standard normal distribution. For the other background variables we model their standard deviation as
 \begin{align*}
   U_{B,R,Y} = U_B + U_R + U_Y &\sim \mathtt{Normal}(0, \sigma_{B,R,Y}) \\
-  \sigma_{B,R,Y} &\sim \mathtt{HalfNormal}(0, 1).
+  \sigma_{B,R,Y} &\sim \mathtt{Normal}^{+}(0, 1).
 \end{align*}
 We model the correlation between $V$ and $U_{B,R,Y}$ and the their variance-covariance matrix as
 \begin{align*}
@@ -1403,25 +1538,26 @@ We model the correlation between $V$ and $U_{B,R,Y}$ and the their variance-cova
 \end{align*}
 From $\Sigma^\textrm{struct}$ we can easily calculate $\sigma^\textrm{struct}$. 
 
-For $\boldsymbol{\beta}$ we use the same hierarchical model as in equations \eqref{eq:hier-beta-model}. For the cost function we will use a quadratic cost function
+For $\boldsymbol{\beta}$ we use the same hierarchical model as in equations \eqref{eq:hier-beta-model}. For the cost function we will use a linear cost function
 \begin{align*}
-  c(d;\boldsymbol{\delta}) &= \delta_1\cdot d + \delta_2\cdot d^2, 
+  c(d;\boldsymbol{\delta}) &= \delta\cdot d, 
 \end{align*}
+  <!-- c(d;\boldsymbol{\delta}) &= \delta_1\cdot d + \delta_2\cdot d^2,  -->
 with
-\[ \delta_1,\delta_2 \sim \mathtt{HalfNormal}(0, 1), \]
-restricted to be positive, and for the salience and social learning cost function we will also use a quadratic function
+\[ \delta \sim \mathtt{Normal}^{+}(0, 1), \]
+restricted to be positive, and for the salience and social learning cost function we will also use a linear function
 \begin{align*}
-  l(z,d;\boldsymbol{\mu},\boldsymbol{\psi}) &= \mu(z)\cdot(\psi_1\cdot d + \psi_2\cdot d^2), 
+  l(z,d;\boldsymbol{\mu},\boldsymbol{\psi}) &= \mu_z\cdot(\psi\cdot d), 
 \end{align*} 
 with
-\[ \psi_1,\psi_2 \sim \mathtt{HalfNormal}(0, 1). \]
+\[ \psi \sim \mathtt{Normal}^{+}(0, 1). \]
 As for the reputational returns coefficient, $\mu$, we restrict it to be positive
-\[\mu(z) \sim \mathtt{HalfNormal}(0, 1),~\forall z \in \mathcal{Z}\]
+\[\mu_z \sim \mathtt{Normal}^{+}(0, 1),~\forall z \in \mathcal{Z}\]
 and
-\[\mu(\textrm{bracelet}),\mu(\textrm{ink}),\mu(\textrm{calendar}) > \mu(\textrm{control}),\]
+\[\mu_{\textrm{bracelet}},\mu_{\textrm{ink}},\mu_{\textrm{calendar}} > \mu_{\textrm{control}},\]
 since all incentives might have some signaling power which cannot be less than the control arm.
 
-Statistical inference is carried out in two stages. First, given a draw of $\boldsymbol{\beta}$ and $\delta$, $\overline{B}$ is evaluated conditional on observed treatment assignment and distance to deworming treatment. Second, we plug this into the algebraic equation solver available in the statistical modeling software, Stan [@stan], to solve equation \refeq{eq:V-equil}, resulting in $V^*$. Since we model $V$ as normally distributed we make use of the closed form solutions for the expectations:
+Statistical inference is carried out in two stages. First, given a draw of $\boldsymbol{\beta}$ and $\delta$, $\overline{B}$ is evaluated conditional on observed treatment assignment and distance to deworming treatment. Second, we plug this into the algebraic equation solver available in the statistical modeling software, Stan [@stan], to solve equation \refeq{eq:V-equil}, resulting in $V^*$. Since we model $V$ as normally distributed we make use of the closed form solutions, from the Mills ratio, for the expectations,
 \begin{align*}
 \expect{V|V>v^*} = \frac{\phi(v^*)}{1 - \Phi(v^*)} \text{ and } \expect{V|V<v^*} = - \frac{\phi(v^*)}{\Phi(v^*)}. 
 \end{align*}
@@ -1588,18 +1724,36 @@ Let
 
 where,
 \begin{align*}
-  V_i \equiv V^c_i - V^b_i &\sim \mathtt{StudentT}(\nu_v, \mu_{k[i]}, \sigma) \\
-  \mu_k &\sim \mathtt{StudentT}(\nu_\mu, \mu, \tau_\mu) \\
-  \mu &\sim \mathtt{StudentT}(\nu_\mu, 0, \tau_\mu) \\
-  \sigma &\sim \mathtt{HalfStudentT}(\nu_\sigma, 0, \tau_\sigma),
+  \text{Difference in valuation,}~V_i\equiv V^c_i - V^b_i &\sim \mathtt{Normal}(\mu_{k[i]}, \sigma) \\
+  \text{Strata mean difference,}~\mu_k &\sim \mathtt{Normal}(\mu, \tau_\mu) \\
+  \mu &\sim \mathtt{Normal}(0, 200) \\
+  \sigma &\sim \mathtt{Normal^{+}}(0, 100) \\
+  \tau_\mu &\sim \mathtt{Normal^+}(0, 100).
 \end{align*}
 
-with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$.
+<!-- where, -->
+<!-- \begin{align*} -->
+<!--   V_i \equiv V^c_i - V^b_i &\sim \mathtt{StudentT}(\nu_v, \mu_{k[i]}, \sigma) \\ -->
+<!--   \mu_k &\sim \mathtt{StudentT}(\nu_\mu, \mu, \tau_\mu) \\ -->
+<!--   \mu &\sim \mathtt{StudentT}(\nu_\mu, 0, \tau_\mu) \\ -->
+<!--   \sigma &\sim \mathtt{HalfStudentT}(\nu_\sigma, 0, \tau_\sigma), -->
+<!-- \end{align*} -->
+
+<!-- with fixed hyperparameters: $\nu_v, \nu_\mu, \nu_\sigma, \tau_\mu, \tau_\sigma$. -->
 
 <!-- TODO Specify fixed hyperparameter values -->
 
-We estimate these model parameters using the likelihood probability:
 
+<!-- \begin{equation*} -->
+<!-- \mathcal{L}_i =  -->
+<!--   \begin{cases} -->
+<!--     \prob{V < -m_i} & w_i = 0 \land g_i = -1 \\  -->
+<!--     \prob{V > m_i} & w_i = 0 \land g_i = 1 \\  -->
+<!--     g_i(\prob{V < g_i \cdot m_i} - \prob{V < 0}) & w_i = 1 -->
+<!--   \end{cases} -->
+<!-- \end{equation*} -->
+
+We estimate these model parameters using the likelihood probability:
 \begin{equation*}
 \mathcal{L}_i = 
   \begin{cases}
@@ -1609,63 +1763,72 @@ We estimate these model parameters using the likelihood probability:
   \end{cases}
 \end{equation*}
 
-<!-- \begin{equation*} -->
-<!-- \mathcal{L}_i = \left\{\widetilde{G}_i\cdot [F_V(\widetilde{G}_i \cdot M_i|\mu, \mu_{k[i]}, \sigma) - F_V(0|\mu, \mu_{k[i]}, \sigma)]\right\}^{W_i}\cdot\left\{ F_V(\widetilde{G}_i\cdot M_i|\mu, \mu_{k[i]}, \sigma)\right\}^{(1 - W_i)}  -->
-<!-- \end{equation*} -->
-
 ## Beliefs and Knowledge Model
 
-### Model subscripts 
+* $Z_i \in \{\textrm{control, ink, calendar, bracelet}\}$, $i$'s assigned incentive treatment.
+* $Y_i^{\textrm{rec}} \in \{0,\ldots,10\}$, number of recognized peers.
+* $Y_i^{\textrm{1ord}}$, number of recognized peers that $i$ has knowledge of whether they got dewormed or not, 
+  \begin{align*}
+    Y_i^{\textrm{1ord}} &\sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{1ord}}) \\
+    p_i^{\textrm{1ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{1ord}}\cdot z).
+  \end{align*}
+* $Y_i^{\textrm{2ord}}$, number of recognized peers who have knowledge of $i$'s deworming choice, 
+  \begin{align*}
+    Y_i^{\textrm{2ord}} &\sim \mathtt{Binomial}(Y_i^{\textrm{rec}}, p_i^{\textrm{2ord}}) \\
+    p_i^{\textrm{2ord}} &= \mathsf{logit}^{-1}(\alpha_i + \beta_i^{\textrm{2ord}}\cdot z).
+  \end{align*}
 
-* $i$: individuals
-* $j$: clusters (villages)
+<!-- ### Model subscripts  -->
 
-### Variables
+<!-- * $i$: individuals -->
+<!-- * $j$: clusters (villages) -->
 
-* $Y_i^\text{rec} \in \{0, 1, \ldots, 10\}$, the number of of individuals recognized (from a list of 10 randomly selected community members).
-* $Y_i^\text{2ord} \in \{0, 1, \ldots, Y_i^\text{rec}\}(z)$, second-order beliefs about the $Y_i^\text{rec}$ recognized community members. $\overline{Y}^\text{ 2ord,fp}(z)$ is the estimated proportion of $X^\text{degree}_i$.
-* $Y_i^\text{1ord} \in \{0, 1, \ldots, Y_i^\text{rec}\}$, first-order beliefs about the $Y_i^\text{rec}$ recognized community members. $\overline{Y}^\text{1ord,fp}(z)$ is the estimated proportion of $X^\text{degree}_i$.
-* $N_j \in \mathcal{Z}^+$, the population size of village $j$ (observed from the census).
-* $X_i^\text{degree} \in \{Y_i^\text{rec}, \ldots, N_{j[i]}\}$, the estimated number of community members $i$ recognizes.
-* $\mathbf{Z}_i$, assigned treatment: incentive treatments, SMS treatment, distance treatment 
+<!-- ### Variables -->
 
-### Likelihood Model
+<!-- * $Y_i^\text{rec} \in \{0, 1, \ldots, 10\}$, the number of of individuals recognized (from a list of 10 randomly selected community members). -->
+<!-- * $Y_i^\text{2ord} \in \{0, 1, \ldots, Y_i^\text{rec}\}(z)$, second-order beliefs about the $Y_i^\text{rec}$ recognized community members. $\overline{Y}^\text{ 2ord,fp}(z)$ is the estimated proportion of $X^\text{degree}_i$. -->
+<!-- * $Y_i^\text{1ord} \in \{0, 1, \ldots, Y_i^\text{rec}\}$, first-order beliefs about the $Y_i^\text{rec}$ recognized community members. $\overline{Y}^\text{1ord,fp}(z)$ is the estimated proportion of $X^\text{degree}_i$. -->
+<!-- * $N_j \in \mathcal{Z}^+$, the population size of village $j$ (observed from the census). -->
+<!-- * $X_i^\text{degree} \in \{Y_i^\text{rec}, \ldots, N_{j[i]}\}$, the estimated number of community members $i$ recognizes. -->
+<!-- * $\mathbf{Z}_i$, assigned treatment: incentive treatments, SMS treatment, distance treatment  -->
 
-#### Social connectness or recognition
+<!-- ### Likelihood Model -->
 
-The first stage is to impute each respondents' recognition degree by estimating a parametric binomial model. $g$ is a link function (e.g. logit). One thing doesn't makes sense here: $\delta^\text{rec}_{j}$ is the coefficient for a village level independent variable, $N_j$. It seems like $\delta^\text{rec}_j$ should just be a village level random effect or make it a county level parameter.
+<!-- #### Social connectness or recognition -->
 
-$$
-\begin{aligned}
-  Y_i^\text{rec} &\sim \mathtt{Binomial}(10, p_i^\text{rec}) \\
-  p_i^\text{rec} &= g^{-1}(\alpha_i^\text{rec} + \delta_{j[i]}^\text{rec}\cdot N_{j[i]}) \\
-  X_i^\text{degree} &= Y_i^\text{rec} + p^\text{rec}_i \cdot(N_{j[i]} - 10)  
-\end{aligned}
-$$
+<!-- The first stage is to impute each respondents' recognition degree by estimating a parametric binomial model. $g$ is a link function (e.g. logit). One thing doesn't makes sense here: $\delta^\text{rec}_{j}$ is the coefficient for a village level independent variable, $N_j$. It seems like $\delta^\text{rec}_j$ should just be a village level random effect or make it a county level parameter. -->
 
-$X_i^\text{degree}$ is imputed by adding the known $Y_i^\text{rec}$ with the estimated number of community members (and not asked about in the survey) recognized.
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!--   Y_i^\text{rec} &\sim \mathtt{Binomial}(10, p_i^\text{rec}) \\ -->
+<!--   p_i^\text{rec} &= g^{-1}(\alpha_i^\text{rec} + \delta_{j[i]}^\text{rec}\cdot N_{j[i]}) \\ -->
+<!--   X_i^\text{degree} &= Y_i^\text{rec} + p^\text{rec}_i \cdot(N_{j[i]} - 10)   -->
+<!-- \end{aligned} -->
+<!-- $$ -->
 
-#### Second-order beliefs
+<!-- $X_i^\text{degree}$ is imputed by adding the known $Y_i^\text{rec}$ with the estimated number of community members (and not asked about in the survey) recognized. -->
 
-Same as above but with treatment assignment potentially having a causal effect. Same comment as above about parameter levels.
+<!-- #### Second-order beliefs -->
 
-$$
-\begin{aligned}
-  Y_i^\text{2ord}(\mathbf{Z}_i) &\sim \mathtt{Binomial}(Y^\text{rec}_i, p_i^\text{2ord}(\mathbf{Z}_i)) \\
-  p_i^\text{2ord}(\mathbf{z}) &= g^{-1}(\alpha_i^\text{2ord} + \mathbf{z}\cdot \beta_i^\text{2ord} + \delta_i^\text{2ord}\cdot N_{j[i]}) \\
-  \overline{Y}^\text{ 2ord,fp}(\mathbf{Z}_i) &= \frac{Y_i^\text{2ord} + p_i^\text{2ord}(\mathbf{Z}_i)\cdot p_i^\text{rec}\cdot (N_{j[i]} - 10)}{X_i^\text{degree}}
-\end{aligned} 
-$$
-The number of community members $i$ has second-order beliefs^[In the current model $Y_i^\text{2ord} = 1 \iff$ $i$ reports yes/no.] is the sum of the observed sampled $Y_i^\text{2ord}$ and the estimated beliefs about the remaining population not asked about, $p_i^\text{rec}\cdot(N_{j[i]} - 10)$.
+<!-- Same as above but with treatment assignment potentially having a causal effect. Same comment as above about parameter levels. -->
 
-For unobserved (missing) treatment $\mathbf{z}^\text{missing}$ we impute $\overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{missing})$ as
-$$
-\overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{missing}) = \frac{p_i^\text{2ord}(\mathbf{z}^\text{missing})\cdot p_i^\text{rec}\cdot N_{j[i]}}{X_i^\text{degree}}
-$$
+<!-- $$ -->
+<!-- \begin{aligned} -->
+<!--   Y_i^\text{2ord}(\mathbf{Z}_i) &\sim \mathtt{Binomial}(Y^\text{rec}_i, p_i^\text{2ord}(\mathbf{Z}_i)) \\ -->
+<!--   p_i^\text{2ord}(\mathbf{z}) &= g^{-1}(\alpha_i^\text{2ord} + \mathbf{z}\cdot \beta_i^\text{2ord} + \delta_i^\text{2ord}\cdot N_{j[i]}) \\ -->
+<!--   \overline{Y}^\text{ 2ord,fp}(\mathbf{Z}_i) &= \frac{Y_i^\text{2ord} + p_i^\text{2ord}(\mathbf{Z}_i)\cdot p_i^\text{rec}\cdot (N_{j[i]} - 10)}{X_i^\text{degree}} -->
+<!-- \end{aligned}  -->
+<!-- $$ -->
+<!-- The number of community members $i$ has second-order beliefs^[In the current model $Y_i^\text{2ord} = 1 \iff$ $i$ reports yes/no.] is the sum of the observed sampled $Y_i^\text{2ord}$ and the estimated beliefs about the remaining population not asked about, $p_i^\text{rec}\cdot(N_{j[i]} - 10)$. -->
 
-#### First-order beliefs
+<!-- For unobserved (missing) treatment $\mathbf{z}^\text{missing}$ we impute $\overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{missing})$ as -->
+<!-- $$ -->
+<!-- \overline{Y}^\text{ 2ord,fp}(\mathbf{z}^\text{missing}) = \frac{p_i^\text{2ord}(\mathbf{z}^\text{missing})\cdot p_i^\text{rec}\cdot N_{j[i]}}{X_i^\text{degree}} -->
+<!-- $$ -->
 
-The first-order beliefs model is the same as the second-order model.
+<!-- #### First-order beliefs -->
+
+<!-- The first-order beliefs model is the same as the second-order model. -->
 
 # Results
 
@@ -1741,55 +1904,125 @@ endline.know.table.data %>%
 
 Figure \ref{fig:table-A-relationships} shows that the majority of recognized adults are neighbors (49 percent) and extended family (29 percent). Figures \ref{fig:first-order-deworm-status} and \ref{fig:second-order-deworm-status} show that adults generally (believe to) have more information about the deworming status of household members and extended family, than of neighbors or community members.  
 
-```{r fp-2ord-prop-knows-mean-all, fig.width=8, fig.height=3, fig.cap="Second order beliefs (levels)."}
-fp_2ord_prop_knows_mean %>% 
-  filter(!fct_match(incentive_treatment, "bracelet social")) %>% 
-  group_by(incentive_treatment) %>% 
-  mutate(iter_value = fp_2ord_prop_knows_mean) %>% 
-  summarize(
-    per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
-    quant = quantile(iter_value, probs = per),
-    mean_est = mean(iter_value),
-    
-    .groups = "drop"
-  ) %>% 
-  pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% 
-  ggplot(aes(y = incentive_treatment)) +
-  geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
-  geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-  geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
-  geom_point(aes(x = mean_est), size = 2) +
-  geom_point(aes(x = mean_est), color = "white", size = 0.8) +
-  labs(
-  title = "",
-  x = "", y = ""
-  )
-
-plot_takeup(
-  takeup_summ_data = fp_2ord_prop_knows_mean_all,
-  data_preparer = . %>%
-    filter(
-      incentive_treatment != "Bracelet Social"
-      ),
-  incentive_treatment_col = "incentive_treatment",
-  show_observed = FALSE
+```{r beliefs-results, fig.width=8, fig.height=6, fig.cap="First and second order beliefs."}
+cowplot::plot_grid(
+  beliefs_results$prob_knows %>% 
+    filter(ord == 1) %>% 
+    ggplot(aes(y = assigned.treatment)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
+    labs(
+      title = "First Order Beliefs",
+      subtitle = "Proportion",
+      x = "", y = "") +
+    NULL,
+  
+  beliefs_results$ate_knows %>% 
+    filter(ord == 1) %>% 
+    ggplot(aes(y = assigned.treatment_left)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.25) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
+    scale_y_discrete(drop = FALSE) +
+    labs(
+      title = "",
+      subtitle = "Treatment Effect",
+      x = "", y = "") +
+    theme(axis.text.y = element_blank()) +
+    NULL,
+  
+  beliefs_results$prob_knows %>% 
+    filter(ord == 2) %>% 
+    ggplot(aes(y = assigned.treatment)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.5) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
+    labs(
+      title = "Second Order Beliefs",
+      subtitle = "Proportion",
+      x = "", y = "") +
+    NULL,
+  
+  beliefs_results$ate_knows %>% 
+    filter(ord == 2) %>% 
+    ggplot(aes(y = assigned.treatment_left)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.3) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 2.25) +
+    geom_point(aes(x = per_0.5), size = 1.8) +
+    geom_point(aes(x = per_0.5), color = "white", size = 0.6) +
+    scale_y_discrete(drop = FALSE) +
+    labs(
+      title = "",
+      subtitle = "Treatment Effect",
+      x = "", y = "",
+      caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. Point: median."
     ) +
-  labs(title = "Second Order Beliefs (Levels)", 
-       subtitle = "Proportion of recognized peers with knowledge of one's deworming status", y = "") 
+    theme(axis.text.y = element_blank()) +
+    NULL,
+  
+  ncol = 2, axis = "b", align = "h" 
+)
 ```
 
-```{r fp-1ord-prop-knows-mean-all, fig.width=8, fig.height=3, fig.cap="First order beliefs (levels)."}
-plot_takeup(
-  takeup_summ_data = fp_1ord_prop_knows_mean_all,
-  data_preparer = . %>%
-    filter(
-      incentive_treatment != "Bracelet Social"
-      ),
-  incentive_treatment_col = "incentive_treatment",
-  show_observed = FALSE
-    ) +
-  labs(title = "First Order Beliefs (Levels)", 
-       subtitle = "Proportion of recognized peers whose deworming status is reported known", y = "") 
+```{r fp-2ord-prop-knows-mean-all, fig.width=8, fig.height=3, fig.cap="Second order beliefs (levels).",eval=FALSE}
+# fp_2ord_prop_knows_mean %>% 
+#   filter(!fct_match(incentive_treatment, "bracelet social")) %>% 
+#   group_by(incentive_treatment) %>% 
+#   mutate(iter_value = fp_2ord_prop_knows_mean) %>% 
+#   summarize(
+#     per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+#     quant = quantile(iter_value, probs = per),
+#     mean_est = mean(iter_value),
+#     
+#     .groups = "drop"
+#   ) %>% 
+#   pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% 
+#   ggplot(aes(y = incentive_treatment)) +
+#   geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+#   geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+#   geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+#   geom_point(aes(x = mean_est), size = 2) +
+#   geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+#   labs(
+#   title = "",
+#   x = "", y = ""
+#   )
+# 
+# plot_takeup(
+#   takeup_summ_data = fp_2ord_prop_knows_mean_all,
+#   data_preparer = . %>%
+#     filter(
+#       incentive_treatment != "Bracelet Social"
+#       ),
+#   incentive_treatment_col = "incentive_treatment",
+#   show_observed = FALSE
+#     ) +
+#   labs(title = "Second Order Beliefs (Levels)", 
+#        subtitle = "Proportion of recognized peers with knowledge of one's deworming status", y = "") 
+```
+
+```{r fp-1ord-prop-knows-mean-all, fig.width=8, fig.height=3, fig.cap="First order beliefs (levels).",eval=FALSE}
+# plot_takeup(
+#   takeup_summ_data = fp_1ord_prop_knows_mean_all,
+#   data_preparer = . %>%
+#     filter(
+#       incentive_treatment != "Bracelet Social"
+#       ),
+#   incentive_treatment_col = "incentive_treatment",
+#   show_observed = FALSE
+#     ) +
+#   labs(title = "First Order Beliefs (Levels)", 
+#        subtitle = "Proportion of recognized peers whose deworming status is reported known", y = "") 
 ```
 
 
@@ -1920,7 +2153,7 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
-```{r wtp-prefer-calendar-plot, fig.height=6, fig.width=8, fig.cap = "Willingness-to-pay experiment results.", dependson="load-wtp-fit"}
+```{r wtp-prefer-calendar-plot, fig.height=6, fig.width=8, fig.cap = "Willingness-to-pay experiment results."}
 wtp_model_0_fit %>% 
   as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
   mutate(iter_id = seq(n())) %>% 
@@ -1937,17 +2170,16 @@ wtp_model_0_fit %>%
   pivot_wider(names_from = per, values_from = quant, names_prefix = "per_") %>% { 
     cowplot::plot_grid(
       filter(., fct_match(parameter, "prob_prefer_calendar")) %>% 
-        left_join(tibble(index = 1:11, val_diff = seq(0, 100, 10)), by = "index") %>% 
+        left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
         ggplot(aes(x = val_diff)) +
         geom_line(aes(y = per_0.5)) +
         geom_point(aes(y = per_0.5), size = 1) +
         geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
-        scale_x_continuous("Added Value", breaks = seq(0, 100, 10), labels = scales::label_number(suffix = " KSh")) +
+        scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
         labs(
           title = "Probability of Preference for Calendars vs. Bracelets",
           y = "" 
         ) +
-        coord_cartesian(ylim = c(0.7, 1)) +
         NULL,
       
       filter(., fct_match(parameter, "strata_mu")) %>% 
@@ -1968,7 +2200,7 @@ wtp_model_0_fit %>%
                      Thick vertical line: median. Point: mean."
         ),
       
-      ncol = 1, rel_heights = c(1.3, 1)
+      ncol = 1, rel_heights = c(1.1, 1)
     )
   }
 ```
@@ -2032,7 +2264,7 @@ group_dist_param %>%
 
 Second, we present the cross validation results and the stacking weights used in Table \ref{tab:cv-table}. We show the difference in expected log predictive density, the standard error of this difference, the stacking weights for all models, and the stacking weights for the structural models only. As can be seen, even if our goals was to select one of these models, we would not have been able to due to the large elpd difference standard errors. In the following sections, we will present results for all models but focus our discussion on the stacked models. 
 
-```{r cv-table}
+```{r cv-table, dependson="load-processed-dist_fit"}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), !is.na(stacking_weight)) %>% 
   select(model_name, elpd_diff, se_elpd_diff, stacking_weight, stacking_weight_by_type) %>% 
@@ -2043,7 +2275,7 @@ dist_fit_data %>%
 
 ### Result 1. The Effect of Visibility $x$ on Take-up Decisions {-}
 
-```{r take-up-levels, fig.width=8,fig.height=6, fig.cap="Take-up levels in response to an incentive treatment intervention.",cache=FALSE}
+```{r take-up-levels, fig.width=8,fig.height=6, fig.cap="Take-up levels in response to an incentive treatment intervention.", dependson="load-processed-dist_fit"}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>% 
@@ -2059,7 +2291,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate, fig.width=8,fig.height=8.5, fig.cap="Average treatment effect in response to an incentive treatment intervention."}
+```{r take-up-ate, fig.width=8,fig.height=8.5, fig.cap="Average treatment effect in response to an incentive treatment intervention.", dependson="load-processed-dist_fit"}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -2097,7 +2329,7 @@ Figure \ref{fig:take-up-levels} shows deworming take-up levels for the four main
 
 <!-- Figure \ref{fig:static_ate_combined_sms} shows that the text message treatment had a large effect on deworming take-up. Text messages increased the average take-up level by 13 percentage points in the control, ink and calendar treatment and by 16 percentage points in the bracelet treatment. However, it is difficult to interpret these effects since the text message treatment was bundled with a recruitment visit. Only individuals in the Social Info/Reminder treatments were visited by a surveyor who explained the text messages, obtained individuals' consent to participate in the intervention and reminded them about the upcoming community deworming program. Individuals in the SMS control group did not receive a visit. To shed further light on the potential mechanism we can look at the dynamic effect of Social Info/Reminders across the twelve days of deworming. Figure 15 shows that text messages had the largest effect on day one and two, as a result of the reminder that was sent the day before treatment started. The treatment effects become negligible on later days, suggesting that text messages sent on days 4, 6, 8 and 10 and the social information contained in them had no relevant effect on deworming decisions. It is therefore likely that the initial "nudge" and/or the private recruitment visit is what most influenced individuals' decision to take up treatment. -->
 
-```{r take-up-level-struct, fig.width=8, fig.height=5.15,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
+```{r take-up-level-struct, fig.width=8, fig.height=5.15,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level.", dependson="load-processed-dist_fit"}
 dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>% 
   select(est_takeup_level, model, model_name, fit_type) %>% 
@@ -2114,7 +2346,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate-struct, fig.width=8, fig.height=4.5, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
+```{r take-up-ate-struct, fig.width=8, fig.height=4.5, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control.", dependson="load-processed-dist_fit"}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -2139,7 +2371,7 @@ Figure \ref{fig:take-up-level-struct} shows the take-up levels of the four incen
 
 ### Result 2: The Effect of Cost on Deworming Take-up {-} 
 
-```{r take-up-levels-dist-split, fig.width=8,fig.height=10.25, fig.cap="Take-up levels in response to an incentive treatment intervention, split by assigned\ndistance group."}
+```{r take-up-levels-dist-split, fig.width=8,fig.height=10.25, fig.cap="Take-up levels in response to an incentive treatment intervention, split by assigned\ndistance group.", dependson="load-processed-dist_fit"}
 dist_fit_data %>%
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_level = map(est_takeup_level, filter, is.na(mu_assigned_treatment) | mu_assigned_treatment == assigned_treatment)) %>%  
@@ -2156,7 +2388,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate-dist-effect, fig.width=8,fig.height=6, fig.cap="Average treatment effect in response to a change in distance."}
+```{r take-up-ate-dist-effect, fig.width=8,fig.height=6, fig.cap="Average treatment effect in response to a change in distance.", dependson="load-processed-dist_fit"}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -2177,7 +2409,7 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r take-up-ate-dist-split, fig.width=8,fig.height=8, fig.cap="Average treatment effect in response to an incentive treatment intervention, split by distance."}
+```{r take-up-ate-dist-split, fig.width=8,fig.height=8, fig.cap="Average treatment effect in response to an incentive treatment intervention, split by distance.", dependson="load-processed-dist_fit"}
 dist_fit_data %>% 
   filter(!fct_match(model, "STRUCTURAL_STACKED")) %>% 
   mutate(est_takeup_te =
@@ -2281,7 +2513,7 @@ dist_fit_data %>%
   # NULL
 ```
 
-```{r take-up-level-struct-dist-split, fig.width=8, fig.height=8.5,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level."}
+```{r take-up-level-struct-dist-split, fig.width=8, fig.height=8.5,fig.cap="Take-up levels in response to a signaling intervention, holding the private consumption utility at the control level.", dependson="load-processed-dist_fit"}
 dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>% 
   select(est_takeup_level, model, model_name, fit_type) %>% 
@@ -2300,7 +2532,7 @@ dist_fit_data %>%
 ```
 
 
-```{r take-up-ate-struct-dist-split, fig.width=8, fig.height=7.25, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control."}
+```{r take-up-ate-struct-dist-split, fig.width=8, fig.height=7.25, fig.cap="Average treatment effect of signaling holding consumption utility at the control level, compared to control.", dependson="load-processed-dist_fit"}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -2326,54 +2558,106 @@ dist_fit_data %>%
 
 Figures \ref{fig:take-up-level-struct-dist-split} and \ref{fig:take-up-ate-struct-dist-split} shows the levels and average treatment effects, manipulating the structural model to elicit the pure social signaling effect holding the private consumption utility at the control level, at different distance assignments. Here, we see little difference between _close_ and _far_. 
 
-As mentioned in section \ref{theoretical-framework}, the signaling effect can be amplified when take-up is high and cost could be mitigated when take-up is low. The signaling effect appears to be slightly stronger when the cost is higher (the _far_ treatments), as shown the intention-to-treat analysis, while on the other hand it appears to change very little when using the structural models. However, to properly investigate this we need to estimate the social multiplier effect as defined in equations \eqref{eq:partials-at-value}; in order to compare between arms we need to hold fixed the initial level of $V^*$, otherwise we would not be evaluating how the same marginal person is affected by a change in cost/benefit (we do this by manipulating the cost as already explained). 
+As mentioned in section \ref{theoretical-framework}, the signaling effect can be amplified when take-up is high and cost could be mitigated when take-up is low. The signaling effect appears to be slightly stronger when the cost is higher (the _far_ treatments), as shown the intention-to-treat analysis, while on the other hand it appears to change very little when using the structural models. However, to properly investigate this we need to estimate the social multiplier effect as defined in equations \eqref{eq:partials-diff}; in order to compare between arms we need to hold fixed the initial level of $v^*$, otherwise we would not be evaluating how the same marginal person is affected by a change in net benefit. 
 
-In Figure \ref{fig:cost-mitig-level}, subfigure (a) shows the expected level of take-up over a range of simulated cutoff values, to clarify how the range of simulated $v$ alters take-up. As expected the lower the $v$ the higher the level of take-up. In subfigure (b) we show the rate of change of the equilibrium $V^*$ cutoff in response to cost, $\overline{C}$, at different initial cutoffs, $v$. We do observe both the amplification effect for $v<0$ and the cost mitigation effect for $v > 0$, for all treatments, but stronger (and very similar) for the bracelet, ink, and calendar. Subfigure (c) presents the same result but in terms of the probability of deworming take-up and how it changes in response to $\overline{C}$. However, neither looking at the rate of change in utility nor the probability of take-up is very informative; it is difficult to have a clear interpretation for utility outcomes and we cannot consider the incentive/signal treatments without comparing them to their control counterfactual. 
+```{r v-post-histogram, fig.width=8, fig.height=5.4, message=FALSE, warning=FALSE, fig.cap="Posterior histogram of equilibrium $v^*$.", dependson="load-processed-dist-fit"}
+delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+delta_data <- tibble(v = seq(-25, 25, 0.1), delta = delta(v)) 
+annot_delta_data <- delta_data %>% 
+  filter(between(v, -3, 6)) %>% 
+  rename(x = v, y = delta)
+  
+v_cluster_data <- dist_fit[c("STRUCTURAL_LINEAR")] %>% #, "STRUCTURAL_LINEAR_SALIENCE")] %>% 
+  map(as.data.frame, pars = "structural_cluster_obs_v") %>% 
+  map_df(mutate, iter_id = seq(n()), .id = "model") %>% 
+  pivot_longer(-c(model, iter_id), values_to = "iter_value") %>% 
+  left_join(
+    tribble(
+      ~ model,                         ~ model_name,                                ~ model_type,
+      
+      "REDUCED_FORM_NO_RESTRICT",      "Reduced Form",                              "reduced form",
+      "STRUCTURAL_LINEAR",             "Structural",                                "structural",
+      # "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
+      # "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
+      
+      "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
+      "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
+    ) %>% 
+      mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined"))),
+    by = "model") %>% 
+  tidyr::extract(name, "cluster_index", r"{(\d+)}", convert = TRUE) %>% 
+  left_join(
+    analysis_data %>% 
+      distinct(cluster.id, assigned.treatment, dist.pot.group, cluster.dist.to.pot) %>% 
+      mutate(cluster_index = seq(n())),
+    by = "cluster_index")
 
-In Figure \ref{fig:cost-mitig-diff} we compare the estimated changes in $V*$ and $\expect{Y}$ in response to cost, $\overline{C}$, between the three incentive arms and the control arm, as in equations \eqref{eq:partials-diff}. The main pattern to notice is that the change in the take-up probability in response to changes to cost/benefit is quite low for all signals, even at high levels of $v$ (high cost, low take-up). The highest credible (with 80% probability) change, for bracelets, is no more than 0.02: bracelets are only 0.02 higher than control in response to a unit change in $\overline{C}$. Therefore, we conclude that cost mitigation likely played a small role in this experiment; the increase in cost driven by the assigned distance to deworming locations did not result in a pattern of take-up for the incentive arms that is very different from the control arm. We do not conclude that there is no cost mitigation, only that the signals provided did not generate enough reputational utility to counter the increasing cost of deworming in comparison with the control and its own natural level of social signaling. On the other hand, the magnitude of the amplification effect as $V^*$ drops and take-up becomes more of a norm appears to be relatively higher for the signal treatments than the control. However, since in this experiment take-up is not observed at such high levels we do not consider the model's predictions at this range of $V^*$ to be reliable. 
+v_cluster_data %>% 
+  ggplot() +
+  geom_histogram(aes(iter_value, y = stat(ndensity) * 5, fill = dist.pot.group), binwidth = 0.15, color = "black", position = "dodge", alpha = 0.75) +
+  annotate("text", x = 4, y = 3, label = latex2exp::TeX(r"{$\Delta\[v^*\]$}")) +
+  annotate("smooth", x = annot_delta_data$x, y = annot_delta_data$y, color = alpha("black", 0.5), size = 0.4) +
+  labs(
+    title = latex2exp::TeX(r"{Posterior Histogram of Equilibrium $v^*$}"),
+    y = "", x = latex2exp::TeX(r"{$v^*$}")
+  ) +
+  # scale_fill_viridis_d("Assigned Distance", option = "E", labels = str_to_title) +
+  scale_fill_discrete("Assigned Distance", labels = str_to_title) +
+  # scale_color_manual("", 
+  #                    values = select(dist_fit_data, model, model_color) %>% deframe(), 
+  #                    labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
+  coord_cartesian(xlim = c(-3, 5)) +
+  # facet_grid(rows = vars(assigned.treatment), cols = vars(dist.pot.group), labeller = as_labeller(str_to_title)) +
+  facet_wrap(vars(assigned.treatment), ncol = 1, labeller = as_labeller(str_to_title)) +
+  theme(axis.text.y = element_blank(), legend.position = "right")
+```
 
+In Figure \ref{fig:cost-mitig-level}, subfigure (a) shows the expected level of take-up over a range of simulated cutoff values, to clarify how the range of simulated $v$ alters take-up. As expected the lower the $v$ the higher the level of take-up. In subfigure (b) we show the rate of change of the equilibrium $v^*$ cutoff in response to cost at different initial cutoffs, $v^* = v$. We do observe both the amplification effect for $v<0$ and the cost mitigation effect for $v > 0$, for all treatments, but slightly stronger for the bracelet, ink, and calendar. Subfigure (c) presents the same result but in terms of the probability of deworming take-up and how it changes in response to distance to treatment location. However, neither looking at the rate of change in utility nor the probability of take-up is very informative; it is difficult to have a clear interpretation for utility outcomes and we cannot consider the incentive/signal treatments without comparing them to their control counterfactual. 
 
-```{r cost-mitig-level, fig.width=8,fig.height=6,fig.cap="Changes in $V^*$ and $E[Y]$ in response $\\overline{C}$."}
+In Figure \ref{fig:cost-mitig-diff} we compare the estimated rate-of-change of $v*$ and $\expect{Y}$ in response to utility cost and distance to deworming treatment, respectively, between the three incentive arms and the control arm, as in equations \eqref{eq:partials-diff}. The main pattern to notice is that the change in the take-up probability in response to changes to distance is quite high when $v^*$ is high (few takers) for all signals. The highest posterior median difference in the rate-of-change for bracelets, shown in the plotted range, is about 0.5 percentage points per meter. Therefore, we conclude that cost mitigation could have played an small role in this experiment; the width of the credible intervals makes cautious about the magnitude of this difference. On the other hand, the magnitude of the amplification effect as $v^*$ drops and take-up becomes more of a norm appears to be relatively higher for the signal treatments than for the control. However, since in this experiment take-up is not observed at such high levels we do not consider the model's predictions at this range of $v^*$ to be reliable. 
+
+```{r cost-mitig-level, fig.width=8,fig.height=6,fig.cap="Changes in $V^*$ and $E[Y]$ in response utility cost and distance.", dependson="load-processed-dist-fit"}
 treatment_colors <- set_names(RColorBrewer::brewer.pal(4, "Set1"), c("control", "ink", "calendar", "bracelet"))
+v_lim <- c(-1, 1)
 
-takeup_v_plot <- dist_fit_data %>% 
-  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+level_rate_of_change_data <- dist_fit_data %>% 
+  # filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR")) %>% 
   select(model, model_name, y_rate_of_change, fit_type) %>% 
-  unnest(y_rate_of_change) %>% 
+  unnest(y_rate_of_change) 
+
+takeup_v_plot <- level_rate_of_change_data %>%  
   unpack(prob_takeup) %>% 
   filter(fct_match(assigned_treatment, "control")) %>% 
   ggplot(aes(v, per_0.5)) +
   geom_line() + 
-  coord_cartesian(xlim = c(-1, 1)) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  coord_cartesian(xlim = v_lim) +
   geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
-  labs(subtitle = "Take-up", 
-       y = TeX("E\\[Y\\]")) +
-       # caption = "Ribbon represents the 80% credible interval.") +
+  labs(subtitle = "Take-up", y = TeX("E\\[Y\\]")) +
   NULL
 
-social_mult_v_plot <- dist_fit_data %>% 
-  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
-  select(model, model_name, y_rate_of_change, fit_type) %>% 
-  unnest(y_rate_of_change) %>% 
+social_mult_v_plot <- level_rate_of_change_data %>%  
   unpack(social_multiplier) %>% 
-  ggplot(aes(v, -per_0.5, color = assigned_treatment)) +
+  ggplot(aes(v, per_0.5, color = assigned_treatment)) +
   geom_line() + 
-  coord_cartesian(xlim = c(-1, 1)) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_hline(yintercept = -1, linetype = "dotted") +
+  coord_cartesian(xlim = v_lim) +
+  scale_y_continuous(breaks = seq(-5, 1, 0.1)) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors, labels = str_to_title) +
-  labs(subtitle = "Social Multiplier", y = bquote(frac(partialdiff ~ V^"*", partialdiff ~ bar(C)))) + # TeX("Change in $V^*$")) +
+  labs(subtitle = "Social Multiplier Compared to Control Level", y = TeX(r"{$-\frac{\partial v^*}{\partial c}$}")) + 
   theme(legend.position = "right") +
   NULL
 
-takeup_partial_v_plot <- dist_fit_data %>% 
-  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
-  select(model, model_name, y_rate_of_change, fit_type) %>% 
-  unnest(y_rate_of_change) %>% 
-  unpack(partial_bbar) %>% 
-  ggplot(aes(v, -per_0.5, color = assigned_treatment)) +
+takeup_partial_v_plot <- level_rate_of_change_data %>%  
+  unpack(partial_d) %>% 
+  ggplot(aes(v, per_0.5, color = assigned_treatment)) +
   geom_line(show.legend = FALSE) + 
+  geom_vline(xintercept = 0, linetype = "dotted") +
   coord_cartesian(xlim = c(-1, 1)) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors) +
-  labs(subtitle = "Rate-of-change of Take-up", y = bquote(frac(partialdiff ~ "E[Y]", partialdiff ~ bar(C)))) + # TeX("Change in $E\\[Y(z,\\bar{b})\\]$")) +
+  labs(subtitle = "Rate-of-change of Take-up", y = TeX(r"{$\frac{\partial E\[Y(z,v)\]}{\partial d}}")) +
   theme(legend.position = "right") +
   NULL
 
@@ -2388,40 +2672,47 @@ plot_grid(
 )
 ```
 
-```{r cost-mitig-diff, fig.width=8,fig.height=6,fig.cap="Differences in changes in $V^*$ and $E[Y]$ in response to $\\overline{C}$."}
-diff_social_mult_v_plot <- dist_fit_data %>% 
-  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+```{r cost-mitig-diff, fig.width=8,fig.height=6,fig.cap="Differences in changes in $V^*$ and $E[Y]$ in response to utility cost and distance."}
+diff_rate_of_change_data <- dist_fit_data %>% 
+  # filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
+  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR")) %>% 
   select(model, model_name, diff_y_rate_of_change, fit_type) %>% 
-  unnest(diff_y_rate_of_change) %>%
+  unnest(diff_y_rate_of_change) 
+
+diff_social_mult_v_plot <- diff_rate_of_change_data %>%  
   filter(!fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control")) %>% 
   unpack(diff_social_multiplier) %>% 
-  ggplot(aes(v, -per_0.5, color = assigned_treatment_left)) +
+  ggplot(aes(v, per_0.5, color = assigned_treatment_left)) +
   geom_line(show.legend = FALSE) + 
-  geom_ribbon(aes(ymin = -per_0.1, ymax = -per_0.9, fill = assigned_treatment_left), color = NA, alpha = 0.25, show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment_left), color = NA, alpha = 0.25, show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment_left), color = NA, alpha = 0.25, show.legend = FALSE) +
   geom_hline(yintercept = 0, linetype = "dotted") +
-  coord_cartesian(xlim = c(-1, 1)) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  coord_cartesian(xlim = v_lim, ylim = c(-0.5, 0.2)) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors) +
   scale_fill_manual("Assigned Treatment (z)", values = treatment_colors) +
-  labs(subtitle = "Social Multiplier Compared to Control Level", y = bquote(frac(partialdiff ~ V^"*", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $V^*$")) +
-  theme(legend.position = "bottom") +
+  labs(subtitle = "Social Multiplier Compared to Control Level", y = TeX(r"{$-\frac{\partial v^*}{\partial c}$ Difference}")) +
+  theme(legend.position = "bottom", axis.title.y = element_text(size = 8)) +
   facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
   NULL
 
-diff_takeup_partial_v_plot <- dist_fit_data %>% 
-  filter(fct_match(model_type, "structural"), fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_STACKED")) %>% 
-  select(model, model_name, diff_y_rate_of_change, fit_type) %>% 
-  unnest(diff_y_rate_of_change) %>% 
-  unpack(diff_partial_bbar) %>% 
+diff_takeup_partial_v_plot <- diff_rate_of_change_data %>%  
+  unpack(diff_partial_d) %>% 
   filter(!fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control")) %>% 
-  ggplot(aes(v, -per_0.5, color = assigned_treatment_left)) +
+  ggplot(aes(v, per_0.5, color = assigned_treatment_left)) +
   geom_line(show.legend = FALSE) + 
   geom_hline(yintercept = 0, linetype = "dotted") +
-  geom_ribbon(aes(ymin = -per_0.1, ymax = -per_0.9, fill = assigned_treatment_left), color = NA, alpha = 0.25, show.legend = FALSE) +
-  coord_cartesian(xlim = c(-1, 1)) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment_left), color = NA, alpha = 0.25, show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment_left), color = NA, alpha = 0.25, show.legend = FALSE) +
+  coord_cartesian(xlim = v_lim) +
   scale_color_manual("Assigned Treatment (z)", values = treatment_colors, labels = str_to_title) +
   scale_fill_manual("Assigned Treatment (z)", values = treatment_colors) +
-  labs(subtitle = "Rate-of-change of Take-up Compared to Control Level", y = bquote(frac(partialdiff ~ "E[Y]", partialdiff ~ bar(C)) ~ "Difference")) + # TeX("Change in $E\\[Y(z,\\bar{b})\\]$")) +
+  scale_y_continuous(breaks = seq(-1, 1, 0.01)) +
+  labs(subtitle = "Rate-of-change of Take-up Compared to Control Level", 
+       y = TeX(r"{$\frac{\partial E\[Y(z,v)\]}{\partial d} - \frac{\partial E\[Y(control,v)\]}{\partial d}$}")) + 
   facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
+  theme(axis.title.y = element_text(size = 8)) +
   NULL
 
 plot_grid(
@@ -2556,8 +2847,7 @@ est_deworming_day_dist %>%
 
 # Conclusion
 
-This paper provides field experimental evidence on the effects of social signaling in the context of deworming. Working with the Kenyan Government, we introduced a new community deworming program where adults were offered free deworming treatment at central locations. We show that a social signal can lead to meaningful increases in deworming take-up and outperform material incentives. Our experiment overcomes a main identification challenges: separating the social signaling effect from the private consumption effect and the social learning/salience effect. We do this combining the experiment's randomized intervention and a structural causal model motivated by a theoretical social signaling model. Furthermore, in our study's context, we find that increasing costs by manipulating the distance to deworming treatment had a small cost mitigating effect. We believe that this research can be extended in several directions. First, it will be important to test whether social signals can have similar effects on take-up in future rounds of community deworming. Once community deworming is no longer novel and the signals are repeatedly implemented, will treatment effects disappear or could they increase as signals could contribute to forming stronger norms around community deworming. Second, it would be helpful to extend the range of costs and benefits to learn more about cost mitigation and utility amplification. It would be crucial to learn whether signaling could be utilized to extend the catchment area of centralized treatment locations and/or could be used to amplify private incentives.  
-
+This paper provides field experimental evidence on the effects of social signaling in the context of deworming. Working with the Kenyan Government, we introduced a new community deworming program where adults were offered free deworming treatment at central locations. We show that a social signal can lead to meaningful increases in deworming take-up and outperform material incentives. Our experiment overcomes a main identification challenges: separating the social signaling effect from the private consumption effect and the social learning/salience effect. We do this combining the experiment's randomized intervention and a structural causal model motivated by a theoretical social signaling model. Furthermore, in our study's context, we find that increasing costs by manipulating the distance to deworming treatment was potentially mitigated by signaling. We believe that this research can be extended in several directions. First, it will be important to test whether social signals can have similar effects on take-up in future rounds of community deworming. Once community deworming is no longer novel and the signals are repeatedly implemented, will treatment effects disappear or could they increase as signals could contribute to forming stronger norms around community deworming. Second, it would be helpful to extend the range of costs and benefits to learn more about how signaling mitigates or amplifies costs. It would be crucial to learn whether signaling could be utilized to extend the catchment area of centralized treatment locations and/or could be used to amplify private incentives.  
 
 <!-- This paper provides field experimental evidence on the effects of social signaling in the context of deworming. Working with the Kenyan Government, we introduced a new community deworming program where adults were offered free deworming treatment at central locations. We show that a social signal can lead to meaningful increases in deworming take-up and outperform material incentives. Our experiment overcomes a main identification challenge when introducing visibility in actions in setting where individuals make decisions sequentially. Further, we show that the impact of signals varies with the cost of the action and therefore average take-up levels. Signals have large effects at low take-up levels, consistent with signaling models where reputational returns are higher as signals become more informative about types. We also provide evidence of the powerful nature of private nudges. The SMS treatment had the unintended consequence of being most effective in increasing deworming take-up. We believe that this research can be extended in several directions. First, it will be important to test whether social signals can have similar effects on take-up in future rounds of community deworming. Once community deworming is no longer novel and the signals are repeatedly implemented, will treatment effects disappear or could they increase as signals could contribute to forming stronger norms around community deworming. Second, given the large effects of private text message nudges it will be important to understand if the effects are dependent on the initial in-person recruitment that was part of this experiment, or if we could send simple text message reminders to all households in Kenya and thereby increase deworming take-up. -->
 

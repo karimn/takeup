@@ -1181,6 +1181,33 @@ dist_fit_data %>%
   NULL
 ```
 
+## Structural Average Treatment Effects of Private Value of Incentives 
+
+$\expect{Y(\textrm{control},\overline{B}(\textrm{z}))} - \expect{Y(\textrm{control})}$
+
+```{r take-up-ate-struct-private, fig.width=7.5, fig.height=3.0, dependson="load-processed-dist-fit"}
+dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  filter(
+    is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right),
+    !fct_match(assigned_treatment_left, "control"), 
+    fct_match(assigned_treatment_right, "control"),
+    !is.na(mu_assigned_treatment_left),
+    fct_match(mu_assigned_treatment_left, "control"),
+    fct_match(mu_assigned_treatment_right, "control"),
+  ) %>%
+  plot_estimands(assigned_treatment_left) +
+  scale_y_discrete("", labels = str_to_title) +
+    labs(
+      # title = "Average treatment effect of signaling holding consumption utility at the control level,\ncompared to control",
+      # subtitle = TeX("E\\[Y(z,\\bar{B}(control))\\] - E\\[Y(control)\\]"),
+      x = "Average Treatment Effect") +
+  theme(plot.caption = element_blank()) +
+  NULL
+```
+
 ## Posterior Histogram of Equilibrium $v^*(z,g)$ 
 
 ```{r, fig.width=7.5, fig.height=5.4, message=FALSE, warning=FALSE, dependson="load-processed-dist-fit"}

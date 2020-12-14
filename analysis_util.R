@@ -410,7 +410,7 @@ know.bel.cat.plot <- function(var, .baseline.data = baseline.data, .endline.data
     map_df(select_, .dots = c(var, "KEY"), .id = "survey.type") %>% 
     # unnest_(var) %>% { 
     unnest(var) %>% { 
-      if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else return(.)
+      if(na.rm) filter_(., sprintf("!is.na(%s)", var)) else .
     } %>% 
     group_by(survey.type) %>% 
     do({
@@ -440,7 +440,7 @@ multi.know.bel.cat.plot <- function(question.info,
   stopifnot(is.data.frame(question.info))
   
   list(Census = .census.data, 
-       Baseline = .baseline.data %>% { if (!plyr::empty(.)) mutate(., KEY.individ = KEY) else return(.) }, 
+       Baseline = .baseline.data %>% { if (!plyr::empty(.)) mutate(., KEY.individ = KEY) else . }, 
        Endline = .endline.data) %>% 
     compact %>% 
     map_df(~ select_(.x, .dots = c(intersect(names(.x), question.info$col.name), "KEY.individ")), .id = "survey.type") %>% 
@@ -453,9 +453,9 @@ multi.know.bel.cat.plot <- function(question.info,
                    }
                    
                    unnest(., .col.name) 
-                 } else return(.)
+                 } else .
                } %>% {
-                 if(na.rm) filter_(., sprintf("!is.na(%s)", .col.name)) else return(.)
+                 if(na.rm) filter_(., sprintf("!is.na(%s)", .col.name)) else .
                } %>%
                group_by(survey.type) %>% 
                do(mutate(count_(., .col.name), n = n/n_distinct(.$KEY.individ))) %>% 
@@ -570,7 +570,7 @@ prep.sms.ctrl.plot.data <- function(.reg.output, .interact.with = NULL) {
   
   .reg.output %>% 
     tidy %>% {
-      if (is.null(.interact.with)) return(.) else filter(., !str_detect(.$term, .interact.with))
+      if (is.null(.interact.with)) . else filter(., !str_detect(.$term, .interact.with))
     } %>%
     filter(term %in% c("(intercept)", incentive.treatment.terms)) %>% 
     bind_rows(magrittr::extract(., rep(1, 3), ), .) %>% 
@@ -718,7 +718,7 @@ plot_takeup <- function(takeup_summ_data, takeup_data = NULL, combiner = NULL, d
                                                                         "Reminders Only" = "reminder.only",
                                                                         "Social Info & Reminders" = "social.info")))
       } else {
-        return(.)
+        .
       }
     } %>% 
     data_preparer() 
@@ -880,7 +880,7 @@ plot_dyn_takeup_daily <- function(daily_takeup_summ,
                                                                           "No SMS" = "control",
                                                                           "Reminders Only" = "reminder.only",
                                                                           "Social Info & Reminders" = "social.info"))) 
-      } else return(.)
+      } else .
     } %>% 
     ggplot(aes(day, mean_est)) +
     geom_line(line_aes, size = 0.5) +
@@ -917,7 +917,7 @@ plot_ate <- function(ate_summ_data, ate_data = NULL, combiner = NULL, data_prepa
                                                                           "No SMS" = "control",
                                                                           "Reminders Only" = "reminder.only",
                                                                           "Social Info & Reminders" = "social.info"))) 
-      } else return(.)
+      } else .
     } %>% 
     data_preparer() 
  
@@ -1434,10 +1434,10 @@ prepare_dynamic_treatment_maps <- function(dynamic_treatment_map_config, prepare
         select(., matches(dyn_var_re), -contains("control"), "(Intercept)") 
       }
     } %>% {
-      if (day_interactions_only) select(., matches(str_c(original_dyn_var, collapse = "|"))) else return(.) 
+      if (day_interactions_only) select(., matches(str_c(original_dyn_var, collapse = "|"))) else . 
     } %>%
     select(one_of(dyn_var), which(str_detect(names(.), ":(?!phone_owner)"))) %>% {
-      if (dynamic_treatment_map_config$scale %||% FALSE) scale(., center = FALSE, scale = rep(max(.), ncol(.))) else return(.)
+      if (dynamic_treatment_map_config$scale %||% FALSE) scale(., center = FALSE, scale = rep(max(.), ncol(.))) else .
       # if (dynamic_treatment_map_config$scale %||% FALSE) map_dfc(., ~ scale(.x, center = FALSE, scale = max(.x))) else return(.)
     } %>% 
     as_tibble()
@@ -1600,7 +1600,7 @@ prepare_bayesian_analysis_data <- function(origin_prepared_analysis_data,
     model_matrix(treatment_formula) %>% 
     rename(intercept = `(Intercept)`) %>% 
     magrittr::extract(, detect_redund_col(.)) %>% {
-      if (!remove_dup_treatment_dm_cols) return(.) else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?) 
+      if (!remove_dup_treatment_dm_cols) . else magrittr::extract(., , !duplicated(t(.))) # Remove redundant columns (rows?) 
     }
   
   within_cluster_treatment_map <- treatment_map %>% 
