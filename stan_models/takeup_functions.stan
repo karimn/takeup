@@ -77,12 +77,14 @@ real expected_delta_part(real v, real xc, real[] theta, data real[] x_r, data in
   real w = theta[1];
   real u_sd = theta[2];
 
-  return v * exp(normal_lcdf(w - v | 0, u_sd) + normal_lpdf(v | 0, 1));
+  return v * exp(normal_lpdf(v | 0, 1) + normal_lcdf(w - v | 0, u_sd));
 }
 
-real expected_delta(real w, real u_sd) {
-  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.01);
-  real F_w = Phi_approx(w / u_sd);
+real expected_delta(real w, real total_error_sd, real u_sd) {
+  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
+  real F_w = Phi_approx(w / total_error_sd);
+  
+  // print("delta_part = ", delta_part, ", F_w = ", F_w);
 
   return - delta_part / (F_w * (1 - F_w));
 }
@@ -99,10 +101,15 @@ vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[
   vector[num_v_mix] lambda = theta[3:(3 + num_v_mix - 1)];
   vector[num_v_mix] mix_mean = theta[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)];
   vector[num_v_mix] mix_sd = theta[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)];
-  real u_sd = theta[3 + 3 * num_v_mix]; 
+  real total_error_sd = theta[3 + 3 * num_v_mix]; 
+  real u_sd = theta[3 + 3 * num_v_mix + 1]; 
   
   if (use_u_in_delta && u_sd > 0) {
-    return [ cutoff + benefit_cost + mu * expected_delta(cutoff, u_sd) ]';
+    real curr_exp_delta = expected_delta(cutoff, total_error_sd, u_sd);
+    
+    // print("cutoff = ", cutoff, "total_error_sd = ", total_error_sd, "delta = ", curr_exp_delta);
+    
+    return [ cutoff + benefit_cost + mu * curr_exp_delta ]';
   } else {
     return [ cutoff + benefit_cost + mu * reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd) ]';
   }
@@ -144,15 +151,16 @@ real mixed_bernoulli_lpmf(int[] outcomes, vector lambda, matrix prob) {
   return logp;
 }
 
-vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real u_sd) { //, vector u_shocks) {
+vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real total_error_sd, real u_sd) { 
   int num_v_mix = num_elements(lambda);
-  vector[2 + 3 * num_v_mix + 1] solver_theta;
+  vector[2 + 3 * num_v_mix + 2] solver_theta;
   
   solver_theta[1:2] = [ benefit_cost, mu_rep ]';
   solver_theta[3:(3 + num_v_mix - 1)] = lambda;
   solver_theta[(3 + num_v_mix):(3 + num_v_mix + num_v_mix - 1)] = append_row(v_mu, mix_mean);
   solver_theta[(3 + num_v_mix + num_v_mix):(3 + 3 * num_v_mix - 1)] = append_row(v_sd, mix_sd);
-  solver_theta[3 + 3 * num_v_mix] = u_sd; 
+  solver_theta[3 + 3 * num_v_mix] = total_error_sd; 
+  solver_theta[3 + 3 * num_v_mix + 1] = u_sd; 
 
   return solver_theta; 
 }
