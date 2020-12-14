@@ -146,7 +146,7 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
   
   fit %>% {
     if (is_stanfit) {
-      as.array(par = par) 
+      as.array(., par = par) 
     } else {
       .$draws(par)
     }

@@ -1180,11 +1180,12 @@ dist_fit_data %>%
   theme(plot.caption = element_blank()) +
   NULL
 ```
+
 ## Structural Average Treatment Effects of Private Value of Incentives 
 
 $\expect{Y(\textrm{control},\overline{B}(\textrm{z}))} - \expect{Y(\textrm{control})}$
 
-```{r take-up-ate-struct, fig.width=7.5, fig.height=3.0, dependson="load-processed-dist-fit"}
+```{r take-up-ate-struct-private, fig.width=7.5, fig.height=3.0, dependson="load-processed-dist-fit"}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
