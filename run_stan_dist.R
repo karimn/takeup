@@ -838,3 +838,5 @@ if (!script_options$no_save) {
     }  
   }
 }
+
+cat(str_glue("All done. Saved results to output ID '{output_name}'\n"))
