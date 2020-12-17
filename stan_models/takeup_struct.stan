@@ -105,9 +105,6 @@ transformed parameters {
   
   real total_error_sd;
   
-  // print("test_w = ", test_w, ", u_sd = ", u_sd, ", expected_delta(test_w, u_sd) = ", expected_delta(test_w, u_sd));
-  
-  
   if (!suppress_shocks) {
     vector[2] all_u_sd = [ 1.0, u_sd ]';
     matrix[2, 2] L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
@@ -116,6 +113,7 @@ transformed parameters {
   } else {
     total_error_sd = 1;
   }
+  
   
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
@@ -244,9 +242,6 @@ transformed parameters {
         }
       }
     }
-    
-    // cluster_linear_dist_cost += rep_matrix(linear_dist_cost', num_clusters);
-    // cluster_quadratic_dist_cost += rep_matrix(quadratic_dist_cost', num_clusters);
   } 
   
   cluster_linear_dist_cost += rep_matrix(linear_dist_cost', num_clusters);
@@ -320,9 +315,9 @@ transformed parameters {
   
   for (mix_index in 1:num_v_mix) {
     if (mix_index == 1) {
-      structural_cluster_takeup_prob[1] = Phi(- structural_cluster_obs_v / total_error_sd)';
+      structural_cluster_takeup_prob[1] = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
     } else {
-      structural_cluster_takeup_prob[mix_index] = Phi(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
+      structural_cluster_takeup_prob[mix_index] = Phi_approx(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
     }
   }
 }
