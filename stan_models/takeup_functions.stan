@@ -84,8 +84,6 @@ real expected_delta(real w, real total_error_sd, real u_sd) {
   real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
   real F_w = Phi_approx(w / total_error_sd);
   
-  // print("delta_part = ", delta_part, ", F_w = ", F_w);
-
   return - delta_part / (F_w * (1 - F_w));
 }
 
@@ -104,15 +102,15 @@ vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[
   real total_error_sd = theta[3 + 3 * num_v_mix]; 
   real u_sd = theta[3 + 3 * num_v_mix + 1]; 
   
+  real delta;
+  
   if (use_u_in_delta && u_sd > 0) {
-    real curr_exp_delta = expected_delta(cutoff, total_error_sd, u_sd);
-    
-    // print("cutoff = ", cutoff, "total_error_sd = ", total_error_sd, "delta = ", curr_exp_delta);
-    
-    return [ cutoff + benefit_cost + mu * curr_exp_delta ]';
+    delta = expected_delta(cutoff, total_error_sd, u_sd);
   } else {
-    return [ cutoff + benefit_cost + mu * reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd) ]';
+    delta = reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd);
   }
+  
+  return [ cutoff + benefit_cost + mu * delta ]';
 }
 
 real mixed_binomial_lpmf(int[] outcomes, vector lambda, int[] N, matrix prob) {
