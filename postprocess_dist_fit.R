@@ -7,9 +7,9 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  postprocess_dist_fit <fit-version>",
+  postprocess_dist_fit <fit-version> [--full-outputname]",
 
-  args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -28,7 +28,11 @@ fit_version <- script_options$fit_version
 # Load Data ---------------------------------------------------------------
 
 # Stan fit 
-load(file.path("data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
+if (script_options$full_outputname) {
+  load(file.path("data", "stan_analysis_data", str_interp("${fit_version}.RData")))
+} else {
+  load(file.path("data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
+}
 
 dist_fit %<>% 
   map_if(is.character, read_rds)
@@ -50,6 +54,7 @@ model_info <- tribble(
   
   "REDUCED_FORM_NO_RESTRICT",       "Reduced Form",                              "reduced form",
   "STRUCTURAL_LINEAR",              "Structural",                                "structural",
+  "TEST",                           "Test Structural",                           "structural",
   # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
   # "STRUCTURAL_QUADRATIC_NO_SHOCKS", "Structural Quadratic Cost (No Shocks)",     "structural",
   # "STRUCTURAL_LINEAR_NO_SHOCKS",    "Structural Linear Cost (No Shocks)",        "structural",
@@ -390,8 +395,10 @@ dist_fit_data %<>%
 
 # Select all the estimate differences that need to be calculated
 ate_combo <- dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
+  slice(1) %$% 
   # filter(fct_match(model, "STRUCTURAL_QUADRATIC")) %$%
-  filter(fct_match(model, "STRUCTURAL_LINEAR")) %$%
+  # filter(fct_match(model, "STRUCTURAL_LINEAR")) %$%
   select(est_takeup_level[[1]], mu_assigned_treatment:assigned_dist_group) %>% {
     bind_cols(rename_all(., str_c, "_left"), rename_all(., str_c, "_right"))
   } %>% {
