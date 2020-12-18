@@ -1,0 +1,232 @@
+---
+title: Net Reputational Incentive with Shocks 
+output: 
+  pdf_document:
+    number_sections: yes
+    fig_caption: yes
+    keep_tex: no
+    pandoc_args: "commonrmd.yaml"
+    includes:
+      in_header: takeup_workingpaper_header.sty
+bibliography: /home/karim/Documents/library.bib
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+library(latex2exp)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, cache = FALSE) 
+
+source("dist_structural_util.R")
+
+ggplot2::theme_set(theme_minimal())
+```
+
+Previously, we modeled the take-up probability as 
+\[ \bar{y}(b,c) = \prob{b - c + \mu\Delta^*(b,c) + V > 0}, \]
+where 
+\[\Delta^*(b,c) = \expect{V | b,c, y = 1} - \expect{V | b,c, y = 0}.\]
+This was relatively simple and can be rewritten as
+\[\Delta^*(b,c) = \Delta[v^*(b,c)] = \expect{V | V > v^*(b,c)} - \expect{V | V \leq v^*(b,c)},\]
+where $v^*(b,c)$ is implicitly defined as
+\[ v^*(b,c) = - b + c - \mu\Delta[v^*(c,d)]. \]
+
+Now consider adding an unobservable shock $U$,
+\[ \bar{y}(b,c) = \prob{b - c + \mu\Delta^*(b,c) + V + U > 0}. \]
+We define $W = V + U$ and $w^*(b,c)$ is implicitly defined as
+\[ w^*(b,c) = - b + c - \mu\Delta[w^*(c,d)], \]
+which is no longer the prosocial type cutoff. In calculating $\Delta^*$ individuals must now account for the non-prosocial shocks $U$, such that
+\begin{align*}
+  \Delta^*(b,c) &= \Delta[w^*(b,c)] \\
+           &=\expect{V | b,c, y = 1} - \expect{V | b,c, y = 0} \\ 
+           &= \expect{V | W > w^*(b,c)} - \expect{V | W \leq w^*(b,c)} \\
+           &= \int_{-\infty}^\infty v \prob{V = v | W > w^*(b,c)}\,\mathrm{d}v - \int_{-\infty}^\infty v \prob{V = v | W \leq w^*(b,c)}\,\mathrm{d}v \\
+           &= \int_{-\infty}^\infty \frac{v\prob{W > w^*(b,c) | V = v}\prob{V = v}}{\prob{W > w^*(b,c)}}\,\mathrm{d}v - \int_{-\infty}^\infty \frac{v\prob{W \leq w^*(b,c) | V = v}\prob{V = v}}{\prob{W \leq w^*(b,c)}}\,\mathrm{d}v \\ 
+           &= \int_{-\infty}^\infty \frac{v\prob{U > w^*(b,c) - v}\prob{V = v}}{\prob{W > w^*(b,c)}}\,\mathrm{d}v - \int_{-\infty}^\infty \frac{v\prob{U \leq w^*(b,c) - v}\prob{V = v}}{\prob{W \leq w^*(b,c)}}\,\mathrm{d}v \\ 
+           &= \int_{-\infty}^\infty \frac{v \left[1 - F_u\left(w^*(b,c) - v\right)\right]f_v(v)}{1 - F_w\left(w^*(b,c)\right)}\,\mathrm{d}v - \int_{-\infty}^\infty\frac{v F_u\left(w^*(b,c) - v\right)f_v(v)}{F_w\left(w^*(b,c)\right)}\,\mathrm{d}v \\ 
+           &= \frac{-1}{F_w\left(w^*(b,c)\right)[1 - F_w\left(w^*(b,c)\right)]} \int_{-\infty}^\infty v F_u\left(w^*(b,c) - v\right)f_v(v)\,\mathrm{d}v.
+\end{align*}
+$f(\cdot)$ and $F(\cdot)$ are the pdf and cdf, respectively, for the subscript random variable (here $U, V,$ and $W$).
+
+To get a sense of what flexibility this affords our model, consider how $\mu\Delta^*$ changes in two different scenarios: first, don't include the shock $u$ but allow $\mu$ to vary, second, hold $\mu$ fixed at 1 and allow the standard deviation of $u$ to vary. From here on I'm assuming that $V \sim N(0,1)$, $U \sim N(0, \sigma_u)$, and they are uncorrelated.
+
+```{r, fig.width=8}
+sim_int <- expand.grid(
+  w = seq(-2, 2, 0.1),
+  u_sd = seq(0.0, 2.0, 0.05),
+  mu = seq(0.1, 1, 0.05)
+) %>% 
+  filter(u_sd == 0 | mu == 1) %>% 
+  rowwise() %>% 
+  mutate(
+    mu_delta = mu * calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
+    mu_delta_deriv = mu * calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd)
+  ) %>% 
+  ungroup() %>% 
+  pivot_longer(c(mu_delta, mu_delta_deriv), names_to = "delta_type")
+
+sim_int %>% 
+  filter(delta_type == "mu_delta") %>%
+  ggplot(aes(w, value)) +
+  geom_line(
+    aes(group = u_sd), 
+    data = . %>% 
+      filter(mu == 1) %>% 
+      mutate(type = r"{Add shocks: Holding $\mu = 1$ and varying $\sigma_u$}")
+  ) +
+  geom_line(
+    aes(group = mu), 
+    data = . %>% 
+      filter(u_sd == 0) %>% 
+      mutate(type = r"{Original model: Holding $\sigma_u = 0$ and varying $\mu$}")
+  ) + 
+  geom_line(
+    aes(group = mu), 
+    color = "red",
+    data = . %>% 
+      filter(u_sd == 0, mu == 1) 
+  ) + 
+  labs(
+    title = latex2exp::TeX(r"{$\mu\Delta\[w^*\]$ with and without shocks.}"),
+    x = latex2exp::TeX("$w^*$"),
+    y = "",
+    caption = latex2exp::TeX(r"{Black lines move down as $\mu$ decreases or $\sigma_u$ increases. Red lines are with $\mu = 1$ and $\sigma_u = 0$.}")
+  ) +
+  facet_wrap(vars(type), labeller = as_labeller(latex2exp::TeX, default = label_parsed)) +
+  # facet_grid(rows = vars(delta_type), cols = vars(type)) +
+  NULL
+```
+
+Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
+
+```{r}
+load(file.path("temp-data", str_interp("processed_dist_fittest3.RData")))
+
+dist_fit_data %<>% 
+  mutate(model_color = "black")
+```
+
+```{r, fig.width=8, fig.height=2.75}
+dist_fit_data %>% 
+  mutate(est_takeup_te =
+    map(est_takeup_te, 
+        filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+    map(filter, 
+        is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right),
+        assigned_treatment_left != assigned_treatment_right,
+        fct_match(assigned_treatment_right, c("control", "calendar")),
+        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  mutate_at(vars(starts_with("assigned_dist_group")), fct_explicit_na, "Combined") %>% 
+  plot_estimands(assigned_treatment_left) +
+  scale_x_continuous(breaks = seq(-1, 1, 0.02)) +
+  scale_y_discrete("", labels = str_to_title) +
+  labs(
+    title = "Incentive Average Treatment Effect",
+    x = ""
+  ) +
+  ggforce::facet_col(vars(assigned_treatment_right), 
+             labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), 
+             space = "free",
+             scales = "free_y") +
+  theme(legend.position = "none") +
+  NULL
+```
+
+```{r, fig.width=8, fig.height=3}
+dist_fit_data %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  filter(
+    is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right),
+    across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+    !is.na(mu_assigned_treatment_left),
+    fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+    fct_match(mu_assigned_treatment_right, c("control", "calendar")),
+  ) %>%
+  plot_estimands(mu_assigned_treatment_left) +
+  scale_x_continuous(breaks = seq(-1, 1, 0.02)) +
+  scale_y_discrete("", labels = str_to_title) +
+    labs(
+      title = "Signaling Average Treatment Effect",
+      subtitle = "Holding private incentive at the control level.",
+      x = "") +
+  ggforce::facet_col(vars(mu_assigned_treatment_right), 
+             labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), 
+             space = "free",
+             scales = "free_y") +
+  theme(legend.position = "none") +
+  NULL
+```
+
+```{r, fig.width=8, fig.height=3}
+dist_fit_data %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  filter(
+    is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right),
+    # !fct_match(assigned_treatment_left, "control"), 
+    # fct_match(assigned_treatment_right, "control"),
+    !is.na(mu_assigned_treatment_left),
+    !is.na(mu_assigned_treatment_right),
+    across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+    fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
+    fct_match(assigned_treatment_right, c("control", "calendar")),
+  ) %>%
+  plot_estimands(assigned_treatment_left) +
+  scale_y_discrete("", labels = str_to_title) +
+  scale_x_continuous(breaks = seq(-1, 1, 0.02)) +
+  labs(
+    title = "Private Incentive Average Treatment Effect",
+    subtitle = "Holding signaling at the control level.",
+    x = "Average Treatment Effect") +
+  ggforce::facet_col(vars(assigned_treatment_right), 
+             labeller = as_labeller(. %>% str_c("Compared to, $z' = ", ., "$") %>% TeX(), default = label_parsed), 
+             space = "free",
+             scales = "free_y") +
+  theme(legend.position = "none") +
+  NULL
+```
+To calculate the slope of $\bar{y}(b,c)$ with respect to cost,
+\begin{align*}
+  \frac{\partial \bar{y}(b,c)}{\partial c} = \frac{-f_w(w^*(b,c))}{1 + \mu\Delta'[w^*(b,c)]},
+\end{align*}
+where
+<!-- \Delta'[w^*(b,c)] = &-\frac{\int_{-\infty}^\infty v f_u(w^*(b,c) - v) f_v(v)\,\mathrm{d}v}{F_w(w^*(b,c))\left[1 - F_w(w^*(b,c))\right]} \\ -->
+<!--                     &-\frac{f_w(w^*(b,c))\left[1 - 2F_w(w^*(b,c))\right]\Delta[w^*(b,c)]}{F_w(w^*(b,c))\left[1 - F_w(w^*(b,c))\right]} -->
+\begin{align*}
+\Delta'[w^*(b,c)] = &-\frac{\int_{-\infty}^\infty v f_u(w^*(b,c) - v) f_v(v)\,\mathrm{d}v + f_w(w^*(b,c))\left[1 - 2F_w(w^*(b,c))\right]\Delta[w^*(b,c)]}{F_w(w^*(b,c))\left[1 - F_w(w^*(b,c))\right]} 
+\end{align*}
+
+```{r cost-mitig-diff, fig.width=8, fig.height=5.5}
+v_lim <- c(-2, 2)
+
+diff_rate_of_change_data <- dist_fit_data %>% 
+  select(model, model_name, diff_y_rate_of_change, fit_type) %>% 
+  unnest(diff_y_rate_of_change) 
+
+diff_takeup_partial_v_plot <- diff_rate_of_change_data %>%  
+  unpack(diff_partial_d) %>% 
+  filter(!fct_match(assigned_treatment_left, "control"), fct_match(assigned_treatment_right, "control")) %>% 
+  ggplot(aes(v, per_0.5)) +
+  geom_line(show.legend = FALSE) + 
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), color = NA, alpha = 0.25, show.legend = FALSE) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), color = NA, alpha = 0.25, show.legend = FALSE) +
+  scale_y_continuous(breaks = seq(-1, 1, 0.005)) +
+  coord_cartesian(xlim = v_lim) +
+  labs(
+    title = "Rate-of-change of Take-up Compared to Control Level", 
+    subtitle = "With respect to distance (meters).",
+    x = "w",
+    y = TeX(r"{$\frac{\partial E\[Y(z,w)\]}{\partial d} - \frac{\partial E\[Y(control,w)\]}{\partial d}$ Difference}"),
+    caption = "Line: posterior median. Dark ribbon: 50% CI. Light ribbon: 80% CI."
+ ) + 
+  facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
+  NULL
+
+diff_takeup_partial_v_plot
+```
