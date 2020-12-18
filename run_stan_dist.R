@@ -48,6 +48,34 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
+
+# Data --------------------------------------------------------------------
+
+load(file.path("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
+# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
 analysis_data <- monitored_nosms_data
 
 # Splines -----------------------------------------------------------------
@@ -150,7 +178,58 @@ models <- lst(
   #     name_matched = FALSE,
   #     suppress_reputation = suppress_reputation)) %>% 
   #   list_modify(!!!enum2stan_data(cost_model_types)),
-  # 
+  
+  STRUCTURAL_LINEAR_U_SHOCKS = lst(
+    model_file = "takeup_struct.stan",
+    pars = struct_model_stan_pars,
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
+    use_binomial = FALSE,
+    num_v_mix = 1,
+    use_cost_model = cost_model_types["param_linear"],
+    use_single_cost_model = TRUE,
+    use_private_incentive_restrictions = TRUE,
+    use_salience_effect = FALSE,
+    use_cluster_effects = FALSE,
+    use_county_effects = FALSE,
+    use_param_dist_cluster_effects = FALSE,
+    use_param_dist_county_effects = FALSE,
+    use_mu_cluster_effects = FALSE,
+    use_mu_county_effects = FALSE,
+    use_shifting_v_dist = FALSE,
+    use_u_in_delta = TRUE,
+    suppress_reputation = FALSE,
+    suppress_shocks = FALSE,
+    generate_sim = FALSE,
+    iter = 4000,
+    thin = 1,
+    alg_sol_f_tol = 0.001,
+    alg_sol_max_steps = 1e9L,
+    alg_sol_rel_tol = 0.0000001,
+
+    # Priors
+    mu_rep_sd = 1,
+    structural_beta_county_sd_sd = 0.25,
+    structural_beta_cluster_sd_sd = 0.25,
+
+    init = generate_initializer(
+      num_treatments = num_treatments,
+      num_clusters = num_clusters,
+      num_counties = num_counties,
+      structural_type = 1,
+      num_mix = num_v_mix,
+      use_cluster_effects = use_cluster_effects,
+      use_county_effects = use_county_effects,
+      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+      use_mu_cluster_effects = use_mu_cluster_effects,
+      use_mu_county_effects = use_mu_county_effects,
+      restricted_private_incentive = use_private_incentive_restrictions,
+      cost_model_type = use_cost_model,
+      use_single_cost_model = use_single_cost_model,
+      num_knots = ncol(Z_osullivan),
+      name_matched = FALSE,
+      suppress_reputation = suppress_reputation)) %>%
+    list_modify(!!!enum2stan_data(cost_model_types)),
+
   STRUCTURAL_LINEAR = lst(
     model_file = "takeup_struct.stan",
     pars = struct_model_stan_pars,
@@ -330,53 +409,6 @@ models <- lst(
   #     name_matched = FALSE,
   #     suppress_reputation = suppress_reputation)) %>% 
   #   list_modify(!!!enum2stan_data(cost_model_types)),
-  
-  STRUCTURAL_LINEAR_U_SHOCKS = lst(
-    model_file = "takeup_struct.stan",
-    pars = struct_model_stan_pars,
-    control = lst(max_treedepth = 12, adapt_delta = 0.99),
-    use_binomial = FALSE,
-    num_v_mix = 1,
-    use_cost_model = cost_model_types["param_linear"],
-    use_single_cost_model = TRUE,
-    use_private_incentive_restrictions = TRUE,
-    use_salience_effect = FALSE,
-    use_cluster_effects = TRUE,
-    use_county_effects = TRUE,
-    use_param_dist_cluster_effects = FALSE,
-    use_param_dist_county_effects = FALSE,
-    use_mu_cluster_effects = FALSE,
-    use_mu_county_effects = FALSE,
-    use_shifting_v_dist = FALSE,
-    suppress_reputation = FALSE,
-    suppress_shocks = FALSE,
-    use_u_in_delta = TRUE,
-    generate_sim = FALSE,
-    iter = 2000,
-    thin = 1,
-
-    mu_rep_sd = 1,
-    structural_beta_county_sd_sd = 0.25,
-    structural_beta_cluster_sd_sd = 0.25,
-
-    init = generate_initializer(
-      num_treatments = num_treatments,
-      num_clusters = num_clusters,
-      num_counties = num_counties,
-      structural_type = 1,
-      num_mix = num_v_mix,
-      use_cluster_effects = use_cluster_effects,
-      use_county_effects = use_county_effects,
-      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
-      use_mu_cluster_effects = use_mu_cluster_effects,
-      use_mu_county_effects = use_mu_county_effects,
-      restricted_private_incentive = use_private_incentive_restrictions,
-      cost_model_type = use_cost_model,
-      use_single_cost_model = use_single_cost_model,
-      num_knots = ncol(Z_osullivan),
-      name_matched = FALSE,
-      suppress_reputation = suppress_reputation)) %>%
-    list_modify(!!!enum2stan_data(cost_model_types)),
 
   # REDUCED_FORM_LINEAR = lst(
   #   model_type = 10,
@@ -693,6 +725,10 @@ stan_data <- lst(
   
   thin = thin_by,
   
+  alg_sol_f_tol = 1e-5,
+  alg_sol_rel_tol = 1e-5, 
+  alg_sol_max_steps = 1e6L,
+  
   # Priors
   
   u_splines_v_sigma_sd = 1,
@@ -783,3 +819,5 @@ if (!script_options$no_save) {
     }  
   }
 }
+
+cat(str_glue("All done. Saved results to output ID '{output_name}'\n"))

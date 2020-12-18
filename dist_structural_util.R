@@ -1,31 +1,4 @@
 
-# Data --------------------------------------------------------------------
-
-load(file.path("data", "analysis.RData"))
-
-standardize <- as_mapper(~ (.) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original)
-# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
-# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
-
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-
-nosms_data <- analysis.data %>% 
-  filter(sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-
 # Model Classes -----------------------------------------------------------
 
 # setClass("TakeUpModel", 
@@ -349,6 +322,8 @@ generate_initializer <- function(num_treatments,
           u_splines_v = u_splines_v_raw,
          
           u_sd = abs(rnorm(1, 0, 0.5)),
+          # u_sd = 0.01,
+          # test_w = 0.461662,
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -569,9 +544,27 @@ enum2stan_data.stan_enum <- function(enum) {
 
 rep_normal <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
-generate_v_cutoff_fixedpoint <- function(b, mu) {
+delta_part <- function(v, w, u_sd) v * pnorm(w - v, sd = u_sd) * dnorm(v)
+integrate_delta_part <- function(w, u_sd) { 
+  Vectorize(function(w, u_sd) integrate(delta_part, w = w, u_sd = u_sd, -Inf, Inf)$value, vectorize.args = c("w", "u_sd"))(w, u_sd)
+}
+
+calculate_delta <- function(w, total_error_sd, u_sd) {
+  F_w <- pnorm(w, sd = total_error_sd)
+  r <- if (u_sd > 0) {
+    integrate_delta_part(w, u_sd)
+  } else {
+    - dnorm(w)  
+  }
+  
+  return(- r / (F_w * (1 - F_w)))
+} 
+
+
+generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0) {
   function(v_cutoff) {
-    v_cutoff + b + mu * rep_normal(v_cutoff)
+    # v_cutoff + b + mu * rep_normal(v_cutoff)
+    v_cutoff + b + mu * calculate_delta(v_cutoff, total_error_sd, u_sd)
   }
 }
 
@@ -582,21 +575,72 @@ rep_normal_1std <- function(v, ...) {
   (phi_v / Phi_1mPhi_v^2) * (-(v * Phi_1mPhi_v) + (phi_v * (2 * pnorm(v, ...) - 1))) 
 }
 
-social_multiplier <- function(v, mu) {
-  - 1 / (1 + mu * rep_normal_1std(v))
+calculate_delta_deriv <- function(w, total_error_sd, u_sd) {
+  if (all(u_sd > 0)) {
+    delta_part_deriv <- function(v, w, u_sd) v * dnorm(w - v, sd = u_sd) * dnorm(v)
+    
+    F_w <- pnorm(w, sd = total_error_sd)
+   
+    int_part <- integrate_delta_part(w, u_sd)
+    int_part_deriv <- Vectorize(function(w, u_sd) integrate(delta_part_deriv, w = w, u_sd = u_sd, -Inf, Inf)$value, vectorize.args = c("w", "u_sd"))(w, u_sd)  
+    
+    return((- int_part_deriv * F_w * (1 - F_w) + int_part * dnorm(w, sd = total_error_sd) * (1 - 2 * F_w))/((F_w * (1 - F_w))^2))
+  } else {
+    return(rep_normal_1std(w))
+  }
 }
 
-expect_y_partial_bbar <- function(v, mu, sigma) {
-  - dnorm(v, sd = sigma) * social_multiplier(v, mu) 
+social_multiplier <- function(v, mu, total_error_sd, u_sd) {
+  - 1 / (1 + mu * calculate_delta_deriv(v, total_error_sd, u_sd))
 }
 
-expect_y_partial_c <- function(v, mu, sigma) {
-  dnorm(v, sd = sigma) * social_multiplier(v, mu) 
+expect_y_partial_bbar <- function(v, mu, total_error_sd, u_sd) {
+  - dnorm(v, sd = total_error_sd) * social_multiplier(v, mu, total_error_sd, u_sd) 
 }
 
-expect_y_partial_d <- function(v, mu, sigma, linear_dist_cost) {
-  expect_y_partial_c(v, mu, sigma) %>% 
+expect_y_partial_c <- function(v, mu, total_error_sd, u_sd) {
+  dnorm(v, sd = total_error_sd) * social_multiplier(v, mu, total_error_sd, u_sd) 
+}
+
+expect_y_partial_d <- function(v, mu, total_error_sd, u_sd, linear_dist_cost) {
+  expect_y_partial_c(v, mu, total_error_sd, u_sd) %>% 
     multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size))) 
+}
+
+plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
+  plot_pos <- ggstance::position_dodgev(height = 0.8)
+  
+  ggplot_obj <- if (include_prior_predict) {
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
+      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      NULL
+  } else {
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) 
+  }
+  
+  ggplot_obj +
+    ggstance::geom_linerangeh(aes(xmin = per_0.25, xmax = per_0.75, color = model), alpha = 0.4, size = 3, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_crossbarh(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model), fatten = 0, size = 0.4, width = 0.5, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) + 
+    
+    geom_point(aes(x = mean_est, color = model), position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    scale_color_manual("", 
+                       values = select(dist_fit_data, model, model_color) %>% deframe(), 
+                       labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
 }
 
 # Constants ---------------------------------------------------------------

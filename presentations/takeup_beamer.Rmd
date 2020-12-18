@@ -32,6 +32,7 @@ library(econometr)
 
 source(file.path("..", "rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source(file.path("..", "analysis_util.R"))
+source(file.path("..", "dist_structural_util.R"))
 
 knitr::read_chunk(file.path("..", "analysis_util.R"), labels = "analysis-util")
 
@@ -93,13 +94,14 @@ analysis_data <- monitored_nosms_data
 ```
 
 ```{r load-fit}
-fit_version <- 29 
+fit_version <- 29
 
 load(file.path("..", "data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
+# load(file.path("..", "data", "stan_analysis_data", str_interp("test3.RData")))
 
 # If using cmdstanr 
 dist_fit %<>% 
-  map_if(is.character, read_rds)
+  map_if(is.character, ~ read_rds(file.path("..", .x)))
 
 if (has_name(dist_fit, "value")) {
   dist_fit_warnings <- dist_fit$warning
@@ -125,6 +127,7 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR",             "Structural",                                "structural",
   # "STRUCTURAL_QUADRATIC",          "Structural Quadratic Cost",                 "structural",
   # "STRUCTURAL_QUADRATIC_SALIENCE", "Structural Quadratic Cost With Salience",   "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS",     "Structural",                                "structural",
   
   "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
@@ -133,7 +136,7 @@ model_info <- tribble(
 
 dist_fit_data %<>% 
   left_join(distinct(., model) %>% 
-              mutate(model_color = RColorBrewer::brewer.pal(n(), "Dark2")),
+              mutate(model_color = RColorBrewer::brewer.pal(n(), "Dark2")[1:n()]),
             by = "model") %>% 
   bind_rows(
     filter(., fct_match(model, c("STACKED", "STRUCTURAL_STACKED"))) %>% 
@@ -144,43 +147,6 @@ dist_fit_data %<>%
 dist_fit_data %<>% 
   select(fit_type, model, model_name, model_type, model_color, starts_with("stacking_weight"), contains("elpd"), starts_with("est"), contains("y_rate_of_change")) %>% 
   mutate_if(~ is.list(.x), map_if, ~ !is_empty(.x), ~ select(.x, -one_of("iter_data")))
-
-plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
-  plot_pos <- position_dodgev(height = 0.8)
-  
-  ggplot_obj <- if (include_prior_predict) {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
-      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      NULL
-  } else {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) 
-  }
-  
-  ggplot_obj +
-    ggstance::geom_linerangeh(aes(xmin = per_0.25, xmax = per_0.75, color = model), alpha = 0.4, size = 3, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    ggstance::geom_crossbarh(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model), fatten = 0, size = 0.4, width = 0.5, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) + 
-    
-    geom_point(aes(x = mean_est, color = model), position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, model, model_color) %>% deframe(), 
-                       labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
-    labs(
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean."
-      
-    ) +
-    theme(legend.position = "top", legend.direction = "vertical") +
-    guides(color = guide_legend(ncol = 3)) +
-    NULL
-}
-
 ```
 
 ```{r common-functions}
@@ -1215,8 +1181,10 @@ annot_delta_data <- delta_data %>%
   filter(between(v, -3, 6)) %>% 
   rename(x = v, y = delta)
   
-v_cluster_data <- dist_fit[c("STRUCTURAL_LINEAR")] %>% #, "STRUCTURAL_LINEAR_SALIENCE")] %>% 
-  map(as.data.frame, pars = "structural_cluster_obs_v") %>% 
+v_cluster_data <- dist_fit[c("STRUCTURAL_LINEAR")] %>% #, "STRUCTURAL_LINEAR_SALIENCE")] %>%
+  map(as.data.frame, pars = "structural_cluster_obs_v") %>%
+  # map(~ .x$draws("structural_cluster_obs_v")) %>% 
+  # map(posterior::as_draws_df) %>% 
   map_df(mutate, iter_id = seq(n()), .id = "model") %>% 
   pivot_longer(-c(model, iter_id), values_to = "iter_value") %>% 
   left_join(model_info, by = "model") %>% 

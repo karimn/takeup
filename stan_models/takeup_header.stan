@@ -34,6 +34,10 @@ data {
   int<lower = 0, upper = 1> generate_rep;
   int<lower = 0, upper = 1> generate_sim;
   int<lower = 0, upper = 1> predict_prior;
+  
+  real<lower = 0> alg_sol_f_tol;
+  real<lower = 0> alg_sol_rel_tol;
+  int<lower = 0> alg_sol_max_steps;
 
   int<lower = 1> num_obs; // Actual observations
   int<lower = 1> num_clusters;
