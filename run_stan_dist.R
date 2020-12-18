@@ -48,6 +48,34 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
+
+# Data --------------------------------------------------------------------
+
+load(file.path("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
+# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
 analysis_data <- monitored_nosms_data
 
 # Splines -----------------------------------------------------------------
