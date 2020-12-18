@@ -9,7 +9,7 @@ script_options <- docopt::docopt(
 "Usage:
   postprocess_dist_fit <fit-version> [--full-outputname]",
 
-  args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE) 
+  # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -24,6 +24,35 @@ source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
 fit_version <- script_options$fit_version
+
+# Analysis Data --------------------------------------------------------------------
+
+load(file.path("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
+# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+analysis_data <- monitored_nosms_data
 
 # Load Data ---------------------------------------------------------------
 
@@ -156,7 +185,7 @@ quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 postprocess_cores <- 12
 
 # Join benefit-cost, reputation mu, and total error sd
-join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd) {
+join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd, u_sd) {
   if (!is_null(mu_rep)) {
     mutate(benefit_cost, 
            iter_data = pbmclapply(mc.cores = postprocess_cores,
@@ -164,22 +193,28 @@ join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd) 
                                   left_join, 
                                   unnest(mu_rep, iter_data) %>% 
                                     select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
-                                    inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "_error_sd")),
+                                    inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "")) %>% 
+                                    inner_join(u_sd, by = c("iter_id"), suffix = c("_error_sd", "_u_sd")),
                                   by = c("iter_id")) %>% 
              map(mutate, obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_)))
   } else if (!is_null(total_error_sd)) { 
     mutate(benefit_cost, 
            iter_data = pbmclapply(mc.cores = postprocess_cores,
-                                  iter_data, 
+                                  iter_data,
                                   inner_join, 
                                   total_error_sd, 
                                   by = c("iter_id"), 
                                   suffix = c("", "_error_sd")) %>% 
+             pbmclapply(mc.cores = postprocess_cores,
+                        .,
+                        inner_join, 
+                        u_sd, 
+                        by = c("iter_id"), 
+                        suffix = c("", "_u_sd")) %>% 
              map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
   } else {
     mutate(benefit_cost,
-           iter_data = map(iter_data, mutate, iter_est_error_sd = 1, iter_est_mu = 0) %>% 
-             map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
+           iter_data = map(iter_data, mutate, iter_est_error_sd = 1, iter_est_u_sd = 0, iter_est_mu = 0, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
   } 
 }
 
@@ -196,7 +231,7 @@ prep_multiple_est <- function(accum_data, next_col) {
 
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
 simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
-                                       mu_rep, total_error_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
+                                       mu_rep, total_error_sd, u_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
   if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
       select(assigned_treatment, iter_data) %>% 
@@ -205,21 +240,25 @@ simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linea
       left_join(total_error_sd %>% 
                   select(iter_data) %>% 
                   unnest(iter_data),
-                by = "iter_id", suffix = c("_mu", "_sd")) %>% 
+                by = "iter_id", suffix = c("_mu", "")) %>% 
+      left_join(u_sd %>% 
+                  select(iter_data) %>% 
+                  unnest(iter_data),
+                by = "iter_id", suffix = c("_total_error_sd", "_u_sd")) %>% 
       left_join(rename(cluster_linear_dist_cost, cluster_linear_dist_cost_data = cluster_data), by = "iter_id")
    
     multiplier_v_range %>% 
       map_df(~ mu_sd %>% 
                mutate(
                  v = .x,
-                 iter_prob_takeup = pnorm(v, sd = iter_est_sd, lower.tail = FALSE),  
-                 iter_social_multiplier = social_multiplier(v, iter_est_mu),
-                 iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_sd),
-                 iter_partial_d = expect_y_partial_d(v, iter_est_mu, iter_est_sd, cluster_linear_dist_cost_data) 
+                 iter_prob_takeup = pnorm(v, sd = iter_est_total_error_sd, lower.tail = FALSE),  
+                 iter_social_multiplier = social_multiplier(v, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd),
+                 iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd),
+                 iter_partial_d = expect_y_partial_d(v, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd, cluster_linear_dist_cost_data)
                ) %>% 
-      select(-cluster_linear_dist_cost_data) %>%  
-      nest(iter_data = c(iter_id, iter_est_mu, iter_est_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d))) %>% 
-      reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
+               select(-cluster_linear_dist_cost_data) %>%  
+               nest(iter_data = c(iter_id, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d))) %>% 
+               reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
   } 
 }
 
@@ -295,6 +334,7 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 dist_fit_data %<>% 
   mutate(
     total_error_sd = map(fit, extract_obs_fit_level, par = "total_error_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
+    u_sd = map(fit, extract_obs_fit_level, par = "u_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
     
     mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs),
     
@@ -311,15 +351,19 @@ dist_fit_data %<>%
     ), 
     
     y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
-                                mu_rep, total_error_sd, fit_type), simulate_social_multiplier),
+                                mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
     
     cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
       map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
       map(mutate, iter_data = map(iter_data, unnest, iter_data)) %>% 
-      lst(benefit_cost = ., 
-          mu_rep, 
-          total_error_sd = map_if(total_error_sd, ~ !is_null(.x), select, -any_of(c("rhat", "ess_bulk", "ess_tail"))) %>% 
-            map_if(~ !is_null(.x), unnest, iter_data)) %>%
+      lst(
+        benefit_cost = ., 
+        mu_rep, 
+        total_error_sd = map_if(total_error_sd, ~ !is_null(.x), select, -any_of(c("rhat", "ess_bulk", "ess_tail"))) %>% 
+          map_if(~ !is_null(.x), unnest, iter_data),
+        u_sd = map_if(u_sd, ~ !is_null(.x), select, -any_of(c("rhat", "ess_bulk", "ess_tail"))) %>% 
+          map_if(~ !is_null(.x), unnest, iter_data)
+      ) %>%
       pmap(join_benefit_cost_mu_error_sd) %>% 
       map(
         mutate,
@@ -330,8 +374,10 @@ dist_fit_data %<>%
                                  mutate(
                                    curr_iter_data,
                                    no_rep_prob = pnorm(iter_est, sd = iter_est_error_sd), # Probability of take-up in cluster without reputation
-                                   v_cutoff = map2_dbl(iter_est, iter_est_mu, ~ nleqslv(x = - ..1, fn = generate_v_cutoff_fixedpoint(..1, ..2)) %>% pluck("x")), # v^* solution
-                                   delta_rep = rep_normal(v_cutoff), 
+                                   v_cutoff = pmap_dbl(list(iter_est, iter_est_mu, iter_est_error_sd, iter_est_u_sd), 
+                                                       ~ nleqslv(x = - ..1, fn = generate_v_cutoff_fixedpoint(..1, ..2, ..3, ..4)) %>% pluck("x")), # v^* solution
+                                   # delta_rep = rep_normal(v_cutoff), 
+                                   delta_rep = calculate_delta(v_cutoff, iter_est_error_sd, iter_est_u_sd), 
                                    prob = pnorm(- v_cutoff, sd = iter_est_error_sd) # Probability of take-up in cluster
                                  )
                                }) %>% 
