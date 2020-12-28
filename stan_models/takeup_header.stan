@@ -33,7 +33,8 @@ data {
   int<lower = 0, upper = 1> use_u_in_delta;
   int<lower = 0, upper = 1> generate_rep;
   int<lower = 0, upper = 1> generate_sim;
-  int<lower = 0, upper = 1> predict_prior;
+  int<lower = 0, upper = 1> fit_model_to_data;
+  int<lower = 0, upper = 1> cross_validate;
   
   real<lower = 0> alg_sol_f_tol;
   real<lower = 0> alg_sol_rel_tol;
@@ -90,6 +91,8 @@ data {
   real<lower = 0> beta_ink_effect_sd;
   real<lower = 0> beta_calendar_effect_sd;
   real<lower = 0> beta_bracelet_effect_sd;
+  
+  real<lower = 0> dist_beta_v_sd;
   
   real<lower = 0> structural_beta_county_sd_sd;
   real<lower = 0> structural_beta_cluster_sd_sd;

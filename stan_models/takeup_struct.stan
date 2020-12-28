@@ -88,7 +88,7 @@ transformed parameters {
   matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
-  matrix<lower = 0, upper = 1>[num_v_mix, num_clusters] structural_cluster_takeup_prob;
+  matrix<lower = 0, upper = 1>[num_v_mix, fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
   
   simplex[num_v_mix] lambda_v_mix;
   ordered[num_v_mix - 1] v_mix_mean = cumulative_sum(v_mix_mean_diff);
@@ -285,39 +285,41 @@ transformed parameters {
     structural_cluster_benefit_cost += county_effects;
   }
 
-  if (suppress_reputation) {
-    structural_cluster_obs_v = - structural_cluster_benefit_cost;
-  } else {
-    for (cluster_index in 1:num_clusters) {
-      structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
-      // structural_cluster_obs_v[cluster_index] = algebra_solver(
-        v_fixedpoint_solution_normal,
-        [ - structural_cluster_benefit_cost[cluster_index] ]',
-        prepare_solver_theta(
-          structural_cluster_benefit_cost[cluster_index], 
-          cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
-          use_shifting_v_dist ? v_mu : 0,
-          lambda_v_mix,
-          v_mix_mean,
-          1,
-          v_mix_sd,
-          total_error_sd,
-          u_sd
-        ),
-        { 0.0 },
-        { num_v_mix, use_u_in_delta }, 
-        alg_sol_rel_tol, // 1e-10,
-        alg_sol_f_tol, // 1e-5,
-        alg_sol_max_steps
-      )[1];
-    }
-  }
-  
-  for (mix_index in 1:num_v_mix) {
-    if (mix_index == 1) {
-      structural_cluster_takeup_prob[1] = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
+  if (fit_model_to_data) {
+    if (suppress_reputation) {
+      structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
-      structural_cluster_takeup_prob[mix_index] = Phi_approx(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
+      for (cluster_index in 1:num_clusters) {
+        // structural_cluster_obs_v[cluster_index] = algebra_solver(
+        structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
+          v_fixedpoint_solution_normal,
+          [ - structural_cluster_benefit_cost[cluster_index] ]',
+          prepare_solver_theta(
+            structural_cluster_benefit_cost[cluster_index], 
+            cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
+            use_shifting_v_dist ? v_mu : 0,
+            lambda_v_mix,
+            v_mix_mean,
+            1,
+            v_mix_sd,
+            total_error_sd,
+            u_sd
+          ),
+          { 0.0 },
+          { num_v_mix, use_u_in_delta, 1 }, 
+          alg_sol_rel_tol, // 1e-10,
+          alg_sol_f_tol, // 1e-5,
+          alg_sol_max_steps
+        )[1];
+      }
+    }
+    
+    for (mix_index in 1:num_v_mix) {
+      if (mix_index == 1) {
+        structural_cluster_takeup_prob[1] = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
+      } else {
+        structural_cluster_takeup_prob[mix_index] = Phi_approx(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
+      }
     }
   }
 }
@@ -352,7 +354,7 @@ model {
   u_splines_v_sigma ~ normal(0, u_splines_v_sigma_sd);
   
   if (num_treatments_param > 0) {
-    dist_beta_v ~ normal(0, 1);
+    dist_beta_v ~ normal(0, dist_beta_v_sd);
     
     if (use_param_dist_cluster_effects) {
       to_vector(dist_beta_cluster_raw) ~ normal(0, 1);
@@ -403,7 +405,7 @@ model {
   }
   
   // Distance Likelihood
-  
+
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
     int curr_assigned_dist_group = cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2];
@@ -443,7 +445,8 @@ model {
     }
   }
   
-  if (!predict_prior) {
+  if (fit_model_to_data) {
+    
     // Take-up Likelihood 
     
     if (num_v_mix == 1) {
@@ -470,15 +473,17 @@ generated quantities {
   matrix[2, 2] all_u_corr;
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
+  // vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments]; 
+  
+  matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
+  vector[generate_rep ? num_clusters : 0] cluster_rep_cutoff; 
   matrix[generate_sim ? num_grid_obs : 0, num_treatments] sim_benefit_cost; 
   
   // Cross Validation
-  vector[use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs] log_lik = 
-    rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs); 
-  vector[use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs] log_lik_heldout = 
-    rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs); 
+  vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
+  vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
     
   if (!suppress_shocks) {
     all_u_corr = L_all_u_corr * L_all_u_corr';
@@ -501,80 +506,110 @@ generated quantities {
                                             Z_splines_v[rep_array(curr_assigned_treatment, num_clusters)]);
                                                                  
       cluster_cf_benefit_cost[treatment_index] = structural_cluster_benefit[, treatment_index] - treatment_dist_cost;
+      
+      for (cluster_index in 1:num_clusters) {
+        for (mu_treatment_index in 1:num_treatments) {
+          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver_newton(
+            v_fixedpoint_solution_normal,
+            [ - cluster_cf_benefit_cost[treatment_index, cluster_index] ]',  
+            [ structural_cluster_benefit_cost[curr_assigned_treatment] ]', // This is not actually used in this call  
+            to_array_1d(
+              prepare_solver_theta(
+                cluster_cf_benefit_cost[treatment_index, cluster_index],
+                cluster_mu_rep[cluster_index, mu_treatment_index],
+                use_shifting_v_dist ? v_mu : 0,
+                lambda_v_mix,
+                v_mix_mean,
+                1,
+                v_mix_sd,
+                total_error_sd,
+                u_sd
+              )
+            ),
+            { num_v_mix, use_u_in_delta, 0 }, 
+            alg_sol_rel_tol, 
+            alg_sol_f_tol, 
+            alg_sol_max_steps
+          )[1];
+        }
+      }
     }
   }
   
   // Cross Validation 
+  if (cross_validate) {
+    log_lik = rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs); 
+    log_lik_heldout = rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs); 
+    
+    if (use_binomial) {
+      for (cluster_index_index in 1:num_included_clusters) {
+        int cluster_index = included_clusters[cluster_index_index];
+        
+        if (num_v_mix == 1) {
+          log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[1, cluster_index]);
+        } else {
+          log_lik[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
+        }
+      }
+      
+      for (cluster_index_index in 1:num_excluded_clusters) {
+        int cluster_index = excluded_clusters[cluster_index_index];
+        
+        if (num_v_mix == 1) {
+          log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[1, cluster_index]);
+        } else {
+          log_lik_heldout[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
+        }
+      }
+    } else {
+      vector[num_clusters] temp_log_lik = rep_vector(0, num_clusters);
+      
+      for (obs_index_index in 1:num_included_monitored_obs) {
+        int obs_index = included_monitored_obs[obs_index_index];
+        int cluster_index = obs_cluster_id[obs_index];
+        
+        real curr_log_lik;
+        
+        if (num_v_mix == 1) {
+          curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[1, cluster_index:cluster_index]);
+        } else {
+          curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
+        }
+        
+        if (cluster_log_lik) {
+          temp_log_lik[cluster_index] += curr_log_lik;
+        } else {
+          log_lik[obs_index_index] = curr_log_lik;
+        }
+      }
+      
+      for (obs_index_index in 1:num_excluded_monitored_obs) {
+        int obs_index = excluded_monitored_obs[obs_index_index];
+        int cluster_index = obs_cluster_id[obs_index];
+        
+        real curr_log_lik;
+        
+        if (num_v_mix == 1) {
+          curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[1, cluster_index:cluster_index]);
+        } else {
+          curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
+        }
+        
+        if (cluster_log_lik) {
+          temp_log_lik[cluster_index] += curr_log_lik;
+        } else {
+          log_lik_heldout[obs_index_index] = curr_log_lik;
+        }
+      }
+      
+      if (cluster_log_lik) {
+        log_lik = temp_log_lik[included_clusters];
+        log_lik_heldout = temp_log_lik[excluded_clusters];
+      }
+    }
+  }   
   
-  if (use_binomial) {
-    for (cluster_index_index in 1:num_included_clusters) {
-      int cluster_index = included_clusters[cluster_index_index];
-      
-      if (num_v_mix == 1) {
-        log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[1, cluster_index]);
-      } else {
-        log_lik[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-      }
-    }
-    
-    for (cluster_index_index in 1:num_excluded_clusters) {
-      int cluster_index = excluded_clusters[cluster_index_index];
-      
-      if (num_v_mix == 1) {
-        log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[1, cluster_index]);
-      } else {
-        log_lik_heldout[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-      }
-    }
-  } else {
-    vector[num_clusters] temp_log_lik = rep_vector(0, num_clusters);
-    
-    for (obs_index_index in 1:num_included_monitored_obs) {
-      int obs_index = included_monitored_obs[obs_index_index];
-      int cluster_index = obs_cluster_id[obs_index];
-      
-      real curr_log_lik;
-      
-      if (num_v_mix == 1) {
-        curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[1, cluster_index:cluster_index]);
-      } else {
-        curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-      }
-      
-      if (cluster_log_lik) {
-        temp_log_lik[cluster_index] += curr_log_lik;
-      } else {
-        log_lik[obs_index_index] = curr_log_lik;
-      }
-    }
-    
-    for (obs_index_index in 1:num_excluded_monitored_obs) {
-      int obs_index = excluded_monitored_obs[obs_index_index];
-      int cluster_index = obs_cluster_id[obs_index];
-      
-      real curr_log_lik;
-      
-      if (num_v_mix == 1) {
-        curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[1, cluster_index:cluster_index]);
-      } else {
-        curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-      }
-      
-      if (cluster_log_lik) {
-        temp_log_lik[cluster_index] += curr_log_lik;
-      } else {
-        log_lik_heldout[obs_index_index] = curr_log_lik;
-      }
-    }
-    
-    if (cluster_log_lik) {
-      log_lik = temp_log_lik[included_clusters];
-      log_lik_heldout = temp_log_lik[excluded_clusters];
-    }
-  }
- 
   // Simulation 
-  
   if (generate_sim) {
     vector[num_treatments] sim_beta_cluster = use_cluster_effects ? to_vector(normal_rng(rep_array(0, num_treatments), structural_beta_cluster_sd')) : rep_vector(0, num_treatments);
     vector[num_treatments] sim_beta_county = use_county_effects ? to_vector(normal_rng(rep_array(0, num_treatments), structural_beta_county_sd')) : rep_vector(0, num_treatments);
@@ -612,7 +647,8 @@ generated quantities {
                         Z_grid_v);
     }
   }
-  
+
+  // Replicated Data  
   if (generate_rep) {
     for (cluster_index in 1:num_clusters) {
       vector[num_dist_group_treatments] rep_beta_cluster = rep_vector(0, num_dist_group_treatments);
@@ -624,6 +660,7 @@ generated quantities {
       real rep_dist_cost;
       
       real rep_linear_dist_cost = linear_dist_cost[cluster_assigned_dist_group_treatment[cluster_index]];
+      real rep_quadratic_dist_cost = quadratic_dist_cost[cluster_assigned_dist_group_treatment[cluster_index]];
       
       rep_beta_cluster[1:num_treatments] = use_cluster_effects ? to_vector(normal_rng(rep_array(0, num_treatments), structural_beta_cluster_sd')) : rep_vector(0, num_treatments);
       rep_beta_cluster[(num_treatments + 2):num_dist_group_treatments] = rep_beta_cluster[2:num_treatments];
@@ -660,17 +697,41 @@ generated quantities {
           }
           
           rep_linear_dist_cost += treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * append_row(rep_dist_beta, rep_dist_beta);
+          // TODO rep_quadratic_dist_cost
         }
       } 
         
       rep_dist_cost = param_dist_cost([ cluster_standard_dist[cluster_index] ]', 
                                       [ rep_linear_dist_cost ]',
-                                      [ quadratic_dist_cost[cluster_assigned_dist_group_treatment[cluster_index]] ]', // TODO rep_quadratic_dist_cost
+                                      [ rep_quadratic_dist_cost ]', 
                                       to_matrix(u_splines_v[curr_assigned_treatment]),
                                       to_matrix(Z_splines_v[curr_assigned_treatment]))[1];
       
       cluster_rep_benefit_cost[cluster_index] = structural_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]] 
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county) - rep_dist_cost;
+        
+      cluster_rep_cutoff[cluster_index] = algebra_solver_newton(
+          v_fixedpoint_solution_normal,
+          [ - cluster_rep_benefit_cost[cluster_index] ]',
+          [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call 
+          to_array_1d(
+            prepare_solver_theta(
+              cluster_rep_benefit_cost[cluster_index],
+              cluster_mu_rep[cluster_index, curr_assigned_treatment],
+              use_shifting_v_dist ? v_mu : 0,
+              lambda_v_mix,
+              v_mix_mean,
+              1,
+              v_mix_sd,
+              total_error_sd,
+              u_sd
+            )
+          ),
+          { num_v_mix, use_u_in_delta, 0 }, 
+          alg_sol_rel_tol, 
+          alg_sol_f_tol, 
+          alg_sol_max_steps
+        )[1]; 
     }
   }
 }
