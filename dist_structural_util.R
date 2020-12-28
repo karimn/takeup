@@ -105,6 +105,48 @@ extract_rep_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
     as_tibble()
 }
 
+extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
+  analysis_data <- stan_data$analysis_data
+  
+  cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
+    mutate(treatment_index = seq(n()))
+  
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit %>% {
+    if (is_stanfit) {
+      as.array(., par = "cluster_cf_cutoff") 
+    } else {
+      .$draws("cluster_cf_cutoff")
+    }
+  } %>%   
+    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (is_stanfit && always_diagnose) ess_bulk(cell), 
+                                                                            ess_tail = if (is_stanfit && always_diagnose) ess_tail(cell),
+                                                                            rhat = if (is_stanfit && always_diagnose) Rhat(cell),)) %>% {
+      if (is_stanfit) rename(., variable = parameters) else .
+    } %>% 
+    tidyr::extract(variable, c("cluster_id", "treatment_index", "mu_treatment_index"), "(\\d+),(\\d+),(\\d+)", convert = TRUE) %>%  
+    mutate(
+      iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
+      treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
+      assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
+      assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot),
+      mu_assigned_treatment = factor(mu_treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
+    ) %>% 
+    left_join(cluster_treatment_map, by = "treatment_index") %>% 
+    left_join(cluster_treatment_map, by = c("treatment_index_obs" = "treatment_index"), suffix = c("", "_obs")) %>% 
+    left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
+    left_join(
+      stan_data$analysis_data %>%
+        select(cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
+        group_by(cluster_id, assigned_treatment, assigned_dist_group) %>%
+        summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
+        ungroup(),
+      by = c("cluster_id", "assigned_treatment", "assigned_dist_group")
+    ) %>% 
+    as_tibble()
+}
+
 extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster"), quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
   
@@ -132,22 +174,26 @@ extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster")
       if (is_stanfit) rename(., variable = parameters) else .
     } %>% 
     tidyr::extract(variable, c("treatment_index", obs_index_col), "(\\d+),(\\d+)", convert = TRUE) %>%  
-    mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
-           cluster_id = switch(iter_level,
-                               cluster = cluster_id, 
-                               obs = stan_data$obs_cluster_id[!!sym(obs_index_col)]),
-           treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
-           assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
-           assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot)) %>% 
+    mutate(
+      iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
+      cluster_id = switch(iter_level,
+                          cluster = cluster_id, 
+                          obs = stan_data$obs_cluster_id[!!sym(obs_index_col)]),
+      treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
+      assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
+      assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot),
+    ) %>% 
     left_join(cluster_treatment_map, by = "treatment_index") %>% 
     left_join(cluster_treatment_map, by = c("treatment_index_obs" = "treatment_index"), suffix = c("", "_obs")) %>% 
     left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
-    left_join(stan_data$analysis_data %>%
-                select(cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
-                group_by(cluster_id, assigned_treatment, assigned_dist_group) %>%
-                summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
-                ungroup(),
-              by = c("cluster_id", "assigned_treatment", "assigned_dist_group")) %>% 
+    left_join(
+      stan_data$analysis_data %>%
+        select(cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
+        group_by(cluster_id, assigned_treatment, assigned_dist_group) %>%
+        summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
+        ungroup(),
+      by = c("cluster_id", "assigned_treatment", "assigned_dist_group")
+    ) %>% 
     as_tibble()
 }
 
@@ -156,7 +202,6 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
   
   iter_level <- rlang::arg_match(iter_level)
   
-  # obs_index_col <- if (iter_level == "treatment") "treatment_index" else "obs_index"
   obs_index_col <- if (iter_level != "none") "obs_index"
   
   if (by_treatment) obs_index_col %<>% c("treatment_index") 
@@ -208,10 +253,11 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
     
     if (summarize_est) {
       extracted %<>% 
-        mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est)),
+        mutate(mean_est = map_dbl(iter_data, ~ mean(.$iter_est, na.rm = TRUE)),
                quantiles_est = map(iter_data, quantilize_est, 
                                    iter_est,
-                                   quant_probs = quant_probs))
+                                   quant_probs = quant_probs,
+                                   na.rm = TRUE))
     }
     
     if (by_treatment) {
@@ -376,59 +422,60 @@ generate_initializer <- function(num_treatments,
   } else return(NULL)
 }
 
-stan_list <- function(models_info, stan_data, use_cmdstanr = FALSE, include_paths = ".") {
+fit_model <- function(curr_stan_data, chains, iter, use_cmdstanr, include_paths) {
+  control <- lst(adapt_delta = 0.8) 
+  
+  if (!is_null(curr_stan_data$control)) {
+    control %<>% list_modify(!!!curr_stan_data$control)
+    curr_stan_data$control <- NULL
+  } 
+  
+  if (use_cmdstanr) {
+    dist_model <- cmdstan_model(file.path("stan_models", curr_stan_data$model_file), include_paths = include_paths)
+    
+    dist_model$sample(
+      data = curr_stan_data %>% 
+        discard(~ is_function(.x) | is.character(.)) %>% 
+        list_modify(analysis_data = NULL),
+      chains = chains,
+      parallel_chains = chains, 
+      iter_warmup = iter %/% 2, 
+      iter_sampling = iter %/% 2, 
+      save_warmup = FALSE,
+      thin = (curr_stan_data$thin %||% 1),
+      init = curr_stan_data$init,
+      adapt_delta = control$adapt_delta,
+      max_treedepth = control$max_treedepth
+    )
+  } else { 
+    stan_model(file.path("stan_models", curr_stan_data$model_file)) %>% 
+      sampling(
+        iter = iter, 
+        thin = (curr_stan_data$thin %||% 1),
+        chains = chains,
+        control = control,
+        save_warmup = FALSE,
+        pars = curr_stan_data$pars,
+        init = curr_stan_data$init %||% "random",
+        data = curr_stan_data
+      )
+  }
+} 
+
+stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FALSE, include_paths = ".") {
   get_sample_file_name <- . %>% 
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
   
   if (script_options$fit) {
     inner_sampler <- function(curr_model, stan_data) {
-      control <- lst(adapt_delta = 0.8) 
-      
-      if (!is_null(curr_model$control)) {
-        control %<>% list_modify(!!!curr_model$control)
-        curr_model$control <- NULL
-      } 
-      
       curr_stan_data <- stan_data %>%
         list_modify(!!!curr_model) %>%
         map_if(is.factor, as.integer)
-      
-      
+        
       iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
-        
-      fit <- if (use_cmdstanr) {
-        dist_model <- cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
-        
-        dist_model$sample(
-          data = curr_stan_data %>% 
-            discard(~ is_function(.x) | is.character(.)) %>% 
-            list_modify(analysis_data = NULL),
-          chains = chains,
-          parallel_chains = chains, 
-          iter_warmup = iter %/% 2, 
-          iter_sampling = iter %/% 2, 
-          save_warmup = FALSE,
-          thin = (curr_stan_data$thin %||% 1),
-          init = curr_model$init,
-          adapt_delta = control$adapt_delta,
-          max_treedepth = control$max_treedepth
-        )
-      } else { 
-        stan_model(file.path("stan_models", curr_model$model_file)) %>% 
-          sampling(
-            iter = iter, 
-            thin = (curr_stan_data$thin %||% 1),
-            chains = chains,
-            control = control,
-            save_warmup = FALSE,
-            pars = curr_model$pars,
-            init = curr_model$init %||% "random",
-            data = curr_stan_data
-          )
-      }
       
-      return(fit)
+      fit_model(curr_stan_data, script_options$chains, iter, use_cmdstanr, include_paths)
     }
     
     if (script_options$sequential) {
