@@ -25,6 +25,10 @@ library(HRW)
 library(splines2)
 library(loo)
 
+script_options %<>% 
+  modify_at(c("chains", "iter"), as.integer) %>% 
+  modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
+
 options(mc.cores = 12)
 
 if (script_options$cmdstanr) {
@@ -40,7 +44,7 @@ chains <- as.integer(script_options$chains) # Stan chains
 iter <- as.integer(script_options$iter) # Stan iterations
 output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else if (script_options$fit) { "dist_fit" } else { "dist_kfold" }
 output_file_name <- file.path("data", "stan_analysis_data", str_c(output_name, ".RData"))
-models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
+# models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
 thin_by <- as.integer(script_options$thin)
 predict_prior <- as.logical(script_options$predict_prior) # Prior prediction run
 
@@ -721,7 +725,8 @@ stan_data <- lst(
   cluster_log_lik = TRUE,
   generate_rep = FALSE,
   generate_sim = FALSE,
-  predict_prior,
+  fit_model_to_data = !predict_prior,
+  cross_validate = script_options$cv,
   
   thin = thin_by,
   
@@ -734,11 +739,11 @@ stan_data <- lst(
   u_splines_v_sigma_sd = 1,
   mu_rep_sd = 1,
   
-  beta_control_sd = 5,
-  beta_far_effect_sd = 1,
-  beta_ink_effect_sd = 1,
-  beta_calendar_effect_sd = 1,
-  beta_bracelet_effect_sd = 1,
+  beta_control_sd = 1,
+  beta_far_effect_sd = 0.5,
+  beta_ink_effect_sd = 0.5,
+  beta_calendar_effect_sd = 0.5,
+  beta_bracelet_effect_sd = 0.5,
   
   structural_beta_county_sd_sd = 0.25,
   structural_beta_cluster_sd_sd = 0.25,
@@ -747,14 +752,18 @@ stan_data <- lst(
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
 
-models <- if (!is_null(models_to_run)) {
+models <- if (!is_null(script_options$models)) {
+  models_to_run <- script_options$model %>% 
+    map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(.x, names(models))) %>% 
+    unlist()
+  
   models[models_to_run]
 } else {
   models
 }
 
 if (script_options$fit) {
-  dist_fit <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+  dist_fit <- models %>% stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
   
   if (script_options$cmdstanr) {
     dist_fit_obj <- dist_fit
