@@ -1337,13 +1337,6 @@
       "Repository": "CRAN",
       "Hash": "ff73961a77fba606fbf944dc3468e5b9"
     },
-    "tweenr": {
-      "Package": "tweenr",
-      "Version": "1.0.1",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "fc77eb5297507cccfa3349a606061030"
-    },
     "units": {
       "Package": "units",
       "Version": "0.6-7",
