@@ -24,7 +24,7 @@ library(splines2)
 library(furrr)
 
 script_options %<>% 
-  modify_at(c("chains", "num_cores", "iter", "num_sim"), as.integer)
+  modify_at(c("chains", "num_cores", "num_sim"), as.integer)
 
 options(mc.cores = script_options$num_cores) 
 plan(multicore, workers = script_options$num_cores %/% script_options$chains)
@@ -331,6 +331,8 @@ sim_data <- cutoff_cf %>%
 
 # Run simulation ----------------------------------------------------------
 
+cat("Starting simulations...\n\n")
+
 sim_stan_data <- prior_stan_data %>% 
   list_modify(
     beta_control_sd = 1,
@@ -348,6 +350,7 @@ sim_data %<>%
         map_if(.y, is.factor, as.integer) %>% 
           list_modify( 
             fit_model_to_data = TRUE,
+            iter = 4000,
             
             takeup = .x %>% 
                filter(observed) %>% 
