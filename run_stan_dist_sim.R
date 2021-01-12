@@ -2,13 +2,14 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist_sim [--num-sim=<num> --chains=<chains> --outputname=<output file name> --cmdstanr --include-paths=<paths>]
+  run_stan_dist_sim [--num-sim=<num> --num-cores=<num-cores> --chains=<chains> --outputname=<output file name> --cmdstanr --include-paths=<paths>]
   
 Options:
   --num-sim=<num>, -n <num>  Number of simulations to test [default: 100]
+  --num-cores=<num-cores>  Number of cores to use [default: 12]
   --chains=<chains>  Number of Stan chains [default: 4]
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
-  --outputname=<name>  Name to use for output 
+  --outputname=<name>  Name to use for output [default: dist_sim]
 ",
 
   args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1" else commandArgs(trailingOnly = TRUE) 
@@ -22,8 +23,11 @@ library(HRW)
 library(splines2)
 library(furrr)
 
-options(mc.cores = 12) 
-plan(multicore, workers = 3)
+script_options %<>% 
+  modify_at(c("chains", "num_cores", "iter", "num_sim"), as.integer)
+
+options(mc.cores = script_options$num_cores) 
+plan(multicore, workers = script_options$num_cores %/% script_options$chains)
 
 if (script_options$cmdstanr) {
   library(cmdstanr)
@@ -33,10 +37,8 @@ if (script_options$cmdstanr) {
   rstan_options(auto_write = TRUE)
 }
 
-script_options %<>% 
-  modify_at(c("chains", "iter", "num_sim"), as.integer)
 
-output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else { "dist_sim" } 
+output_name <- script_options$outputname
 output_file_name <- file.path("data", "stan_analysis_data", str_c(output_name, ".RData"))
 thin_by <- as.integer(script_options$thin)
 
