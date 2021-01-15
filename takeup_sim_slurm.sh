@@ -13,4 +13,4 @@
 module purge
 module load rh/devtoolset/8 gdal
 
-Rscript run_stan_dist_sim.R --cmdstanr --include-paths=~/Code/takeup/stan_models --num-sim=6 --num-cores=24
+Rscript run_stan_dist_sim.R --cmdstanr --include-paths=~/Code/takeup/stan_models --num-sim=6 --num-cores=24 --no-progress-bar
