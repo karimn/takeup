@@ -2,7 +2,7 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist_sim [--num-sim=<num> --num-cores=<num-cores> --chains=<chains> --outputname=<output file name> --cmdstanr --include-paths=<paths>]
+  run_stan_dist_sim [--num-sim=<num> --num-cores=<num-cores> --chains=<chains> --outputname=<output file name> --cmdstanr --include-paths=<paths> --no-progress-bar]
   
 Options:
   --num-sim=<num>, -n <num>  Number of simulations to test [default: 100]
@@ -10,9 +10,10 @@ Options:
   --chains=<chains>  Number of Stan chains [default: 4]
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
   --outputname=<name>  Name to use for output [default: dist_sim]
+  --no-progress-bar
 ",
 
-  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --no-progress-bar" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -331,7 +332,7 @@ sim_data <- cutoff_cf %>%
 
 # Run simulation ----------------------------------------------------------
 
-cat("Starting simulations...\n\n")
+cat("\n\nStarting simulations...")
 
 sim_stan_data <- prior_stan_data %>% 
   list_modify(
@@ -361,7 +362,7 @@ sim_data %<>%
           fit_model(script_options$chains, .y$iter, script_options$cmdstanr, script_options$include_paths)
       },
       sim_stan_data,
-      .options = furrr_options(seed = TRUE), .progress = TRUE),
+      .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
   ) %>% 
   add_row(
     iter_id = 0, 
@@ -379,7 +380,7 @@ sim_data %<>%
       } else {
         return(curr_mu_rep)
       }
-    }, .progress = TRUE),
+    }, .progress = !script_options$no_progress_bar),
     
     sim_takeup_levels = future_map2(sim_fit, takeup_levels, function(fit, true_levels, stan_data) {
       total_error_sd <- extract_obs_fit_level(fit, par = "total_error_sd", stan_data = stan_data, iter_level = "none") %>% 
@@ -412,7 +413,9 @@ sim_data %<>%
       } else {
         return(curr_levels)
       }
-    }, prior_stan_data, .options = furrr_options(seed = TRUE), .progress = TRUE),
+    }, prior_stan_data, .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
   )
+
+cat("done.\n")
 
 write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
