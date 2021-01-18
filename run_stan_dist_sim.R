@@ -416,3 +416,6 @@ sim_data %<>%
 cat("done.\n")
 
 write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
+
+sim_data$sim_fit %>% 
+  walk(~ .x$cmdstan_diagnose())
