@@ -9,11 +9,11 @@ Options:
   --num-cores=<num-cores>  Number of cores to use [default: 12]
   --chains=<chains>  Number of Stan chains [default: 4]
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
-  --outputname=<name>  Name to use for output [default: dist_sim]
+  --outputname=<name>  Name to use for output
   --no-progress-bar
 ",
 
-  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --no-progress-bar" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "--include-paths=~/Code/takeup/stan_models -n 1 --no-progress-bar" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -40,7 +40,6 @@ if (script_options$cmdstanr) {
 
 
 output_name <- script_options$outputname
-output_file_name <- file.path("data", "stan_analysis_data", str_c(output_name, ".RData"))
 thin_by <- as.integer(script_options$thin)
 
 source("analysis_util.R")
