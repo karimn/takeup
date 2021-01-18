@@ -144,7 +144,6 @@ models <- lst(
     suppress_reputation = FALSE,
     suppress_shocks = FALSE,
     generate_sim = FALSE,
-    iter = 400,
     thin = 1,
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
@@ -268,7 +267,7 @@ prior_stan_data <- stan_data %>%
 
 dist_sim <- prior_stan_data %>%  
   map_if(is.factor, as.integer) %>% 
-  fit_model(script_options$chains, models[[1]]$iter, script_options$cmdstanr, script_options$include_paths)
+  fit_model(script_options$chains, iter = 400, script_options$cmdstanr, script_options$include_paths)
 
 # Extracting simulation data ----------------------------------------------
 
@@ -351,7 +350,6 @@ sim_data %<>%
         map_if(.y, is.factor, as.integer) %>% 
           list_modify( 
             fit_model_to_data = TRUE,
-            iter = 4000,
             
             takeup = .x %>% 
                filter(observed) %>% 
@@ -359,7 +357,7 @@ sim_data %<>%
                unnest(obs_takeup) %>% 
                pull(obs_takeup)
           ) %>%
-          fit_model(script_options$chains, .y$iter, script_options$cmdstanr, script_options$include_paths)
+          fit_model(script_options$chains, iter = 4000, script_options$cmdstanr, script_options$include_paths)
       },
       sim_stan_data,
       .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
