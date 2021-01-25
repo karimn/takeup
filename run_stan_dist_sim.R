@@ -330,8 +330,6 @@ sim_data <- cutoff_cf %>%
 
 # Run simulation ----------------------------------------------------------
 
-cat("\n\nStarting simulations...")
-
 sim_stan_data <- prior_stan_data %>% 
   list_modify(
     beta_control_sd = 1,
@@ -340,6 +338,8 @@ sim_stan_data <- prior_stan_data %>%
     beta_calendar_effect_sd = 0.25,
     beta_bracelet_effect_sd = 0.25,
   )
+
+cat("\n\nStarting simulations...")
 
 sim_data %<>% 
   mutate(
@@ -360,11 +360,32 @@ sim_data %<>%
       },
       sim_stan_data,
       .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
-  ) %>% 
+  ) 
+
+cat("done.\n")
+
+cat("Saving fit...")
+
+write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
+
+# sim_data %$% 
+#   walk2(sim_id, sim_fit, ~ .y$save_object(str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}_fit_{.x}.rds")))
+
+cat("done.\n")
+
+cat("Adding prior predicted fit...")
+
+sim_data %<>% 
   add_row(
     iter_id = 0, 
     sim_fit = list(fit_model(sim_stan_data, script_options$chains, sim_stan_data$iter, script_options$cmdstanr, script_options$include_paths))
-  ) %>% 
+  ) 
+
+cat("done.\n")
+
+cat("Post-processing fit...")
+
+sim_data %<>% 
   mutate(
     sim_mu_rep = future_map2(sim_fit, true_mu_rep, ~ {
       curr_mu_rep <- extract_obs_fit_level(.x, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = TRUE) %>% 
@@ -415,7 +436,11 @@ sim_data %<>%
 
 cat("done.\n")
 
+cat("Saving...")
+
 write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
+
+cat("done.\n")
 
 sim_data$sim_fit %>% 
   walk(~ .x$cmdstan_diagnose())
