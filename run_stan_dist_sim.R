@@ -14,7 +14,7 @@ Options:
   --no-progress-bar
 ",
 
-  args = if (interactive()) "--include-paths=~/Code/takeup/stan_models -n 1 --no-progress-bar" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "--include-paths=~/Code/takeup/stan_models -n 1 --no-progress-bar --num-cores=6 --load-fit=temp-data/dist_sim_cl.rds" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -374,12 +374,13 @@ if (is_null(script_options$load_fit)) {
 
   cat("Saving fit...")
   
-  write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
-
-  # sim_data %$% 
-  #   walk2(sim_id, sim_fit, ~ .y$save_object(str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}_fit_{.x}.rds")))
+  # write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
   
-  cat("done.\n")
+  tryCatch({
+    sim_data %$%
+      walk2(sim_id, sim_fit, ~ .y$save_object(str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}_fit_{.x}.rds")))
+    cat("done.\n")
+  }, error = function(err) cat("FAILED.\n"))
 }
 
 cat("Adding prior predicted fit...")
@@ -397,7 +398,7 @@ cat("Post-processing fit...")
 sim_data %<>% 
   mutate(
     sim_mu_rep = future_map2(sim_fit, true_mu_rep, ~ {
-      curr_mu_rep <- extract_obs_fit_level(.x, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = TRUE) %>% 
+      curr_mu_rep <- extract_obs_fit_level(.x, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = TRUE) %>%
         unnest(quantiles_est)
     
       if (!is_null(.y)) {
