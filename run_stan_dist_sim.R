@@ -265,7 +265,7 @@ stan_data <- lst(
 prior_stan_data <- stan_data %>% 
   list_modify(!!!models[[1]]) 
 
-dist_sim <- if (!is_null(script_options$load_fit)) { 
+dist_sim <- if (is_null(script_options$load_fit)) { 
   prior_stan_data %>%  
     map_if(is.factor, as.integer) %>% 
     fit_model(script_options$chains, iter = 400, script_options$cmdstanr, script_options$include_paths)
