@@ -1,7 +1,8 @@
 library(magrittr)
 library(tidyverse)
 
-sim_data <- read_rds("temp-data/dist_sim.rds")
+# sim_data <- read_rds("temp-data/dist_sim.rds")
+sim_data <- read_rds("/tigress/kn6838/takeup/dist_sim.rds")
 
 sim_data %>% 
   select(iter_id, sim_takeup_levels) %>%
