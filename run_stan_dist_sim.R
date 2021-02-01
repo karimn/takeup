@@ -347,6 +347,8 @@ sim_data %<>%
     sim_id = seq(n()),
     sim_fit_file = str_glue("{script_options$output_path}/{str_c('dist_sim', script_options$outputname, sep = '_')}_fit_{sim_id}.rds")
   )
+
+write_rds(sim_data, file = str_glue("{script_options$output_path}/{str_c('dist_sim_pre', script_options$outputname, sep = '_')}.rds"))
   
 if (script_options$load_fit) { 
   cat("\n\nLoad fit ...")
@@ -458,7 +460,7 @@ cat("done.\n")
 
 cat("Saving...")
 
-write_rds(sim_data, file = str_glue("temp-data/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
+write_rds(sim_data, file = str_glue("{script_options$output_path}/{str_c('dist_sim', script_options$outputname, sep = '_')}.rds"))
 
 cat("done.\n")
 
