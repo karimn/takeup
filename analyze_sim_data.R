@@ -1,7 +1,8 @@
 library(magrittr)
 library(tidyverse)
+library(cmdstanr)
 
-sim_data <- read_rds("temp-data/dist_sim.rds")
+sim_data <- read_rds("temp-data/dist_sim_dist_sim.rds")
 
 sim_data %>% 
   select(iter_id, sim_takeup_levels) %>%
@@ -18,7 +19,7 @@ sim_data %>%
   geom_linerange(aes(ymin = per_0.05, ymax = per_0.95, color = fit_type), alpha = 0.5, size = 2, 
                  data = . %>% filter(fct_match(fit_type, "prior"))) +
   geom_point(aes(y = true_takeup_level, color = in_0.8_ci)) +
-  scale_color_manual("", values = c(`FALSE` = "darkred", `TRUE` = "black", prior = "orange", sim = "black")) +
+  scale_color_manual("", values = c(`FALSE` = "red", `TRUE` = "black", prior = "orange", sim = "black")) +
   labs(x = "", y = "") +
   coord_cartesian(ylim = c(0, 1)) +
   facet_grid(rows = vars(assigned_dist_group), cols = vars(assigned_treatment, mu_assigned_treatment)) +
