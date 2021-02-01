@@ -15,7 +15,7 @@ sim_data %>%
       (fct_match(assigned_treatment, "bracelet") & fct_match(mu_assigned_treatment, "bracelet")) |
       (fct_match(assigned_treatment, "control") & fct_match(mu_assigned_treatment, "bracelet"))) %>% 
   ggplot(aes(factor(iter_id))) +
-  geom_linerange(aes(ymin = per_0.1, ymax = per_0.9, color = fit_type)) +
+  geom_linerange(aes(ymin = per_0.05, ymax = per_0.95, color = fit_type)) +
   geom_linerange(aes(ymin = per_0.05, ymax = per_0.95, color = fit_type), alpha = 0.5, size = 2, 
                  data = . %>% filter(fct_match(fit_type, "prior"))) +
   geom_point(aes(y = true_takeup_level, color = in_0.8_ci)) +
