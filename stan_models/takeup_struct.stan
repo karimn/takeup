@@ -4,10 +4,7 @@ functions {
 
 #include takeup_header.stan
 
-
 parameters {
-  // real test_w;
-  
   // Levels: control ink calendar bracelet
   real beta_control;
   real beta_ink_effect;
@@ -75,6 +72,7 @@ parameters {
   
   matrix<lower = 0>[num_clusters, num_discrete_dist - 1] missing_cluster_standard_dist; 
 }
+
 
 transformed parameters {
   vector[num_dist_group_treatments] beta;
@@ -710,10 +708,11 @@ generated quantities {
       cluster_rep_benefit_cost[cluster_index] = structural_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]] 
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county) - rep_dist_cost;
         
+      // cluster_rep_cutoff[cluster_index] = 0; 
       cluster_rep_cutoff[cluster_index] = algebra_solver_newton(
           v_fixedpoint_solution_normal,
           [ - cluster_rep_benefit_cost[cluster_index] ]',
-          [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call 
+          [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call
           to_array_1d(
             prepare_solver_theta(
               cluster_rep_benefit_cost[cluster_index],
@@ -727,11 +726,11 @@ generated quantities {
               u_sd
             )
           ),
-          { num_v_mix, use_u_in_delta, 0 }, 
-          alg_sol_rel_tol, 
-          alg_sol_f_tol, 
+          { num_v_mix, use_u_in_delta, 0 },
+          alg_sol_rel_tol,
+          alg_sol_f_tol,
           alg_sol_max_steps
-        )[1]; 
+        )[1];
     }
   }
 }
