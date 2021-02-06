@@ -76,13 +76,42 @@ vector param_dist_cost(vector dist, vector linear_dist_cost, vector quadratic_di
 real expected_delta_part(real v, real xc, real[] theta, data real[] x_r, data int[] x_i) {
   real w = theta[1];
   real u_sd = theta[2];
+ 
+  real std_wmv = (w - v) / u_sd; 
+  real v_lpdf = normal_lpdf(v | 0, 1);
+  real wmv_cdf;
+  
+  if (std_wmv > 5) { 
+    wmv_cdf = 1; 
+  } else if (std_wmv < -5) {
+    wmv_cdf = 0; 
+  } else {
+    wmv_cdf = Phi_approx(std_wmv);
+  }
+  
+  // if (is_nan(v * exp(v_lpdf) * wmv_cdf) || is_inf(v * exp(v_lpdf) * wmv_cdf)) {
+  //   print("wmv_cdf = ", wmv_cdf, ", v_lpdf = ", v_lpdf, ", prod = ", v * exp(v_lpdf) * wmv_cdf);
+  // }
 
-  return v * exp(normal_lpdf(v | 0, 1) + normal_lcdf(w - v | 0, u_sd));
+  // return v * exp(normal_lpdf(v | 0, 1) + normal_lcdf(w - v | 0, u_sd));
+  return v * exp(v_lpdf) * wmv_cdf; 
 }
 
-real expected_delta(real w, real total_error_sd, real u_sd) {
-  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
-  real F_w = Phi_approx(w / total_error_sd);
+real expected_delta(real w, real total_error_sd, real u_sd, data real[] x_r, data int[] x_i) {
+  // real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
+  // real F_w = Phi_approx(w / total_error_sd);
+  real delta_part;
+  real F_w; 
+ 
+  // print("w = ", w, ", u_sd = ", u_sd); 
+   
+  // delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
+  // delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+  delta_part = integrate_1d(expected_delta_part, -5, 5, { w, u_sd }, x_r, x_i, 0.00001);
+  
+  // print("delta_part = ", delta_part);
+  
+  F_w = Phi_approx(w / total_error_sd);
   
   return - delta_part / (F_w * (1 - F_w));
 }
@@ -120,7 +149,7 @@ vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[
   }
   
   if (use_u_in_delta && u_sd > 0) {
-    delta = expected_delta(cutoff, total_error_sd, u_sd);
+    delta = expected_delta(cutoff, total_error_sd, u_sd, x_r, x_i);
   } else {
     delta = reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd);
   }
