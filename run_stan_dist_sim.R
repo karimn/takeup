@@ -10,13 +10,15 @@ Options:
   --chains=<chains>  Number of Stan chains [default: 4]
   --cmdstanr  Use cmdstan.
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
+  --rf-dgp  Reduced form dgp
   --outputname=<name>  Name to use for output
   --output-path=<path>  Where to save output files [default: temp-data]
   --load-fit  Don't run simulation but instead load it and start postprocessing.
   --no-progress-bar
 ",
 
-  args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --no-progress-bar --num-cores=12 --load-fit --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 6 --num-cores=12 --rf-dgp" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=1" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -30,8 +32,17 @@ library(furrr)
 script_options %<>% 
   modify_at(c("chains", "num_cores", "num_sim"), as.integer)
 
-options(mc.cores = script_options$num_cores) 
-plan(multicore, workers = script_options$num_cores %/% script_options$chains)
+options(mc.cores = script_options$num_cores)
+
+num_workers <- script_options$num_cores %/% script_options$chains
+
+if (num_workers > 1)
+  if (interactive()) {
+    plan(multisession, workers = num_workers)
+  } else {
+    plan(multicore, workers = num_workers)
+  }
+}
 
 if (script_options$cmdstanr) {
   library(cmdstanr)
@@ -74,7 +85,8 @@ nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-analysis_data <- monitored_nosms_data
+analysis_data <- monitored_nosms_data %>% 
+  arrange(cluster_id)
 
 # Splines -----------------------------------------------------------------
 
@@ -124,6 +136,11 @@ struct_model_stan_pars <- c(
   "group_dist_mean", "group_dist_sd", "group_dist_mix",
   "dist_beta_county_raw", "dist_beta_county_sd")
 
+reduced_model_stan_pars <- c(
+  "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
+  "beta", "cluster_cf_benefit_cost", 
+  "cluster_rep_benefit_cost")
+
 models <- lst(
   STRUCTURAL_LINEAR_U_SHOCKS = lst(
     model_file = "takeup_struct.stan",
@@ -168,6 +185,49 @@ models <- lst(
       num_knots = ncol(Z_osullivan),
       name_matched = FALSE,
       suppress_reputation = suppress_reputation)) %>%
+    list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  REDUCED_FORM_NO_RESTRICT = lst(
+    model_type = 10,
+    model_file = "takeup_reduced.stan",
+    pars = reduced_model_stan_pars,
+    control = lst(max_treedepth = 10, adapt_delta = 0.99),
+    num_v_mix = 1,
+    use_single_cost_model = FALSE,
+    use_cost_model = cost_model_types["discrete"],
+    use_private_incentive_restrictions = FALSE,
+    use_salience_effect = FALSE,
+    use_cluster_effects = FALSE,
+    use_county_effects = FALSE,
+    use_param_dist_cluster_effects = FALSE,
+    use_param_dist_county_effects = FALSE,
+    use_mu_cluster_effects = FALSE,
+    use_mu_county_effects = FALSE,
+    use_shifting_v_dist = FALSE,
+    suppress_reputation = TRUE,
+    suppress_shocks = TRUE,
+    
+    structural_beta_county_sd_sd = 1,
+    structural_beta_cluster_sd_sd = 1,
+    
+    iter = 2000,
+    thin = 1,
+    init = generate_initializer(
+      num_treatments = num_treatments, 
+      num_clusters = num_clusters,
+      num_counties = num_counties,
+      structural_type = 1, 
+      num_mix = num_v_mix, 
+      use_cluster_effects = use_cluster_effects,
+      use_county_effects = use_county_effects,
+      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+      use_mu_cluster_effects = use_mu_cluster_effects,
+      restricted_private_incentive = use_private_incentive_restrictions,
+      cost_model_type = use_cost_model,
+      use_single_cost_model = TRUE,
+      num_knots = ncol(Z_osullivan),
+      name_matched = FALSE,
+      suppress_reputation = suppress_reputation)) %>% 
     list_modify(!!!enum2stan_data(cost_model_types)),
 )
 
@@ -265,11 +325,21 @@ stan_data <- lst(
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
 
 prior_stan_data <- stan_data %>% 
-  list_modify(!!!models[[1]]) 
+  list_modify(!!!models$STRUCTURAL_LINEAR_U_SHOCKS) 
 
-dist_sim <- prior_stan_data %>%  
-  map_if(is.factor, as.integer) %>% 
-  fit_model(script_options$chains, iter = 400, script_options$cmdstanr, script_options$include_paths)
+rf_prior_stan_data <- stan_data %>% 
+  list_modify(!!!models$REDUCED_FORM_NO_RESTRICT) 
+
+dist_sim <- if (script_options$rf_dgp) { 
+  rf_prior_stan_data %>%  
+    map_if(is.factor, as.integer) %>% 
+    fit_model(script_options$chains, iter = 400, script_options$cmdstanr, script_options$include_paths)
+} else {
+  prior_stan_data %>%  
+    map_if(is.factor, as.integer) %>% 
+    fit_model(script_options$chains, iter = 400, script_options$cmdstanr, script_options$include_paths)
+}
+  # fit_model(1, iter = 10, script_options$cmdstanr, script_options$include_paths)
 
 # Extracting simulation data ----------------------------------------------
 
@@ -280,27 +350,40 @@ ate <- tribble(
   "bracelet",                "control",                    "control",                  "control",
 )
 
-total_error_sd <- extract_obs_fit_level(dist_sim, par = "total_error_sd", stan_data = stan_data, iter_level = "none") %>% 
-  unnest(iter_data) %>% 
-  rename(total_error_sd = iter_est)
-
-mu_rep <- extract_obs_fit_level(dist_sim, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = FALSE) %>%
-  unnest(iter_data) %>%
-  rename(true_mu_rep = iter_est)
-
-benefit_cost <- extract_obs_fit_level(dist_sim, par = "cluster_rep_benefit_cost", stan_data = stan_data, iter_level = "cluster", mix = FALSE, summarize_est = FALSE) %>% 
-  unnest(iter_data) %>% 
-  rename(cluster_id = obs_index,
-         cluster_benefit_cost = iter_est)
+if (!script_options$rf_dgp) {
+  total_error_sd <- extract_obs_fit_level(dist_sim, par = "total_error_sd", stan_data = stan_data, iter_level = "none") %>%
+    unnest(iter_data) %>%
+    rename(total_error_sd = iter_est)
+  
+  mu_rep <- extract_obs_fit_level(dist_sim, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = FALSE) %>%
+    unnest(iter_data) %>%
+    rename(true_mu_rep = iter_est)
+}
 
 cutoff_cf <- extract_obs_cluster_cutoff_cf(dist_sim, stan_data = stan_data) %>% 
   unnest(iter_data) %>% 
   rename(cluster_cutoff = iter_est) %>% 
-  mutate(observed = treatment_index == treatment_index_obs & mu_assigned_treatment == assigned_treatment)
+  mutate(
+    mu_assigned_treatment = if (script_options$rf_dgp) coalesce(mu_assigned_treatment, assigned_treatment) else mu_assigned_treatment,
+    observed = treatment_index == treatment_index_obs & mu_assigned_treatment == assigned_treatment
+  )
 
 sim_data <- cutoff_cf %>% 
-  filter(!is.nan(cluster_cutoff)) %>% 
-  left_join(total_error_sd, by = "iter_id") %>% 
+  filter(!is.nan(cluster_cutoff)) %>% {
+    if (script_options$rf_dgp) {
+      mutate(., total_error_sd = 1)
+    } else {
+      left_join(., total_error_sd, by = "iter_id") 
+    }
+  } %>%
+  # left_join( # Hardcoded prob
+  #   tibble(
+  #     treatment_index = 1:8,
+  #     prob_takeup = c(0.75, 0.45, rep(0.75, 6)) # seq(0.4, by = 0.05, length.out = 8)
+  #     # prob_takeup = 0.75 
+  #   ),
+  #   by = "treatment_index"
+  # ) %>% 
   mutate(
     prob_takeup = 1 - pnorm(cluster_cutoff, sd = total_error_sd),
     num_takeup = rbinom(n(), cluster_size, prob_takeup),
@@ -328,8 +411,12 @@ sim_data <- cutoff_cf %>%
           summarize(treatment_effect = weighted.mean(treatment_effect, cluster_size)) %>% 
           ungroup()
       )
-    ) %>% 
-    nest_join(select(mu_rep, iter_id, treatment_index, true_mu_rep), name = "true_mu_rep", by = c("iter_id")) 
+    )
+
+if (!script_options$rf_dgp) { 
+  sim_data %<>% 
+    nest_join(select(mu_rep, iter_id, treatment_index, true_mu_rep), name = "true_mu_rep", by = c("iter_id"))
+}
 
 # Run simulation ----------------------------------------------------------
 
@@ -341,21 +428,52 @@ sim_stan_data <- prior_stan_data %>%
     beta_calendar_effect_sd = 0.25,
     beta_bracelet_effect_sd = 0.25,
   )
+
+rf_sim_stan_data <- rf_prior_stan_data %>%  
+  list_modify(
+    beta_control_sd = 1,
+    beta_far_effect_sd = 1,
+    beta_ink_effect_sd = 1,
+    beta_calendar_effect_sd = 1,
+    beta_bracelet_effect_sd = 1,
+  )
   
 sim_data %<>% 
   mutate(
     sim_id = seq(n()),
-    sim_fit_file = str_glue("{script_options$output_path}/{str_c('dist_sim', script_options$outputname, sep = '_')}_fit_{sim_id}.rds")
+    sim_fit_file = str_glue("{script_options$output_path}/{str_c('dist_sim', script_options$outputname, sep = '_')}_fit_{sim_id}.rds"),
+    sim_rf_fit_file = str_glue("{script_options$output_path}/{str_c('dist_sim', script_options$outputname, sep = '_')}_rf_fit_{sim_id}.rds")
   )
 
 write_rds(sim_data, file = str_glue("{script_options$output_path}/{str_c('dist_sim_pre', script_options$outputname, sep = '_')}.rds"))
+
+sim_fit_model <- function(data, fit_file, sim_stan_data, save = TRUE) {
+  fit <- map_if(sim_stan_data, is.factor, as.integer) %>% 
+    list_modify( 
+      fit_model_to_data = TRUE,
+      
+      takeup = data %>% 
+        filter(observed) %>%
+        arrange(cluster_id) %>% 
+        select(obs_takeup) %>% 
+        unnest(obs_takeup) %>% 
+        pull(obs_takeup)
+    ) %>%
+    fit_model(script_options$chains, iter = 4000, script_options$cmdstanr, script_options$include_paths)
+  
+  if (save) {
+    fit$save_object(fit_file)
+  }
+  
+  return(fit)
+}
   
 if (script_options$load_fit) { 
   cat("\n\nLoad fit ...")
   
   sim_data %<>% 
     mutate(
-      sim_fit =map(sim_fit_file, read_rds)
+      sim_fit = map(sim_fit_file, read_rds)
     )
   
   cat("done.\n")
@@ -364,99 +482,113 @@ if (script_options$load_fit) {
   
   sim_data %<>% 
     mutate(
-      sim_fit =future_map(
-        cluster_data, ~ {
-          map_if(.y, is.factor, as.integer) %>% 
-            list_modify( 
-              fit_model_to_data = TRUE,
-              
-              takeup = .x %>% 
-                 filter(observed) %>% 
-                 select(obs_takeup) %>% 
-                 unnest(obs_takeup) %>% 
-                 pull(obs_takeup)
-            ) %>%
-            fit_model(script_options$chains, iter = 4000, script_options$cmdstanr, script_options$include_paths)
-        },
-        sim_stan_data,
-        .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
-    ) 
+      # sim_rf_fit = map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data), 
+      sim_rf_fit = future_map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data,
+                               .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
+    )
   
-  cat("done.\n")
-
-  cat("Saving fit...")
+  if (!script_options$rf_dgp) {
+    sim_data %<>% 
+      mutate(
+        sim_fit = future_map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, 
+                              .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
+      )
+  }
   
-  tryCatch({
-    sim_data %$%
-      walk2(sim_fit_file, sim_fit, ~ .y$save_object(.x))
-    cat("done.\n")
-  }, error = function(err) cat("FAILED.\n"))
-  
-  cat("done.\n")
+  cat("done.\n") 
 }
 
 cat("Adding prior predicted fit...")
 
-sim_data %<>% 
-  add_row(
-    iter_id = 0, 
-    sim_fit = list(fit_model(sim_stan_data, script_options$chains, iter = 1000, script_options$cmdstanr, script_options$include_paths))
-  ) 
+if (script_options$rf_dgp) {
+  sim_data %<>% 
+    add_row(
+      iter_id = 0, 
+      sim_rf_fit = list(fit_model(rf_sim_stan_data, script_options$chains, iter = 1000, script_options$cmdstanr, script_options$include_paths))
+    )
+} else {
+  sim_data %<>% 
+    add_row(
+      iter_id = 0, 
+      sim_fit = list(fit_model(sim_stan_data, script_options$chains, iter = 1000, script_options$cmdstanr, script_options$include_paths))
+    )
+}
 
 cat("done.\n")
 
 cat("Post-processing fit...")
 
+calculate_sim_takeup_levels <- function(fit, true_levels, stan_data) {
+  total_error_sd <- extract_obs_fit_level(fit, par = "total_error_sd", stan_data = stan_data, iter_level = "none")
+  
+  if (!is_null(total_error_sd)) {
+    total_error_sd %<>% 
+      unnest(iter_data) %>% 
+      rename(total_error_sd = iter_est)
+  }
+
+  curr_levels <- extract_obs_cluster_cutoff_cf(fit, stan_data) %>% 
+    mutate(observed = treatment_index == treatment_index_obs & mu_assigned_treatment == assigned_treatment) %>%  
+    unnest(iter_data) %>% 
+    rename(cluster_cutoff = iter_est) %>% { 
+      if (!is_null(total_error_sd)) {
+        left_join(., total_error_sd, by = "iter_id") 
+      } else {
+        mutate(., total_error_sd = 1)
+      }
+    } %>% 
+    mutate(
+      prob_takeup = 1 - pnorm(cluster_cutoff, sd = total_error_sd),
+      num_takeup = if_else(observed, obs_num_takeup, rbinom(n(), cluster_size, prob_takeup)),
+    ) %>% 
+    group_by(iter_id, assigned_treatment, mu_assigned_treatment, assigned_dist_group) %>% 
+    summarize(sim_takeup_level = weighted.mean(prob_takeup, cluster_size, na.rm = TRUE)) %>% 
+    nest(iter_data = c(iter_id, sim_takeup_level)) %>% 
+    mutate(mean_est = map_dbl(iter_data, ~ mean(.$sim_takeup_level, na.rm = TRUE)),
+           quantiles_est = map(iter_data, quantilize_est, 
+                               sim_takeup_level,
+                               quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95),
+                               na.rm = TRUE)) %>%
+    unnest(quantiles_est)
+  
+  if (!is_null(true_levels)) {
+    curr_levels %>% 
+      mutate(mu_assigned_treatment = coalesce(mu_assigned_treatment, assigned_treatment)) %>% 
+      left_join(true_levels, by = c("assigned_treatment", "mu_assigned_treatment", "assigned_dist_group")) %>% 
+      mutate(in_0.8_ci = true_takeup_level <= per_0.9 & true_takeup_level >= per_0.1) 
+  } else {
+    return(curr_levels)
+  }
+}
+
 sim_data %<>% 
   mutate(
-    sim_mu_rep = future_map2(sim_fit, true_mu_rep, ~ {
-      curr_mu_rep <- extract_obs_fit_level(.x, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = TRUE) %>%
-        unnest(quantiles_est)
-    
-      if (!is_null(.y)) {
-        curr_mu_rep %>% 
-          left_join(.y, by = c("treatment_index")) %>% 
-          mutate(in_0.8_ci = true_mu_rep <= per_0.9 & true_mu_rep >= per_0.1) 
-      } else {
-        return(curr_mu_rep)
-      }
-    }, .progress = !script_options$no_progress_bar),
-    
-    sim_takeup_levels = future_map2(sim_fit, takeup_levels, function(fit, true_levels, stan_data) {
-      total_error_sd <- extract_obs_fit_level(fit, par = "total_error_sd", stan_data = stan_data, iter_level = "none") %>% 
-        unnest(iter_data) %>% 
-        rename(total_error_sd = iter_est)
-      
-      curr_levels <- extract_obs_cluster_cutoff_cf(fit, stan_data) %>% 
-        unnest(iter_data) %>% 
-        rename(cluster_cutoff = iter_est) %>% 
-        mutate(observed = treatment_index == treatment_index_obs & mu_assigned_treatment == assigned_treatment) %>% 
-        left_join(total_error_sd, by = "iter_id") %>% 
-        mutate(
-          prob_takeup = 1 - pnorm(cluster_cutoff, sd = total_error_sd),
-          num_takeup = if_else(observed, obs_num_takeup, rbinom(n(), cluster_size, prob_takeup)),
-        ) %>% 
-        group_by(iter_id, assigned_treatment, mu_assigned_treatment, assigned_dist_group) %>% 
-        summarize(sim_takeup_level = weighted.mean(prob_takeup, cluster_size, na.rm = TRUE)) %>% 
-        nest(iter_data = c(iter_id, sim_takeup_level)) %>% 
-        mutate(mean_est = map_dbl(iter_data, ~ mean(.$sim_takeup_level, na.rm = TRUE)),
-               quantiles_est = map(iter_data, quantilize_est, 
-                                   sim_takeup_level,
-                                   quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95),
-                                   na.rm = TRUE)) %>%
-        unnest(quantiles_est)
-      
-      if (!is_null(true_levels)) {
-        curr_levels %>% 
-          left_join(true_levels, by = c("assigned_treatment", "mu_assigned_treatment", "assigned_dist_group")) %>% 
-          mutate(in_0.8_ci = true_takeup_level <= per_0.9 & true_takeup_level >= per_0.1) 
-      } else {
-        return(curr_levels)
-      }
-    }, prior_stan_data, .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
+    rf_sim_takeup_levels = future_map2(sim_rf_fit, takeup_levels, calculate_sim_takeup_levels, rf_prior_stan_data, .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
   )
 
+if (!script_options$rf_dgp) {
+  sim_data %<>% 
+    mutate(
+      sim_takeup_levels = future_map2(sim_fit, takeup_levels, calculate_sim_takeup_levels, prior_stan_data, .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
+
+      sim_mu_rep = future_map2(sim_fit, true_mu_rep, ~ {
+        curr_mu_rep <- extract_obs_fit_level(.x, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = TRUE) %>%
+          unnest(quantiles_est)
+
+        if (!is_null(.y)) {
+          curr_mu_rep %>%
+            left_join(.y, by = c("treatment_index")) %>%
+            mutate(in_0.8_ci = true_mu_rep <= per_0.9 & true_mu_rep >= per_0.1)
+        } else {
+          return(curr_mu_rep)
+        }
+      }, .progress = !script_options$no_progress_bar),
+    )
+}
+
 cat("done.\n")
+
+plan(sequential)
 
 cat("Saving...")
 
