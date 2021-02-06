@@ -739,6 +739,8 @@ stan_data <- lst(
   u_splines_v_sigma_sd = 1,
   mu_rep_sd = 1,
   
+  dist_beta_v_sd = 0.25,
+  
   beta_control_sd = 1,
   beta_far_effect_sd = 0.5,
   beta_ink_effect_sd = 0.5,
