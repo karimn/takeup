@@ -125,7 +125,7 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
                                                                             rhat = if (is_stanfit && always_diagnose) Rhat(cell),)) %>% {
       if (is_stanfit) rename(., variable = parameters) else .
     } %>% 
-    tidyr::extract(variable, c("cluster_id", "treatment_index", "mu_treatment_index"), "(\\d+),(\\d+),(\\d+)", convert = TRUE) %>%  
+    tidyr::extract(variable, c("cluster_id", "treatment_index", "mu_treatment_index"), r"{(\d+),(\d+)(?:,(\d+))?}", convert = TRUE) %>%  
     mutate(
       iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
       treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
@@ -143,6 +143,9 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
         summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
         ungroup(),
       by = c("cluster_id", "assigned_treatment", "assigned_dist_group")
+    ) %>%
+    mutate(
+      obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
     ) %>% 
     as_tibble()
 }

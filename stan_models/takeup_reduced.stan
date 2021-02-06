@@ -19,6 +19,7 @@ parameters {
 }
 
 transformed parameters {
+  
   vector[num_dist_group_treatments] beta; 
   vector[num_dist_group_treatments] structural_treatment_effect;
   vector[num_clusters] structural_cluster_benefit_cost;
@@ -83,6 +84,9 @@ model {
     if (use_binomial) {
       cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
     } else {
+      // print(takeup[included_monitored_obs][1:100]);
+      // print(obs_cluster_id[included_monitored_obs][1:100]);
+      // print(included_monitored_obs[1:100]);
       takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
     }
   }
@@ -90,6 +94,7 @@ model {
 
 generated quantities { 
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
+  matrix[num_clusters, num_dist_group_treatments] cluster_cf_cutoff; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   
@@ -111,6 +116,8 @@ generated quantities {
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix[treatment_index]'
         + rep_vector(structural_treatment_effect[treatment_index], num_clusters) 
         - treatment_dist_cost;
+        
+      cluster_cf_cutoff[, treatment_index] = - cluster_cf_benefit_cost[treatment_index]; 
     }
   }
   
