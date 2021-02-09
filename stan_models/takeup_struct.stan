@@ -5,6 +5,7 @@ functions {
 #include takeup_header.stan
 
 parameters {
+  
   // Levels: control ink calendar bracelet
   real beta_control;
   real beta_ink_effect;
@@ -128,8 +129,12 @@ transformed parameters {
   }
   
   for (dist_index in 1:num_discrete_dist) {
-    beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
-      [ beta_control * (dist_index == 1), beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+    if (dist_index > 1) {
+      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = rep_vector(0, num_treatments); 
+    } else {
+      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
+        [ beta_control , beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+    }
   }
  
   structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
