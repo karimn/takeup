@@ -79,39 +79,27 @@ real expected_delta_part(real v, real xc, real[] theta, data real[] x_r, data in
  
   real std_wmv = (w - v) / u_sd; 
   real v_lpdf = normal_lpdf(v | 0, 1);
-  real wmv_cdf;
+  real wmv_lcdf = normal_lcdf(w - v | 0, u_sd);
   
-  if (std_wmv > 5) { 
-    wmv_cdf = 1; 
-  } else if (std_wmv < -5) {
-    wmv_cdf = 0; 
-  } else {
-    wmv_cdf = Phi_approx(std_wmv);
-  }
-  
-  // if (is_nan(v * exp(v_lpdf) * wmv_cdf) || is_inf(v * exp(v_lpdf) * wmv_cdf)) {
-  //   print("wmv_cdf = ", wmv_cdf, ", v_lpdf = ", v_lpdf, ", prod = ", v * exp(v_lpdf) * wmv_cdf);
+  // real wmv_cdf;
+  // if (std_wmv > 5) { 
+  //   wmv_cdf = 1; 
+  // } else if (std_wmv < -5) {
+  //   wmv_cdf = 0; 
+  // } else {
+    // wmv_cdf = Phi_approx(std_wmv);
   // }
-
-  // return v * exp(normal_lpdf(v | 0, 1) + normal_lcdf(w - v | 0, u_sd));
-  return v * exp(v_lpdf) * wmv_cdf; 
+  
+  // return v * exp(v_lpdf) * wmv_cdf; 
+  return v * exp(v_lpdf + wmv_lcdf);
 }
 
 real expected_delta(real w, real total_error_sd, real u_sd, data real[] x_r, data int[] x_i) {
-  // real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
-  // real F_w = Phi_approx(w / total_error_sd);
-  real delta_part;
-  real F_w; 
+  real F_w = Phi_approx(w / total_error_sd); 
  
-  // print("w = ", w, ", u_sd = ", u_sd); 
-   
   // delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
-  // delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
-  delta_part = integrate_1d(expected_delta_part, -5, 5, { w, u_sd }, x_r, x_i, 0.00001);
-  
-  // print("delta_part = ", delta_part);
-  
-  F_w = Phi_approx(w / total_error_sd);
+  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+  // delta_part = integrate_1d(expected_delta_part, -5, 5, { w, u_sd }, x_r, x_i, 0.00001);
   
   return - delta_part / (F_w * (1 - F_w));
 }
