@@ -10,6 +10,7 @@ Options:
   --chains=<chains>  Number of Stan chains [default: 4]
   --cmdstanr  Use cmdstan.
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
+  --sim-iter=<iter>  Number of iterations for simulation [default: 4000]
   --rf-dgp  Reduced form dgp
   --outputname=<name>  Name to use for output
   --output-path=<path>  Where to save output files [default: temp-data]
@@ -18,7 +19,7 @@ Options:
 ",
 
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 6 --num-cores=12 --rf-dgp" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=1" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -30,13 +31,13 @@ library(splines2)
 library(furrr)
 
 script_options %<>% 
-  modify_at(c("chains", "num_cores", "num_sim"), as.integer)
+  modify_at(c("chains", "num_cores", "num_sim", "sim_iter"), as.integer)
 
 options(mc.cores = script_options$num_cores)
 
 num_workers <- script_options$num_cores %/% script_options$chains
 
-if (num_workers > 1)
+if (num_workers > 1) {
   if (interactive()) {
     plan(multisession, workers = num_workers)
   } else {
@@ -210,7 +211,6 @@ models <- lst(
     structural_beta_county_sd_sd = 1,
     structural_beta_cluster_sd_sd = 1,
     
-    iter = 2000,
     thin = 1,
     init = generate_initializer(
       num_treatments = num_treatments, 
@@ -447,7 +447,8 @@ sim_data %<>%
 
 write_rds(sim_data, file = str_glue("{script_options$output_path}/{str_c('dist_sim_pre', script_options$outputname, sep = '_')}.rds"))
 
-sim_fit_model <- function(data, fit_file, sim_stan_data, save = TRUE) {
+sim_fit_model <- function(data, fit_file, sim_stan_data, iter, save = TRUE) {
+  browser()
   fit <- map_if(sim_stan_data, is.factor, as.integer) %>% 
     list_modify( 
       fit_model_to_data = TRUE,
@@ -459,7 +460,7 @@ sim_fit_model <- function(data, fit_file, sim_stan_data, save = TRUE) {
         unnest(obs_takeup) %>% 
         pull(obs_takeup)
     ) %>%
-    fit_model(script_options$chains, iter = 4000, script_options$cmdstanr, script_options$include_paths)
+    fit_model(script_options$chains, iter = iter, script_options$cmdstanr, script_options$include_paths)
   
   if (save) {
     fit$save_object(fit_file)
@@ -482,15 +483,16 @@ if (script_options$load_fit) {
   
   sim_data %<>% 
     mutate(
-      # sim_rf_fit = map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data), 
-      sim_rf_fit = future_map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data,
+      # sim_rf_fit = map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter),
+      sim_rf_fit = future_map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter,
                                .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
     )
   
   if (!script_options$rf_dgp) {
     sim_data %<>% 
       mutate(
-        sim_fit = future_map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, 
+        # sim_fit = map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter) 
+        sim_fit = future_map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter,
                               .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
       )
   }
