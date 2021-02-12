@@ -293,8 +293,8 @@ transformed parameters {
       structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
       for (cluster_index in 1:num_clusters) {
-        // structural_cluster_obs_v[cluster_index] = algebra_solver(
-        structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
+        structural_cluster_obs_v[cluster_index] = algebra_solver(
+        // structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
           v_fixedpoint_solution_normal,
           [ - structural_cluster_benefit_cost[cluster_index] ]',
           prepare_solver_theta(
@@ -512,7 +512,8 @@ generated quantities {
       
       for (cluster_index in 1:num_clusters) {
         for (mu_treatment_index in 1:num_treatments) {
-          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver_newton(
+          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver(
+          // cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver_newton(
             v_fixedpoint_solution_normal,
             [ - cluster_cf_benefit_cost[treatment_index, cluster_index] ]',  
             [ structural_cluster_benefit_cost[curr_assigned_treatment] ]', // This is not actually used in this call  
@@ -714,7 +715,8 @@ generated quantities {
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county) - rep_dist_cost;
         
       // cluster_rep_cutoff[cluster_index] = 0; 
-      cluster_rep_cutoff[cluster_index] = algebra_solver_newton(
+      cluster_rep_cutoff[cluster_index] = algebra_solver(
+      // cluster_rep_cutoff[cluster_index] = algebra_solver_newton(
           v_fixedpoint_solution_normal,
           [ - cluster_rep_benefit_cost[cluster_index] ]',
           [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call
