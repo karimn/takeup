@@ -21,6 +21,7 @@ Options:
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 6 --num-cores=12 --rf-dgp" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400 --load-fit" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=12 --sim-iter=400 --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -456,7 +457,7 @@ if (script_options$load_fit) {
   write_rds(sim_data, file = pre_sim_data_file) 
 }
 
-sim_fit_model <- function(data, fit_file, sim_stan_data, iter, save = TRUE) {
+sim_fit_model <- function(data, fit_file, sim_stan_data, iter, script_options, save = TRUE) {
   fit <- map_if(sim_stan_data, is.factor, as.integer) %>% 
     list_modify( 
       fit_model_to_data = TRUE,
@@ -469,7 +470,7 @@ sim_fit_model <- function(data, fit_file, sim_stan_data, iter, save = TRUE) {
         pull(obs_takeup)
     ) %>%
     fit_model(script_options$chains, iter = iter, script_options$cmdstanr, script_options$include_paths)
-  
+
   if (save) {
     fit$save_object(fit_file)
   }
@@ -495,20 +496,23 @@ if (script_options$load_fit) {
   cat("done.\n")
 } else {
   cat("\n\nStarting simulations...")
+ 
+  # Need to pass in to future_* functions. Not sure why, but I think lst() evaluates some of the globals lazily.
+  stan_data_globals <- c("Z_osullivan", "cost_model_types", "num_clusters")
   
   sim_data %<>% 
     mutate(
-      # sim_rf_fit = map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter),
-      sim_rf_fit = future_map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter,
-                               .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
+      # sim_rf_fit = map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter, script_options = script_options),
+      sim_rf_fit = future_map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter, script_options = script_options,
+                               .options = furrr_options(seed = TRUE, globals = c("fit_model", stan_data_globals)), .progress = !script_options$no_progress_bar),
     )
   
   if (!script_options$rf_dgp) {
     sim_data %<>% 
       mutate(
-        # sim_fit = map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter) 
-        sim_fit = future_map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter,
-                              .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
+        # sim_fit = map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter, script_options = script_options) 
+        sim_fit = future_map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter, script_options = script_options,
+                              .options = furrr_options(seed = TRUE, globals = c("fit_model", stan_data_globals)), .progress = !script_options$no_progress_bar),
       )
   }
   
