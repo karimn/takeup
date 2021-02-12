@@ -19,8 +19,8 @@ Options:
 ",
 
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 6 --num-cores=12 --rf-dgp" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400 --load-fit" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400 --load-fit" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=12 --sim-iter=400 --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -504,7 +504,11 @@ if (script_options$load_fit) {
     mutate(
       # sim_rf_fit = map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter, script_options = script_options),
       sim_rf_fit = future_map2(cluster_data, sim_rf_fit_file, sim_fit_model, sim_stan_data = rf_sim_stan_data, iter = script_options$sim_iter, script_options = script_options,
-                               .options = furrr_options(seed = TRUE, globals = c("fit_model", stan_data_globals)), .progress = !script_options$no_progress_bar),
+                               .options = furrr_options(
+                                 seed = TRUE,
+                                 packages = c("magrittr", "tidyverse", "cmdstanr"),
+                                 globals = c("fit_model", stan_data_globals)
+                               ), .progress = !script_options$no_progress_bar),
     )
   
   if (!script_options$rf_dgp) {
@@ -512,7 +516,11 @@ if (script_options$load_fit) {
       mutate(
         # sim_fit = map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter, script_options = script_options) 
         sim_fit = future_map2(cluster_data, sim_fit_file, sim_fit_model, sim_stan_data = sim_stan_data, iter = script_options$sim_iter, script_options = script_options,
-                              .options = furrr_options(seed = TRUE, globals = c("fit_model", stan_data_globals)), .progress = !script_options$no_progress_bar),
+                              .options = furrr_options(
+                                seed = TRUE, 
+                                packages = c("magrittr", "tidyverse", "cmdstanr"),
+                                globals = c("fit_model", stan_data_globals)
+                              ), .progress = !script_options$no_progress_bar),
       )
   }
   
