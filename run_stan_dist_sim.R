@@ -19,8 +19,8 @@ Options:
 ",
 
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 6 --num-cores=12 --rf-dgp" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400 --load-fit" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models --load-fit" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=12 --sim-iter=400 --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -481,16 +481,19 @@ sim_fit_model <- function(data, fit_file, sim_stan_data, iter, script_options, s
 if (script_options$load_fit) { 
   cat("\n\nLoad fit ...")
   
+  sim_data %<>%
+    mutate(across(ends_with("fit_file"), ~ str_replace(.x, fixed(dirname(.x)), script_options$output_path)))
+  
   if (has_name(sim_data, "sim_fit_file")) {
     sim_data %<>% 
       mutate(
-        sim_fit = map(sim_fit_file, read_rds)
+        sim_fit = map_if(sim_fit_file, file.exists, read_rds, .else = ~ NULL)
       )
   }
   
   sim_data %<>% 
     mutate(
-      sim_rf_fit = map(sim_rf_fit_file, read_rds)
+      sim_rf_fit = map_if(sim_rf_fit_file, file.exists, read_rds, .else = ~ NULL)
     )
   
   cat("done.\n")
@@ -606,6 +609,10 @@ if (!script_options$rf_dgp) {
       sim_takeup_levels = future_map2(sim_fit, takeup_levels, calculate_sim_takeup_levels, prior_stan_data, .options = furrr_options(seed = TRUE), .progress = !script_options$no_progress_bar),
 
       sim_mu_rep = future_map2(sim_fit, true_mu_rep, ~ {
+        if (is_null(.x)) {
+          return(NULL)
+        }
+        
         curr_mu_rep <- extract_obs_fit_level(.x, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, summarize_est = TRUE) %>%
           unnest(quantiles_est)
 
