@@ -76,13 +76,30 @@ vector param_dist_cost(vector dist, vector linear_dist_cost, vector quadratic_di
 real expected_delta_part(real v, real xc, real[] theta, data real[] x_r, data int[] x_i) {
   real w = theta[1];
   real u_sd = theta[2];
-
-  return v * exp(normal_lpdf(v | 0, 1) + normal_lcdf(w - v | 0, u_sd));
+ 
+  real std_wmv = (w - v) / u_sd; 
+  real v_lpdf = normal_lpdf(v | 0, 1);
+  real wmv_lcdf = normal_lcdf(w - v | 0, u_sd);
+  
+  // real wmv_cdf;
+  // if (std_wmv > 5) { 
+  //   wmv_cdf = 1; 
+  // } else if (std_wmv < -5) {
+  //   wmv_cdf = 0; 
+  // } else {
+    // wmv_cdf = Phi_approx(std_wmv);
+  // }
+  
+  // return v * exp(v_lpdf) * wmv_cdf; 
+  return v * exp(v_lpdf + wmv_lcdf);
 }
 
-real expected_delta(real w, real total_error_sd, real u_sd) {
-  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
-  real F_w = Phi_approx(w / total_error_sd);
+real expected_delta(real w, real total_error_sd, real u_sd, data real[] x_r, data int[] x_i) {
+  real F_w = Phi_approx(w / total_error_sd); 
+ 
+  // delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
+  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+  // delta_part = integrate_1d(expected_delta_part, -5, 5, { w, u_sd }, x_r, x_i, 0.00001);
   
   return - delta_part / (F_w * (1 - F_w));
 }
@@ -90,22 +107,37 @@ real expected_delta(real w, real total_error_sd, real u_sd) {
 vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[] x_r, data int[] x_i) {
   real cutoff = model_param[1];
   
-  real benefit_cost = theta[1];
-  real mu = theta[2];
-  
   int num_v_mix = x_i[1];
   int use_u_in_delta = x_i[2];
+  int use_theta_param = x_i[3];
   
-  vector[num_v_mix] lambda = theta[3:(3 + num_v_mix - 1)];
-  vector[num_v_mix] mix_mean = theta[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)];
-  vector[num_v_mix] mix_sd = theta[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)];
-  real total_error_sd = theta[3 + 3 * num_v_mix]; 
-  real u_sd = theta[3 + 3 * num_v_mix + 1]; 
+  real benefit_cost = use_theta_param ? theta[1] : x_r[1];
+  real mu = use_theta_param ? theta[2] : x_r[2];
+  
+  vector[num_v_mix] lambda;
+  vector[num_v_mix] mix_mean;
+  vector[num_v_mix] mix_sd;
+  real total_error_sd;
+  real u_sd;
   
   real delta;
   
+  if (use_theta_param) {
+    lambda = theta[3:(3 + num_v_mix - 1)];
+    mix_mean = theta[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)];
+    mix_sd = theta[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)];
+    total_error_sd = theta[3 + 3 * num_v_mix]; 
+    u_sd = theta[3 + 3 * num_v_mix + 1]; 
+  } else {
+    lambda = to_vector(x_r[3:(3 + num_v_mix - 1)]);
+    mix_mean = to_vector(x_r[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)]);
+    mix_sd = to_vector(x_r[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)]);
+    total_error_sd = x_r[3 + 3 * num_v_mix]; 
+    u_sd = x_r[3 + 3 * num_v_mix + 1]; 
+  }
+  
   if (use_u_in_delta && u_sd > 0) {
-    delta = expected_delta(cutoff, total_error_sd, u_sd);
+    delta = expected_delta(cutoff, total_error_sd, u_sd, x_r, x_i);
   } else {
     delta = reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd);
   }

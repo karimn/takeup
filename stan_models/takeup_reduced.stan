@@ -19,6 +19,7 @@ parameters {
 }
 
 transformed parameters {
+  
   vector[num_dist_group_treatments] beta; 
   vector[num_dist_group_treatments] structural_treatment_effect;
   vector[num_clusters] structural_cluster_benefit_cost;
@@ -77,12 +78,15 @@ model {
     structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
   }
   
-  if (!predict_prior) {
+  if (fit_model_to_data) {
     // Take-up Likelihood 
     
     if (use_binomial) {
       cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
     } else {
+      // print(takeup[included_monitored_obs][1:100]);
+      // print(obs_cluster_id[included_monitored_obs][1:100]);
+      // print(included_monitored_obs[1:100]);
       takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
     }
   }
@@ -90,12 +94,13 @@ model {
 
 generated quantities { 
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
+  matrix[num_clusters, num_dist_group_treatments] cluster_cf_cutoff; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   
   // Cross Validation
-  vector[use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs] log_lik = rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs); 
-  vector[use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs] log_lik_heldout = rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs); 
+  vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
+  vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
     
   {
     int treatment_cluster_pos = 1;
@@ -111,55 +116,61 @@ generated quantities {
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix[treatment_index]'
         + rep_vector(structural_treatment_effect[treatment_index], num_clusters) 
         - treatment_dist_cost;
+        
+      cluster_cf_cutoff[, treatment_index] = - cluster_cf_benefit_cost[treatment_index]; 
     }
   }
   
   // Cross Validation 
-  
-  if (use_binomial) {
-    for (cluster_index_index in 1:num_included_clusters) {
-      int cluster_index = included_clusters[cluster_index_index];
-      
-      log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
-    }
+  if (cross_validate) { 
+    log_lik = rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs); 
+    log_lik_heldout = rep_vector(negative_infinity(), use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs); 
     
-    for (cluster_index_index in 1:num_excluded_clusters) {
-      int cluster_index = excluded_clusters[cluster_index_index];
+    if (use_binomial) {
+      for (cluster_index_index in 1:num_included_clusters) {
+        int cluster_index = included_clusters[cluster_index_index];
+        
+        log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
+      }
       
-      log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
-    }
-  } else {
-    vector[num_clusters] temp_log_lik = rep_vector(0, num_clusters);
-    
-    for (obs_index_index in 1:num_included_monitored_obs) {
-      int obs_index = included_monitored_obs[obs_index_index];
-      int cluster_index = obs_cluster_id[obs_index];
+      for (cluster_index_index in 1:num_excluded_clusters) {
+        int cluster_index = excluded_clusters[cluster_index_index];
+        
+        log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
+      }
+    } else {
+      vector[num_clusters] temp_log_lik = rep_vector(0, num_clusters);
       
-      real curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
+      for (obs_index_index in 1:num_included_monitored_obs) {
+        int obs_index = included_monitored_obs[obs_index_index];
+        int cluster_index = obs_cluster_id[obs_index];
+        
+        real curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
+        
+        if (cluster_log_lik) {
+          temp_log_lik[cluster_index] += curr_log_lik;
+        } else {
+          log_lik[obs_index_index] = curr_log_lik;
+        }
+      }
+      
+      for (obs_index_index in 1:num_excluded_monitored_obs) {
+        int obs_index = excluded_monitored_obs[obs_index_index];
+        int cluster_index = obs_cluster_id[obs_index];
+        
+        real  curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
+        
+        if (cluster_log_lik) {
+          temp_log_lik[cluster_index] += curr_log_lik;
+        } else {
+          log_lik_heldout[obs_index_index] = curr_log_lik;
+        }
+      }
       
       if (cluster_log_lik) {
-        temp_log_lik[cluster_index] += curr_log_lik;
-      } else {
-        log_lik[obs_index_index] = curr_log_lik;
+        log_lik = temp_log_lik[included_clusters];
+        log_lik_heldout = temp_log_lik[excluded_clusters];
       }
-    }
-    
-    for (obs_index_index in 1:num_excluded_monitored_obs) {
-      int obs_index = excluded_monitored_obs[obs_index_index];
-      int cluster_index = obs_cluster_id[obs_index];
-      
-      real  curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
-      
-      if (cluster_log_lik) {
-        temp_log_lik[cluster_index] += curr_log_lik;
-      } else {
-        log_lik_heldout[obs_index_index] = curr_log_lik;
-      }
-    }
-    
-    if (cluster_log_lik) {
-      log_lik = temp_log_lik[included_clusters];
-      log_lik_heldout = temp_log_lik[excluded_clusters];
     }
   }
   

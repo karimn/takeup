@@ -33,7 +33,8 @@ data {
   int<lower = 0, upper = 1> use_u_in_delta;
   int<lower = 0, upper = 1> generate_rep;
   int<lower = 0, upper = 1> generate_sim;
-  int<lower = 0, upper = 1> predict_prior;
+  int<lower = 0, upper = 1> fit_model_to_data;
+  int<lower = 0, upper = 1> cross_validate;
   
   real<lower = 0> alg_sol_f_tol;
   real<lower = 0> alg_sol_rel_tol;
@@ -90,6 +91,8 @@ data {
   real<lower = 0> beta_ink_effect_sd;
   real<lower = 0> beta_calendar_effect_sd;
   real<lower = 0> beta_bracelet_effect_sd;
+  
+  real<lower = 0> dist_beta_v_sd;
   
   real<lower = 0> structural_beta_county_sd_sd;
   real<lower = 0> structural_beta_cluster_sd_sd;
@@ -181,10 +184,21 @@ transformed data {
     excluded_name_matched_obs = which(name_matched_obs, excluded_obs, 1);
   }
   
-  treatment_map_design_matrix[, 1] = rep_vector(1, num_dist_group_treatments);
-  
-  for(treatment_index in 1:num_dist_group_treatments) {
-    treatment_map_design_matrix[treatment_index, treatment_index] = 1;
+  {
+    int max_close_index = num_dist_group_treatments / num_discrete_dist;
+    
+    treatment_map_design_matrix[, 1] = rep_vector(1, num_dist_group_treatments);
+    
+    for(treatment_index in 1:num_dist_group_treatments) {
+      treatment_map_design_matrix[treatment_index, treatment_index] = 1;
+      
+      if (treatment_index > max_close_index) {
+        treatment_map_design_matrix[treatment_index, max_close_index + 1] = 1;
+        treatment_map_design_matrix[treatment_index, treatment_index - max_close_index] = 1;
+      }
+    }
+    
+    // print(treatment_map_design_matrix);
   }
   
   restricted_treatment_map_design_matrix = treatment_map_design_matrix;
