@@ -37,6 +37,9 @@ sim_data %>%
   plot_sim(TRUE) 
 
 sim_data %>% 
+  plot_sim(FALSE) 
+
+sim_data %>% 
   select(iter_id, sim_takeup_levels) %>% 
   unnest(sim_takeup_levels) %>% 
   group_by(assigned_treatment, mu_assigned_treatment) %>% 
