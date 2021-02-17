@@ -2099,22 +2099,23 @@ wtp_stan_data <- analysis.data %>%
 ```
 
 ```{r, eval=FALSE}
-options(mc.cores = 12)
-rstan_options(auto_write = TRUE)
+# options(mc.cores = 12)
+# rstan_options(auto_write = TRUE)
 
-wtp_model_0 <- stan_model(file = file.path("stan_models", "wtp_model.stan"), model_name = "wtp_model_0")
-wtp_model_0_fit <- sampling(
-  wtp_model_0, 
+# wtp_model_0 <- stan_model(file = file.path("stan_models", "wtp_model.stan"), model_name = "wtp_model_0")
+wtp_model_0 <- cmdstanr::cmdstan_model(file.path("stan_models", "wtp_model.stan"), , include_paths = "~/Code/takeup/stan_models")
+
+wtp_model_0_fit <- wtp_model_0$sample(
   data = wtp_stan_data, 
   chains = 8, 
-  iter = 4000,
-  control = lst(
-    adapt_delta = 0.999,
-    max_treedepth = 15
-  ),
-  sample_file = file.path("data", "stanfit", "wtp_model_2.csv")) 
+  parallel_chains = 8,
+  iter_warmup = 2000,
+  iter_sampling = 2000,
+  adapt_delta = 0.999,
+  max_treedepth = 15
+)
 
-write_rds(wtp_model_0_fit, file.path("data", "stanfit", "wtp_model_fit.rds"))
+wtp_model_0_fit$save_object(file.path("data", "stanfit", "wtp_model_fit.rds"))
 ```
 
 ```{r load-wtp-fit}
@@ -2122,7 +2123,7 @@ wtp_model_0_fit <- read_rds(file.path("data", "stanfit", "wtp_model_fit.rds"))
 ```
 
 ```{r prepare-wtp-sim-data, eval=FALSE}
-wtp_sim_data <- as.data.frame(wtp_model_0_fit, pars = c("sim_gift_choice", "sim_wtp_response")) %>% 
+wtp_sim_data <- wtp_model_0_fit$draws(c("sim_gift_choice", "sim_wtp_response")) %>% 
   mutate(run_id = seq_len(n())) %>% 
   gather(outcome_id, sim_outcome, -run_id) %>% 
   separate(outcome_id, c("outcome", "obs_id"), "(\\[)|\\]", extra = "drop") %>% 
@@ -2153,9 +2154,9 @@ wtp_model_0_fit %>%
         comment = FALSE)
 ```
 
-```{r wtp-prefer-calendar-plot, fig.height=6, fig.width=8, fig.cap = "Willingness-to-pay experiment results."}
-wtp_model_0_fit %>% 
-  as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
+```{r wtp-prefer-calendar-plot, fig.height=6, fig.width=8, fig.cap="Willingness-to-pay experiment results."}
+wtp_model_0_fit$draws(c("prob_prefer_calendar", "strata_mu")) %>% 
+  posterior::as_draws_df() %>% 
   mutate(iter_id = seq(n())) %>% 
   pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
   tidyr::extract(parameter, c("parameter", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 

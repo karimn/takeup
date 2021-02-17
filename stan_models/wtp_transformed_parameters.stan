@@ -1,0 +1,1 @@
+vector[num_strata] strata_mu = hyper_mu + raw_strata_mu * strata_mu_tau;
