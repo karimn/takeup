@@ -14,7 +14,7 @@ Options:
 ",
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "fit --sequential --outputname=test --models=4 --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "fit --sequential --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -658,6 +658,24 @@ models <- lst(
   #   list_modify(!!!enum2stan_data(cost_model_types)),
 )
 
+
+# WTP Stan Data -----------------------------------------------------------
+
+wtp_stan_data <- analysis.data %>% 
+  mutate(stratum = county) %>% 
+  prepare_bayes_wtp_data(
+    wtp.data,
+    
+    preference_value_diff = seq(-100, 100, 10), 
+    num_preference_value_diff = length(preference_value_diff), 
+    
+    wtp_utility_df = 3,
+    tau_mu_wtp_diff = 100,
+    mu_wtp_df_student_t = 7,
+    tau_sigma_wtp_diff = 50,
+    sigma_wtp_df_student_t = 2.5
+  )
+
 # Stan Run ----------------------------------------------------------------
 
 stan_data <- lst(
@@ -752,7 +770,8 @@ stan_data <- lst(
   
   analysis_data
 ) %>% 
-  list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
+  list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
+  list_modify(!!!wtp_stan_data)
 
 models <- if (!is_null(script_options$models)) {
   models_to_run <- script_options$model %>% 
