@@ -2,9 +2,19 @@ functions {
 #include takeup_functions.stan
 }
 
-#include takeup_header.stan
+data {
+#include takeup_data_sec.stan
+#include wtp_data.stan
+}
+
+transformed data {
+#include wtp_transformed_data.stan
+#include takeup_transformed_data_declare.stan
+#include takeup_transformed_data_define.stan
+}
 
 parameters {
+#include wtp_parameters.stan
   
   // Levels: control ink calendar bracelet
   real beta_control;
@@ -76,6 +86,8 @@ parameters {
 
 
 transformed parameters {
+#include wtp_transformed_parameters.stan
+  
   vector[num_dist_group_treatments] beta;
   
   vector[num_dist_group_treatments] structural_treatment_effect;
@@ -328,6 +340,8 @@ transformed parameters {
 }
 
 model {
+#include wtp_model_section.stan
+
   beta_control ~ normal(0, beta_control_sd);
   
   beta_ink_effect ~ normal(0, beta_ink_effect_sd);
@@ -487,6 +501,8 @@ generated quantities {
   // Cross Validation
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
+  
+#include wtp_generated_quantities.stan
     
   if (!suppress_shocks) {
     all_u_corr = L_all_u_corr * L_all_u_corr';
