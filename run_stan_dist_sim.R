@@ -19,8 +19,8 @@ Options:
 ",
 
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 6 --num-cores=12 --rf-dgp" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 3 --num-cores=12 --sim-iter=400" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models --load-fit" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=12 --sim-iter=200" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "--cmdstanr --include-paths=~/Code/takeup/stan_models --load-fit" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "--outputname=test --cmdstanr --include-paths=~/Code/takeup/stan_models -n 1 --num-cores=12 --sim-iter=400 --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE)
 ) 
 
