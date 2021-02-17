@@ -2,7 +2,14 @@ functions {
 #include takeup_functions.stan
 }
 
-#include takeup_header.stan
+data {
+#include takeup_data_sec.stan
+}
+
+transformed data {
+#include takeup_transformed_data_declare.stan
+#include takeup_transformed_data_define.stan
+}
 
 parameters {
   // Levels: control ink calendar bracelet
