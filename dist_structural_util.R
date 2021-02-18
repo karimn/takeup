@@ -446,7 +446,7 @@ fit_model <- function(curr_stan_data, chains, threads, iter, use_cmdstanr, inclu
         list_modify(analysis_data = NULL),
       chains = chains,
       parallel_chains = chains,
-      threads_per_chain = chains * threads,
+      threads_per_chain = threads,
       iter_warmup = iter %/% 2, 
       iter_sampling = iter %/% 2, 
       save_warmup = FALSE,
