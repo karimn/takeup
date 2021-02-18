@@ -1,6 +1,6 @@
-real hyper_mu;
+real hyper_wtp_mu;
 
-vector[num_strata] raw_strata_mu;
-real<lower = 0> strata_mu_tau;
+vector[num_strata] raw_strata_wtp_mu;
+real<lower = 0> strata_wtp_mu_tau;
 
-real<lower = 0> sigma;
+real<lower = 0> wtp_sigma;

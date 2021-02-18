@@ -2099,10 +2099,6 @@ wtp_stan_data <- analysis.data %>%
 ```
 
 ```{r, eval=FALSE}
-# options(mc.cores = 12)
-# rstan_options(auto_write = TRUE)
-
-# wtp_model_0 <- stan_model(file = file.path("stan_models", "wtp_model.stan"), model_name = "wtp_model_0")
 wtp_model_0 <- cmdstanr::cmdstan_model(file.path("stan_models", "wtp_model.stan"), , include_paths = "~/Code/takeup/stan_models")
 
 wtp_model_0_fit <- wtp_model_0$sample(
@@ -2155,7 +2151,7 @@ wtp_model_0_fit %>%
 ```
 
 ```{r wtp-prefer-calendar-plot, fig.height=6, fig.width=8, fig.cap="Willingness-to-pay experiment results."}
-wtp_model_0_fit$draws(c("prob_prefer_calendar", "strata_mu")) %>% 
+wtp_model_0_fit$draws(c("prob_prefer_calendar", "strata_wtp_mu")) %>% 
   posterior::as_draws_df() %>% 
   mutate(iter_id = seq(n())) %>% 
   pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
@@ -2183,7 +2179,7 @@ wtp_model_0_fit$draws(c("prob_prefer_calendar", "strata_mu")) %>%
         ) +
         NULL,
       
-      filter(., fct_match(parameter, "strata_mu")) %>% 
+      filter(., fct_match(parameter, "strata_wtp_mu")) %>% 
         mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
         ggplot(aes(y = str_c(parameter, index))) +
         geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +

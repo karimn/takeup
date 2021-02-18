@@ -1,9 +1,9 @@
-hyper_mu ~ normal(0, 2);
+hyper_wtp_mu ~ normal(0, 2);
 
-raw_strata_mu ~ std_normal();
-strata_mu_tau ~ normal(0, 1);
+raw_strata_wtp_mu ~ std_normal();
+strata_wtp_mu_tau ~ normal(0, 1);
 
-sigma ~ normal(0, 1); 
+wtp_sigma ~ normal(0, 1); 
 
 { 
   int wtp_stratum_pos = 1;
@@ -15,14 +15,13 @@ sigma ~ normal(0, 1);
     for (wtp_obs_index in wtp_stratum_pos:wtp_stratum_end) {
       if (wtp_response[wtp_obs_index] == -1) { // Decided to KEEP
         if (gift_choice[wtp_obs_index] == -1) { // Initial choice: BRACELET
-          target += log(Phi_approx((- scaled_wtp_offer[wtp_obs_index] - strata_mu[stratum_index]) / sigma));
+          target += log(Phi_approx((- scaled_wtp_offer[wtp_obs_index] - strata_wtp_mu[stratum_index]) / wtp_sigma));
         } else { // Initial choice: CALENDAR
-          target += log(1 - Phi_approx((scaled_wtp_offer[wtp_obs_index] - strata_mu[stratum_index]) / sigma));
+          target += log(1 - Phi_approx((scaled_wtp_offer[wtp_obs_index] - strata_wtp_mu[stratum_index]) / wtp_sigma));
         }
       } else { // Decided to SWITCH
         target += log(gift_choice[wtp_obs_index] *
-          (Phi_approx((gift_choice[wtp_obs_index] * scaled_wtp_offer[wtp_obs_index] - strata_mu[stratum_index]) / sigma)
-           - Phi_approx(- strata_mu[stratum_index] / sigma)));
+          (Phi_approx((gift_choice[wtp_obs_index] * scaled_wtp_offer[wtp_obs_index] - strata_wtp_mu[stratum_index]) / wtp_sigma) - Phi_approx(- strata_wtp_mu[stratum_index] / wtp_sigma)));
       }
     }
 

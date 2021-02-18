@@ -1,4 +1,5 @@
 data {
+  
 #include /wtp_data.stan
 }
 
