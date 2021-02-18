@@ -425,7 +425,7 @@ generate_initializer <- function(num_treatments,
   } else return(NULL)
 }
 
-fit_model <- function(curr_stan_data, chains, iter, use_cmdstanr, include_paths) {
+fit_model <- function(curr_stan_data, chains, threads, iter, use_cmdstanr, include_paths) {
   control <- lst(adapt_delta = 0.8) 
   
   if (!is_null(curr_stan_data$control)) {
@@ -446,7 +446,7 @@ fit_model <- function(curr_stan_data, chains, iter, use_cmdstanr, include_paths)
         list_modify(analysis_data = NULL),
       chains = chains,
       parallel_chains = chains,
-      threads_per_chain = chains * 3,
+      threads_per_chain = chains * threads,
       iter_warmup = iter %/% 2, 
       iter_sampling = iter %/% 2, 
       save_warmup = FALSE,
@@ -483,7 +483,7 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
         
       iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
       
-      fit_model(curr_stan_data, script_options$chains, iter, use_cmdstanr, include_paths)
+      fit_model(curr_stan_data, script_options$chains, script_options$threads, iter, use_cmdstanr, include_paths)
     }
     
     if (script_options$sequential) {
