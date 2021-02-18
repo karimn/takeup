@@ -2,12 +2,13 @@
 
 script_options <- docopt::docopt(
 "Usage:
-  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior --cmdstanr --include-paths=<paths>]
+  run_stan_dist fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior --cmdstanr --include-paths=<paths>]
   run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths>]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
   --chains=<chains>  Number of Stan chains [default: 4]
+  --threads=<threads>  Number of threads per chain [default: 1]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
@@ -26,10 +27,8 @@ library(splines2)
 library(loo)
 
 script_options %<>% 
-  modify_at(c("chains", "iter"), as.integer) %>% 
+  modify_at(c("chains", "iter", "threads"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
-
-options(mc.cores = 12)
 
 if (script_options$cmdstanr) {
   library(cmdstanr)
@@ -44,14 +43,12 @@ chains <- as.integer(script_options$chains) # Stan chains
 iter <- as.integer(script_options$iter) # Stan iterations
 output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else if (script_options$fit) { "dist_fit" } else { "dist_kfold" }
 output_file_name <- file.path("data", "stan_analysis_data", str_c(output_name, ".RData"))
-# models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
 thin_by <- as.integer(script_options$thin)
 predict_prior <- as.logical(script_options$predict_prior) # Prior prediction run
 
 source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
-
 
 # Data --------------------------------------------------------------------
 
@@ -677,7 +674,7 @@ wtp_stan_data <- analysis.data %>%
     sigma_wtp_df_student_t = 2.5
   )
 
-# Stan Run ----------------------------------------------------------------
+# Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
   num_obs = nrow(analysis_data),
@@ -775,6 +772,8 @@ stan_data <- lst(
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
   list_modify(!!!wtp_stan_data)
 
+# Stan Run ----------------------------------------------------------------
+
 models <- if (!is_null(script_options$models)) {
   models_to_run <- script_options$model %>% 
     map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(.x, names(models))) %>% 
@@ -815,7 +814,7 @@ if (script_options$fit) {
     }, error = function(e) dist_fit)  
   }
 } else if (script_options$cv) {
-  dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+  dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, threads =  include_paths = script_options$include_paths)
   
   if (script_options$cmdstanr) {
     dist_kfold_obj <- dist_kfold

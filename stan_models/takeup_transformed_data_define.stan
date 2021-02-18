@@ -1,7 +1,3 @@
-long_cluster_by_treatment_index = array_add(array_product(array_subtract(cluster_assigned_dist_group_treatment, { 1 }),
-          { num_clusters }),
-          seq(1, num_clusters, 1));
-
 for (grid_index in 1:num_grid_obs) {
   sim_grid_mu[grid_index] = rep_vector(0, 2);
 }

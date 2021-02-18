@@ -42,6 +42,10 @@ int num_treatments_semiparam = 0;
 
 vector[2] sim_grid_mu[num_grid_obs];
 
-int<lower = 1, upper = num_clusters * num_dist_group_treatments> long_cluster_by_treatment_index[num_clusters];
+int<lower = 1, upper = num_clusters * num_dist_group_treatments> long_cluster_by_treatment_index[num_clusters] =
+  array_add(array_product(array_subtract(cluster_assigned_dist_group_treatment, { 1 }), { num_clusters }), seq(1, num_clusters, 1));
+  
+int<lower = 1, upper = num_clusters * num_treatments> long_cluster_by_incentive_treatment_index[num_clusters] =
+  array_add(array_product(array_subtract(cluster_treatment_map[cluster_assigned_dist_group_treatment, 1], { 1 }), { num_clusters }), seq(1, num_clusters, 1));
 
 int<lower = 1> num_dist_group_mix = 2;

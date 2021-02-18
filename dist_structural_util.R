@@ -434,14 +434,19 @@ fit_model <- function(curr_stan_data, chains, iter, use_cmdstanr, include_paths)
   } 
   
   if (use_cmdstanr) {
-    dist_model <- cmdstan_model(file.path("stan_models", curr_stan_data$model_file), include_paths = include_paths)
+    dist_model <- cmdstan_model(
+      file.path("stan_models", curr_stan_data$model_file),
+      cpp_options = list(stan_threads = TRUE),
+      include_paths = include_paths
+    )
     
     dist_model$sample(
       data = curr_stan_data %>% 
         discard(~ is_function(.x) | is.character(.)) %>% 
         list_modify(analysis_data = NULL),
       chains = chains,
-      parallel_chains = chains, 
+      parallel_chains = chains,
+      threads_per_chain = chains * 3,
       iter_warmup = iter %/% 2, 
       iter_sampling = iter %/% 2, 
       save_warmup = FALSE,
