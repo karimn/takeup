@@ -201,6 +201,7 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     use_u_in_delta = TRUE,
+    use_wtp_model = TRUE,
     suppress_reputation = FALSE,
     suppress_shocks = FALSE,
     generate_sim = FALSE,
@@ -745,6 +746,7 @@ stan_data <- lst(
   generate_sim = FALSE,
   fit_model_to_data = !predict_prior,
   cross_validate = script_options$cv,
+  use_wtp_model = FALSE,
   
   thin = thin_by,
   
