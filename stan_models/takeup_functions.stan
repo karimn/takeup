@@ -181,7 +181,8 @@ real mixed_bernoulli_lpmf(int[] outcomes, vector lambda, matrix prob) {
   return logp;
 }
 
-vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real total_error_sd, real u_sd) { 
+real find_fixedpoint_solution(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real total_error_sd, real u_sd,
+                              data int num_mix, data int use_u_in_delta, data real alg_sol_rel_tol, data real alg_sol_f_tol, data real alg_sol_max_steps) {
   int num_v_mix = num_elements(lambda);
   vector[2 + 3 * num_v_mix + 2] solver_theta;
   
@@ -190,9 +191,11 @@ vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector la
   solver_theta[(3 + num_v_mix):(3 + num_v_mix + num_v_mix - 1)] = append_row(v_mu, mix_mean);
   solver_theta[(3 + num_v_mix + num_v_mix):(3 + 3 * num_v_mix - 1)] = append_row(v_sd, mix_sd);
   solver_theta[3 + 3 * num_v_mix] = total_error_sd; 
-  solver_theta[3 + 3 * num_v_mix + 1] = u_sd; 
-
-  return solver_theta; 
+  solver_theta[3 + 3 * num_v_mix + 1] = u_sd;
+  
+  int x_i[3] = { num_mix, use_u_in_delta, 1 };
+  
+  return algebra_solver(v_fixedpoint_solution_normal, [ - benefit_cost ]', solver_theta, { 0.0 }, x_i, alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps)[1];
 }
 
 int[] prepare_cluster_assigned_dist_group_treatment(int[] cluster_assigned_treatment, int[] cluster_assigned_dist_group) {

@@ -89,7 +89,6 @@ parameters {
   real<lower = 0> wtp_value_utility;
 }
 
-
 transformed parameters {
 #include wtp_transformed_parameters.stan
   
@@ -318,26 +317,23 @@ transformed parameters {
       structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
       for (cluster_index in 1:num_clusters) {
-        structural_cluster_obs_v[cluster_index] = algebra_solver(
-          v_fixedpoint_solution_normal,
-          [ - structural_cluster_benefit_cost[cluster_index] ]',
-          prepare_solver_theta(
-            structural_cluster_benefit_cost[cluster_index], 
-            cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
-            use_shifting_v_dist ? v_mu : 0,
-            lambda_v_mix,
-            v_mix_mean,
-            1,
-            v_mix_sd,
-            total_error_sd,
-            u_sd
-          ),
-          { 0.0 },
-          { num_v_mix, use_u_in_delta, 1 }, 
+        structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
+          structural_cluster_benefit_cost[cluster_index], 
+          cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
+          use_shifting_v_dist ? v_mu : 0,
+          lambda_v_mix,
+          v_mix_mean,
+          1,
+          v_mix_sd,
+          total_error_sd,
+          u_sd,
+          
+          num_v_mix, 
+          use_u_in_delta,
           alg_sol_rel_tol, // 1e-10,
           alg_sol_f_tol, // 1e-5,
           alg_sol_max_steps
-        )[1];
+        ); 
       }
     }
     
@@ -524,6 +520,7 @@ generated quantities {
     all_u_corr = L_all_u_corr * L_all_u_corr';
   }
   
+  
   {
     int treatment_cluster_pos = 1;
     int cluster_treatment_cf_pos = 1;
@@ -544,29 +541,23 @@ generated quantities {
       
       for (cluster_index in 1:num_clusters) {
         for (mu_treatment_index in 1:num_treatments) {
-          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver(
-          // cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver_newton(
-            v_fixedpoint_solution_normal,
-            [ - cluster_cf_benefit_cost[treatment_index, cluster_index] ]',  
-            [ structural_cluster_benefit_cost[curr_assigned_treatment] ]', // This is not actually used in this call  
-            to_array_1d(
-              prepare_solver_theta(
-                cluster_cf_benefit_cost[treatment_index, cluster_index],
-                cluster_mu_rep[cluster_index, mu_treatment_index],
-                use_shifting_v_dist ? v_mu : 0,
-                lambda_v_mix,
-                v_mix_mean,
-                1,
-                v_mix_sd,
-                total_error_sd,
-                u_sd
-              )
-            ),
-            { num_v_mix, use_u_in_delta, 0 }, 
+          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
+            cluster_cf_benefit_cost[treatment_index, cluster_index],
+            cluster_mu_rep[cluster_index, mu_treatment_index],
+            use_shifting_v_dist ? v_mu : 0,
+            lambda_v_mix,
+            v_mix_mean,
+            1,
+            v_mix_sd,
+            total_error_sd,
+            u_sd,
+            
+            num_v_mix, 
+            use_u_in_delta, 
             alg_sol_rel_tol, 
             alg_sol_f_tol, 
             alg_sol_max_steps
-          )[1];
+          ); 
         }
       }
     }
@@ -746,28 +737,23 @@ generated quantities {
       cluster_rep_benefit_cost[cluster_index] = structural_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]] 
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county) - rep_dist_cost;
         
-      cluster_rep_cutoff[cluster_index] = algebra_solver(
-          v_fixedpoint_solution_normal,
-          [ - cluster_rep_benefit_cost[cluster_index] ]',
-          [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call
-          to_array_1d(
-            prepare_solver_theta(
-              cluster_rep_benefit_cost[cluster_index],
-              cluster_mu_rep[cluster_index, curr_assigned_treatment],
-              use_shifting_v_dist ? v_mu : 0,
-              lambda_v_mix,
-              v_mix_mean,
-              1,
-              v_mix_sd,
-              total_error_sd,
-              u_sd
-            )
-          ),
-          { num_v_mix, use_u_in_delta, 0 },
+      cluster_rep_cutoff[cluster_index] = find_fixedpoint_solution(
+          cluster_rep_benefit_cost[cluster_index],
+          cluster_mu_rep[cluster_index, curr_assigned_treatment],
+          use_shifting_v_dist ? v_mu : 0,
+          lambda_v_mix,
+          v_mix_mean,
+          1,
+          v_mix_sd,
+          total_error_sd,
+          u_sd,
+          
+          num_v_mix, 
+          use_u_in_delta,
           alg_sol_rel_tol,
           alg_sol_f_tol,
           alg_sol_max_steps
-        )[1];
+        );
     }
   }
 }
