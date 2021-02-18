@@ -5,6 +5,8 @@ functions {
 data {
 #include takeup_data_sec.stan
 #include wtp_data.stan
+
+  int<lower = 0, upper = 1> use_wtp_model;
 }
 
 transformed data {
@@ -82,6 +84,9 @@ parameters {
   vector<lower = 0>[num_dist_group_mix] group_dist_sd[num_discrete_dist];
   
   matrix<lower = 0>[num_clusters, num_discrete_dist - 1] missing_cluster_standard_dist; 
+  
+  // WTP valuation parameters
+  real<lower = 0> wtp_value_utility;
 }
 
 
@@ -120,11 +125,10 @@ transformed parameters {
     vector[2] all_u_sd = [ 1.0, u_sd ]';
     matrix[2, 2] L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
     matrix[2, 2] all_u_vcov = L_all_u_vcov * L_all_u_vcov'; 
-    total_error_sd = sqrt(sum(all_u_vcov));
+    total_error_sd = sqrt(sum(all_u_vcov) + (use_wtp_model ? square(wtp_sigma * wtp_value_utility) : 0));
   } else {
-    total_error_sd = 1;
+    total_error_sd = sqrt(1 + (use_wtp_model ? square(wtp_sigma * wtp_value_utility) : 0));
   }
-  
   
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
@@ -143,9 +147,12 @@ transformed parameters {
   for (dist_index in 1:num_discrete_dist) {
     if (dist_index > 1) {
       beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = rep_vector(0, num_treatments); 
+    } else if (use_wtp_model) { 
+      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
+        [ beta_control, beta_ink_effect, beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu, beta_bracelet_effect ]';
     } else {
       beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
-        [ beta_control , beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+        [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
     }
   }
  
@@ -284,7 +291,10 @@ transformed parameters {
     vector[num_clusters] cluster_effects;
     
     structural_beta_cluster[, 1:num_treatments] = structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_clusters);
-    structural_beta_cluster[, (num_treatments + 2):num_dist_group_treatments] = structural_beta_cluster[, 2:num_treatments];
+    
+    if (use_wtp_model) { // Bracelet and Calendar are the same
+      structural_beta_cluster[, 3] = structural_beta_cluster[, 4];
+    } 
     
     cluster_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_cluster); 
     structural_cluster_benefit_cost += cluster_effects;
@@ -294,7 +304,10 @@ transformed parameters {
     vector[num_clusters] county_effects;
     
     structural_beta_county[, 1:num_treatments] = structural_beta_county_raw .* rep_matrix(structural_beta_county_sd, num_counties);
-    structural_beta_county[, (num_treatments + 2):num_dist_group_treatments] = structural_beta_county[, 2:num_treatments];
+    
+    if (use_wtp_model) { // Calendar = Bracelet + strata_effect
+      structural_beta_county[, 3] = structural_beta_county[, 4] + wtp_value_utility * strata_effect_wtp_mu; 
+    } 
     
     county_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_county[cluster_county_id]); 
     structural_cluster_benefit_cost += county_effects;
@@ -306,7 +319,6 @@ transformed parameters {
     } else {
       for (cluster_index in 1:num_clusters) {
         structural_cluster_obs_v[cluster_index] = algebra_solver(
-        // structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
           v_fixedpoint_solution_normal,
           [ - structural_cluster_benefit_cost[cluster_index] ]',
           prepare_solver_theta(
@@ -341,6 +353,11 @@ transformed parameters {
 
 model {
 #include wtp_model_section.stan
+
+  if (use_wtp_model) {
+  }
+  
+  wtp_value_utility ~ normal(0, 0.1);
 
   beta_control ~ normal(0, beta_control_sd);
   
@@ -490,7 +507,6 @@ generated quantities {
   matrix[2, 2] all_u_corr;
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
-  // vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments]; 
   
   matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
   
@@ -730,9 +746,7 @@ generated quantities {
       cluster_rep_benefit_cost[cluster_index] = structural_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]] 
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county) - rep_dist_cost;
         
-      // cluster_rep_cutoff[cluster_index] = 0; 
       cluster_rep_cutoff[cluster_index] = algebra_solver(
-      // cluster_rep_cutoff[cluster_index] = algebra_solver_newton(
           v_fixedpoint_solution_normal,
           [ - cluster_rep_benefit_cost[cluster_index] ]',
           [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call
