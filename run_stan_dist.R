@@ -57,8 +57,6 @@ load(file.path("data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
-# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
-# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
 
 monitored_nosms_data <- analysis.data %>% 
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
@@ -200,6 +198,7 @@ models <- lst(
     use_shifting_v_dist = FALSE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
+    use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     suppress_shocks = FALSE,
     generate_sim = FALSE,
@@ -739,6 +738,7 @@ stan_data <- lst(
   use_shifting_v_dist = FALSE,
   suppress_shocks = FALSE,
   use_u_in_delta = FALSE,
+  multithreaded = script_options$threads > 1,
   cluster_log_lik = TRUE,
   generate_rep = FALSE,
   generate_sim = FALSE,
