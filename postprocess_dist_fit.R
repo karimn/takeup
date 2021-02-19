@@ -189,8 +189,8 @@ observed_takeup <- monitored_nosms_data %>%
   summarize(prop_takeup = mean(dewormed), 
             se = sqrt(prop_takeup * (1 - prop_takeup) / n()),
             prop_takeup_ub = prop_takeup + se,
-            prop_takeup_lb = prop_takeup - se) %>% 
-  ungroup()
+            prop_takeup_lb = prop_takeup - se, 
+            .groups = "drop") 
 
 # Functions ---------------------------------------------------------------
 
@@ -295,20 +295,14 @@ simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linea
 # Combine cluster level nested data to produce treatment level nested data
 organize_by_treatment <- function(.data, ...) {
   .data %>%
-    select(
-      cluster_id, 
-      assigned_treatment, assigned_dist_group, mu_assigned_treatment, 
-      assigned_dist_obs, assigned_treatment_obs, assigned_dist_group_obs, cluster_size, 
-      iter_data
-    ) %>% 
+    select(..., cluster_size, iter_data) %>% 
     mutate(iter_data = map(iter_data, select, iter_id, prob, iter_num_takeup)) %>%
     unnest(iter_data) %>% 
-    group_by(iter_id, !!!exprs(...)) %>% 
-    summarize(iter_prop_takeup = sum(iter_num_takeup) / sum(cluster_size)) %>% 
-    ungroup() %>% 
+    group_by(iter_id, ...) %>% 
+    summarize(iter_prop_takeup = sum(iter_num_takeup) / sum(cluster_size), .groups = "drop") %>% 
     nest(iter_data = c(iter_id, iter_prop_takeup)) %>%
     mutate(
-      mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
+      mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup, na.rm = TRUE)),
       takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)
     ) %>% 
     unnest(takeup_quantiles)
@@ -395,35 +389,11 @@ dist_fit_data %<>%
           )
       }), 
     
-    est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group), 
-      # map2(cluster_cf_benefit_cost, 
-      #      ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>% 
-      #        organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>% 
-      #        bind_rows(.x, .)),
-    
-    
-    # cluster_cf_benefit_cost = map2(fit, thin, ~ extract_obs_cf(.x, par = "cluster_cf_benefit_cost", stan_data = stan_data, iter_level = "cluster", quant_probs = quant_probs, thin = .y)) %>% 
-    #   map(nest, iter_data = c(treatment_index, obs_num_takeup, matches("^assigned_(treatment|dist_group)$"), iter_data)) %>% 
-    #   map(mutate, iter_data = map(iter_data, unnest, iter_data)) %>% 
-    #   lst(
-    #     benefit_cost = ., 
-    #     mu_rep, 
-    #     total_error_sd = map_if(total_error_sd, ~ !is_null(.x), select, -any_of(c("rhat", "ess_bulk", "ess_tail"))) %>% 
-    #       map_if(~ !is_null(.x), unnest, iter_data),
-    #     u_sd = map_if(u_sd, ~ !is_null(.x), select, -any_of(c("rhat", "ess_bulk", "ess_tail"))) %>% 
-    #       map_if(~ !is_null(.x), unnest, iter_data)
-    #   ) %>%
-    #   pmap(join_benefit_cost_mu_error_sd) %>% 
-    #   map(
-    #     mutate,
-    #     iter_data = pbmclapply(mc.cores = postprocess_cores, iter_data, calc_cutoff) %>%
-    #       lst(iter_data = ., cluster_size) %>%
-    #       pmap(~ mutate(..1, iter_num_takeup = if_else(!is.na(obs_num_takeup), obs_num_takeup, rbinom(n(), ..2, prob)))) # If not observed treatment, draw random number of takers for cluster
-    #   ) %>% 
-    #   # Change nesting to be at the treatment level
-    #   map(mutate, iter_data = map(iter_data, group_by_at, vars(treatment_index, matches("^(mu_)?assigned_(treatment|dist_group)$"), obs_num_takeup)) %>%  
-    #         map(group_nest,  .key = "iter_data")) %>% 
-    #   map(unnest, iter_data),
+    est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
+      map2(cluster_cf_cutoff,
+           ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
+             organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
+             bind_rows(.x, .)),
     
     cluster_linear_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_linear_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
     cluster_quadratic_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_quadratic_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
@@ -441,7 +411,8 @@ dist_fit_data %<>%
                                 mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
   ) 
 
-# Combine models using stacking
+## Combine models using stacking -------------------------------------------
+
 if (has_name(dist_fit_data, "stacking_weight")) {
   # The two functions below are used to combined multiple takeup levels, from different models, into a single (stacked) takeup level.
   
@@ -484,12 +455,13 @@ dist_fit_data %<>%
   mutate(model = factor(model, levels = model_info$model)) %>% 
   arrange(model)
 
+
+## ATE ---------------------------------------------------------------------
+
 # Select all the estimate differences that need to be calculated
 ate_combo <- dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   slice(1) %$% 
-  # filter(fct_match(model, "STRUCTURAL_QUADRATIC")) %$%
-  # filter(fct_match(model, "STRUCTURAL_LINEAR")) %$%
   select(est_takeup_level[[1]], mu_assigned_treatment:assigned_dist_group) %>% {
     bind_cols(rename_all(., str_c, "_left"), rename_all(., str_c, "_right"))
   } %>% {
@@ -540,7 +512,7 @@ dist_fit_data %<>%
           map(mutate, iter_takeup_te = iter_prop_takeup_left - iter_prop_takeup_right)) %>% 
     map(select, -iter_data_left, -iter_data_right) %>% 
     map(mutate, 
-        mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te)),
+        mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te, na.rm = TRUE)),
         takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)) %>% 
     map(unnest, takeup_te_quantiles),
     
