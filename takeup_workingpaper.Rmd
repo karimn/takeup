@@ -2090,6 +2090,8 @@ wtp_stan_data <- analysis.data %>%
     preference_value_diff = seq(-100, 100, 10), 
     num_preference_value_diff = length(preference_value_diff), 
     
+    use_strata_levels = TRUE,
+    
     wtp_utility_df = 3,
     tau_mu_wtp_diff = 100,
     mu_wtp_df_student_t = 7,

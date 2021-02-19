@@ -1,6 +1,9 @@
 hyper_wtp_mu ~ normal(0, 2);
 
-raw_strata_wtp_mu ~ std_normal();
+if (use_strata_levels) {
+  raw_strata_wtp_mu ~ std_normal();
+}
+
 strata_wtp_mu_tau ~ normal(0, 1);
 
 wtp_sigma ~ normal(0, 1); 

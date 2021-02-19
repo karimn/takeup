@@ -1,3 +1,5 @@
+int<lower = 0, upper = 1> use_strata_levels;
+
 int<lower = 0> num_wtp_obs;
 int<lower = 0> num_strata;
 int<lower = 1, upper = num_wtp_obs> wtp_strata_sizes[num_strata]; 
