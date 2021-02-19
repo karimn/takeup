@@ -792,7 +792,7 @@ if (script_options$fit) {
     dist_fit_obj <- dist_fit
     
     dist_fit %<>%
-      imap(~ file.path(script_options$output_name, str_c(output_name, "_", .y, ".rds")))
+      imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
    
     # BUG spaces in paths causing problems. Wait till it is fixed.
     try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_name, basename = str_c(output_name, .y, sep = "_"))))
@@ -821,7 +821,7 @@ if (script_options$fit) {
     dist_kfold_obj <- dist_kfold
     
     dist_kfold %<>%
-      imap(~ file.path("data", "stan_analysis_data",  str_c(output_name, "_", .y, ".rds")))
+      imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
   }
   
   if (script_options$update_output) {
