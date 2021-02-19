@@ -18,7 +18,8 @@ Options:
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "dist_fit --full-outputname --output-path=/tigress/kn6838/takeup" 
+  args = if (interactive()) "dist_fit --full-outputname" 
+  # args = if (interactive()) "dist_fit --full-outputname --output-path=/tigress/kn6838/takeup" 
 ) 
 
 library(magrittr)
@@ -72,7 +73,10 @@ if (script_options$full_outputname) {
 }
 
 dist_fit %<>% 
-  map_if(is.character, read_rds)
+  map_if(is.character, ~ { 
+    str_replace(.x, fixed(dirname(.x)), script_options$output_path) %>% 
+      read_rds()
+  })
 
 if (has_name(dist_fit, "value")) {
   dist_fit_warnings <- dist_fit$warning
