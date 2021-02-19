@@ -2,7 +2,14 @@ functions {
 #include takeup_functions.stan
 }
 
-#include takeup_header.stan
+data {
+#include takeup_data_sec.stan
+}
+
+transformed data {
+#include takeup_transformed_data_declare.stan
+#include takeup_transformed_data_define.stan
+}
 
 parameters {
   // Levels: control ink calendar bracelet
@@ -84,9 +91,6 @@ model {
     if (use_binomial) {
       cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
     } else {
-      // print(takeup[included_monitored_obs][1:100]);
-      // print(obs_cluster_id[included_monitored_obs][1:100]);
-      // print(included_monitored_obs[1:100]);
       takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
     }
   }

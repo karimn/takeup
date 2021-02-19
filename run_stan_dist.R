@@ -1,20 +1,22 @@
 #!/usr/bin/Rscript
 
 script_options <- docopt::docopt(
-"Usage:
-  run_stan_dist fit [--no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior --cmdstanr --include-paths=<paths>]
-  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths>]
+  stringr::str_glue("Usage:
+  run_stan_dist fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
   --chains=<chains>  Number of Stan chains [default: 4]
+  --threads=<threads>  Number of threads per chain [default: 1]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
-",
+  --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
+"),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "fit --sequential --outputname=test --models=4 --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "fit --sequential --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -26,10 +28,8 @@ library(splines2)
 library(loo)
 
 script_options %<>% 
-  modify_at(c("chains", "iter"), as.integer) %>% 
+  modify_at(c("chains", "iter", "threads"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
-
-options(mc.cores = 12)
 
 if (script_options$cmdstanr) {
   library(cmdstanr)
@@ -43,8 +43,7 @@ folds <- as.integer(script_options$folds %||% 10) # CV k-folds
 chains <- as.integer(script_options$chains) # Stan chains
 iter <- as.integer(script_options$iter) # Stan iterations
 output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else if (script_options$fit) { "dist_fit" } else { "dist_kfold" }
-output_file_name <- file.path("data", "stan_analysis_data", str_c(output_name, ".RData"))
-# models_to_run <- if (!is_null(script_options$models)) c(str_split(script_options$models, ",", simplify = TRUE)) %>% as.integer()
+output_file_name <- file.path(script_options$output_path, str_c(output_name, ".RData"))
 thin_by <- as.integer(script_options$thin)
 predict_prior <- as.logical(script_options$predict_prior) # Prior prediction run
 
@@ -52,15 +51,12 @@ source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
-
 # Data --------------------------------------------------------------------
 
 load(file.path("data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
-# standardize <- as_mapper(~ (. - mean(.)) / sd(.))
-# unstandardize <- function(standardized, original) standardized * sd(original) + mean(original)
 
 monitored_nosms_data <- analysis.data %>% 
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
@@ -201,6 +197,8 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     use_u_in_delta = TRUE,
+    use_wtp_model = TRUE,
+    use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     suppress_shocks = FALSE,
     generate_sim = FALSE,
@@ -658,7 +656,25 @@ models <- lst(
   #   list_modify(!!!enum2stan_data(cost_model_types)),
 )
 
-# Stan Run ----------------------------------------------------------------
+
+# WTP Stan Data -----------------------------------------------------------
+
+wtp_stan_data <- analysis.data %>% 
+  mutate(stratum = county) %>% 
+  prepare_bayes_wtp_data(
+    wtp.data,
+    
+    preference_value_diff = seq(-100, 100, 10), 
+    num_preference_value_diff = length(preference_value_diff), 
+    
+    wtp_utility_df = 3,
+    tau_mu_wtp_diff = 100,
+    mu_wtp_df_student_t = 7,
+    tau_sigma_wtp_diff = 50,
+    sigma_wtp_df_student_t = 2.5
+  )
+
+# Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
   num_obs = nrow(analysis_data),
@@ -722,11 +738,13 @@ stan_data <- lst(
   use_shifting_v_dist = FALSE,
   suppress_shocks = FALSE,
   use_u_in_delta = FALSE,
+  multithreaded = script_options$threads > 1,
   cluster_log_lik = TRUE,
   generate_rep = FALSE,
   generate_sim = FALSE,
   fit_model_to_data = !predict_prior,
   cross_validate = script_options$cv,
+  use_wtp_model = FALSE,
   
   thin = thin_by,
   
@@ -752,7 +770,10 @@ stan_data <- lst(
   
   analysis_data
 ) %>% 
-  list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .)))
+  list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
+  list_modify(!!!wtp_stan_data)
+
+# Stan Run ----------------------------------------------------------------
 
 models <- if (!is_null(script_options$models)) {
   models_to_run <- script_options$model %>% 
@@ -771,10 +792,10 @@ if (script_options$fit) {
     dist_fit_obj <- dist_fit
     
     dist_fit %<>%
-      imap(~ file.path("data", "stan_analysis_data",  str_c(output_name, "_", .y, ".rds")))
-    
+      imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+   
     # BUG spaces in paths causing problems. Wait till it is fixed.
-    # iwalk(dist_fit_obj, ~ .x$save_output_files(dir = file.path("data", "stan_analysis_data"), basename = str_c(output_name, .y, sep = "_")))
+    try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"))))
     
     dist_fit_obj %>% 
       iwalk(~ {
@@ -800,7 +821,7 @@ if (script_options$fit) {
     dist_kfold_obj <- dist_kfold
     
     dist_kfold %<>%
-      imap(~ file.path("data", "stan_analysis_data",  str_c(output_name, "_", .y, ".rds")))
+      imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
   }
   
   if (script_options$update_output) {

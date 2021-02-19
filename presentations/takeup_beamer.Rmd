@@ -778,8 +778,8 @@ wtp_model_0_fit <- read_rds(file.path("..", "data", "stanfit", "wtp_model_fit.rd
 ```
 
 ```{r wtp-prefer-calendar-plot, fig.height=5.0, fig.width=7, dependson="load-wtp-fit"}
-wtp_model_0_fit %>% 
-  as.data.frame(pars = c("prob_prefer_calendar", "strata_mu")) %>% 
+wtp_model_0_fit$draws(c("prob_prefer_calendar", "strata_wtp_mu")) %>% 
+  posterior::as_draws_df() %>% 
   mutate(iter_id = seq(n())) %>% 
   pivot_longer(-iter_id, names_to = "parameter", values_to = "iter_value") %>% 
   tidyr::extract(parameter, c("parameter", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
@@ -807,7 +807,7 @@ wtp_model_0_fit %>%
         # coord_cartesian(ylim = c(-1, 1)) +
         NULL,
       
-      filter(., fct_match(parameter, "strata_mu")) %>% 
+      filter(., fct_match(parameter, "strata_wtp_mu")) %>% 
         mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
         ggplot(aes(y = str_c(parameter, index))) +
         geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +

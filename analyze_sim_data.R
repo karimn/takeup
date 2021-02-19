@@ -27,7 +27,6 @@ plot_sim <- function(data, rf = FALSE) {
     labs(x = "", y = "") +
     coord_cartesian(ylim = c(0, 1)) +
     facet_grid(rows = vars(assigned_dist_group), cols = vars(assigned_treatment, mu_assigned_treatment)) +
-    # facet_grid(rows = vars(assigned_dist_group), cols = vars(assigned_treatment)) +
     theme(axis.text.x.bottom = element_blank(), axis.ticks = element_blank(), legend.position = "none") +
     NULL 
 }

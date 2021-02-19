@@ -329,7 +329,6 @@ generate_initializer <- function(num_treatments,
     function() {
       if (structural_type > 0) {
         num_beta_param <- if (restricted_private_incentive) num_treatments - 1 else num_treatments
-        # num_beta_param <- num_treatments
         
         salience <- cost_model_type %in% cost_model_types[c("param_linear_salience", "param_quadratic_salience", "semiparam_salience")] 
         param_kappa <- cost_model_type == cost_model_types["param_kappa"]
@@ -371,8 +370,6 @@ generate_initializer <- function(num_treatments,
           u_splines_v = u_splines_v_raw,
          
           u_sd = abs(rnorm(1, 0, 0.5)),
-          # u_sd = 0.01,
-          # test_w = 0.461662,
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -399,10 +396,6 @@ generate_initializer <- function(num_treatments,
           dist_beta_cluster_sd = if (!use_param_dist_cluster_effects) array(dim = 0) 
             else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1)))
             else abs(rnorm(num_treatments, 0, 0.1)),
-          # mu_cluster_effects_raw = if (use_mu_cluster_effects && !suppress_reputation) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments) else array(dim = c(0, num_incentive_treatments)),
-          # mu_cluster_effects_sd = if (use_mu_cluster_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
-          # mu_county_effects_raw = if (use_mu_county_effects && !suppress_reputation) matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) else array(dim = c(0, num_incentive_treatments)),
-          # mu_county_effects_sd = if (use_mu_county_effects && !suppress_reputation) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
           mu_cluster_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments),
           mu_cluster_effects_sd = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)) ,
           mu_county_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) ,
@@ -425,7 +418,7 @@ generate_initializer <- function(num_treatments,
   } else return(NULL)
 }
 
-fit_model <- function(curr_stan_data, chains, iter, use_cmdstanr, include_paths) {
+fit_model <- function(curr_stan_data, chains, threads, iter, use_cmdstanr, include_paths) {
   control <- lst(adapt_delta = 0.8) 
   
   if (!is_null(curr_stan_data$control)) {
@@ -434,14 +427,19 @@ fit_model <- function(curr_stan_data, chains, iter, use_cmdstanr, include_paths)
   } 
   
   if (use_cmdstanr) {
-    dist_model <- cmdstan_model(file.path("stan_models", curr_stan_data$model_file), include_paths = include_paths)
+    dist_model <- cmdstan_model(
+      file.path("stan_models", curr_stan_data$model_file),
+      cpp_options = list(stan_threads = TRUE),
+      include_paths = include_paths
+    )
     
     dist_model$sample(
       data = curr_stan_data %>% 
         discard(~ is_function(.x) | is.character(.)) %>% 
         list_modify(analysis_data = NULL),
       chains = chains,
-      parallel_chains = chains, 
+      parallel_chains = chains,
+      threads_per_chain = threads,
       iter_warmup = iter %/% 2, 
       iter_sampling = iter %/% 2, 
       save_warmup = FALSE,
@@ -478,7 +476,7 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
         
       iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
       
-      fit_model(curr_stan_data, script_options$chains, iter, use_cmdstanr, include_paths)
+      fit_model(curr_stan_data, script_options$chains, script_options$threads, iter, use_cmdstanr, include_paths)
     }
     
     if (script_options$sequential) {
@@ -613,7 +611,6 @@ calculate_delta <- function(w, total_error_sd, u_sd) {
 
 generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0) {
   function(v_cutoff) {
-    # v_cutoff + b + mu * rep_normal(v_cutoff)
     v_cutoff + b + mu * calculate_delta(v_cutoff, total_error_sd, u_sd)
   }
 }

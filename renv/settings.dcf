@@ -1,5 +1,5 @@
 external.libraries: cmdstanr, posterior
-ignored.packages:
+ignored.packages: cmdstanr, posterior
 package.dependency.fields: Imports, Depends, LinkingTo
 r.version:
 snapshot.type: implicit

@@ -1,18 +1,10 @@
 #include /../multilvlr/util.stan
 
-real reputational_returns_normal(real v, vector lambda, vector mix_mean, vector mix_sd) {
-  int num_mix = num_elements(lambda);
-  real rep = 0; 
+real reputational_returns_normal(real v) {
+  real mix_Phi_v = Phi_approx(v);
   
-  for (mix_index in 1:num_mix) {
-    real mix_Phi_v = Phi_approx((v - mix_mean[mix_index]) / mix_sd[mix_index]);
-    
-    rep += lambda[mix_index] * exp(normal_lpdf(v | mix_mean[mix_index], mix_sd[mix_index])) / (mix_Phi_v * (1 - mix_Phi_v));
-  }
-  
-  return rep;
+  return exp(normal_lpdf(v | 0, 1)) / (mix_Phi_v * (1 - mix_Phi_v));
 }
-
 
 vector rep_normal_1std(vector v) {
   int num_v = num_elements(v);
@@ -97,9 +89,7 @@ real expected_delta_part(real v, real xc, real[] theta, data real[] x_r, data in
 real expected_delta(real w, real total_error_sd, real u_sd, data real[] x_r, data int[] x_i) {
   real F_w = Phi_approx(w / total_error_sd); 
  
-  // delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, { 0.0 }, { 0 }, 0.00001);
   real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
-  // delta_part = integrate_1d(expected_delta_part, -5, 5, { w, u_sd }, x_r, x_i, 0.00001);
   
   return - delta_part / (F_w * (1 - F_w));
 }
@@ -107,39 +97,19 @@ real expected_delta(real w, real total_error_sd, real u_sd, data real[] x_r, dat
 vector v_fixedpoint_solution_normal(vector model_param, vector theta, data real[] x_r, data int[] x_i) {
   real cutoff = model_param[1];
   
-  int num_v_mix = x_i[1];
-  int use_u_in_delta = x_i[2];
-  int use_theta_param = x_i[3];
+  int use_u_in_delta = x_i[1];
   
-  real benefit_cost = use_theta_param ? theta[1] : x_r[1];
-  real mu = use_theta_param ? theta[2] : x_r[2];
-  
-  vector[num_v_mix] lambda;
-  vector[num_v_mix] mix_mean;
-  vector[num_v_mix] mix_sd;
-  real total_error_sd;
-  real u_sd;
+  real benefit_cost = theta[1];
+  real mu = theta[2];
+  real total_error_sd = theta[3];
+  real u_sd = theta[4];
   
   real delta;
-  
-  if (use_theta_param) {
-    lambda = theta[3:(3 + num_v_mix - 1)];
-    mix_mean = theta[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)];
-    mix_sd = theta[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)];
-    total_error_sd = theta[3 + 3 * num_v_mix]; 
-    u_sd = theta[3 + 3 * num_v_mix + 1]; 
-  } else {
-    lambda = to_vector(x_r[3:(3 + num_v_mix - 1)]);
-    mix_mean = to_vector(x_r[(3 + num_v_mix):(3 + 2 * num_v_mix - 1)]);
-    mix_sd = to_vector(x_r[(3 + 2 * num_v_mix):(3 + 3 * num_v_mix - 1)]);
-    total_error_sd = x_r[3 + 3 * num_v_mix]; 
-    u_sd = x_r[3 + 3 * num_v_mix + 1]; 
-  }
   
   if (use_u_in_delta && u_sd > 0) {
     delta = expected_delta(cutoff, total_error_sd, u_sd, x_r, x_i);
   } else {
-    delta = reputational_returns_normal(cutoff, lambda, mix_mean, mix_sd);
+    delta = reputational_returns_normal(cutoff);
   }
   
   return [ cutoff + benefit_cost + mu * delta ]';
@@ -181,18 +151,42 @@ real mixed_bernoulli_lpmf(int[] outcomes, vector lambda, matrix prob) {
   return logp;
 }
 
-vector prepare_solver_theta(real benefit_cost, real mu_rep, real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real total_error_sd, real u_sd) { 
-  int num_v_mix = num_elements(lambda);
-  vector[2 + 3 * num_v_mix + 2] solver_theta;
+real find_fixedpoint_solution(real benefit_cost, real mu_rep, 
+                              real total_error_sd, real u_sd,
+                              data int use_u_in_delta, data real alg_sol_rel_tol, data real alg_sol_f_tol, data real alg_sol_max_steps) {
+  vector[4] solver_theta = [ benefit_cost, mu_rep, total_error_sd, u_sd ]';
+  int x_i[1] = { use_u_in_delta };
   
-  solver_theta[1:2] = [ benefit_cost, mu_rep ]';
-  solver_theta[3:(3 + num_v_mix - 1)] = lambda;
-  solver_theta[(3 + num_v_mix):(3 + num_v_mix + num_v_mix - 1)] = append_row(v_mu, mix_mean);
-  solver_theta[(3 + num_v_mix + num_v_mix):(3 + 3 * num_v_mix - 1)] = append_row(v_sd, mix_sd);
-  solver_theta[3 + 3 * num_v_mix] = total_error_sd; 
-  solver_theta[3 + 3 * num_v_mix + 1] = u_sd; 
+  return algebra_solver(v_fixedpoint_solution_normal, [ - benefit_cost ]', solver_theta, { 0.0 }, x_i, alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps)[1];
+}
 
-  return solver_theta; 
+vector find_fixedpoint_solution_rect(vector phi, vector theta, data real[] x_r, data int[] x_i) {
+  int use_u_in_delta = x_i[1];
+  
+  real benefit_cost = theta[1];
+  real mu_rep = theta[2];
+  
+  
+  real total_error_sd = phi[1];
+  real u_sd = phi[2];
+  
+  return [ find_fixedpoint_solution(benefit_cost, mu_rep, total_error_sd, u_sd, use_u_in_delta, x_r[1], x_r[2], x_r[3]) ]'; 
+}
+
+vector map_find_fixedpoint_solution(vector benefit_cost, vector mu_rep, 
+                                     real total_error_sd, real u_sd,
+                                     data int use_u_in_delta, data real alg_sol_rel_tol, data real alg_sol_f_tol, data real alg_sol_max_steps) {
+  int num_clusters = num_elements(benefit_cost);
+  vector[2] phi = [total_error_sd, u_sd]';
+  vector[2] thetas[num_clusters];
+  real x_rs[num_clusters, 3] = rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters);
+  int x_is[num_clusters, 1] = rep_array({ use_u_in_delta }, num_clusters);
+  
+  for (cluster_index in 1:num_clusters) {
+    thetas[cluster_index] = [ benefit_cost[cluster_index], mu_rep[cluster_index] ]';
+  }
+  
+  return map_rect(find_fixedpoint_solution_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters) , x_is);
 }
 
 int[] prepare_cluster_assigned_dist_group_treatment(int[] cluster_assigned_treatment, int[] cluster_assigned_dist_group) {

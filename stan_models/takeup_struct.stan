@@ -2,9 +2,21 @@ functions {
 #include takeup_functions.stan
 }
 
-#include takeup_header.stan
+data {
+#include takeup_data_sec.stan
+#include wtp_data.stan
+
+  int<lower = 0, upper = 1> use_wtp_model;
+}
+
+transformed data {
+#include wtp_transformed_data.stan
+#include takeup_transformed_data_declare.stan
+#include takeup_transformed_data_define.stan
+}
 
 parameters {
+#include wtp_parameters.stan
   
   // Levels: control ink calendar bracelet
   real beta_control;
@@ -23,13 +35,6 @@ parameters {
   real<lower = 0> beta_salience;
   real<lower = 0> dist_beta_salience;
   real<lower = 0> dist_quadratic_beta_salience;
-  
-  // V Mixture
-  
-  vector<lower = 0.5, upper = 1>[num_v_mix - 1] recursive_lambda_v_mix;
-  
-  vector<lower = 0>[num_v_mix - 1] v_mix_mean_diff;
-  vector<lower = 0>[num_v_mix - 1] v_mix_sd;
   
   // Reputational Returns
   
@@ -72,10 +77,14 @@ parameters {
   vector<lower = 0>[num_dist_group_mix] group_dist_sd[num_discrete_dist];
   
   matrix<lower = 0>[num_clusters, num_discrete_dist - 1] missing_cluster_standard_dist; 
+  
+  // WTP valuation parameters
+  real<lower = 0> wtp_value_utility;
 }
 
-
 transformed parameters {
+#include wtp_transformed_parameters.stan
+  
   vector[num_dist_group_treatments] beta;
   
   vector[num_dist_group_treatments] structural_treatment_effect;
@@ -87,10 +96,7 @@ transformed parameters {
   matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
-  matrix<lower = 0, upper = 1>[num_v_mix, fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
-  
-  simplex[num_v_mix] lambda_v_mix;
-  ordered[num_v_mix - 1] v_mix_mean = cumulative_sum(v_mix_mean_diff);
+  row_vector<lower = 0, upper = 1>[fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
   
   vector<lower = 0>[num_treatments_param_kappa] dist_cost_k;
   vector[num_dist_group_treatments] linear_dist_cost = rep_vector(0, num_dist_group_treatments);
@@ -108,11 +114,10 @@ transformed parameters {
     vector[2] all_u_sd = [ 1.0, u_sd ]';
     matrix[2, 2] L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
     matrix[2, 2] all_u_vcov = L_all_u_vcov * L_all_u_vcov'; 
-    total_error_sd = sqrt(sum(all_u_vcov));
+    total_error_sd = sqrt(sum(all_u_vcov) + (use_wtp_model ? square(wtp_sigma * wtp_value_utility) : 0));
   } else {
-    total_error_sd = 1;
+    total_error_sd = sqrt(1 + (use_wtp_model ? square(wtp_sigma * wtp_value_utility) : 0));
   }
-  
   
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
@@ -131,26 +136,17 @@ transformed parameters {
   for (dist_index in 1:num_discrete_dist) {
     if (dist_index > 1) {
       beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = rep_vector(0, num_treatments); 
+    } else if (use_wtp_model) { 
+      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
+        [ beta_control, beta_ink_effect, beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu, beta_bracelet_effect ]';
     } else {
       beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
-        [ beta_control , beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+        [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
     }
   }
  
   structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
   
-  if (num_v_mix > 1) {
-    lambda_v_mix[1] = recursive_lambda_v_mix[1];
-    
-    for (mix_index in 2:(num_v_mix - 1)) {
-      lambda_v_mix[mix_index] = recursive_lambda_v_mix[mix_index] * (1 - sum(lambda_v_mix[1:(mix_index - 1)]));
-    }
-    
-    lambda_v_mix[num_v_mix] = 1 - sum(lambda_v_mix[1:(num_v_mix - 1)]);
-  } else {
-    lambda_v_mix[1] = 1;
-  }
-
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
@@ -171,10 +167,6 @@ transformed parameters {
       
       cluster_mu_rep = cluster_mu_rep .* exp(mu_county_effects[cluster_county_id]);
     } 
-  }
-  
-  if (use_salience_effect) {
-    // structural_treatment_effect += beta_salience * mu_rep[cluster_treatment_map[, 1]]';
   }
   
   if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
@@ -272,7 +264,10 @@ transformed parameters {
     vector[num_clusters] cluster_effects;
     
     structural_beta_cluster[, 1:num_treatments] = structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_clusters);
-    structural_beta_cluster[, (num_treatments + 2):num_dist_group_treatments] = structural_beta_cluster[, 2:num_treatments];
+    
+    if (use_wtp_model) { // Bracelet and Calendar are the same
+      structural_beta_cluster[, 3] = structural_beta_cluster[, 4];
+    } 
     
     cluster_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_cluster); 
     structural_cluster_benefit_cost += cluster_effects;
@@ -282,7 +277,10 @@ transformed parameters {
     vector[num_clusters] county_effects;
     
     structural_beta_county[, 1:num_treatments] = structural_beta_county_raw .* rep_matrix(structural_beta_county_sd, num_counties);
-    structural_beta_county[, (num_treatments + 2):num_dist_group_treatments] = structural_beta_county[, 2:num_treatments];
+    
+    if (use_wtp_model) { // Calendar = Bracelet + strata_effect
+      structural_beta_county[, 3] = structural_beta_county[, 4] + wtp_value_utility * strata_effect_wtp_mu; 
+    } 
     
     county_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_county[cluster_county_id]); 
     structural_cluster_benefit_cost += county_effects;
@@ -292,42 +290,44 @@ transformed parameters {
     if (suppress_reputation) {
       structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
-      for (cluster_index in 1:num_clusters) {
-        structural_cluster_obs_v[cluster_index] = algebra_solver(
-        // structural_cluster_obs_v[cluster_index] = algebra_solver_newton(
-          v_fixedpoint_solution_normal,
-          [ - structural_cluster_benefit_cost[cluster_index] ]',
-          prepare_solver_theta(
-            structural_cluster_benefit_cost[cluster_index], 
-            cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1]],
-            use_shifting_v_dist ? v_mu : 0,
-            lambda_v_mix,
-            v_mix_mean,
-            1,
-            v_mix_sd,
-            total_error_sd,
-            u_sd
-          ),
-          { 0.0 },
-          { num_v_mix, use_u_in_delta, 1 }, 
+      if (multithreaded) {
+        structural_cluster_obs_v = map_find_fixedpoint_solution(
+          structural_cluster_benefit_cost, 
+          to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
+          total_error_sd,
+          u_sd,
+          
+          use_u_in_delta,
           alg_sol_rel_tol, // 1e-10,
           alg_sol_f_tol, // 1e-5,
           alg_sol_max_steps
-        )[1];
+        ); 
+      } else {
+        for (cluster_index in 1:num_clusters) {
+          structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
+            structural_cluster_benefit_cost[cluster_index],
+            cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]],
+            total_error_sd,
+            u_sd,
+  
+            use_u_in_delta,
+            alg_sol_rel_tol, // 1e-10,
+            alg_sol_f_tol, // 1e-5,
+            alg_sol_max_steps
+          );
+        }
       }
     }
     
-    for (mix_index in 1:num_v_mix) {
-      if (mix_index == 1) {
-        structural_cluster_takeup_prob[1] = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
-      } else {
-        structural_cluster_takeup_prob[mix_index] = Phi_approx(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
-      }
-    }
+    structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
   }
 }
 
 model {
+#include wtp_model_section.stan
+  
+  wtp_value_utility ~ normal(0, 0.1);
+
   beta_control ~ normal(0, beta_control_sd);
   
   beta_ink_effect ~ normal(0, beta_ink_effect_sd);
@@ -391,14 +391,6 @@ model {
   u_sd ~ normal(0, 1);
   L_all_u_corr ~ lkj_corr_cholesky(2);
   
-  // if (!suppress_shocks) {
-  // }
-  
-  if (num_v_mix > 1) {
-    v_mix_mean_diff ~ normal(0, 1);
-    v_mix_sd ~ normal(0, 1);
-  }
-  
   for (dist_group_index in 1:num_discrete_dist) { 
     for (dist_group_mix_index in 1:num_dist_group_mix) {
       group_dist_mean[dist_group_index, dist_group_mix_index] ~ normal(0, 1) T[0, ];
@@ -449,21 +441,11 @@ model {
   }
   
   if (fit_model_to_data) {
-    
     // Take-up Likelihood 
-    
-    if (num_v_mix == 1) {
-      if (use_binomial) {
-        cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[1, included_clusters]);
-      } else {
-        takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[1, obs_cluster_id[included_monitored_obs]]);
-      }
+    if (use_binomial) {
+      cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
     } else {
-      if (use_binomial) {
-        cluster_takeup_count[included_clusters] ~ mixed_binomial(lambda_v_mix, cluster_size[included_clusters], structural_cluster_takeup_prob[, included_clusters]);
-      } else {
-        takeup[included_monitored_obs] ~ mixed_bernoulli(lambda_v_mix, structural_cluster_takeup_prob[, obs_cluster_id[included_monitored_obs]]);
-      }
+      takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
     }
   }
 }
@@ -476,7 +458,6 @@ generated quantities {
   matrix[2, 2] all_u_corr;
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
-  // vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments]; 
   
   matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
   
@@ -487,10 +468,13 @@ generated quantities {
   // Cross Validation
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
+  
+#include wtp_generated_quantities.stan
     
   if (!suppress_shocks) {
     all_u_corr = L_all_u_corr * L_all_u_corr';
   }
+  
   
   {
     int treatment_cluster_pos = 1;
@@ -512,29 +496,17 @@ generated quantities {
       
       for (cluster_index in 1:num_clusters) {
         for (mu_treatment_index in 1:num_treatments) {
-          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver(
-          // cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = algebra_solver_newton(
-            v_fixedpoint_solution_normal,
-            [ - cluster_cf_benefit_cost[treatment_index, cluster_index] ]',  
-            [ structural_cluster_benefit_cost[curr_assigned_treatment] ]', // This is not actually used in this call  
-            to_array_1d(
-              prepare_solver_theta(
-                cluster_cf_benefit_cost[treatment_index, cluster_index],
-                cluster_mu_rep[cluster_index, mu_treatment_index],
-                use_shifting_v_dist ? v_mu : 0,
-                lambda_v_mix,
-                v_mix_mean,
-                1,
-                v_mix_sd,
-                total_error_sd,
-                u_sd
-              )
-            ),
-            { num_v_mix, use_u_in_delta, 0 }, 
+          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
+            cluster_cf_benefit_cost[treatment_index, cluster_index],
+            cluster_mu_rep[cluster_index, mu_treatment_index],
+            total_error_sd,
+            u_sd,
+            
+            use_u_in_delta, 
             alg_sol_rel_tol, 
             alg_sol_f_tol, 
             alg_sol_max_steps
-          )[1];
+          ); 
         }
       }
     }
@@ -549,21 +521,13 @@ generated quantities {
       for (cluster_index_index in 1:num_included_clusters) {
         int cluster_index = included_clusters[cluster_index_index];
         
-        if (num_v_mix == 1) {
-          log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[1, cluster_index]);
-        } else {
-          log_lik[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        }
+        log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
       }
       
       for (cluster_index_index in 1:num_excluded_clusters) {
         int cluster_index = excluded_clusters[cluster_index_index];
         
-        if (num_v_mix == 1) {
-          log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[1, cluster_index]);
-        } else {
-          log_lik_heldout[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        }
+        log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
       }
     } else {
       vector[num_clusters] temp_log_lik = rep_vector(0, num_clusters);
@@ -574,11 +538,7 @@ generated quantities {
         
         real curr_log_lik;
         
-        if (num_v_mix == 1) {
-          curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[1, cluster_index:cluster_index]);
-        } else {
-          curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        }
+        curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
         
         if (cluster_log_lik) {
           temp_log_lik[cluster_index] += curr_log_lik;
@@ -593,11 +553,7 @@ generated quantities {
         
         real curr_log_lik;
         
-        if (num_v_mix == 1) {
-          curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[1, cluster_index:cluster_index]);
-        } else {
-          curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        }
+        curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
         
         if (cluster_log_lik) {
           temp_log_lik[cluster_index] += curr_log_lik;
@@ -714,30 +670,17 @@ generated quantities {
       cluster_rep_benefit_cost[cluster_index] = structural_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]] 
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county) - rep_dist_cost;
         
-      // cluster_rep_cutoff[cluster_index] = 0; 
-      cluster_rep_cutoff[cluster_index] = algebra_solver(
-      // cluster_rep_cutoff[cluster_index] = algebra_solver_newton(
-          v_fixedpoint_solution_normal,
-          [ - cluster_rep_benefit_cost[cluster_index] ]',
-          [ cluster_rep_benefit_cost[cluster_index] ]', // This is not actually used in this call
-          to_array_1d(
-            prepare_solver_theta(
-              cluster_rep_benefit_cost[cluster_index],
-              cluster_mu_rep[cluster_index, curr_assigned_treatment],
-              use_shifting_v_dist ? v_mu : 0,
-              lambda_v_mix,
-              v_mix_mean,
-              1,
-              v_mix_sd,
-              total_error_sd,
-              u_sd
-            )
-          ),
-          { num_v_mix, use_u_in_delta, 0 },
+      cluster_rep_cutoff[cluster_index] = find_fixedpoint_solution(
+          cluster_rep_benefit_cost[cluster_index],
+          cluster_mu_rep[cluster_index, curr_assigned_treatment],
+          total_error_sd,
+          u_sd,
+          
+          use_u_in_delta,
           alg_sol_rel_tol,
           alg_sol_f_tol,
           alg_sol_max_steps
-        )[1];
+        );
     }
   }
 }
