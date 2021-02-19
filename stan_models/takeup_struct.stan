@@ -36,13 +36,6 @@ parameters {
   real<lower = 0> dist_beta_salience;
   real<lower = 0> dist_quadratic_beta_salience;
   
-  // V Mixture
-  
-  // vector<lower = 0.5, upper = 1>[num_v_mix - 1] recursive_lambda_v_mix;
-  // 
-  // vector<lower = 0>[num_v_mix - 1] v_mix_mean_diff;
-  // vector<lower = 0>[num_v_mix - 1] v_mix_sd;
-  
   // Reputational Returns
   
   real v_mu;
@@ -104,10 +97,6 @@ transformed parameters {
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
   row_vector<lower = 0, upper = 1>[fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
-  // matrix<lower = 0, upper = 1>[num_v_mix, fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
-  
-  // simplex[num_v_mix] lambda_v_mix;
-  // ordered[num_v_mix - 1] v_mix_mean = cumulative_sum(v_mix_mean_diff);
   
   vector<lower = 0>[num_treatments_param_kappa] dist_cost_k;
   vector[num_dist_group_treatments] linear_dist_cost = rep_vector(0, num_dist_group_treatments);
@@ -158,18 +147,6 @@ transformed parameters {
  
   structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
   
-  // if (num_v_mix > 1) {
-  //   lambda_v_mix[1] = recursive_lambda_v_mix[1];
-  //   
-  //   for (mix_index in 2:(num_v_mix - 1)) {
-  //     lambda_v_mix[mix_index] = recursive_lambda_v_mix[mix_index] * (1 - sum(lambda_v_mix[1:(mix_index - 1)]));
-  //   }
-  //   
-  //   lambda_v_mix[num_v_mix] = 1 - sum(lambda_v_mix[1:(num_v_mix - 1)]);
-  // } else {
-  // lambda_v_mix[1] = 1;
-  // }
-
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
@@ -190,10 +167,6 @@ transformed parameters {
       
       cluster_mu_rep = cluster_mu_rep .* exp(mu_county_effects[cluster_county_id]);
     } 
-  }
-  
-  if (use_salience_effect) {
-    // structural_treatment_effect += beta_salience * mu_rep[cluster_treatment_map[, 1]]';
   }
   
   if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
@@ -317,65 +290,41 @@ transformed parameters {
     if (suppress_reputation) {
       structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
-// vector map_find_fixedpoint_solution(vector benefit_cost, vector mu_rep, 
-                                     // real v_mu, vector lambda, vector mix_mean, real v_sd, vector mix_sd, real total_error_sd, real u_sd,
-                                     // data int num_mix, data int use_u_in_delta, data real alg_sol_rel_tol, data real alg_sol_f_tol, data real alg_sol_max_steps) {
-      structural_cluster_obs_v = map_find_fixedpoint_solution(
-        structural_cluster_benefit_cost, 
-        to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
-        // use_shifting_v_dist ? v_mu : 0,
-        // lambda_v_mix,
-        // v_mix_mean,
-        // 1,
-        // v_mix_sd,
-        total_error_sd,
-        u_sd,
-        
-        // num_v_mix, 
-        use_u_in_delta,
-        alg_sol_rel_tol, // 1e-10,
-        alg_sol_f_tol, // 1e-5,
-        alg_sol_max_steps
-      );
-      
-      // for (cluster_index in 1:num_clusters) {
-      //   structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
-      //     structural_cluster_benefit_cost[cluster_index], 
-      //     cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]],
-      //     use_shifting_v_dist ? v_mu : 0,
-      //     lambda_v_mix,
-      //     v_mix_mean,
-      //     1,
-      //     v_mix_sd,
-      //     total_error_sd,
-      //     u_sd,
-      //     
-      //     num_v_mix, 
-      //     use_u_in_delta,
-      //     alg_sol_rel_tol, // 1e-10,
-      //     alg_sol_f_tol, // 1e-5,
-      //     alg_sol_max_steps
-      //   ); 
-      // }
+      if (multithreaded) {
+        structural_cluster_obs_v = map_find_fixedpoint_solution(
+          structural_cluster_benefit_cost, 
+          to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
+          total_error_sd,
+          u_sd,
+          
+          use_u_in_delta,
+          alg_sol_rel_tol, // 1e-10,
+          alg_sol_f_tol, // 1e-5,
+          alg_sol_max_steps
+        ); 
+      } else {
+        for (cluster_index in 1:num_clusters) {
+          structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
+            structural_cluster_benefit_cost[cluster_index],
+            cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]],
+            total_error_sd,
+            u_sd,
+  
+            use_u_in_delta,
+            alg_sol_rel_tol, // 1e-10,
+            alg_sol_f_tol, // 1e-5,
+            alg_sol_max_steps
+          );
+        }
+      }
     }
     
     structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
-    
-    // for (mix_index in 1:num_v_mix) {
-    //   if (mix_index == 1) {
-    //     structural_cluster_takeup_prob[1] = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
-    //   } else {
-    //     structural_cluster_takeup_prob[mix_index] = Phi_approx(- (structural_cluster_obs_v - v_mix_mean[mix_index - 1]) / v_mix_sd[mix_index - 1])';
-    //   }
-    // }
   }
 }
 
 model {
 #include wtp_model_section.stan
-
-  if (use_wtp_model) {
-  }
   
   wtp_value_utility ~ normal(0, 0.1);
 
@@ -442,14 +391,6 @@ model {
   u_sd ~ normal(0, 1);
   L_all_u_corr ~ lkj_corr_cholesky(2);
   
-  // if (!suppress_shocks) {
-  // }
-  
-  // if (num_v_mix > 1) {
-  //   v_mix_mean_diff ~ normal(0, 1);
-  //   v_mix_sd ~ normal(0, 1);
-  // }
-  
   for (dist_group_index in 1:num_discrete_dist) { 
     for (dist_group_mix_index in 1:num_dist_group_mix) {
       group_dist_mean[dist_group_index, dist_group_mix_index] ~ normal(0, 1) T[0, ];
@@ -500,22 +441,12 @@ model {
   }
   
   if (fit_model_to_data) {
-    
     // Take-up Likelihood 
-    
-    // if (num_v_mix == 1) {
-      if (use_binomial) {
-        cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
-      } else {
-        takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
-      }
-    // } else {
-    //   if (use_binomial) {
-    //     cluster_takeup_count[included_clusters] ~ mixed_binomial(lambda_v_mix, cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
-    //   } else {
-    //     takeup[included_monitored_obs] ~ mixed_bernoulli(lambda_v_mix, structural_cluster_takeup_prob[, obs_cluster_id[included_monitored_obs]]);
-    //   }
-    // }
+    if (use_binomial) {
+      cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
+    } else {
+      takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
+    }
   }
 }
 
@@ -568,15 +499,9 @@ generated quantities {
           cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
             cluster_cf_benefit_cost[treatment_index, cluster_index],
             cluster_mu_rep[cluster_index, mu_treatment_index],
-            // use_shifting_v_dist ? v_mu : 0,
-            // lambda_v_mix,
-            // v_mix_mean,
-            // 1,
-            // v_mix_sd,
             total_error_sd,
             u_sd,
             
-            // num_v_mix, 
             use_u_in_delta, 
             alg_sol_rel_tol, 
             alg_sol_f_tol, 
@@ -596,21 +521,13 @@ generated quantities {
       for (cluster_index_index in 1:num_included_clusters) {
         int cluster_index = included_clusters[cluster_index_index];
         
-        // if (num_v_mix == 1) {
-          log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
-        // } else {
-        //   log_lik[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        // }
+        log_lik[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
       }
       
       for (cluster_index_index in 1:num_excluded_clusters) {
         int cluster_index = excluded_clusters[cluster_index_index];
         
-        // if (num_v_mix == 1) {
-          log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
-        // } else {
-        //   log_lik_heldout[cluster_index_index] = mixed_binomial_lpmf({ cluster_takeup_count[cluster_index] } | lambda_v_mix, { cluster_size[cluster_index] }, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        // }
+        log_lik_heldout[cluster_index_index] = binomial_lpmf(cluster_takeup_count[cluster_index] | cluster_size[cluster_index], structural_cluster_takeup_prob[cluster_index]);
       }
     } else {
       vector[num_clusters] temp_log_lik = rep_vector(0, num_clusters);
@@ -621,11 +538,7 @@ generated quantities {
         
         real curr_log_lik;
         
-        // if (num_v_mix == 1) {
-          curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
-        // } else {
-        //   curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        // }
+        curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
         
         if (cluster_log_lik) {
           temp_log_lik[cluster_index] += curr_log_lik;
@@ -640,11 +553,7 @@ generated quantities {
         
         real curr_log_lik;
         
-        // if (num_v_mix == 1) {
-          curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
-        // } else {
-        //   curr_log_lik = mixed_bernoulli_lpmf({ takeup[obs_index] } | lambda_v_mix, structural_cluster_takeup_prob[, cluster_index:cluster_index]);
-        // }
+        curr_log_lik = bernoulli_lpmf(takeup[obs_index] | structural_cluster_takeup_prob[cluster_index:cluster_index]);
         
         if (cluster_log_lik) {
           temp_log_lik[cluster_index] += curr_log_lik;
@@ -764,15 +673,9 @@ generated quantities {
       cluster_rep_cutoff[cluster_index] = find_fixedpoint_solution(
           cluster_rep_benefit_cost[cluster_index],
           cluster_mu_rep[cluster_index, curr_assigned_treatment],
-          // use_shifting_v_dist ? v_mu : 0,
-          // lambda_v_mix,
-          // v_mix_mean,
-          // 1,
-          // v_mix_sd,
           total_error_sd,
           u_sd,
           
-          // num_v_mix, 
           use_u_in_delta,
           alg_sol_rel_tol,
           alg_sol_f_tol,

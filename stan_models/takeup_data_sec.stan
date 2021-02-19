@@ -30,6 +30,7 @@ int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> use_co
 int<lower = 0, upper = 1> suppress_reputation;
 int<lower = 0, upper = 1> suppress_shocks; 
 int<lower = 0, upper = 1> use_u_in_delta;
+int<lower = 0, upper = 1> multithreaded;
 int<lower = 0, upper = 1> generate_rep;
 int<lower = 0, upper = 1> generate_sim;
 int<lower = 0, upper = 1> fit_model_to_data;
