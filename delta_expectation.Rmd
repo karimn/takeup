@@ -101,7 +101,7 @@ sim_int %>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r}
-load(file.path("temp-data", str_interp("processed_dist_fittest3.RData")))
+load(file.path("temp-data", str_interp("processed_dist_fitdist_fit.RData")))
 
 dist_fit_data %<>% 
   mutate(model_color = "black")

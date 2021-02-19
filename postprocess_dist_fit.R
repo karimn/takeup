@@ -6,16 +6,19 @@
 #
 
 script_options <- docopt::docopt(
+  stringr::str_glue(
 "Usage:
-  postprocess_dist_fit <fit-version> [--full-outputname --cores=<num-cores>]
+  postprocess_dist_fit <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path>]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
-",
+  --output-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+"),
 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "dist_fit --full-outputname --output-path=/tigress/kn6838/takeup" 
 ) 
 
 library(magrittr)
@@ -63,9 +66,9 @@ analysis_data <- monitored_nosms_data
 
 # Stan fit 
 if (script_options$full_outputname) {
-  load(file.path("data", "stan_analysis_data", str_interp("${fit_version}.RData")))
+  load(file.path(script_options$output_path, str_interp("${fit_version}.RData")))
 } else {
-  load(file.path("data", "stan_analysis_data", str_interp("dist_fit${fit_version}.RData")))
+  load(file.path(script_options$output_path, str_interp("dist_fit${fit_version}.RData")))
 }
 
 dist_fit %<>% 
@@ -117,7 +120,7 @@ dist_fit_data %<>%
 
 # Prior predicted fit for same models
 dist_fit_data <- tryCatch({
-  load(file.path("data", "stan_analysis_data", str_interp("dist_fit_prior${fit_version}.RData")))
+  load(file.path(script_options$output_path, str_interp("dist_fit_prior${fit_version}.RData")))
   
   dist_fit_data %<>%
     bind_rows("fit" = .,
@@ -140,7 +143,7 @@ dist_fit_data %<>%
     
 dist_fit_data <- tryCatch({
   # Load cross-validation data
-  load(file.path("data", "stan_analysis_data", str_interp("dist_kfold${fit_version}.RData")))
+  load(file.path(script_options$output_path, str_interp("dist_kfold${fit_version}.RData")))
   
   dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
     inner_join(select(model_info, model, model_type), by = "model") %>% 
@@ -302,7 +305,7 @@ organize_by_treatment <- function(.data, ...) {
     nest(iter_data = c(iter_id, iter_prop_takeup)) %>%
     mutate(
       mean_est = map_dbl(iter_data, ~ mean(.$iter_prop_takeup)),
-      takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs))
+      takeup_quantiles = map(iter_data, quantilize_est, iter_prop_takeup, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)
     ) %>% 
     unnest(takeup_quantiles)
 }
@@ -534,7 +537,7 @@ dist_fit_data %<>%
     map(select, -iter_data_left, -iter_data_right) %>% 
     map(mutate, 
         mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te)),
-        takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs))) %>% 
+        takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)) %>% 
     map(unnest, takeup_te_quantiles),
     
     # Calculate differences in the rate of change of E[Y] wrt to benefit-cost
@@ -573,7 +576,7 @@ dist_fit_data %<>%
       map(select, -iter_data_left, -iter_data_right) %>% 
       map(mutate, 
           mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_dist_te)),
-          takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_dist_te, wide = TRUE, quant_probs = quant_probs)) %>% 
+          takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_dist_te, wide = TRUE, quant_probs = quant_probs, na.rm = TRUE)) %>% 
       map(unnest, takeup_te_quantiles),
     
       est_takeup_level = map(est_takeup_level, mutate, iter_data = map(iter_data, as_tibble))  
