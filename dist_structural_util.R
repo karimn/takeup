@@ -369,7 +369,7 @@ generate_initializer <- function(num_treatments,
           },
           u_splines_v = u_splines_v_raw,
          
-          u_sd = abs(rnorm(1, 0, 0.5)),
+          u_sd = abs(rnorm(num_treatments, 0, 0.5)),
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -468,7 +468,7 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
   
-  if (script_options$fit) {
+  if (script_options$fit || script_options$prior) {
     inner_sampler <- function(curr_model, stan_data) {
       curr_stan_data <- stan_data %>%
         list_modify(!!!curr_model) %>%

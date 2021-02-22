@@ -2,7 +2,8 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_stan_dist fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --predict-prior --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_stan_dist prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_stan_dist fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   
 Options:
@@ -16,7 +17,7 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "fit --sequential --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "prior --sequential --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -45,7 +46,6 @@ iter <- as.integer(script_options$iter) # Stan iterations
 output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else if (script_options$fit) { "dist_fit" } else { "dist_kfold" }
 output_file_name <- file.path(script_options$output_path, str_c(output_name, ".RData"))
 thin_by <- as.integer(script_options$thin)
-predict_prior <- as.logical(script_options$predict_prior) # Prior prediction run
 
 source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
@@ -150,7 +150,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = FALSE,
-  #   suppress_shocks = FALSE,
   #   generate_sim = FALSE,
   #   iter = 4000,
   #   thin = 1,
@@ -200,9 +199,8 @@ models <- lst(
     use_wtp_model = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
-    suppress_shocks = FALSE,
     generate_sim = FALSE,
-    iter = 4000,
+    iter = 400,
     thin = 1,
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
@@ -250,7 +248,6 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = FALSE,
-    suppress_shocks = FALSE,
     generate_sim = FALSE,
     iter = 4000,
     thin = 1,
@@ -279,53 +276,6 @@ models <- lst(
       suppress_reputation = suppress_reputation)) %>%
     list_modify(!!!enum2stan_data(cost_model_types)),
   
-  # STRUCTURAL_LINEAR_NO_SHOCKS = lst(
-  #   model_file = "takeup_struct.stan",
-  #   pars = struct_model_stan_pars,
-  #   control = lst(max_treedepth = 12, adapt_delta = 0.99),
-  #   use_binomial = FALSE,
-  #   num_v_mix = 1,
-  #   use_cost_model = cost_model_types["param_linear"],
-  #   use_single_cost_model = TRUE,
-  #   use_private_incentive_restrictions = TRUE,
-  #   use_salience_effect = FALSE,
-  #   use_cluster_effects = TRUE,
-  #   use_county_effects = TRUE,
-  #   use_param_dist_cluster_effects = FALSE,
-  #   use_param_dist_county_effects = FALSE,
-  #   use_mu_cluster_effects = FALSE,
-  #   use_mu_county_effects = FALSE,
-  #   use_shifting_v_dist = FALSE,
-  #   suppress_reputation = FALSE,
-  #   suppress_shocks = TRUE,
-  #   generate_sim = FALSE,
-  #   iter = 2000,
-  #   thin = 1,
-  #  
-  #   # Priors 
-  #   mu_rep_sd = 1,
-  #   structural_beta_county_sd_sd = 0.25,
-  #   structural_beta_cluster_sd_sd = 0.25,
-  #   
-  #   init = generate_initializer(
-  #     num_treatments = num_treatments, 
-  #     num_clusters = num_clusters,
-  #     num_counties = num_counties,
-  #     structural_type = 1, 
-  #     num_mix = num_v_mix, 
-  #     use_cluster_effects = use_cluster_effects,
-  #     use_county_effects = use_county_effects,
-  #     use_param_dist_cluster_effects = use_param_dist_cluster_effects,
-  #     use_mu_cluster_effects = use_mu_cluster_effects,
-  #     use_mu_county_effects = use_mu_county_effects,
-  #     restricted_private_incentive = use_private_incentive_restrictions,
-  #     cost_model_type = use_cost_model,
-  #     use_single_cost_model = use_single_cost_model,
-  #     num_knots = ncol(Z_osullivan),
-  #     name_matched = FALSE,
-  #     suppress_reputation = suppress_reputation)) %>% 
-  #   list_modify(!!!enum2stan_data(cost_model_types)),
-  
   # STRUCTURAL_SEMIPARAM = lst(
   #   model_type = 10,
   #   model_file = "takeup_struct.stan",
@@ -344,7 +294,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = FALSE,
-  #   suppress_shocks = TRUE,
   #   # simulate_new_data,
   #   iter = 1000,
   #   thin = 1,
@@ -384,7 +333,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = FALSE,
-  #   suppress_shocks = FALSE,
   #   generate_sim = FALSE,
   #   iter = 2000,
   #   thin = 1,
@@ -430,7 +378,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = TRUE,
-  #   suppress_shocks = TRUE,
   #   # simulate_new_data,
   #   iter = 1000,
   #   thin = 1,
@@ -469,7 +416,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = FALSE,
-  #   suppress_shocks = FALSE,
   #   
   #   mu_rep_sd = 1,
   #   structural_beta_county_sd_sd = 0.25,
@@ -511,7 +457,6 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = FALSE,
-    suppress_shocks = FALSE,
     # simulate_new_data,
     iter = 2000,
     thin = 1,
@@ -550,7 +495,6 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = TRUE,
-    suppress_shocks = TRUE,
     
     structural_beta_county_sd_sd = 1,
     structural_beta_cluster_sd_sd = 1,
@@ -592,7 +536,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = TRUE,
-  #   suppress_shocks = TRUE,
   #   # simulate_new_data,
   #   iter = 1500,
   #   thin = 1,
@@ -630,7 +573,6 @@ models <- lst(
   #   use_mu_county_effects = FALSE,
   #   use_shifting_v_dist = FALSE,
   #   suppress_reputation = TRUE,
-  #   suppress_shocks = FALSE,
   #   
   #   mu_rep_sd = 1,
   #   structural_beta_county_sd_sd = 0.25,
@@ -736,13 +678,12 @@ stan_data <- lst(
   use_single_cost_model = FALSE,
   use_cost_k_restrictions = TRUE,
   use_shifting_v_dist = FALSE,
-  suppress_shocks = FALSE,
   use_u_in_delta = FALSE,
   multithreaded = script_options$threads > 1,
   cluster_log_lik = TRUE,
   generate_rep = FALSE,
   generate_sim = FALSE,
-  fit_model_to_data = !predict_prior,
+  fit_model_to_data = !script_options$prior,
   cross_validate = script_options$cv,
   use_wtp_model = FALSE,
   
@@ -751,6 +692,9 @@ stan_data <- lst(
   alg_sol_f_tol = 1e-5,
   alg_sol_rel_tol = 1e-5, 
   alg_sol_max_steps = 1e6L,
+  
+  CALENDAR_TREATMENT_INDEX = which(fct_match(fct_unique(cluster_assigned_treatment), "calendar")),
+  BRACELET_TREATMENT_INDEX = which(fct_match(fct_unique(cluster_assigned_treatment), "bracelet")),
   
   # Priors
   
@@ -776,8 +720,8 @@ stan_data <- lst(
 # Stan Run ----------------------------------------------------------------
 
 models <- if (!is_null(script_options$models)) {
-  models_to_run <- script_options$model %>% 
-    map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(.x, names(models))) %>% 
+  models_to_run <- script_options$models %>% 
+    map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(names(models), .x)) %>% 
     unlist()
   
   models[models_to_run]
@@ -785,7 +729,7 @@ models <- if (!is_null(script_options$models)) {
   models
 }
 
-if (script_options$fit) {
+if (script_options$fit || script_options$prior) {
   dist_fit <- models %>% stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
   
   if (script_options$cmdstanr) {
@@ -837,7 +781,7 @@ if (script_options$fit) {
 }
 
 if (!script_options$no_save) {
-  if (script_options$fit) {
+  if (script_options$fit || script_options$prior) {
     save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
     
     if (script_options$cmdstanr) {
