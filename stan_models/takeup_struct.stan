@@ -314,7 +314,7 @@ transformed parameters {
         structural_cluster_obs_v = map_find_fixedpoint_solution(
           structural_cluster_benefit_cost, 
           to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
-          to_vector(total_error_sd)[long_cluster_by_incentive_treatment_index],
+          total_error_sd[cluster_treatment],
           u_sd[cluster_treatment],
           
           use_u_in_delta,
