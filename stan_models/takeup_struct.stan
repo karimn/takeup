@@ -7,7 +7,7 @@ data {
 #include wtp_data.stan
 
   int<lower = 0, upper = 1> use_wtp_model;
-  
+  int<lower = 0, upper = 1> use_homoskedastic_shocks;
 }
 
 transformed data {
@@ -44,7 +44,7 @@ parameters {
   real v_mu;
   
   row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
-  vector<lower = 0>[num_treatment_shocks] raw_u_sd;
+  vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
   // cholesky_factor_corr[num_treatment_shocks + 1] L_all_u_corr;
   
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
@@ -114,28 +114,14 @@ transformed parameters {
   vector<lower = 0>[num_treatments] u_sd;
   vector<lower = 0>[num_treatments] total_error_sd;
   
-  {
-    // vector[num_treatment_shocks + 1] all_error_sd;
-    // matrix[num_treatment_shocks + 1, num_treatment_shocks + 1] L_all_u_vcov;
-    // matrix[num_treatment_shocks + 1, num_treatment_shocks + 1] all_u_vcov;
-    
+  if (use_homoskedastic_shocks) {
+    u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
+  } else {
     u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
     u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? sqrt(square(raw_u_sd[num_treatment_shocks]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
-    
-    // for (treatment_index in 1:num_treatments) {
-    //   if (use_wtp_model && treatment_index == CALENDAR_TREATMENT_INDEX) {
-    //     u_sd[treatment_index] = sqrt(square(raw_u_sd[num_treatment_shocks + 1]) + square(wtp_sigma * wtp_value_utility)); 
-    //   } else {
-    //     u_sd[treatment_index] = raw_u_sd[treatment_index];
-    //   }
-    // }
-    
-    // all_error_sd = append_row(1.0, u_sd)=
-    // L_all_u_vcov = diag_pre_multiply(all_error_sd, L_all_u_corr);
-    // all_u_vcov = L_all_u_vcov * L_all_u_vcov'; 
-    
-    total_error_sd = sqrt(1 + square(u_sd));
   }
+    
+  total_error_sd = sqrt(1 + square(u_sd));
   
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
@@ -153,7 +139,7 @@ transformed parameters {
   
   for (dist_index in 1:num_discrete_dist) {
     if (dist_index > 1) {
-      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = rep_vector(0, num_treatments); 
+      beta[(num_treatments + 1):] = rep_vector(0, num_treatments); 
     } else if (use_wtp_model) { 
       beta[1:2] = [ beta_control, beta_ink_effect ]';
       beta[CALENDAR_TREATMENT_INDEX] = beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu;

@@ -197,6 +197,7 @@ models <- lst(
     use_shifting_v_dist = FALSE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
+    use_homoskedastic_shocks = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
@@ -686,6 +687,7 @@ stan_data <- lst(
   fit_model_to_data = !script_options$prior,
   cross_validate = script_options$cv,
   use_wtp_model = FALSE,
+  use_homoskedastic_shocks = FALSE,
   
   thin = thin_by,
   
