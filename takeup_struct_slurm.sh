@@ -11,9 +11,12 @@
 #SBATCH --mail-user=karimn2.0@gmail.com
 #SBATCH --output=temp/log/takeup_struct-%j.log
 #SBATCH --error=temp/log/takeup_struct-%j.log
+#SBATCH --export=IN_SLURM=1
 
-module purge
-module load rh/devtoolset/8 gdal
+if [ -z ${IN_SLURM} ]; then
+  module purge
+  module load rh/devtoolset/8 gdal
+fi
 
 VERSION=31
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
