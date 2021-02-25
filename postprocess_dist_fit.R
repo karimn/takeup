@@ -8,11 +8,12 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path>]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path>]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
-  --output-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+  --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+  --output-path=<path>  Path to find results [default: {temp-data}]
 "),
 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
@@ -74,14 +75,14 @@ analysis_data <- monitored_nosms_data
 
 # Stan fit 
 if (script_options$full_outputname) {
-  load(file.path(script_options$output_path, str_interp("${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("${fit_version}.RData")))
 } else {
-  load(file.path(script_options$output_path, str_interp("dist_fit${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
 }
 
 dist_fit %<>% 
   map_if(is.character, ~ { 
-    str_replace(.x, fixed(dirname(.x)), script_options$output_path) %>% 
+    str_replace(.x, fixed(dirname(.x)), script_options$input_path) %>% 
       read_rds()
   })
 
@@ -117,11 +118,11 @@ model_info <- tribble(
 
 # Prior predicted fit for same models
 dist_fit_data <- tryCatch({
-  load(file.path(script_options$output_path, str_interp("dist_prior${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
   
   dist_fit %<>% 
     map_if(is.character, ~ { 
-      str_replace(.x, fixed(dirname(.x)), script_options$output_path) %>% 
+      str_replace(.x, fixed(dirname(.x)), script_options$input_path) %>% 
         read_rds()
     })
   
@@ -144,7 +145,7 @@ dist_fit_data %<>%
     
 dist_fit_data <- tryCatch({
   # Load cross-validation data
-  load(file.path(script_options$output_path, str_interp("dist_kfold${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("dist_kfold${fit_version}.RData")))
   
   dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
     inner_join(select(model_info, model, model_type), by = "model") %>% 
@@ -585,4 +586,4 @@ group_dist_param <- dist_fit_data %>%
   pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) %>% 
   mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
-save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
+save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
