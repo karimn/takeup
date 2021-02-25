@@ -1,3 +1,4 @@
+int<lower = 0, upper = 1> fit_wtp_model_to_data;
 int<lower = 0, upper = 1> use_strata_levels;
 
 int<lower = 0> num_wtp_obs;
