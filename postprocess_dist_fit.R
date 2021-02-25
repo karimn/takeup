@@ -13,7 +13,7 @@ script_options <- docopt::docopt(
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
   --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
-  --output-path=<path>  Path to find results [default: {temp-data}]
+  --output-path=<path>  Path to find results [default: temp-data]
 "),
 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
