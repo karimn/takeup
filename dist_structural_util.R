@@ -700,6 +700,27 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
     NULL
 }
 
+plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model, group_labels = NULL) {
+  .data %>% 
+    ggplot(aes(group = {{ results_group }})) + 
+    geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
+                   binwidth = binwidth, position = "identity", alpha = 0.5, 
+                   data = . %>% unnest(iter_data)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    scale_color_manual("", 
+                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
+                       labels = if (is_null(group_labels)) { 
+                         dist_fit_data %>% 
+                           select(model, model_name) %>% 
+                           deframe() 
+                       } else {
+                         group_labels
+                       }, aesthetics = c("color", "fill")) + 
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+}
+
 # Constants ---------------------------------------------------------------
 
 cost_model_types <- create_stan_enum(c("param_kappa", "param_linear", "param_quadratic", "semiparam", 
