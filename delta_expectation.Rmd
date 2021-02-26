@@ -100,14 +100,15 @@ sim_int %>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r load-processed-results}
-load(file.path("temp-data", str_interp("processed_dist_fitdist_fit.RData")))
+load(file.path("temp-data", str_interp("processed_dist_fit31.RData")))
 
 dist_fit_data %<>% 
-  mutate(model_color = "black")
+  mutate(model_color = c("red", "black"))
 ```
 
-```{r, fig.width=8, fig.height=4}
+```{r, fig.width=8, fig.height=5}
 dist_fit_data %>% 
+  # filter(fct_match(fit_type, "fit")) %>% 
   mutate(est_takeup_te =
     map(est_takeup_te, 
         filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right,
@@ -122,8 +123,8 @@ dist_fit_data %>%
       fct_relabel(str_to_title) %>% 
       fct_relevel("Combined")
   ) %>% 
-  plot_estimands(assigned_treatment_left) +
-  scale_x_continuous(breaks = seq(-1, 1, 0.02)) +
+  plot_estimands(assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+  scale_x_continuous(breaks = seq(-1, 1, 0.1)) +
   scale_y_discrete("", labels = str_to_title) +
   labs(
     title = "Incentive Average Treatment Effect",
