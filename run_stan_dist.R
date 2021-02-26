@@ -17,7 +17,7 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "prior --sequential --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -685,6 +685,7 @@ stan_data <- lst(
   generate_rep = FALSE,
   generate_sim = FALSE,
   fit_model_to_data = !script_options$prior,
+  fit_wtp_model_to_data = !script_options$prior,
   cross_validate = script_options$cv,
   use_wtp_model = FALSE,
   use_homoskedastic_shocks = FALSE,
@@ -732,7 +733,8 @@ models <- if (!is_null(script_options$models)) {
 }
 
 if (script_options$fit || script_options$prior) {
-  dist_fit <- models %>% stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+  dist_fit <- models %>% 
+    stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
   
   if (script_options$cmdstanr) {
     dist_fit_obj <- dist_fit
@@ -798,4 +800,4 @@ if (!script_options$no_save) {
   }
 }
 
-cat(str_glue("All done. Saved results to output ID '{output_name}'\n"))
+cat(str_glue("All done. Saved results to output ID '{output_name}'\n\n"))
