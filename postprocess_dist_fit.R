@@ -19,8 +19,9 @@ Options:
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "dist_fit --full-outputname --output-path=/tigress/kn6838/takeup" 
+  # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "31 --cores=12 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
+ 
 )
 
 library(magrittr)
@@ -81,10 +82,7 @@ if (script_options$full_outputname) {
 }
 
 dist_fit %<>% 
-  map_if(is.character, ~ { 
-    str_replace(.x, fixed(dirname(.x)), script_options$input_path) %>% 
-      read_rds()
-  })
+  map_if(is.character, ~ read_rds(file.path(script_options$input_path, basename(.x))))
 
 if (has_name(dist_fit, "value")) {
   dist_fit_warnings <- dist_fit$warning
@@ -121,10 +119,7 @@ dist_fit_data <- tryCatch({
   load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
   
   dist_fit %<>% 
-    map_if(is.character, ~ { 
-      str_replace(.x, fixed(dirname(.x)), script_options$input_path) %>% 
-        read_rds()
-    })
+    map_if(is.character, ~ read_rds(file.path(script_options$input_path, basename(.x))))
   
   dist_fit_data %<>%
     bind_rows("fit" = .,
