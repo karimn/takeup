@@ -3,6 +3,7 @@ functions {
 }
 
 data {
+  
 #include takeup_data_sec.stan
 #include wtp_data.stan
 

@@ -208,7 +208,7 @@ models <- lst(
     alg_sol_rel_tol = 0.0000001,
 
     # Priors
-    mu_rep_sd = 1,
+    mu_rep_sd = rep(1, num_treatments),
     structural_beta_county_sd_sd = 0.25,
     structural_beta_cluster_sd_sd = 0.25,
 
