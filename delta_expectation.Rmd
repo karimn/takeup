@@ -105,7 +105,7 @@ Running a simple model (a non-hierarchical model with a linear cost), we get the
 
 ```{r load-processed-results}
 # load(file.path("temp-data", str_interp("processed_dist_fit31.RData")))
-load(file.path("/tigress/kn6838/takeup", str_interp("processed_dist_fit31.RData")))
+load(file.path("/tigress/kn6838/takeup", str_interp("processed_dist_fit32.RData")))
 
 dist_fit_data %<>% 
   mutate(model_color = c("black", "darkgrey"))
