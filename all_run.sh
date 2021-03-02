@@ -24,7 +24,7 @@ if [[ -v IN_SLURM ]]; then
   module purge
   module load rh/devtoolset/8 gdal
 
-  OUTPUT_ARGS="--outputname=dist_prior${VERSION} --ouput-path=${SLURM_INOUT_DIR}"
+  OUTPUT_ARGS="--outputname=dist_prior${VERSION} --output-path=${SLURM_INOUT_DIR}"
   POSTPROCESS_INOUT_ARGS="--input-path=${SLURM_INOUT_DIR} --output-path=${SLURM_INOUT_DIR}"
   CORES=$SLURM_CPUS_PER_TASK
 
@@ -36,7 +36,7 @@ else
   CORES=12
 fi
 
-# Rscript ./run_stan_dist.R prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
+Rscript ./run_stan_dist.R prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
 # ./run_stan_dist.R fit --outputname=dist_fit${VERSION} ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
 # ./run_stan_dist.R cv --outputname=dist_kfold${VERSION} --folds=10 ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
 Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES

@@ -9,6 +9,7 @@ data {
 
   int<lower = 0, upper = 1> use_wtp_model;
   int<lower = 0, upper = 1> use_homoskedastic_shocks;
+  int<lower = 0, upper = 1> use_restricted_mu;
 }
 
 transformed data {
@@ -156,9 +157,11 @@ transformed parameters {
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep[2] += mu_rep[1];
-    mu_rep[3] += mu_rep[1];
-    mu_rep[4] += mu_rep[1];
+    if (use_restricted_mu) {
+      mu_rep[2] += mu_rep[1];
+      mu_rep[3] += mu_rep[1];
+      mu_rep[4] += mu_rep[1];
+    }
     
     cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     
@@ -349,7 +352,7 @@ model {
   v_mu ~ normal(0, 1);
   
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep_raw ~ normal(0, mu_rep_sd);
+    mu_rep_raw ~ normal(rep_vector(0, num_treatments), mu_rep_sd);
     
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);

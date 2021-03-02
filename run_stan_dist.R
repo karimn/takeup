@@ -193,7 +193,8 @@ models <- lst(
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     use_mu_cluster_effects = FALSE,
-    use_mu_county_effects = FALSE,
+    use_mu_county_effects = FALSE, 
+    use_restricted_mu = TRUE,
     use_shifting_v_dist = FALSE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
@@ -208,7 +209,7 @@ models <- lst(
     alg_sol_rel_tol = 0.0000001,
 
     # Priors
-    mu_rep_sd = rep(1, num_treatments),
+    mu_rep_sd = c(1, rep(0.25, num_treatments - 1)), # The first is control
     structural_beta_county_sd_sd = 0.25,
     structural_beta_cluster_sd_sd = 0.25,
 
