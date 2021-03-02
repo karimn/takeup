@@ -5,10 +5,8 @@ output:
     number_sections: yes
     fig_caption: yes
     keep_tex: no
-    pandoc_args: "commonrmd.yaml"
     includes:
       in_header: takeup_workingpaper_header.sty
-bibliography: /home/karim/Documents/library.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -105,7 +103,7 @@ Running a simple model (a non-hierarchical model with a linear cost), we get the
 
 ```{r load-processed-results}
 # load(file.path("temp-data", str_interp("processed_dist_fit31.RData")))
-load(file.path("/tigress/kn6838/takeup", str_interp("processed_dist_fit32.RData")))
+load(file.path("/tigress/kn6838/takeup", str_interp("processed_dist_fit33.RData")))
 
 dist_fit_data %<>% 
   mutate(model_color = c("black", "darkgrey"))
@@ -274,7 +272,6 @@ diff_takeup_partial_v_plot <- diff_rate_of_change_data %>%
     y = TeX(r"{$\frac{\partial E\[Y(z,w)\]}{\partial d} - \frac{\partial E\[Y(control,w)\]}{\partial d}$ Difference}"),
     caption = "Line: posterior median. Dark ribbon: 50% CI. Light ribbon: 80% CI."
  ) + 
-  # facet_wrap(vars(assigned_treatment_left), labeller = as_labeller(str_to_title)) +
   facet_grid(rows = vars(fit_type), cols = vars(assigned_treatment_left), labeller = as_labeller(str_to_title), scales = "free_y") +
   NULL
 
