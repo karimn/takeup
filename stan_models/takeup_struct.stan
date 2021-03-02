@@ -351,7 +351,7 @@ model {
   v_mu ~ normal(0, 1);
   
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep_raw ~ normal(0, mu_rep_sd);
+    mu_rep_raw ~ normal(rep_vector(0, num_treatments), mu_rep_sd);
     
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);
