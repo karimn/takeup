@@ -198,18 +198,18 @@ models <- lst(
     use_shifting_v_dist = FALSE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
-    use_homoskedastic_shocks = TRUE,
+    use_homoskedastic_shocks = FALSE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
-    iter = 400,
+    iter = 800,
     thin = 1,
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
     alg_sol_rel_tol = 0.0000001,
 
     # Priors
-    mu_rep_sd = c(1, rep(0.25, num_treatments - 1)), # The first is control
+    mu_rep_sd = c(1.5, rep(1, num_treatments - 1)), # The first is control
     structural_beta_county_sd_sd = 0.25,
     structural_beta_cluster_sd_sd = 0.25,
 
