@@ -582,3 +582,9 @@ group_dist_param <- dist_fit_data %>%
   mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
 save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
+
+dist_fit_data %<>% 
+  mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), select, -iter_data))
+
+save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
+
