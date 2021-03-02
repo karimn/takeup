@@ -704,7 +704,7 @@ plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model,
   .data %>% 
     ggplot(aes(group = {{ results_group }})) + 
     geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
-                   binwidth = binwidth, position = "identity", alpha = 0.5, 
+                   binwidth = binwidth, boundary = 0, position = "identity", alpha = 0.5,  
                    data = . %>% unnest(iter_data)) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     scale_color_manual("", 
