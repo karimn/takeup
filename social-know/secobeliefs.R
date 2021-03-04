@@ -1,14 +1,11 @@
 library(magrittr)
 library(tidyverse)
 library(modelr)
-library(rstan)
+library(cmdstanr)
 
 load(file.path("data", "analysis.RData"))
 
 chains <- 8
-
-options(mc.cores = chains)
-rstan_options(auto_write = TRUE)
 
 # Prepare Data ------------------------------------------------------------
 
@@ -88,7 +85,7 @@ social_links %<>%
 
 # Sample ------------------------------------------------------------------
 
-secobeliefs_model <- stan_model(file = file.path("stan_models", "secobeliefs.stan"))
+secobeliefs_model <- cmdstan_model(file.path("stan_models", "secobeliefs.stan"))
 
 secobeliefs_stan_data <- lst(
   know_table_A_sample_size = 10,
@@ -113,44 +110,52 @@ secobeliefs_stan_data <- lst(
   num_ate_pairs = nrow(ate_pairs),
 )
 
-secobeliefs_fit <- sampling(
-  secobeliefs_model, 
+secobeliefs_fit <- secobeliefs_model$sample( 
   data = secobeliefs_stan_data,
   chains = chains,
-  iter = 1000,
-  pars = c("prob_1ord", "ate_1ord", "prob_2ord", "ate_2ord"),
-  control = lst(adapt_delta = 0.9),
+  parallel_chains = chains,
+  iter_warmup = 500,
+  iter_sampling = 500,
+  adapt_delta = 0.9
 )
 
-write_rds(secobeliefs_fit, file.path("data", "stan_analysis_data", "secobeliefs_fit.rds"))
+secobeliefs_fit$save_output_files(
+  dir = file.path("~/Code/takeup", "data", "stan_analysis_data"), # Temp until cmdstanr is fixed and can handle paths with spaces
+  basename = "secobeliefs_fit", 
+  timestamp = FALSE, random = FALSE
+)
+
+secobeliefs_fit$save_object(file.path("data", "stan_analysis_data", "secobeliefs_fit.rds"))
 
 # Results -----------------------------------------------------------------
 
 secobeliefs_results <- lst(
-  prob_knows = secobeliefs_fit %>% 
-    as.data.frame(pars = c("prob_1ord", "prob_2ord")) %>% 
-    mutate(iter_id = seq(n())) %>% 
-    pivot_longer(-iter_id) %>% 
+  prob_knows = secobeliefs_fit$draws(c("prob_1ord", "prob_2ord")) %>% 
+    posterior::as_draws_df() %>% 
+    mutate(iter_id = .draw) %>% 
+    pivot_longer(-c(iter_id, .draw, .chain, .iteration)) %>% 
     tidyr::extract(name, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
     group_by(ord, treatment_id) %>% 
     summarize(
       per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
-      per_val = quantile(value, per)
+      per_val = quantile(value, per),
+      .groups = "drop"
     ) %>% 
     ungroup() %>% 
     pivot_wider(c(treatment_id, ord), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
     right_join(treatment_map, ., by = "treatment_id") %>% 
     arrange(ord),
   
-  ate_knows = secobeliefs_fit %>% 
-    as.data.frame(pars = c("ate_1ord", "ate_2ord")) %>% 
-    mutate(iter_id = seq(n())) %>% 
-    pivot_longer(-iter_id) %>% 
+  ate_knows = secobeliefs_fit$draws(c("ate_1ord", "ate_2ord")) %>% 
+    posterior::as_draws_df() %>% 
+    mutate(iter_id = .draw) %>% 
+    pivot_longer(-c(iter_id, .draw, .chain, .iteration)) %>% 
     tidyr::extract(name, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
     group_by(ord, ate_pair_index) %>% 
     summarize(
       per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
-      per_val = quantile(value, per)
+      per_val = quantile(value, per),
+      .groups = "drop"
     ) %>% 
     ungroup() %>% 
     pivot_wider(c(ord, ate_pair_index), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
