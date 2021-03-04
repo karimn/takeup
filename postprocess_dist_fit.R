@@ -20,14 +20,14 @@ Options:
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "31 --cores=12 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "34 --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
  
 )
 
 library(magrittr)
 library(tidyverse)
 library(rlang)
-library(rstan)
+library(cmdstanr)
 library(furrr)
 # library(pbmcapply)
 # library(nleqslv)
