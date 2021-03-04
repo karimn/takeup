@@ -28,7 +28,6 @@ int<lower = 0, upper = 1> use_name_matched_obs;
 int<lower = 0, upper = 1> use_shifting_v_dist;
 int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> use_cost_model;
 int<lower = 0, upper = 1> suppress_reputation;
-int<lower = 0, upper = 1> suppress_shocks; 
 int<lower = 0, upper = 1> use_u_in_delta;
 int<lower = 0, upper = 1> multithreaded;
 int<lower = 0, upper = 1> generate_rep;
@@ -45,6 +44,9 @@ int<lower = 1> num_clusters;
 int<lower = 1> num_counties;
 int<lower = 1> num_treatments;
 int<lower = 1> num_discrete_dist;
+
+int<lower = 1, upper = num_treatments> CALENDAR_TREATMENT_INDEX;
+int<lower = 1, upper = num_treatments> BRACELET_TREATMENT_INDEX;
 
 int<lower = 1, upper = num_clusters> obs_cluster_id[num_obs];
 int<lower = 1, upper = num_counties> obs_county_id[num_obs];
@@ -85,7 +87,7 @@ matrix[num_grid_obs, num_knots_v] Z_grid_v;
 
 // Prior hyperparameters
 
-real<lower = 0> mu_rep_sd;
+vector<lower = 0>[num_treatments] mu_rep_sd;
 real<lower = 0> beta_control_sd;
 real<lower = 0> beta_far_effect_sd;
 real<lower = 0> beta_ink_effect_sd;

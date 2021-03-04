@@ -165,25 +165,23 @@ vector find_fixedpoint_solution_rect(vector phi, vector theta, data real[] x_r, 
   
   real benefit_cost = theta[1];
   real mu_rep = theta[2];
-  
-  
-  real total_error_sd = phi[1];
-  real u_sd = phi[2];
+  real total_error_sd = theta[3];
+  real u_sd = theta[4];
   
   return [ find_fixedpoint_solution(benefit_cost, mu_rep, total_error_sd, u_sd, use_u_in_delta, x_r[1], x_r[2], x_r[3]) ]'; 
 }
 
 vector map_find_fixedpoint_solution(vector benefit_cost, vector mu_rep, 
-                                     real total_error_sd, real u_sd,
+                                     vector total_error_sd, vector u_sd,
                                      data int use_u_in_delta, data real alg_sol_rel_tol, data real alg_sol_f_tol, data real alg_sol_max_steps) {
   int num_clusters = num_elements(benefit_cost);
-  vector[2] phi = [total_error_sd, u_sd]';
-  vector[2] thetas[num_clusters];
+  vector[1] phi = total_error_sd[1:1];
+  vector[4] thetas[num_clusters];
   real x_rs[num_clusters, 3] = rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters);
   int x_is[num_clusters, 1] = rep_array({ use_u_in_delta }, num_clusters);
   
   for (cluster_index in 1:num_clusters) {
-    thetas[cluster_index] = [ benefit_cost[cluster_index], mu_rep[cluster_index] ]';
+    thetas[cluster_index] = [ benefit_cost[cluster_index], mu_rep[cluster_index], total_error_sd[cluster_index], u_sd[cluster_index] ]';
   }
   
   return map_rect(find_fixedpoint_solution_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters) , x_is);

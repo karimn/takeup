@@ -8,26 +8,29 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path>]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path>]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
-  --output-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+  --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+  --output-path=<path>  Path to find results [default: temp-data]
 "),
 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "dist_fit --full-outputname" 
-  # args = if (interactive()) "dist_fit --full-outputname --output-path=/tigress/kn6838/takeup" 
-) 
+  # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "34 --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
+ 
+)
 
 library(magrittr)
 library(tidyverse)
 library(rlang)
-library(rstan)
-library(pbmcapply)
-library(nleqslv)
+library(cmdstanr)
+library(furrr)
+# library(pbmcapply)
+# library(nleqslv)
 
 source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
@@ -35,6 +38,12 @@ source("dist_structural_util.R")
 
 fit_version <- script_options$fit_version
 postprocess_cores <- as.integer(script_options$cores)
+
+if (interactive()) {
+  plan(multisession, workers = postprocess_cores)
+} else {
+  plan(multicore, workers = postprocess_cores)
+}
 
 # Analysis Data --------------------------------------------------------------------
 
@@ -67,16 +76,13 @@ analysis_data <- monitored_nosms_data
 
 # Stan fit 
 if (script_options$full_outputname) {
-  load(file.path(script_options$output_path, str_interp("${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("${fit_version}.RData")))
 } else {
-  load(file.path(script_options$output_path, str_interp("dist_fit${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
 }
 
 dist_fit %<>% 
-  map_if(is.character, ~ { 
-    str_replace(.x, fixed(dirname(.x)), script_options$output_path) %>% 
-      read_rds()
-  })
+  map_if(is.character, ~ read_rds(file.path(script_options$input_path, basename(.x))))
 
 if (has_name(dist_fit, "value")) {
   dist_fit_warnings <- dist_fit$warning
@@ -108,28 +114,16 @@ model_info <- tribble(
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
-# How much to thin the posterior samples, mostly so the postprocessing fits in memory
-thin_model <- c(
-  "REDUCED_FORM_NO_RESTRICT" = 1L,
-  "REDUCED_FORM_SEMIPARAM" = 1L,
-  "STRUCTURAL_LINEAR" = 1L,
-  "STRUCTURAL_QUADRATIC" = 1L,
-  "STRUCTURAL_QUADRATIC_NO_SHOCKS" = 1L,
-  "STRUCTURAL_QUADRATIC_SALIENCE" = 4L,
-  "STRUCTURAL_LINEAR_SALIENCE" = 1L
-)
-
-dist_fit_data %<>% 
-  left_join(enframe(thin_model, name = "model", value = "thin"), by = "model") 
-
 # Prior predicted fit for same models
 dist_fit_data <- tryCatch({
-  load(file.path(script_options$output_path, str_interp("dist_fit_prior${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
+  
+  dist_fit %<>% 
+    map_if(is.character, ~ read_rds(file.path(script_options$input_path, basename(.x))))
   
   dist_fit_data %<>%
     bind_rows("fit" = .,
-              "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
-                mutate(thin = 1L),
+              "prior-predict" = enframe(dist_fit, name = "model", value = "fit"),
               .id = "fit_type") 
   
   rm(dist_fit)
@@ -143,11 +137,10 @@ error = function(err) {
 
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
-
     
 dist_fit_data <- tryCatch({
   # Load cross-validation data
-  load(file.path(script_options$output_path, str_interp("dist_kfold${fit_version}.RData")))
+  load(file.path(script_options$input_path, str_interp("dist_kfold${fit_version}.RData")))
   
   dist_fit_data <- enframe(dist_kfold, name = "model", value = "kfold") %>% 
     inner_join(select(model_info, model, model_type), by = "model") %>% 
@@ -181,8 +174,7 @@ dist_fit_data <- tryCatch({
 error = function(error) dist_fit_data)
 
 dist_fit_data %<>% 
-  inner_join(select(model_info, model, model_type), by = "model") %>% 
-  mutate(thin = coalesce(thin, 1L))
+  inner_join(select(model_info, model, model_type), by = "model") 
 
 observed_takeup <- monitored_nosms_data %>% 
   group_by(cluster_id, assigned_treatment = assigned.treatment, assigned_dist = cluster.dist.to.pot) %>% 
@@ -200,7 +192,7 @@ quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 calc_cutoff <- function(curr_iter_data) {
   rowwise(curr_iter_data) %>% 
     mutate(
-      as_tibble(nleqslv(x = - iter_est, fn = generate_v_cutoff_fixedpoint(iter_est, iter_est_mu, iter_est_error_sd, iter_est_u_sd))[c("x", "termcd")]),
+      as_tibble(nleqslv::nleqslv(x = - iter_est, fn = generate_v_cutoff_fixedpoint(iter_est, iter_est_mu, iter_est_error_sd, iter_est_u_sd))[c("x", "termcd")]),
     ) %>% 
     ungroup() %>% 
     rename(
@@ -218,34 +210,71 @@ calc_cutoff <- function(curr_iter_data) {
 join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd, u_sd) {
   if (!is_null(mu_rep)) {
     mutate(benefit_cost, 
-           iter_data = pbmclapply(mc.cores = postprocess_cores,
-                                  iter_data, 
-                                  left_join, 
-                                  unnest(mu_rep, iter_data) %>% 
-                                    select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
-                                    inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "")) %>% 
-                                    inner_join(u_sd, by = c("iter_id"), suffix = c("_error_sd", "_u_sd")),
-                                  by = c("iter_id")) %>% 
-             map(mutate, obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_)))
+           # iter_data = pbmclapply(mc.cores = postprocess_cores,
+           #                        iter_data, 
+           #                        left_join, 
+           #                        unnest(mu_rep, iter_data) %>% 
+           #                          select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
+           #                          inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "")) %>% 
+           #                          inner_join(u_sd, by = c("iter_id"), suffix = c("_error_sd", "_u_sd")),
+           #                        by = c("iter_id")) %>% 
+           iter_data = future_map(
+             iter_data,
+             ~ {
+               left_join(
+                 .x,
+                 unnest(mu_rep, iter_data) %>% 
+                   select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
+                   inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "")) %>% 
+                   inner_join(u_sd, by = c("iter_id"), suffix = c("_error_sd", "_u_sd")),
+                 by = c("iter_id")) %>%
+                 mutate(obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_))
+             }))
   } else if (!is_null(total_error_sd)) { 
     mutate(benefit_cost, 
-           iter_data = pbmclapply(mc.cores = postprocess_cores,
-                                  iter_data,
-                                  inner_join, 
-                                  total_error_sd, 
-                                  by = c("iter_id"), 
-                                  suffix = c("", "_error_sd")) %>% 
-             pbmclapply(mc.cores = postprocess_cores,
-                        .,
-                        inner_join, 
-                        u_sd, 
-                        by = c("iter_id"), 
-                        suffix = c("", "_u_sd")) %>% 
+           # iter_data = pbmclapply(mc.cores = postprocess_cores,
+           #                        iter_data,
+           #                        inner_join, 
+           #                        total_error_sd, 
+           #                        by = c("iter_id"), 
+           #                        suffix = c("", "_error_sd")) %>% 
+           iter_data = future_map(iter_data, inner_join, total_error_sd, by = c("iter_id"), suffix = c("", "_error_sd")) %>% 
+             # pbmclapply(mc.cores = postprocess_cores,
+             #            .,
+             #            inner_join, 
+             #            u_sd, 
+             #            by = c("iter_id"), 
+             #            suffix = c("", "_u_sd")) %>% 
+             future_map(inner_join, u_sd, by = c("iter_id"), suffix = c("", "_u_sd")) %>% 
              map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
   } else {
     mutate(benefit_cost,
            iter_data = map(iter_data, mutate, iter_est_error_sd = 1, iter_est_u_sd = 0, iter_est_mu = 0, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
   } 
+}
+
+calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd) {
+  prob_iter_data <- if (!is_null(total_error_sd)) {
+    mutate(cutoffs, iter_data = future_map(iter_data, 
+                               ~ left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
+                                 mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)), 
+                              total_error_sd$iter_data[[1]]))
+  } else {
+    mutate(cutoffs, iter_data = future_map(iter_data, mutate, prob = pnorm(- iter_est))) 
+  }
+  
+  prob_iter_data %>% 
+    mutate(
+      iter_data = future_pmap(lst(iter_data, cluster_size, obs_num_takeup), function(iter_data, cluster_size, obs_num_takeup) {
+        if (!is.na(obs_num_takeup)) {
+          mutate(iter_data, 
+                 iter_num_takeup = obs_num_takeup)
+        } else {
+          mutate(iter_data, 
+                 iter_num_takeup = rbinom(n(), cluster_size, prob)) # If not observed treatment, draw random number of takers for cluster
+        }
+      })
+    )
 }
 
 # Given multiple variables, generate quantiles and pack them
@@ -262,7 +291,8 @@ prep_multiple_est <- function(accum_data, next_col) {
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
 simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
                                        mu_rep, total_error_sd, u_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
-  if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
+  # if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
+  if (!is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
       select(assigned_treatment, iter_data) %>% 
       unnest(iter_data) %>% 
@@ -278,7 +308,7 @@ simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linea
       left_join(rename(cluster_linear_dist_cost, cluster_linear_dist_cost_data = cluster_data), by = "iter_id")
    
     multiplier_v_range %>% 
-      map_df(~ mu_sd %>% 
+      future_map_dfr(~ mu_sd %>% 
                mutate(
                  v = .x,
                  iter_prob_takeup = pnorm(v, sd = iter_est_total_error_sd, lower.tail = FALSE),  
@@ -363,31 +393,7 @@ dist_fit_data %<>%
     mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs),
     
     cluster_cf_cutoff = map(fit, extract_obs_cluster_cutoff_cf, stan_data = stan_data, quant_probs = quant_probs) %>% 
-      map2(total_error_sd, ~ {
-        prob_iter_data <- if (!is_null(.y)) {
-          mutate(.x, iter_data = map(iter_data, 
-                                     ~ left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
-                                       mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)), 
-                                    .y$iter_data[[1]]))
-        } else {
-          mutate(.x, iter_data = map(iter_data, 
-                                     ~ .x %>% 
-                                       mutate(prob = pnorm(- iter_est)))) 
-        }
-        
-        prob_iter_data %>% 
-          mutate(
-            iter_data = pmap(lst(iter_data, cluster_size, obs_num_takeup), function(iter_data, cluster_size, obs_num_takeup) {
-              if (!is.na(obs_num_takeup)) {
-                mutate(iter_data, 
-                       iter_num_takeup = obs_num_takeup)
-              } else {
-                mutate(iter_data, 
-                       iter_num_takeup = rbinom(n(), cluster_size, prob)) # If not observed treatment, draw random number of takers for cluster
-              }
-            })
-          )
-      }), 
+      map2(total_error_sd, calculate_prob_and_num_takeup), 
     
     est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
@@ -575,4 +581,10 @@ group_dist_param <- dist_fit_data %>%
   pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) %>% 
   mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
-save(dist_fit_data, stan_data, group_dist_param, file = file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
+save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
+
+dist_fit_data %<>% 
+  mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), select, -iter_data))
+
+save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
+

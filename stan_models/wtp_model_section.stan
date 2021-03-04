@@ -8,7 +8,7 @@ strata_wtp_mu_tau ~ normal(0, 1);
 
 wtp_sigma ~ normal(0, 1); 
 
-{ 
+if (fit_wtp_model_to_data) { 
   int wtp_stratum_pos = 1;
 
   for (stratum_index in 1:num_strata) {

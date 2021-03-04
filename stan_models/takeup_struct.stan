@@ -3,16 +3,21 @@ functions {
 }
 
 data {
+  
 #include takeup_data_sec.stan
 #include wtp_data.stan
 
   int<lower = 0, upper = 1> use_wtp_model;
+  int<lower = 0, upper = 1> use_homoskedastic_shocks;
+  int<lower = 0, upper = 1> use_restricted_mu;
 }
 
 transformed data {
 #include wtp_transformed_data.stan
 #include takeup_transformed_data_declare.stan
 #include takeup_transformed_data_define.stan
+  
+  int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
 }
 
 parameters {
@@ -41,8 +46,8 @@ parameters {
   real v_mu;
   
   row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
-  real<lower = 0> u_sd;
-  cholesky_factor_corr[suppress_shocks ? 0 : 2] L_all_u_corr;
+  vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
+  // cholesky_factor_corr[num_treatment_shocks + 1] L_all_u_corr;
   
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
   row_vector<lower = 0>[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_cluster_effects_sd;
@@ -108,16 +113,18 @@ transformed parameters {
   
   matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
   
-  real total_error_sd;
+  vector<lower = 0>[num_treatments] u_sd;
+  vector<lower = 0>[num_treatments] total_error_sd;
   
-  if (!suppress_shocks) {
-    vector[2] all_u_sd = [ 1.0, u_sd ]';
-    matrix[2, 2] L_all_u_vcov = diag_pre_multiply(all_u_sd, L_all_u_corr);
-    matrix[2, 2] all_u_vcov = L_all_u_vcov * L_all_u_vcov'; 
-    total_error_sd = sqrt(sum(all_u_vcov) + (use_wtp_model ? square(wtp_sigma * wtp_value_utility) : 0));
+  if (use_homoskedastic_shocks) {
+    u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
   } else {
-    total_error_sd = sqrt(1 + (use_wtp_model ? square(wtp_sigma * wtp_value_utility) : 0));
+    u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
+    u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    // u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? sqrt(square(raw_u_sd[num_treatment_shocks]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
   }
+    
+  total_error_sd = sqrt(1 + square(u_sd));
   
   for (cluster_index in 1:num_clusters) {
     int dist_group_pos = 1;
@@ -135,13 +142,13 @@ transformed parameters {
   
   for (dist_index in 1:num_discrete_dist) {
     if (dist_index > 1) {
-      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = rep_vector(0, num_treatments); 
+      beta[(num_treatments + 1):] = rep_vector(0, num_treatments); 
     } else if (use_wtp_model) { 
-      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
-        [ beta_control, beta_ink_effect, beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu, beta_bracelet_effect ]';
+      beta[1:2] = [ beta_control, beta_ink_effect ]';
+      beta[CALENDAR_TREATMENT_INDEX] = beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu;
+      beta[BRACELET_TREATMENT_INDEX] = beta_bracelet_effect;
     } else {
-      beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
-        [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+      beta[1:num_treatments] = [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
     }
   }
  
@@ -150,9 +157,11 @@ transformed parameters {
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep[2] += mu_rep[1];
-    mu_rep[3] += mu_rep[1];
-    mu_rep[4] += mu_rep[1];
+    if (use_restricted_mu) {
+      mu_rep[2] += mu_rep[1];
+      mu_rep[3] += mu_rep[1];
+      mu_rep[4] += mu_rep[1];
+    }
     
     cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     
@@ -287,6 +296,8 @@ transformed parameters {
   }
 
   if (fit_model_to_data) {
+    int cluster_treatment[num_clusters] = cluster_treatment_map[cluster_assigned_dist_group_treatment, 1];
+      
     if (suppress_reputation) {
       structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
@@ -294,8 +305,8 @@ transformed parameters {
         structural_cluster_obs_v = map_find_fixedpoint_solution(
           structural_cluster_benefit_cost, 
           to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
-          total_error_sd,
-          u_sd,
+          total_error_sd[cluster_treatment],
+          u_sd[cluster_treatment],
           
           use_u_in_delta,
           alg_sol_rel_tol, // 1e-10,
@@ -306,10 +317,10 @@ transformed parameters {
         for (cluster_index in 1:num_clusters) {
           structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
             structural_cluster_benefit_cost[cluster_index],
-            cluster_mu_rep[cluster_index, cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]],
-            total_error_sd,
-            u_sd,
-  
+            cluster_mu_rep[cluster_index, cluster_treatment[cluster_index]],
+            total_error_sd[cluster_treatment[cluster_index]],
+            u_sd[cluster_treatment[cluster_index]],
+
             use_u_in_delta,
             alg_sol_rel_tol, // 1e-10,
             alg_sol_f_tol, // 1e-5,
@@ -319,7 +330,7 @@ transformed parameters {
       }
     }
     
-    structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v / total_error_sd)';
+    structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v ./ total_error_sd[cluster_treatment])';
   }
 }
 
@@ -341,7 +352,7 @@ model {
   v_mu ~ normal(0, 1);
   
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep_raw ~ normal(0, mu_rep_sd);
+    mu_rep_raw ~ normal(rep_vector(0, num_treatments), mu_rep_sd);
     
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);
@@ -388,8 +399,8 @@ model {
     structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
   }
   
-  u_sd ~ normal(0, 1);
-  L_all_u_corr ~ lkj_corr_cholesky(2);
+  raw_u_sd ~ normal(0, 1);
+  // L_all_u_corr ~ lkj_corr_cholesky(2);
   
   for (dist_group_index in 1:num_discrete_dist) { 
     for (dist_group_mix_index in 1:num_dist_group_mix) {
@@ -455,7 +466,7 @@ generated quantities {
         rep_matrix(structural_treatment_effect', num_clusters) + 
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix';
   
-  matrix[2, 2] all_u_corr;
+  // matrix[num_treatment_shocks + 1, num_treatment_shocks + 1] all_u_corr = L_all_u_corr * L_all_u_corr';
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   
@@ -471,11 +482,6 @@ generated quantities {
   
 #include wtp_generated_quantities.stan
     
-  if (!suppress_shocks) {
-    all_u_corr = L_all_u_corr * L_all_u_corr';
-  }
-  
-  
   {
     int treatment_cluster_pos = 1;
     int cluster_treatment_cf_pos = 1;
@@ -499,8 +505,8 @@ generated quantities {
           cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
             cluster_cf_benefit_cost[treatment_index, cluster_index],
             cluster_mu_rep[cluster_index, mu_treatment_index],
-            total_error_sd,
-            u_sd,
+            total_error_sd[curr_assigned_treatment],
+            u_sd[curr_assigned_treatment],
             
             use_u_in_delta, 
             alg_sol_rel_tol, 
@@ -673,8 +679,8 @@ generated quantities {
       cluster_rep_cutoff[cluster_index] = find_fixedpoint_solution(
           cluster_rep_benefit_cost[cluster_index],
           cluster_mu_rep[cluster_index, curr_assigned_treatment],
-          total_error_sd,
-          u_sd,
+          total_error_sd[curr_assigned_treatment],
+          u_sd[curr_assigned_treatment],
           
           use_u_in_delta,
           alg_sol_rel_tol,

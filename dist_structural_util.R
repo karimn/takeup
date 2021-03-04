@@ -140,8 +140,7 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
       stan_data$analysis_data %>%
         select(cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
         group_by(cluster_id, assigned_treatment, assigned_dist_group) %>%
-        summarize(obs_num_takeup = sum({{ dewormed_var }})) %>%
-        ungroup(),
+        summarize(obs_num_takeup = sum({{ dewormed_var }}), .groups = "drop"),
       by = c("cluster_id", "assigned_treatment", "assigned_dist_group")
     ) %>%
     mutate(
@@ -369,7 +368,7 @@ generate_initializer <- function(num_treatments,
           },
           u_splines_v = u_splines_v_raw,
          
-          u_sd = abs(rnorm(1, 0, 0.5)),
+          u_sd = abs(rnorm(num_treatments, 0, 0.5)),
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
           structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -468,7 +467,7 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
     sprintf("dist_model_%s.csv") %>% 
     file.path("stanfit", .) 
   
-  if (script_options$fit) {
+  if (script_options$fit || script_options$prior) {
     inner_sampler <- function(curr_model, stan_data) {
       curr_stan_data <- stan_data %>%
         list_modify(!!!curr_model) %>%
@@ -654,30 +653,41 @@ expect_y_partial_d <- function(v, mu, total_error_sd, u_sd, linear_dist_cost) {
     multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size))) 
 }
 
-plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
+plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE) {
   plot_pos <- ggstance::position_dodgev(height = 0.8)
   
   ggplot_obj <- if (include_prior_predict) {
     ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
-      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       NULL
   } else {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) 
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
   }
   
   ggplot_obj +
-    ggstance::geom_linerangeh(aes(xmin = per_0.25, xmax = per_0.75, color = model), alpha = 0.4, size = 3, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    ggstance::geom_crossbarh(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model), fatten = 0, size = 0.4, width = 0.5, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    ggstance::geom_linerangeh(aes(xmin = per_0.05, xmax = per_0.95, color = model), size = 0.4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) + 
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = 3, position = plot_pos) +
+                   # data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
+                  # data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
+                   # data = . %>% filter(fct_match(fit_type, "fit"))) + 
     
-    geom_point(aes(x = mean_est, color = model), position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
-    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos, data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
+               # data = . %>% filter(fct_match(fit_type, "fit"))) +
+    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
+               # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     scale_color_manual("", 
-                       values = select(dist_fit_data, model, model_color) %>% deframe(), 
-                       labels = dist_fit_data %>% select(model, model_name) %>% deframe(), aesthetics = c("color", "fill")) + 
+                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
+                       labels = if (is_null(group_labels)) { 
+                         dist_fit_data %>% 
+                           select(model, model_name) %>% 
+                           deframe() 
+                       } else {
+                         group_labels
+                       }, aesthetics = c("color", "fill")) + 
     labs(
       caption = #"Dotted line range: 98% credible interval. 
                 "Line range: 90% credible interval. 
@@ -685,6 +695,27 @@ plot_estimands <- function(.data, y, include_prior_predict = FALSE) {
                  Thick vertical line: median. Point: mean."
       
     ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+}
+
+plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model, group_labels = NULL) {
+  .data %>% 
+    ggplot(aes(group = {{ results_group }})) + 
+    geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
+                   binwidth = binwidth, boundary = 0, position = "identity", alpha = 0.5,  
+                   data = . %>% unnest(iter_data)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    scale_color_manual("", 
+                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
+                       labels = if (is_null(group_labels)) { 
+                         dist_fit_data %>% 
+                           select(model, model_name) %>% 
+                           deframe() 
+                       } else {
+                         group_labels
+                       }, aesthetics = c("color", "fill")) + 
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL

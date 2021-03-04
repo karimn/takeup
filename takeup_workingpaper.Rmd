@@ -2089,7 +2089,8 @@ wtp_stan_data <- analysis.data %>%
     
     preference_value_diff = seq(-100, 100, 10), 
     num_preference_value_diff = length(preference_value_diff), 
-    
+   
+    fit_wtp_model_to_data = TRUE, 
     use_strata_levels = TRUE,
     
     wtp_utility_df = 3,
