@@ -38,43 +38,32 @@ social_links <- beliefs_data %>%
   filter(obs_know_person > 0) %>% 
   mutate(obs_index = seq_len(n()))
 
-treatment_formula <- ~ assigned.treatment  
+treatment_formula <- ~ assigned.treatment * dist.pot.group  
 
 treatment_map <- social_links %>%
   distinct(!!!syms(all.vars(treatment_formula))) %>% 
   arrange(!!!syms(all.vars(treatment_formula))) %>% 
   mutate(treatment_id = seq_len(n()))
 
-control_treatment_map <- treatment_map %>%
-  filter(fct_match(assigned.treatment, "control")) %>%
-  select(-assigned.treatment) %>% 
-  rename(treatment_id_control = treatment_id)
-
-if (ncol(control_treatment_map) > 1) {
-  treatment_map %<>%
-    left_join(control_treatment_map)
-} else {
-  treatment_map %<>%
-    bind_cols(control_treatment_map)
-}
-
 treatment_map_design_matrix <- treatment_map %>%
   model_matrix(treatment_formula)
 
-ate_pairs <- treatment_map %>% 
-  filter(treatment_id != treatment_id_control) %>% 
-  select(treatment_id, treatment_id_control) %>% 
+ate_pairs <- treatment_map %>% {
+  bind_rows(
+    left_join(., filter(., fct_match(assigned.treatment, "control")), by = c("dist.pot.group"), suffix = c("", "_control")) %>% 
+      filter(assigned.treatment != assigned.treatment_control) %>% 
+      select(treatment_id, treatment_id_control),
+    
+    left_join(., filter(., fct_match(dist.pot.group, "close")), by = c("assigned.treatment"), suffix = c("", "_control")) %>% 
+      filter(dist.pot.group != dist.pot.group_control) %>% 
+      select(treatment_id, treatment_id_control),
+  )
+} %>%
   arrange(treatment_id, treatment_id_control) 
+    
 
 social_links %<>%
   left_join(treatment_map)
-
-# obs_missing_data <- treatment_map %>%
-#   group_by(treatment_id) %>%
-#   do(treatment_obs_ids = semi_join(social_links, ., "treatment_id"),
-#      treatment_missing_ids = anti_join(social_links, ., "treatment_id")) %>%
-#   ungroup() %>%
-#   mutate(across(ends_with("_ids"), map, select, obs_index, obs_know_person, thinks_other_knows))
 
 cluster_idx <- social_links %>% 
   group_by(cluster.id) %>% 
@@ -160,8 +149,8 @@ secobeliefs_results <- lst(
     ungroup() %>% 
     pivot_wider(c(ord, ate_pair_index), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
     right_join(mutate(ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
-    right_join(treatment_map, ., by = c("treatment_id", "treatment_id_control")) %>% 
-    right_join(treatment_map, ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>% 
+    right_join(treatment_map, ., by = c("treatment_id")) %>%
+    right_join(treatment_map, ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>%
     select(-starts_with("treatment_id"), -ate_pair_index) %>% 
     arrange(ord)
 )

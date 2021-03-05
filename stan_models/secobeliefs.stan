@@ -54,21 +54,34 @@ parameters {
 }
 
 transformed parameters {
-  vector[num_obs] obs_beta_common = obs_beta_common_raw * obs_beta_common_sd;
+  matrix[num_obs, num_treatments] centered_obs_beta_1ord; 
+  matrix[num_obs, num_treatments] centered_obs_beta_2ord;  
   
-  matrix[num_strata, num_treatments] stratum_beta_1ord = stratum_beta_1ord_raw .* rep_matrix(stratum_beta_1ord_sd, num_strata);
-  matrix[num_clusters, num_treatments] cluster_beta_1ord = cluster_beta_1ord_raw .* rep_matrix(cluster_beta_1ord_sd, num_clusters);
-  matrix[num_obs, num_treatments] obs_beta_1ord = obs_beta_1ord_raw .* rep_matrix(obs_beta_1ord_sd, num_obs);
-  
-  matrix[num_strata, num_treatments] stratum_beta_2ord = stratum_beta_2ord_raw .* rep_matrix(stratum_beta_2ord_sd, num_strata);
-  matrix[num_clusters, num_treatments] cluster_beta_2ord = cluster_beta_2ord_raw .* rep_matrix(cluster_beta_2ord_sd, num_clusters);
-  matrix[num_obs, num_treatments] obs_beta_2ord = obs_beta_2ord_raw .* rep_matrix(obs_beta_2ord_sd, num_obs);
-  
-  matrix[num_obs, num_treatments] centered_obs_beta_1ord = 
-    rep_matrix(hyper_beta_1ord, num_obs) + stratum_beta_1ord[stratum_index] + cluster_beta_1ord[cluster_index] + obs_beta_1ord + rep_matrix(obs_beta_common, num_treatments);
-  
-  matrix[num_obs, num_treatments] centered_obs_beta_2ord = 
-    rep_matrix(hyper_beta_2ord, num_obs) + stratum_beta_2ord[stratum_index] + cluster_beta_2ord[cluster_index] + obs_beta_2ord + rep_matrix(obs_beta_common, num_treatments);
+  {
+    matrix[num_strata, num_treatments] stratum_beta_1ord;
+    matrix[num_clusters, num_treatments] cluster_beta_1ord;
+    matrix[num_obs, num_treatments] obs_beta_1ord;
+    
+    matrix[num_strata, num_treatments] stratum_beta_2ord;
+    matrix[num_clusters, num_treatments] cluster_beta_2ord;
+    matrix[num_obs, num_treatments] obs_beta_2ord;
+    
+    vector[num_obs] obs_beta_common = obs_beta_common_raw * obs_beta_common_sd;
+    
+    stratum_beta_1ord = stratum_beta_1ord_raw .* rep_matrix(stratum_beta_1ord_sd, num_strata);
+    cluster_beta_1ord = cluster_beta_1ord_raw .* rep_matrix(cluster_beta_1ord_sd, num_clusters);
+    obs_beta_1ord = obs_beta_1ord_raw .* rep_matrix(obs_beta_1ord_sd, num_obs);
+    
+    stratum_beta_2ord = stratum_beta_2ord_raw .* rep_matrix(stratum_beta_2ord_sd, num_strata);
+    cluster_beta_2ord = cluster_beta_2ord_raw .* rep_matrix(cluster_beta_2ord_sd, num_clusters);
+    obs_beta_2ord = obs_beta_2ord_raw .* rep_matrix(obs_beta_2ord_sd, num_obs);
+    
+    centered_obs_beta_1ord = 
+      rep_matrix(hyper_beta_1ord, num_obs) + stratum_beta_1ord[stratum_index] + cluster_beta_1ord[cluster_index] + obs_beta_1ord + rep_matrix(obs_beta_common, num_treatments);
+    
+    centered_obs_beta_2ord = 
+      rep_matrix(hyper_beta_2ord, num_obs) + stratum_beta_2ord[stratum_index] + cluster_beta_2ord[cluster_index] + obs_beta_2ord + rep_matrix(obs_beta_common, num_treatments);
+  }
 }
 
 model {
