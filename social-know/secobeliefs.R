@@ -77,6 +77,10 @@ social_links %<>%
 secobeliefs_model <- cmdstan_model(file.path("stan_models", "secobeliefs.stan"))
 
 secobeliefs_stan_data <- lst(
+  use_stratum_level = TRUE,
+  use_cluster_level = TRUE,
+  use_obs_level = TRUE,
+  
   know_table_A_sample_size = 10,
   
   num_obs = nrow(social_links),

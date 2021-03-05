@@ -2,6 +2,10 @@ functions {
 }
 
 data {
+  int<lower = 0, upper = 1> use_obs_level;
+  int<lower = 0, upper = 1> use_cluster_level;
+  int<lower = 0, upper = 1> use_stratum_level;
+  
   int know_table_A_sample_size;
   
   int<lower = 0> num_obs;
@@ -31,23 +35,23 @@ transformed data {
 parameters {
   row_vector[num_treatments] hyper_beta_1ord;
   
-  matrix[num_strata, num_treatments] stratum_beta_1ord_raw;
-  matrix[num_clusters, num_treatments] cluster_beta_1ord_raw;
-  matrix[num_obs, num_treatments] obs_beta_1ord_raw;
+  matrix[use_stratum_level ? num_strata : 0, num_treatments] stratum_beta_1ord_raw;
+  matrix[use_cluster_level ? num_clusters : 0, num_treatments] cluster_beta_1ord_raw;
+  matrix[use_obs_level ? num_obs : 0, num_treatments] obs_beta_1ord_raw;
   
-  row_vector<lower = 0>[num_treatments] stratum_beta_1ord_sd;
-  row_vector<lower = 0>[num_treatments] cluster_beta_1ord_sd;
-  row_vector<lower = 0>[num_treatments] obs_beta_1ord_sd;
+  row_vector<lower = 0>[use_stratum_level ? num_treatments : 0] stratum_beta_1ord_sd;
+  row_vector<lower = 0>[use_cluster_level ? num_treatments : 0] cluster_beta_1ord_sd;
+  row_vector<lower = 0>[use_obs_level ? num_treatments : 0] obs_beta_1ord_sd;
   
   row_vector[num_treatments] hyper_beta_2ord;
   
-  matrix[num_strata, num_treatments] stratum_beta_2ord_raw;
-  matrix[num_clusters, num_treatments] cluster_beta_2ord_raw;
-  matrix[num_obs, num_treatments] obs_beta_2ord_raw;
+  matrix[use_stratum_level? num_strata : 0, num_treatments] stratum_beta_2ord_raw;
+  matrix[use_cluster_level ? num_clusters : 0, num_treatments] cluster_beta_2ord_raw;
+  matrix[use_obs_level ? num_obs : 0, num_treatments] obs_beta_2ord_raw;
   
-  row_vector<lower = 0>[num_treatments] stratum_beta_2ord_sd;
-  row_vector<lower = 0>[num_treatments] cluster_beta_2ord_sd;
-  row_vector<lower = 0>[num_treatments] obs_beta_2ord_sd;
+  row_vector<lower = 0>[use_stratum_level ? num_treatments : 0] stratum_beta_2ord_sd;
+  row_vector<lower = 0>[use_cluster_level ? num_treatments: 0] cluster_beta_2ord_sd;
+  row_vector<lower = 0>[use_obs_level ? num_treatments : 0] obs_beta_2ord_sd;
   
   vector[num_obs] obs_beta_common_raw;
   real<lower = 0> obs_beta_common_sd;
@@ -68,13 +72,13 @@ transformed parameters {
     
     vector[num_obs] obs_beta_common = obs_beta_common_raw * obs_beta_common_sd;
     
-    stratum_beta_1ord = stratum_beta_1ord_raw .* rep_matrix(stratum_beta_1ord_sd, num_strata);
-    cluster_beta_1ord = cluster_beta_1ord_raw .* rep_matrix(cluster_beta_1ord_sd, num_clusters);
-    obs_beta_1ord = obs_beta_1ord_raw .* rep_matrix(obs_beta_1ord_sd, num_obs);
+    stratum_beta_1ord = use_stratum_level ? stratum_beta_1ord_raw .* rep_matrix(stratum_beta_1ord_sd, num_strata) : rep_matrix(0, num_strata, num_treatments);
+    cluster_beta_1ord = use_cluster_level ? cluster_beta_1ord_raw .* rep_matrix(cluster_beta_1ord_sd, num_clusters) : rep_matrix(0, num_clusters, num_treatments);
+    obs_beta_1ord = use_obs_level ? obs_beta_1ord_raw .* rep_matrix(obs_beta_1ord_sd, num_obs) : rep_matrix(0, num_obs, num_treatments);
     
-    stratum_beta_2ord = stratum_beta_2ord_raw .* rep_matrix(stratum_beta_2ord_sd, num_strata);
-    cluster_beta_2ord = cluster_beta_2ord_raw .* rep_matrix(cluster_beta_2ord_sd, num_clusters);
-    obs_beta_2ord = obs_beta_2ord_raw .* rep_matrix(obs_beta_2ord_sd, num_obs);
+    stratum_beta_2ord = use_stratum_level ? stratum_beta_2ord_raw .* rep_matrix(stratum_beta_2ord_sd, num_strata) : rep_matrix(0, num_strata, num_treatments);
+    cluster_beta_2ord = use_cluster_level ? cluster_beta_2ord_raw .* rep_matrix(cluster_beta_2ord_sd, num_clusters) : rep_matrix(0, num_clusters, num_treatments);
+    obs_beta_2ord = use_obs_level ? obs_beta_2ord_raw .* rep_matrix(obs_beta_2ord_sd, num_obs) : rep_matrix(0, num_obs, num_treatments);
     
     centered_obs_beta_1ord = 
       rep_matrix(hyper_beta_1ord, num_obs) + stratum_beta_1ord[stratum_index] + cluster_beta_1ord[cluster_index] + obs_beta_1ord + rep_matrix(obs_beta_common, num_treatments);
@@ -90,27 +94,41 @@ model {
   
   hyper_beta_1ord[1] ~ normal(0, 2);
   hyper_beta_1ord[2:] ~ normal(0, 1);
+ 
+  if (use_obs_level) { 
+    to_vector(obs_beta_1ord_raw) ~ std_normal();
+    obs_beta_1ord_sd ~ normal(0, 0.125);
+  }
   
-  to_vector(stratum_beta_1ord_raw) ~ std_normal();
-  to_vector(cluster_beta_1ord_raw) ~ std_normal();
-  to_vector(obs_beta_1ord_raw) ~ std_normal();
+  if (use_cluster_level) {
+    to_vector(cluster_beta_1ord_raw) ~ std_normal();
+    cluster_beta_1ord_sd ~ normal(0, 0.25);
+  }
   
-  stratum_beta_1ord_sd ~ normal(0, 0.5);
-  cluster_beta_1ord_sd ~ normal(0, 0.25);
-  obs_beta_1ord_sd ~ normal(0, 0.125);
+  if (use_stratum_level) {
+    to_vector(stratum_beta_1ord_raw) ~ std_normal();
+    stratum_beta_1ord_sd ~ normal(0, 0.5);
+  }
   
   num_knows_1ord ~ binomial_logit(num_recognized, rows_dot_product(treatment_design_matrix, centered_obs_beta_1ord));
   
   hyper_beta_2ord[1] ~ normal(0, 2);
   hyper_beta_2ord[2:] ~ normal(0, 1);
   
-  to_vector(stratum_beta_2ord_raw) ~ std_normal();
-  to_vector(cluster_beta_2ord_raw) ~ std_normal();
-  to_vector(obs_beta_2ord_raw) ~ std_normal();
+  if (use_obs_level) { 
+    to_vector(obs_beta_2ord_raw) ~ std_normal();
+    obs_beta_2ord_sd ~ normal(0, 0.125);
+  }
   
-  stratum_beta_2ord_sd ~ normal(0, 0.5);
-  cluster_beta_2ord_sd ~ normal(0, 0.25);
-  obs_beta_2ord_sd ~ normal(0, 0.125);
+  if (use_cluster_level) {
+    to_vector(cluster_beta_2ord_raw) ~ std_normal();
+    cluster_beta_2ord_sd ~ normal(0, 0.25);
+  }
+  
+  if (use_stratum_level) {
+    to_vector(stratum_beta_2ord_raw) ~ std_normal();
+    stratum_beta_2ord_sd ~ normal(0, 0.5);
+  }
   
   num_knows_2ord ~ binomial_logit(num_recognized, rows_dot_product(treatment_design_matrix, centered_obs_beta_2ord));
 }
