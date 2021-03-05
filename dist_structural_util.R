@@ -668,16 +668,11 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
   
   ggplot_obj +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = 3, position = plot_pos) +
-                   # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
-                  # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
-                   # data = . %>% filter(fct_match(fit_type, "fit"))) + 
     
     geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
-               # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
-               # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     scale_color_manual("", 
                        values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
