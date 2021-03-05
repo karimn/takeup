@@ -14,14 +14,18 @@ library(magrittr)
 library(tidyverse)
 library(latex2exp)
 library(ggthemes)
+library(cmdstanr)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, cache = FALSE) 
 
+source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
 ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
+
+takeup_version <- 33
 ```
 
 Previously, we modeled the take-up probability as 
@@ -105,8 +109,8 @@ sim_int %>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r load-processed-results}
-# load(file.path("temp-data", str_interp("processed_dist_fit31.RData")))
-load(file.path("/tigress/kn6838/takeup", str_interp("processed_dist_fit33.RData")))
+# load(file.path("temp-data", str_glue("processed_dist_fit{takeup_version}.RData")))
+load(file.path("/tigress/kn6838/takeup", str_glue("processed_dist_fit{takeup_version}.RData")))
 
 dist_fit_data %<>% 
   mutate(model_color = c("black", "darkgrey"))
@@ -420,6 +424,38 @@ dist_fit_data %>%
   ) +
   facet_wrap(vars(assigned_treatment), labeller = as_labeller(str_to_title)) +
   theme(legend.position = "none") +
+  NULL
+```
+
+```{r}
+load(file.path("/tigress/kn6838/takeup", str_glue("dist_prior{takeup_version}.RData")))
+dist_prior <- read_rds(dist_fit$STRUCTURAL_LINEAR_U_SHOCKS)
+
+load(file.path("/tigress/kn6838/takeup", str_glue("dist_fit{takeup_version}.RData")))
+dist_fit <- read_rds(dist_fit$STRUCTURAL_LINEAR_U_SHOCKS)
+
+all_fit <- lst(
+  prior = dist_prior,
+  fit = dist_fit
+)
+```
+
+```{r, fig.height=1.8, fig.width=8}
+plot_pos <- position_dodge(width = 0.75)
+
+all_fit %>% 
+  map_dfr(~ .x$draws(c("beta_control", "beta_ink_effect", "beta_bracelet_effect", "wtp_value_utility")) %>% 
+            posterior::as_draws_df() %>% 
+            mutate(iter_id = .draw) %>% 
+            pivot_longer(!c(iter_id, .draw, .chain, .iteration), names_to = "param", values_to = "iter_value") %>% 
+            nest(iter_data = c(.chain, .iteration, .draw, iter_id, iter_value)), 
+          .id = "fit_type") %>% 
+  mutate(quant = map(iter_data, quantilize_est, iter_value, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95))) %>% 
+  unnest(quant) %>% 
+  ggplot(aes(y = param, group = fit_type)) +
+  geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = fit_type), alpha = 0.4, size = 3, position = plot_pos) +
+  geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = fit_type), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
+  geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = fit_type), size = 0.4, position = plot_pos) +
   NULL
 ```
 
