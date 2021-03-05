@@ -45,7 +45,9 @@ parameters {
   
   real v_mu;
   
-  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
+  // row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
+  real<lower = 0> base_mu_rep_raw;
+  row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
   vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
   // cholesky_factor_corr[num_treatment_shocks + 1] L_all_u_corr;
   
@@ -97,7 +99,7 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
-  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = mu_rep_raw;
+  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = base_mu_rep_raw * append_col(1, exp(mu_rep_effect));
   matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
@@ -158,9 +160,9 @@ transformed parameters {
  
   if (!suppress_reputation || use_dist_salience) { 
     if (use_restricted_mu) {
-      mu_rep[2] += mu_rep[1];
-      mu_rep[3] += mu_rep[1];
-      mu_rep[4] += mu_rep[1];
+      // mu_rep[2] += mu_rep[1];
+      // mu_rep[3] += mu_rep[1];
+      // mu_rep[4] += mu_rep[1];
     }
     
     cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
@@ -350,9 +352,10 @@ model {
   dist_quadratic_beta_salience ~ normal(0, 1);
   
   v_mu ~ normal(0, 1);
+  base_mu_rep_raw ~ normal(0, mu_rep_sd);
   
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep_raw ~ normal(rep_vector(0, num_treatments), mu_rep_sd);
+    mu_rep_effect ~ normal(0, 1);
     
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);
