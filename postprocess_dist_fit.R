@@ -588,3 +588,4 @@ dist_fit_data %<>%
 
 save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
+cat(str_glue("Post processing completed [version {fit_version}]\n"))
