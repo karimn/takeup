@@ -3,8 +3,8 @@
 #SBATCH --job-name=takeup_postprocess    # create a short name for your job
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
-#SBATCH --cpus-per-task=4        # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem-per-cpu=8G         # memory per cpu-core (4G is default)
+#SBATCH --cpus-per-task=12       # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=10G        # memory per cpu-core (4G is default)
 #SBATCH --time=0-01:00:00        # maximum time needed (HH:MM:SS)
 #SBATCH --mail-type=begin        # send email when job begins
 #SBATCH --mail-type=end          # send email when job ends
@@ -36,10 +36,10 @@ else
   CORES=12
 fi
 
-Rscript ./run_stan_dist.R prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
+# Rscript ./run_stan_dist.R prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
 # ./run_stan_dist.R fit --outputname=dist_fit${VERSION} ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
 # ./run_stan_dist.R cv --outputname=dist_kfold${VERSION} --folds=10 ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --update
-#Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES
+Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES
 
 # Simulation
 # ./run_stan_dist_sim.R ${CMDSTAN_ARGS} 
