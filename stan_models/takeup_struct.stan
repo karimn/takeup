@@ -3,13 +3,34 @@ functions {
 }
 
 data {
-  
 #include takeup_data_sec.stan
 #include wtp_data.stan
+
+  int MIN_COST_MODEL_TYPE_VALUE;
+  int MAX_COST_MODEL_TYPE_VALUE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_KAPPA;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_DISCRETE;
+  
+  int<lower = 1> num_v_mix;
 
   int<lower = 0, upper = 1> use_wtp_model;
   int<lower = 0, upper = 1> use_homoskedastic_shocks;
   int<lower = 0, upper = 1> use_restricted_mu;
+  
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> use_cost_model;
+  int<lower = 0, upper = 1> suppress_reputation;
+  int<lower = 0, upper = 1> use_u_in_delta;
+  
+  int<lower = 0, upper = 1> use_mu_cluster_effects;
+  int<lower = 0, upper = 1> use_mu_county_effects;
+  int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
+  int<lower = 0, upper = 1> use_param_dist_county_effects;
 }
 
 transformed data {
@@ -18,6 +39,38 @@ transformed data {
 #include takeup_transformed_data_define.stan
   
   int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
+  
+  int<lower = 0, upper = 1> use_dist_salience = in_array(use_cost_model, 
+                                                         { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE });
+  int<lower = 0, upper = 1> use_semiparam = in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_SEMIPARAM_SALIENCE }); 
+  
+  int num_treatments_param_kappa = use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA ? num_treatments : 0;
+  
+  int num_treatments_param = 0;
+  int num_treatments_param_quadratic = 0; 
+  int num_treatments_semiparam = 0;
+  
+  if (use_single_cost_model || in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, 
+                                                          COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, 
+                                                          COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
+    num_treatments_param = 1;
+  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_PARAM_LINEAR, COST_MODEL_TYPE_PARAM_QUADRATIC })) {
+    num_treatments_param = num_treatments;
+  } 
+  
+  if ((use_single_cost_model && use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC) || use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
+    num_treatments_param_quadratic = 1;
+  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_QUADRATIC })) {
+    num_treatments_param_quadratic = num_treatments;
+  } 
+  
+  if (use_semiparam) {
+    if (use_single_cost_model || use_cost_model == COST_MODEL_TYPE_SEMIPARAM_SALIENCE) {
+      num_treatments_semiparam = 1;
+    } else {
+      num_treatments_semiparam = num_treatments;
+    }
+  }
 }
 
 parameters {

@@ -2,28 +2,6 @@ for (grid_index in 1:num_grid_obs) {
   sim_grid_mu[grid_index] = rep_vector(0, 2);
 }
 
-if (use_single_cost_model || in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, 
-                                                        COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, 
-                                                        COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
-  num_treatments_param = 1;
-} else if (in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_PARAM_LINEAR, COST_MODEL_TYPE_PARAM_QUADRATIC })) {
-  num_treatments_param = num_treatments;
-} 
-
-if ((use_single_cost_model && use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC) || use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
-  num_treatments_param_quadratic = 1;
-} else if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_QUADRATIC })) {
-  num_treatments_param_quadratic = num_treatments;
-} 
-
-if (use_semiparam) {
-  if (use_single_cost_model || use_cost_model == COST_MODEL_TYPE_SEMIPARAM_SALIENCE) {
-    num_treatments_semiparam = 1;
-  } else {
-    num_treatments_semiparam = num_treatments;
-  }
-}
-
 if (num_excluded_obs > 0) {
   excluded_obs = which(obs_cluster_id, included_clusters, 0);
   excluded_monitored_obs = which(monitored_obs, excluded_obs, 1); 

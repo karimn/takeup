@@ -2,9 +2,11 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_stan_dist prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
-  run_stan_dist fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
-  run_stan_dist cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
+  
+  run_takeup.R beliefs fit [--no-save --chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path>]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
@@ -17,7 +19,8 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --force-iter --iter=100" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE) 
 ) 
 
 library(magrittr)
@@ -32,7 +35,7 @@ script_options %<>%
   modify_at(c("chains", "iter", "threads"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
 
-if (script_options$cmdstanr) {
+if (script_options$cmdstanr || script_options$beliefs) {
   library(cmdstanr)
 } else {
   library(rstan)
@@ -43,7 +46,18 @@ if (script_options$cmdstanr) {
 folds <- as.integer(script_options$folds %||% 10) # CV k-folds
 chains <- as.integer(script_options$chains) # Stan chains
 iter <- as.integer(script_options$iter) # Stan iterations
-output_name <- if (!is_null(script_options$outputname)) { script_options$outputname } else if (script_options$fit) { "dist_fit" } else { "dist_kfold" }
+output_name <- if (!is_null(script_options$outputname)) { 
+  script_options$outputname 
+} else if (script_options$takeup) { 
+  if (script_options$fit) { 
+    "dist_fit" 
+  } else { 
+    "dist_kfold" 
+  }
+} else if (script_options$beliefs) {
+  "beliefs"
+}
+
 output_file_name <- file.path(script_options$output_path, str_c(output_name, ".RData"))
 thin_by <- as.integer(script_options$thin)
 
@@ -76,7 +90,8 @@ nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-analysis_data <- monitored_nosms_data
+analysis_data <- monitored_nosms_data %>% 
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
 
 # Splines -----------------------------------------------------------------
 
@@ -618,9 +633,76 @@ wtp_stan_data <- analysis.data %>%
     sigma_wtp_df_student_t = 2.5
   )
 
+# Treatment Details -------------------------------------------------------
+
+treatment_formula <- ~ assigned_treatment * assigned_dist_group 
+
+cluster_treatment_map = distinct(analysis_data, assigned_treatment, assigned_dist_group) %>% 
+  arrange(assigned_dist_group, assigned_treatment) 
+
+treatment_map_design_matrix <- cluster_treatment_map %>%
+  modelr::model_matrix(treatment_formula)
+
+# Beliefs Data ------------------------------------------------------------
+
+analysis_data %<>% 
+  nest_join(
+    endline.know.table.data %>% 
+      filter(fct_match(know.table.type, "table.A")),
+    by = "KEY.individ", 
+    name = "knowledge_data"
+  ) %>% 
+  mutate(
+    map_dfr(knowledge_data, ~ {
+      tibble(
+        obs_know_person = sum(.x$num.recognized),
+        obs_know_person_prop = mean(.x$num.recognized),
+        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
+        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
+        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
+        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
+      )
+    }
+  ))
+
+beliefs_ate_pairs <- cluster_treatment_map %>% 
+  mutate(treatment_id = seq(n())) %>% {
+  bind_rows(
+    left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
+      filter(assigned_treatment != assigned_treatment_control) %>% 
+      select(treatment_id, treatment_id_control),
+    
+    left_join(., filter(., fct_match(assigned_dist_group, "close")), by = c("assigned_treatment"), suffix = c("", "_control")) %>% 
+      filter(assigned_dist_group != assigned_dist_group_control) %>% 
+      select(treatment_id, treatment_id_control),
+  )
+} %>%
+  arrange(treatment_id, treatment_id_control) 
+
 # Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
+  # Beliefs Model 
+  beliefs_use_stratum_level = TRUE,
+  beliefs_use_cluster_level = TRUE,
+  beliefs_use_obs_level = TRUE,
+  
+  know_table_A_sample_size = 10,
+  num_beliefs_obs = filter(analysis_data, obs_know_person > 0) %>% nrow(),
+  beliefs_obs_index = mutate(analysis_data, obs_index = seq(n())) %>% 
+    filter(obs_know_person > 0) %>% 
+    pull(obs_index),
+  
+  num_recognized = filter(analysis_data, obs_know_person > 0) %>% pull(obs_know_person),
+  num_knows_1ord = filter(analysis_data, obs_know_person > 0) %>% pull(knows_other_dewormed),
+  num_knows_2ord = filter(analysis_data, obs_know_person > 0) %>% pull(thinks_other_knows),
+  
+  beliefs_treatment_map_design_matrix = treatment_map_design_matrix,
+  
+  beliefs_ate_pairs,
+  num_beliefs_ate_pairs = nrow(beliefs_ate_pairs),
+  
+  # Take-up Model 
   num_obs = nrow(analysis_data),
   num_grid_obs = length(grid_dist),
   num_treatments,
@@ -643,8 +725,7 @@ stan_data <- lst(
     arrange(cluster_id) %>% 
     pull(standard_cluster.dist.to.pot),
   
-  cluster_treatment_map = distinct(analysis_data, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>% 
-    arrange(assigned_dist_group, assigned_treatment),
+  cluster_treatment_map,
   
   cluster_assigned_dist_group = distinct(analysis_data, cluster_id, dist.pot.group) %>% 
     arrange(cluster_id) %>% 
@@ -723,82 +804,146 @@ stan_data <- lst(
 
 # Stan Run ----------------------------------------------------------------
 
-models <- if (!is_null(script_options$models)) {
-  models_to_run <- script_options$models %>% 
-    map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(names(models), .x)) %>% 
-    unlist()
-  
-  models[models_to_run]
-} else {
-  models
-}
-
-if (script_options$fit || script_options$prior) {
-  dist_fit <- models %>% 
-    stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
-  
-  if (script_options$cmdstanr) {
-    dist_fit_obj <- dist_fit
+## Takeup ------------------------------------------------------------------
+if (script_options$takeup) {
+  models <- if (!is_null(script_options$models)) {
+    models_to_run <- script_options$models %>% 
+      map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(names(models), .x)) %>% 
+      unlist()
     
-    dist_fit %<>%
-      imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
-   
-    # BUG spaces in paths causing problems. Wait till it is fixed.
-    try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
-    
-    dist_fit_obj %>% 
-      iwalk(~ {
-        cat(.y, "Diagnosis ---------------------------------\n")
-        .x$cmdstan_diagnose()
-      })
+    models[models_to_run]
+  } else {
+    models
   }
   
-  if (script_options$update_output) {
-    new_dist_fit <- dist_fit
-  
-    dist_fit <- tryCatch({
-      old_data_env <- new.env()
-      load(output_file_name, envir = old_data_env)
-      
-      list_modify(old_data_env$dist_fit, !!!new_dist_fit)
-    }, error = function(e) dist_fit)  
-  }
-} else if (script_options$cv) {
-  dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
-  
-  if (script_options$cmdstanr) {
-    dist_kfold_obj <- dist_kfold
-    
-    dist_kfold %<>%
-      imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
-  }
-  
-  if (script_options$update_output) {
-    new_dist_kfold <- dist_kfold
-  
-    dist_kfold <- tryCatch({
-      old_data_env <- new.env()
-      load(output_file_name, envir = old_data_env)
-      
-      list_modify(old_data_env$dist_kfold, !!!new_dist_kfold)
-    })  
-  }
-}
-
-if (!script_options$no_save) {
   if (script_options$fit || script_options$prior) {
-    save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
+    dist_fit <- models %>% 
+      stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
     
     if (script_options$cmdstanr) {
-      walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
-    }  
+      dist_fit_obj <- dist_fit
+      
+      dist_fit %<>%
+        imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+     
+      # BUG spaces in paths causing problems. Wait till it is fixed.
+      try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
+      
+      dist_fit_obj %>% 
+        iwalk(~ {
+          cat(.y, "Diagnosis ---------------------------------\n")
+          .x$cmdstan_diagnose()
+        })
+    }
+    
+    if (script_options$update_output) {
+      new_dist_fit <- dist_fit
+    
+      dist_fit <- tryCatch({
+        old_data_env <- new.env()
+        load(output_file_name, envir = old_data_env)
+        
+        list_modify(old_data_env$dist_fit, !!!new_dist_fit)
+      }, error = function(e) dist_fit)  
+    }
   } else if (script_options$cv) {
-    save(dist_kfold, models, file = output_file_name)
+    dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
     
     if (script_options$cmdstanr) {
-      walk2(dist_kfold, dist_kfold_obj, ~ .y$save_object(.x))
-    }  
+      dist_kfold_obj <- dist_kfold
+      
+      dist_kfold %<>%
+        imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+    }
+    
+    if (script_options$update_output) {
+      new_dist_kfold <- dist_kfold
+    
+      dist_kfold <- tryCatch({
+        old_data_env <- new.env()
+        load(output_file_name, envir = old_data_env)
+        
+        list_modify(old_data_env$dist_kfold, !!!new_dist_kfold)
+      })  
+    }
   }
-}
+  
+  if (!script_options$no_save) {
+    if (script_options$fit || script_options$prior) {
+      save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
+      
+      if (script_options$cmdstanr) {
+        walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
+      }  
+    } else if (script_options$cv) {
+      save(dist_kfold, models, file = output_file_name)
+      
+      if (script_options$cmdstanr) {
+        walk2(dist_kfold, dist_kfold_obj, ~ .y$save_object(.x))
+      }  
+    }
+  }
+## Beliefs -----------------------------------------------------------------
+} else if (script_options$beliefs) {
+  beliefs_model <- cmdstan_model(file.path("stan_models", "secobeliefs.stan"), include_paths = script_options$include_paths)
+  
+  beliefs_fit <- beliefs_model$sample(
+    data = stan_data %>% discard(~ any(is.na(.x))),
+    chains = script_options$chains,
+    parallel_chains = script_options$chains,
+    iter_warmup = script_options$iter %/% 2,
+    iter_sampling = script_options$iter %/% 2,
+    adapt_delta = 0.9
+  )
+  
+  beliefs_fit$save_output_files(
+    dir = script_options$output_path,
+    basename = str_c(output_name, "_fit"), 
+    timestamp = FALSE, random = FALSE
+  )
 
+  beliefs_fit$save_object(file.path(script_options$output_path, str_c(output_name, "_fit.rds")))
+
+### Results -----------------------------------------------------------------
+
+  beliefs_results <- lst(
+    prob_knows = beliefs_fit$draws(c("prob_1ord", "prob_2ord")) %>% 
+      posterior::as_draws_df() %>% 
+      mutate(iter_id = .draw) %>% 
+      pivot_longer(-c(iter_id, .draw, .chain, .iteration)) %>% 
+      tidyr::extract(name, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+      group_by(ord, treatment_id) %>% 
+      summarize(
+        per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+        per_val = quantile(value, per),
+        .groups = "drop"
+      ) %>% 
+      ungroup() %>% 
+      pivot_wider(c(treatment_id, ord), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
+      right_join(mutate(cluster_treatment_map, treatment_id = seq(n())), ., by = "treatment_id") %>% 
+      arrange(ord),
+    
+    ate_knows = beliefs_fit$draws(c("ate_1ord", "ate_2ord")) %>% 
+      posterior::as_draws_df() %>% 
+      mutate(iter_id = .draw) %>% 
+      pivot_longer(-c(iter_id, .draw, .chain, .iteration)) %>% 
+      tidyr::extract(name, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+      group_by(ord, ate_pair_index) %>% 
+      summarize(
+        per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+        per_val = quantile(value, per),
+        .groups = "drop"
+      ) %>% 
+      ungroup() %>% 
+      pivot_wider(c(ord, ate_pair_index), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
+      right_join(mutate(beliefs_ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
+      right_join(mutate(cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id")) %>%
+      right_join(mutate(cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>%
+      select(-starts_with("treatment_id"), -ate_pair_index) %>% 
+      arrange(ord)
+  )
+  
+  write_rds(beliefs_results, file.path(script_options$output_path, str_c(output_name, "_results.rds")))
+}
+  
 cat(str_glue("All done. Saved results to output ID '{output_name}'\n\n"))

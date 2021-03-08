@@ -472,11 +472,11 @@ pos_dodge <- position_dodge(width = 0.3)
 
 first_plot <- beliefs_results$prob_knows %>% 
   filter(ord == 1) %>% 
-  ggplot(aes(y = assigned.treatment, group = dist.pot.group)) +
-  geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = dist.pot.group), position = pos_dodge, size = 0.4) +
-  geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = dist.pot.group), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
-  geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = dist.pot.group), position = pos_dodge, alpha = 0.4, size = 2.5) +
-  geom_point(aes(x = per_0.5, color = dist.pot.group), position = pos_dodge, size = 1.8) +
+  ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+  geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+  geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
+  geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+  geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
   geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
   scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
   labs(
@@ -496,13 +496,13 @@ cowplot::plot_grid(
       NULL,
     
     beliefs_results$ate_knows %>% 
-      filter(ord == 1, dist.pot.group_left == dist.pot.group_right) %>% 
-      ggplot(aes(y = assigned.treatment_left, group = dist.pot.group_left)) +
+      filter(ord == 1, assigned_dist_group_left == assigned_dist_group_right) %>% 
+      ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
       geom_vline(xintercept = 0, linetype = "dotted") +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = dist.pot.group_left), position = pos_dodge, size = 0.3) +
-      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = dist.pot.group_left), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
-      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = dist.pot.group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
-      geom_point(aes(x = per_0.5, color = dist.pot.group_left), position = pos_dodge, size = 1.8) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+      geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
       geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
       scale_y_discrete(drop = FALSE) +
       scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
@@ -518,11 +518,11 @@ cowplot::plot_grid(
     
     beliefs_results$prob_knows %>% 
       filter(ord == 2) %>% 
-      ggplot(aes(y = assigned.treatment, group = dist.pot.group)) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = dist.pot.group), position = pos_dodge, size = 0.4) +
-      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = dist.pot.group), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
-      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = dist.pot.group), position = pos_dodge, alpha = 0.4, size = 2.5) +
-      geom_point(aes(x = per_0.5, color = dist.pot.group), position = pos_dodge, size = 1.8) +
+      ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+      geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
       geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
       scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
       labs(
@@ -535,13 +535,13 @@ cowplot::plot_grid(
       NULL,
     
     beliefs_results$ate_knows %>% 
-      filter(ord == 2, dist.pot.group_left == dist.pot.group_right) %>% 
-      ggplot(aes(y = assigned.treatment_left, group = dist.pot.group_left)) +
+      filter(ord == 2, assigned_dist_group_left == assigned_dist_group_right) %>% 
+      ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
       geom_vline(xintercept = 0, linetype = "dotted") +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = dist.pot.group_left), position = pos_dodge, size = 0.3) +
-      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = dist.pot.group_left), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
-      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = dist.pot.group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
-      geom_point(aes(x = per_0.5, color = dist.pot.group_left), position = pos_dodge, size = 1.8) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = 0.2) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+      geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
       geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
       scale_y_discrete(drop = FALSE) +
       scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
