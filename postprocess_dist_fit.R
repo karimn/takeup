@@ -20,7 +20,7 @@ Options:
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "34 --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "36 --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
  
 )
 
@@ -415,7 +415,8 @@ dist_fit_data %<>%
     
     y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
                                 mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
-  ) 
+  ) %>% 
+  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, structural_cluster_benefit))
 
 ## Combine models using stacking -------------------------------------------
 
