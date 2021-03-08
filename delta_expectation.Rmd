@@ -25,7 +25,7 @@ ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
-takeup_version <- 33
+takeup_version <- 36
 ```
 
 Previously, we modeled the take-up probability as 
@@ -199,6 +199,7 @@ dist_fit_data %>%
     )
   } 
 ```
+
 ```{r, fig.width=8, fig.height=10}
 dist_fit_data %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
@@ -423,6 +424,7 @@ dist_fit_data %>%
     x = ""
   ) +
   facet_wrap(vars(assigned_treatment), labeller = as_labeller(str_to_title)) +
+  coord_cartesian(xlim = c(0, 5)) +
   theme(legend.position = "none") +
   NULL
 ```
