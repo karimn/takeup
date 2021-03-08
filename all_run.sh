@@ -13,7 +13,7 @@
 #SBATCH --error=temp/log/takeup_postprocess-%j.log
 #SBATCH --export=IN_SLURM=1
 
-VERSION=33
+VERSION=36
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
 MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
