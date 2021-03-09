@@ -19,7 +19,9 @@ if (beliefs_use_stratum_level) {
   stratum_beta_1ord_sd ~ normal(0, 0.5);
 }
 
-num_knows_1ord ~ binomial_logit(num_recognized, rows_dot_product(beliefs_treatment_design_matrix, centered_obs_beta_1ord));
+if (fit_beliefs_model_to_data) {
+  num_knows_1ord ~ binomial_logit(num_recognized, rows_dot_product(beliefs_treatment_design_matrix, centered_obs_beta_1ord));
+}
 
 hyper_beta_2ord[1] ~ normal(0, 2);
 hyper_beta_2ord[2:] ~ normal(0, 1);
@@ -39,4 +41,6 @@ if (beliefs_use_stratum_level) {
   stratum_beta_2ord_sd ~ normal(0, 0.5);
 }
 
-num_knows_2ord ~ binomial_logit(num_recognized, rows_dot_product(beliefs_treatment_design_matrix, centered_obs_beta_2ord));
+if (fit_beliefs_model_to_data) {
+  num_knows_2ord ~ binomial_logit(num_recognized, rows_dot_product(beliefs_treatment_design_matrix, centered_obs_beta_2ord));
+}

@@ -1,3 +1,5 @@
+int<lower = 0, upper = 1> fit_beliefs_model_to_data;
+
 int<lower = 0, upper = 1> beliefs_use_obs_level;
 int<lower = 0, upper = 1> beliefs_use_cluster_level;
 int<lower = 0, upper = 1> beliefs_use_stratum_level;
