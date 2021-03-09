@@ -2,9 +2,11 @@ functions {
 #include takeup_functions.stan
 }
 
+
 data {
 #include takeup_data_sec.stan
 #include wtp_data.stan
+#include beliefs_data_sec.stan
 
   int MIN_COST_MODEL_TYPE_VALUE;
   int MAX_COST_MODEL_TYPE_VALUE;
@@ -36,6 +38,8 @@ data {
 transformed data {
 #include wtp_transformed_data.stan
 #include takeup_transformed_data_declare.stan
+#include beliefs_transformed_data_declare.stan
+
 #include takeup_transformed_data_define.stan
   
   int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
@@ -75,6 +79,7 @@ transformed data {
 
 parameters {
 #include wtp_parameters.stan
+#include beliefs_parameters_sec.stan
   
   // Levels: control ink calendar bracelet
   real beta_control;
@@ -144,6 +149,7 @@ parameters {
 
 transformed parameters {
 #include wtp_transformed_parameters.stan
+#include beliefs_transformed_parameters_declare.stan
   
   vector[num_dist_group_treatments] beta;
   
@@ -170,6 +176,8 @@ transformed parameters {
   
   vector<lower = 0>[num_treatments] u_sd;
   vector<lower = 0>[num_treatments] total_error_sd;
+  
+#include beliefs_transformed_parameters_define.stan
   
   if (use_homoskedastic_shocks) {
     u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
@@ -391,6 +399,7 @@ transformed parameters {
 
 model {
 #include wtp_model_section.stan
+#include beliefs_model_sec.stan
   
   wtp_value_utility ~ normal(0, 0.1);
 
@@ -518,6 +527,7 @@ model {
 }
 
 generated quantities {
+#include beliefs_generated_quantities_declare.stan
   matrix[num_clusters, num_dist_group_treatments] structural_cluster_benefit = 
         rep_matrix(structural_treatment_effect', num_clusters) + 
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix';
@@ -537,6 +547,8 @@ generated quantities {
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
   
 #include wtp_generated_quantities.stan
+
+#include beliefs_generated_quantities_define.stan
     
   {
     int treatment_cluster_pos = 1;
