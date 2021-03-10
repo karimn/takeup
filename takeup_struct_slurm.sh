@@ -18,7 +18,7 @@ if [ -z ${IN_SLURM} ]; then
   module load rh/devtoolset/8 gdal
 fi
 
-VERSION=36
+VERSION=37
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
 MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
@@ -28,5 +28,5 @@ Rscript run_stan_dist.R fit   --sequential --chains=4 --threads=24 --outputname=
 
 wait
 
-Rscript postprocess_dist_fit.R ${VERSION} --cores=${SLURM_CPUS_PER_TASK} --input-path=${SLURM_INOUT_DIR} --output-path=${SLURM_INOUT_DIR}
+Rscript postprocess_dist_fit.R ${VERSION} --cores=48 --input-path=${SLURM_INOUT_DIR} --output-path=${SLURM_INOUT_DIR}
 
