@@ -23,8 +23,8 @@ CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
 MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
 
-Rscript run_stan_dist.R prior --sequential --chains=4              --outputname=dist_prior${VERSION} ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update &
-Rscript run_stan_dist.R fit   --sequential --chains=4 --threads=24 --outputname=dist_fit${VERSION}   ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update &
+Rscript run_takeup.R takeup prior --sequential --chains=4              --outputname=dist_prior${VERSION} ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update &
+Rscript run_takeup.R takeup fit   --sequential --chains=4 --threads=24 --outputname=dist_fit${VERSION}   ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update &
 
 wait
 
