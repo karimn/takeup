@@ -101,11 +101,10 @@ parameters {
   
   // Reputational Returns
   
-  real v_mu;
-  
-  // row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
   real<lower = 0> base_mu_rep_raw;
-  row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
+  real<lower = 0> mu_beliefs_effect;
+  // row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
+  // row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
   vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
   // cholesky_factor_corr[num_treatment_shocks + 1] L_all_u_corr;
   
@@ -158,8 +157,11 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
-  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = base_mu_rep_raw * append_col(1, exp(mu_rep_effect));
-  matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
+  row_vector[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments - 1] mu_rep_effect;
+  // row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = base_mu_rep_raw * append_col(1, exp(mu_rep_effect));
+  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments] mu_rep;
+  // matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
+  matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_dist_group_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
   row_vector<lower = 0, upper = 1>[fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
@@ -226,23 +228,28 @@ transformed parameters {
       // mu_rep[4] += mu_rep[1];
     }
     
+    mu_rep_effect = (hyper_beta_1ord * beliefs_treatment_map_design_matrix') * mu_beliefs_effect; // BUGBUG only using hyper for now
+    mu_rep = base_mu_rep_raw * append_col(1, exp(mu_rep_effect));
+    
     cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     
     if (use_mu_cluster_effects) {
-      matrix[num_clusters, num_treatments] mu_cluster_effects =  mu_cluster_effects_raw .* rep_matrix(mu_cluster_effects_sd, num_clusters);
+      // I shouldn't be using this anymore since we're using beliefs 
       
-      cluster_mu_rep = cluster_mu_rep .* exp(mu_cluster_effects);
+      // matrix[num_clusters, num_treatments] mu_cluster_effects =  mu_cluster_effects_raw .* rep_matrix(mu_cluster_effects_sd, num_clusters);
+      // 
+      // cluster_mu_rep = cluster_mu_rep .* exp(mu_cluster_effects);
     }
     
     if (use_mu_county_effects) {
-      matrix[num_counties, num_treatments] mu_county_effects =  mu_county_effects_raw .* rep_matrix(mu_county_effects_sd, num_counties);
-      
-      cluster_mu_rep = cluster_mu_rep .* exp(mu_county_effects[cluster_county_id]);
+      // matrix[num_counties, num_treatments] mu_county_effects =  mu_county_effects_raw .* rep_matrix(mu_county_effects_sd, num_counties);
+      // 
+      // cluster_mu_rep = cluster_mu_rep .* exp(mu_county_effects[cluster_county_id]);
     } 
   }
   
   if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
-    linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments) + dist_beta_salience * append_col(mu_rep, mu_rep)';
+    linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments) + dist_beta_salience * mu_rep';  // append_col(mu_rep, mu_rep)';
     
     if (use_param_dist_cluster_effects) {
       cluster_linear_dist_cost += rep_matrix(dist_beta_cluster_raw[, 1] * dist_beta_cluster_sd[1], num_dist_group_treatments);
@@ -253,7 +260,7 @@ transformed parameters {
     }
     
     if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
-      quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_dist_group_treatments) + dist_quadratic_beta_salience * append_col(mu_rep, mu_rep)';
+      quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_dist_group_treatments) + dist_quadratic_beta_salience * mu_rep'; // append_col(mu_rep, mu_rep)';
       
       if (use_param_dist_cluster_effects) {
         // TODO
@@ -317,7 +324,7 @@ transformed parameters {
   if (use_semiparam) {
     for (treatment_index in 1:num_treatments_semiparam) {
       if (use_dist_salience) {
-        u_splines_v[treatment_index] = u_splines_v_raw[1] * u_splines_v_sigma * mu_rep[treatment_index];
+        u_splines_v[treatment_index] = u_splines_v_raw[1] * u_splines_v_sigma * mu_rep[treatment_index]; // BUGBUG This shouldn't work anymore
       } else {
         u_splines_v[treatment_index] = u_splines_v_raw[treatment_index] * u_splines_v_sigma;
       }
@@ -367,7 +374,7 @@ transformed parameters {
       if (multithreaded) {
         structural_cluster_obs_v = map_find_fixedpoint_solution(
           structural_cluster_benefit_cost, 
-          to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
+          to_vector(cluster_mu_rep)[long_cluster_by_treatment_index],
           total_error_sd[cluster_treatment],
           u_sd[cluster_treatment],
           
@@ -380,7 +387,8 @@ transformed parameters {
         for (cluster_index in 1:num_clusters) {
           structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
             structural_cluster_benefit_cost[cluster_index],
-            cluster_mu_rep[cluster_index, cluster_treatment[cluster_index]],
+            // cluster_mu_rep[cluster_index, cluster_treatment[cluster_index]],
+            cluster_mu_rep[cluster_index, cluster_assigned_dist_group_treatment[cluster_index]],
             total_error_sd[cluster_treatment[cluster_index]],
             u_sd[cluster_treatment[cluster_index]],
 
@@ -413,11 +421,11 @@ model {
   dist_beta_salience ~ normal(0, 1);
   dist_quadratic_beta_salience ~ normal(0, 1);
   
-  v_mu ~ normal(0, 1);
   base_mu_rep_raw ~ normal(0, mu_rep_sd);
+  mu_beliefs_effect ~ normal(0, 1);
   
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep_effect ~ normal(0, 1);
+    // mu_rep_effect ~ normal(0, 1);
     
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);
@@ -572,7 +580,8 @@ generated quantities {
         for (mu_treatment_index in 1:num_treatments) {
           cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
             cluster_cf_benefit_cost[treatment_index, cluster_index],
-            cluster_mu_rep[cluster_index, mu_treatment_index],
+            // This is a big of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
+            cluster_mu_rep[cluster_index, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
             total_error_sd[curr_assigned_treatment],
             u_sd[curr_assigned_treatment],
             
@@ -746,7 +755,7 @@ generated quantities {
         
       cluster_rep_cutoff[cluster_index] = find_fixedpoint_solution(
           cluster_rep_benefit_cost[cluster_index],
-          cluster_mu_rep[cluster_index, curr_assigned_treatment],
+          cluster_mu_rep[cluster_index, cluster_assigned_dist_group_treatment[cluster_index]],
           total_error_sd[curr_assigned_treatment],
           u_sd[curr_assigned_treatment],
           
