@@ -33,6 +33,9 @@ data {
   int<lower = 0, upper = 1> use_mu_county_effects;
   int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
   int<lower = 0, upper = 1> use_param_dist_county_effects;
+  
+  real<lower = 0> mu_rep_sd;
+  real<lower = 0> mu_beliefs_effects_sd;
 }
 
 transformed data {
@@ -101,7 +104,7 @@ parameters {
   
   // Reputational Returns
   
-  real<lower = 0> base_mu_rep_raw;
+  real<lower = 0> base_mu_rep;
   real<lower = 0> mu_beliefs_effect;
   // row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
   // row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
@@ -228,8 +231,8 @@ transformed parameters {
       // mu_rep[4] += mu_rep[1];
     }
     
-    mu_rep_effect = (hyper_beta_1ord * beliefs_treatment_map_design_matrix') * mu_beliefs_effect; // BUGBUG only using hyper for now
-    mu_rep = base_mu_rep_raw * append_col(1, exp(mu_rep_effect));
+    mu_rep_effect = (hyper_beta_1ord[2:] * beliefs_treatment_map_design_matrix[2:, 2:]') * mu_beliefs_effect; // BUGBUG only using hyper for now
+    mu_rep = base_mu_rep * append_col(1, exp(mu_rep_effect));
     
     cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     
@@ -421,8 +424,8 @@ model {
   dist_beta_salience ~ normal(0, 1);
   dist_quadratic_beta_salience ~ normal(0, 1);
   
-  base_mu_rep_raw ~ normal(0, mu_rep_sd);
-  mu_beliefs_effect ~ normal(0, 1);
+  base_mu_rep ~ normal(0, mu_rep_sd);
+  mu_beliefs_effect ~ normal(0, mu_beliefs_effects_sd);
   
   if (!suppress_reputation || use_dist_salience) { 
     // mu_rep_effect ~ normal(0, 1);
@@ -544,7 +547,8 @@ generated quantities {
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   
-  matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
+  // matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
+  vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments, num_treatments]; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   vector[generate_rep ? num_clusters : 0] cluster_rep_cutoff; 
@@ -576,20 +580,37 @@ generated quantities {
                                                                  
       cluster_cf_benefit_cost[treatment_index] = structural_cluster_benefit[, treatment_index] - treatment_dist_cost;
       
-      for (cluster_index in 1:num_clusters) {
+      if (multithreaded) {
         for (mu_treatment_index in 1:num_treatments) {
-          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
-            cluster_cf_benefit_cost[treatment_index, cluster_index],
+          cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
+            cluster_cf_benefit_cost[treatment_index],
             // This is a big of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
-            cluster_mu_rep[cluster_index, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
-            total_error_sd[curr_assigned_treatment],
-            u_sd[curr_assigned_treatment],
+            cluster_mu_rep[, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
+            rep_vector(total_error_sd[curr_assigned_treatment], num_clusters),
+            rep_vector(u_sd[curr_assigned_treatment], num_clusters),
             
             use_u_in_delta, 
             alg_sol_rel_tol, 
             alg_sol_f_tol, 
             alg_sol_max_steps
-          ); 
+          );
+        }
+      } else {
+        for (cluster_index in 1:num_clusters) {
+          for (mu_treatment_index in 1:num_treatments) {
+            cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
+              cluster_cf_benefit_cost[treatment_index, cluster_index],
+              // This is a big of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
+              cluster_mu_rep[cluster_index, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
+              total_error_sd[curr_assigned_treatment],
+              u_sd[curr_assigned_treatment],
+              
+              use_u_in_delta, 
+              alg_sol_rel_tol, 
+              alg_sol_f_tol, 
+              alg_sol_max_steps
+            ); 
+          }
         }
       }
     }
@@ -767,3 +788,4 @@ generated quantities {
     }
   }
 }
+
