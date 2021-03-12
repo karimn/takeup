@@ -6,7 +6,8 @@ script_options <- docopt::docopt(
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   
-  run_takeup.R beliefs fit [--no-save --chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path>]
+  run_takeup.R beliefs prior [--no-save --chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs fit [--no-save --chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
@@ -19,8 +20,9 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE) 
+  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
+  
 ) 
 
 library(magrittr)
@@ -224,7 +226,8 @@ models <- lst(
     alg_sol_rel_tol = 0.0000001,
 
     # Priors
-    mu_rep_sd = c(1.5, rep(1, num_treatments - 1)), # The first is control
+    mu_rep_sd = 1.0,
+    mu_beliefs_effects_sd = 1.0,
     structural_beta_county_sd_sd = 0.25,
     structural_beta_cluster_sd_sd = 0.25,
 
@@ -683,9 +686,9 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
 
 stan_data <- lst(
   # Beliefs Model 
-  beliefs_use_stratum_level = TRUE,
-  beliefs_use_cluster_level = TRUE,
-  beliefs_use_obs_level = TRUE,
+  beliefs_use_stratum_level = script_options$multilevel,
+  beliefs_use_cluster_level = script_options$multilevel,
+  beliefs_use_obs_level = script_options$multilevel,
   
   know_table_A_sample_size = 10,
   num_beliefs_obs = filter(analysis_data, obs_know_person > 0) %>% nrow(),
@@ -786,7 +789,6 @@ stan_data <- lst(
   # Priors
   
   u_splines_v_sigma_sd = 1,
-  mu_rep_sd = 1,
   
   dist_beta_v_sd = 0.25,
   
@@ -875,13 +877,13 @@ if (script_options$takeup) {
       save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
       
       if (script_options$cmdstanr) {
-        walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
+        # walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
       }  
     } else if (script_options$cv) {
       save(dist_kfold, models, file = output_file_name)
       
       if (script_options$cmdstanr) {
-        walk2(dist_kfold, dist_kfold_obj, ~ .y$save_object(.x))
+        # walk2(dist_kfold, dist_kfold_obj, ~ .y$save_object(.x))
       }  
     }
   }
@@ -907,43 +909,13 @@ if (script_options$takeup) {
   beliefs_fit$save_object(file.path(script_options$output_path, str_c(output_name, "_fit.rds")))
 
 ### Results -----------------------------------------------------------------
-
-  beliefs_results <- lst(
-    prob_knows = beliefs_fit$draws(c("prob_1ord", "prob_2ord")) %>% 
-      posterior::as_draws_df() %>% 
-      mutate(iter_id = .draw) %>% 
-      pivot_longer(-c(iter_id, .draw, .chain, .iteration)) %>% 
-      tidyr::extract(name, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
-      group_by(ord, treatment_id) %>% 
-      summarize(
-        per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
-        per_val = quantile(value, per),
-        .groups = "drop"
-      ) %>% 
-      ungroup() %>% 
-      pivot_wider(c(treatment_id, ord), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
-      right_join(mutate(cluster_treatment_map, treatment_id = seq(n())), ., by = "treatment_id") %>% 
-      arrange(ord),
-    
-    ate_knows = beliefs_fit$draws(c("ate_1ord", "ate_2ord")) %>% 
-      posterior::as_draws_df() %>% 
-      mutate(iter_id = .draw) %>% 
-      pivot_longer(-c(iter_id, .draw, .chain, .iteration)) %>% 
-      tidyr::extract(name, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
-      group_by(ord, ate_pair_index) %>% 
-      summarize(
-        per = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
-        per_val = quantile(value, per),
-        .groups = "drop"
-      ) %>% 
-      ungroup() %>% 
-      pivot_wider(c(ord, ate_pair_index), names_from = per, values_from = per_val, names_prefix = "per_") %>% 
-      right_join(mutate(beliefs_ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
-      right_join(mutate(cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id")) %>%
-      right_join(mutate(cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>%
-      select(-starts_with("treatment_id"), -ate_pair_index) %>% 
-      arrange(ord)
-  )
+  
+  beliefs_results <- beliefs_fit$draws(c("prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord")) %>% 
+    posterior::as_draws_df() %>% 
+    mutate(iter_id = .draw) %>% 
+    pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+    nest(iter_data = !variable) %>% 
+    get_beliefs_results(stan_data)
   
   write_rds(beliefs_results, file.path(script_options$output_path, str_c(output_name, "_results.rds")))
 }
