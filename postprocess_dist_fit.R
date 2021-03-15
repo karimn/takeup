@@ -21,7 +21,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "37 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "38 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -77,6 +77,7 @@ analysis_data <- monitored_nosms_data
 param_used <- c(
   "total_error_sd", "u_sd", "mu_rep", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix",
+  "prob_prefer_calendar", "strata_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
 
@@ -93,28 +94,6 @@ load_fit <- function(fit_file) {
     read_rds(file.path(script_options$input_path, basename(fit_file)))
   }
 }
-
-# Stan fit 
-if (script_options$full_outputname) {
-  load(file.path(script_options$input_path, str_interp("${fit_version}.RData")))
-} else {
-  load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
-}
-
-dist_fit %<>% 
-  map_if(is.character, load_fit) 
-
-if (has_name(dist_fit, "value")) {
-  dist_fit_warnings <- dist_fit$warning
-  dist_fit %<>% 
-    list_modify(!!!.$value, value = NULL, warning = NULL)
-}
-
-# Convert to tibble with list column of fit objects
-dist_fit_data <- enframe(dist_fit, name = "model", value = "fit") %>% 
-  mutate(stan_data = list(stan_data))
-
-rm(dist_fit, stan_data)
 
 # Metadata on the models fit
 model_info <- tribble(
@@ -134,6 +113,33 @@ model_info <- tribble(
   "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
+
+# Stan fit 
+dist_fit_data <- tryCatch({
+  if (script_options$full_outputname) {
+    load(file.path(script_options$input_path, str_interp("${fit_version}.RData")))
+  } else {
+    load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
+  }
+  
+  dist_fit %<>% 
+    map_if(is.character, load_fit) 
+
+  if (has_name(dist_fit, "value")) {
+    dist_fit_warnings <- dist_fit$warning
+    dist_fit %<>% 
+      list_modify(!!!.$value, value = NULL, warning = NULL)
+  }
+
+  # Convert to tibble with list column of fit objects
+  dist_fit_data <- enframe(dist_fit, name = "model", value = "fit") %>% 
+    mutate(stan_data = list(stan_data))
+  
+  rm(dist_fit, stan_data)
+  
+  dist_fit_data
+}, error = function(err) NULL)
+
 
 # Prior predicted fit for same models
 dist_fit_data <- tryCatch({
@@ -414,29 +420,31 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 group_dist_param <- dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), !is_null(fit), fct_match(model_type, "structural")) %>% 
   slice(1) %>% {
-    dist_levels <- levels(pluck(., "stan_data", 1, "cluster_treatment_map", 2))
-    
-    temp_res <- if (is(.$fit[[1]], "stanfit")) {
-      as.data.frame(.$fit[[1]], pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-        sample_n(min(nrow(.), 1500)) %>% 
-        mutate(iter_id = seq(n())) %>% 
-        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
-    } else if (is_tibble(.$fit[[1]])) {
-      filter(.$fit[[1]], str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
-        unnest(iter_data) %>% 
-        filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
-        tidyr::extract(variable, c("assigned_dist_group", "mix_index"), r"{\[(\d),(\d)}", convert = TRUE)
-        
-    } else {
-      .$fit[[1]]$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-        posterior::as_draws_df() %>% 
-        sample_n(min(nrow(.), 1500)) %>% 
-        mutate(iter_id = seq(n())) %>% 
-        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    if (nrow(.) > 0) {
+      dist_levels <- levels(pluck(., "stan_data", 1, "cluster_treatment_map", 2))
+      
+      temp_res <- if (is(.$fit[[1]], "stanfit")) {
+        as.data.frame(.$fit[[1]], pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+          sample_n(min(nrow(.), 1500)) %>% 
+          mutate(iter_id = seq(n())) %>% 
+          pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+      } else if (is_tibble(.$fit[[1]])) {
+        filter(.$fit[[1]], str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
+          unnest(iter_data) %>% 
+          filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
+          tidyr::extract(variable, c("assigned_dist_group", "mix_index"), r"{\[(\d),(\d)}", convert = TRUE)
+          
+      } else {
+        .$fit[[1]]$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+          posterior::as_draws_df() %>% 
+          sample_n(min(nrow(.), 1500)) %>% 
+          mutate(iter_id = seq(n())) %>% 
+          pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+      }
+      
+      temp_res %>% 
+        mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
     }
-    
-    temp_res %>% 
-      mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
   } 
 
 dist_fit_data %<>% 
@@ -455,7 +463,8 @@ dist_fit_data %<>%
              organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
     
-    beliefs_results = map2(fit, stan_data, get_beliefs_results)
+    beliefs_results = map2(fit, stan_data, get_beliefs_results),
+    wtp_results = map(fit, get_wtp_results) 
   )
 
 if (!script_options$no_rate_of_change) {
