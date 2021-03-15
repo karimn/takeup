@@ -227,7 +227,13 @@ models <- lst(
 
     # Priors
     mu_rep_sd = 1.0,
-    mu_beliefs_effects_sd = 1.0,
+    mu_beliefs_effects_sd = 1.5,
+   
+    beta_control_sd = 1,
+    beta_ink_effect_sd = 0.25,
+    beta_calendar_effect_sd = 0.25,
+    beta_bracelet_effect_sd = 0.25,
+    
     structural_beta_county_sd_sd = 0.25,
     structural_beta_cluster_sd_sd = 0.25,
 
