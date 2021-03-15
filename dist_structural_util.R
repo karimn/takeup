@@ -720,6 +720,17 @@ plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model,
     NULL
 }
 
+get_wtp_results <- function(wtp_draws) {
+  wtp_draws %>% 
+    filter(str_detect(variable, r"{^(prob_prefer_calendar|strata_wtp_mu)\[}")) %>% 
+    tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+    mutate(
+      quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
+      mean_est = map_dbl(iter_data, ~ mean(.x$iter_value, na.rm = TRUE)),
+    ) %>% 
+    unnest(quants)
+}
+
 get_beliefs_results <- function(beliefs_draws, stan_data) {
   lst(
     prob_knows = beliefs_draws %>% 
