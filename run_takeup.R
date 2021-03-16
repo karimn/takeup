@@ -6,8 +6,10 @@ script_options <- docopt::docopt(
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
   
-  run_takeup.R beliefs prior [--no-save --chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
-  run_takeup.R beliefs fit [--no-save --chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  
+  run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
@@ -17,6 +19,7 @@ Options:
   --thin=<thin>  Thin samples [default: 1]
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
+  --num-mix-groups=<num>  Number of finite mixtures in distance model [default: 2]
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
@@ -34,10 +37,10 @@ library(splines2)
 library(loo)
 
 script_options %<>% 
-  modify_at(c("chains", "iter", "threads"), as.integer) %>% 
+  modify_at(c("chains", "iter", "threads", "num_mix_groups"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
 
-if (script_options$cmdstanr || script_options$beliefs) {
+if (script_options$cmdstanr || script_options$beliefs || script_options$dist) {
   library(cmdstanr)
 } else {
   library(rstan)
@@ -58,6 +61,8 @@ output_name <- if (!is_null(script_options$outputname)) {
   }
 } else if (script_options$beliefs) {
   "beliefs"
+} else if (script_options$dist) {
+  "dist"
 }
 
 output_file_name <- file.path(script_options$output_path, str_c(output_name, ".RData"))
@@ -753,6 +758,8 @@ stan_data <- lst(
   
   num_discrete_dist = 2,
   
+  num_dist_group_mix = script_options$num_mix_groups,
+  
   small_grid_dist = grid_dist[(seq_along(grid_dist) %% 100) == 0],
   num_small_grid_obs = length(small_grid_dist),
   
@@ -908,11 +915,11 @@ if (script_options$takeup) {
   
   beliefs_fit$save_output_files(
     dir = script_options$output_path,
-    basename = str_c(output_name, "_fit"), 
+    basename = str_c(output_name, if (script_options$fit) "_fit" else "_prior"), 
     timestamp = FALSE, random = FALSE
   )
 
-  beliefs_fit$save_object(file.path(script_options$output_path, str_c(output_name, "_fit.rds")))
+  beliefs_fit$save_object(file.path(script_options$output_path, str_c(output_name, if (script_options$fit) "_fit" else "_prior", ".rds")))
 
 ### Results -----------------------------------------------------------------
   
@@ -924,6 +931,27 @@ if (script_options$takeup) {
     get_beliefs_results(stan_data)
   
   write_rds(beliefs_results, file.path(script_options$output_path, str_c(output_name, "_results.rds")))
+
+## Distance ----------------------------------------------------------------
+} else if (script_options$dist) {
+  dist_model <- cmdstan_model(file.path("stan_models", "dist_model.stan"), include_paths = script_options$include_paths) 
+  
+  dist_fit <- dist_model$sample(
+    data = stan_data %>% discard(~ any(is.na(.x))),
+    chains = script_options$chains,
+    parallel_chains = script_options$chains,
+    iter_warmup = script_options$iter %/% 2,
+    iter_sampling = script_options$iter %/% 2,
+    adapt_delta = 0.9
+  )
+  
+  dist_fit$save_output_files(
+    dir = script_options$output_path,
+    basename = str_c(output_name, "_fit"), 
+    timestamp = FALSE, random = FALSE
+  )
+
+  dist_fit$save_object(file.path(script_options$output_path, str_c(output_name, "_fit.rds")))
 }
   
 cat(str_glue("All done. Saved results to output ID '{output_name}'\n\n"))

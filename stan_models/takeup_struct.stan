@@ -4,9 +4,11 @@ functions {
 
 
 data {
+#include base_data_sec.stan
 #include takeup_data_sec.stan
 #include wtp_data.stan
 #include beliefs_data_sec.stan
+#include dist_data_sec.stan
 
   int MIN_COST_MODEL_TYPE_VALUE;
   int MAX_COST_MODEL_TYPE_VALUE;
@@ -39,6 +41,7 @@ data {
 }
 
 transformed data {
+#include base_transformed_data_declare.stan 
 #include wtp_transformed_data.stan
 #include takeup_transformed_data_declare.stan
 #include beliefs_transformed_data_declare.stan
@@ -81,6 +84,7 @@ transformed data {
 }
 
 parameters {
+#include dist_parameters_sec.stan
 #include wtp_parameters.stan
 #include beliefs_parameters_sec.stan
   
@@ -106,10 +110,7 @@ parameters {
   
   real<lower = 0> base_mu_rep;
   real<lower = 0> mu_beliefs_effect;
-  // row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
-  // row_vector<lower = (use_restricted_mu ? 0 : negative_infinity())>[suppress_reputation && !use_dist_salience ? 0 : num_treatments - 1] mu_rep_effect;
   vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
-  // cholesky_factor_corr[num_treatment_shocks + 1] L_all_u_corr;
   
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
   row_vector<lower = 0>[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_cluster_effects_sd;
@@ -136,15 +137,6 @@ parameters {
   matrix[num_treatments_semiparam, num_knots_v] u_splines_v_raw;
   real<lower = 0> u_splines_v_sigma;
   
-  // Assigned Distance Model
-  
-  simplex[num_dist_group_mix] group_dist_mix[num_discrete_dist];
-  
-  ordered[num_dist_group_mix] group_dist_mean[num_discrete_dist];
-  vector<lower = 0>[num_dist_group_mix] group_dist_sd[num_discrete_dist];
-  
-  matrix<lower = 0>[num_clusters, num_discrete_dist - 1] missing_cluster_standard_dist; 
-  
   // WTP valuation parameters
   real<lower = 0> wtp_value_utility;
 }
@@ -161,9 +153,7 @@ transformed parameters {
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
   row_vector[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments - 1] mu_rep_effect;
-  // row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = base_mu_rep_raw * append_col(1, exp(mu_rep_effect));
   row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments] mu_rep;
-  // matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
   matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_dist_group_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
@@ -225,12 +215,6 @@ transformed parameters {
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
-    if (use_restricted_mu) {
-      // mu_rep[2] += mu_rep[1];
-      // mu_rep[3] += mu_rep[1];
-      // mu_rep[4] += mu_rep[1];
-    }
-    
     mu_rep_effect = (hyper_beta_1ord[2:] * beliefs_treatment_map_design_matrix[2:, 2:]') * mu_beliefs_effect; // BUGBUG only using hyper for now
     mu_rep = base_mu_rep * append_col(1, exp(mu_rep_effect));
     
@@ -411,6 +395,7 @@ transformed parameters {
 model {
 #include wtp_model_section.stan
 #include beliefs_model_sec.stan
+#include dist_model_sec.stan
   
   wtp_value_utility ~ normal(0, 0.1);
 
@@ -428,8 +413,6 @@ model {
   mu_beliefs_effect ~ normal(0, mu_beliefs_effects_sd);
   
   if (!suppress_reputation || use_dist_salience) { 
-    // mu_rep_effect ~ normal(0, 1);
-    
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);
       mu_cluster_effects_sd ~ normal(0, 0.05);
@@ -476,56 +459,6 @@ model {
   }
   
   raw_u_sd ~ normal(0, 1);
-  // L_all_u_corr ~ lkj_corr_cholesky(2);
-  
-  for (dist_group_index in 1:num_discrete_dist) { 
-    for (dist_group_mix_index in 1:num_dist_group_mix) {
-      group_dist_mean[dist_group_index, dist_group_mix_index] ~ normal(0, 1) T[0, ];
-    }
-    
-    group_dist_sd[dist_group_index] ~ normal(0, 1);
-  }
-  
-  // Distance Likelihood
-
-  for (cluster_index in 1:num_clusters) {
-    int dist_group_pos = 1;
-    int curr_assigned_dist_group = cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2];
-    
-    vector[num_dist_group_mix] group_dist_mix_lp;
-    
-    for (group_dist_mix_index in 1:num_dist_group_mix) {
-      group_dist_mix_lp[group_dist_mix_index] = 
-        normal_lpdf(cluster_standard_dist[cluster_index] | group_dist_mean[curr_assigned_dist_group, group_dist_mix_index], group_dist_sd[curr_assigned_dist_group, group_dist_mix_index])  
-        + normal_lccdf(0 | group_dist_mean[curr_assigned_dist_group, group_dist_mix_index], group_dist_sd[curr_assigned_dist_group, group_dist_mix_index]) +
-        + log(group_dist_mix[curr_assigned_dist_group, group_dist_mix_index]); 
-    }
-    
-    target += log_sum_exp(group_dist_mix_lp);
-    
-    for (dist_group_index in 1:num_discrete_dist) {
-      if (dist_group_index != curr_assigned_dist_group) {
-        
-        vector[num_dist_group_mix] missing_group_dist_mix_lp;
-        
-        for (group_dist_mix_index in 1:num_dist_group_mix) {
-          missing_group_dist_mix_lp[group_dist_mix_index] =
-            normal_lpdf(missing_cluster_standard_dist[cluster_index, dist_group_pos] | group_dist_mean[dist_group_index, group_dist_mix_index], group_dist_sd[dist_group_index, group_dist_mix_index]);
-            
-          if (missing_cluster_standard_dist[cluster_index, dist_group_pos] < 0) {
-            missing_group_dist_mix_lp[group_dist_mix_index] += negative_infinity();
-          } else {
-            missing_group_dist_mix_lp[group_dist_mix_index] += normal_lccdf(0 | group_dist_mean[dist_group_index, group_dist_mix_index], group_dist_sd[dist_group_index, group_dist_mix_index])
-              + log(group_dist_mix[dist_group_index, group_dist_mix_index]); 
-          }
-        }
-        
-        target += log_sum_exp(missing_group_dist_mix_lp);
-        
-        dist_group_pos += 1;
-      }
-    }
-  }
   
   if (fit_model_to_data) {
     // Take-up Likelihood 

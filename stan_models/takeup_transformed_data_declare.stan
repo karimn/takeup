@@ -1,5 +1,3 @@
-#include base_transformed_data_declare.stan 
-  
 matrix<lower = 0, upper = 1>[num_dist_group_treatments, num_dist_group_treatments] treatment_map_design_matrix = rep_matrix(0, num_dist_group_treatments, num_dist_group_treatments);
 matrix<lower = 0, upper = 1>[num_dist_group_treatments, num_dist_group_treatments] restricted_treatment_map_design_matrix;
 matrix<lower = 0, upper = 1>[num_clusters, num_dist_group_treatments] cluster_treatment_design_matrix = rep_matrix(0, num_clusters, num_dist_group_treatments);
@@ -37,5 +35,3 @@ int<lower = 1, upper = num_clusters * num_dist_group_treatments> long_cluster_by
   
 int<lower = 1, upper = num_clusters * num_treatments> long_cluster_by_incentive_treatment_index[num_clusters] =
   array_add(array_product(array_subtract(cluster_treatment_map[cluster_assigned_dist_group_treatment, 1], { 1 }), { num_clusters }), seq(1, num_clusters, 1));
-
-int<lower = 1> num_dist_group_mix = 2;

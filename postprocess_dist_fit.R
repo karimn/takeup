@@ -416,37 +416,6 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 
 # Postprocessing ----------------------------------------------------------
 
-# Posterior samples for assigned distance model
-group_dist_param <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), !is_null(fit), fct_match(model_type, "structural")) %>% 
-  slice(1) %>% {
-    if (nrow(.) > 0) {
-      dist_levels <- levels(pluck(., "stan_data", 1, "cluster_treatment_map", 2))
-      
-      temp_res <- if (is(.$fit[[1]], "stanfit")) {
-        as.data.frame(.$fit[[1]], pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-          sample_n(min(nrow(.), 1500)) %>% 
-          mutate(iter_id = seq(n())) %>% 
-          pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
-      } else if (is_tibble(.$fit[[1]])) {
-        filter(.$fit[[1]], str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
-          unnest(iter_data) %>% 
-          filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
-          tidyr::extract(variable, c("assigned_dist_group", "mix_index"), r"{\[(\d),(\d)}", convert = TRUE)
-          
-      } else {
-        .$fit[[1]]$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-          posterior::as_draws_df() %>% 
-          sample_n(min(nrow(.), 1500)) %>% 
-          mutate(iter_id = seq(n())) %>% 
-          pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
-      }
-      
-      temp_res %>% 
-        mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
-    }
-  } 
-
 dist_fit_data %<>% 
   mutate(
     total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
@@ -463,8 +432,9 @@ dist_fit_data %<>%
              organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
     
+    group_dist_param = pmap(lst(fit, stan_data, fit_type, model_type), get_dist_results),
     beliefs_results = map2(fit, stan_data, get_beliefs_results),
-    wtp_results = map(fit, get_wtp_results) 
+    wtp_results = map(fit, get_wtp_results),
   )
 
 if (!script_options$no_rate_of_change) {
@@ -638,12 +608,12 @@ dist_fit_data %<>%
   )
 
 
-save(dist_fit_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
+save(dist_fit_data, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
 
 dist_fit_data %<>% 
   mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), ~ select(.x, !iter_data)))
 
-save(dist_fit_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
+save(dist_fit_data, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
 plan(sequential)
 

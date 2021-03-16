@@ -1,5 +1,3 @@
-#include base_data_sec.stan
-
 // Multilevel Configuration 
 int<lower = 0, upper = 1> use_cluster_effects;
 int<lower = 0, upper = 1> use_county_effects;
@@ -26,7 +24,6 @@ int<lower = 1, upper = num_treatments> BRACELET_TREATMENT_INDEX;
 
 int<lower = 0, upper = 1> takeup[num_obs]; // Observed outcome variable
 int<lower = 0, upper = 1> is_name_matched[num_obs];
-vector[num_clusters] cluster_standard_dist; // Standardized distance to treatment
 
 // Reputation
 

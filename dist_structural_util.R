@@ -754,6 +754,33 @@ get_beliefs_results <- function(beliefs_draws, stan_data) {
   )
 }
 
+get_dist_results <- function(fit, stan_data, fit_type, model_type) {
+  if (!is_null(fit) && fct_match(model_type, "structural")) {
+    dist_levels <- levels(stan_data$cluster_treatment_map$assigned_dist_group) 
+    
+    temp_res <- if (is(fit, "stanfit")) {
+      as.data.frame(fit, pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        sample_n(min(nrow(.), 1500)) %>% 
+        mutate(iter_id = seq(n())) %>% 
+        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    } else if (is_tibble(fit)) {
+      filter(fit, str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
+        unnest(iter_data) %>% 
+        filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
+        tidyr::extract(variable, c("assigned_dist_group", "mix_index"), r"{\[(\d),(\d)}", convert = TRUE)
+    } else {
+      fit$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        posterior::as_draws_df() %>% 
+        sample_n(min(nrow(.), 1500)) %>% 
+        mutate(iter_id = seq(n())) %>% 
+        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    }
+    
+    temp_res %>% 
+      mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
+  }
+}
+
 # Constants ---------------------------------------------------------------
 
 cost_model_types <- create_stan_enum(c("param_kappa", "param_linear", "param_quadratic", "semiparam", 
