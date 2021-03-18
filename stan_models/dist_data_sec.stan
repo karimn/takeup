@@ -4,7 +4,7 @@ int<lower = 1> num_dist_group_mix;
 
 vector[num_clusters] cluster_standard_dist; // Standardized distance to treatment
 
-# Hyperparameters
+// Hyperparameters
 
 real hyper_dist_mean_mean;
 real<lower = 0> hyper_dist_mean_sd;
