@@ -167,8 +167,6 @@ transformed parameters {
   matrix[num_treatments, num_knots_v] u_splines_v = rep_matrix(0, num_treatments, num_knots_v);
   vector[num_clusters] cluster_dist_cost = rep_vector(0, num_clusters);
   
-  matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
-  
   vector<lower = 0>[num_treatments] u_sd;
   vector<lower = 0>[num_treatments] total_error_sd;
   
@@ -183,20 +181,6 @@ transformed parameters {
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
-  
-  for (cluster_index in 1:num_clusters) {
-    int dist_group_pos = 1;
-    
-    for (dist_group_index in 1:num_discrete_dist) {
-      if (cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2] == dist_group_index) {
-        cf_cluster_standard_dist[cluster_index, dist_group_index] = cluster_standard_dist[cluster_index];
-      } else {
-        cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_pos];
-        
-        dist_group_pos += 1;
-      }
-    }
-  }
   
   for (dist_index in 1:num_discrete_dist) {
     if (dist_index > 1) {
@@ -472,11 +456,15 @@ model {
 
 generated quantities {
 #include beliefs_generated_quantities_declare.stan
+#include dist_generated_quantities_declare.stan
+
   matrix[num_clusters, num_dist_group_treatments] structural_cluster_benefit = 
         rep_matrix(structural_treatment_effect', num_clusters) + 
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix';
   
   // matrix[num_treatment_shocks + 1, num_treatment_shocks + 1] all_u_corr = L_all_u_corr * L_all_u_corr';
+  
+  matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   
@@ -492,8 +480,23 @@ generated quantities {
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
   
 #include wtp_generated_quantities.stan
-
 #include beliefs_generated_quantities_define.stan
+#include dist_generated_quantities_define.stan
+
+  for (cluster_index in 1:num_clusters) {
+    // int dist_group_pos = 1;
+    
+    for (dist_group_index in 1:num_discrete_dist) {
+      if (cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2] == dist_group_index) {
+        cf_cluster_standard_dist[cluster_index, dist_group_index] = cluster_standard_dist[cluster_index];
+      } else {
+        cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_index];
+        // cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_pos];
+        
+        // dist_group_pos += 1;
+      }
+    }
+  }
     
   {
     int treatment_cluster_pos = 1;

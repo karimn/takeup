@@ -432,7 +432,7 @@ dist_fit_data %<>%
              organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
     
-    group_dist_param = pmap(lst(fit, stan_data, fit_type, model_type), get_dist_results),
+    group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
     beliefs_results = map2(fit, stan_data, get_beliefs_results),
     wtp_results = map(fit, get_wtp_results),
   )

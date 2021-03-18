@@ -9,6 +9,7 @@ script_options <- docopt::docopt(
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
   run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
   
+  run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   
 Options:
@@ -786,9 +787,11 @@ stan_data <- lst(
   generate_sim = FALSE,
   fit_model_to_data = !script_options$prior,
   fit_wtp_model_to_data = !script_options$prior,
+  fit_dist_model_to_data = !script_options$prior,
   cross_validate = script_options$cv,
   use_wtp_model = FALSE,
   use_homoskedastic_shocks = FALSE,
+  lognormal_dist_model = TRUE,
   
   thin = thin_by,
   
@@ -813,6 +816,10 @@ stan_data <- lst(
   
   structural_beta_county_sd_sd = 0.25,
   structural_beta_cluster_sd_sd = 0.25,
+ 
+  hyper_dist_mean_mean = 0.5, 
+  hyper_dist_mean_sd = 0.75,
+  hyper_dist_sd_sd = 0.25,
   
   analysis_data
 ) %>% 
@@ -942,7 +949,8 @@ if (script_options$takeup) {
     parallel_chains = script_options$chains,
     iter_warmup = script_options$iter %/% 2,
     iter_sampling = script_options$iter %/% 2,
-    adapt_delta = 0.9
+    adapt_delta = 0.95,
+    max_treedepth = 12
   )
   
   dist_fit$save_output_files(
@@ -951,7 +959,7 @@ if (script_options$takeup) {
     timestamp = FALSE, random = FALSE
   )
 
-  dist_fit$save_object(file.path(script_options$output_path, str_c(output_name, "_fit.rds")))
+  dist_fit$save_object(file.path(script_options$output_path, str_c(output_name, if (script_options$fit) "_fit" else "_prior", ".rds")))
 }
   
 cat(str_glue("All done. Saved results to output ID '{output_name}'\n\n"))
