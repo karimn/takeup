@@ -37,7 +37,9 @@ else
 fi
 
 # Distance
-Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist       --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1
+Rscript ./run_takeup.R dist prior --chains=4 --iter 800 --outputname=dist_model_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=2 &
+Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist_model_fit   --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=2
+wait
 
 # Beliefs
 # Rscript ./run_takeup.R beliefs prior --chains=4 --iter 1000 --outputname=beliefs_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models &
