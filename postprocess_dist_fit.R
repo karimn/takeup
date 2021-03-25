@@ -21,7 +21,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "38 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "39 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -81,17 +81,21 @@ param_used <- c(
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
 
-load_fit <- function(fit_file) {
-  if (script_options$load_from_csv) {
-    dir(script_options$input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
-      read_cmdstan_csv(variables = param_used) %>% 
+load_from_csv <- function(fit_file, input_path, param) {
+  dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
+      read_cmdstan_csv(variables = param) 
+}
+
+load_fit <- function(fit_file, input_path = script_options$input_path, load_from_csv = script_options$load_from_csv, param = param_used) {
+  if (load_from_csv) {
+    load_from_csv(fit_file, input_path, param) %>% 
       pluck("post_warmup_draws") %>% 
       posterior::as_draws_df() %>% 
       mutate(iter_id = .draw) %>% 
       pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
       nest(iter_data = !variable)
   } else {
-    read_rds(file.path(script_options$input_path, basename(fit_file)))
+    read_rds(file.path(input_path, basename(fit_file)))
   }
 }
 
@@ -139,7 +143,6 @@ dist_fit_data <- tryCatch({
   
   dist_fit_data
 }, error = function(err) NULL)
-
 
 # Prior predicted fit for same models
 dist_fit_data <- tryCatch({
