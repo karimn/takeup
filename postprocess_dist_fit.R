@@ -8,7 +8,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path>]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-rate-of-change]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
@@ -20,8 +20,8 @@ Options:
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "34 --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandArgs(trailingOnly = TRUE) 
- 
+  # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
+  args = if (interactive()) "39 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -74,26 +74,30 @@ analysis_data <- monitored_nosms_data
 
 # Load Data ---------------------------------------------------------------
 
-# Stan fit 
-if (script_options$full_outputname) {
-  load(file.path(script_options$input_path, str_interp("${fit_version}.RData")))
-} else {
-  load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
+param_used <- c(
+  "total_error_sd", "u_sd", "mu_rep", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
+  "group_dist_mean", "group_dist_sd", "group_dist_mix",
+  "prob_prefer_calendar", "strata_wtp_mu",
+  "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
+)
+
+load_from_csv <- function(fit_file, input_path, param) {
+  dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
+      read_cmdstan_csv(variables = param) 
 }
 
-dist_fit %<>% 
-  map_if(is.character, ~ read_rds(file.path(script_options$input_path, basename(.x))))
-
-if (has_name(dist_fit, "value")) {
-  dist_fit_warnings <- dist_fit$warning
-  dist_fit %<>% 
-    list_modify(!!!.$value, value = NULL, warning = NULL)
+load_fit <- function(fit_file, input_path = script_options$input_path, load_from_csv = script_options$load_from_csv, param = param_used) {
+  if (load_from_csv) {
+    load_from_csv(fit_file, input_path, param) %>% 
+      pluck("post_warmup_draws") %>% 
+      posterior::as_draws_df() %>% 
+      mutate(iter_id = .draw) %>% 
+      pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+      nest(iter_data = !variable)
+  } else {
+    read_rds(file.path(input_path, basename(fit_file)))
+  }
 }
-
-# Convert to tibble with list column of fit objects
-dist_fit_data <- enframe(dist_fit, name = "model", value = "fit")
-
-rm(dist_fit)
 
 # Metadata on the models fit
 model_info <- tribble(
@@ -114,19 +118,46 @@ model_info <- tribble(
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
+# Stan fit 
+dist_fit_data <- tryCatch({
+  if (script_options$full_outputname) {
+    load(file.path(script_options$input_path, str_interp("${fit_version}.RData")))
+  } else {
+    load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
+  }
+  
+  dist_fit %<>% 
+    map_if(is.character, load_fit) 
+
+  if (has_name(dist_fit, "value")) {
+    dist_fit_warnings <- dist_fit$warning
+    dist_fit %<>% 
+      list_modify(!!!.$value, value = NULL, warning = NULL)
+  }
+
+  # Convert to tibble with list column of fit objects
+  dist_fit_data <- enframe(dist_fit, name = "model", value = "fit") %>% 
+    mutate(stan_data = list(stan_data))
+  
+  rm(dist_fit, stan_data)
+  
+  dist_fit_data
+}, error = function(err) NULL)
+
 # Prior predicted fit for same models
 dist_fit_data <- tryCatch({
   load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
   
   dist_fit %<>% 
-    map_if(is.character, ~ read_rds(file.path(script_options$input_path, basename(.x))))
+    map_if(is.character, load_fit)
   
   dist_fit_data %<>%
     bind_rows("fit" = .,
-              "prior-predict" = enframe(dist_fit, name = "model", value = "fit"),
+              "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
+                mutate(stan_data = list(stan_data)),
               .id = "fit_type") 
   
-  rm(dist_fit)
+  rm(dist_fit, stan_data)
   
   dist_fit_data
 },
@@ -291,23 +322,26 @@ prep_multiple_est <- function(accum_data, next_col) {
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
 simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
                                        mu_rep, total_error_sd, u_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
-  # if (fct_match(fit_type, "fit") && !is_null(mu_rep) && !is_null(total_error_sd)) {
+  browser()
   if (!is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
-      select(assigned_treatment, iter_data) %>% 
+      select(assigned_treatment, assigned_dist_group, iter_data) %>% 
       unnest(iter_data) %>% 
-      select(assigned_treatment, iter_id, iter_est) %>% 
+      select(assigned_treatment, assigned_dist_group, iter_id, iter_est) %>% 
       left_join(total_error_sd %>% 
                   select(iter_data) %>% 
-                  unnest(iter_data),
+                  unnest(iter_data) %>% 
+                  select(iter_id, iter_est),
                 by = "iter_id", suffix = c("_mu", "")) %>% 
       left_join(u_sd %>% 
                   select(iter_data) %>% 
-                  unnest(iter_data),
+                  unnest(iter_data) %>% 
+                  select(iter_id, iter_est),
                 by = "iter_id", suffix = c("_total_error_sd", "_u_sd")) %>% 
       left_join(rename(cluster_linear_dist_cost, cluster_linear_dist_cost_data = cluster_data), by = "iter_id")
    
-    multiplier_v_range %>% 
+    multiplier_v_range %>%
+      c(-5, 5)
       future_map_dfr(~ mu_sd %>% 
                mutate(
                  v = .x,
@@ -387,12 +421,12 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 
 dist_fit_data %<>% 
   mutate(
-    total_error_sd = map(fit, extract_obs_fit_level, par = "total_error_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
-    u_sd = map(fit, extract_obs_fit_level, par = "u_sd", stan_data = stan_data, iter_level = "none", quant_probs = quant_probs),
+    total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
+    u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     
-    mu_rep = map(fit, extract_obs_fit_level, par = "mu_rep", stan_data = stan_data, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs),
+    mu_rep = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "mu_rep", stan_data = .y, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs)),
     
-    cluster_cf_cutoff = map(fit, extract_obs_cluster_cutoff_cf, stan_data = stan_data, quant_probs = quant_probs) %>% 
+    cluster_cf_cutoff = map2(fit, stan_data, ~ extract_obs_cluster_cutoff_cf(.x, stan_data = .y, quant_probs = quant_probs)) %>% 
       map2(total_error_sd, calculate_prob_and_num_takeup), 
     
     est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
@@ -401,21 +435,33 @@ dist_fit_data %<>%
              organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
     
-    cluster_linear_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_linear_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
-    cluster_quadratic_dist_cost = map(fit, extract_obs_fit_level, par = "cluster_quadratic_dist_cost", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
-    structural_cluster_benefit = map(fit, extract_obs_fit_level, par = "structural_cluster_benefit", stan_data = stan_data, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs),
-    
-    across(c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), left_join, stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = c("obs_index" = "cluster_id")),
-    across(
-      c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), 
-      ~ select(.x, cluster_index = obs_index, cluster_size, treatment_index, assigned_treatment, iter_data) %>% 
-        unnest(iter_data) %>% 
-        nest(cluster_data = -iter_id)
-    ), 
-    
-    y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
-                                mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
-  ) 
+    group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
+    beliefs_results = map2(fit, stan_data, get_beliefs_results),
+    wtp_results = map(fit, get_wtp_results),
+  )
+
+if (!script_options$no_rate_of_change) {
+  dist_fit_data %<>% 
+    mutate(
+      cluster_linear_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_linear_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      cluster_quadratic_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_quadratic_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      structural_cluster_benefit = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "structural_cluster_benefit", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      
+      across(c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), left_join, stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = c("obs_index" = "cluster_id")),
+      across(
+        c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), 
+        ~ select(.x, cluster_index = obs_index, cluster_size, treatment_index, assigned_treatment, assigned_dist_group, iter_data) %>% 
+          unnest(iter_data) %>% 
+          nest(cluster_data = -iter_id)
+      ), 
+      
+      y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
+                                  mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
+    )
+}
+
+dist_fit_data %<>% 
+  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, any_of("structural_cluster_benefit"), fit))
 
 ## Combine models using stacking -------------------------------------------
 
@@ -449,7 +495,7 @@ if (has_name(dist_fit_data, "stacking_weight")) {
           unnest(takeup_quantiles)
       ),
       
-      y_rate_of_change = list(
+      y_rate_of_change = if (!script_options$no_rate_of_change) list(
         reduce2(.$y_rate_of_change, .$stacking_weight_by_type, rate_of_change_stack_reducer, .init = tibble()) %>% 
           reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
       ) 
@@ -523,7 +569,7 @@ dist_fit_data %<>%
     map(unnest, takeup_te_quantiles),
     
     # Calculate differences in the rate of change of E[Y] wrt to benefit-cost
-    diff_y_rate_of_change = y_rate_of_change %>% 
+    diff_y_rate_of_change = if (!script_options$no_rate_of_change) y_rate_of_change %>% 
       map_if(~ !is_null(.x), select, assigned_treatment, v, iter_data) %>% 
       map_if(~ !is_null(.x),
            function(level_data, ate_combo) {
@@ -564,27 +610,14 @@ dist_fit_data %<>%
       est_takeup_level = map(est_takeup_level, mutate, iter_data = map(iter_data, as_tibble))  
   )
 
-# Posterior samples for assigned distance model
-group_dist_param <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), !is_null(fit), fct_match(model_type, "structural")) %>% 
-  pull(fit) %>% 
-  first() %>% {
-    if (is(., "stanfit")) {
-      as.data.frame(., pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) 
-    } else {
-      .$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-        posterior::as_draws_df()
-    }
-  } %>% 
-  sample_n(min(nrow(.), 1500)) %>% 
-  mutate(iter_id = seq(n())) %>% 
-  pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) %>% 
-  mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = stan_data$cluster_treatment_map[, 2, drop = TRUE] %>% levels()))
 
-save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
+save(dist_fit_data, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
 
 dist_fit_data %<>% 
-  mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), select, -iter_data))
+  mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), ~ select(.x, !iter_data)))
 
-save(dist_fit_data, stan_data, group_dist_param, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
+save(dist_fit_data, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
+plan(sequential)
+
+cat(str_glue("Post processing completed [version {fit_version}]\n\n"))

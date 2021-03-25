@@ -2,26 +2,91 @@ functions {
 #include takeup_functions.stan
 }
 
+
 data {
-  
+#include base_data_sec.stan
 #include takeup_data_sec.stan
 #include wtp_data.stan
+#include beliefs_data_sec.stan
+#include dist_data_sec.stan
+
+  int MIN_COST_MODEL_TYPE_VALUE;
+  int MAX_COST_MODEL_TYPE_VALUE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_KAPPA;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM_SALIENCE;
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_DISCRETE;
+  
+  int<lower = 1> num_v_mix;
 
   int<lower = 0, upper = 1> use_wtp_model;
   int<lower = 0, upper = 1> use_homoskedastic_shocks;
   int<lower = 0, upper = 1> use_restricted_mu;
+  
+  int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> use_cost_model;
+  int<lower = 0, upper = 1> suppress_reputation;
+  int<lower = 0, upper = 1> use_u_in_delta;
+  
+  int<lower = 0, upper = 1> use_mu_cluster_effects;
+  int<lower = 0, upper = 1> use_mu_county_effects;
+  int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
+  int<lower = 0, upper = 1> use_param_dist_county_effects;
+  
+  real<lower = 0> mu_rep_sd;
+  real<lower = 0> mu_beliefs_effects_sd;
 }
 
 transformed data {
+#include base_transformed_data_declare.stan 
 #include wtp_transformed_data.stan
 #include takeup_transformed_data_declare.stan
+#include beliefs_transformed_data_declare.stan
+
 #include takeup_transformed_data_define.stan
   
   int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
+  
+  int<lower = 0, upper = 1> use_dist_salience = in_array(use_cost_model, 
+                                                         { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE });
+  int<lower = 0, upper = 1> use_semiparam = in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_SEMIPARAM_SALIENCE }); 
+  
+  int num_treatments_param_kappa = use_cost_model == COST_MODEL_TYPE_PARAM_KAPPA ? num_treatments : 0;
+  
+  int num_treatments_param = 0;
+  int num_treatments_param_quadratic = 0; 
+  int num_treatments_semiparam = 0;
+  
+  if (use_single_cost_model || in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, 
+                                                          COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, 
+                                                          COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
+    num_treatments_param = 1;
+  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_SEMIPARAM, COST_MODEL_TYPE_PARAM_LINEAR, COST_MODEL_TYPE_PARAM_QUADRATIC })) {
+    num_treatments_param = num_treatments;
+  } 
+  
+  if ((use_single_cost_model && use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC) || use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
+    num_treatments_param_quadratic = 1;
+  } else if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_QUADRATIC })) {
+    num_treatments_param_quadratic = num_treatments;
+  } 
+  
+  if (use_semiparam) {
+    if (use_single_cost_model || use_cost_model == COST_MODEL_TYPE_SEMIPARAM_SALIENCE) {
+      num_treatments_semiparam = 1;
+    } else {
+      num_treatments_semiparam = num_treatments;
+    }
+  }
 }
 
 parameters {
+#include dist_parameters_sec.stan
 #include wtp_parameters.stan
+#include beliefs_parameters_sec.stan
   
   // Levels: control ink calendar bracelet
   real beta_control;
@@ -43,11 +108,9 @@ parameters {
   
   // Reputational Returns
   
-  real v_mu;
-  
-  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep_raw;
+  real<lower = 0> base_mu_rep;
+  real<lower = 0> mu_beliefs_effect;
   vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
-  // cholesky_factor_corr[num_treatment_shocks + 1] L_all_u_corr;
   
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
   row_vector<lower = 0>[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_treatments] mu_cluster_effects_sd;
@@ -74,21 +137,13 @@ parameters {
   matrix[num_treatments_semiparam, num_knots_v] u_splines_v_raw;
   real<lower = 0> u_splines_v_sigma;
   
-  // Assigned Distance Model
-  
-  simplex[num_dist_group_mix] group_dist_mix[num_discrete_dist];
-  
-  ordered[num_dist_group_mix] group_dist_mean[num_discrete_dist];
-  vector<lower = 0>[num_dist_group_mix] group_dist_sd[num_discrete_dist];
-  
-  matrix<lower = 0>[num_clusters, num_discrete_dist - 1] missing_cluster_standard_dist; 
-  
   // WTP valuation parameters
   real<lower = 0> wtp_value_utility;
 }
 
 transformed parameters {
 #include wtp_transformed_parameters.stan
+#include beliefs_transformed_parameters_declare.stan
   
   vector[num_dist_group_treatments] beta;
   
@@ -97,8 +152,9 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
-  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_treatments] mu_rep = mu_rep_raw;
-  matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_treatments] cluster_mu_rep;
+  row_vector[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments - 1] mu_rep_effect;
+  row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments] mu_rep;
+  matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_dist_group_treatments] cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
   row_vector<lower = 0, upper = 1>[fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
@@ -111,10 +167,10 @@ transformed parameters {
   matrix[num_treatments, num_knots_v] u_splines_v = rep_matrix(0, num_treatments, num_knots_v);
   vector[num_clusters] cluster_dist_cost = rep_vector(0, num_clusters);
   
-  matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
-  
   vector<lower = 0>[num_treatments] u_sd;
   vector<lower = 0>[num_treatments] total_error_sd;
+  
+#include beliefs_transformed_parameters_define.stan
   
   if (use_homoskedastic_shocks) {
     u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
@@ -125,20 +181,6 @@ transformed parameters {
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
-  
-  for (cluster_index in 1:num_clusters) {
-    int dist_group_pos = 1;
-    
-    for (dist_group_index in 1:num_discrete_dist) {
-      if (cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2] == dist_group_index) {
-        cf_cluster_standard_dist[cluster_index, dist_group_index] = cluster_standard_dist[cluster_index];
-      } else {
-        cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_pos];
-        
-        dist_group_pos += 1;
-      }
-    }
-  }
   
   for (dist_index in 1:num_discrete_dist) {
     if (dist_index > 1) {
@@ -157,29 +199,28 @@ transformed parameters {
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
-    if (use_restricted_mu) {
-      mu_rep[2] += mu_rep[1];
-      mu_rep[3] += mu_rep[1];
-      mu_rep[4] += mu_rep[1];
-    }
+    mu_rep_effect = (hyper_beta_1ord[2:] * beliefs_treatment_map_design_matrix[2:, 2:]') * mu_beliefs_effect; // BUGBUG only using hyper for now
+    mu_rep = base_mu_rep * append_col(1, exp(mu_rep_effect));
     
     cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     
     if (use_mu_cluster_effects) {
-      matrix[num_clusters, num_treatments] mu_cluster_effects =  mu_cluster_effects_raw .* rep_matrix(mu_cluster_effects_sd, num_clusters);
+      // I shouldn't be using this anymore since we're using beliefs 
       
-      cluster_mu_rep = cluster_mu_rep .* exp(mu_cluster_effects);
+      // matrix[num_clusters, num_treatments] mu_cluster_effects =  mu_cluster_effects_raw .* rep_matrix(mu_cluster_effects_sd, num_clusters);
+      // 
+      // cluster_mu_rep = cluster_mu_rep .* exp(mu_cluster_effects);
     }
     
     if (use_mu_county_effects) {
-      matrix[num_counties, num_treatments] mu_county_effects =  mu_county_effects_raw .* rep_matrix(mu_county_effects_sd, num_counties);
-      
-      cluster_mu_rep = cluster_mu_rep .* exp(mu_county_effects[cluster_county_id]);
+      // matrix[num_counties, num_treatments] mu_county_effects =  mu_county_effects_raw .* rep_matrix(mu_county_effects_sd, num_counties);
+      // 
+      // cluster_mu_rep = cluster_mu_rep .* exp(mu_county_effects[cluster_county_id]);
     } 
   }
   
   if (in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
-    linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments) + dist_beta_salience * append_col(mu_rep, mu_rep)';
+    linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments) + dist_beta_salience * mu_rep';  // append_col(mu_rep, mu_rep)';
     
     if (use_param_dist_cluster_effects) {
       cluster_linear_dist_cost += rep_matrix(dist_beta_cluster_raw[, 1] * dist_beta_cluster_sd[1], num_dist_group_treatments);
@@ -190,7 +231,7 @@ transformed parameters {
     }
     
     if (use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE) {
-      quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_dist_group_treatments) + dist_quadratic_beta_salience * append_col(mu_rep, mu_rep)';
+      quadratic_dist_cost = rep_vector(dist_quadratic_beta_v[1], num_dist_group_treatments) + dist_quadratic_beta_salience * mu_rep'; // append_col(mu_rep, mu_rep)';
       
       if (use_param_dist_cluster_effects) {
         // TODO
@@ -254,7 +295,7 @@ transformed parameters {
   if (use_semiparam) {
     for (treatment_index in 1:num_treatments_semiparam) {
       if (use_dist_salience) {
-        u_splines_v[treatment_index] = u_splines_v_raw[1] * u_splines_v_sigma * mu_rep[treatment_index];
+        u_splines_v[treatment_index] = u_splines_v_raw[1] * u_splines_v_sigma * mu_rep[treatment_index]; // BUGBUG This shouldn't work anymore
       } else {
         u_splines_v[treatment_index] = u_splines_v_raw[treatment_index] * u_splines_v_sigma;
       }
@@ -304,7 +345,7 @@ transformed parameters {
       if (multithreaded) {
         structural_cluster_obs_v = map_find_fixedpoint_solution(
           structural_cluster_benefit_cost, 
-          to_vector(cluster_mu_rep)[long_cluster_by_incentive_treatment_index],
+          to_vector(cluster_mu_rep)[long_cluster_by_treatment_index],
           total_error_sd[cluster_treatment],
           u_sd[cluster_treatment],
           
@@ -317,7 +358,8 @@ transformed parameters {
         for (cluster_index in 1:num_clusters) {
           structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
             structural_cluster_benefit_cost[cluster_index],
-            cluster_mu_rep[cluster_index, cluster_treatment[cluster_index]],
+            // cluster_mu_rep[cluster_index, cluster_treatment[cluster_index]],
+            cluster_mu_rep[cluster_index, cluster_assigned_dist_group_treatment[cluster_index]],
             total_error_sd[cluster_treatment[cluster_index]],
             u_sd[cluster_treatment[cluster_index]],
 
@@ -336,6 +378,8 @@ transformed parameters {
 
 model {
 #include wtp_model_section.stan
+#include beliefs_model_sec.stan
+#include dist_model_sec.stan
   
   wtp_value_utility ~ normal(0, 0.1);
 
@@ -349,11 +393,10 @@ model {
   dist_beta_salience ~ normal(0, 1);
   dist_quadratic_beta_salience ~ normal(0, 1);
   
-  v_mu ~ normal(0, 1);
+  base_mu_rep ~ normal(0, mu_rep_sd);
+  mu_beliefs_effect ~ normal(0, mu_beliefs_effects_sd);
   
   if (!suppress_reputation || use_dist_salience) { 
-    mu_rep_raw ~ normal(rep_vector(0, num_treatments), mu_rep_sd);
-    
     if (use_mu_cluster_effects) {
       to_vector(mu_cluster_effects_raw) ~ normal(0, 1);
       mu_cluster_effects_sd ~ normal(0, 0.05);
@@ -400,56 +443,6 @@ model {
   }
   
   raw_u_sd ~ normal(0, 1);
-  // L_all_u_corr ~ lkj_corr_cholesky(2);
-  
-  for (dist_group_index in 1:num_discrete_dist) { 
-    for (dist_group_mix_index in 1:num_dist_group_mix) {
-      group_dist_mean[dist_group_index, dist_group_mix_index] ~ normal(0, 1) T[0, ];
-    }
-    
-    group_dist_sd[dist_group_index] ~ normal(0, 1);
-  }
-  
-  // Distance Likelihood
-
-  for (cluster_index in 1:num_clusters) {
-    int dist_group_pos = 1;
-    int curr_assigned_dist_group = cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2];
-    
-    vector[num_dist_group_mix] group_dist_mix_lp;
-    
-    for (group_dist_mix_index in 1:num_dist_group_mix) {
-      group_dist_mix_lp[group_dist_mix_index] = 
-        normal_lpdf(cluster_standard_dist[cluster_index] | group_dist_mean[curr_assigned_dist_group, group_dist_mix_index], group_dist_sd[curr_assigned_dist_group, group_dist_mix_index])  
-        + normal_lccdf(0 | group_dist_mean[curr_assigned_dist_group, group_dist_mix_index], group_dist_sd[curr_assigned_dist_group, group_dist_mix_index]) +
-        + log(group_dist_mix[curr_assigned_dist_group, group_dist_mix_index]); 
-    }
-    
-    target += log_sum_exp(group_dist_mix_lp);
-    
-    for (dist_group_index in 1:num_discrete_dist) {
-      if (dist_group_index != curr_assigned_dist_group) {
-        
-        vector[num_dist_group_mix] missing_group_dist_mix_lp;
-        
-        for (group_dist_mix_index in 1:num_dist_group_mix) {
-          missing_group_dist_mix_lp[group_dist_mix_index] =
-            normal_lpdf(missing_cluster_standard_dist[cluster_index, dist_group_pos] | group_dist_mean[dist_group_index, group_dist_mix_index], group_dist_sd[dist_group_index, group_dist_mix_index]);
-            
-          if (missing_cluster_standard_dist[cluster_index, dist_group_pos] < 0) {
-            missing_group_dist_mix_lp[group_dist_mix_index] += negative_infinity();
-          } else {
-            missing_group_dist_mix_lp[group_dist_mix_index] += normal_lccdf(0 | group_dist_mean[dist_group_index, group_dist_mix_index], group_dist_sd[dist_group_index, group_dist_mix_index])
-              + log(group_dist_mix[dist_group_index, group_dist_mix_index]); 
-          }
-        }
-        
-        target += log_sum_exp(missing_group_dist_mix_lp);
-        
-        dist_group_pos += 1;
-      }
-    }
-  }
   
   if (fit_model_to_data) {
     // Take-up Likelihood 
@@ -462,15 +455,21 @@ model {
 }
 
 generated quantities {
+#include beliefs_generated_quantities_declare.stan
+#include dist_generated_quantities_declare.stan
+
   matrix[num_clusters, num_dist_group_treatments] structural_cluster_benefit = 
         rep_matrix(structural_treatment_effect', num_clusters) + 
         (structural_beta_cluster + structural_beta_county[cluster_county_id]) * treatment_map_design_matrix';
   
   // matrix[num_treatment_shocks + 1, num_treatment_shocks + 1] all_u_corr = L_all_u_corr * L_all_u_corr';
+  
+  matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   
-  matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
+  // matrix[num_dist_group_treatments, num_treatments] cluster_cf_cutoff[num_clusters]; 
+  vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments, num_treatments]; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   vector[generate_rep ? num_clusters : 0] cluster_rep_cutoff; 
@@ -481,6 +480,23 @@ generated quantities {
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
   
 #include wtp_generated_quantities.stan
+#include beliefs_generated_quantities_define.stan
+#include dist_generated_quantities_define.stan
+
+  for (cluster_index in 1:num_clusters) {
+    // int dist_group_pos = 1;
+    
+    for (dist_group_index in 1:num_discrete_dist) {
+      if (cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2] == dist_group_index) {
+        cf_cluster_standard_dist[cluster_index, dist_group_index] = cluster_standard_dist[cluster_index];
+      } else {
+        cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_index];
+        // cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_pos];
+        
+        // dist_group_pos += 1;
+      }
+    }
+  }
     
   {
     int treatment_cluster_pos = 1;
@@ -500,19 +516,37 @@ generated quantities {
                                                                  
       cluster_cf_benefit_cost[treatment_index] = structural_cluster_benefit[, treatment_index] - treatment_dist_cost;
       
-      for (cluster_index in 1:num_clusters) {
+      if (multithreaded) {
         for (mu_treatment_index in 1:num_treatments) {
-          cluster_cf_cutoff[cluster_index, treatment_index, mu_treatment_index] = find_fixedpoint_solution(
-            cluster_cf_benefit_cost[treatment_index, cluster_index],
-            cluster_mu_rep[cluster_index, mu_treatment_index],
-            total_error_sd[curr_assigned_treatment],
-            u_sd[curr_assigned_treatment],
+          cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
+            cluster_cf_benefit_cost[treatment_index],
+            // This is a big of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
+            cluster_mu_rep[, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
+            rep_vector(total_error_sd[curr_assigned_treatment], num_clusters),
+            rep_vector(u_sd[curr_assigned_treatment], num_clusters),
             
             use_u_in_delta, 
             alg_sol_rel_tol, 
             alg_sol_f_tol, 
             alg_sol_max_steps
-          ); 
+          );
+        }
+      } else {
+        for (cluster_index in 1:num_clusters) {
+          for (mu_treatment_index in 1:num_treatments) {
+            cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
+              cluster_cf_benefit_cost[treatment_index, cluster_index],
+              // This is a big of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
+              cluster_mu_rep[cluster_index, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
+              total_error_sd[curr_assigned_treatment],
+              u_sd[curr_assigned_treatment],
+              
+              use_u_in_delta, 
+              alg_sol_rel_tol, 
+              alg_sol_f_tol, 
+              alg_sol_max_steps
+            ); 
+          }
         }
       }
     }
@@ -678,7 +712,7 @@ generated quantities {
         
       cluster_rep_cutoff[cluster_index] = find_fixedpoint_solution(
           cluster_rep_benefit_cost[cluster_index],
-          cluster_mu_rep[cluster_index, curr_assigned_treatment],
+          cluster_mu_rep[cluster_index, cluster_assigned_dist_group_treatment[cluster_index]],
           total_error_sd[curr_assigned_treatment],
           u_sd[curr_assigned_treatment],
           
@@ -690,3 +724,4 @@ generated quantities {
     }
   }
 }
+

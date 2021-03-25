@@ -115,19 +115,24 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
   
   fit %>% {
     if (is_stanfit) {
-      as.array(., par = "cluster_cf_cutoff") 
-    } else {
-      .$draws("cluster_cf_cutoff")
-    }
+      as.array(., par = "cluster_cf_cutoff") %>% 
+        plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (is_stanfit && always_diagnose) ess_bulk(cell), 
+                                                                                ess_tail = if (is_stanfit && always_diagnose) ess_tail(cell),
+                                                                                rhat = if (is_stanfit && always_diagnose) Rhat(cell),)) %>%
+        rename(variable = parameters) %>% 
+        mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))))
+      } else if (is_tibble(.)) {
+        filter(., str_detect(variable, r"{^cluster_cf_cutoff\[.+\]$}"))
+      } else { 
+        .$draws("cluster_cf_cutoff") %>% 
+          posterior::as_draws_df() %>% 
+          mutate(iter_id = .draw) %>% 
+          pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+          nest(iter_data = !variable)
+      }
   } %>%   
-    plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = if (is_stanfit && always_diagnose) ess_bulk(cell), 
-                                                                            ess_tail = if (is_stanfit && always_diagnose) ess_tail(cell),
-                                                                            rhat = if (is_stanfit && always_diagnose) Rhat(cell),)) %>% {
-      if (is_stanfit) rename(., variable = parameters) else .
-    } %>% 
-    tidyr::extract(variable, c("cluster_id", "treatment_index", "mu_treatment_index"), r"{(\d+),(\d+)(?:,(\d+))?}", convert = TRUE) %>%  
+    tidyr::extract(variable, c("treatment_index", "mu_treatment_index", "cluster_id"), r"{(\d+),(\d+)(?:,(\d+))?}", convert = TRUE) %>%  
     mutate(
-      iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.)))),
       treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
       assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
       assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot),
@@ -217,21 +222,19 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
         as.array(par = par) %>% 
         plyr::adply(3, function(cell) tibble(iter_data = list(cell)) %>% mutate(ess_bulk = ess_bulk(cell), 
                                                                                 ess_tail = ess_tail(cell),
-                                                                                rhat = Rhat(cell),)) 
-    } else {
-      fit_data <- fit$draws(par) 
-      
-      if (length(dim(fit_data)) == 3) {
-        plyr::adply(fit_data, 3, function(cell) tibble(iter_data = list(cell))) 
-      } else {
-        tibble(iter_data = list(fit_data)) %>% 
-          mutate(variable = par)
-      }
+                                                                                rhat = Rhat(cell),)) %>% 
+        mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.))))) %>%
+        as_tibble()
+    } else if (is_tibble(fit)) {
+      fit %>% 
+        filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
+    } else { 
+      fit$draws(par) %>% 
+        posterior::as_draws_df() %>% 
+        mutate(iter_id = .draw) %>% 
+        pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+        nest(iter_data = !variable)
     }
-    
-    fit_data %>% 
-      mutate(iter_data = map(iter_data, ~ tibble(iter_est = c(.), iter_id = seq(nrow(.) * ncol(.))))) %>% 
-      as_tibble()
   }, error = function(err) NULL)
   
   if (is_null(fit_data)) return(NULL) 
@@ -264,8 +267,9 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
     
     if (by_treatment) {
       extracted %<>% 
+        left_join(mutate(stan_data$cluster_treatment_map, treatment_index = seq(n())), by = "treatment_index") %>% 
         mutate(
-          assigned_treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
+          # assigned_treatment = factor(treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
           assigned_dist_standard = NULL,
           assigned_dist = NULL 
         )
@@ -668,16 +672,11 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
   
   ggplot_obj +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = 3, position = plot_pos) +
-                   # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
-                  # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
-                   # data = . %>% filter(fct_match(fit_type, "fit"))) + 
     
     geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
-               # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
-               # data = . %>% filter(fct_match(fit_type, "fit"))) +
     geom_vline(xintercept = 0, linetype = "dotted") +
     scale_color_manual("", 
                        values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
@@ -719,6 +718,73 @@ plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model,
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL
+}
+
+get_wtp_results <- function(wtp_draws) {
+  wtp_draws %>% 
+    filter(str_detect(variable, r"{^(prob_prefer_calendar|strata_wtp_mu)\[}")) %>% 
+    tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+    mutate(
+      quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
+      mean_est = map_dbl(iter_data, ~ mean(.x$iter_value, na.rm = TRUE)),
+    ) %>% 
+    unnest(quants)
+}
+
+get_beliefs_results <- function(beliefs_draws, stan_data) {
+  lst(
+    prob_knows = beliefs_draws %>% 
+      filter(str_detect(variable, r"{^(prob_1ord|prob_2ord)\[}")) %>% 
+      tidyr::extract(variable, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+      mutate(quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE)) %>% 
+      unnest(quants) %>% 
+      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = "treatment_id") %>% 
+      arrange(ord),
+    
+    ate_knows = beliefs_draws %>% 
+      filter(str_detect(variable, r"{^(ate_1ord|ate_2ord)\[}")) %>% 
+      tidyr::extract(variable, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+      mutate(quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE)) %>% 
+      unnest(quants) %>% 
+      right_join(mutate(stan_data$beliefs_ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
+      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id")) %>%
+      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>%
+      select(-starts_with("treatment_id"), -ate_pair_index) %>% 
+      arrange(ord)
+  )
+}
+
+get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
+  if (!is_null(fit) && fct_match(model_type, "structural")) {
+    temp_res <- if (is(fit, "stanfit")) {
+      as.data.frame(fit, pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        # sample_n(min(nrow(.), 1500)) %>% 
+        mutate(iter_id = seq(n())) %>% 
+        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    } else if (is_tibble(fit)) {
+      filter(fit, str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
+        unnest(iter_data) %>% 
+        # filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
+        select(!c(.chain, .iteration, .draw)) %>% 
+        tidyr::extract(variable, c("variable", "assigned_dist_group", "mix_index"), r"{(\w+)\[(\d),(\d)}", convert = TRUE) %>% 
+        pivot_wider(c(assigned_dist_group, mix_index, iter_id), names_from = variable, values_from = iter_est)
+    } else {
+      fit$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        posterior::as_draws_df() %>% 
+        # sample_n(min(nrow(.), 1500)) %>% 
+        mutate(iter_id = seq(n())) %>% 
+        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    }
+   
+    if (!is_null(stan_data)) {
+      dist_levels <- levels(stan_data$cluster_treatment_map$assigned_dist_group) 
+      
+      temp_res %<>% 
+        mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
+    }
+    
+    return(temp_res)
+  }
 }
 
 # Constants ---------------------------------------------------------------

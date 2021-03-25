@@ -1,23 +1,6 @@
-int MIN_COST_MODEL_TYPE_VALUE;
-int MAX_COST_MODEL_TYPE_VALUE;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_KAPPA;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_SEMIPARAM_SALIENCE;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_DISCRETE;
-
-int<lower = 1> num_v_mix;
-
 // Multilevel Configuration 
 int<lower = 0, upper = 1> use_cluster_effects;
 int<lower = 0, upper = 1> use_county_effects;
-int<lower = 0, upper = 1> use_mu_cluster_effects;
-int<lower = 0, upper = 1> use_mu_county_effects;
-int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
-int<lower = 0, upper = 1> use_param_dist_county_effects;
 
 int<lower = 0, upper = 1> use_binomial;
 int<lower = 0, upper = 1> use_cost_k_restrictions;
@@ -26,9 +9,6 @@ int<lower = 0, upper = 1> use_salience_effect;
 int<lower = 0, upper = 1> use_single_cost_model;
 int<lower = 0, upper = 1> use_name_matched_obs;
 int<lower = 0, upper = 1> use_shifting_v_dist;
-int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> use_cost_model;
-int<lower = 0, upper = 1> suppress_reputation;
-int<lower = 0, upper = 1> use_u_in_delta;
 int<lower = 0, upper = 1> multithreaded;
 int<lower = 0, upper = 1> generate_rep;
 int<lower = 0, upper = 1> generate_sim;
@@ -39,25 +19,11 @@ real<lower = 0> alg_sol_f_tol;
 real<lower = 0> alg_sol_rel_tol;
 int<lower = 0> alg_sol_max_steps;
 
-int<lower = 1> num_obs; // Actual observations
-int<lower = 1> num_clusters;
-int<lower = 1> num_counties;
-int<lower = 1> num_treatments;
-int<lower = 1> num_discrete_dist;
-
 int<lower = 1, upper = num_treatments> CALENDAR_TREATMENT_INDEX;
 int<lower = 1, upper = num_treatments> BRACELET_TREATMENT_INDEX;
 
-int<lower = 1, upper = num_clusters> obs_cluster_id[num_obs];
-int<lower = 1, upper = num_counties> obs_county_id[num_obs];
-int<lower = 1, upper = num_counties> cluster_county_id[num_clusters];
-
 int<lower = 0, upper = 1> takeup[num_obs]; // Observed outcome variable
 int<lower = 0, upper = 1> is_name_matched[num_obs];
-vector[num_clusters] cluster_standard_dist; // Standardized distance to treatment
-
-int<lower = 1> cluster_treatment_map[num_treatments * num_discrete_dist, 2];
-int<lower = 1, upper = num_treatments * num_discrete_dist> cluster_assigned_dist_group_treatment[num_clusters]; 
 
 // Reputation
 
@@ -87,7 +53,6 @@ matrix[num_grid_obs, num_knots_v] Z_grid_v;
 
 // Prior hyperparameters
 
-vector<lower = 0>[num_treatments] mu_rep_sd;
 real<lower = 0> beta_control_sd;
 real<lower = 0> beta_far_effect_sd;
 real<lower = 0> beta_ink_effect_sd;
