@@ -1,10 +1,12 @@
 functions {
 #include takeup_functions.stan
+#include beliefs_functions.stan
 }
 
 data { 
 #include base_data_sec.stan
 #include beliefs_data_sec.stan
+#include dist_data_sec.stan
 }
 
 transformed data {
@@ -13,6 +15,7 @@ transformed data {
 }
 
 parameters {
+#include dist_parameters_sec.stan
 #include beliefs_parameters_sec.stan
 }
 
@@ -22,10 +25,15 @@ transformed parameters {
 }
 
 model {
+#include dist_model_sec.stan
 #include beliefs_model_sec.stan
 }
 
 generated quantities {
 #include beliefs_generated_quantities_declare.stan
+#include dist_generated_quantities_declare.stan
+
+#include dist_generated_quantities_define.stan
 #include beliefs_generated_quantities_define.stan
 }
+
