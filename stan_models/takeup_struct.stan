@@ -157,9 +157,6 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
-  // row_vector[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments - 1] mu_rep_effect;
-  // row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments] mu_rep;
-  // matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_dist_group_treatments] cluster_mu_rep;
   vector<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0] obs_cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
@@ -205,10 +202,6 @@ transformed parameters {
   // Levels: control ink calendar bracelet
  
   if (!suppress_reputation || use_dist_salience) { 
-    // mu_rep_effect = (hyper_beta_1ord[2:] * beliefs_treatment_map_design_matrix[2:, 2:]') * mu_beliefs_effect; // BUGBUG only using hyper for now
-    // mu_rep = base_mu_rep * append_col(1, exp(mu_rep_effect));
-    
-    // cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     obs_cluster_mu_rep = 
       base_mu_rep * exp(mu_beliefs_effect * calculate_beliefs_latent_predictor(
         nointercept_beliefs_treatment_map_design_matrix[cluster_incentive_treatment_id], centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord, cluster_standard_dist)); 
@@ -355,7 +348,6 @@ transformed parameters {
       if (multithreaded) {
         structural_cluster_obs_v = map_find_fixedpoint_solution(
           structural_cluster_benefit_cost, 
-          // to_vector(cluster_mu_rep)[long_cluster_by_treatment_index],
           obs_cluster_mu_rep,
           total_error_sd[cluster_incentive_treatment_id],
           u_sd[cluster_incentive_treatment_id],
@@ -369,7 +361,6 @@ transformed parameters {
         for (cluster_index in 1:num_clusters) {
           structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
             structural_cluster_benefit_cost[cluster_index],
-            // cluster_mu_rep[cluster_index, cluster_assigned_dist_group_treatment[cluster_index]],
             obs_cluster_mu_rep[cluster_index],
             total_error_sd[cluster_incentive_treatment_id[cluster_index]],
             u_sd[cluster_incentive_treatment_id[cluster_index]],
@@ -530,8 +521,6 @@ generated quantities {
         if (multithreaded) {
           cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
             cluster_cf_benefit_cost[treatment_index],
-            // This is a bit of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
-            // cluster_mu_rep[, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
             curr_cluster_mu_rep,
             rep_vector(total_error_sd[curr_assigned_treatment], num_clusters),
             rep_vector(u_sd[curr_assigned_treatment], num_clusters),
@@ -545,8 +534,6 @@ generated quantities {
           for (cluster_index in 1:num_clusters) {
             cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
               cluster_cf_benefit_cost[treatment_index, cluster_index],
-              // This is a bit of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
-              // cluster_mu_rep[cluster_index, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
               curr_cluster_mu_rep[cluster_index],
               total_error_sd[curr_assigned_treatment],
               u_sd[curr_assigned_treatment],
