@@ -11,3 +11,4 @@ int<lower = 1, upper = num_counties> cluster_county_id[num_clusters];
 int<lower = 1> cluster_treatment_map[num_treatments * num_discrete_dist, 2];
 int<lower = 1, upper = num_treatments * num_discrete_dist> cluster_assigned_dist_group_treatment[num_clusters]; 
 
+vector[num_clusters] cluster_standard_dist; // Standardized distance to treatment

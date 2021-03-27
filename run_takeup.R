@@ -653,12 +653,18 @@ wtp_stan_data <- analysis.data %>%
 treatment_formula <- ~ assigned_treatment * assigned_dist_group 
 
 cluster_treatment_map = distinct(analysis_data, assigned_treatment, assigned_dist_group) %>% 
-  arrange(assigned_dist_group, assigned_treatment) 
+  arrange(assigned_dist_group, assigned_treatment) # We must arrange by distance first
 
 treatment_map_design_matrix <- cluster_treatment_map %>%
   modelr::model_matrix(treatment_formula)
 
 # Beliefs Data ------------------------------------------------------------
+
+beliefs_treatment_formula <- ~ assigned_treatment 
+
+beliefs_treatment_map_design_matrix <- cluster_treatment_map %>%
+  modelr::model_matrix(beliefs_treatment_formula) %>% 
+  distinct()
 
 analysis_data %<>% 
   nest_join(
@@ -681,6 +687,7 @@ analysis_data %<>%
   ))
 
 beliefs_ate_pairs <- cluster_treatment_map %>% 
+  # filter(fct_match(assigned_dist_group, "close")) %>% 
   mutate(treatment_id = seq(n())) %>% {
   bind_rows(
     left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
@@ -712,7 +719,7 @@ stan_data <- lst(
   num_knows_1ord = filter(analysis_data, obs_know_person > 0) %>% pull(knows_other_dewormed),
   num_knows_2ord = filter(analysis_data, obs_know_person > 0) %>% pull(thinks_other_knows),
   
-  beliefs_treatment_map_design_matrix = treatment_map_design_matrix,
+  beliefs_treatment_map_design_matrix,
   
   beliefs_ate_pairs,
   num_beliefs_ate_pairs = nrow(beliefs_ate_pairs),

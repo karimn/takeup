@@ -21,7 +21,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "39 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "40 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -75,7 +75,7 @@ analysis_data <- monitored_nosms_data
 # Load Data ---------------------------------------------------------------
 
 param_used <- c(
-  "total_error_sd", "u_sd", "mu_rep", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
+  "total_error_sd", "u_sd", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix",
   "prob_prefer_calendar", "strata_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
@@ -424,7 +424,7 @@ dist_fit_data %<>%
     total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     
-    mu_rep = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "mu_rep", stan_data = .y, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs)),
+    # mu_rep = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "mu_rep", stan_data = .y, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs)),
     
     cluster_cf_cutoff = map2(fit, stan_data, ~ extract_obs_cluster_cutoff_cf(.x, stan_data = .y, quant_probs = quant_probs)) %>% 
       map2(total_error_sd, calculate_prob_and_num_takeup), 
