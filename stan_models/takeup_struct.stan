@@ -210,7 +210,7 @@ transformed parameters {
     
     // cluster_mu_rep = rep_matrix(mu_rep, num_clusters);
     obs_cluster_mu_rep = 
-      base_mu_rep * exp(calculate_beliefs_latent_predictor(
+      base_mu_rep * exp(mu_beliefs_effect * calculate_beliefs_latent_predictor(
         nointercept_beliefs_treatment_map_design_matrix[cluster_incentive_treatment_id], centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord, cluster_standard_dist)); 
     
     if (use_mu_cluster_effects) {
@@ -522,7 +522,7 @@ generated quantities {
       cluster_cf_benefit_cost[treatment_index] = structural_cluster_benefit[, treatment_index] - treatment_dist_cost;
       
       for (mu_treatment_index in 1:num_treatments) {
-        vector[num_clusters] curr_cluster_mu_rep = base_mu_rep * exp(calculate_beliefs_latent_predictor(
+        vector[num_clusters] curr_cluster_mu_rep = base_mu_rep * exp(mu_beliefs_effect * calculate_beliefs_latent_predictor(
           nointercept_beliefs_treatment_map_design_matrix[mu_treatment_index:mu_treatment_index],
           centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord, cf_cluster_standard_dist[, curr_assigned_dist_group] 
         ));
