@@ -25,7 +25,7 @@ ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
-takeup_version <- 39
+takeup_version <- 40 
 ```
 
 Previously, we modeled the take-up probability as 
@@ -37,10 +37,10 @@ This was relatively simple and can be rewritten as
 where $v^*(b,c)$ is implicitly defined as
 \[ v^*(b,c) = - b + c - \mu\Delta[v^*(c,d)]. \]
 
-Now consider adding an unobservable shock $U$,
-\[ \bar{y}(b,c) = \prob{b - c + \mu\Delta^*(b,c) + V + U > 0}. \]
+Now consider adding an unobservable shock $U$, and allowing $\mu$ to vary with cost,
+\[ \bar{y}(b,c) = \prob{b - c + \mu(c)\Delta^*(b,c) + V + U > 0}. \]
 We define $W = V + U$ and $w^*(b,c)$ is implicitly defined as
-\[ w^*(b,c) = - b + c - \mu\Delta[w^*(c,d)], \]
+\[ w^*(b,c) = - b + c - \mu(c)\Delta[w^*(c,d)], \]
 which is no longer the prosocial type cutoff. In calculating $\Delta^*$ individuals must now account for the non-prosocial shocks $U$, such that
 \begin{align*}
   \Delta^*(b,c) &= \Delta[w^*(b,c)] \\
@@ -101,6 +101,7 @@ sim_int %>%
   facet_wrap(vars(type), labeller = as_labeller(latex2exp::TeX, default = label_parsed)) +
   NULL
 ```
+
 ```{r load-processed-results}
 load(file.path("temp-data", str_glue("processed_dist_fit{takeup_version}.RData")))
 # load(file.path("/tigress/kn6838/takeup", str_glue("processed_dist_fit{takeup_version}.RData")))
@@ -250,11 +251,11 @@ dist_fit_data %>%
 
 To calculate the slope of $\bar{y}(b,c)$ with respect to cost,
 \begin{align*}
-  \frac{\partial \bar{y}(b,c)}{\partial c} = \frac{-f_w(w^*(b,c))}{1 + \mu\Delta'[w^*(b,c)]},
+  \frac{\partial \bar{y}(b,c)}{\partial c} = \frac{-f_w(w^*(b,c))\cdot(1 - \mu'(c)\Delta[w^*(b,c)])}{1 + \mu\Delta'[w^*(b,c)]},
 \end{align*}
 where
 \begin{align*}
-\Delta'[w^*(b,c)] = &-\frac{\int_{-\infty}^\infty v f_u(w^*(b,c) - v) f_v(v)\,\mathrm{d}v + f_w(w^*(b,c))\left[1 - 2F_w(w^*(b,c))\right]\Delta[w^*(b,c)]}{F_w(w^*(b,c))\left[1 - F_w(w^*(b,c))\right]} 
+\Delta'[w] = &-\frac{\int_{-\infty}^\infty v f_u(w - v) f_v(v)\,\mathrm{d}v + f_w(w)\left[1 - 2F_w(w)\right]\Delta[w]}{F_w(w)\left[1 - F_w(w)\right]} 
 \end{align*}
 
 ```{r cost-mitig-diff, fig.width=8, fig.height=5.5, eval=FALSE}
@@ -415,7 +416,7 @@ dist_fit_data %>%
 
 ## Model Parameters
 
-```{r}
+```{r, eval=FALSE}
 dist_fit_data %>%
   # filter(fct_match(fit_type, "prior-predict")) %>% 
   select(model, model_name, mu_rep, fit_type) %>% 
@@ -483,8 +484,8 @@ plot_wtp_results <- function(draws) {
       ) +
       NULL,
     
-    filter(draws, fct_match(variable, "strata_wtp_mu")) %>% 
-      mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>% 
+    filter(draws, fct_match(variable, "strata_wtp_mu")) %>%
+      mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
       ggplot(aes(y = str_c(variable, index))) +
       geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
       geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
@@ -497,11 +498,11 @@ plot_wtp_results <- function(draws) {
         title = "Difference in Valuation of Calendars and Bracelets",
         subtitle = "For Each County",
         y = "",
-        caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. 
+        caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval.
                    Thick vertical line: median. Point: mean."
       ),
     
-    ncol = 1, rel_heights = c(1.1, 1)
+    ncol = 1 , rel_heights = c(1.1, 1)
   )
 }
 
@@ -630,7 +631,7 @@ dist_fit_data %>%
   filter(fct_match(fit_type, "fit")) %>%
   pull(beliefs_results) %>%
   first() %>%
-# beliefs_results %>% 
+# beliefs_results %>%
   plot_beliefs_est("Posterior Estimation")
 ```
 

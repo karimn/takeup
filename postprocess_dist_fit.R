@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!u/sr/bin/Rscript
 #
 # This script is used to postprocess Stan fit for the various models, reduced form and structural. In addition to putting our analysis in a format that 
 # allows for easy extraction of all levels and treatment effects, it allows handles imputing take-up levels for counterfactuals using Stan-generated cost-benefits 
@@ -21,7 +21,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "40 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "41 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -76,7 +76,7 @@ analysis_data <- monitored_nosms_data
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
-  "group_dist_mean", "group_dist_sd", "group_dist_mix",
+  "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff",
   "prob_prefer_calendar", "strata_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
@@ -443,20 +443,22 @@ dist_fit_data %<>%
 if (!script_options$no_rate_of_change) {
   dist_fit_data %<>% 
     mutate(
-      cluster_linear_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_linear_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
-      cluster_quadratic_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_quadratic_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
-      structural_cluster_benefit = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "structural_cluster_benefit", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      # cluster_linear_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_linear_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      # cluster_quadratic_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_quadratic_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      # structural_cluster_benefit = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "structural_cluster_benefit", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
+      # 
+      # across(c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), left_join, stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = c("obs_index" = "cluster_id")),
+      # across(
+      #   c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), 
+      #   ~ select(.x, cluster_index = obs_index, cluster_size, treatment_index, assigned_treatment, assigned_dist_group, iter_data) %>% 
+      #     unnest(iter_data) %>% 
+      #     nest(cluster_data = -iter_id)
+      # ), 
+      # 
+      # y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
+      #                             mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
       
-      across(c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), left_join, stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = c("obs_index" = "cluster_id")),
-      across(
-        c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), 
-        ~ select(.x, cluster_index = obs_index, cluster_size, treatment_index, assigned_treatment, assigned_dist_group, iter_data) %>% 
-          unnest(iter_data) %>% 
-          nest(cluster_data = -iter_id)
-      ), 
-      
-      y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
-                                  mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
+      y_rate_of_change_diff = map2(fit, stan_data, extract_roc_diff),
     )
 }
 
@@ -495,10 +497,10 @@ if (has_name(dist_fit_data, "stacking_weight")) {
           unnest(takeup_quantiles)
       ),
       
-      y_rate_of_change = if (!script_options$no_rate_of_change) list(
-        reduce2(.$y_rate_of_change, .$stacking_weight_by_type, rate_of_change_stack_reducer, .init = tibble()) %>% 
-          reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
-      ) 
+      # y_rate_of_change = if (!script_options$no_rate_of_change) list(
+      #   reduce2(.$y_rate_of_change, .$stacking_weight_by_type, rate_of_change_stack_reducer, .init = tibble()) %>% 
+      #     reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
+      # ) 
     ) 
 }
 
@@ -569,25 +571,25 @@ dist_fit_data %<>%
     map(unnest, takeup_te_quantiles),
     
     # Calculate differences in the rate of change of E[Y] wrt to benefit-cost
-    diff_y_rate_of_change = if (!script_options$no_rate_of_change) y_rate_of_change %>% 
-      map_if(~ !is_null(.x), select, assigned_treatment, v, iter_data) %>% 
-      map_if(~ !is_null(.x),
-           function(level_data, ate_combo) {
-             ate_combo %>% 
-               select(str_c("assigned_treatment", c("_left", "_right"))) %>% 
-               distinct_all(.keep_all = TRUE) %>% 
-               inner_join(level_data, by = c("assigned_treatment_left" = "assigned_treatment")) %>% 
-               inner_join(level_data, by = c("assigned_treatment_right" = "assigned_treatment", "v"), suffix = c("_left", "_right"))
-          },
-         ate_combo = ate_combo) %>% 
-      map_if(~ !is_null(.x), mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
-            map(mutate, 
-                iter_diff_prob_takeup = iter_prob_takeup_left - iter_prob_takeup_right,
-                iter_diff_social_multiplier = iter_social_multiplier_left - iter_social_multiplier_right,
-                iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right,
-                iter_diff_partial_d = iter_partial_d_left - iter_partial_d_right)) %>% 
-      map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
-      map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar, iter_diff_partial_d), prep_multiple_est, .init = .)), 
+    # diff_y_rate_of_change = if (!script_options$no_rate_of_change) y_rate_of_change %>% 
+    #   map_if(~ !is_null(.x), select, assigned_treatment, v, iter_data) %>% 
+    #   map_if(~ !is_null(.x),
+    #        function(level_data, ate_combo) {
+    #          ate_combo %>% 
+    #            select(str_c("assigned_treatment", c("_left", "_right"))) %>% 
+    #            distinct_all(.keep_all = TRUE) %>% 
+    #            inner_join(level_data, by = c("assigned_treatment_left" = "assigned_treatment")) %>% 
+    #            inner_join(level_data, by = c("assigned_treatment_right" = "assigned_treatment", "v"), suffix = c("_left", "_right"))
+    #       },
+    #      ate_combo = ate_combo) %>% 
+    #   map_if(~ !is_null(.x), mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+    #         map(mutate, 
+    #             iter_diff_prob_takeup = iter_prob_takeup_left - iter_prob_takeup_right,
+    #             iter_diff_social_multiplier = iter_social_multiplier_left - iter_social_multiplier_right,
+    #             iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right,
+    #             iter_diff_partial_d = iter_partial_d_left - iter_partial_d_right)) %>% 
+    #   map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
+    #   map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar, iter_diff_partial_d), prep_multiple_est, .init = .)), 
    
     # Calculate treatment effects based on distance 
     est_takeup_dist_te = est_takeup_te %>%

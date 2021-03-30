@@ -24,8 +24,8 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
   
 ) 
 
@@ -750,6 +750,21 @@ stan_data <- lst(
     pull(standard_cluster.dist.to.pot),
   
   cluster_treatment_map,
+  
+  # Rate of change
+  roc_compare_treatment_id_left = cluster_treatment_map %>% 
+    filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "bracelet")) %>% 
+    slice(1) %>% 
+    pull(assigned_treatment) %>% 
+    as.integer(),
+  roc_compare_treatment_id_right = cluster_treatment_map %>% 
+    filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "control")) %>% 
+    slice(1) %>% 
+    pull(assigned_treatment) %>% 
+    as.integer(),
+  
+  roc_distances = seq(0, 2500, 100) / sd(analysis_data$cluster.dist.to.pot),
+  num_roc_distances = length(roc_distances),
   
   cluster_assigned_dist_group = distinct(analysis_data, cluster_id, dist.pot.group) %>% 
     arrange(cluster_id) %>% 
