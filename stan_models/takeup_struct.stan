@@ -46,7 +46,7 @@ data {
   // Hyperparam
   
   real<lower = 0> mu_rep_sd;
-  real<lower = 0> mu_beliefs_effects_sd;
+  // real<lower = 0> mu_beliefs_effects_sd;
 }
 
 transformed data {
@@ -121,7 +121,7 @@ parameters {
   // Reputational Returns
   
   real<lower = 0> base_mu_rep;
-  real<lower = 0> mu_beliefs_effect;
+  // real<lower = 0> mu_beliefs_effect;
   vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
   
   matrix[!use_mu_cluster_effects || (suppress_reputation && !use_dist_salience) ? 0 : num_clusters, num_treatments] mu_cluster_effects_raw;
@@ -214,7 +214,8 @@ transformed parameters {
   if (!suppress_reputation || use_dist_salience) { 
     obs_cluster_mu_rep = calculate_mu_rep(
       cluster_incentive_treatment_id, cluster_standard_dist, 
-      base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+      // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
     
     if (use_mu_cluster_effects) {
       // I shouldn't be using this anymore since we're using beliefs 
@@ -409,7 +410,7 @@ model {
   dist_quadratic_beta_salience ~ normal(0, 1);
   
   base_mu_rep ~ normal(0, mu_rep_sd);
-  mu_beliefs_effect ~ normal(0, mu_beliefs_effects_sd);
+  // mu_beliefs_effect ~ normal(0, mu_beliefs_effects_sd);
   
   if (!suppress_reputation || use_dist_salience) { 
     if (use_mu_cluster_effects) {
@@ -529,7 +530,8 @@ generated quantities {
       for (mu_treatment_index in 1:num_treatments) {
         vector[num_clusters] curr_cluster_mu_rep = calculate_mu_rep(
           { mu_treatment_index }, missing_cluster_standard_dist[, curr_assigned_dist_group],
-          base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+          // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
         
         if (multithreaded) {
           cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
@@ -752,11 +754,13 @@ generated quantities {
       // vector map_calculate_roc_diff(int treatment_id_left, int treatment_id_right, vector w, vector total_error_sd, vector dist_beta, vector mu, vector mu_deriv, data real[] x_r)
       matrix[num_clusters, 2] curr_cluster_mu_rep_left = calculate_mu_rep_deriv(
         roc_compare_treatment_id_left, roc_cluster_dist,
-        base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+        base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+        // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
         
       matrix[num_clusters, 2] curr_cluster_mu_rep_right = calculate_mu_rep_deriv(
         roc_compare_treatment_id_right, roc_cluster_dist,
-        base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+        base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
+        // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord); 
        
       vector[num_clusters] roc_cutoffs = map_find_fixedpoint_solution(
         curr_net_benefit,
