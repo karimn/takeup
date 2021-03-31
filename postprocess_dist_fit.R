@@ -8,12 +8,13 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-rate-of-change]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-rate-of-change --keep-fit]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
   --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
   --output-path=<path>  Path to find results [default: temp-data]
+  --keep-fit
 "),
 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
@@ -21,7 +22,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "41 --cores=4 --load-from-csv --no-rate-of-change" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "41 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -75,7 +76,7 @@ analysis_data <- monitored_nosms_data
 # Load Data ---------------------------------------------------------------
 
 param_used <- c(
-  "total_error_sd", "u_sd", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
+  "total_error_sd", "u_sd", "cluster_cf_cutoff", "mu_beliefs_effect", # "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff",
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
@@ -463,7 +464,12 @@ if (!script_options$no_rate_of_change) {
 }
 
 dist_fit_data %<>% 
-  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, any_of("structural_cluster_benefit"), fit))
+  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, any_of("structural_cluster_benefit"))) 
+
+if (!script_options$keep_fit) {
+  dist_fit_data %<>% 
+    select(!fit)
+}
 
 ## Combine models using stacking -------------------------------------------
 
