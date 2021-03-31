@@ -77,7 +77,7 @@ analysis_data <- monitored_nosms_data
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff",
-  "prob_prefer_calendar", "strata_wtp_mu",
+  "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
 

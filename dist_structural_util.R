@@ -682,6 +682,75 @@ expect_y_partial_d <- function(v, mu, total_error_sd, u_sd, linear_dist_cost) {
     multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size))) 
 }
 
+get_wtp_results <- function(wtp_draws) {
+  wtp_draws %>% 
+    filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+    tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+    mutate(
+      quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
+      mean_est = map_dbl(iter_data, ~ mean(.x$iter_value, na.rm = TRUE)),
+    ) %>% 
+    unnest(quants)
+}
+
+get_beliefs_results <- function(beliefs_draws, stan_data) {
+  lst(
+    prob_knows = beliefs_draws %>% 
+      filter(str_detect(variable, r"{^(prob_1ord|prob_2ord)\[}")) %>% 
+      tidyr::extract(variable, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+      mutate(quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE)) %>% 
+      unnest(quants) %>% 
+      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = "treatment_id") %>% 
+      arrange(ord),
+    
+    ate_knows = beliefs_draws %>% 
+      filter(str_detect(variable, r"{^(ate_1ord|ate_2ord)\[}")) %>% 
+      tidyr::extract(variable, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
+      mutate(quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE)) %>% 
+      unnest(quants) %>% 
+      right_join(mutate(stan_data$beliefs_ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
+      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id")) %>%
+      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>%
+      select(-starts_with("treatment_id"), -ate_pair_index) %>% 
+      arrange(ord)
+  )
+}
+
+get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
+  if (!is_null(fit) && fct_match(model_type, "structural")) {
+    temp_res <- if (is(fit, "stanfit")) {
+      as.data.frame(fit, pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        # sample_n(min(nrow(.), 1500)) %>% 
+        mutate(iter_id = seq(n())) %>% 
+        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    } else if (is_tibble(fit)) {
+      filter(fit, str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
+        unnest(iter_data) %>% 
+        # filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
+        select(!c(.chain, .iteration, .draw)) %>% 
+        tidyr::extract(variable, c("variable", "assigned_dist_group", "mix_index"), r"{(\w+)\[(\d),(\d)}", convert = TRUE) %>% 
+        pivot_wider(c(assigned_dist_group, mix_index, iter_id), names_from = variable, values_from = iter_est)
+    } else {
+      fit$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
+        posterior::as_draws_df() %>% 
+        # sample_n(min(nrow(.), 1500)) %>% 
+        mutate(iter_id = seq(n())) %>% 
+        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
+    }
+   
+    if (!is_null(stan_data)) {
+      dist_levels <- levels(stan_data$cluster_treatment_map$assigned_dist_group) 
+      
+      temp_res %<>% 
+        mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
+    }
+    
+    return(temp_res)
+  }
+}
+
+# Plotting Functions ------------------------------------------------------
+
 plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE) {
   plot_pos <- ggstance::position_dodgev(height = 0.8)
   
@@ -745,71 +814,44 @@ plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model,
     NULL
 }
 
-get_wtp_results <- function(wtp_draws) {
-  wtp_draws %>% 
-    filter(str_detect(variable, r"{^(prob_prefer_calendar|strata_wtp_mu)\[}")) %>% 
-    tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
-    mutate(
-      quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
-      mean_est = map_dbl(iter_data, ~ mean(.x$iter_value, na.rm = TRUE)),
-    ) %>% 
-    unnest(quants)
-}
 
-get_beliefs_results <- function(beliefs_draws, stan_data) {
-  lst(
-    prob_knows = beliefs_draws %>% 
-      filter(str_detect(variable, r"{^(prob_1ord|prob_2ord)\[}")) %>% 
-      tidyr::extract(variable, c("ord", "treatment_id"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
-      mutate(quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE)) %>% 
-      unnest(quants) %>% 
-      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = "treatment_id") %>% 
-      arrange(ord),
+plot_wtp_results <- function(draws) {
+  cowplot::plot_grid(
+    filter(draws, fct_match(variable, "prob_prefer_calendar")) %>% 
+      left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
+      ggplot(aes(x = val_diff)) +
+      geom_line(aes(y = per_0.5)) +
+      geom_point(aes(y = per_0.5), size = 1) +
+      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+      scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
+      labs(
+        title = "Probability of Preference for Calendars vs. Bracelets",
+        y = "" 
+      ) +
+      NULL,
     
-    ate_knows = beliefs_draws %>% 
-      filter(str_detect(variable, r"{^(ate_1ord|ate_2ord)\[}")) %>% 
-      tidyr::extract(variable, c("ord", "ate_pair_index"), r"{([12])ord\[(\d+)\]}", convert = TRUE) %>% 
-      mutate(quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE)) %>% 
-      unnest(quants) %>% 
-      right_join(mutate(stan_data$beliefs_ate_pairs, ate_pair_index = seq(n())), ., by = "ate_pair_index") %>% 
-      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id")) %>%
-      right_join(mutate(stan_data$cluster_treatment_map, treatment_id = seq(n())), ., by = c("treatment_id" = "treatment_id_control"), suffix = c("_right", "_left")) %>%
-      select(-starts_with("treatment_id"), -ate_pair_index) %>% 
-      arrange(ord)
+    # filter(draws, fct_match(variable, "strata_wtp_mu")) %>%
+    filter(draws, fct_match(variable, "hyper_wtp_mu")) %>%
+      mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
+      # ggplot(aes(y = str_c(variable, index))) +
+      ggplot(aes(y = str_c(variable))) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+      geom_point(aes(x = mean_est), size = 2) +
+      geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+      scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
+      theme(axis.text.y = element_blank()) +
+      labs(
+        title = "Difference in Valuation of Calendars and Bracelets",
+        # subtitle = "For Each County",
+        y = "",
+        caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval.
+                   Thick vertical line: median. Point: mean."
+      ),
+    
+    ncol = 1 , rel_heights = c(1, 0.6)
   )
-}
-
-get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
-  if (!is_null(fit) && fct_match(model_type, "structural")) {
-    temp_res <- if (is(fit, "stanfit")) {
-      as.data.frame(fit, pars = c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-        # sample_n(min(nrow(.), 1500)) %>% 
-        mutate(iter_id = seq(n())) %>% 
-        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
-    } else if (is_tibble(fit)) {
-      filter(fit, str_detect(variable, str_c("^", str_c(c("group_dist_mean", "group_dist_sd", "group_dist_mix"), collapse = "|"), "\\["))) %>% 
-        unnest(iter_data) %>% 
-        # filter(iter_id %in% sample(max(iter_id), 1500)) %>% 
-        select(!c(.chain, .iteration, .draw)) %>% 
-        tidyr::extract(variable, c("variable", "assigned_dist_group", "mix_index"), r"{(\w+)\[(\d),(\d)}", convert = TRUE) %>% 
-        pivot_wider(c(assigned_dist_group, mix_index, iter_id), names_from = variable, values_from = iter_est)
-    } else {
-      fit$draws(c("group_dist_mean", "group_dist_sd", "group_dist_mix")) %>% 
-        posterior::as_draws_df() %>% 
-        # sample_n(min(nrow(.), 1500)) %>% 
-        mutate(iter_id = seq(n())) %>% 
-        pivot_longer(names_to = c(".value", "assigned_dist_group", "mix_index"), names_pattern = "([^\\[]+)\\[(\\d),(\\d)", cols = -iter_id, values_drop_na = TRUE) 
-    }
-   
-    if (!is_null(stan_data)) {
-      dist_levels <- levels(stan_data$cluster_treatment_map$assigned_dist_group) 
-      
-      temp_res %<>% 
-        mutate(assigned_dist_group = factor(assigned_dist_group, levels = 1:2, labels = dist_levels))
-    }
-    
-    return(temp_res)
-  }
 }
 
 # Constants ---------------------------------------------------------------
