@@ -22,7 +22,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "42 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "44 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -30,8 +30,6 @@ library(tidyverse)
 library(rlang)
 library(cmdstanr)
 library(furrr)
-# library(pbmcapply)
-# library(nleqslv)
 
 source("analysis_util.R")
 source(file.path("multilvlr", "multilvlr_util.R"))
@@ -76,8 +74,8 @@ analysis_data <- monitored_nosms_data
 # Load Data ---------------------------------------------------------------
 
 param_used <- c(
-  "total_error_sd", "u_sd", "cluster_cf_cutoff", # "mu_beliefs_effect", # "cluster_linear_dist_cost", "cluster_quadratic_dist_cost", "structural_cluster_benefit", 
-  "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff",
+  "total_error_sd", "u_sd", "cluster_cf_cutoff", # "mu_beliefs_effect", 
+  "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff", "cluster_rep_return_left", "cluster_rep_return_right",
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
@@ -105,14 +103,13 @@ model_info <- tribble(
   ~ model,                          ~ model_name,                                ~ model_type,
   
   "REDUCED_FORM_NO_RESTRICT",       "Reduced Form",                              "reduced form",
-  "STRUCTURAL_LINEAR",              "Structural",                                "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS",     "Structural",                                "structural",
-  "TEST",                           "Structural",                                "structural",
+  # "STRUCTURAL_LINEAR",              "Structural",                                "structural",
   # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
   # "STRUCTURAL_QUADRATIC_NO_SHOCKS", "Structural Quadratic Cost (No Shocks)",     "structural",
   # "STRUCTURAL_LINEAR_NO_SHOCKS",    "Structural Linear Cost (No Shocks)",        "structural",
   # "STRUCTURAL_QUADRATIC_SALIENCE",  "Structural Quadratic Cost With Salience",   "structural",
-  "STRUCTURAL_LINEAR_SALIENCE",     "Structural With Salience",                 "structural",
+  # "STRUCTURAL_LINEAR_SALIENCE",     "Structural With Salience",                 "structural",
   
   "STACKED",                        "Stacked Model",                            "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",             "Structural Stacked Model",                 "structural", 
@@ -219,71 +216,6 @@ observed_takeup <- monitored_nosms_data %>%
 # Functions ---------------------------------------------------------------
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
-
-# In this function solve for the fixed point equilibrium level v^*, given current benefit-cost and mu
-calc_cutoff <- function(curr_iter_data) {
-  rowwise(curr_iter_data) %>% 
-    mutate(
-      as_tibble(nleqslv::nleqslv(x = - iter_est, fn = generate_v_cutoff_fixedpoint(iter_est, iter_est_mu, iter_est_error_sd, iter_est_u_sd))[c("x", "termcd")]),
-    ) %>% 
-    ungroup() %>% 
-    rename(
-      v_cutoff = x,
-      nleqslv_term_code = termcd
-    ) %>% 
-    mutate(
-      no_rep_prob = pnorm(iter_est, sd = iter_est_error_sd), # Probability of take-up in cluster without reputation
-      delta_rep = calculate_delta(v_cutoff, iter_est_error_sd, iter_est_u_sd), 
-      prob = pnorm(- v_cutoff, sd = iter_est_error_sd) # Probability of take-up in cluster
-    )
-}
-
-# Join benefit-cost, reputation mu, and total error sd
-join_benefit_cost_mu_error_sd <- function(benefit_cost, mu_rep, total_error_sd, u_sd) {
-  if (!is_null(mu_rep)) {
-    mutate(benefit_cost, 
-           # iter_data = pbmclapply(mc.cores = postprocess_cores,
-           #                        iter_data, 
-           #                        left_join, 
-           #                        unnest(mu_rep, iter_data) %>% 
-           #                          select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
-           #                          inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "")) %>% 
-           #                          inner_join(u_sd, by = c("iter_id"), suffix = c("_error_sd", "_u_sd")),
-           #                        by = c("iter_id")) %>% 
-           iter_data = future_map(
-             iter_data,
-             ~ {
-               left_join(
-                 .x,
-                 unnest(mu_rep, iter_data) %>% 
-                   select(mu_assigned_treatment = assigned_treatment, iter_id, iter_est) %>%  
-                   inner_join(total_error_sd, by = c("iter_id"), suffix = c("_mu", "")) %>% 
-                   inner_join(u_sd, by = c("iter_id"), suffix = c("_error_sd", "_u_sd")),
-                 by = c("iter_id")) %>%
-                 mutate(obs_num_takeup = if_else(assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_))
-             }))
-  } else if (!is_null(total_error_sd)) { 
-    mutate(benefit_cost, 
-           # iter_data = pbmclapply(mc.cores = postprocess_cores,
-           #                        iter_data,
-           #                        inner_join, 
-           #                        total_error_sd, 
-           #                        by = c("iter_id"), 
-           #                        suffix = c("", "_error_sd")) %>% 
-           iter_data = future_map(iter_data, inner_join, total_error_sd, by = c("iter_id"), suffix = c("", "_error_sd")) %>% 
-             # pbmclapply(mc.cores = postprocess_cores,
-             #            .,
-             #            inner_join, 
-             #            u_sd, 
-             #            by = c("iter_id"), 
-             #            suffix = c("", "_u_sd")) %>% 
-             future_map(inner_join, u_sd, by = c("iter_id"), suffix = c("", "_u_sd")) %>% 
-             map(mutate, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
-  } else {
-    mutate(benefit_cost,
-           iter_data = map(iter_data, mutate, iter_est_error_sd = 1, iter_est_u_sd = 0, iter_est_mu = 0, mu_assigned_treatment = NA_character_, iter_est_mu = 0))
-  } 
-}
 
 calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd) {
   prob_iter_data <- if (!is_null(total_error_sd)) {
@@ -418,6 +350,20 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
   }
 }
 
+summarize_roc <- function(param_data) {
+  unnest(param_data, iter_data) %>%
+    # mutate(iter_est = iter_est / sd(.y$cluster.dist.to.pot)) %>% # Re-scaling back to meters
+    group_by(roc_distance_index, roc_distance, iter_id) %>% 
+    summarize(iter_est = mean(iter_est)) %>% 
+    ungroup() %>% 
+    nest(iter_data = c(iter_id, iter_est)) %>% 
+    mutate(
+      mean_est = map_dbl(iter_data, ~ mean(.x$iter_est, na.rm = TRUE)),
+      quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
+    ) %>% 
+    unnest(quants)
+}
+
 # Postprocessing ----------------------------------------------------------
 
 dist_fit_data %<>% 
@@ -444,22 +390,14 @@ dist_fit_data %<>%
 if (!script_options$no_rate_of_change) {
   dist_fit_data %<>% 
     mutate(
-      # cluster_linear_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_linear_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
-      # cluster_quadratic_dist_cost = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "cluster_quadratic_dist_cost", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
-      # structural_cluster_benefit = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "structural_cluster_benefit", stan_data = .y, iter_level = "cluster", by_treatment = TRUE, summarize_est = FALSE, mix = FALSE, quant_probs = quant_probs)),
-      # 
-      # across(c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), left_join, stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = c("obs_index" = "cluster_id")),
-      # across(
-      #   c(cluster_linear_dist_cost, cluster_quadratic_dist_cost), map_if, ~ !is_null(.x), 
-      #   ~ select(.x, cluster_index = obs_index, cluster_size, treatment_index, assigned_treatment, assigned_dist_group, iter_data) %>% 
-      #     unnest(iter_data) %>% 
-      #     nest(cluster_data = -iter_id)
-      # ), 
-      # 
-      # y_rate_of_change = pmap(lst(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
-      #                             mu_rep, total_error_sd, u_sd, fit_type), simulate_social_multiplier),
+      y_rate_of_change_diff = map2(fit, stan_data, extract_roc_param, "cluster_roc_diff") %>% 
+        map(summarize_roc),
       
-      y_rate_of_change_diff = map2(fit, stan_data, extract_roc_diff),
+      cluster_rep_return_bracelet = map2(fit, stan_data, extract_roc_param, "cluster_rep_return_left") %>% 
+        map(summarize_roc),
+      
+      cluster_rep_return_control = map2(fit, stan_data, extract_roc_param, "cluster_rep_return_right") %>% 
+        map(summarize_roc),
     )
 }
 
