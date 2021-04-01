@@ -854,6 +854,109 @@ plot_wtp_results <- function(draws) {
   )
 }
 
+plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2) {
+  pos_dodge <- position_dodge(width = width)
+
+  first_plot <- beliefs_results$prob_knows %>% 
+    filter(ord == 1) %>% 
+    ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+    geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
+    geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+    scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+    scale_y_discrete("", labels = str_to_title) +
+    labs(
+      title = "First Order Beliefs",
+      subtitle = "Proportion",
+      x = "") +
+    theme(legend.position = "top") +
+    NULL
+  
+  cowplot::plot_grid(
+    if (!is_null(top_title)) { 
+      cowplot::ggdraw() +
+        cowplot::draw_label(top_title, size = 20, fontface = "italic")
+    },
+    
+    cowplot::plot_grid(
+      first_plot +
+        theme(
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      beliefs_results$ate_knows %>% 
+        filter(ord == 1, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_vline(xintercept = 0, linetype = "dotted") +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = "",
+          subtitle = "Treatment Effect",
+          x = "", y = "") +
+        theme(
+          axis.text.y = element_blank(),
+          legend.position = "none"
+        ) +
+        NULL, 
+      
+      beliefs_results$prob_knows %>% 
+        filter(ord == 2) %>% 
+        ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        scale_y_discrete("", labels = str_to_title) +
+        labs(
+          title = "Second Order Beliefs",
+          subtitle = "Proportion",
+          x = "") +
+        theme(
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      beliefs_results$ate_knows %>% 
+        filter(ord == 2, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_vline(xintercept = 0, linetype = "dotted") +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = "",
+          subtitle = "Treatment Effect",
+          x = "", y = "") +
+        theme(
+          axis.text.y = element_blank(),
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      ncol = 2, axis = "b", align = "h" 
+    ),
+    
+    cowplot::get_legend(first_plot),
+    
+    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.1)
+  )
+}
+
 # Constants ---------------------------------------------------------------
 
 cost_model_types <- create_stan_enum(c("param_kappa", "param_linear", "param_quadratic", "semiparam", 
