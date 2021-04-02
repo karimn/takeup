@@ -22,7 +22,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "44 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "45 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -73,9 +73,11 @@ analysis_data <- monitored_nosms_data
 
 # Load Data ---------------------------------------------------------------
 
+roc_param <- c("cluster_roc_diff", str_c(rep(c("cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff"), each = 2), c("_left", "_right")))
+
 param_used <- c(
-  "total_error_sd", "u_sd", "cluster_cf_cutoff", # "mu_beliefs_effect", 
-  "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff", "cluster_rep_return_left", "cluster_rep_return_right", "cluster_social_multiplier_left", "cluster_social_multiplier_right",
+  "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", # "mu_beliefs_effect", 
+  "group_dist_mean", "group_dist_sd", "group_dist_mix", 
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
@@ -352,11 +354,21 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 
 summarize_roc <- function(param_data) {
   unnest(param_data, iter_data) %>%
-    # mutate(iter_est = iter_est / sd(.y$cluster.dist.to.pot)) %>% # Re-scaling back to meters
     group_by(roc_distance_index, roc_distance, iter_id) %>% 
-    summarize(iter_est = mean(iter_est)) %>% 
+    summarize(iter_est = mean(iter_est), .groups = "drop") %>% 
     ungroup() %>% 
     nest(iter_data = c(iter_id, iter_est)) %>% 
+    mutate(
+      mean_est = map_dbl(iter_data, ~ mean(.x$iter_est, na.rm = TRUE)),
+      quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
+    ) %>% 
+    unnest(quants)
+}
+
+extract_sim_delta <- function(fit, stan_data) {
+  fit %>% 
+    filter(str_detect(variable, "sim_delta")) %>% 
+    transmute(w = stan_data$sim_delta_w, iter_data) %>% 
     mutate(
       mean_est = map_dbl(iter_data, ~ mean(.x$iter_est, na.rm = TRUE)),
       quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
@@ -390,20 +402,12 @@ dist_fit_data %<>%
 if (!script_options$no_rate_of_change) {
   dist_fit_data %<>% 
     mutate(
-      y_rate_of_change_diff = map2(fit, stan_data, extract_roc_param, "cluster_roc_diff") %>% 
-        map(summarize_roc),
+      set_names(map(roc_param, ~ map2(..2, ..3, extract_roc_param, ..1), fit, stan_data), roc_param) %>% 
+        map(map, summarize_roc) %>% 
+        as_tibble() %>% 
+        rename_with(str_replace_all, c("_left" = "_bracelet", "_right" = "_control"), .cols = everything()),
       
-      cluster_rep_return_bracelet = map2(fit, stan_data, extract_roc_param, "cluster_rep_return_left") %>% 
-        map(summarize_roc),
-      
-      cluster_rep_return_control = map2(fit, stan_data, extract_roc_param, "cluster_rep_return_right") %>% 
-        map(summarize_roc),
-      
-      cluster_social_multiplier_bracelet = map2(fit, stan_data, extract_roc_param, "cluster_social_multiplier_left") %>% 
-        map(summarize_roc),
-      
-      cluster_social_multiplier_control = map2(fit, stan_data, extract_roc_param, "cluster_social_multiplier_right") %>% 
-        map(summarize_roc),
+      sim_delta = map2(fit, stan_data, extract_sim_delta)
     )
 }
 
