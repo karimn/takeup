@@ -209,7 +209,7 @@ models <- lst(
     num_v_mix = 1,
     use_cost_model = cost_model_types["param_linear"],
     use_single_cost_model = TRUE,
-    use_private_incentive_restrictions = TRUE,
+    use_private_incentive_restrictions = FALSE,
     use_salience_effect = FALSE,
     use_cluster_effects = FALSE,
     use_county_effects = FALSE,
