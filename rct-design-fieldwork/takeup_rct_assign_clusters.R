@@ -87,9 +87,11 @@ ggplot.clusters <- function(selected.clusters,
   
   map.obj <- all.clusters %>% 
     tidy %>% 
-    make_bbox(long, lat, data = .) %>% {
-      ggmap(get_map(., maptype = maptype, source = source, ...))
-    }
+    make_bbox(long, lat, data = .) %>% 
+      # get_map(maptype = maptype, source = source, ...) %>% 
+      # get_openstreetmap(...) %>% 
+      get_stamenmap(maptype = maptype, ...) %>% 
+      ggmap()
 
   if (!suppress.selected.clusters) {
     map.obj <- map.obj + (selected.clusters %>% 
