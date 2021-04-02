@@ -13,7 +13,7 @@
 #SBATCH --error=temp/log/takeup_postprocess-%j.log
 #SBATCH --export=IN_SLURM=1
 
-VERSION=41
+VERSION=46
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
 MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
@@ -46,7 +46,7 @@ fi
 # Rscript ./run_takeup.R beliefs fit   --chains=4 --iter 1000 --outputname=beliefs       --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models
 # wait
 
-Rscript ./run_takeup.R takeup prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} 
+Rscript ./run_takeup.R takeup prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION}
 # Rscript ./run_takeup.R takeup fit   ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION} 
 # Rscript ./run_takeup.R takeup cv    ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --folds=10 
 Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES --load-from-csv

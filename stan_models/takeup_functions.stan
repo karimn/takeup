@@ -232,14 +232,15 @@ vector map_find_fixedpoint_solution(vector benefit_cost, vector mu_rep,
   return map_rect(find_fixedpoint_solution_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters) , x_is);
 }
 
-real calculate_roc_diff(int treatment_id_left, int treatment_id_right, 
+vector calculate_roc_diff(int treatment_id_left, int treatment_id_right, 
                           real w, real total_error_sd, real u_sd, real dist_beta, 
                           real mu_rep_left, real mu_rep_right, real mu_rep_deriv_left, real mu_rep_deriv_right, 
                           real delta, real delta_deriv) {
-  real part_left = (dist_beta - mu_rep_deriv_left * delta) / (1 + mu_rep_left * delta_deriv);
-  real part_right = (dist_beta - mu_rep_deriv_right * delta) / (1 + mu_rep_right * delta_deriv);
+  real f_w = exp(normal_lpdf(w | 0, total_error_sd));
+  real left = (- f_w * (dist_beta - mu_rep_deriv_left * delta)) / (1 + mu_rep_left * delta_deriv);
+  real right = (- f_w * (dist_beta - mu_rep_deriv_right * delta)) / (1 + mu_rep_right * delta_deriv);
   
-  return - exp(normal_lpdf(w | 0, total_error_sd)) * (part_left - part_right); 
+  return [ left, right, f_w ]';
 } 
   
 vector calculate_roc_diff_rect(vector phi, vector theta, data real[] x_r, data int[] x_i) {
@@ -284,7 +285,7 @@ matrix map_calculate_roc_diff(
                               mu_left[cluster_index], mu_right[cluster_index], mu_deriv_left[cluster_index], mu_deriv_right[cluster_index]  ]';
   }
   
-  return to_matrix(map_rect(calculate_roc_diff_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 7, 0);
+  return to_matrix(map_rect(calculate_roc_diff_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 9, 0);
 }
 
 

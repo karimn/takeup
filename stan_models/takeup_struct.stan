@@ -495,9 +495,13 @@ generated quantities {
   vector[generate_rep ? num_clusters : 0] cluster_rep_cutoff; 
   matrix[generate_sim ? num_grid_obs : 0, num_treatments] sim_benefit_cost; 
   
+  matrix[num_clusters, num_roc_distances] cluster_roc_left;
+  matrix[num_clusters, num_roc_distances] cluster_roc_right;
   matrix[num_clusters, num_roc_distances] cluster_roc_diff;
   matrix[num_clusters, num_roc_distances] cluster_w_cutoff_left;
   matrix[num_clusters, num_roc_distances] cluster_w_cutoff_right;
+  matrix[num_clusters, num_roc_distances] cluster_takeup_prop_left;
+  matrix[num_clusters, num_roc_distances] cluster_takeup_prop_right;
   matrix[num_clusters, num_roc_distances] cluster_social_multiplier_left;
   matrix[num_clusters, num_roc_distances] cluster_social_multiplier_right;
   matrix[num_clusters, num_roc_distances] cluster_rep_return_left;
@@ -513,16 +517,6 @@ generated quantities {
 #include wtp_generated_quantities.stan
 #include beliefs_generated_quantities_define.stan
 
-  // for (cluster_index in 1:num_clusters) {
-  //   for (dist_group_index in 1:num_discrete_dist) {
-  //     if (cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2] == dist_group_index) {
-  //       cf_cluster_standard_dist[cluster_index, dist_group_index] = cluster_standard_dist[cluster_index];
-  //     } else {
-  //       cf_cluster_standard_dist[cluster_index, dist_group_index] = missing_cluster_standard_dist[cluster_index, dist_group_index];
-  //     }
-  //   }
-  // }
-    
   {
     int treatment_cluster_pos = 1;
     int cluster_treatment_cf_pos = 1;
@@ -551,8 +545,6 @@ generated quantities {
         if (multithreaded) {
           cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
             cluster_cf_benefit_cost[treatment_index],
-            // This is a bit of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
-            // cluster_mu_rep[, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
             curr_cluster_mu_rep,
             rep_vector(total_error_sd[curr_assigned_treatment], num_clusters),
             rep_vector(u_sd[curr_assigned_treatment], num_clusters),
@@ -566,8 +558,6 @@ generated quantities {
           for (cluster_index in 1:num_clusters) {
             cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
               cluster_cf_benefit_cost[treatment_index, cluster_index],
-              // This is a bit of a hack: I want to keep the distance assignment fixed but change the incentive/signal treatment
-              // cluster_mu_rep[cluster_index, (treatment_index > num_treatments ? num_treatments : 0) + mu_treatment_index],
               curr_cluster_mu_rep[cluster_index],
               total_error_sd[curr_assigned_treatment],
               u_sd[curr_assigned_treatment],
@@ -802,11 +792,15 @@ generated quantities {
         
       cluster_w_cutoff_left[, roc_dist_index] = roc_results[, 1];
       cluster_w_cutoff_right[, roc_dist_index] = roc_results[, 2];
+      cluster_takeup_prop_left[, roc_dist_index] = 1 - Phi_approx(roc_results[, 1] / total_error_sd[1]);
+      cluster_takeup_prop_right[, roc_dist_index] = 1 - Phi_approx(roc_results[, 2] / total_error_sd[1]);
       cluster_social_multiplier_left[, roc_dist_index] = - roc_results[, 3];
       cluster_social_multiplier_right[, roc_dist_index] = - roc_results[, 5];
       cluster_rep_return_left[, roc_dist_index] = roc_results[, 3] .* curr_cluster_mu_rep_left[, 1]; 
       cluster_rep_return_right[, roc_dist_index] = roc_results[, 5] .* curr_cluster_mu_rep_right[, 1];
-      cluster_roc_diff[, roc_dist_index] = roc_results[, 7]; 
+      cluster_roc_left[, roc_dist_index] = roc_results[, 7]; 
+      cluster_roc_right[, roc_dist_index] = roc_results[, 8]; 
+      cluster_roc_diff[, roc_dist_index] = roc_results[, 9]; 
     }
   }
   

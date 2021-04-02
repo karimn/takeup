@@ -73,7 +73,8 @@ analysis_data <- monitored_nosms_data
 
 # Load Data ---------------------------------------------------------------
 
-roc_param <- c("cluster_roc_diff", str_c(rep(c("cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff"), each = 2), c("_left", "_right")))
+roc_param <- c("cluster_roc_diff", 
+               str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", # "mu_beliefs_effect", 

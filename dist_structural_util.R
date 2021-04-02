@@ -838,6 +838,7 @@ plot_wtp_results <- function(draws) {
       geom_point(aes(x = mean_est), size = 2) +
       geom_point(aes(x = mean_est), color = "white", size = 0.8) +
       scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
+      # coord_cartesian(xlim = c(-55, 55)) +
       theme(axis.text.y = element_blank()) +
       labs(
         title = "Difference in Valuation of Calendars and Bracelets",
