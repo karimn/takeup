@@ -748,8 +748,8 @@ get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
 
 # Plotting Functions ------------------------------------------------------
 
-plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE) {
-  plot_pos <- ggstance::position_dodgev(height = 0.8)
+plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3) {
+  plot_pos <- ggstance::position_dodgev(height = pos_height)
   
   ggplot_obj <- if (include_prior_predict) {
     ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
@@ -762,7 +762,7 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
   }
   
   ggplot_obj +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = 3, position = plot_pos) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = center_bar_size, position = plot_pos) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
     

@@ -75,7 +75,7 @@ analysis_data <- monitored_nosms_data
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", # "mu_beliefs_effect", 
-  "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff", "cluster_rep_return_left", "cluster_rep_return_right",
+  "group_dist_mean", "group_dist_sd", "group_dist_mix", "cluster_roc_diff", "cluster_rep_return_left", "cluster_rep_return_right", "cluster_social_multiplier_left", "cluster_social_multiplier_right",
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
@@ -397,6 +397,12 @@ if (!script_options$no_rate_of_change) {
         map(summarize_roc),
       
       cluster_rep_return_control = map2(fit, stan_data, extract_roc_param, "cluster_rep_return_right") %>% 
+        map(summarize_roc),
+      
+      cluster_social_multiplier_bracelet = map2(fit, stan_data, extract_roc_param, "cluster_social_multiplier_left") %>% 
+        map(summarize_roc),
+      
+      cluster_social_multiplier_control = map2(fit, stan_data, extract_roc_param, "cluster_social_multiplier_right") %>% 
         map(summarize_roc),
     )
 }

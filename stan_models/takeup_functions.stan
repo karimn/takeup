@@ -259,7 +259,7 @@ vector calculate_roc_diff_rect(vector phi, vector theta, data real[] x_r, data i
   vector[2] delta_right = expected_delta_deriv(w_right, total_error_sd, u_sd, x_r, x_i);
    
   return append_row(
-    append_row(delta_left, delta_right),
+    append_row([w_left, w_right]', append_row(delta_left, delta_right)),
     calculate_roc_diff(x_i[2], x_i[3], w_right, total_error_sd, u_sd, dist_beta, mu_rep_left, mu_rep_right, mu_rep_deriv_left, mu_rep_deriv_right, delta_right[1], delta_right[2])
   ); 
 }
@@ -284,7 +284,7 @@ matrix map_calculate_roc_diff(
                               mu_left[cluster_index], mu_right[cluster_index], mu_deriv_left[cluster_index], mu_deriv_right[cluster_index]  ]';
   }
   
-  return to_matrix(map_rect(calculate_roc_diff_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 5, 0);
+  return to_matrix(map_rect(calculate_roc_diff_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 7, 0);
 }
 
 

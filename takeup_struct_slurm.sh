@@ -18,7 +18,7 @@ if [ -z ${IN_SLURM} ]; then
   module load rh/devtoolset/8 gdal
 fi
 
-VERSION=44
+VERSION=45
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
 MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
 SLURM_INOUT_DIR=/tigress/kn6838/takeup

@@ -42,6 +42,11 @@ data {
   int<lower = 1, upper = num_treatments> roc_compare_treatment_id_right;
   int<lower = 0> num_roc_distances;
   vector<lower = 0>[num_roc_distances] roc_distances; // These should be standardized already
+ 
+  // Sim Delta
+  
+  int<lower = 0> num_sim_delta_w;
+  vector[num_sim_delta_w] sim_delta_w;
   
   // Hyperparam
   
@@ -491,8 +496,14 @@ generated quantities {
   matrix[generate_sim ? num_grid_obs : 0, num_treatments] sim_benefit_cost; 
   
   matrix[num_clusters, num_roc_distances] cluster_roc_diff;
+  matrix[num_clusters, num_roc_distances] cluster_w_cutoff_left;
+  matrix[num_clusters, num_roc_distances] cluster_w_cutoff_right;
+  matrix[num_clusters, num_roc_distances] cluster_social_multiplier_left;
+  matrix[num_clusters, num_roc_distances] cluster_social_multiplier_right;
   matrix[num_clusters, num_roc_distances] cluster_rep_return_left;
   matrix[num_clusters, num_roc_distances] cluster_rep_return_right;
+  
+  vector[num_sim_delta_w] sim_delta;
   
   // Cross Validation
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
@@ -789,10 +800,18 @@ generated quantities {
         alg_sol_max_steps
       );
         
-      cluster_roc_diff[, roc_dist_index] = roc_results[, 5]; 
-      cluster_rep_return_left[, roc_dist_index] = roc_results[, 1] .* curr_cluster_mu_rep_left[, 1]; 
-      cluster_rep_return_right[, roc_dist_index] = roc_results[, 3] .* curr_cluster_mu_rep_right[, 1];
+      cluster_w_cutoff_left[, roc_dist_index] = roc_results[, 1];
+      cluster_w_cutoff_right[, roc_dist_index] = roc_results[, 2];
+      cluster_social_multiplier_left[, roc_dist_index] = - roc_results[, 3];
+      cluster_social_multiplier_right[, roc_dist_index] = - roc_results[, 5];
+      cluster_rep_return_left[, roc_dist_index] = roc_results[, 3] .* curr_cluster_mu_rep_left[, 1]; 
+      cluster_rep_return_right[, roc_dist_index] = roc_results[, 5] .* curr_cluster_mu_rep_right[, 1];
+      cluster_roc_diff[, roc_dist_index] = roc_results[, 7]; 
     }
+  }
+  
+  for (sim_delta_index in 1:num_sim_delta_w) {
+    sim_delta[sim_delta_index] = expected_delta(sim_delta_w[sim_delta_index], total_error_sd[1], u_sd[1], dummy_xr, dummy_xi);
   }
 }
 

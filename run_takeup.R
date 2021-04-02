@@ -767,6 +767,9 @@ stan_data <- lst(
   roc_distances = seq(0, 2500, 100) / sd(analysis_data$cluster.dist.to.pot),
   num_roc_distances = length(roc_distances),
   
+  sim_delta_w = seq(-2, 2, 0.2),
+  num_sim_delta_w = length(sim_delta_w),
+  
   cluster_assigned_dist_group = distinct(analysis_data, cluster_id, dist.pot.group) %>% 
     arrange(cluster_id) %>% 
     pull(dist.pot.group),
