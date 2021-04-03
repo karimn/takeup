@@ -240,7 +240,7 @@ vector calculate_roc_diff(int treatment_id_left, int treatment_id_right,
   real left = (- f_w * (dist_beta - mu_rep_deriv_left * delta)) / (1 + mu_rep_left * delta_deriv);
   real right = (- f_w * (dist_beta - mu_rep_deriv_right * delta)) / (1 + mu_rep_right * delta_deriv);
   
-  return [ left, right, f_w ]';
+  return [ left, right, left - right ]';
 } 
   
 vector calculate_roc_diff_rect(vector phi, vector theta, data real[] x_r, data int[] x_i) {
