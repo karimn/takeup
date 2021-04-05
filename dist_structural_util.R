@@ -309,6 +309,28 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
                                        probs = quant_probs)) 
 }
 
+extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+  analysis_data <- stan_data$analysis_data
+  
+  fit_data <- if (is_tibble(fit)) {
+    fit %>% 
+      filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
+  } else { 
+    fit$draws(par) %>% 
+      posterior::as_draws_df() %>% 
+      mutate(iter_id = .draw) %>% 
+      pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+      nest(iter_data = !variable)
+  }
+  
+  fit_data %>% 
+    tidyr::extract(variable, c("cluster_id", "roc_distance_index"), r"{(\d+),(\d+)}", convert = TRUE) %>%  
+    left_join(tibble(roc_distance = unstandardize(stan_data$roc_distances, analysis_data$cluster.dist.to.pot)) %>% 
+                mutate(roc_distance_index = seq(n())), by = "roc_distance_index") %>% 
+    left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
+    as_tibble()
+}
+
 generate_initializer <- function(num_treatments,
                                  num_clusters,
                                  num_counties,
@@ -657,72 +679,9 @@ expect_y_partial_d <- function(v, mu, total_error_sd, u_sd, linear_dist_cost) {
     multiply_by(map_dbl(linear_dist_cost, ~ weighted.mean(.x$iter_est, .x$cluster_size))) 
 }
 
-plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE) {
-  plot_pos <- ggstance::position_dodgev(height = 0.8)
-  
-  ggplot_obj <- if (include_prior_predict) {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
-      NULL
-  } else {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
-  }
-  
-  ggplot_obj +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = 3, position = plot_pos) +
-    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
-    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
-    
-    geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
-    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
-    geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
-                       labels = if (is_null(group_labels)) { 
-                         dist_fit_data %>% 
-                           select(model, model_name) %>% 
-                           deframe() 
-                       } else {
-                         group_labels
-                       }, aesthetics = c("color", "fill")) + 
-    labs(
-      caption = #"Dotted line range: 98% credible interval. 
-                "Line range: 90% credible interval. 
-                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                 Thick vertical line: median. Point: mean."
-      
-    ) +
-    theme(legend.position = "top", legend.direction = "vertical") +
-    guides(color = guide_legend(ncol = 3)) +
-    NULL
-}
-
-plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model, group_labels = NULL) {
-  .data %>% 
-    ggplot(aes(group = {{ results_group }})) + 
-    geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
-                   binwidth = binwidth, boundary = 0, position = "identity", alpha = 0.5,  
-                   data = . %>% unnest(iter_data)) +
-    geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
-                       labels = if (is_null(group_labels)) { 
-                         dist_fit_data %>% 
-                           select(model, model_name) %>% 
-                           deframe() 
-                       } else {
-                         group_labels
-                       }, aesthetics = c("color", "fill")) + 
-    theme(legend.position = "top", legend.direction = "vertical") +
-    guides(color = guide_legend(ncol = 3)) +
-    NULL
-}
-
 get_wtp_results <- function(wtp_draws) {
   wtp_draws %>% 
-    filter(str_detect(variable, r"{^(prob_prefer_calendar|strata_wtp_mu)\[}")) %>% 
+    filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
     tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
     mutate(
       quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
@@ -785,6 +744,215 @@ get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
     
     return(temp_res)
   }
+}
+
+# Plotting Functions ------------------------------------------------------
+
+plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3) {
+  plot_pos <- ggstance::position_dodgev(height = pos_height)
+  
+  ggplot_obj <- if (include_prior_predict) {
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      NULL
+  } else {
+    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
+  }
+  
+  ggplot_obj +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = center_bar_size, position = plot_pos) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
+    
+    geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
+    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    scale_color_manual("", 
+                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
+                       labels = if (is_null(group_labels)) { 
+                         dist_fit_data %>% 
+                           select(model, model_name) %>% 
+                           deframe() 
+                       } else {
+                         group_labels
+                       }, aesthetics = c("color", "fill")) + 
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+}
+
+plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model, group_labels = NULL) {
+  .data %>% 
+    ggplot(aes(group = {{ results_group }})) + 
+    geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
+                   binwidth = binwidth, boundary = 0, position = "identity", alpha = 0.5,  
+                   data = . %>% unnest(iter_data)) +
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    scale_color_manual("", 
+                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
+                       labels = if (is_null(group_labels)) { 
+                         dist_fit_data %>% 
+                           select(model, model_name) %>% 
+                           deframe() 
+                       } else {
+                         group_labels
+                       }, aesthetics = c("color", "fill")) + 
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+}
+
+
+plot_wtp_results <- function(draws) {
+  cowplot::plot_grid(
+    filter(draws, fct_match(variable, "prob_prefer_calendar")) %>% 
+      left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
+      ggplot(aes(x = val_diff)) +
+      geom_line(aes(y = per_0.5)) +
+      geom_point(aes(y = per_0.5), size = 1) +
+      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+      scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
+      labs(
+        title = "Probability of Preference for Calendars vs. Bracelets",
+        y = "" 
+      ) +
+      NULL,
+    
+    # filter(draws, fct_match(variable, "strata_wtp_mu")) %>%
+    filter(draws, fct_match(variable, "hyper_wtp_mu")) %>%
+      mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
+      # ggplot(aes(y = str_c(variable, index))) +
+      ggplot(aes(y = str_c(variable))) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
+      geom_point(aes(x = mean_est), size = 2) +
+      geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+      scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
+      # coord_cartesian(xlim = c(-55, 55)) +
+      theme(axis.text.y = element_blank()) +
+      labs(
+        title = "Difference in Valuation of Calendars and Bracelets",
+        # subtitle = "For Each County",
+        y = "",
+        caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval.
+                   Thick vertical line: median. Point: mean."
+      ),
+    
+    ncol = 1 , rel_heights = c(1, 0.6)
+  )
+}
+
+plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2) {
+  pos_dodge <- position_dodge(width = width)
+
+  first_plot <- beliefs_results$prob_knows %>% 
+    filter(ord == 1) %>% 
+    ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+    geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
+    geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+    scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+    scale_y_discrete("", labels = str_to_title) +
+    labs(
+      title = "First Order Beliefs",
+      subtitle = "Proportion",
+      x = "") +
+    theme(legend.position = "top") +
+    NULL
+  
+  cowplot::plot_grid(
+    if (!is_null(top_title)) { 
+      cowplot::ggdraw() +
+        cowplot::draw_label(top_title, size = 20, fontface = "italic")
+    },
+    
+    cowplot::plot_grid(
+      first_plot +
+        theme(
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      beliefs_results$ate_knows %>% 
+        filter(ord == 1, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_vline(xintercept = 0, linetype = "dotted") +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = "",
+          subtitle = "Treatment Effect",
+          x = "", y = "") +
+        theme(
+          axis.text.y = element_blank(),
+          legend.position = "none"
+        ) +
+        NULL, 
+      
+      beliefs_results$prob_knows %>% 
+        filter(ord == 2) %>% 
+        ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        scale_y_discrete("", labels = str_to_title) +
+        labs(
+          title = "Second Order Beliefs",
+          subtitle = "Proportion",
+          x = "") +
+        theme(
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      beliefs_results$ate_knows %>% 
+        filter(ord == 2, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_vline(xintercept = 0, linetype = "dotted") +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = "",
+          subtitle = "Treatment Effect",
+          x = "", y = "") +
+        theme(
+          axis.text.y = element_blank(),
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      ncol = 2, axis = "b", align = "h" 
+    ),
+    
+    cowplot::get_legend(first_plot),
+    
+    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.1)
+  )
 }
 
 # Constants ---------------------------------------------------------------

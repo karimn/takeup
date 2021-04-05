@@ -24,8 +24,8 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
   
 ) 
 
@@ -209,7 +209,7 @@ models <- lst(
     num_v_mix = 1,
     use_cost_model = cost_model_types["param_linear"],
     use_single_cost_model = TRUE,
-    use_private_incentive_restrictions = TRUE,
+    use_private_incentive_restrictions = FALSE,
     use_salience_effect = FALSE,
     use_cluster_effects = FALSE,
     use_county_effects = FALSE,
@@ -233,7 +233,8 @@ models <- lst(
 
     # Priors
     mu_rep_sd = 1.0,
-    mu_beliefs_effects_sd = 1.5,
+    # mu_beliefs_effects_sd = 1.5,
+    mu_beliefs_effects_lambda = 1,
    
     beta_control_sd = 1,
     beta_ink_effect_sd = 0.25,
@@ -750,6 +751,24 @@ stan_data <- lst(
     pull(standard_cluster.dist.to.pot),
   
   cluster_treatment_map,
+  
+  # Rate of change
+  roc_compare_treatment_id_left = cluster_treatment_map %>% 
+    filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "bracelet")) %>% 
+    slice(1) %>% 
+    pull(assigned_treatment) %>% 
+    as.integer(),
+  roc_compare_treatment_id_right = cluster_treatment_map %>% 
+    filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "control")) %>% 
+    slice(1) %>% 
+    pull(assigned_treatment) %>% 
+    as.integer(),
+  
+  roc_distances = seq(0, 2500, 100) / sd(analysis_data$cluster.dist.to.pot),
+  num_roc_distances = length(roc_distances),
+  
+  sim_delta_w = seq(-2, 2, 0.2),
+  num_sim_delta_w = length(sim_delta_w),
   
   cluster_assigned_dist_group = distinct(analysis_data, cluster_id, dist.pot.group) %>% 
     arrange(cluster_id) %>% 
