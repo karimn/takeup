@@ -939,10 +939,13 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
         labs(
           title = "",
           subtitle = "Treatment Effect",
-          x = "", y = "") +
+          x = "", y = "",
+          caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. Thick vertical line: median. Point: mean."
+        ) +
         theme(
           axis.text.y = element_blank(),
-          legend.position = "none"
+          legend.position = "none",
+          plot.caption = element_text(size = 8)
         ) +
         NULL,
       
@@ -951,7 +954,7 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
     
     cowplot::get_legend(first_plot),
     
-    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.1)
+    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.08)
   )
 }
 
