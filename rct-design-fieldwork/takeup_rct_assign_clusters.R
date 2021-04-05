@@ -124,7 +124,7 @@ ggplot.clusters <- function(selected.clusters,
           } 
         }
       } else {
-        geom_point(aes(lon, lat), shape = 3, color = alpha("red", 0.5), data = as.data.frame(.))
+        geom_point(aes(lon, lat), shape = 3, color = alpha("darkred", 0.5), data = as.data.frame(.))
       }
     }) 
     # return(map.obj)
