@@ -149,7 +149,9 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
       by = c("cluster_id", "assigned_treatment", "assigned_dist_group")
     ) %>%
     mutate(
-      obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
+      # obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
+      obs_num_takeup = if_else(is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_),
+      obs_prop_takeup = obs_num_takeup / cluster_size
     ) %>% 
     as_tibble()
 }

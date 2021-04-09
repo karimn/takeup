@@ -22,7 +22,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "45 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "46 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
