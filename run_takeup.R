@@ -520,8 +520,8 @@ models <- lst(
     use_cost_model = cost_model_types["discrete"],
     use_private_incentive_restrictions = FALSE,
     use_salience_effect = FALSE,
-    use_cluster_effects = TRUE,
-    use_county_effects = TRUE,
+    use_cluster_effects = FALSE,
+    use_county_effects = FALSE,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     use_mu_cluster_effects = FALSE,
@@ -832,7 +832,7 @@ stan_data <- lst(
   
   u_splines_v_sigma_sd = 1,
   
-  dist_beta_v_sd = 0.5,
+  dist_beta_v_sd = 0.25,
   
   beta_control_sd = 1,
   beta_far_effect_sd = 0.5,
