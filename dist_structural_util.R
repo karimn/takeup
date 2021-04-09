@@ -339,6 +339,7 @@ generate_initializer <- function(num_treatments,
                                  base_init = function() lst(beta_cluster_sd = abs(rnorm(num_treatments))), 
                                  structural_type = 0,
                                  num_mix = 1,
+                                 num_dist_mix = 1,
                                  use_cluster_effects = use_cluster_effects,
                                  use_county_effects = use_cluster_effects,
                                  use_param_dist_cluster_effects = use_cluster_effects,
@@ -432,7 +433,7 @@ generate_initializer <- function(num_treatments,
           v_mix_mean = as.array(0.1),
           v_sd = rbeta(1, 8, 1),
           
-          group_dist_mix = MCMCpack::rdirichlet(2, rep(10, 2))
+          group_dist_mix = MCMCpack::rdirichlet(num_dist_mix, rep(10, num_dist_mix))
         )
         
         base_list %>% 
@@ -745,6 +746,35 @@ get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
     }
     
     return(temp_res)
+  }
+}
+
+get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
+  if (!is_null(fit) && fct_match(model_type, "structural")) {
+    temp_res <- if (is(fit, "stanfit")) {
+      stop("not supported")
+    } else if (is_tibble(fit)) {
+      filter(fit, str_detect(variable, "missing_cluster_standard_dist")) %>% 
+        select(!c(.chain, .iteration, .draw)) 
+    } else {
+      fit$draws(c("missing_cluster_standard_dist")) %>% 
+        posterior::as_draws_df() %>% 
+        mutate(iter_id = seq(n())) %>% 
+        select(!c(.chain, .iteration, .draw)) 
+    }
+    
+    temp_res %>%  
+      pivot_longer(names_to = "variable", values_to = "iter_est", cols = -iter_id) %>% 
+      tidyr::extract(variable, c("cluster_id", "dist_treatment_id"), r"{(\d+),(\d+)}", convert = TRUE) %>% 
+      nest(iter_data = c(iter_id, iter_est)) %>% 
+      mutate(dist_treatment = factor(dist_treatment_id, levels = 1:2, labels = c("close", "far"))) %>% 
+      left_join(
+        stan_data$analysis_data %>% 
+          distinct(cluster_id, dist.pot.group, obs_standard_dist = standard_cluster.dist.to.pot),
+        by = c("cluster_id", "dist_treatment" = "dist.pot.group")
+      ) %>% 
+      mutate(quants = map(iter_data, quantilize_est, iter_est, na.rm = TRUE)) %>% 
+      unnest(quants)
   }
 }
 
