@@ -1,12 +1,14 @@
 functions {
-#include takeup_functions.stan
+#include /../multilvlr/util.stan
 }
 
 data {
+#include base_data_sec.stan
 #include takeup_data_sec.stan
 }
 
 transformed data {
+#include base_transformed_data_declare.stan 
 #include takeup_transformed_data_declare.stan
 #include takeup_transformed_data_define.stan
 }

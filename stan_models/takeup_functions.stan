@@ -1,5 +1,3 @@
-#include /../multilvlr/util.stan
-
 real reputational_returns_normal(real v) {
   real mix_Phi_v = Phi_approx(v);
   
