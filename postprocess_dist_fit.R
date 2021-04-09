@@ -78,10 +78,12 @@ roc_param <- c("cluster_roc_diff",
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", # "mu_beliefs_effect", 
-  "group_dist_mean", "group_dist_sd", "group_dist_mix", 
+  "group_dist_mean", "group_dist_sd", "group_dist_mix", "missing_cluster_standard_dist", 
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
 )
+
+# param_used %<>% c("structural_cluster_takeup_prob", "missing_cluster_standard_dist") 
 
 load_from_csv <- function(fit_file, input_path, param) {
   dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
@@ -293,8 +295,12 @@ simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linea
 }
 
 # Combine cluster level nested data to produce treatment level nested data
-organize_by_treatment <- function(.data, ...) {
-  .data %>%
+organize_by_treatment <- function(.data, ..., condition_on_dist = FALSE) {
+  .data %>% {
+    if (condition_on_dist) { # Only use observed distance
+      filter(., assigned_dist_group_obs == assigned_dist_group)
+    } else .
+  } %>% 
     select(..., cluster_size, iter_data) %>% 
     mutate(iter_data = map(iter_data, select, iter_id, prob, iter_num_takeup)) %>%
     unnest(iter_data) %>% 
@@ -389,13 +395,14 @@ dist_fit_data %<>%
     cluster_cf_cutoff = map2(fit, stan_data, ~ extract_obs_cluster_cutoff_cf(.x, stan_data = .y, quant_probs = quant_probs)) %>% 
       map2(total_error_sd, calculate_prob_and_num_takeup), 
     
-    est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
+    est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group, condition_on_dist = TRUE) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
              organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
     
     group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
+    imputed_dist = pmap(lst(fit, stan_data, model_type), get_imputed_dist),
     beliefs_results = map2(fit, stan_data, get_beliefs_results),
     wtp_results = map(fit, get_wtp_results),
   )
