@@ -437,7 +437,7 @@ generate_initializer <- function(num_treatments,
           v_mix_mean = as.array(0.1),
           v_sd = rbeta(1, 8, 1),
           
-          group_dist_mix = MCMCpack::rdirichlet(num_dist_mix, rep(10, num_dist_mix))
+          group_dist_mix = MCMCpack::rdirichlet(2, rep(10, num_dist_mix))
         )
         
         base_list %>% 
