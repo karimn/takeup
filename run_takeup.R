@@ -24,7 +24,8 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
   
 ) 
@@ -532,29 +533,39 @@ models <- lst(
     use_shifting_v_dist = FALSE,
     suppress_reputation = TRUE,
     
-    structural_beta_county_sd_sd = 1,
-    structural_beta_cluster_sd_sd = 1,
+    beta_control_sd = 0.75,
+    beta_far_effect_sd = 0.25,
+    beta_ink_effect_sd = 0.25,
+    beta_calendar_effect_sd = 0.25,
+    beta_bracelet_effect_sd = 0.25,
+    beta_far_ink_effect_sd = 0.1,
+    beta_far_calendar_effect_sd = 0.1, 
+    beta_far_bracelet_effect_sd = 0.1,
+    
+    reduced_beta_county_sd_sd = 1,
+    reduced_beta_cluster_sd_sd = 1,
     
     iter = 2000,
     thin = 1,
-    init = generate_initializer(
-      num_treatments = num_treatments, 
-      num_clusters = num_clusters,
-      num_counties = num_counties,
-      structural_type = 1, 
-      num_mix = num_v_mix, 
-      num_dist_mix = script_options$num_mix_groups,
-      use_cluster_effects = use_cluster_effects,
-      use_county_effects = use_county_effects,
-      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
-      use_mu_cluster_effects = use_mu_cluster_effects,
-      restricted_private_incentive = use_private_incentive_restrictions,
-      cost_model_type = use_cost_model,
-      use_single_cost_model = TRUE,
-      num_knots = ncol(Z_osullivan),
-      name_matched = FALSE,
-      suppress_reputation = suppress_reputation)) %>% 
-    list_modify(!!!enum2stan_data(cost_model_types)),
+    # init = generate_initializer(
+    #   num_treatments = num_treatments, 
+    #   num_clusters = num_clusters,
+    #   num_counties = num_counties,
+    #   structural_type = 1, 
+    #   num_mix = num_v_mix, 
+    #   num_dist_mix = script_options$num_mix_groups,
+    #   use_cluster_effects = use_cluster_effects,
+    #   use_county_effects = use_county_effects,
+    #   use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+    #   use_mu_cluster_effects = use_mu_cluster_effects,
+    #   restricted_private_incentive = use_private_incentive_restrictions,
+    #   cost_model_type = use_cost_model,
+    #   use_single_cost_model = TRUE,
+    #   num_knots = ncol(Z_osullivan),
+    #   name_matched = FALSE,
+    #   suppress_reputation = suppress_reputation)) %>% 
+    # list_modify(!!!enum2stan_data(cost_model_types)),
+  ),
   
   # REDUCED_FORM_NO_LEVELS = lst(
   #   model_type = 10,
@@ -837,12 +848,6 @@ stan_data <- lst(
   u_splines_v_sigma_sd = 1,
   
   dist_beta_v_sd = 0.25,
-  
-  beta_control_sd = 1,
-  beta_far_effect_sd = 0.1,
-  beta_ink_effect_sd = 0.1,
-  beta_calendar_effect_sd = 0.1,
-  beta_bracelet_effect_sd = 0.1,
   
   structural_beta_county_sd_sd = 0.25,
   structural_beta_cluster_sd_sd = 0.25,

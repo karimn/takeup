@@ -222,7 +222,7 @@ observed_takeup <- monitored_nosms_data %>%
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
-calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd) {
+calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd, force_draw_takeup = FALSE) {
   prob_iter_data <- if (!is_null(total_error_sd)) {
     mutate(cutoffs, iter_data = future_map(iter_data, 
                                ~ left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
@@ -234,15 +234,13 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd) {
   
   prob_iter_data %>% 
     mutate(
-      iter_data = future_pmap(lst(iter_data, cluster_size, obs_num_takeup), function(iter_data, cluster_size, obs_num_takeup) {
-        if (!is.na(obs_num_takeup)) {
-          mutate(iter_data, 
-                 iter_num_takeup = obs_num_takeup)
+      iter_data = future_pmap(lst(iter_data, cluster_size, obs_num_takeup), function(iter_data, cluster_size, obs_num_takeup, force_draw_takeup) {
+        if (!is.na(obs_num_takeup) && !force_draw_takeup) {
+          mutate(iter_data, iter_num_takeup = obs_num_takeup)
         } else {
-          mutate(iter_data, 
-                 iter_num_takeup = rbinom(n(), cluster_size, prob)) # If not observed treatment, draw random number of takers for cluster
+          mutate(iter_data, iter_num_takeup = rbinom(n(), cluster_size, prob)) # If not observed treatment, draw random number of takers for cluster
         }
-      }, .options = furrr_options(seed = TRUE))
+      }, force_draw_takeup = force_draw_takeup, .options = furrr_options(seed = TRUE))
     )
 }
 
@@ -395,8 +393,10 @@ dist_fit_data %<>%
     
     # mu_rep = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "mu_rep", stan_data = .y, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs)),
     
-    cluster_cf_cutoff = map2(fit, stan_data, ~ extract_obs_cluster_cutoff_cf(.x, stan_data = .y, quant_probs = quant_probs)) %>% 
-      map2(total_error_sd, calculate_prob_and_num_takeup), 
+    # cluster_cf_cutoff = pmap(lst(fit, stan_data, model_type), ~ extract_obs_cluster_cutoff_cf(..1, stan_data = ..2, model_type = ..3, quant_probs = quant_probs)) %>% 
+    cluster_cf_cutoff = pmap(lst(fit, stan_data, model_type), extract_obs_cluster_cutoff_cf, quant_probs = quant_probs) %>% 
+      lst(cutoffs = ., total_error_sd, force_draw_takeup = fct_match(fit_type, "prior-predict")) %>%  
+      pmap(calculate_prob_and_num_takeup), 
     
     est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group, condition_on_dist = TRUE) %>% 
       map2(cluster_cf_cutoff,
@@ -424,7 +424,7 @@ if (!script_options$no_rate_of_change) {
 }
 
 dist_fit_data %<>% 
-  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, any_of("structural_cluster_benefit"))) 
+  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, any_of("structural_cluster_benefit")))
 
 if (!script_options$keep_fit) {
   dist_fit_data %<>% 
@@ -535,27 +535,6 @@ dist_fit_data %<>%
         mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te, na.rm = TRUE)),
         takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)) %>% 
     map(unnest, takeup_te_quantiles),
-    
-    # Calculate differences in the rate of change of E[Y] wrt to benefit-cost
-    # diff_y_rate_of_change = if (!script_options$no_rate_of_change) y_rate_of_change %>% 
-    #   map_if(~ !is_null(.x), select, assigned_treatment, v, iter_data) %>% 
-    #   map_if(~ !is_null(.x),
-    #        function(level_data, ate_combo) {
-    #          ate_combo %>% 
-    #            select(str_c("assigned_treatment", c("_left", "_right"))) %>% 
-    #            distinct_all(.keep_all = TRUE) %>% 
-    #            inner_join(level_data, by = c("assigned_treatment_left" = "assigned_treatment")) %>% 
-    #            inner_join(level_data, by = c("assigned_treatment_right" = "assigned_treatment", "v"), suffix = c("_left", "_right"))
-    #       },
-    #      ate_combo = ate_combo) %>% 
-    #   map_if(~ !is_null(.x), mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
-    #         map(mutate, 
-    #             iter_diff_prob_takeup = iter_prob_takeup_left - iter_prob_takeup_right,
-    #             iter_diff_social_multiplier = iter_social_multiplier_left - iter_social_multiplier_right,
-    #             iter_diff_partial_bbar = iter_partial_bbar_left - iter_partial_bbar_right,
-    #             iter_diff_partial_d = iter_partial_d_left - iter_partial_d_right)) %>% 
-    #   map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
-    #   map_if(~ !is_null(.x), ~ reduce(exprs(iter_diff_prob_takeup, iter_diff_social_multiplier, iter_diff_partial_bbar, iter_diff_partial_d), prep_multiple_est, .init = .)), 
    
     # Calculate treatment effects based on distance 
     est_takeup_dist_te = est_takeup_te %>%
