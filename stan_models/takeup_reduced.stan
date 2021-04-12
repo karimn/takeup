@@ -100,7 +100,7 @@ model {
 
 generated quantities { 
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
-  matrix[num_clusters, num_dist_group_treatments] cluster_cf_cutoff; 
+  vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments, 1]; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   
@@ -123,7 +123,7 @@ generated quantities {
         + rep_vector(structural_treatment_effect[treatment_index], num_clusters) 
         - treatment_dist_cost;
         
-      cluster_cf_cutoff[, treatment_index] = - cluster_cf_benefit_cost[treatment_index]; 
+      cluster_cf_cutoff[treatment_index, 1] = - cluster_cf_benefit_cost[treatment_index]; 
     }
   }
   
