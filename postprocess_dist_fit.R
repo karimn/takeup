@@ -22,7 +22,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "47 --cores=4 --keep-fit --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "49 --cores=4 --keep-fit --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -292,7 +292,7 @@ simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linea
 }
 
 # Combine cluster level nested data to produce treatment level nested data
-organize_by_treatment <- function(.data, ..., condition_on_dist = FALSE) {
+organize_by_treatment <- function(.data, condition_on_dist, ...) {
   .data %>% {
     if (condition_on_dist) { # Only use observed distance
       filter(., assigned_dist_group_obs == assigned_dist_group)
@@ -391,17 +391,15 @@ dist_fit_data %<>%
     total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     
-    # mu_rep = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "mu_rep", stan_data = .y, iter_level = "none", by_treatment = TRUE, mix = FALSE, quant_probs = quant_probs)),
-    
-    # cluster_cf_cutoff = pmap(lst(fit, stan_data, model_type), ~ extract_obs_cluster_cutoff_cf(..1, stan_data = ..2, model_type = ..3, quant_probs = quant_probs)) %>% 
     cluster_cf_cutoff = pmap(lst(fit, stan_data, model_type), extract_obs_cluster_cutoff_cf, quant_probs = quant_probs) %>% 
       lst(cutoffs = ., total_error_sd, force_draw_takeup = fct_match(fit_type, "prior-predict")) %>%  
       pmap(calculate_prob_and_num_takeup), 
     
-    est_takeup_level = map(cluster_cf_cutoff, organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group, condition_on_dist = TRUE) %>% 
+    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "structural")) %>%  
+      pmap(organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
-             organize_by_treatment(mu_assigned_treatment, assigned_treatment) %>%
+             organize_by_treatment(condition_on_dist = TRUE, mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
     
     group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
