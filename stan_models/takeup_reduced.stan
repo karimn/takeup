@@ -100,8 +100,6 @@ model {
 }
 
 generated quantities { 
-  vector[num_dist_group_treatments] reduced_takeup_prob = Phi_approx(reduced_treatment_effect);
-  
   vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
   vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments, 1]; 
   
