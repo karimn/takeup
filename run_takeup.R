@@ -524,8 +524,8 @@ models <- lst(
     use_cost_model = cost_model_types["discrete"],
     use_private_incentive_restrictions = FALSE,
     use_salience_effect = FALSE,
-    use_cluster_effects = FALSE,
-    use_county_effects = FALSE,
+    use_cluster_effects = TRUE,
+    use_county_effects = TRUE,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     use_mu_cluster_effects = FALSE,
@@ -542,8 +542,8 @@ models <- lst(
     beta_far_calendar_effect_sd = 0.1, 
     beta_far_bracelet_effect_sd = 0.1,
     
-    reduced_beta_county_sd_sd = 1,
-    reduced_beta_cluster_sd_sd = 1,
+    reduced_beta_county_sd_sd = 0.25,
+    reduced_beta_cluster_sd_sd = 0.1,
     
     iter = 2000,
     thin = 1,
