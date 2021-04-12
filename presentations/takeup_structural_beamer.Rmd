@@ -91,7 +91,7 @@ analysis_data <- monitored_nosms_data
 ```
 
 ```{r version}
-fit_version <- 46 
+fit_version <- 47 
 ```
 
 ```{r load-processed-dist-fit, dependson="version"}
@@ -584,7 +584,7 @@ dist_fit_data %>%
   filter(fct_match(fit_type, "fit")) %>%
   pull(beliefs_results) %>%
   first() %>%
-  plot_beliefs_est(width = 0.7, crossbar_width = 0.4)
+  plot_beliefs_est(width = 0.7, crossbar_width = 0.4, include = "1ord")
 
 ```
 
@@ -974,6 +974,105 @@ dist_fit_data %>%
   coord_cartesian(ylim = c(0, 10)) +
   NULL
 ```
+<!-- ## Reduced-Form Average Treatment Effect -->
+
+```{r rf-version}
+rf_fit_version <- 46 
+```
+
+```{r rf-load-processed-dist-fit, dependson="rf-version", eval=FALSE}
+load(file.path("..", "temp-data", str_interp("processed_dist_fit${rf_fit_version}.RData")))
+
+dist_fit_data %<>%
+  left_join(tribble(
+    ~ fit_type,        ~ model_color,
+      "fit",           "black", 
+      "prior-predict", "darkgrey",
+  ), by = "fit_type")
+```
+
+```{r rf-incentive-te, fig.width=7.5, fig.height=4, warning=FALSE, dependson="rf-version", eval=FALSE}
+dist_fit_data %>%
+  filter(fct_match(fit_type, "fit")) %>% 
+  mutate(est_takeup_te =
+    map(est_takeup_te, 
+        filter, 
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+        assigned_treatment_left != assigned_treatment_right,
+        fct_match(assigned_treatment_right, c("control")),
+        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  mutate(
+    assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relevel("Combined"),
+    assigned_treatment_left = str_to_title(assigned_treatment_left)
+  ) %>% {
+    cowplot::plot_grid(
+      plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+        scale_y_discrete("") +
+        labs(
+          title = "Reduced-Form Average Treatment Effect"
+        ) +
+        ggforce::facet_col(vars(assigned_dist_group_left), 
+                   space = "free",
+                   scales = "free_y") +
+        theme(legend.position = "none") +
+        NULL,
+      
+      # plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      #   scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
+      #   scale_y_continuous("") +
+      #   facet_grid(cols = vars(assigned_dist_group_left), rows = vars(assigned_treatment_left)) +
+      #   theme(legend.position = "none") +
+      #   NULL,
+      
+      ncol = 1
+    )
+  } 
+```
+
+<!-- ## Reduced-Form Take-up Level -->
+
+```{r rf-levels, fig.width=7.5, fig.height=4.25, warning=FALSE, dependson="rf-version", eval=FALSE}
+dist_fit_data %>%
+  filter(fct_match(fit_type, "fit")) %>% 
+  select(model, model_name, est_takeup_level, fit_type) %>% 
+  unnest(est_takeup_level) %>%
+  mutate(
+    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relevel("Combined"),
+    assigned_treatment = str_to_title(assigned_treatment),
+  ) %>% {
+    cowplot::plot_grid(
+      plot_estimands(., assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+        scale_y_discrete("") +
+        labs(
+          title = "Reduced-Form Take-up Level"
+        ) +
+        ggforce::facet_col(vars(assigned_dist_group), 
+                   space = "free",
+                   scales = "free_y") +
+        theme(legend.position = "none") +
+        NULL,
+      
+      # plot_estimand_hist(., iter_prop_takeup, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      #   scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+      #   scale_y_continuous("") +
+      #   facet_grid(cols = vars(assigned_dist_group), rows = vars(assigned_treatment), scales = "free_y") +
+      #   theme(legend.position = "none") +
+      #   coord_cartesian(ylim = c(0, 0.2)) +
+      #   NULL,
+      
+      ncol = 1
+    )
+  }
+```
+
 
 # Conclusion
 
