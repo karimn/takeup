@@ -149,7 +149,9 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
       by = c("cluster_id", "assigned_treatment", "assigned_dist_group")
     ) %>%
     mutate(
-      obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
+      # obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
+      obs_num_takeup = if_else(is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_),
+      obs_prop_takeup = obs_num_takeup / cluster_size
     ) %>% 
     as_tibble()
 }
@@ -237,7 +239,7 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
     }
   }, error = function(err) NULL)
   
-  if (is_null(fit_data)) return(NULL) 
+  if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL) 
   
   if (iter_level == "none" && !by_treatment) {
     if (is_stanfit) {
@@ -312,16 +314,20 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
 extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- stan_data$analysis_data
   
-  fit_data <- if (is_tibble(fit)) {
-    fit %>% 
-      filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
-  } else { 
-    fit$draws(par) %>% 
-      posterior::as_draws_df() %>% 
-      mutate(iter_id = .draw) %>% 
-      pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
-      nest(iter_data = !variable)
-  }
+  fit_data <- tryCatch({
+    if (is_tibble(fit)) {
+      fit %>% 
+        filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
+    } else { 
+      fit$draws(par) %>% 
+        posterior::as_draws_df() %>% 
+        mutate(iter_id = .draw) %>% 
+        pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+        nest(iter_data = !variable)
+    }
+  }, error = function(err) NULL)
+  
+  if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL)
   
   fit_data %>% 
     tidyr::extract(variable, c("cluster_id", "roc_distance_index"), r"{(\d+),(\d+)}", convert = TRUE) %>%  
@@ -337,6 +343,7 @@ generate_initializer <- function(num_treatments,
                                  base_init = function() lst(beta_cluster_sd = abs(rnorm(num_treatments))), 
                                  structural_type = 0,
                                  num_mix = 1,
+                                 num_dist_mix = 1,
                                  use_cluster_effects = use_cluster_effects,
                                  use_county_effects = use_cluster_effects,
                                  use_param_dist_cluster_effects = use_cluster_effects,
@@ -430,7 +437,7 @@ generate_initializer <- function(num_treatments,
           v_mix_mean = as.array(0.1),
           v_sd = rbeta(1, 8, 1),
           
-          group_dist_mix = MCMCpack::rdirichlet(2, rep(10, 2))
+          group_dist_mix = MCMCpack::rdirichlet(num_dist_mix, rep(10, num_dist_mix))
         )
         
         base_list %>% 
@@ -746,6 +753,34 @@ get_dist_results <- function(fit, stan_data = NULL, model_type = "structural") {
   }
 }
 
+get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
+  if (!is_null(fit) && fct_match(model_type, "structural")) {
+    temp_res <- if (is(fit, "stanfit")) {
+      stop("not supported")
+    } else if (is_tibble(fit)) {
+      filter(fit, str_detect(variable, "missing_cluster_standard_dist")) 
+    } else {
+      fit$draws(c("missing_cluster_standard_dist")) %>% 
+        posterior::as_draws_df() %>% 
+        mutate(iter_id = seq(n())) %>% 
+        select(!c(.chain, .iteration, .draw)) %>% 
+        pivot_longer(names_to = "variable", values_to = "iter_est", cols = -iter_id) %>% 
+        nest(iter_data = c(iter_id, iter_est)) 
+    }
+    
+    temp_res %>%  
+      tidyr::extract(variable, c("cluster_id", "dist_treatment_id"), r"{(\d+),(\d+)}", convert = TRUE) %>% 
+      mutate(dist_treatment = factor(dist_treatment_id, levels = 1:2, labels = c("close", "far"))) %>% 
+      left_join(
+        stan_data$analysis_data %>% 
+          distinct(cluster_id, dist.pot.group, obs_standard_dist = standard_cluster.dist.to.pot),
+        by = c("cluster_id", "dist_treatment" = "dist.pot.group")
+      ) %>% 
+      mutate(quants = map(iter_data, quantilize_est, iter_est, na.rm = TRUE)) %>% 
+      unnest(quants)
+  }
+}
+
 # Plotting Functions ------------------------------------------------------
 
 plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3) {
@@ -852,7 +887,8 @@ plot_wtp_results <- function(draws) {
   )
 }
 
-plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2) {
+plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2, include = c("both", "1ord")) {
+  include <- rlang::arg_match(include)
   pos_dodge <- position_dodge(width = width)
 
   first_plot <- beliefs_results$prob_knows %>% 
@@ -906,7 +942,7 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
         ) +
         NULL, 
       
-      beliefs_results$prob_knows %>% 
+      if (include == "both") beliefs_results$prob_knows %>% 
         filter(ord == 2) %>% 
         ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
         geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
@@ -925,7 +961,7 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
         ) +
         NULL,
       
-      beliefs_results$ate_knows %>% 
+      if (include == "both") beliefs_results$ate_knows %>% 
         filter(ord == 2, assigned_dist_group_left == assigned_dist_group_right) %>% 
         ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
         geom_vline(xintercept = 0, linetype = "dotted") +
@@ -939,10 +975,13 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
         labs(
           title = "",
           subtitle = "Treatment Effect",
-          x = "", y = "") +
+          x = "", y = "",
+          caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. Thick vertical line: median. Point: mean."
+        ) +
         theme(
           axis.text.y = element_blank(),
-          legend.position = "none"
+          legend.position = "none",
+          plot.caption = element_text(size = 8)
         ) +
         NULL,
       
@@ -951,7 +990,7 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
     
     cowplot::get_legend(first_plot),
     
-    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.1)
+    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.08)
   )
 }
 

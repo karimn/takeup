@@ -2,12 +2,12 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
-  run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path>]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
+  run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   
-  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
-  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
+  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   
   run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
@@ -250,6 +250,7 @@ models <- lst(
       num_counties = num_counties,
       structural_type = 1,
       num_mix = num_v_mix,
+      num_dist_mix = script_options$num_mix_groups,
       use_cluster_effects = use_cluster_effects,
       use_county_effects = use_county_effects,
       use_param_dist_cluster_effects = use_param_dist_cluster_effects,
@@ -296,6 +297,7 @@ models <- lst(
       num_counties = num_counties,
       structural_type = 1,
       num_mix = num_v_mix,
+      num_dist_mix = script_options$num_mix_groups,
       use_cluster_effects = use_cluster_effects,
       use_county_effects = use_county_effects,
       use_param_dist_cluster_effects = use_param_dist_cluster_effects,
@@ -499,6 +501,7 @@ models <- lst(
       num_counties = num_counties,
       structural_type = 1,
       num_mix = num_v_mix,
+      num_dist_mix = script_options$num_mix_groups,
       use_cluster_effects = use_cluster_effects,
       use_param_dist_cluster_effects = use_param_dist_cluster_effects,
       use_mu_cluster_effects = use_mu_cluster_effects,
@@ -520,8 +523,8 @@ models <- lst(
     use_cost_model = cost_model_types["discrete"],
     use_private_incentive_restrictions = FALSE,
     use_salience_effect = FALSE,
-    use_cluster_effects = TRUE,
-    use_county_effects = TRUE,
+    use_cluster_effects = FALSE,
+    use_county_effects = FALSE,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     use_mu_cluster_effects = FALSE,
@@ -540,6 +543,7 @@ models <- lst(
       num_counties = num_counties,
       structural_type = 1, 
       num_mix = num_v_mix, 
+      num_dist_mix = script_options$num_mix_groups,
       use_cluster_effects = use_cluster_effects,
       use_county_effects = use_county_effects,
       use_param_dist_cluster_effects = use_param_dist_cluster_effects,
@@ -835,15 +839,19 @@ stan_data <- lst(
   dist_beta_v_sd = 0.25,
   
   beta_control_sd = 1,
-  beta_far_effect_sd = 0.5,
-  beta_ink_effect_sd = 0.5,
-  beta_calendar_effect_sd = 0.5,
-  beta_bracelet_effect_sd = 0.5,
+  beta_far_effect_sd = 0.1,
+  beta_ink_effect_sd = 0.1,
+  beta_calendar_effect_sd = 0.1,
+  beta_bracelet_effect_sd = 0.1,
   
   structural_beta_county_sd_sd = 0.25,
   structural_beta_cluster_sd_sd = 0.25,
+  
+  # hyper_dist_mean_mean = 0.5, 
+  # hyper_dist_mean_sd = 0.75,
+  # hyper_dist_sd_sd = 0.25,
  
-  hyper_dist_mean_mean = 0.5, 
+  hyper_dist_mean_mean = 0.75, 
   hyper_dist_mean_sd = 0.75,
   hyper_dist_sd_sd = 0.25,
   

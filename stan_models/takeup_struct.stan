@@ -1,4 +1,5 @@
 functions {
+#include /../multilvlr/util.stan
 #include beliefs_functions.stan
 #include takeup_functions.stan
 }
@@ -528,7 +529,7 @@ generated quantities {
       int curr_assigned_dist_group = cluster_treatment_map[treatment_index, 2];
       
       treatment_dist_cost = param_dist_cost_with_splines(
-                                            missing_cluster_standard_dist[, curr_assigned_dist_group], // cluster_standard_dist, 
+                                            all_cluster_standard_dist[, curr_assigned_dist_group],
                                             cluster_linear_dist_cost[, treatment_index],
                                             cluster_quadratic_dist_cost[, treatment_index],
                                             u_splines_v[rep_array(curr_assigned_treatment, num_clusters)],
@@ -538,7 +539,7 @@ generated quantities {
       
       for (mu_treatment_index in 1:num_treatments) {
         vector[num_clusters] curr_cluster_mu_rep = calculate_mu_rep(
-          { mu_treatment_index }, missing_cluster_standard_dist[, curr_assigned_dist_group],
+          { mu_treatment_index }, all_cluster_standard_dist[, curr_assigned_dist_group], 
           // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
           base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
         
