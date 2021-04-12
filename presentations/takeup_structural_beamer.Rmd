@@ -584,7 +584,7 @@ dist_fit_data %>%
   filter(fct_match(fit_type, "fit")) %>%
   pull(beliefs_results) %>%
   first() %>%
-  plot_beliefs_est(width = 0.7, crossbar_width = 0.4, include = "1ord")
+  plot_beliefs_est(width = 0.7, crossbar_width = 0.4, include = "both")
 
 ```
 
