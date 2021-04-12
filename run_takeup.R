@@ -6,8 +6,8 @@ script_options <- docopt::docopt(
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   
-  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
-  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
+  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   
   run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
   run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
@@ -839,10 +839,10 @@ stan_data <- lst(
   dist_beta_v_sd = 0.25,
   
   beta_control_sd = 1,
-  beta_far_effect_sd = 0.5,
-  beta_ink_effect_sd = 0.5,
-  beta_calendar_effect_sd = 0.5,
-  beta_bracelet_effect_sd = 0.5,
+  beta_far_effect_sd = 0.1,
+  beta_ink_effect_sd = 0.1,
+  beta_calendar_effect_sd = 0.1,
+  beta_bracelet_effect_sd = 0.1,
   
   structural_beta_county_sd_sd = 0.25,
   structural_beta_cluster_sd_sd = 0.25,
