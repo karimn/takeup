@@ -22,7 +22,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "46 --cores=4 --load-from-csv --keep-fit" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "47 --cores=4 --keep-fit --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -130,7 +130,7 @@ dist_fit_data <- tryCatch({
   }
   
   dist_fit %<>% 
-    map_if(is.character, load_fit) 
+    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
 
   if (has_name(dist_fit, "value")) {
     dist_fit_warnings <- dist_fit$warning
@@ -152,7 +152,7 @@ dist_fit_data <- tryCatch({
   load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
   
   dist_fit %<>% 
-    map_if(is.character, load_fit)
+    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
   
   dist_fit_data %<>%
     bind_rows("fit" = .,
@@ -229,7 +229,7 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd) {
                                  mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)), 
                               total_error_sd$iter_data[[1]]))
   } else {
-    mutate(cutoffs, iter_data = future_map(iter_data, mutate, prob = pnorm(- iter_est))) 
+    mutate(cutoffs, iter_data = map(iter_data, ~ mutate(.x, prob = pnorm(- iter_est)))) 
   }
   
   prob_iter_data %>% 
@@ -242,7 +242,7 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd) {
           mutate(iter_data, 
                  iter_num_takeup = rbinom(n(), cluster_size, prob)) # If not observed treatment, draw random number of takers for cluster
         }
-      })
+      }, .options = furrr_options(seed = TRUE))
     )
 }
 
@@ -260,7 +260,6 @@ prep_multiple_est <- function(accum_data, next_col) {
 # For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
 simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
                                        mu_rep, total_error_sd, u_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
-  browser()
   if (!is_null(mu_rep) && !is_null(total_error_sd)) {
     mu_sd <- mu_rep %>% 
       select(assigned_treatment, assigned_dist_group, iter_data) %>% 
@@ -373,14 +372,18 @@ summarize_roc <- function(param_data) {
 }
 
 extract_sim_delta <- function(fit, stan_data) {
-  fit %>% 
-    filter(str_detect(variable, "sim_delta")) %>% 
-    transmute(w = stan_data$sim_delta_w, iter_data) %>% 
-    mutate(
-      mean_est = map_dbl(iter_data, ~ mean(.x$iter_est, na.rm = TRUE)),
-      quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
-    ) %>% 
-    unnest(quants)
+  temp <- fit %>% 
+    filter(str_detect(variable, "sim_delta"))
+  
+  if (nrow(temp) > 0) {
+    temp %>% 
+      transmute(w = stan_data$sim_delta_w, iter_data) %>% 
+      mutate(
+        mean_est = map_dbl(iter_data, ~ mean(.x$iter_est, na.rm = TRUE)),
+        quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
+      ) %>% 
+      unnest(quants)
+  } else return(NULL)
 }
 
 # Postprocessing ----------------------------------------------------------
@@ -402,7 +405,7 @@ dist_fit_data %<>%
              bind_rows(.x, .)),
     
     group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
-    imputed_dist = pmap(lst(fit, stan_data, model_type), get_imputed_dist),
+    # imputed_dist = pmap(lst(fit, stan_data, model_type), get_imputed_dist),
     beliefs_results = map2(fit, stan_data, get_beliefs_results),
     wtp_results = map(fit, get_wtp_results),
   )
@@ -410,8 +413,9 @@ dist_fit_data %<>%
 if (!script_options$no_rate_of_change) {
   dist_fit_data %<>% 
     mutate(
-      set_names(map(roc_param, ~ map2(..2, ..3, extract_roc_param, ..1), fit, stan_data), roc_param) %>% 
-        map(map, summarize_roc) %>% 
+      map(roc_param, ~ map2(..2, ..3, extract_roc_param, ..1), fit, stan_data) %>% 
+        set_names(roc_param) %>% 
+        map(map_if, ~ !is_null(.x), summarize_roc) %>% 
         as_tibble() %>% 
         rename_with(str_replace_all, c("_left" = "_bracelet", "_right" = "_control"), .cols = everything()),
       
@@ -476,7 +480,7 @@ dist_fit_data %<>%
 
 # Select all the estimate differences that need to be calculated
 ate_combo <- dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
+  # filter(fct_match(model_type, "structural")) %>% 
   slice(1) %$% 
   select(est_takeup_level[[1]], mu_assigned_treatment:assigned_dist_group) %>% {
     bind_cols(rename_all(., str_c, "_left"), rename_all(., str_c, "_right"))

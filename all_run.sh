@@ -13,9 +13,10 @@
 #SBATCH --error=temp/log/takeup_postprocess-%j.log
 #SBATCH --export=IN_SLURM=1
 
-VERSION=46
+VERSION=47
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
-MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
+# MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
+MODELS="--models=REDUCED_FORM_NO_RESTRICT"
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
 
 if [[ -v IN_SLURM ]]; then
@@ -38,18 +39,18 @@ fi
 
 # Distance
 # Rscript ./run_takeup.R dist prior --chains=4 --iter 800 --outputname=dist_model_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=2 &
-# Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist_model_fit   --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=2
+# Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist_model_fit   --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1
 # wait
 
 # Beliefs
 # Rscript ./run_takeup.R beliefs prior --chains=4 --iter 1000 --outputname=beliefs_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models &
-# Rscript ./run_takeup.R beliefs fit   --chains=4 --iter 1000 --outputname=beliefs       --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models
+Rscript ./run_takeup.R beliefs fit   --chains=4 --iter 1000 --outputname=beliefs       --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1
 # wait
 
-Rscript ./run_takeup.R takeup prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION}
-# Rscript ./run_takeup.R takeup fit   ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION} 
-# Rscript ./run_takeup.R takeup cv    ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --folds=10 
-Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES --load-from-csv
+# Rscript ./run_takeup.R takeup prior ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --num-mix-groups=1
+# Rscript ./run_takeup.R takeup fit   ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION} --num-mix-groups=1
+# Rscript ./run_takeup.R takeup cv    ${MODELS} ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --num-mix-groups=1 --folds=10 
+# Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES --load-from-csv
 
 # Simulation
 # ./run_stan_dist_sim.R ${CMDSTAN_ARGS} 

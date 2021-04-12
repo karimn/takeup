@@ -239,7 +239,7 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
     }
   }, error = function(err) NULL)
   
-  if (is_null(fit_data)) return(NULL) 
+  if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL) 
   
   if (iter_level == "none" && !by_treatment) {
     if (is_stanfit) {
@@ -314,16 +314,20 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
 extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
   analysis_data <- stan_data$analysis_data
   
-  fit_data <- if (is_tibble(fit)) {
-    fit %>% 
-      filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
-  } else { 
-    fit$draws(par) %>% 
-      posterior::as_draws_df() %>% 
-      mutate(iter_id = .draw) %>% 
-      pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
-      nest(iter_data = !variable)
-  }
+  fit_data <- tryCatch({
+    if (is_tibble(fit)) {
+      fit %>% 
+        filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
+    } else { 
+      fit$draws(par) %>% 
+        posterior::as_draws_df() %>% 
+        mutate(iter_id = .draw) %>% 
+        pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+        nest(iter_data = !variable)
+    }
+  }, error = function(err) NULL)
+  
+  if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL)
   
   fit_data %>% 
     tidyr::extract(variable, c("cluster_id", "roc_distance_index"), r"{(\d+),(\d+)}", convert = TRUE) %>%  
@@ -754,19 +758,18 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
     temp_res <- if (is(fit, "stanfit")) {
       stop("not supported")
     } else if (is_tibble(fit)) {
-      filter(fit, str_detect(variable, "missing_cluster_standard_dist")) %>% 
-        select(!c(.chain, .iteration, .draw)) 
+      filter(fit, str_detect(variable, "missing_cluster_standard_dist")) 
     } else {
       fit$draws(c("missing_cluster_standard_dist")) %>% 
         posterior::as_draws_df() %>% 
         mutate(iter_id = seq(n())) %>% 
-        select(!c(.chain, .iteration, .draw)) 
+        select(!c(.chain, .iteration, .draw)) %>% 
+        pivot_longer(names_to = "variable", values_to = "iter_est", cols = -iter_id) %>% 
+        nest(iter_data = c(iter_id, iter_est)) 
     }
     
     temp_res %>%  
-      pivot_longer(names_to = "variable", values_to = "iter_est", cols = -iter_id) %>% 
       tidyr::extract(variable, c("cluster_id", "dist_treatment_id"), r"{(\d+),(\d+)}", convert = TRUE) %>% 
-      nest(iter_data = c(iter_id, iter_est)) %>% 
       mutate(dist_treatment = factor(dist_treatment_id, levels = 1:2, labels = c("close", "far"))) %>% 
       left_join(
         stan_data$analysis_data %>% 
@@ -884,7 +887,8 @@ plot_wtp_results <- function(draws) {
   )
 }
 
-plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2) {
+plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2, include = c("both", "1ord")) {
+  include <- rlang::arg_match(include)
   pos_dodge <- position_dodge(width = width)
 
   first_plot <- beliefs_results$prob_knows %>% 
@@ -938,7 +942,7 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
         ) +
         NULL, 
       
-      beliefs_results$prob_knows %>% 
+      if (include == "both") beliefs_results$prob_knows %>% 
         filter(ord == 2) %>% 
         ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
         geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
@@ -957,7 +961,7 @@ plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, cro
         ) +
         NULL,
       
-      beliefs_results$ate_knows %>% 
+      if (include == "both") beliefs_results$ate_knows %>% 
         filter(ord == 2, assigned_dist_group_left == assigned_dist_group_right) %>% 
         ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
         geom_vline(xintercept = 0, linetype = "dotted") +
