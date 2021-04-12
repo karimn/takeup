@@ -105,7 +105,7 @@ extract_rep_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
     as_tibble()
 }
 
-extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
+extract_obs_cluster_cutoff_cf <- function(fit, stan_data, model_type = "structural", quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
   
   cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
@@ -150,7 +150,7 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, quant_probs = c(0.05, 
     ) %>%
     mutate(
       # obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
-      obs_num_takeup = if_else(is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_),
+      obs_num_takeup = if_else(fct_match(model_type, "reduced form") | is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_),
       obs_prop_takeup = obs_num_takeup / cluster_size
     ) %>% 
     as_tibble()
