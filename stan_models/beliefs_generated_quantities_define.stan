@@ -7,23 +7,16 @@ for (treatment_index in 1:num_dist_group_treatments) {
       beliefs_treatment_map_design_matrix[curr_incentive_treatment_id:curr_incentive_treatment_id], 
       centered_obs_beta_1ord, 
       centered_obs_dist_beta_1ord, 
-      missing_cluster_standard_dist[beliefs_cluster_index, curr_assigned_dist_id]
+      all_cluster_standard_dist[beliefs_cluster_index, curr_assigned_dist_id]
     )
   );
       
-    // centered_obs_beta_1ord * beliefs_treatment_map_design_matrix[curr_incentive_treatment_id]' + 
-    // (centered_obs_dist_beta_1ord * beliefs_treatment_map_design_matrix[curr_incentive_treatment_id]') .* missing_cluster_standard_dist[beliefs_cluster_index, curr_assigned_dist_id]);
-    
-  // obs_prob_2ord[, treatment_index] = inv_logit(
-  //   centered_obs_beta_2ord * beliefs_treatment_map_design_matrix[curr_incentive_treatment_id]' + 
-  //   (centered_obs_dist_beta_2ord * beliefs_treatment_map_design_matrix[curr_incentive_treatment_id]') .* missing_cluster_standard_dist[beliefs_cluster_index, curr_assigned_dist_id]);
-    
   obs_prob_2ord[, treatment_index] = inv_logit(
     calculate_beliefs_latent_predictor(
       beliefs_treatment_map_design_matrix[curr_incentive_treatment_id:curr_incentive_treatment_id], 
       centered_obs_beta_2ord, 
       centered_obs_dist_beta_2ord, 
-      missing_cluster_standard_dist[beliefs_cluster_index, curr_assigned_dist_id]
+      all_cluster_standard_dist[beliefs_cluster_index, curr_assigned_dist_id]
     )
   );
   
