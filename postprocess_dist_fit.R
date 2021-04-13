@@ -244,53 +244,6 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd, force_draw_ta
     )
 }
 
-# Given multiple variables, generate quantiles and pack them
-prep_multiple_est <- function(accum_data, next_col) {
-  group_name <- str_remove(as.character(next_col), "^iter_")
-                                           
-  mutate(accum_data,
-         mean_est = map_dbl(iter_data, ~ mean(pull(., !!next_col))), 
-         quants = map(iter_data, quantilize_est, !!next_col, wide = TRUE, quant_probs = c(quant_probs))) %>% 
-    unnest(quants) %>% 
-    pack({{ group_name }} := c(mean_est, starts_with("per_"))) 
-}
-
-# For a range of v^* calculate the social multiplier effect as well as the partial differentiation of E[Y] wrt to \bar{B} 
-simulate_social_multiplier <- function(structural_cluster_benefit, cluster_linear_dist_cost, cluster_quadratic_dist_cost,
-                                       mu_rep, total_error_sd, u_sd, fit_type, multiplier_v_range = seq(-5, 5, 0.25)) {
-  if (!is_null(mu_rep) && !is_null(total_error_sd)) {
-    mu_sd <- mu_rep %>% 
-      select(assigned_treatment, assigned_dist_group, iter_data) %>% 
-      unnest(iter_data) %>% 
-      select(assigned_treatment, assigned_dist_group, iter_id, iter_est) %>% 
-      left_join(total_error_sd %>% 
-                  select(iter_data) %>% 
-                  unnest(iter_data) %>% 
-                  select(iter_id, iter_est),
-                by = "iter_id", suffix = c("_mu", "")) %>% 
-      left_join(u_sd %>% 
-                  select(iter_data) %>% 
-                  unnest(iter_data) %>% 
-                  select(iter_id, iter_est),
-                by = "iter_id", suffix = c("_total_error_sd", "_u_sd")) %>% 
-      left_join(rename(cluster_linear_dist_cost, cluster_linear_dist_cost_data = cluster_data), by = "iter_id")
-   
-    multiplier_v_range %>%
-      c(-5, 5)
-      future_map_dfr(~ mu_sd %>% 
-               mutate(
-                 v = .x,
-                 iter_prob_takeup = pnorm(v, sd = iter_est_total_error_sd, lower.tail = FALSE),  
-                 iter_social_multiplier = social_multiplier(v, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd),
-                 iter_partial_bbar = expect_y_partial_bbar(v, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd),
-                 iter_partial_d = expect_y_partial_d(v, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd, cluster_linear_dist_cost_data)
-               ) %>% 
-               select(-cluster_linear_dist_cost_data) %>%  
-               nest(iter_data = c(iter_id, iter_est_mu, iter_est_total_error_sd, iter_est_u_sd, iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d))) %>% 
-               reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
-  } 
-}
-
 # Combine cluster level nested data to produce treatment level nested data
 organize_by_treatment <- function(.data, condition_on_dist, ...) {
   .data %>% {
@@ -395,7 +348,7 @@ dist_fit_data %<>%
       lst(cutoffs = ., total_error_sd, force_draw_takeup = fct_match(fit_type, "prior-predict")) %>%  
       pmap(calculate_prob_and_num_takeup), 
     
-    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "structural")) %>%  
+    est_takeup_level = list(cluster_cf_cutoff, FALSE) %>% # map_lgl(model_type, fct_match, "structural")) %>%  
       pmap(organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
@@ -460,11 +413,6 @@ if (has_name(dist_fit_data, "stacking_weight")) {
           ) %>% 
           unnest(takeup_quantiles)
       ),
-      
-      # y_rate_of_change = if (!script_options$no_rate_of_change) list(
-      #   reduce2(.$y_rate_of_change, .$stacking_weight_by_type, rate_of_change_stack_reducer, .init = tibble()) %>% 
-      #     reduce(exprs(iter_prob_takeup, iter_social_multiplier, iter_partial_bbar, iter_partial_d), prep_multiple_est, .init = .)
-      # ) 
     ) 
 }
 
