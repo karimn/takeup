@@ -773,7 +773,7 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
       mutate(dist_treatment = factor(dist_treatment_id, levels = 1:2, labels = c("close", "far"))) %>% 
       left_join(
         stan_data$analysis_data %>% 
-          distinct(cluster_id, dist.pot.group, obs_standard_dist = standard_cluster.dist.to.pot),
+          distinct(county, cluster_id, dist.pot.group, obs_standard_dist = standard_cluster.dist.to.pot),
         by = c("cluster_id", "dist_treatment" = "dist.pot.group")
       ) %>% 
       mutate(quants = map(iter_data, quantilize_est, iter_est, na.rm = TRUE)) %>% 
