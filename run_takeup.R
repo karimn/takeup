@@ -9,8 +9,8 @@ script_options <- docopt::docopt(
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   
-  run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
-  run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
+  run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
+  run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
@@ -24,9 +24,10 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "dist prior --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   
 ) 
 
@@ -720,6 +721,10 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
 # Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
+  # Distance Model
+  use_dist_county_effects = script_options$multilevel,
+  use_dist_cluster_effects = script_options$multilevel,
+  
   # Beliefs Model 
   beliefs_use_stratum_level = script_options$multilevel,
   beliefs_use_cluster_level = script_options$multilevel,
@@ -851,14 +856,13 @@ stan_data <- lst(
   
   structural_beta_county_sd_sd = 0.25,
   structural_beta_cluster_sd_sd = 0.25,
-  
-  # hyper_dist_mean_mean = 0.5, 
-  # hyper_dist_mean_sd = 0.75,
-  # hyper_dist_sd_sd = 0.25,
  
   hyper_dist_mean_mean = 0.75, 
-  hyper_dist_mean_sd = 0.75,
+  hyper_dist_mean_sd = 0.5,
   hyper_dist_sd_sd = 0.25,
+  
+  county_dist_effect_sd_sd = 0.1, 
+  cluster_dist_effect_sd_sd = 0.075, 
   
   analysis_data
 ) %>% 
@@ -988,7 +992,7 @@ if (script_options$takeup) {
     parallel_chains = script_options$chains,
     iter_warmup = script_options$iter %/% 2,
     iter_sampling = script_options$iter %/% 2,
-    adapt_delta = 0.95,
+    adapt_delta = 0.99,
     max_treedepth = 12
   )
   

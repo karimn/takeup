@@ -15,6 +15,11 @@ parameters {
 #include dist_parameters_sec.stan
 }
 
+transformed parameters {
+#include dist_transformed_parameters_declare.stan
+#include dist_transformed_parameters_define.stan
+}
+
 model {
 #include dist_model_sec.stan 
 }
