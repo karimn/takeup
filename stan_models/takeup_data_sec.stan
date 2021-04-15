@@ -54,7 +54,6 @@ matrix[num_grid_obs, num_knots_v] Z_grid_v;
 // Prior hyperparameters
 
 real<lower = 0> beta_control_sd;
-real<lower = 0> beta_far_effect_sd;
 real<lower = 0> beta_ink_effect_sd;
 real<lower = 0> beta_calendar_effect_sd;
 real<lower = 0> beta_bracelet_effect_sd;

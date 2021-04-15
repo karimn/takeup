@@ -8,7 +8,8 @@ data {
 
   real<lower = 0> reduced_beta_county_sd_sd;
   real<lower = 0> reduced_beta_cluster_sd_sd;
-
+  
+  real<lower = 0> beta_far_effect_sd;
   real<lower = 0> beta_far_ink_effect_sd;
   real<lower = 0> beta_far_calendar_effect_sd; 
   real<lower = 0> beta_far_bracelet_effect_sd;
