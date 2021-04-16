@@ -243,7 +243,7 @@ models <- lst(
     beta_calendar_effect_sd = 0.25,
     beta_bracelet_effect_sd = 0.25,
     
-    structural_beta_county_sd_sd = 0.25,
+    structural_beta_county_sd_sd = 0.05,
     structural_beta_cluster_sd_sd = 0.25,
 
     init = generate_initializer(
