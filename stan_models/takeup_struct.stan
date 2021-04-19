@@ -811,3 +811,4 @@ generated quantities {
     sim_delta[sim_delta_index] = expected_delta(sim_delta_w[sim_delta_index], total_error_sd[1], u_sd[1], dummy_xr, dummy_xi);
   }
 }
+
