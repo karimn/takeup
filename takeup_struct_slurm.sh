@@ -25,8 +25,8 @@ SLURM_INOUT_DIR=/tigress/kn6838/takeup
 NUM_STAN_THREADS=8
 NUM_DIST_MIX=1
 
-Rscript run_takeup.R takeup prior --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_prior${VERSION} ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
-Rscript run_takeup.R takeup fit   --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_fit${VERSION}   ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
+Rscript run_takeup.R takeup prior --sequential --chains=4 --threads=${NUM_STAN_THREADS} --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_prior${VERSION} ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
+Rscript run_takeup.R takeup fit   --sequential --chains=4 --threads=${NUM_STAN_THREADS} --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_fit${VERSION}   ${MODELS} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
 
 Rscript postprocess_dist_fit.R ${VERSION} --cores=32 --input-path=${SLURM_INOUT_DIR} --output-path=${SLURM_INOUT_DIR} --load-from-csv 
 
