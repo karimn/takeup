@@ -161,6 +161,7 @@ parameters {
 }
 
 transformed parameters {
+#include dist_transformed_parameters_declare.stan
 #include wtp_transformed_parameters.stan
 #include beliefs_transformed_parameters_declare.stan
   
@@ -190,6 +191,7 @@ transformed parameters {
   vector<lower = 0>[num_treatments] u_sd;
   vector<lower = 0>[num_treatments] total_error_sd;
   
+#include dist_transformed_parameters_define.stan
 #include beliefs_transformed_parameters_define.stan
   
   if (use_homoskedastic_shocks) {
@@ -809,4 +811,3 @@ generated quantities {
     sim_delta[sim_delta_index] = expected_delta(sim_delta_w[sim_delta_index], total_error_sd[1], u_sd[1], dummy_xr, dummy_xi);
   }
 }
-

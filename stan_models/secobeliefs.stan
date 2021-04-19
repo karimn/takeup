@@ -21,7 +21,9 @@ parameters {
 }
 
 transformed parameters {
+#include dist_transformed_parameters_declare.stan
 #include beliefs_transformed_parameters_declare.stan
+#include dist_transformed_parameters_define.stan
 #include beliefs_transformed_parameters_define.stan
 }
 
