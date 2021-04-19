@@ -83,11 +83,12 @@ matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
                               matrix beta, matrix dist_beta) {
   vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[treatment_id:treatment_id], beta, dist_beta, dist);
   matrix[rows(beta), 2] mu_rep;
+  vector[rows(beta)] prob = inv_logit(mu_beliefs_effect * beliefs_latent);
   
   // mu_rep[, 1] = calculate_mu_rep({ treatment_id }, dist, base_mu_rep, mu_beliefs_effect, design_matrix, beta, dist_beta);
-  mu_rep[, 1] = base_mu_rep * inv_logit(mu_beliefs_effect * beliefs_latent);
+  mu_rep[, 1] = base_mu_rep * prob;
   // mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
-  mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')) .* (1 - beliefs_latent); 
+  mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')) .* (1 - prob); 
   
   return mu_rep;
 }
