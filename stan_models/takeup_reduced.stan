@@ -28,8 +28,11 @@ parameters {
   vector[num_discrete_dist] beta_calendar_effect;
   vector[num_discrete_dist] beta_bracelet_effect;
   
-  matrix[use_cluster_effects ? num_clusters : 0, num_dist_group_treatments] reduced_beta_cluster_raw;
-  row_vector<lower = 0>[use_cluster_effects ? num_dist_group_treatments: 0] reduced_beta_cluster_sd;
+  // matrix[use_cluster_effects ? num_clusters : 0, num_dist_group_treatments] reduced_beta_cluster_raw;
+  // row_vector<lower = 0>[use_cluster_effects ? num_dist_group_treatments: 0] reduced_beta_cluster_sd;
+  
+  vector[use_cluster_effects ? num_clusters : 0] reduced_beta_cluster_raw;
+  real<lower = 0> reduced_beta_cluster_sd;
   
   matrix[use_county_effects ? num_counties : 0, num_dist_group_treatments] reduced_beta_county_raw;
   row_vector<lower = 0>[use_county_effects ? num_dist_group_treatments : 0] reduced_beta_county_sd;
@@ -39,7 +42,8 @@ transformed parameters {
   vector[num_dist_group_treatments] beta; 
   vector[num_dist_group_treatments] reduced_treatment_effect;
   vector[num_clusters] reduced_cluster_benefit_cost;
-  matrix[num_clusters, num_dist_group_treatments] reduced_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
+  // matrix[num_clusters, num_dist_group_treatments] reduced_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
+  vector[num_clusters] reduced_beta_cluster = rep_vector(0, num_clusters);
   matrix[num_counties, num_dist_group_treatments] reduced_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
   
   vector<lower = 0, upper = 1>[num_clusters] reduced_cluster_takeup_prob;
@@ -53,12 +57,14 @@ transformed parameters {
   reduced_cluster_benefit_cost = reduced_treatment_effect[cluster_assigned_dist_group_treatment];
   
   if (use_cluster_effects) {
-    vector[num_clusters] cluster_effects;
+    // vector[num_clusters] cluster_effects;
     
-    reduced_beta_cluster = reduced_beta_cluster_raw .* rep_matrix(reduced_beta_cluster_sd, num_clusters);
+    // reduced_beta_cluster = reduced_beta_cluster_raw .* rep_matrix(reduced_beta_cluster_sd, num_clusters);
+    reduced_beta_cluster = reduced_beta_cluster_raw * reduced_beta_cluster_sd;
     
-    cluster_effects = rows_dot_product(cluster_treatment_design_matrix, reduced_beta_cluster); 
-    reduced_cluster_benefit_cost += cluster_effects;
+    // cluster_effects = rows_dot_product(cluster_treatment_design_matrix, reduced_beta_cluster); 
+    // reduced_cluster_benefit_cost += cluster_effects;
+    reduced_cluster_benefit_cost += reduced_beta_cluster;
   }
   
   if (use_county_effects) {
@@ -80,9 +86,12 @@ model {
   beta_bracelet_effect ~ normal(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]');
   
   if (use_cluster_effects) {
-    to_vector(reduced_beta_cluster_raw) ~ std_normal();
-    reduced_beta_cluster_sd ~ normal(0, reduced_beta_cluster_sd_sd);
+    // to_vector(reduced_beta_cluster_raw) ~ std_normal();
+    // reduced_beta_cluster_sd ~ normal(0, reduced_beta_cluster_sd_sd);
+    reduced_beta_cluster_raw ~ std_normal();
   }
+  
+  reduced_beta_cluster_sd ~ normal(0, reduced_beta_cluster_sd_sd);
   
   if (use_county_effects) {
     to_vector(reduced_beta_county_raw) ~ std_normal();
@@ -117,7 +126,7 @@ generated quantities {
     for (treatment_index in 1:num_dist_group_treatments) {
       cluster_cf_benefit_cost[treatment_index] =
         // Not using "restricted" design matrix because restrictions are only on the top-level parameters not village and county level effects
-        (reduced_beta_cluster + reduced_beta_county[cluster_county_id]) * treatment_map_design_matrix[treatment_index]'
+        reduced_beta_cluster + reduced_beta_county[cluster_county_id] * treatment_map_design_matrix[treatment_index]'
         + rep_vector(reduced_treatment_effect[treatment_index], num_clusters);
         
       cluster_cf_cutoff[treatment_index, 1] = - cluster_cf_benefit_cost[treatment_index]; 
@@ -179,16 +188,18 @@ generated quantities {
   
   if (generate_rep) {
     for (cluster_index in 1:num_clusters) {
-      vector[num_dist_group_treatments] rep_beta_cluster = rep_vector(0, num_dist_group_treatments);
+      // vector[num_dist_group_treatments] rep_beta_cluster = rep_vector(0, num_dist_group_treatments);
+      real rep_beta_cluster = 0;
       vector[num_dist_group_treatments] rep_beta_county = rep_vector(0, num_dist_group_treatments);
       
       int curr_assigned_treatment = cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 1];
       
-      rep_beta_cluster = use_cluster_effects ? to_vector(normal_rng(rep_array(0, num_dist_group_treatments), reduced_beta_cluster_sd')) : rep_vector(0, num_dist_group_treatments);
+      // rep_beta_cluster = use_cluster_effects ? to_vector(normal_rng(rep_array(0, num_dist_group_treatments), reduced_beta_cluster_sd')) : rep_vector(0, num_dist_group_treatments);
+      rep_beta_cluster = use_cluster_effects ? normal_rng(0, reduced_beta_cluster_sd) : 0;
       rep_beta_county = use_county_effects ? to_vector(normal_rng(rep_array(0, num_dist_group_treatments), reduced_beta_county_sd')) : rep_vector(0, num_dist_group_treatments);
         
       cluster_rep_benefit_cost[cluster_index] = reduced_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]]
-        + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * (rep_beta_cluster + rep_beta_county);
+        + rep_beta_cluster + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * rep_beta_county;
     }
   }
 }
