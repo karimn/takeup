@@ -234,7 +234,7 @@ models <- lst(
     alg_sol_rel_tol = 0.0000001,
 
     # Priors
-    mu_rep_sd = 1.0,
+    mu_rep_sd = 0.25,
     # mu_beliefs_effects_sd = 1.5,
     mu_beliefs_effects_lambda = 1,
    
@@ -745,7 +745,7 @@ stan_data <- lst(
   beliefs_ate_pairs,
   num_beliefs_ate_pairs = nrow(beliefs_ate_pairs),
   
-  fit_beliefs_model_to_data = !script_options$prior,
+  fit_beliefs_model_to_data = !script_options$prior, # || script_options$takeup,
   
   # Take-up Model 
   num_obs = nrow(analysis_data),
