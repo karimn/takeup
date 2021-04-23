@@ -113,11 +113,11 @@ parameters {
   real<lower = (use_private_incentive_restrictions ? 0 : negative_infinity())> beta_calendar_effect;
   real<lower = (use_private_incentive_restrictions ? 0 : negative_infinity())> beta_bracelet_effect;
   
-  matrix[use_cluster_effects ? num_clusters : 0, num_treatments] structural_beta_cluster_raw;
-  row_vector<lower = 0>[use_cluster_effects ? num_treatments : 0] structural_beta_cluster_sd;
+  matrix[use_cluster_effects ? num_clusters : 0, intercept_only_effects ? 1 : num_treatments] structural_beta_cluster_raw;
+  row_vector<lower = 0>[use_cluster_effects ? (intercept_only_effects ? 1 : num_treatments) : 0] structural_beta_cluster_sd;
   
-  matrix[use_county_effects ? num_counties : 0, num_treatments] structural_beta_county_raw;
-  row_vector<lower = 0>[use_county_effects ? num_treatments : 0] structural_beta_county_sd;
+  matrix[use_county_effects ? num_counties : 0, intercept_only_effects ? 1 : num_treatments] structural_beta_county_raw;
+  row_vector<lower = 0>[use_county_effects ? (intercept_only_effects ? 1 : num_treatments) : 0] structural_beta_county_sd;
   
   // Salience
   
@@ -339,7 +339,11 @@ transformed parameters {
   if (use_cluster_effects) {
     vector[num_clusters] cluster_effects;
     
-    structural_beta_cluster[, 1:num_treatments] = structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_clusters);
+    if (intercept_only_effects) {
+      structural_beta_cluster[, 1] = structural_beta_cluster_raw[, 1] * structural_beta_cluster_sd[1];
+    } else {
+      structural_beta_cluster[, 1:num_treatments] = structural_beta_cluster_raw .* rep_matrix(structural_beta_cluster_sd, num_clusters);
+    }
     
     if (use_wtp_model) { // Bracelet and Calendar are the same
       structural_beta_cluster[, 3] = structural_beta_cluster[, 4];
@@ -352,7 +356,11 @@ transformed parameters {
   if (use_county_effects) {
     vector[num_clusters] county_effects;
     
-    structural_beta_county[, 1:num_treatments] = structural_beta_county_raw .* rep_matrix(structural_beta_county_sd, num_counties);
+    if (intercept_only_effects) {
+      structural_beta_county[, 1] = structural_beta_county_raw[, 1] * structural_beta_county_sd[1]; 
+    } else {
+      structural_beta_county[, 1:num_treatments] = structural_beta_county_raw .* rep_matrix(structural_beta_county_sd, num_counties);
+    } 
     
     if (use_wtp_model) { // Calendar = Bracelet + strata_effect
       structural_beta_county[, 3] = structural_beta_county[, 4] + wtp_value_utility * strata_effect_wtp_mu; 

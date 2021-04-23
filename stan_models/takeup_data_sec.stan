@@ -1,6 +1,7 @@
 // Multilevel Configuration 
 int<lower = 0, upper = 1> use_cluster_effects;
 int<lower = 0, upper = 1> use_county_effects;
+int<lower = 0, upper = 1> intercept_only_effects;
 
 int<lower = 0, upper = 1> use_binomial;
 int<lower = 0, upper = 1> use_cost_k_restrictions;

@@ -27,7 +27,7 @@ Options:
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "dist prior --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   
 ) 
 
@@ -213,8 +213,9 @@ models <- lst(
     use_single_cost_model = TRUE,
     use_private_incentive_restrictions = FALSE,
     use_salience_effect = FALSE,
-    use_cluster_effects = FALSE,
     use_county_effects = script_options$multilevel,
+    use_cluster_effects = FALSE,
+    intercept_only_effects = TRUE,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     use_mu_cluster_effects = FALSE,
@@ -724,6 +725,7 @@ stan_data <- lst(
   # Distance Model
   use_dist_county_effects = script_options$multilevel,
   use_dist_cluster_effects = script_options$multilevel,
+  intercept_only_effects = FALSE,
   
   # Beliefs Model 
   beliefs_use_stratum_level = script_options$multilevel,
