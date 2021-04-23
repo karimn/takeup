@@ -14,15 +14,13 @@ Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
   --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
   --output-path=<path>  Path to find results [default: temp-data]
-  --keep-fit
-"),
-
+  --keep-fit "), 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "49 --cores=4 --keep-fit --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "51 --cores=4 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -354,6 +352,11 @@ dist_fit_data %<>%
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
              organize_by_treatment(condition_on_dist = TRUE, mu_assigned_treatment, assigned_treatment) %>%
              bind_rows(.x, .)),
+    
+    obs_cluster_takeup_level = map(cluster_cf_cutoff, filter, !is.na(obs_prop_takeup)) %>% 
+      map(mutate, quants = map(iter_data, quantilize_est, prob, quant_probs = quant_probs, na.rm = TRUE)) %>% 
+      map(select, !iter_data) %>% 
+      map(unnest, quants),
     
     group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
     # imputed_dist = pmap(lst(fit, stan_data, model_type), get_imputed_dist),

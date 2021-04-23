@@ -369,7 +369,6 @@ transformed parameters {
       if (multithreaded) {
         structural_cluster_obs_v = map_find_fixedpoint_solution(
           structural_cluster_benefit_cost, 
-          // to_vector(cluster_mu_rep)[long_cluster_by_treatment_index],
           obs_cluster_mu_rep,
           total_error_sd[cluster_incentive_treatment_id],
           u_sd[cluster_incentive_treatment_id],
@@ -383,7 +382,6 @@ transformed parameters {
         for (cluster_index in 1:num_clusters) {
           structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
             structural_cluster_benefit_cost[cluster_index],
-            // cluster_mu_rep[cluster_index, cluster_assigned_dist_group_treatment[cluster_index]],
             obs_cluster_mu_rep[cluster_index],
             total_error_sd[cluster_incentive_treatment_id[cluster_index]],
             u_sd[cluster_incentive_treatment_id[cluster_index]],
