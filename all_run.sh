@@ -48,12 +48,12 @@ fi
 # wait
 
 # Reduced Form 
-# Rscript ./run_takeup.R takeup prior --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --multilevel
-# Rscript ./run_takeup.R takeup fit   --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --multilevel
+Rscript ./run_takeup.R takeup prior --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --multilevel
+Rscript ./run_takeup.R takeup fit   --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --multilevel
 # Rscript ./run_takeup.R takeup cv    --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --folds=10
 
 # Structural
-Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --num-mix-groups=1
+# Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --num-mix-groups=1
 # Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 
 # Rscript ./run_takeup.R takeup cv    --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --num-mix-groups=1 --folds=10
 
