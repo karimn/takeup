@@ -92,6 +92,7 @@ analysis_data <- monitored_nosms_data
 
 ```{r version}
 fit_version <- 51 
+
 ```
 
 ```{r load-processed-dist-fit, dependson="version"}
@@ -412,6 +413,28 @@ where
     \gamma_i(z,g) &= \gamma(z,g) + \gamma^{\textrm{county}}_{k[i]}(z,g), 
 \end{align*}
 and $j[i]$ denotes village $j$ household $i$ belongs to and $k[i]$ denotes county $k$ that household $i$ belongs to.
+
+## Reduced-Form Posterior Predictive Checking
+
+```{r rf-ppc, fig.width=7.5, fig.height=5}
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "reduced form")) %>% 
+  select(model_type, obs_cluster_takeup_level) %>% 
+  unnest(obs_cluster_takeup_level) %>% 
+  filter(fct_match(assigned_treatment, c("control", "bracelet"))) %>%
+  mutate(
+    assigned_treatment = fct_relevel(assigned_treatment, "bracelet", "control"), # To keep consistent control/bracelet colors as in the ROC plots
+  ) %>% 
+  ggplot(aes(assigned_dist_obs)) +
+  geom_point(aes(y = obs_prop_takeup, color = assigned_treatment), size = 0.8, show.legend = FALSE) + 
+  # geom_crossbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 40) +
+  geom_errorbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 20) +
+  scale_color_canva("Treatment", labels = str_to_title, palette = "Fun and professional") +
+  scale_x_continuous("Distance to Treatment [km]", labels = scales::label_number(scale = 1/1000, drop0trailing = TRUE)) +
+  scale_y_continuous("Village Take-up") +
+  labs(caption = "Point: observed village-level take-up. Vertical ranges: posterior predicted 80% credible interval.") +
+  theme(legend.position = "bottom")
+```
 
 ## Reduced-Form Average Treatment Effects
 
@@ -750,6 +773,27 @@ For $z\in\{\textrm{ink, calendar, bracelet}\}, g\in\{\textrm{close, far}\}$:
 \end{tikzpicture}
 \end{figure}
 
+## Posterior Predictive Checking
+
+```{r ppc, fig.width=7.5, fig.height=5}
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  select(model_type, obs_cluster_takeup_level) %>% 
+  unnest(obs_cluster_takeup_level) %>% 
+  filter(fct_match(assigned_treatment, c("control", "bracelet"))) %>%
+  mutate(
+    assigned_treatment = fct_relevel(assigned_treatment, "bracelet", "control"), # To keep consistent control/bracelet colors as in the ROC plots
+  ) %>% 
+  ggplot(aes(assigned_dist_obs)) +
+  geom_point(aes(y = obs_prop_takeup, color = assigned_treatment), size = 0.8, show.legend = FALSE) + 
+  # geom_crossbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 40) +
+  geom_errorbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 20) +
+  scale_color_canva("Treatment", labels = str_to_title, palette = "Fun and professional") +
+  scale_x_continuous("Distance to Treatment [km]", labels = scales::label_number(scale = 1/1000, drop0trailing = TRUE)) +
+  scale_y_continuous("Village Take-up") +
+  labs(caption = "Point: observed village-level take-up. Vertical ranges: posterior predicted 80% credible interval.") +
+  theme(legend.position = "bottom")
+```
     
 ## Incentive Average Treatment Effect
     
