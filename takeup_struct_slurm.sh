@@ -18,17 +18,17 @@ if [ -z ${IN_SLURM} ]; then
   module load rh/devtoolset/8 gdal
 fi
 
-VERSION=51
+VERSION=52
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
 # MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS,REDUCED_FORM_NO_RESTRICT"
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
 NUM_STAN_THREADS=8
 NUM_DIST_MIX=1
 
-Rscript run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS --sequential --chains=4 --threads=${NUM_STAN_THREADS} --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_prior${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
-Rscript run_takeup.R takeup prior --models=REDUCED_FORM_NO_RESTRICT   --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel                     --outputname=dist_prior${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
-Rscript run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS --sequential --chains=4 --threads=${NUM_STAN_THREADS} --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_fit${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
-Rscript run_takeup.R takeup fit   --models=REDUCED_FORM_NO_RESTRICT   --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel                     --outputname=dist_fit${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
+Rscript run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_prior${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
+# Rscript run_takeup.R takeup prior --models=REDUCED_FORM_NO_RESTRICT   --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel                                  --outputname=dist_prior${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
+Rscript run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel --num-mix-groups=${NUM_DIST_MIX} --outputname=dist_fit${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
+# Rscript run_takeup.R takeup fit   --models=REDUCED_FORM_NO_RESTRICT   --sequential --chains=4 --threads=${NUM_STAN_THREADS} --multilevel                                  --outputname=dist_fit${VERSION} ${CMDSTAN_ARGS} --output-path=${SLURM_INOUT_DIR} --update 
 
 Rscript postprocess_dist_fit.R ${VERSION} --cores=16 --input-path=${SLURM_INOUT_DIR} --output-path=${SLURM_INOUT_DIR} --load-from-csv 
 
