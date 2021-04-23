@@ -25,8 +25,7 @@ ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
-takeup_version <- 46 
-reduced_form_takeup_version <- 49 
+takeup_version <- 52 
 ```
 
 Previously, we modeled the take-up probability as 
@@ -122,7 +121,8 @@ dist_fit_data %<>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r incentive-te, fig.width=8, fig.height=9}
-dist_fit_data %>% 
+dist_fit_data %>%
+  filter(fct_match(model_type, "structural")) %>% 
   mutate(est_takeup_te =
     map(est_takeup_te, 
         filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right,
@@ -165,6 +165,7 @@ dist_fit_data %>%
 
 ```{r signaling-te, fig.width=8, fig.height=10}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
   filter(
@@ -207,6 +208,7 @@ dist_fit_data %>%
 
 ```{r private-incentive-te, fig.width=8, fig.height=10}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
   filter(
@@ -261,7 +263,7 @@ where
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   transmute(y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
     mutate(.x,
       roc_distance = roc_distance / 1000,
@@ -282,7 +284,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   transmute(across(c(cluster_w_cutoff_control, cluster_w_cutoff_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
   pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
   unnest(value) %>% 
@@ -299,7 +301,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   transmute(across(c(cluster_social_multiplier_control, cluster_social_multiplier_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
   pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
   unnest(value) %>% 
@@ -316,7 +318,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   select(sim_delta) %>% 
   unnest(sim_delta) %>% 
   ggplot(aes(w)) +
@@ -330,9 +332,9 @@ dist_fit_data %>%
   NULL
 ```
 
-```{r}
+```{r, eval=FALSE}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "prior-predict")) %>% 
+  filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
   pluck("y_rate_of_change_diff", 1) %>% 
   mutate(
     roc_distance = roc_distance / 1000,
@@ -351,6 +353,7 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=11}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
   mutate(est_takeup_level =
     map(est_takeup_level, filter, assigned_treatment == mu_assigned_treatment)) %>%  
   select(model, model_name, est_takeup_level, fit_type) %>% 
@@ -389,6 +392,7 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=11}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_level, fit_type) %>% 
   unnest(est_takeup_level) %>%
   filter(
@@ -432,6 +436,7 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=11}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_level, fit_type) %>% 
   unnest(est_takeup_level) %>%
   filter(
@@ -475,6 +480,7 @@ dist_fit_data %>%
 
 ```{r, eval=FALSE}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
   select(fit_type, fit) %>% 
   unnest(fit) %>% 
   filter(str_detect(variable, "mu_beliefs_effect")) %>% 
@@ -537,11 +543,33 @@ all_fit %>%
   NULL
 ```
 
+## Posterior Predictive Checking
+
+```{r, fig.width=7.5, fig.height=8}
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit")) %>% 
+  select(model_type, cluster_cf_cutoff) %>% 
+  unnest(cluster_cf_cutoff) %>% 
+  filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
+  mutate(
+    quants = map(iter_data, quantilize_est, prob, na.rm = TRUE)
+  ) %>% 
+  unnest(quants) %>% 
+  ggplot(aes(assigned_dist_obs)) +
+  geom_point(aes(y = obs_prop_takeup, color = assigned_treatment), size = 0.8, show.legend = FALSE) + #, data = . %>% filter(fct_match(model_type, "structural"))) +
+  # geom_pointrange(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), # color = model_type, group = model_type), 
+  #                 fatten = 0.8, position = position_dodge(width = 50)) +
+  geom_crossbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 40) +
+  # facet_wrap(vars(assigned_treatment), ncol = 1) +
+  facet_wrap(vars(model_type), ncol = 1) +
+  theme(legend.position = "bottom")
+```
+
 # Willingness-to-Pay
 
 ```{r wtp-post}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   pull(wtp_results) %>%
   first() %>%
   plot_wtp_results()
@@ -549,7 +577,7 @@ dist_fit_data %>%
 
 ```{r wtp-prior}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "prior-predict")) %>%
+  filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
   pull(wtp_results) %>%
   first() %>%
   plot_wtp_results()
@@ -564,7 +592,7 @@ beliefs_prior_results <- read_rds(file.path("data", "stan_analysis_data", "belie
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
@@ -573,7 +601,7 @@ dist_fit_data %>%
 
 ```{r beliefs-line-plot-prior, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "prior-predict")) %>%
+  filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>% 
@@ -664,7 +692,7 @@ plot_beliefs_hist <- function(beliefs_results, top_title, binwidth = NULL) {
 }
 
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
 first() %>%
 # beliefs_prior_results %>% 
@@ -673,7 +701,7 @@ first() %>%
 
 ```{r beliefs-hist-prior, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "prior-predict")) %>%
+  filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_prior_results %>% 
@@ -761,46 +789,35 @@ plot_dist_model <- function(results, plot_obs_dist = TRUE, subsample_size = 1500
 }
 
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   plot_dist_model(subsample_size = NULL)
 ```
 
 ```{r dist-prior, fig.width=10}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "prior-predict")) %>% 
+  filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
   plot_dist_model(plot_obs_dist = FALSE, subsample_size = NULL) + coord_cartesian(xlim = NULL, ylim = c(0, 0.0025))
 ```
 
-```{r, fig.width=10}
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
-  pull(imputed_dist) %>% 
-  first() %>% 
-# read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>% 
-#   get_imputed_dist(dist_fit_data$stan_data[[1]]) %>% 
+```{r, fig.width=10, eval=FALSE}
+# dist_fit_data %>% 
+#   filter(fct_match(fit_type, "fit")) %>% 
+#   pull(imputed_dist) %>% 
+#   first() %>% 
+read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>%
+  get_imputed_dist(dist_fit_data$stan_data[[1]]) %>%
   filter(!is.na(obs_standard_dist)) %>% 
   mutate(cluster_id = factor(cluster_id) %>% fct_reorder(obs_standard_dist)) %>% 
   ggplot(aes(cluster_id)) +
   geom_point(aes(y = obs_standard_dist)) +
   geom_linerange(aes(ymin = per_0.1, ymax = per_0.9)) +
-  facet_wrap(vars(dist_treatment), ncol = 1, scales = "free")
+  facet_grid(rows = vars(dist_treatment), cols = vars(county), scales = "free_x")
 ```
 # Reduced Form
 
-```{r reduced-form-load-processed-results}
-load(file.path("temp-data", str_glue("processed_dist_fit{reduced_form_takeup_version}.RData")))
-
-dist_fit_data %<>%
-  left_join(tribble(
-    ~ fit_type,        ~ model_color,
-      "fit",           "black", 
-      "prior-predict", "darkgrey",
-  ), by = "fit_type")
-```
-
 ```{r reduced-form-incentive-te, fig.width=8, fig.height=9}
 dist_fit_data %>%
-  # filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(model_type, "reduced form")) %>% 
   mutate(est_takeup_te =
     map(est_takeup_te, 
         filter, 
@@ -840,8 +857,10 @@ dist_fit_data %>%
     )
   } 
 ```
+
 ```{r, fig.width=8, fig.height=11}
 dist_fit_data %>% 
+  filter(fct_match(model_type, "reduced form")) %>% 
   select(model, model_name, est_takeup_level, fit_type) %>% 
   unnest(est_takeup_level) %>%
   mutate(
@@ -874,4 +893,41 @@ dist_fit_data %>%
       ncol = 1
     )
   }
+```
+
+```{r reduced-form-dist-te, fig.width=8, fig.height=9}
+dist_fit_data %>%
+  filter(fct_match(model_type, "reduced form")) %>% 
+  mutate(est_takeup_te =
+    map(est_takeup_te, 
+        filter, 
+        !is.na(assigned_dist_group_left) & !is.na(assigned_dist_group_right),
+        fct_match(assigned_dist_group_left, "far"), 
+        fct_match(assigned_dist_group_right, "close"), 
+        assigned_treatment_left == assigned_treatment_right)) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
+  unnest(est_takeup_te) %>%
+  mutate(
+    assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)
+  ) %>% {
+    cowplot::plot_grid(
+      plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+        # scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+        scale_y_discrete("") +
+        labs(
+          title = "Distance Average Treatment Effect"
+        ) +
+        theme(legend.position = "none") +
+        NULL,
+      
+      plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
+        scale_y_continuous("") +
+        facet_wrap(vars(assigned_treatment_left)) +
+        theme(legend.position = "none") +
+        NULL,
+      
+      ncol = 1
+    )
+  } 
 ```
