@@ -439,7 +439,7 @@ dist_fit_data %>%
 ## Reduced-Form Average Treatment Effects
 
 ```{r rf-incentive-te, fig.width=7.5, fig.height=4.7, warning=FALSE, dependson="version"}
-dist_fit_data %>%
+rf_te <- dist_fit_data %>%
   filter(fct_match(model_type, "reduced form")) %>% 
   mutate(est_takeup_te =
     map(est_takeup_te, 
@@ -455,26 +455,18 @@ dist_fit_data %>%
       fct_relabel(str_to_title) %>% 
       fct_relevel("Combined"),
     assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)
-  ) %>% {
+  ) 
+  
+rf_te %>% {
     cowplot::plot_grid(
       plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
-        # labs(
-        #   title = "Reduced-Form Average Treatment Effect"
-        # ) +
         ggforce::facet_col(vars(assigned_dist_group_left), 
                    space = "free",
                    scales = "free_y") +
         theme(legend.position = "none") +
         NULL,
-      
-      # plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
-      #   scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
-      #   scale_y_continuous("") +
-      #   facet_grid(cols = vars(assigned_dist_group_left), rows = vars(assigned_treatment_left)) +
-      #   theme(legend.position = "none") +
-      #   NULL,
       
       ncol = 1
     )
@@ -483,7 +475,7 @@ dist_fit_data %>%
 ## Reduced-Form Levels
 
 ```{r rf-levels, fig.width=7.5, fig.height=4.8, warning=FALSE, dependson="version"}
-dist_fit_data %>%
+rf_levels <- dist_fit_data %>%
   filter(fct_match(model_type, "reduced form")) %>% 
   select(model, model_name, est_takeup_level, fit_type) %>% 
   unnest(est_takeup_level) %>%
@@ -492,28 +484,19 @@ dist_fit_data %>%
       fct_relabel(str_to_title) %>% 
       fct_relevel("Combined"),
     assigned_treatment = fct_relabel(assigned_treatment, str_to_title)
-  ) %>% {
+  ) 
+
+rf_levels %>% {
     cowplot::plot_grid(
       plot_estimands(., assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior"),
                      center_bar_size = 2) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
-        # labs(
-        #   title = "Reduced-Form Take-up Level"
-        # ) +
         ggforce::facet_col(vars(assigned_dist_group), 
                    space = "free",
                    scales = "free_y") +
         theme(legend.position = "none") +
         NULL,
-      
-      # plot_estimand_hist(., iter_prop_takeup, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
-      #   scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
-      #   scale_y_continuous("") +
-      #   facet_grid(cols = vars(assigned_dist_group), rows = vars(assigned_treatment), scales = "free_y") +
-      #   theme(legend.position = "none") +
-      #   coord_cartesian(ylim = c(0, 0.2)) +
-      #   NULL,
       
       ncol = 1
     )
@@ -798,7 +781,7 @@ dist_fit_data %>%
 ## Incentive Average Treatment Effect
     
 ```{r incentive-te, fig.width=7.5, fig.height=4.75, warning=FALSE, dependson="version"}
-dist_fit_data %>%
+incentive_te <- dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>% 
   mutate(est_takeup_te =
     map(est_takeup_te, 
@@ -814,7 +797,9 @@ dist_fit_data %>%
       fct_relabel(str_to_title) %>% 
       fct_relevel("Combined"),
     assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)
-  ) %>% {
+  ) 
+
+incentive_te %>% {
     cowplot::plot_grid(
       plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior"),
                      center_bar_size = 2) +
@@ -833,7 +818,7 @@ dist_fit_data %>%
 ## Incentive Take-up Level
 
 ```{r incentive-levels, fig.width=7.5, fig.height=4.7, warning=FALSE, dependson="version"}
-dist_fit_data %>% 
+incentive_levels <- dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   mutate(est_takeup_level =
     map(est_takeup_level, filter, assigned_treatment == mu_assigned_treatment)) %>%  
@@ -844,7 +829,9 @@ dist_fit_data %>%
       fct_relabel(str_to_title) %>% 
       fct_relevel("Combined"),
     assigned_treatment = fct_relabel(assigned_treatment, str_to_title),
-  ) %>% {
+  ) 
+
+incentive_levels %>% {
     cowplot::plot_grid(
       plot_estimands(., assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior"),
                      center_bar_size = 2) +
@@ -864,7 +851,7 @@ dist_fit_data %>%
 ## Signaling Average Treatment Effect
 
 ```{r signaling-te, fig.width=7.5, fig.height=4.75, warning=FALSE, dependson="version"}
-dist_fit_data %>% 
+signaling_te <- dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
@@ -880,7 +867,9 @@ dist_fit_data %>%
       fct_relabel(str_to_title) %>% 
       fct_relevel("Combined"),
     mu_assigned_treatment_left = fct_relabel(mu_assigned_treatment_left, str_to_title),
-  ) %>% {
+  ) 
+
+signaling_te %>% {
     cowplot::plot_grid(
       plot_estimands(., mu_assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior"),
                      center_bar_size = 2) +
@@ -938,7 +927,7 @@ dist_fit_data %>%
 ## Private Incentive Average Treatment Effect
 
 ```{r private-incentive-te, fig.width=7.5, fig.height=2, dependson="version"}
-dist_fit_data %>% 
+private_incentive_te <- dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
   select(model, model_name, est_takeup_te, fit_type) %>% 
   unnest(est_takeup_te) %>%
@@ -956,7 +945,9 @@ dist_fit_data %>%
       fct_relevel("Combined"),
     assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title),
   ) %>% 
-  filter(fct_match(assigned_dist_group_left, "Combined")) %>% { # Distance doesn't matter for private valuation 
+  filter(fct_match(assigned_dist_group_left, "Combined")) # Distance doesn't matter for private valuation 
+
+private_incentive_te %>% { 
     cowplot::plot_grid(
       plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior"), center_bar_size = 2) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
@@ -1020,16 +1011,21 @@ dist_fit_data %>%
 ## Take-up Probability and Distance 
 
 ```{r take-up-prob, fig.width=7.5, fig.height=4.75, dependson="version"}
-dist_fit_data %>% 
+dist_prob_plot <- dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   # transmute(across(c(cluster_w_cutoff_control, cluster_w_cutoff_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
-  transmute(across(c(cluster_takeup_prop_control, cluster_takeup_prop_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
-  pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
-  unnest(value) %>% 
+  transmute(
+    across(c(cluster_takeup_prop_control, cluster_takeup_prop_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000)),
+    obs_cluster_takeup_level,
+  ) %>% 
+  pivot_longer(-obs_cluster_takeup_level, names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
+  mutate(
+    obs_cluster_takeup_level = map2(obs_cluster_takeup_level, treatment, ~ filter(.x, fct_match(assigned_treatment, .y)))
+  ) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = treatment), data = . %>% unnest(value)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.3, data = . %>% unnest(value)) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.3, data = . %>% unnest(value)) +
   geom_rug(
     aes(dist, color = assigned.treatment),
     alpha = 0.75,
@@ -1045,8 +1041,25 @@ dist_fit_data %>%
   ) +
   coord_cartesian(ylim = c(0, 0.55)) +
   NULL
+
+dist_prob_plot
+```
+## Take-up Probability and Distance 
+
+```{r take-up-prob-with-obs-takeup, fig.width=7.5, fig.height=4.75, dependson="version"}
+dist_prob_plot +
+  geom_point(aes(assigned_dist_obs / 1000, y = obs_prop_takeup, color = treatment), size = 0.8, show.legend = FALSE, data = . %>% unnest(obs_cluster_takeup_level)) +
+  NULL
 ```
 
+## Take-up Probability and Distance 
+
+```{r take-up-prob-with-obs-takeup-and-linerange, fig.width=7.5, fig.height=4.75, dependson="version"}
+dist_prob_plot +
+  geom_linerange(aes(assigned_dist_obs / 1000, ymin = per_0.1, ymax = per_0.9, color = treatment), data = . %>% unnest(obs_cluster_takeup_level)) +
+  geom_point(aes(assigned_dist_obs / 1000, y = obs_prop_takeup, color = treatment), size = 0.8, show.legend = FALSE, data = . %>% unnest(obs_cluster_takeup_level)) +
+  NULL
+```
 
 ## Take-up Rate of Change 
 
@@ -1148,3 +1161,19 @@ Contacts:
 Code Repo: https://github.com/karimn/takeup 
 
 ## References
+
+## Reduced-Form Quantities
+
+```{r, include=FALSE}
+stan_data <- dist_fit_data %>%
+        filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+        pull("stan_data") %>%
+        first()
+
+rmarkdown::render(
+  "estimated_quantities.Rmd", 
+  params = lst(
+    rf_te, rf_levels, incentive_levels, signaling_te, private_incentive_te, stan_data) 
+)
+```
+
