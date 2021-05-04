@@ -75,7 +75,7 @@ roc_param <- c("cluster_roc_diff",
                str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
 
 param_used <- c(
-  "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", # "mu_beliefs_effect", 
+  "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", "obs_cluster_mu_rep", # "mu_beliefs_effect", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix", "missing_cluster_standard_dist", 
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
@@ -341,6 +341,8 @@ dist_fit_data %<>%
   mutate(
     total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
+    
+    obs_cluster_mu_rep = map(fit, filter, str_detect(variable, "obs_cluster_mu_rep")),
     
     cluster_cf_cutoff = pmap(lst(fit, stan_data, model_type), extract_obs_cluster_cutoff_cf, quant_probs = quant_probs) %>% 
       lst(cutoffs = ., total_error_sd, force_draw_takeup = fct_match(fit_type, "prior-predict")) %>%  
