@@ -624,9 +624,12 @@ enum2stan_data.stan_enum <- function(enum) {
 
 rep_normal <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
-delta_part <- function(v, w, u_sd) v * pnorm(w - v, sd = u_sd) * dnorm(v)
 integrate_delta_part <- function(w, u_sd) { 
-  Vectorize(function(w, u_sd) integrate(delta_part, w = w, u_sd = u_sd, -Inf, Inf)$value, vectorize.args = c("w", "u_sd"))(w, u_sd)
+  delta_part <- function(v, w, u_sd) v * pnorm(w - v, sd = u_sd) * dnorm(v)
+  delta_part_integrator <- function(w, u_sd) integrate(delta_part, w = w, u_sd = u_sd, -Inf, Inf)$value
+  vec_delta_part_integrator <- Vectorize(delta_part_integrator, vectorize.args = c("w", "u_sd")) 
+  
+  vec_delta_part_integrator(w, u_sd)
 }
 
 calculate_delta <- function(w, total_error_sd, u_sd) {
