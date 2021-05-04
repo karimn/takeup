@@ -25,7 +25,7 @@ ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
-takeup_version <- 52 
+takeup_version <- 51 
 ```
 
 Previously, we modeled the take-up probability as 
@@ -481,15 +481,19 @@ dist_fit_data %>%
 ```{r, eval=FALSE}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  select(fit_type, fit) %>% 
-  unnest(fit) %>% 
-  filter(str_detect(variable, "mu_beliefs_effect")) %>% 
+  select(fit_type, obs_cluster_mu_rep) %>% 
+  unnest(obs_cluster_mu_rep) %>% 
+  # filter(str_detect(variable, "mu_beliefs_effect")) %>% 
+  filter(str_detect(variable, "obs_cluster_mu_rep")) %>% 
   unnest(iter_data) %>% 
   ggplot() +
-  geom_histogram(aes(iter_est, y = stat(density) * 0.1, fill = fit_type), 
-                 binwidth = 0.1, boundary = 0, position = "identity", alpha = 0.5) +
+  # geom_histogram(aes(iter_est, y = stat(density) * 0.05, fill = fit_type), 
+  #                binwidth = 0.05, boundary = 0, position = "identity", alpha = 0.5) +
+  geom_histogram(aes(iter_est), 
+                 binwidth = 0.5, boundary = 0, position = "identity", alpha = 0.5) +
   # scale_fill_manual("", values = c("fit" = "black", "prior-predict" = "darkgrey")) +
   # facet_wrap(vars(fit_type), ncol = 1) +
+  coord_cartesian(xlim = c(0, 2)) +
   NULL
 ```
 
