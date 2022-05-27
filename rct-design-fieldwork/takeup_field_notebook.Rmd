@@ -13,35 +13,30 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-library(plyr)
-library(dplyr)
+library(magrittr)
+library(tidyverse)
 library(multidplyr)
-library(tibble)
-library(tidyr)
 library(lubridate)
-library(purrr)
-library(readr)
 library(haven)
 library(broom)
-library(ggplot2)
 library(scales)
 library(viridis)
 library(ggrepel)
 library(ggmap)
-library(stringr)
 library(knitr)
 library(bigmemory)
+library(rgeos)
 
 library(econometr)
 
-source("../util.R")
+#source("../util.R")
 source("takeup_rct_assign_clusters.R")
 
 knitr::opts_chunk$set(cache = TRUE)
 
-config <- yaml::yaml.load_file("../local_config.yaml")
+#config <- yaml::yaml.load_file("../local_config.yaml")
 
-doParallel::registerDoParallel(cores = config$cores)
+#doParallel::registerDoParallel(cores = config$cores)
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
@@ -52,7 +47,7 @@ takeup.date.type <- col_date(datetime.format)
 ```
 
 ```{r}
-raw.data.path <- . %>% file.path("raw-data", .)
+raw.data.path <- . %>% file.path("..", "data", "raw-data", .)
 ```
 
 # Cluster Survey
@@ -66,7 +61,7 @@ clusters.to.drop <- c(277, # Too close other cluster (I think 503)
                       678, # Hostile community member
                       737) # Data fabrication and medication theft
 
-cluster.wave.county.data <- read_rds("data/takeup_cluster_wave_county_5.0.rds")
+cluster.wave.county.data <- read_rds("../data/takeup_cluster_wave_county_5.0.rds")
 
 cluster.info.to.drop <- c("uuid:3a491628-a0e8-4be0-9afc-c2cca08fc450", # Bad entries
                           "uuid:fcd3137e-7ddb-4f2e-9140-680e7638e42c",
@@ -75,7 +70,7 @@ cluster.info.to.drop <- c("uuid:3a491628-a0e8-4be0-9afc-c2cca08fc450", # Bad ent
 
 cluster.info <- read_csv(raw.data.path("Cluster Survey V3 July 04.csv"),
                          col_types = list(SubmissionDate = takeup.date.type)) %>% 
-  bind_rows(v3 = ., v1 = read_dta("data/Cluster Survey V1.dta") %>%
+  bind_rows(v3 = ., v1 = read_dta("../data/Cluster Survey V1.dta") %>%
                    transmute(cluster.id = clusterid,
                              SubmissionDate = submissiondate,
                              KEY = key,
@@ -127,7 +122,7 @@ pot.info %<>%
 
 pot.info %<>% 
   filter(!is.na(lon.verify), !is.na(lat.verify), !is.na(alt.pot.lon), !is.na(alt.pot.lat)) %>% 
-  mutate(verify.dist = gDistance(convert.to.sp(., ~ alt.pot.lon + alt.pot.lat, wgs.84) %>% spTransform(kenya.proj4),
+  mutate(verify.dist = rgeos::gDistance(convert.to.sp(., ~ alt.pot.lon + alt.pot.lat, wgs.84) %>% spTransform(kenya.proj4),
                                  convert.to.sp(., ~ lon.verify + lat.verify, wgs.84) %>% spTransform(kenya.proj4), byid = TRUE) %>% diag) %>% 
   select(KEY, verify.dist) %>% 
   right_join(pot.info, "KEY")
@@ -193,15 +188,15 @@ pot.info %>%
 `village.cluster.id` is not be trusted. Geographic analysis (below) of the closest cluster shows that `cluster.id` is more reliable. 
 
 ```{r villages-data}
-rct.village.codes <- read_csv("data/village_codes_2.csv", skip = 1, col_names = c("village.cluster.id", "village_name", "village")) %>% 
+rct.village.codes <- read_csv("../data/village_codes_2.csv", skip = 1, col_names = c("village.cluster.id", "village_name", "village")) %>% 
   mutate(village.cluster.id = as.integer(village.cluster.id))
 
 # We're already reading this above (cluster-survey-data), but not in exactly the same format...
-cluster.survey.data <- read_rds("data/takeup_cluster_survey.rds") 
+cluster.survey.data <- read_rds("../data/takeup_cluster_survey.rds") 
 
-rct.villages <- read_rds("data/rct_target_villages_2.0.rds") %>% 
+rct.villages <- read_rds("../data/rct_target_villages_2.0.rds") %>% 
   mutate(new.village = FALSE) %>% 
-  bind_rows(read_rds("data/rct_target_villages_2.0-4.rds") %>% 
+  bind_rows(read_rds("../data/rct_target_villages_2.0-4.rds") %>% 
               mutate(new.village = TRUE))
 
 all.villages <- rct.villages %>% 
@@ -251,7 +246,7 @@ rm(rct.villages)
 rct.village.codes %<>%
   left_join(select(all.villages, village, targeted.village), "village")
 
-pre.census.data <- read_rds("data/pre.census.processed.rds")
+pre.census.data <- read_rds("../data/pre.census.processed.rds")
 ```
 
 ```{r, eval=FALSE}
@@ -292,8 +287,8 @@ rct.counties <- c("Busia", "Siaya", "Kakamega")
 busia.subcounties <- c("butula", "nambale", "teso south", "teso north") 
 siaya.subcounties <- c("gem", "ugenya", "ugunja")
 
-ke.lvl2.adm.data <- read_rds("~/Data/TakeUp/KEN_adm2.rds")
-ke.lvl3.adm.data <- read_rds("~/Data/TakeUp/KEN_adm3.rds")
+ke.lvl2.adm.data <- read_rds(file.path("..", "data", "adm", "KEN_adm2.rds"))
+#ke.lvl3.adm.data <- read_rds("~/Data/TakeUp/KEN_adm3.rds")
 
 counties.adm.data <- ke.lvl2.adm.data[ke.lvl2.adm.data$NAME_1 %in% rct.counties, ] #, "Vihiga"), ]
 subcounties.adm.data <- counties.adm.data[!counties.adm.data$NAME_1 %in% c("Busia", "Siaya") | counties.adm.data$NAME_2 %in% str_to_title(c(busia.subcounties, siaya.subcounties)), ]
@@ -332,7 +327,7 @@ tu.data.reader <- function(file.name, submit.datetime.type = NULL, .other.types 
     validate.coords()
 }
 
-hh.census.data.pre24th <- tu.data.reader("data/census_gps_util23.csv", 
+hh.census.data.pre24th <- tu.data.reader(file.path("..", "data", "census_gps_util23.csv"), 
                                          submit.datetime.type = col_datetime("%d/%m/%Y %H:%M")) %>% 
   filter(SubmissionDate >= "2016-08-22") %>% 
   mutate_at(vars(present, return, number_individuals, instance, check), as.numeric)
@@ -347,7 +342,7 @@ hh.census.data <- tu.data.reader(raw.data.path("Census.csv"),
                                                      `gps-Accuracy` = col_double(),
                                                      gps_work = col_integer())) %>% 
   filter(SubmissionDate >= "2016-08-25") %>% 
-  bind_rows(hh.census.data.pre24th) %>% 
+  bind_rows(select(hh.census.data.pre24th, !c(hhh_name1st_check, directions))) %>% 
   select(-c(RI, matches("^IC\\d{1,2}$"))) %>% 
   left_join(rct.village.codes, by = "village") %>%
   mutate(village_name = factor(village_name),
@@ -355,7 +350,7 @@ hh.census.data <- tu.data.reader(raw.data.path("Census.csv"),
          return = as.numeric(return),
          hhh_have_phone = factor.have.phone(hhh_have_phone))
 
-missing.gps.data <- read_csv("data/missing_gps.csv") %>% 
+missing.gps.data <- read_csv("../data/missing_gps.csv") %>% 
   select(KEY, `gps-Latitude`, `gps-Longitude`, gps_work, manual_long, manual_lat) %>% 
   mutate(lon = ifelse(is.na(`gps-Longitude`), manual_long, `gps-Longitude`),
          lat = ifelse(is.na(`gps-Latitude`), manual_lat, `gps-Latitude`),
@@ -363,19 +358,19 @@ missing.gps.data <- read_csv("data/missing_gps.csv") %>%
   select(-c(starts_with("gps-"), starts_with("manual_"))) %>% 
   filter(!is.na(KEY), !is.na(lon), !is.na(lat))  
 
-missing.gps.149.data <- read_csv("data/missing_gps_149.csv") %>% 
+missing.gps.149.data <- read_csv("../data/missing_gps_149.csv") %>% 
   transmute(lon = gpslongitude,
             lat = gpslatitude, 
             KEY = `key of form with missing GPS data`,
             data.source = "missing_gps_149")
 
-missing.gps.360.data <- read_csv("data/missing_gps_360.csv") %>% 
+missing.gps.360.data <- read_csv("../data/missing_gps_360.csv") %>% 
   transmute(lon = gpslongitude,
             lat = gpslatitude, 
             KEY = `key of form missing GPS data`,
             data.source = "missing_gps_149")
 
-missing.gps.844.data <- read_csv("data/missing_gps_844.csv") %>%
+missing.gps.844.data <- read_csv("../data/missing_gps_844.csv") %>%
   rename(key.gps = `Key with GPS`,
          key.missing.gps = `Key missing GPS`) %>%
   inner_join(hh.census.data, c("key.gps" = "KEY")) %>% 
@@ -401,19 +396,19 @@ hh.census.data %<>%
   select(-matches("\\.[xy]$"))
 
 hh.census.data %<>% 
-  anti_join(ldply(paste0("data/", c("takeup_returns_toremove.csv", 
+  anti_join(plyr::ldply(paste0("../data/", c("takeup_returns_toremove.csv", 
                     "takeup_moved_notvalid_toremove.csv",
                     "takeup_noconsent_toremove.csv")), read_csv),
             by = c("KEY" = "key"))
 
-hh.id.dict <- read_rds("data/takeup_hh_id_dict.rds")
+hh.id.dict <- read_rds("../data/takeup_hh_id_dict.rds")
 
 hh.census.data %<>% 
   select(-county) %>% 
   left_join(cluster.wave.county.data, "cluster.id") %>% 
   left_join(hh.id.dict, "KEY")
 
-person.id.dict <- read_rds("data/takeup_person_id_dict.rds")
+person.id.dict <- read_rds("../data/takeup_person_id_dict.rds")
 
 clean.names <- . %>% 
   mutate_at(vars(matches("1st|mid|2nd|clan")), str_to_upper) %>% 
@@ -464,7 +459,7 @@ write_rds(cluster.wave.county.data, "takeup_cluster_wave_county_2.0.rds")
 
 
 ```{r cluster-review, include=FALSE}
-load("data/takeup_cluster_review.RData")
+load("../data/takeup_cluster_review.RData")
 ```
 
 
@@ -555,7 +550,7 @@ identify.closest.cluster <- function(.data, data.coords.formula = ~ lon + lat,  
                     convert.to.sp(~ target.lon + target.lat, wgs.84) %>%
                     spTransform(kenya.proj4),
                   byid = TRUE) %>%
-        adply(2, function(dist.col) {
+        plyr::adply(2, function(dist.col) {
           in.range.dist <- dist.col[dist.col <= 2000]
       
           if (length(in.range.dist) == 0) {
@@ -588,7 +583,7 @@ Aside from some corrections of cluster ID due to incorrect coding,
 * we're dropping households from cluster 954 that were found in the census that are very different from the pre-census
 
 ```{r corrections}
-cluster.954.to.drop <- read_rds("data/cluster_954_to_drop.rds")
+cluster.954.to.drop <- read_rds("../data/cluster_954_to_drop.rds")
 
 get.outside.keys <- function(.data, .cluster.id) 
   .data %>% 
@@ -921,7 +916,7 @@ hh.census.data %>%
   ungroup %>% 
   generate.hh.plots %>% 
   compact %>% 
-  l_ply(plot)
+  plyr::l_ply(plot)
 ```
 
 ### To Review
@@ -933,7 +928,7 @@ hh.census.data %>%
   filter((!first(cluster.id) %in% cluster.review$cluster.id) | any(SubmissionDate > last.review.date)) %>%
   ungroup %>% 
   generate.hh.plots %>% 
-  l_ply(. %>% plot)
+  plyr::l_ply(. %>% plot)
 ```
 
 <!-- # Household Groupings -->
@@ -987,7 +982,7 @@ get.group.polygons <- function(group.hhs, convert.to.wgs.84 = TRUE) {
 
 generate.grouping.data <- function(hh.data, group.dist) {
   hh.data %>%
-    ddply(.(cluster.id), . %>% 
+    plyr::ddply(.(cluster.id), . %>% 
             identify.prox.cluster(cluster.hhs = .,
                                   na.hhs = filter(hh.locations, is.na(cluster.id)),
                                   group.dist = group.dist)) %>% 
@@ -1011,7 +1006,7 @@ hh.locations <- hh.census.data %>%
               select(cluster.id, lon, lat, survey.type)) %>% 
   filter(!is.na(lon), !is.na(lat)) 
 
-grouping.data <- adply(c(25, 50), 1, . %>% generate.grouping.data(hh.locations, .))
+grouping.data <- plyr::adply(c(25, 50), 1, . %>% generate.grouping.data(hh.locations, .))
 ```
 
 <!-- ## Distribution of Pure/Mixed Household Groups -->
@@ -1026,7 +1021,7 @@ counted.grouping.data <- grouping.data %>%
            (!is.na(closest.cluster) & closest.cluster == prox.cluster.id))) %>% 
   ungroup 
 
-dlply(counted.grouping.data, .(prox.cluster.id), 
+plyr::dlply(counted.grouping.data, .(prox.cluster.id), 
       . %>% { 
         ggplot(.) + 
           geom_bar(aes(mix.cat, fill = factor(group.dist)), position = "dodge") +
@@ -1034,7 +1029,7 @@ dlply(counted.grouping.data, .(prox.cluster.id),
           scale_fill_discrete("Grouping Distance") +
           ggtitle(sprintf("Cluster %d", .$prox.cluster.id[1]))
         }) %>% 
-  l_ply(plot)
+  plyr::l_ply(plot)
 ```
 
 
@@ -1069,7 +1064,7 @@ problem.clusters <- unmatched.hh.data %>%
 
 grouping.polygons.data <- grouping.data %>% 
   filter(prox.cluster.id %in% problem.clusters, group.dist == 50) %>% {
-  left_join(ddply(., 
+  left_join(plyr::ddply(., 
                   .(prox.cluster.id, hh.prox.group, group.dist), 
                   . %>% get.group.polygons(convert.to.wgs.84 = FALSE)),
             distinct(., hh.prox.group, group.dist, .keep_all = TRUE) %>% 
@@ -1129,11 +1124,11 @@ plot.prox.groups <- function(cluster.hhs, .group.polygons, .zoom = 15) {
 }
 
 grouping.plots <- grouping.polygons.data %>% 
-  dlply(.(group.dist, prox.cluster.id), plot.simple.prox.groups) 
+  plyr::dlply(.(group.dist, prox.cluster.id), plot.simple.prox.groups) 
 ```
 
 ```{r, echo=FALSE, eval=FALSE}
-l_ply(grouping.plots, plot)
+plyr::l_ply(grouping.plots, plot)
 ```
 
 
@@ -1231,7 +1226,7 @@ get.vill.pot.dist <- function(filtered.village.centers,
              dist.to.own.pot = diag(dist.mat), # dist.mat[own.cluster.mask],
              dist.pot.group = factor.dist.pot(dist.to.own.pot),
              closest.other = `diag<-`(dist.mat, NA) %>% 
-               aaply(1, . %>% min(na.rm = TRUE))) %>% 
+               plyr::aaply(1, . %>% min(na.rm = TRUE))) %>% 
         bind_cols(seq(2500/2, 7500, 2500/2) %>% {
           setNames(map(., ~ rowSums(dist.mat < ., na.rm = TRUE)), paste0("num.within.", .))
         })
@@ -1246,7 +1241,7 @@ verify.vill.pot.dist <- village.centers %>%
   filter(cluster.id %in% known.pot.locations$cluster.id, !is.na(lon.verify), !is.na(lat.verify)) %>% 
   get.vill.pot.dist(pot.coords.formula = ~ lon.verify + lat.verify) 
 
-save(vill.pot.dist, verify.vill.pot.dist, village.centers, file = file.path("data", "takeup_village_pot_dist.RData"))
+save(vill.pot.dist, verify.vill.pot.dist, village.centers, file = file.path("..", "data", "takeup_village_pot_dist.RData"))
 ```
 
 ```{r}
@@ -1436,13 +1431,13 @@ cluster.strat.data <- hh.census.data %>%
 ```
 
 ```{r}
-cluster.strat.data <- read_rds("data/takeup_cluster_randomization_1.0.rds") %>% 
+cluster.strat.data <- read_rds("../data/takeup_cluster_randomization_1.0.rds") %>% 
   select(-county) %>%
   mutate(assigned.treatment = factor(assigned.treatment, levels = c("control", "ink", "calendar", "bracelet"))) %>% 
   # left_join(distinct(hh.census.data, cluster.id, wave), "cluster.id")  
   left_join(cluster.wave.county.data, "cluster.id")  
 
-write_rds(cluster.strat.data, "data/takeup_processed_cluster_strat.rds")  
+write_rds(cluster.strat.data, "../data/takeup_processed_cluster_strat.rds")  
 
 hh.census.data %<>% 
   left_join(select(cluster.strat.data, wave, county, cluster.id, assigned.treatment, dist.pot.group), 
@@ -1498,7 +1493,7 @@ wave.1.baseline.individuals %<>%
 ```
 
 ```{r load-wave1-baseline-sample}
-wave.1.baseline.individuals <- read_rds("data/takeup_baseline_1.3.rds") %>% 
+wave.1.baseline.individuals <- read_rds("../data/takeup_baseline_1.3.rds") %>% 
   left_join(person.id.dict, "KEY.individ")
 
 wave.1.baseline.hh <- wave.1.baseline.individuals %>% 
@@ -1553,7 +1548,7 @@ wave.2.baseline.individuals <- hh.census.data %>%
 ```
 
 ```{r}
-wave.2.baseline.individuals <- read_rds("data/takeup_baseline_w2_1.0.rds") %>% 
+wave.2.baseline.individuals <- read_rds("../data/takeup_baseline_w2_1.0.rds") %>% 
   left_join(person.id.dict, "KEY.individ")
 
 hh.census.data <- list(wave.1.baseline.individuals, wave.2.baseline.individuals) %>% 
@@ -1600,7 +1595,7 @@ wave.1.sms.1.individuals <- wave.1.individuals %>%
 ```
 
 ```{r load-wave1-sms-1-sample}
-wave.1.sms.1.individuals <- read_rds("data/takeup_sms_1_w1_1.3.rds") %>% 
+wave.1.sms.1.individuals <- read_rds("../data/takeup_sms_1_w1_1.3.rds") %>% 
   mutate(sms.set = 1) %>% 
   left_join(person.id.dict, "KEY.individ")
 
@@ -1646,7 +1641,7 @@ wave.2.sms.1.individuals <- hh.census.data %>%
 ```
 
 ```{r load-sms-1-sample}
-wave.2.sms.1.individuals <- read_rds("data/takeup_sms_1_w2_1.1.rds") %>% 
+wave.2.sms.1.individuals <- read_rds("../data/takeup_sms_1_w2_1.1.rds") %>% 
   mutate(sms.set = 1) %>% 
   left_join(person.id.dict, "KEY.individ")
 ```
@@ -1863,20 +1858,20 @@ wave1.sms.ctrl.individuals %<>%
   ungroup %>% 
   select(-c(KEY, num.backups, cluster.id, assigned.treatment))
 
-write_rds(wave1.sms.ctrl.individuals, file.path("data", "takeup_sms_ctrl_4.1_wave1.rds"))
+write_rds(wave1.sms.ctrl.individuals, file.path("..", "data", "takeup_sms_ctrl_4.1_wave1.rds"))
 ```
 
 ```{r update-main-data-with-sms, eval=TRUE}
-takeup.dict <- c("data/takeup_survey_dict_wave1.csv") %>%  # Only needed for wave 1
+takeup.dict <- c("../data/takeup_survey_dict_wave1.csv") %>%  # Only needed for wave 1
   map_df(~ read_csv(.) %>% transmute(person_key, KEY.individ, cluster_key)) 
 
-sms.treated <- read_rds(file.path("data", "takeup_sms_sample_all_6.rds"))
+sms.treated <- read_rds(file.path("..", "data", "takeup_sms_sample_all_6.rds"))
 
-wave1.sms.ctrl.individuals <- bind_rows(phone.owner = read_rds(file.path("data", "takeup_sms_ctrl_4.1_wave1.rds")),
-                                        non.phone.owner = read_rds(file.path("data", "takeup_sms_ctrl_nonphone_1.0_wave1.rds")),
+wave1.sms.ctrl.individuals <- bind_rows(phone.owner = read_rds(file.path("..", "data", "takeup_sms_ctrl_4.1_wave1.rds")),
+                                        non.phone.owner = read_rds(file.path("..", "data", "takeup_sms_ctrl_nonphone_1.0_wave1.rds")),
                                         .id = "sms.ctrl.subpop")
 
-wave2.sms.ctrl.individuals <- read_rds(file.path("data", "takeup_sms_ctrl_1.0_wave2.rds"))
+wave2.sms.ctrl.individuals <- read_rds(file.path("..", "data", "takeup_sms_ctrl_1.0_wave2.rds"))
 
 combined.sms.sample <- bind_rows(sms.treated,
                                  wave1.sms.ctrl.individuals, 
@@ -1924,7 +1919,7 @@ sms.airtime.sample <- census.data %>%
 ```
 
 ```{r}
-sms.airtime.sample <- read_rds("data/takeup_sms_airtime_sample_1.1.rds")
+sms.airtime.sample <- read_rds("../data/takeup_sms_airtime_sample_1.1.rds")
 
 census.data %<>%
   left_join(sms.airtime.sample, "KEY.individ") %>% 
@@ -2007,8 +2002,8 @@ wave2.endline.individuals <- census.data %>%
 There are 29 individuals with `is.na(endline.type)` and `sms.consent == TRUE`. These are people in excluded clusters (`is.na(wave)`).
 
 ```{r update-main-data-endline}
-wave1.endline.individuals <- read_rds("data/takeup_endline_wave1_8.0.rds")
-wave2.endline.individuals <- read_rds("data/takeup_endline_wave2_1.0.rds")
+wave1.endline.individuals <- read_rds("../data/takeup_endline_wave1_8.0.rds")
+wave2.endline.individuals <- read_rds("../data/takeup_endline_wave2_1.0.rds")
 
 census.data %<>%
   left_join(bind_rows(wave1.endline.individuals, wave2.endline.individuals), "KEY.individ") %>% 
@@ -2199,12 +2194,12 @@ ordered.keys <- c(wave.1.baseline.individuals$KEY.individ,
                             "KEY.individ") %$% KEY.individ)
 
 id.match.data <- tibble(KEY.individ = wave.1.baseline.individuals$KEY.individ,
-                        min.dist = aaply(min.id.match, 1, . %>% min(na.rm = TRUE)),
-                        which.min.dist = aaply(min.id.match, 1, which.min),
+                        min.dist = plyr::aaply(min.id.match, 1, . %>% min(na.rm = TRUE)),
+                        which.min.dist = plyr::aaply(min.id.match, 1, which.min),
                         type = "names.phone") %>%
   bind_rows(tibble(KEY.individ = wave.1.baseline.individuals$KEY.individ,
-                   min.dist = aaply(min.id.match[,] + min.age.dist[,], 1, . %>% min(na.rm = TRUE)), 
-                   which.min.dist = aaply(min.id.match[,] + min.age.dist[,], 1, which.min), 
+                   min.dist = plyr::aaply(min.id.match[,] + min.age.dist[,], 1, . %>% min(na.rm = TRUE)), 
+                   which.min.dist = plyr::aaply(min.id.match[,] + min.age.dist[,], 1, which.min), 
                    type = "age")) %>% 
   mutate(which.min.dist.key = ordered.keys[which.min.dist])
 
@@ -2212,7 +2207,7 @@ write_rds(id.match.data, "takeup_wave1_id_match.rds")
 ```
 
 ```{r id-match-summary, fig.width=8}
-id.match.data <- read_rds("data/takeup_wave1_id_match.rds")
+id.match.data <- read_rds("../data/takeup_wave1_id_match.rds")
 
 id.match.data %>% 
   ggplot() +
@@ -2275,7 +2270,7 @@ find.backcheck.candidates <- function(rct.clusters, .num.enum) {
 ## Willingness-to-Pay Sample
 
 ```{r, eval=FALSE}
-wtp.clusters.include <- read_lines(file.path("data", "wtp_clusters_include.csv")) %>% 
+wtp.clusters.include <- read_lines(file.path("..", "data", "wtp_clusters_include.csv")) %>% 
   as.integer
 
 wtp.clusters <- cluster.strat.data %>% 
@@ -2297,11 +2292,11 @@ wtp.sample <- hh.census.data %>%
        mutate(wtp.offer = sample(c(rep(offer.range, n() %/% 10), sample(offer.range, n() %% 10))))) %>% 
   ungroup 
 
-write_rds(wtp.sample, file.path("data", "takeup_wtp_sample_2.0.rds"))
+write_rds(wtp.sample, file.path("..", "data", "takeup_wtp_sample_2.0.rds"))
 ```
 
 ```{r}
-write_rds(census.data, file.path("data", "takeup_census.rds"))
+write_rds(census.data, file.path("..", "data", "takeup_census.rds"))
 ```
 
 # Baseline Survey 
@@ -2340,7 +2335,7 @@ census_dict <- census.data %>%
     name_census = sprintf("%s %s %s", name1st, name_mid, name2nd) %>% str_replace_all("\\s+", " "),
     hhh_name = hhh_full_name %>% str_replace_all("\\s+", " "))
 
-baseline_sample_list_0 <- read_csv(file.path("data", "baseline_sample_list.csv")) 
+baseline_sample_list_0 <- read_csv(file.path("..", "data", "baseline_sample_list.csv")) 
 
 baseline_sample_list <- baseline_sample_list_0 %>% 
   mutate(name = str_replace_all(name, "\\s+", " "),
@@ -2414,7 +2409,7 @@ baseline.data.w1.unmatched <- baseline.data.w1 %>%
 ```
 
 ```{r}
-write_rds(baseline.data, "data/takeup_baseline_data.rds") # Not sampling data!
+write_rds(baseline.data, "../data/takeup_baseline_data.rds") # Not sampling data!
 ```
 
 ```{r}
@@ -2651,13 +2646,13 @@ all.sms.recruit.data %>%
   left_join(count(all.sms.recruit.data, cluster.id), "cluster.id") %>% 
   right_join(select(cluster.strat.data, cluster.id, wave), ., "cluster.id")
 
-manual.sms.match.list <- read_csv(file.path("data", "unmatched_sms_wave1.csv"), 
+manual.sms.match.list <- read_csv(file.path("..", "data", "unmatched_sms_wave1.csv"), 
                                   col_names = c("KEY.recruit", "name", "KEY.individ.manual"), skip = 1) %>% 
-  bind_rows(read_csv(file.path("data", "unmatched_sms_wave1_2.csv"), 
+  bind_rows(read_csv(file.path("..", "data", "unmatched_sms_wave1_2.csv"), 
                      col_names = c("KEY.recruit", "name", "KEY.individ.manual")))
 
-sms.list <- bind_rows(latest = read_csv(file.path("data", "sms_list_0929.csv")), 
-                      original = read_csv(file.path("data", "sms_list_original.csv")), 
+sms.list <- bind_rows(latest = read_csv(file.path("..", "data", "sms_list_0929.csv")), 
+                      original = read_csv(file.path("..", "data", "sms_list_original.csv")), 
                       .id = "data.source") %>% 
   transmute(person_key, KEY.individ, data.source, sms.treatment = factor.text_type(text_type))
 
@@ -2712,7 +2707,7 @@ all.sms.recruit.data %>%
             sms.consent = if_else(is.na(consent), NA, consent == 1),
             sms.treatment = sms.treatment.recruit) %>% 
   distinct(KEY.individ, sms.treatment, .keep_all = TRUE) %>%
-  write_rds(file.path("data", "takeup_sms_sample_all_6.rds"))
+  write_rds(file.path("..", "data", "takeup_sms_sample_all_6.rds"))
 ```
 
 ```{r plot-sms-recruit-code}
@@ -2780,7 +2775,7 @@ sms.recruit.data %>%
 ## Messages Sent
 
 ```{r sms-response-data}
-sms.status.data <- paste0("data/", c("takeup_bulk_sms_wave1.csv", "takeup_bulk_sms_wave2.csv")) %>% 
+sms.status.data <- paste0("../data/", c("takeup_bulk_sms_wave1.csv", "takeup_bulk_sms_wave2.csv")) %>% 
   map_df(~ read_csv(.,
                     skip = 1,
                     col_names = c("sms.date", "from", "to", "message", "cost", "status"),
@@ -2815,8 +2810,8 @@ census.data %<>%
 ```
 
 ```{r sms-content}
-sms.content.data <- list(wave1 = "data/takeup_sms_treatment_status_wave1.csv",
-                         wave2 = "data/takeup_sms_treatment_status_wave2.csv") %>% # This data from Africa's Talking
+sms.content.data <- list(wave1 = "../data/takeup_sms_treatment_status_wave1.csv",
+                         wave2 = "../data/takeup_sms_treatment_status_wave2.csv") %>% # This data from Africa's Talking
   map_df(~ read_csv(., col_types = list(To = col_character())), .id = "wave") %>% 
   set_names(str_to_lower(names(.))) %>% 
   mutate(wave = str_extract(wave, "[12]$") %>% as.integer,
@@ -2834,7 +2829,7 @@ sms.content.data <- list(wave1 = "data/takeup_sms_treatment_status_wave1.csv",
                         phone = paste0("+254", phone)),
             c("to" = "phone"))
 
-write_rds(sms.content.data, "data/takeup_sms_treatment.rds")
+write_rds(sms.content.data, "../data/takeup_sms_treatment.rds")
 ```
 
 # Sensitization
@@ -2912,7 +2907,7 @@ census.data %>%
 ## Independent Assessment
 
 ```{r}
-ea.pot.monitor.data <- read_csv("data/takeup_mlis_pot_monitoring.csv")
+ea.pot.monitor.data <- read_csv("../data/takeup_mlis_pot_monitoring.csv")
 ```
 
 
@@ -3042,7 +3037,7 @@ all.takeup.survey.groups %<>%
 all.takeup.survey.groups %<>%
   mutate(missing.coords = is.na(lon) | is.na(lat),
          missing.pot.coords = is.na(alt.pot.lon) | is.na(alt.pot.lat)) %>% 
-  ddply(.(cluster.id, missing.coords),
+  plyr::ddply(.(cluster.id, missing.coords),
         function(.data) {
           if (first(.data$missing.coords) | first(.data$missing.pot.coords)) {
             return(.data)
@@ -3074,8 +3069,8 @@ takeup.data <- all.takeup.data %>%
                                  TRUE ~ "correct"),
          source.type = if_else(!is.na(targeted.village) & targeted.village, paste0(source.type, ".targeted"), source.type) %>% 
            factor(levels = c("correct.targeted", "correct", "spillover.targeted", "spillover", "other"))) %>% 
-  ddply(.(KEY.survey.group), calc.grp.individ.deviation, .parallel = TRUE) %>% 
-  ddply(.(cluster.id, missing.coords.individ), function(.data) {
+  plyr::ddply(.(KEY.survey.group), calc.grp.individ.deviation, .parallel = TRUE) %>% 
+  plyr::ddply(.(cluster.id, missing.coords.individ), function(.data) {
     if (!first(.data$missing.coords.individ)) {
       calc.pot.deviation(.data, suffix = ".individ", entry.coord.formula = ~ lon.individ + lat.individ) 
     } else 
@@ -3120,7 +3115,7 @@ takeup.data %<>% filter(!KEY.survey.group %in% c("uuid:13d5f594-8fa6-4f24-9b6c-c
 ```
 
 ```{r}
-write_rds(takeup.data, "data/takeup.rds")
+write_rds(takeup.data, "../data/takeup.rds")
 ```
 
 ```{r take-up-summaries-code}
@@ -3434,7 +3429,7 @@ pot.info <- takeup.data %>%
 #   mutate(lon.post.rct.update = if_else(wave == 2, lon.verify, lon.post.rct.update),
 #          lat.post.rct.update = if_else(wave == 2, lat.verify, lat.post.rct.update))
 
-write_rds(pot.info, file.path("data", "pot_info.rds"))
+write_rds(pot.info, file.path("..", "data", "pot_info.rds"))
 ```
 
 ## Name Matching
@@ -3453,7 +3448,7 @@ find.name.matches <- function(.takeup.data, max.cost = 1, monitored.only = TRUE)
               add(adist(.data$two_digits, census.data$two_digits) %>% 
                     multiply_by(two.digits.cost) %>% 
                     coalesce(0.0)) %>%
-              alply(1, . %>% { ifelse(. <= max.cost, ., NA) %>% which.min %>% magrittr::extract(census.data$KEY.individ, .) }) %>%
+              plyr::alply(1, . %>% { ifelse(. <= max.cost, ., NA) %>% which.min %>% magrittr::extract(census.data$KEY.individ, .) }) %>%
               map_if(is_empty, ~ NA) %>% 
               unlist)
   }
@@ -3461,7 +3456,7 @@ find.name.matches <- function(.takeup.data, max.cost = 1, monitored.only = TRUE)
   .takeup.data %>% 
     filter(is.na(KEY.individ), !is.na(name1st), !is.na(last_name)) %>% 
     mutate(timestamp_gps.day = date(timestamp_gps)) %>% 
-    ddply(.(timestamp_gps.day, cluster.id), find.in.census, .parallel = TRUE) %>% 
+    plyr::ddply(.(timestamp_gps.day, cluster.id), find.in.census, .parallel = TRUE) %>% 
     bind_rows(filter(takeup.data, !is.na(KEY.individ))) %>% 
     mutate(any.matched.KEY.individ = ifelse(!is.na(KEY.individ), KEY.individ, matched.KEY.individ)) %>% 
     left_join(census.data %>% 
@@ -3618,11 +3613,11 @@ if (bc.diff > 0) {
     bind_rows(wave1.endline.backchecks)
 }
 
-# write_rds(wave1.endline.backchecks, "data/takeup_endline_backchecks_wave1_1.0.rds")
+# write_rds(wave1.endline.backchecks, "../data/takeup_endline_backchecks_wave1_1.0.rds")
 # 
 # wave1.endline.backchecks %>% 
 #   transmute(cluster.id, KEY.endline = KEY, enumerator) %>% 
-#   write_csv("data/takeup_endline_backchecks_wave1_1.0.csv")
+#   write_csv("../data/takeup_endline_backchecks_wave1_1.0.csv")
 ```
 
 ```{r endline-backcheck-sample-wave2, eval=FALSE}
@@ -3655,15 +3650,15 @@ if (bc.diff > 0) {
     bind_rows(wave2.endline.backchecks)
 }
 
-# write_rds(wave2.endline.backchecks, "data/takeup_endline_backchecks_wave2_1.0.rds")
+# write_rds(wave2.endline.backchecks, "../data/takeup_endline_backchecks_wave2_1.0.rds")
 # 
 # wave2.endline.backchecks %>%
 #   transmute(cluster.id, KEY.endline = KEY, enumerator) %>%
-#   write_csv("data/takeup_endline_backchecks_wave2_1.0.csv")
+#   write_csv("../data/takeup_endline_backchecks_wave2_1.0.csv")
 ```
 
 ```{r}
-write_rds(all.endline.data, "data/all_endline.rds")
+write_rds(all.endline.data, "../data/all_endline.rds")
 ```
 
 ```{r plot-endline-code}
@@ -3733,7 +3728,7 @@ all.endline.data %>%
 ## Knowledge Tables
 
 ```{r know-table-data}
-endline.know.table.data <- bind_rows(table.A = read_csv(file.path("data", "raw-data", "Endline Survey-survey-sec_D-tableA.csv")) %>% 
+endline.know.table.data <- bind_rows(table.A = read_csv(file.path("..", "data", "raw-data", "Endline Survey-survey-sec_D-tableA.csv")) %>% 
                                        transmute(recognized = recogniseA,
                                                  dewormed = dewormedA,
                                                  second.order = order_2ndA,
@@ -3743,7 +3738,7 @@ endline.know.table.data <- bind_rows(table.A = read_csv(file.path("data", "raw-d
                                                  times.seen = times_seenA,
                                                  visited = visitedA, 
                                                  PARENT_KEY, KEY),
-                                     table.B = read_csv(file.path("data", "raw-data", "Endline Survey-survey-sec_D-tableB.csv")) %>% 
+                                     table.B = read_csv(file.path("..", "data", "raw-data", "Endline Survey-survey-sec_D-tableB.csv")) %>% 
                                        transmute(recognized = recogniseB,
                                                  dewormed = dewormedB,
                                                  dewormed.know.only = dewormedBB,
