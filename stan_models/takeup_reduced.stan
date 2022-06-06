@@ -1,5 +1,5 @@
 functions {
-#include /../multilvlr/util.stan
+#include util.stan
 }
 
 data {
@@ -16,9 +16,8 @@ data {
 }
 
 transformed data {
-#include base_transformed_data_declare.stan 
-#include takeup_transformed_data_declare.stan
-#include takeup_transformed_data_define.stan
+#include base_transformed_data.stan 
+#include takeup_transformed_data.stan
 }
 
 parameters {
