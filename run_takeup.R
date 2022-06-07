@@ -866,8 +866,7 @@ stan_data <- lst(
   analysis_data
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
-  list_modify(!!!wtp_stan_data) %>% 
-  map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+  list_modify(!!!wtp_stan_data) 
 
 # Stan Run ----------------------------------------------------------------
 
@@ -955,7 +954,9 @@ if (script_options$takeup) {
   beliefs_model <- cmdstan_model(file.path("stan_models", "secobeliefs.stan"), include_paths = script_options$include_paths)
   
   beliefs_fit <- beliefs_model$sample(
-    data = stan_data %>% discard(~ any(is.na(.x))),
+    data = stan_data %>% 
+      map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+      discard(~ any(is.na(.x))),
     chains = script_options$chains,
     parallel_chains = script_options$chains,
     iter_warmup = script_options$iter %/% 2,
@@ -987,7 +988,9 @@ if (script_options$takeup) {
   dist_model <- cmdstan_model(file.path("stan_models", "dist_model.stan"), include_paths = script_options$include_paths) 
   
   dist_fit <- dist_model$sample(
-    data = stan_data %>% discard(~ any(is.na(.x))),
+    data = stan_data %>% 
+      map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+      discard(~ any(is.na(.x))),
     chains = script_options$chains,
     parallel_chains = script_options$chains,
     iter_warmup = script_options$iter %/% 2,
