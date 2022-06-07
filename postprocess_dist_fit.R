@@ -379,8 +379,15 @@ if (!script_options$no_rate_of_change) {
     )
 }
 
-dist_fit_data %<>% 
-  select(!c(ends_with("_dist_cost"), cluster_cf_cutoff, any_of("structural_cluster_benefit")))
+dist_fit_data %<>%
+  mutate(
+    cluster_cf_cutoff = map(cluster_cf_cutoff, ~ {
+      mutate(.x, quants = map(iter_data, quantilize_est, prob, quant_probs = quant_probs, na.rm = TRUE)) %>% 
+        select(!iter_data) %>% 
+        unnest(quants)
+    })
+  ) %>% 
+  select(!c(ends_with("_dist_cost"), any_of("structural_cluster_benefit")))
 
 if (!script_options$keep_fit) {
   dist_fit_data %<>% 
