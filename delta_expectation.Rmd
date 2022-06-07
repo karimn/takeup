@@ -285,7 +285,7 @@ dist_fit_data %>%
 ```{r}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
-  transmute(across(c(cluster_w_cutoff_control, cluster_w_cutoff_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
+  transmute(across(c(cluster_w_cutoff_control, cluster_w_cutoff_bracelet), map, mutate, roc_distance = roc_distance / 1000)) %>% 
   pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
   unnest(value) %>% 
   ggplot(aes(roc_distance)) +
@@ -476,7 +476,7 @@ dist_fit_data %>%
   }
 ```
 
-## Model Parameters
+<!-- ## Model Parameters -->
 
 ```{r, eval=FALSE}
 dist_fit_data %>% 
@@ -555,10 +555,10 @@ dist_fit_data %>%
   select(model_type, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
-  mutate(
-    quants = map(iter_data, quantilize_est, prob, na.rm = TRUE)
-  ) %>% 
-  unnest(quants) %>% 
+  # mutate(
+  #   quants = map(iter_data, quantilize_est, prob, na.rm = TRUE)
+  # ) %>% 
+  # unnest(quants) %>% 
   ggplot(aes(assigned_dist_obs)) +
   geom_point(aes(y = obs_prop_takeup, color = assigned_treatment), size = 0.8, show.legend = FALSE) + #, data = . %>% filter(fct_match(model_type, "structural"))) +
   # geom_pointrange(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), # color = model_type, group = model_type), 
@@ -566,6 +566,25 @@ dist_fit_data %>%
   geom_crossbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 40) +
   # facet_wrap(vars(assigned_treatment), ncol = 1) +
   facet_wrap(vars(model_type), ncol = 1) +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.width=8, fig.height=8}
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit")) %>% 
+  select(model_type, cluster_cf_cutoff) %>% 
+  unnest(cluster_cf_cutoff) %>% 
+  filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
+  ggplot(aes(assigned_dist_obs)) +
+  geom_point(aes(y = obs_prop_takeup), size = 0.8, show.legend = FALSE) + 
+  geom_ribbon(aes(ymax = per_0.9, ymin = per_0.1), alpha = 0.25) +
+  geom_line(aes(y = per_0.5), alpha = 0.25) +
+  labs(
+    title = "Posterior Checking",
+    x = "Distance to Treatment", y = "Proportion of Takeup", 
+    caption = "Dots: observed proportion of takeup. Line and ribbon: estimated proportion of takeup (median and 80% CI)."
+  ) +
+  facet_grid(rows = vars(model_type), cols = vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "bottom")
 ```
 
@@ -729,9 +748,9 @@ dist_fit_data$stan_data %>%
   distinct(county, cluster_id, assigned_dist_group = dist.pot.group, cluster.dist.to.pot) %>% 
   ggplot() +
   # geom_freqpoly(aes(x = cluster.dist.to.pot, y = stat(density)), binwidth = 300) +
-  geom_histogram(aes(x = cluster.dist.to.pot, y = stat(density) * 300), binwidth = 500, boundary = 0) +
+  geom_histogram(aes(x = cluster.dist.to.pot, y = stat(density) * 300), alpha = 0.5, binwidth = 400, boundary = 0) +
   labs(x = "", y = "") +
-  facet_grid(rows = vars(county), cols = vars(assigned_dist_group)) +
+  facet_grid(rows = vars(county), cols = vars(assigned_dist_group), labeller = labeller(.cols = str_to_title)) +
   NULL
 ```
 
@@ -899,7 +918,7 @@ dist_fit_data %>%
   }
 ```
 
-```{r reduced-form-dist-te, fig.width=8, fig.height=9}
+```{r reduced-form-dist-te, fig.width=8, fig.height=8}
 dist_fit_data %>%
   filter(fct_match(model_type, "reduced form")) %>% 
   mutate(est_takeup_te =
@@ -916,7 +935,7 @@ dist_fit_data %>%
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
-        # scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
         labs(
           title = "Distance Average Treatment Effect"
@@ -931,7 +950,7 @@ dist_fit_data %>%
         theme(legend.position = "none") +
         NULL,
       
-      ncol = 1
+      ncol = 1, rel_heights = c(0.6, 1)
     )
   } 
 ```
