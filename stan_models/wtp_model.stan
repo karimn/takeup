@@ -1,5 +1,5 @@
 data {
-#include /wtp_data.stan
+#include wtp_data.stan
 }
 
 transformed data {

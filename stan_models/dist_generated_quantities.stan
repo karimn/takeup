@@ -1,3 +1,6 @@
+matrix<lower = 0>[num_clusters, num_discrete_dist] missing_cluster_standard_dist;
+matrix<lower = 0>[num_clusters, num_discrete_dist] all_cluster_standard_dist; // use "missing" only if unobserved
+
 for (cluster_index in 1:num_clusters) {
   int curr_assigned_dist_group = cluster_treatment_map[cluster_assigned_dist_group_treatment[cluster_index], 2];
   

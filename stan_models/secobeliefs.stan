@@ -1,5 +1,5 @@
 functions {
-#include /../multilvlr/util.stan
+#include util.stan
 #include beliefs_functions.stan
 #include takeup_functions.stan
 }
@@ -11,8 +11,8 @@ data {
 }
 
 transformed data {
-#include base_transformed_data_declare.stan
-#include beliefs_transformed_data_declare.stan
+#include base_transformed_data.stan
+#include beliefs_transformed_data.stan
 }
 
 parameters {
@@ -21,10 +21,8 @@ parameters {
 }
 
 transformed parameters {
-#include dist_transformed_parameters_declare.stan
-#include beliefs_transformed_parameters_declare.stan
-#include dist_transformed_parameters_define.stan
-#include beliefs_transformed_parameters_define.stan
+#include dist_transformed_parameters.stan
+#include beliefs_transformed_parameters.stan
 }
 
 model {
@@ -33,10 +31,7 @@ model {
 }
 
 generated quantities {
-#include beliefs_generated_quantities_declare.stan
-#include dist_generated_quantities_declare.stan
-
-#include dist_generated_quantities_define.stan
-#include beliefs_generated_quantities_define.stan
+#include beliefs_generated_quantities.stan
+#include dist_generated_quantities.stan
 }
 
