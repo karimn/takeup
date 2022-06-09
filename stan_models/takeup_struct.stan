@@ -465,8 +465,8 @@ model {
 }
 
 generated quantities {
-#include beliefs_generated_quantities.stan
 #include dist_generated_quantities.stan
+#include beliefs_generated_quantities.stan
 
   matrix[num_clusters, num_dist_group_treatments] structural_cluster_benefit = 
         rep_matrix(structural_treatment_effect', num_clusters) + 
@@ -756,7 +756,7 @@ generated quantities {
         base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
         // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
        
-      matrix[num_clusters, 5] roc_results = map_calculate_roc_diff(
+      matrix[num_clusters, 9] roc_results = map_calculate_roc_diff(
         roc_compare_treatment_id_left, roc_compare_treatment_id_right, 
         curr_net_benefit_left,
         curr_net_benefit_right,
