@@ -47,7 +47,7 @@ if (num_excluded_obs > 0) {
 }
 
 {
-  int max_close_index = num_dist_group_treatments / num_discrete_dist;
+  int max_close_index = num_dist_group_treatments %/% num_discrete_dist;
   
   treatment_map_design_matrix[, 1] = rep_vector(1, num_dist_group_treatments);
   
