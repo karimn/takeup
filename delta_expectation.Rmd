@@ -25,7 +25,7 @@ ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
-takeup_version <- 51 
+takeup_version <- 52 
 ```
 
 Previously, we modeled the take-up probability as 
