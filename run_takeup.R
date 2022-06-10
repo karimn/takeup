@@ -27,8 +27,8 @@ Options:
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "dist prior --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
-  
+  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -867,7 +867,7 @@ stan_data <- lst(
   analysis_data
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
-  list_modify(!!!wtp_stan_data)
+  list_modify(!!!wtp_stan_data) 
 
 # Stan Run ----------------------------------------------------------------
 
@@ -955,7 +955,9 @@ if (script_options$takeup) {
   beliefs_model <- cmdstan_model(file.path("stan_models", "secobeliefs.stan"), include_paths = script_options$include_paths)
   
   beliefs_fit <- beliefs_model$sample(
-    data = stan_data %>% discard(~ any(is.na(.x))),
+    data = stan_data %>% 
+      map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+      discard(~ any(is.na(.x))),
     chains = script_options$chains,
     parallel_chains = script_options$chains,
     iter_warmup = script_options$iter %/% 2,
@@ -987,7 +989,9 @@ if (script_options$takeup) {
   dist_model <- cmdstan_model(file.path("stan_models", "dist_model.stan"), include_paths = script_options$include_paths) 
   
   dist_fit <- dist_model$sample(
-    data = stan_data %>% discard(~ any(is.na(.x))),
+    data = stan_data %>% 
+      map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+      discard(~ any(is.na(.x))),
     chains = script_options$chains,
     parallel_chains = script_options$chains,
     iter_warmup = script_options$iter %/% 2,

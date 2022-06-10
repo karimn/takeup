@@ -22,8 +22,8 @@ int<lower = 0> alg_sol_max_steps;
 int<lower = 1, upper = num_treatments> CALENDAR_TREATMENT_INDEX;
 int<lower = 1, upper = num_treatments> BRACELET_TREATMENT_INDEX;
 
-int<lower = 0, upper = 1> takeup[num_obs]; // Observed outcome variable
-int<lower = 0, upper = 1> is_name_matched[num_obs];
+array[num_obs] int<lower = 0, upper = 1> takeup; // Observed outcome variable
+array[num_obs] int<lower = 0, upper = 1> is_name_matched;
 
 // Reputation
 
@@ -38,7 +38,7 @@ real<lower = 0> u_splines_v_sigma_sd;
 
 int<lower = 0, upper =1> cluster_log_lik; 
 int<lower = 0> num_excluded_clusters;
-int<lower = 1, upper = num_clusters> excluded_clusters[num_excluded_clusters];
+array[num_excluded_clusters] int<lower = 1, upper = num_clusters> excluded_clusters;
 
 // Simulation
 

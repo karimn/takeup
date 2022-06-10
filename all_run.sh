@@ -13,10 +13,9 @@
 #SBATCH --error=temp/log/takeup_postprocess-%j.log
 #SBATCH --export=IN_SLURM=1
 
-VERSION=51
+LATEST_VERSION=52
+VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
 CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
-MODELS="--models=STRUCTURAL_LINEAR_U_SHOCKS" # REDUCED_FORM_NO_RESTRICT
-# MODELS="--models=REDUCED_FORM_NO_RESTRICT"
 SLURM_INOUT_DIR=/tigress/kn6838/takeup
 
 if [[ -v IN_SLURM ]]; then
@@ -48,13 +47,13 @@ fi
 # wait
 
 # Reduced Form 
-Rscript ./run_takeup.R takeup prior --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --multilevel
-Rscript ./run_takeup.R takeup fit   --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --multilevel
+# Rscript ./run_takeup.R takeup prior --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --multilevel
+# Rscript ./run_takeup.R takeup fit   --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --multilevel
 # Rscript ./run_takeup.R takeup cv    --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --folds=10
 
 # Structural
 # Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_prior${VERSION} --num-mix-groups=1
-# Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 
+Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=3 --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
 # Rscript ./run_takeup.R takeup cv    --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --num-mix-groups=1 --folds=10
 
 Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=$CORES --load-from-csv

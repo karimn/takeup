@@ -1,5 +1,5 @@
 functions {
-#include /../multilvlr/util.stan
+#include util.stan
 #include beliefs_functions.stan
 #include takeup_functions.stan
 }
@@ -52,20 +52,16 @@ data {
   // Hyperparam
   
   real<lower = 0> mu_rep_sd;
-  // real<lower = 0> mu_beliefs_effects_sd;
-  // real<lower = 0> mu_beliefs_effects_lambda;
 }
 
 transformed data {
-#include base_transformed_data_declare.stan 
+#include base_transformed_data.stan 
 #include wtp_transformed_data.stan
-#include takeup_transformed_data_declare.stan
-#include beliefs_transformed_data_declare.stan
+#include takeup_transformed_data.stan
+#include beliefs_transformed_data.stan
 
-#include takeup_transformed_data_define.stan
-
-  real dummy_xr[1] = { 1.0 }; 
-  int dummy_xi[1] = { 1 }; 
+  array[1] real dummy_xr = { 1.0 }; 
+  array[1] int dummy_xi = { 1 }; 
   
   int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
   
@@ -161,9 +157,9 @@ parameters {
 }
 
 transformed parameters {
-#include dist_transformed_parameters_declare.stan
+#include dist_transformed_parameters.stan
 #include wtp_transformed_parameters.stan
-#include beliefs_transformed_parameters_declare.stan
+#include beliefs_transformed_parameters.stan
   
   vector[num_dist_group_treatments] beta;
   
@@ -172,9 +168,6 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
-  // row_vector[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments - 1] mu_rep_effect;
-  // row_vector<lower = 0>[suppress_reputation && !use_dist_salience ? 0 : num_dist_group_treatments] mu_rep;
-  // matrix<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0, num_dist_group_treatments] cluster_mu_rep;
   vector<lower = 0>[!suppress_reputation || use_dist_salience ? num_clusters : 0] obs_cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
@@ -191,15 +184,11 @@ transformed parameters {
   vector<lower = 0>[num_treatments] u_sd;
   vector<lower = 0>[num_treatments] total_error_sd;
   
-#include dist_transformed_parameters_define.stan
-#include beliefs_transformed_parameters_define.stan
-  
   if (use_homoskedastic_shocks) {
     u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
   } else {
     u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
     u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
-    // u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? sqrt(square(raw_u_sd[num_treatment_shocks]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
@@ -223,7 +212,6 @@ transformed parameters {
   if (!suppress_reputation || use_dist_salience) { 
     obs_cluster_mu_rep = calculate_mu_rep(
       cluster_incentive_treatment_id, cluster_standard_dist, 
-      // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
       base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
     
     if (use_mu_cluster_effects) {
@@ -417,8 +405,6 @@ model {
   dist_quadratic_beta_salience ~ normal(0, 1);
   
   base_mu_rep ~ normal(0, mu_rep_sd);
-  // mu_beliefs_effect ~ normal(0, mu_beliefs_effects_sd);
-  // mu_beliefs_effect ~ exponential(mu_beliefs_effects_lambda);
   
   if (!suppress_reputation || use_dist_salience) { 
     if (use_mu_cluster_effects) {
@@ -479,8 +465,8 @@ model {
 }
 
 generated quantities {
-#include beliefs_generated_quantities_declare.stan
-#include dist_generated_quantities_declare.stan
+#include dist_generated_quantities.stan
+#include beliefs_generated_quantities.stan
 
   matrix[num_clusters, num_dist_group_treatments] structural_cluster_benefit = 
         rep_matrix(structural_treatment_effect', num_clusters) + 
@@ -488,9 +474,9 @@ generated quantities {
   
   // matrix<lower = 0>[num_clusters, num_discrete_dist] cf_cluster_standard_dist; 
  
-  vector[num_clusters] cluster_cf_benefit_cost[num_dist_group_treatments]; 
+  array[num_dist_group_treatments] vector[num_clusters] cluster_cf_benefit_cost; 
   
-  vector[num_clusters] cluster_cf_cutoff[num_dist_group_treatments, num_treatments]; 
+  array[num_dist_group_treatments, num_treatments] vector[num_clusters] cluster_cf_cutoff; 
   
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   vector[generate_rep ? num_clusters : 0] cluster_rep_cutoff; 
@@ -514,9 +500,7 @@ generated quantities {
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
   
-#include dist_generated_quantities_define.stan
 #include wtp_generated_quantities.stan
-#include beliefs_generated_quantities_define.stan
 
   {
     int treatment_cluster_pos = 1;
@@ -772,7 +756,7 @@ generated quantities {
         base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
         // base_mu_rep, mu_beliefs_effect, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
        
-      matrix[num_clusters, 5] roc_results = map_calculate_roc_diff(
+      matrix[num_clusters, 9] roc_results = map_calculate_roc_diff(
         roc_compare_treatment_id_left, roc_compare_treatment_id_right, 
         curr_net_benefit_left,
         curr_net_benefit_right,

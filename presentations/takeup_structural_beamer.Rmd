@@ -857,7 +857,7 @@ signaling_te <- dist_fit_data %>%
   unnest(est_takeup_te) %>%
   filter(
     (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-    across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+    if_all(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
     !is.na(mu_assigned_treatment_left),
     fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
     fct_match(mu_assigned_treatment_right, "control"),
@@ -935,7 +935,7 @@ private_incentive_te <- dist_fit_data %>%
     (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
     !is.na(mu_assigned_treatment_left),
     !is.na(mu_assigned_treatment_right),
-    across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+    if_all(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
     fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
     fct_match(assigned_treatment_right, "control"),
   ) %>%

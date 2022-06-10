@@ -503,6 +503,7 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
   if (script_options$fit || script_options$prior) {
     inner_sampler <- function(curr_model, stan_data) {
       curr_stan_data <- stan_data %>%
+        map_at(c("cluster_treatment_map", "beliefs_ate_pairs"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
         list_modify(!!!curr_model) %>%
         map_if(is.factor, as.integer)
         
