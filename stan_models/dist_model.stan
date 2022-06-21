@@ -1,5 +1,5 @@
 functions {
-#include util.stan
+#include /../multilvlr/util.stan
 }
 
 data {
