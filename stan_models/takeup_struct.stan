@@ -1,5 +1,5 @@
 functions {
-#include /../multilvlr/util.stan
+#include util.stan
 #include beliefs_functions.stan
 #include takeup_functions.stan
 }
