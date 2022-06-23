@@ -63,10 +63,9 @@ meta_gen_data = function(gen_data_args) {
         # Semiparametric Cost Model (Splines) 
         # ed: I think this is superfluous?
         num_knots_v = gen_data_args$num_knots_v
-        Z_splines_v = gen_data_args$Z_splines_v
-
+        Z_splines_v = matrix(0, num_clusters, num_knots_v) 
+        Z_grid_v = matrix(0, gen_data_args$num_grid_obs, gen_data_args$num_knots_v)
         u_splines_v_sigma_sd = gen_data_args$u_splines_v_sigma_sd
-
         # K-fold CV
         cluster_log_lik = gen_data_args$cluster_log_lik 
         num_excluded_clusters = gen_data_args$num_excluded_clusters
@@ -78,7 +77,6 @@ meta_gen_data = function(gen_data_args) {
         num_small_grid_obs = gen_data_args$num_small_grid_obs
         grid_dist = gen_data_args$grid_dist
         small_grid_dist = gen_data_args$small_grid_dist
-        Z_grid_v = gen_data_args$Z_grid_v
 
         beta_control_sd = gen_data_args$beta_control_sd
         beta_ink_effect_sd = gen_data_args$beta_ink_effect_sd
@@ -98,11 +96,15 @@ meta_gen_data = function(gen_data_args) {
         beta_far_calendar_effect_sd = gen_data_args$beta_far_calendar_effect_sd
         beta_far_bracelet_effect_sd = gen_data_args$beta_far_bracelet_effect_sd
 
+        is_name_matched = rep(1, num_obs)        
+
         # transformed data we'll need ------------------------------------------
         num_dist_group_treatments = num_treatments * num_discrete_dist
         cluster_size = table(obs_cluster_id)
         cluster_incentive_treatment_id = cluster_treatment_map[cluster_assigned_dist_group_treatment, 1]
         cluster_dist_treatment_id = cluster_treatment_map[cluster_assigned_dist_group_treatment, 2]
+
+
 
         return(lst(
             num_obs,
@@ -148,6 +150,7 @@ meta_gen_data = function(gen_data_args) {
             small_grid_dist,
             Z_grid_v,
             beta_control_sd,
+            beta_ink_effect_sd,
             beta_calendar_effect_sd,
             beta_bracelet_effect_sd,
             dist_beta_v_sd,
@@ -160,6 +163,8 @@ meta_gen_data = function(gen_data_args) {
             beta_far_ink_effect_sd,
             beta_far_calendar_effect_sd,
             beta_far_bracelet_effect_sd,
+
+            is_name_matched,
         
             num_dist_group_treatments,
             cluster_size,
