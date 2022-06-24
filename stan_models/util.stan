@@ -27,8 +27,55 @@ int num_test(array[] int to_test, array[] int target_val, int test_equality) {
   return(result);
 }
 
+int num_test(array[] int to_test1, array[] int to_test2, array[] int target_val1, array[] int target_val2, int test_equality) {
+  int num_to_test = num_elements(to_test1);
+  int num_targets1 = num_elements(target_val1);
+  int num_targets2 = num_elements(target_val2);
+  int result = 0;
+  
+  array[num_to_test] int sorted_to_test1 = sort_asc(to_test1);
+  array[num_to_test] int sorted_to_test2 = sort_asc(to_test2);
+  
+  if (num_elements(to_test2) != num_to_test) {
+    reject("to_test1 and to_test2 must have the same number of elements.");
+  }
+  
+  for (to_test_index in 1:num_to_test) {
+    int found = 0;
+    
+    for (target_index1 in 1:num_targets1) {
+      if (sorted_to_test1[to_test_index] == target_val1[target_index1]) {
+        for (target_index2 in 1:num_targets2) {
+          if (sorted_to_test2[to_test_index] == target_val2[target_index2]) {
+            if (test_equality) {
+              result += 1;
+            }
+          
+            found = 1;
+            break;
+          }
+        }
+        
+        if (found) {
+          break;
+        }
+      }
+    }
+    
+    if (!found && (1 - test_equality)) {
+      result += 1;
+    }
+  }
+  
+  return(result);
+}
+
 int num_equals(array[] int to_test, array[] int target_val) {
   return(num_test(to_test, target_val, 1));
+}
+
+int num_equals(array[] int to_test1, array[] int to_test2, array[] int target_val1, array[] int target_val2) {
+  return(num_test(to_test1, to_test2, target_val1, target_val2, 1));
 }
 
 array[] int count(int count_size, array[] int find_in) {
@@ -39,6 +86,38 @@ array[] int count(int count_size, array[] int find_in) {
   }
   
   return(count_array);
+}
+
+array[,] int count(int count_size1, int count_size2, array[] int find_in1, array[] int find_in2) {
+  array[count_size1, count_size2] int count_array = rep_array(0, count_size1, count_size2);
+  
+  for (count_index1 in 1:count_size1) {
+    for (count_index2 in 1:count_size2) {
+      count_array[count_index1, count_index2] = num_equals(find_in1, find_in2, { count_index1 }, { count_index2 });
+    }
+  }
+  
+  return(count_array);
+}
+
+array[] int sort_indices_asc(array[] int group1, array[] int group2) {
+  int num_indices = num_elements(group1);
+  int num_groups1 = max(group1);
+  int num_groups2 = max(group2);
+  array[num_groups1] int group1_count = count(num_groups1, group1);
+  array[num_indices] int indices = sort_indices_asc(group1);
+  
+  int group1_pos = 1;
+  
+  for (group1_index in 1:num_groups1) {
+    int group1_end = group1_pos + group1_count[group1_index] - 1;
+    
+    indices[group1_pos:group1_end] = indices[group1_pos:group1_end][sort_indices_asc(group2[indices[group1_pos:group1_end]])];
+    
+    group1_pos = group1_end + 1;
+  }
+  
+  return indices;
 }
 
 array[] int count_by_group_test(array[] int to_count, array[] int group, array[] int target_val, int test_equality) {
@@ -61,6 +140,34 @@ array[] int count_by_group_test(array[] int to_count, array[] int group, array[]
       group_count[group_index] = num_test(to_count[group_pos:group_end], target_val, test_equality);
       
       group_pos = group_end + 1;
+    }
+  }
+  
+  return(group_count);
+}
+array[,] int count_by_group_test(array[] int to_count, array[] int group1, array[] int group2, array[] int target_val, int test_equality) {
+  int num_to_count = num_elements(to_count);
+  int num_groups1 = max(group1); // num_elements(unique(group));
+  int num_groups2 = max(group2); 
+  array[num_groups1, num_groups2] int group_sizes = count(num_groups1, num_groups2, group1, group2); 
+  array[num_to_count] int to_count_group_sorted = to_count[sort_indices_asc(group1, group2)];
+  
+  array[num_groups1, num_groups2] int group_count = rep_array(0, num_groups1, num_groups2);
+  int group_pos = 1;
+  
+  if (num_elements(group1) != num_to_count || num_elements(group2) != num_to_count) {
+    reject("Incompatible array sizes.");
+  }
+  
+  for (group_index1 in 1:num_groups1) {
+    for (group_index2 in 1:num_groups2) {
+      if (group_sizes[group_index1, group_index2] > 0) {
+        int group_end = group_pos + group_sizes[group_index1, group_index2] - 1;
+      
+        group_count[group_index1, group_index2] = num_test(to_count[group_pos:group_end], target_val, test_equality);
+        
+        group_pos = group_end + 1;
+      }
     }
   }
   
@@ -170,4 +277,13 @@ int in_array(int to_test, array[] int target_val) {
   }
   
   return(0);
+}
+
+
+vector row_sum(matrix m) {
+  return m * rep_vector(1, cols(m));
+}
+
+row_vector column_sum(matrix m) {
+  return rep_row_vector(1, rows(m)) * m;
 }
