@@ -2,9 +2,9 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel]
-  run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num>]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
+  run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
@@ -545,6 +545,7 @@ models <- lst(
     
     reduced_beta_county_sd_sd = 0.25,
     reduced_beta_cluster_sd_sd = 0.1,
+    beta_age_group_sd_sd = 0.1,
     
     iter = 2000,
     thin = 1,
@@ -765,6 +766,9 @@ stan_data <- lst(
     arrange(cluster_id) %>% 
     pull(assigned.treatment),
   takeup = analysis_data$dewormed,
+  
+  num_age_groups = if (script_options$age) nlevels(analysis_data$age.census_group) else 1,
+  obs_age_group = if (script_options$age) analysis_data$age.census_group else rep(factor("all"), num_obs),
   
   cluster_standard_dist = distinct(analysis_data, cluster_id, standard_cluster.dist.to.pot) %>% 
     arrange(cluster_id) %>% 
