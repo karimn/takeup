@@ -25,8 +25,6 @@ int<lower = 1, upper = num_treatments> BRACELET_TREATMENT_INDEX;
 array[num_obs] int<lower = 0, upper = 1> takeup; // Observed outcome variable
 array[num_obs] int<lower = 0, upper = 1> is_name_matched;
 
-array[num_obs] int<lower = 1, upper = num_age_groups> obs_age_group;
-
 // Reputation
 
 // Semiparametric Cost Model (Splines)
