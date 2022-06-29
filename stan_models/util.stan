@@ -221,6 +221,14 @@ array[] int seq(int from, int to, int by) {
   return(result_seq);
 }
 
+array[] int seq(int from, int to)  {
+  return seq(from, to, 1);
+}
+
+array[] int seq_len(int len)  {
+  return seq(1, len, 1);
+}
+
 array[] int array_subtract(array[] int left, array[] int right) {
   int array_size = num_elements(left);
   array[array_size] int array_sub;
@@ -286,4 +294,13 @@ vector row_sum(matrix m) {
 
 row_vector column_sum(matrix m) {
   return rep_row_vector(1, rows(m)) * m;
+}
+
+vector calc_gp_trend(array[] int dist, real alpha, real rho, vector raw) {
+  int n_dist = size(dist);
+  matrix[n_dist, n_dist] cov = gp_exp_quad_cov(dist, alpha, rho) + diag_matrix(rep_vector(1e-10, n_dist));
+  matrix[n_dist, n_dist] L_cov = cholesky_decompose(cov);
+  vector[n_dist] trend = L_cov * raw;
+
+  return trend;
 }

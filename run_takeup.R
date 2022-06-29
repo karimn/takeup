@@ -27,8 +27,9 @@ Options:
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup prior --cmdstanr --chains=8 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --age --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -519,7 +520,7 @@ models <- lst(
     model_type = 10,
     model_file = "takeup_reduced.stan",
     pars = reduced_model_stan_pars,
-    control = lst(max_treedepth = 10, adapt_delta = 0.99),
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
     num_v_mix = 1,
     use_single_cost_model = FALSE,
     use_cost_model = cost_model_types["discrete"],
@@ -533,6 +534,7 @@ models <- lst(
     use_mu_county_effects = FALSE,
     use_shifting_v_dist = FALSE,
     suppress_reputation = TRUE,
+    use_age_group_gp = TRUE,
     
     beta_control_sd = 0.75,
     beta_far_effect_sd = 0.35,
@@ -545,7 +547,6 @@ models <- lst(
     
     reduced_beta_county_sd_sd = 0.25,
     reduced_beta_cluster_sd_sd = 0.1,
-    beta_age_group_sd_sd = 0.1,
     
     iter = 2000,
     thin = 1,
@@ -868,6 +869,9 @@ stan_data <- lst(
   county_dist_effect_sd_sd = 0.1, 
   cluster_dist_effect_sd_sd = 0.075, 
   
+  age_group_alpha_sd = c(0.5, rep(0.25, num_treatments * num_discrete_dist - 1)),
+  age_group_rho_sd = rep(1, num_treatments * num_discrete_dist),
+  
   analysis_data
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
@@ -960,7 +964,7 @@ if (script_options$takeup) {
   
   beliefs_fit <- beliefs_model$sample(
     data = stan_data %>% 
-      map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+      map_at(c("cluster_treatment_map", "beliefs_ate_pairs"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
       discard(~ any(is.na(.x))),
     chains = script_options$chains,
     parallel_chains = script_options$chains,

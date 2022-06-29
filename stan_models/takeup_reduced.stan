@@ -6,6 +6,8 @@ data {
 #include base_data_sec.stan
 #include takeup_data_sec.stan
 
+  int<lower = 0, upper = 1> use_age_group_gp;
+
   real<lower = 0> reduced_beta_county_sd_sd;
   real<lower = 0> reduced_beta_cluster_sd_sd;
   
@@ -14,12 +16,17 @@ data {
   real<lower = 0> beta_far_calendar_effect_sd; 
   real<lower = 0> beta_far_bracelet_effect_sd;
   
-  real<lower = 0> beta_age_group_sd_sd;
+  vector<lower = 0>[num_treatments * num_discrete_dist] age_group_alpha_sd;
+  vector<lower = 0>[num_treatments * num_discrete_dist] age_group_rho_sd;
 }
 
 transformed data {
 #include base_transformed_data.stan 
 #include takeup_transformed_data.stan
+
+  array[num_age_groups] int<lower = 1, upper = num_age_groups> age_groups_dist = seq_len(num_age_groups);
+  
+  print(age_groups_dist);
 }
 
 parameters {
@@ -36,7 +43,8 @@ parameters {
   row_vector<lower = 0>[use_county_effects ? num_dist_group_treatments : 0] reduced_beta_county_sd;
   
   matrix[use_age_groups ? num_age_groups : 0, num_dist_group_treatments] reduced_beta_age_group_raw;
-  row_vector<lower = 0>[use_age_groups ? num_dist_group_treatments : 0] reduced_beta_age_group_sd;
+  row_vector<lower = 0>[use_age_groups ? num_dist_group_treatments : 0] reduced_beta_age_group_alpha;
+  row_vector<lower = 0>[use_age_groups && use_age_group_gp ? num_dist_group_treatments : 0] reduced_beta_age_group_rho;
 }
 
 transformed parameters {
@@ -77,13 +85,13 @@ transformed parameters {
   }
   
   if (use_age_groups) {
-    reduced_beta_age_group = reduced_beta_age_group_raw .* rep_matrix(reduced_beta_age_group_sd, num_age_groups);
-    
-    // for (age_group_index in 1:num_age_groups) {
-    //   vector[num_clusters] age_group_effects = cluster_treatment_design_matrix * reduced_beta_age_group[age_group_index]';
-    // 
-    //   reduced_cluster_benefit_cost[, age_group_index] += age_group_effects;
-    // }
+    if (use_age_group_gp) { 
+      for (treatment_index in 1:num_dist_group_treatments) {
+        reduced_beta_age_group[, treatment_index] = calc_gp_trend(age_groups_dist, reduced_beta_age_group_alpha[treatment_index], reduced_beta_age_group_rho[treatment_index], reduced_beta_age_group_raw[, treatment_index]);
+      }
+    } else {
+      reduced_beta_age_group = reduced_beta_age_group_raw .* rep_matrix(reduced_beta_age_group_alpha, num_age_groups);
+    }
   }
   
   for (age_group_index in 1:num_age_groups) {
@@ -110,7 +118,11 @@ model {
   
   if (use_age_groups) {
     to_vector(reduced_beta_age_group_raw) ~ std_normal();
-    reduced_beta_age_group_sd ~ normal(0, beta_age_group_sd_sd);
+    reduced_beta_age_group_alpha ~ normal(0, age_group_alpha_sd);
+    
+    if (use_age_group_gp) {
+      reduced_beta_age_group_rho ~ normal(0, age_group_rho_sd);
+    }
   }
   
   if (fit_model_to_data) {
@@ -148,22 +160,19 @@ generated quantities {
   // Cross Validation
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
+  
+  // matrix[num_age_groups, num_dist_group_treatments] reduced_beta_age_group = rep_matrix(0, num_age_groups, num_dist_group_treatments);
     
   for (treatment_index in 1:num_dist_group_treatments) {
     cluster_age_group_cf_benefit_cost[treatment_index] =
       rep_matrix(reduced_beta_cluster, num_age_groups)
       + rep_matrix((reduced_beta_county * treatment_map_design_matrix[treatment_index]')[cluster_county_id], num_age_groups)
-      + rep_matrix(reduced_treatment_effect[treatment_index], num_clusters, num_age_groups);
+      + rep_matrix(reduced_treatment_effect[treatment_index], num_clusters, num_age_groups) 
+      + rep_matrix(reduced_beta_age_group[, treatment_index]', num_clusters);
       
     cluster_age_group_cf_cutoff[treatment_index, 1] = - cluster_age_group_cf_benefit_cost[treatment_index]; 
     
     cluster_cf_benefit_cost[treatment_index] = rows_dot_product(cluster_age_group_cf_benefit_cost[treatment_index], cluster_age_group_prop); 
-    //   // Not using "restricted" design matrix because restrictions are only on the top-level parameters not village and county level effects
-    //   reduced_beta_cluster 
-    //   + reduced_beta_county[cluster_county_id] * treatment_map_design_matrix[treatment_index]'
-    //   + rep_vector(reduced_treatment_effect[treatment_index], num_clusters);
-      
-    // cluster_cf_cutoff[treatment_index, 1] = - cluster_cf_benefit_cost[treatment_index]; 
     cluster_cf_cutoff[treatment_index, 1] = rows_dot_product(cluster_age_group_cf_cutoff[treatment_index, 1], cluster_age_group_prop);
   }
   

@@ -314,3 +314,4 @@ real normal_lb_rng(real mu, real sigma, real lb) {
   real u = uniform_rng(p, 1);
   return (sigma * inv_Phi(u)) + mu;  // inverse cdf for value
 }
+
