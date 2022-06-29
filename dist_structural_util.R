@@ -105,6 +105,59 @@ extract_rep_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
     as_tibble()
 }
 
+extract_obs_cluster_age_group_cutoff_cf <- function(fit, stan_data, model_type = "reduced form", quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
+  if (model_type != "reduced form") return(NULL)
+  
+  analysis_data <- stan_data$analysis_data
+  
+  cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
+    mutate(treatment_index = seq(n()))
+  
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit %>% {
+    if (is_stanfit) {
+      stop("Only supports cmdstanr")
+    } else if (is_tibble(.)) {
+      filter(., str_detect(variable, r"{^cluster_age_group_cf_cutoff\[.+\]$}"))
+    } else {
+      .$draws("cluster_age_group_cf_cutoff") %>% 
+        posterior::as_draws_df() %>% 
+        recover_types(rename(analysis_data, age_group = census.age_group)) %>% 
+        gather_draws(cluster_age_group_cf_cutoff[treatment_index, mu_treatment_index, cluster_id, age_group]) %>% 
+        mutate(iter_id = .draw) %>% 
+        rename(iter_est = .value) %>% 
+        # pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+        # nest(iter_data = !variable)
+        nest(iter_data = c(iter_id, .draw, .iteration, .chain, iter_est))
+    }
+  } %>%   
+    tidyr::extract(variable, c("treatment_index", "mu_treatment_index", "cluster_id", "age_group"), r"{(\d+),(\d+),(\d+)(?:,(\d+))?}", convert = TRUE) %>%  
+    mutate(
+      treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
+      assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
+      assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot),
+      mu_assigned_treatment = factor(mu_treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
+      age_group = factor(age_group, labels = levels(analysis_data$age.census_group))
+    ) %>% 
+    left_join(cluster_treatment_map, by = "treatment_index") %>% 
+    left_join(cluster_treatment_map, by = c("treatment_index_obs" = "treatment_index"), suffix = c("", "_obs")) %>% 
+    left_join(analysis_data %>% count(cluster_id, age_group = age.census_group, name = "cluster_size"), by = c("cluster_id", "age_group")) %>% 
+    left_join(
+      stan_data$analysis_data %>%
+        select(cluster_id, age_group = age.census_group, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
+        group_by(cluster_id, age_group, assigned_treatment, assigned_dist_group) %>%
+        summarize(obs_num_takeup = sum({{ dewormed_var }}), .groups = "drop"),
+      by = c("cluster_id", "age_group", "assigned_treatment", "assigned_dist_group")
+    ) %>%
+    mutate(
+      # obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
+      obs_num_takeup = if_else(fct_match(model_type, "reduced form") | is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_),
+      obs_prop_takeup = obs_num_takeup / cluster_size
+    ) %>% 
+    as_tibble()
+}
+
 extract_obs_cluster_cutoff_cf <- function(fit, stan_data, model_type = "structural", quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
   
@@ -155,6 +208,7 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, model_type = "structur
     ) %>% 
     as_tibble()
 }
+
 
 extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster"), quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
