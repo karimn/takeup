@@ -226,6 +226,10 @@ observed_takeup <- monitored_nosms_data %>%
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
 calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd, force_draw_takeup = FALSE) {
+  if (is_null(cutoffs)) {
+    return(NULL)
+  }
+  
   prob_iter_data <- if (!is_null(total_error_sd)) {
     mutate(cutoffs, iter_data = future_map(iter_data, 
                                ~ left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
@@ -249,6 +253,10 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd, force_draw_ta
 
 # Combine cluster level nested data to produce treatment level nested data
 organize_by_treatment <- function(.data, condition_on_dist, ...) {
+  if (is_null(.data)) {
+    return(NULL)
+  }
+  
   .data %>% {
     if (condition_on_dist) { # Only use observed distance
       filter(., assigned_dist_group_obs == assigned_dist_group)
@@ -341,60 +349,65 @@ extract_sim_delta <- function(fit, stan_data) {
 }
 
 ate_pivot <- function(level_data, ate_combo, other_ate_join_col = NULL) {
-  present_col <- intersect(names(level_data), c("mu_assigned_treatment", "assigned_treatment", "assigned_dist_group"))
-  ate_combo_col <- str_c(rep(present_col, each = 2), c("_left", "_right"))
-  
-  left_data <- inner_join(select(ate_combo, all_of(ate_combo_col)) %>% distinct_all(.keep_all = TRUE),
-                          level_data,
-                          by = present_col %>% set_names(str_c(.,"_left")))
-  
-  inner_join(left_data,
-             level_data,
-             by = c(present_col %>% set_names(str_c(., "_right")), other_ate_join_col),
-             suffix = c("_left", "_right"))
+  if (!is_null(level_data)) {
+    present_col <- intersect(names(level_data), c("mu_assigned_treatment", "assigned_treatment", "assigned_dist_group"))
+    ate_combo_col <- str_c(rep(present_col, each = 2), c("_left", "_right"))
+    
+    left_data <- inner_join(select(ate_combo, all_of(ate_combo_col)) %>% distinct_all(.keep_all = TRUE),
+                            level_data,
+                            by = present_col %>% set_names(str_c(.,"_left")))
+    
+    inner_join(left_data,
+               level_data,
+               by = c(present_col %>% set_names(str_c(., "_right")), other_ate_join_col),
+               suffix = c("_left", "_right"))
+  }
 }
 
 calculate_ate <- function(level_list, model_type, other_ate_join_col = NULL) {
   level_list %>% 
-    map(select_if, ~ !all(is.na(.))) %>% # Get rid of the NA mu_assigned_treatment in the reduced form results 
+    map_if(~ !is_null(.x), select_if, ~ !all(is.na(.))) %>% # Get rid of the NA mu_assigned_treatment in the reduced form results 
         map(ate_pivot, ate_combo = ate_combo, other_ate_join_col = other_ate_join_col) %>% 
     map_if(
-      fct_match(model_type, "structural"),
-      ~ filter(., 
-        mu_assigned_treatment_left != mu_assigned_treatment_right |
-        assigned_treatment_left != assigned_treatment_right |
-        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
-        assigned_dist_group_left != assigned_dist_group_right),
+      fct_match(model_type, "structural"), ~ {
+        if (!is_null(.x)) {
+          filter(., 
+            mu_assigned_treatment_left != mu_assigned_treatment_right |
+            assigned_treatment_left != assigned_treatment_right |
+            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
+            assigned_dist_group_left != assigned_dist_group_right)
+        }
+      },
       .else = ~ filter(., 
         assigned_treatment_left != assigned_treatment_right |
         (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
         assigned_dist_group_left != assigned_dist_group_right)) %>% 
-    map(mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+    map_if(~ !is_null(.x), mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
           map(mutate, iter_takeup_te = iter_prop_takeup_left - iter_prop_takeup_right)) %>% 
-    map(select, -iter_data_left, -iter_data_right) %>% 
-    map(mutate, 
+    map_if(~ !is_null(.x), select, -iter_data_left, -iter_data_right) %>% 
+    map_if(~ !is_null(.x), mutate, 
         mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_te, na.rm = TRUE)),
         takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)) %>% 
-    map(unnest, takeup_te_quantiles)
+    map_if(~ !is_null(.x), unnest, takeup_te_quantiles)
 }
 
 calculate_dist_ate <- function(ate_list, model_type, other_ate_join_col = NULL) {
   ate_list %>%
-    map(filter, !is.na(assigned_dist_group_left), !is.na(assigned_dist_group_right)) %>% 
-    map_if(fct_match(model_type, "structural"), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
-    map(select, !starts_with("mu_assigned_treatment")) %>% 
-    map(filter, assigned_treatment_left == assigned_treatment_right, fct_match(assigned_dist_group_left, "far"), fct_match(assigned_dist_group_right, "close")) %>% 
-    map(mutate, assigned_treatment_right = "control") %>% 
-    map(select, !c(mean_est, starts_with("per_"), starts_with("assigned_dist_group"))) %>% 
-    map(~ inner_join(., select(., !assigned_treatment_right), by = c("assigned_treatment_right" = "assigned_treatment_left", other_ate_join_col), suffix = c("_left", "_right"))) %>% 
-    map(filter, assigned_treatment_left != assigned_treatment_right) %>% 
-    map(mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
+    map_if(~ !is_null(.x), filter, !is.na(assigned_dist_group_left), !is.na(assigned_dist_group_right)) %>% 
+    map_if(fct_match(model_type, "structural") & map_lgl(., ~ !is_null(.x)), filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>% 
+    map_if(~ !is_null(.x), select, !starts_with("mu_assigned_treatment")) %>% 
+    map_if(~ !is_null(.x), filter, assigned_treatment_left == assigned_treatment_right, fct_match(assigned_dist_group_left, "far"), fct_match(assigned_dist_group_right, "close")) %>% 
+    map_if(~ !is_null(.x), mutate, assigned_treatment_right = "control") %>% 
+    map_if(~ !is_null(.x), select, !c(mean_est, starts_with("per_"), starts_with("assigned_dist_group"))) %>% 
+    map_if(~ !is_null(.x), ~ inner_join(., select(., !assigned_treatment_right), by = c("assigned_treatment_right" = "assigned_treatment_left", other_ate_join_col), suffix = c("_left", "_right"))) %>% 
+    map_if(~ !is_null(.x), filter, assigned_treatment_left != assigned_treatment_right) %>% 
+    map_if(~ !is_null(.x), mutate, iter_data = map2(iter_data_left, iter_data_right, inner_join, by = "iter_id", suffix = c("_left", "_right")) %>% 
           map(transmute, iter_id, iter_takeup_dist_te = iter_takeup_te_left - iter_takeup_te_right)) %>% 
-    map(select, !c(iter_data_left, iter_data_right)) %>% 
-    map(mutate, 
+    map_if(~ !is_null(.x), select, !c(iter_data_left, iter_data_right)) %>% 
+    map_if(~ !is_null(.x), mutate, 
         mean_est = map_dbl(iter_data, ~ mean(.$iter_takeup_dist_te)),
         takeup_te_quantiles = map(iter_data, quantilize_est, iter_takeup_dist_te, wide = TRUE, quant_probs = quant_probs, na.rm = TRUE)) %>% 
-    map(unnest, takeup_te_quantiles)
+    map_if(~ !is_null(.x), unnest, takeup_te_quantiles)
 }
 
 # Postprocessing ----------------------------------------------------------
@@ -423,20 +436,23 @@ dist_fit_data %<>%
     
     est_age_group_takeup_level = list(cluster_age_group_cf_cutoff, FALSE) %>% # map_lgl(model_type, fct_match, "structural")) %>%  
       pmap(organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group, age_group) %>% 
-      map2(cluster_age_group_cf_cutoff,
-           ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
-             organize_by_treatment(condition_on_dist = TRUE, mu_assigned_treatment, assigned_treatment, age_group) %>%
-             bind_rows(.x, .)),
+      map2(cluster_age_group_cf_cutoff, ~ {
+        if (!is_null(.x)) {
+          filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
+            organize_by_treatment(condition_on_dist = TRUE, mu_assigned_treatment, assigned_treatment, age_group) %>%
+            bind_rows(.x, .)
+        }
+      }),
     
     obs_cluster_takeup_level = map(cluster_cf_cutoff, filter, !is.na(obs_prop_takeup)) %>% 
       map(mutate, quants = map(iter_data, quantilize_est, prob, quant_probs = quant_probs, na.rm = TRUE)) %>% 
       map(select, !iter_data) %>% 
       map(unnest, quants),
     
-    obs_age_group_cluster_takeup_level = map(cluster_age_group_cf_cutoff, filter, !is.na(obs_prop_takeup)) %>% 
-      map(mutate, quants = map(iter_data, quantilize_est, prob, quant_probs = quant_probs, na.rm = TRUE)) %>% 
-      map(select, !iter_data) %>% 
-      map(unnest, quants),
+    obs_age_group_cluster_takeup_level = map_if(cluster_age_group_cf_cutoff, fct_match(model_type, "reduced form"), filter, !is.na(obs_prop_takeup)) %>% 
+      map_if(fct_match(model_type, "reduced form"), mutate, quants = map(iter_data, quantilize_est, prob, quant_probs = quant_probs, na.rm = TRUE)) %>% 
+      map_if(fct_match(model_type, "reduced form"), select, !iter_data) %>% 
+      map_if(fct_match(model_type, "reduced form"), unnest, quants),
     
     group_dist_param = pmap(lst(fit, stan_data, model_type), get_dist_results),
     # imputed_dist = pmap(lst(fit, stan_data, model_type), get_imputed_dist),
@@ -540,14 +556,14 @@ dist_fit_data %<>%
       map(select, mu_assigned_treatment:assigned_dist_group, iter_data) %>%
       calculate_ate(model_type),
     est_age_group_takeup_te = est_age_group_takeup_level %>% 
-      map(select, mu_assigned_treatment:age_group, iter_data) %>%
+      map_if(fct_match(model_type, "reduced form"), select, mu_assigned_treatment:age_group, iter_data) %>%
       calculate_ate(model_type, other_ate_join_col = "age_group"),
    
     # Calculate treatment effects based on distance 
     est_takeup_dist_te = est_takeup_te %>% calculate_dist_ate(model_type), 
     est_age_group_takeup_dist_te = est_age_group_takeup_te %>% calculate_dist_ate(model_type, other_ate_join_col = "age_group"), 
     
-    across(c(est_takeup_level, est_age_group_takeup_level), ~ map(.x, mutate, iter_data = map(iter_data, as_tibble)))  
+    across(c(est_takeup_level, est_age_group_takeup_level), ~ map_if(.x, ~ !is_null(.x), mutate, iter_data = map(iter_data, as_tibble)))  
   )
 
 save(dist_fit_data, file = file.path(script_options$output_path, str_interp("processed_dist_fit${fit_version}.RData")))
