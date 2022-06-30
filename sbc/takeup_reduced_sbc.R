@@ -567,7 +567,7 @@ stan_data <- lst(
 
 
 stan_data
-source("sbc/dgp-functions.R")
+source("sbc/dgp_functions.R")
 library(cmdstanr)
 library(tidyverse)
 missing_gen_data_args = lst(
