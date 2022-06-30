@@ -15,6 +15,7 @@ library(tidyverse)
 library(latex2exp)
 library(ggthemes)
 library(cmdstanr)
+library(tidybayes)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, cache = FALSE) 
 
@@ -25,7 +26,7 @@ ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
-takeup_version <- 52 
+takeup_version <- 53 
 ```
 
 Previously, we modeled the take-up probability as 
@@ -104,7 +105,6 @@ sim_int %>%
 
 ```{r load-processed-results}
 load(file.path("temp-data", str_glue("processed_dist_fit{takeup_version}.RData")))
-# load(file.path("/tigress/kn6838/takeup", str_glue("processed_dist_fit{takeup_version}.RData")))
 
 dist_fit_data %<>%
   left_join(tribble(
@@ -836,6 +836,7 @@ read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>%
   geom_linerange(aes(ymin = per_0.1, ymax = per_0.9)) +
   facet_grid(rows = vars(dist_treatment), cols = vars(county), scales = "free_x")
 ```
+
 # Reduced Form
 
 ```{r reduced-form-incentive-te, fig.width=8, fig.height=9}
@@ -954,3 +955,94 @@ dist_fit_data %>%
     )
   } 
 ```
+
+## By Age Group
+
+```{r}
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+```
+
+
+```{r}
+rf_analysis_data %>% 
+  ggplot(aes(age.census_group)) +
+  geom_bar(alpha = 0.5) +
+  labs(title = "Age Group Sizes", x = "Age Group", y = "Size")
+```
+
+```{r, fig.width=10}
+rf_analysis_data %>%
+  group_by(age_group = age.census_group, assigned_treatment, assigned_dist_group) %>% 
+  summarize(obs_takeup_prop = mean(dewormed), .groups = "drop") %>% 
+  ggplot(aes(age_group, obs_takeup_prop)) +
+  geom_col(aes(fill = assigned_treatment), position = "dodge", alpha = 0.5) +
+  scale_fill_discrete("", labels = str_to_title) +
+  labs(title = "Takeup by Age Group", x = "Age Group", y = "Size") +
+  facet_wrap(vars(assigned_dist_group), labeller = labeller(.default = str_to_title))
+```
+
+
+```{r, fig.width=10, fig.height=8}
+age_group_te_iter_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "prior-predict"),
+  ) %>% 
+  select(model, model_name, est_age_group_takeup_te, fit_type) %>% 
+  unnest(est_age_group_takeup_te) %>% 
+  filter(
+    (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+    assigned_treatment_left != assigned_treatment_right,
+    fct_match(assigned_treatment_right, c("control")),
+    fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")
+  ) %>% 
+  mutate(
+    assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relevel("Combined"),
+    assigned_treatment_left = str_to_title(assigned_treatment_left)
+  ) %>%
+  select(!c(mean_est, starts_with("per_"))) %>% 
+  unnest(iter_data)
+  
+age_group_te_iter_data %>% 
+  ggplot(aes(age_group, iter_takeup_te)) +
+  # geom_line(aes(color = fit_type, group = str_c(fit_type, iter_id)), alpha = 0.1, data = . %>% filter(iter_id <= 100)) +
+  stat_lineribbon(aes(fill = fit_type, color = fit_type), size = 0.5, .width = c(0.5, 0.8), alpha = 0.25) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  scale_fill_discrete("", labels = c("fit" = "Posterior", "prior-predict" = "Prior Predict"), aesthetics = c("fill", "color")) +
+  labs(x = "Age Group", y = "") +
+  facet_grid(vars(assigned_dist_group_left), vars(assigned_treatment_left)) +
+  theme(legend.position = "top")
+```
+
+```{r, fig.width=10, fig.height=8}
+dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "prior-predict")
+  ) %>% 
+  select(model, model_name, est_age_group_takeup_level, fit_type) %>% 
+  unnest(est_age_group_takeup_level) %>% 
+  mutate(
+    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relevel("Combined"),
+    assigned_treatment = str_to_title(assigned_treatment),
+  ) %>% 
+  select(!c(mean_est, starts_with("per_"))) %>% 
+  unnest(iter_data) %>% 
+  ggplot(aes(age_group, iter_prop_takeup)) +
+  # geom_line(aes(color = fit_type, group = str_c(fit_type, iter_id)), alpha = 0.1, data = . %>% filter(iter_id <= 100)) +
+  stat_lineribbon(aes(fill = fit_type, color = fit_type), size = 0.5, .width = c(0.5, 0.8), alpha = 0.25) +
+  scale_fill_discrete("", labels = c("fit" = "Posterior", "prior-predict" = "Prior Predict"), aesthetics = c("fill", "color")) +
+  labs(x = "Age Group", y = "") +
+  facet_grid(vars(assigned_dist_group), vars(assigned_treatment)) +
+  theme(legend.position = "top")
+```
+
