@@ -201,11 +201,11 @@ meta_gen_params = function(gen_params_args) {
         )
 
         if (data$use_cluster_effects) {
-            reduced_beta_cluster_raw = rnorm(n = data$num_clusters)
+            beta_cluster_mean = rnorm(n = data$num_clusters)
         } else {
-            reduced_beta_cluster_raw = NULL
+            beta_cluster_mean = NULL
         }
-        reduced_beta_cluster_sd = abs(rnorm(
+        beta_cluster_sd = abs(rnorm(
             n = 1, 
             mean = 0, 
             sd = data$reduced_beta_cluster_sd_sd))
@@ -243,8 +243,8 @@ meta_gen_params = function(gen_params_args) {
             beta_ink_effect,
             beta_calendar_effect,
             beta_bracelet_effect,
-            reduced_beta_cluster_raw,
-            reduced_beta_cluster_sd,
+            beta_cluster_mean,
+            beta_cluster_sd,
             reduced_beta_county_raw,
             reduced_beta_county_sd,
             beta
@@ -276,13 +276,17 @@ meta_gen_modelled_data = function(gen_modelled_data_args) {
             treatment_map_design_matrix[treatment_index, treatment_index - max_close_index] = 1
         }
     }
-
+    # cluster effects
     cluster_treatment_design_matrix = treatment_map_design_matrix[data$cluster_assigned_dist_group_treatment, ] 
     reduced_treatment_effect = treatment_map_design_matrix %*% params$beta 
     reduced_cluster_benefit_cost = reduced_treatment_effect[data$cluster_assigned_dist_group_treatment]
     if (data$use_cluster_effects) {
-        reduced_beta_cluster = params$reduced_beta_cluster_raw * params$reduced_beta_cluster_sd
-        reduced_cluster_benefit_cost = reduced_cluster_benefit_cost + reduced_beta_cluster
+        beta_cluster_effect = rnorm(
+            n = data$num_clusters,
+            mean = params$beta_cluster_mean,
+            sd = params$beta_cluster_sd
+        )
+        reduced_cluster_benefit_cost = reduced_cluster_benefit_cost + beta_cluster_effect
     }
     if (data$use_county_effects) {
         reduced_beta_county = params$reduced_beta_county_raw * matrix(
@@ -311,10 +315,12 @@ sample_from_model = function(seed,
                              modelled_data,
                              stan_model) {
     data_for_stan = c(data, modelled_data)
-    fit = stan_model$sample(
+    fit = sampling(
+        stan_model,
       data = data_for_stan,
       seed = seed,
-      chains = 1
+      chains = 1,
+     verbose = FALSE
     )
     return(fit)
 }
