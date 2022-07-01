@@ -75,6 +75,10 @@ transformed data {
   int num_treatments_param_quadratic = 0; 
   int num_treatments_semiparam = 0;
   
+  if (num_age_groups > 1) {
+    reject("Age groups not suported in structural model.");
+  }
+  
   if (use_single_cost_model || in_array(use_cost_model, { COST_MODEL_TYPE_PARAM_LINEAR_SALIENCE, 
                                                           COST_MODEL_TYPE_PARAM_QUADRATIC_SALIENCE, 
                                                           COST_MODEL_TYPE_SEMIPARAM_SALIENCE })) {
@@ -457,7 +461,8 @@ model {
   if (fit_model_to_data) {
     // Take-up Likelihood 
     if (use_binomial) {
-      cluster_takeup_count[included_clusters] ~ binomial(cluster_size[included_clusters], structural_cluster_takeup_prob[included_clusters]);
+      // Age groups not supported
+      cluster_takeup_count[included_clusters, 1] ~ binomial(cluster_size[included_clusters, 1], structural_cluster_takeup_prob[included_clusters]);
     } else {
       takeup[included_monitored_obs] ~ bernoulli(structural_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
     }
