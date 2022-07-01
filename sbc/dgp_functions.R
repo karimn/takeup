@@ -11,6 +11,12 @@ meta_gen_data = function(gen_data_args) {
         num_counties = gen_data_args$num_counties
         num_treatments = gen_data_args$num_treatments
         num_discrete_dist = gen_data_args$num_discrete_dist
+        # TODO add ages
+        num_age_groups = 1
+        obs_age_group = rep(1, num_obs)
+        use_age_group_gp = FALSE
+        age_group_alpha_sd = array(0, dim = 8)
+        age_group_rho_sd = array(0, dim = 8)
 
         # Note implies clusters approx equal size - no skewing here.
         obs_cluster_id = sample(1:num_clusters, size = num_obs, replace = TRUE)
@@ -169,7 +175,15 @@ meta_gen_data = function(gen_data_args) {
             num_dist_group_treatments,
             cluster_size,
             cluster_incentive_treatment_id,
-            cluster_dist_treatment_id
+            cluster_dist_treatment_id,
+
+
+            num_age_groups, 
+            obs_age_group,
+            use_age_group_gp,
+            age_group_alpha_sd,
+            age_group_rho_sd
+
         ))
     }
 }
@@ -307,35 +321,49 @@ meta_gen_modelled_data = function(gen_modelled_data_args) {
 
 
 
+meta_sample_from_model = function(sample_from_model_args){
+    use_cmdstanr = sample_from_model_args$cmdstanr
+    function(seed, data, params, modelled_data) {
+        data_for_stan = c(data, modelled_data)
+        if (use_cmdstanr == TRUE) {
+            fit = sample_from_model_args$stan_model$sample(
+                data = data_for_stan,
+                seed = seed,
+                chains = sample_from_model_args$chains,
+                iter_warmup = as.integer(sample_from_model_args$iter/2),
+                iter_sampling = as.integer(sample_from_model_args$iter/2),
+                refresh = ifelse(sample_from_model_args$verbose == 0, 0, 100)
+            )
+        } else {
 
-
-sample_from_model = function(seed, 
-                             data,
-                             params,
-                             modelled_data,
-                             stan_model) {
-    data_for_stan = c(data, modelled_data)
-    fit = sampling(
-        stan_model,
-      data = data_for_stan,
-      seed = seed,
-      chains = 1,
-     verbose = FALSE
-    )
-    return(fit)
+            fit =  sampling(
+                sample_from_model_args$stan_model,
+                data = data_for_stan,
+                chains = sample_from_model_args$chains,
+                seed = seed,
+                iter = sample_from_model_args$iter,
+                refresh = ifelse(sample_from_model_args$verbose == 0, 0, 100)
+            )
+        }
+        return(fit)
+    }
 }
 
 
 
+
+
+
 simulate_draw = function(seed = 1234,
-                         stan_model,
                          sim_args,
                          gen_data_args,
                          gen_params_args,
-                         gen_modelled_data_args) {
+                         gen_modelled_data_args,
+                         sample_from_model_args) {
   gen_data = meta_gen_data(gen_data_args = gen_data_args)
   gen_params = meta_gen_params(gen_params_args = gen_params_args)
   gen_modelled_data = meta_gen_modelled_data(gen_modelled_data_args = gen_modelled_data_args)
+  sample_from_model = meta_sample_from_model(sample_from_model_args = sample_from_model_args)
   data = gen_data(seed)
   params = gen_params(seed, data)
   modelled_data = gen_modelled_data(seed, data, params)
@@ -344,8 +372,7 @@ simulate_draw = function(seed = 1234,
         seed,
         data,
         params,
-        modelled_data,
-        stan_model
+        modelled_data
     )
     return(lst(
         bayes_fit,

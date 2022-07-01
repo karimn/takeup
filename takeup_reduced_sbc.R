@@ -2,7 +2,7 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  takeup_reduced_sbc.R sbc[--no-save   --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --multilevel --test-run --save-mem --num-cores=<cores> --num-sbc-draws=<sbc> ]
+  takeup_reduced_sbc.R sbc[--no-save   --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --multilevel --test-run --save-mem --num-cores=<cores> --num-sbc-draws=<sbc> --verbose]
   
 Options:
   --chains=<chains>  Number of Stan chains [default: 4]
@@ -15,7 +15,7 @@ Options:
   --num-cores=<cores>  Number of cores [default: 32]
   "),
 
-  args = if (interactive()) "sbc --cmdstanr --num-sbc-draws=10  --chains=8 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=data/sbc_output_data --include-paths=stan_models --multilevel --test-run --save-mem --num-cores=2" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "sbc --cmdstanr --num-sbc-draws=10 --iter=2000  --chains=1 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=data/sbc_output_data --include-paths=stan_models --multilevel --test-run --save-mem --num-cores=2" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -39,6 +39,15 @@ if (script_options$cmdstanr) {
   
   rstan_options(auto_write = TRUE)
 }
+
+# Defining model
+if (script_options$cmdstanr == TRUE) {
+  rf_model = cmdstan_model(
+      "stan_models/takeup_reduced.stan")
+} else {
+  stop("Only cmdstanr currently implemented.")
+}
+
 chains <- as.integer(script_options$chains) # Stan chains
 iter <- as.integer(script_options$iter) # Stan iterations
 output_name <- if (!is_null(script_options$outputname)) { 
@@ -407,21 +416,23 @@ stan_data <- lst(
   list_modify(!!!wtp_stan_data) 
 
 
-
-
 default_gen_data_args = c(
     models$REDUCED_FORM_NO_RESTRICT,
-    stan_data)
+    stan_data
+)
 default_gen_data_args = c(stan_data, list(dist_mean = 3), default_gen_data_args, models$REDUCED_FORM_NO_RESTRICT)
-
-
-rf_model = stan_model(
-    "stan_models/takeup_reduced.stan")
+default_sample_from_model_args = list(
+  stan_model = rf_model, 
+  cmdstanr = script_options$cmdstanr,
+  iter = script_options$iter,
+  chains = script_options$chains,
+  verbose = script_options$verbose)
 
 if (script_options$test_run == TRUE) {
   gen_data = meta_gen_data(default_gen_data_args)
   fake_data = gen_data(1)
   gen_params = meta_gen_params()
+  sample_from_model = meta_sample_from_model(default_sample_from_model_args)
 
   fake_params = gen_params(1, fake_data)
   gen_modelled_data = meta_gen_modelled_data()
@@ -434,7 +445,7 @@ if (script_options$test_run == TRUE) {
       gen_data_args = default_gen_data_args,
       gen_params_args = NULL,
       gen_modelled_data_args = NULL,
-      stan_model = rf_model 
+      sample_from_model_args = default_sample_from_model_args
   )
 }
 
@@ -504,10 +515,10 @@ simulated_draws = 1:script_options$num_sbc_draws %>%
   future_map(
     ~{sim_draw = simulate_draw(
       seed = .x,
-      stan_model = rf_model,
       gen_data_args = default_gen_data_args,
       gen_params_args = NULL,
       gen_modelled_data_args = NULL,
+      sample_from_model_args = default_sample_from_model_args,
       sim_args = list(fit_model = TRUE)
       )
       
