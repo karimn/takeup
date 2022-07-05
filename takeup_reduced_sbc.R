@@ -1,5 +1,9 @@
 #!/usr/bin/Rscript
 
+# We prepare stan_data as if we were fitting models but pass the datalist to a 
+# simulation function that simulates takeup instead of passing takeup directly to 
+# the MCMC sampler.
+
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   takeup_reduced_sbc.R sbc[--no-save   --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --multilevel --test-run --save-mem --num-cores=<cores> --num-sbc-draws=<sbc> --verbose]
@@ -12,7 +16,7 @@ Options:
   --include-paths=<paths>  Includes path for cmdstanr [default: .]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'sbc_output_data')}]
   --num-sbc-draws=<sbc>  Number of SBC draws [default: 100]
-  --num-cores=<cores>  Number of cores [default: 32]
+  --num-cores=<cores>  Number of cores. NOTE: Currently not used. [default: 32]
   "),
 
   args = if (interactive()) "sbc --cmdstanr --num-sbc-draws=10 --iter=2000  --chains=1 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=data/sbc_output_data --include-paths=stan_models --multilevel --test-run --save-mem --num-cores=2" else commandArgs(trailingOnly = TRUE)
@@ -533,6 +537,7 @@ write_csv(
   simulated_draw_df,
   output_file_name
 )
+
 
 
 
