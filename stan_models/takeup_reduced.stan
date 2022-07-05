@@ -1,5 +1,12 @@
+
 functions {
 #include util.stan
+
+  real normal_lb_rng(real mu, real sigma, real lb) {
+    real p = normal_cdf(lb | mu, sigma);  // cdf for bounds
+    real u = uniform_rng(p, 1);
+    return (sigma * inv_Phi(u)) + mu;  // inverse cdf for value
+  }
 }
 
 data {
@@ -18,15 +25,15 @@ data {
   
   vector<lower = 0>[num_treatments * num_discrete_dist] age_group_alpha_sd;
   vector<lower = 0>[num_treatments * num_discrete_dist] age_group_rho_sd;
+  int<lower = 0, upper = 1> sbc;
 }
 
 transformed data {
 #include base_transformed_data.stan 
 #include takeup_transformed_data.stan
-
   array[num_age_groups] int<lower = 1, upper = num_age_groups> age_groups_dist = seq_len(num_age_groups);
-  
-  print(age_groups_dist);
+#include sbc_reduced_data.stan
+
 }
 
 parameters {
@@ -45,6 +52,7 @@ parameters {
   matrix[use_age_groups ? num_age_groups : 0, num_dist_group_treatments] reduced_beta_age_group_raw;
   row_vector<lower = 0>[use_age_groups ? num_dist_group_treatments : 0] reduced_beta_age_group_alpha;
   row_vector<lower = 0>[use_age_groups && use_age_group_gp ? num_dist_group_treatments : 0] reduced_beta_age_group_rho;
+
 }
 
 transformed parameters {
@@ -124,30 +132,55 @@ model {
       reduced_beta_age_group_rho ~ normal(0, age_group_rho_sd);
     }
   }
-  
-  if (fit_model_to_data) {
-    // Take-up Likelihood 
-    
-    if (use_binomial) {
-      for (age_group_index in 1:num_age_groups) {
-        cluster_takeup_count[included_clusters, age_group_index] ~ binomial(
-          cluster_size[included_clusters, age_group_index], 
-          // reduced_cluster_takeup_prob[included_clusters]
-          Phi_approx(reduced_cluster_benefit_cost[included_clusters] + cluster_treatment_design_matrix[included_clusters] * reduced_beta_age_group[age_group_index]')
-        );
+  profile("model fitting") {
+    if (fit_model_to_data) {
+      // Take-up Likelihood 
+      
+      if (use_binomial) {
+        if (sbc == 1) {
+          // not yet implemented
+        } else {
+          for (age_group_index in 1:num_age_groups) {
+            cluster_takeup_count[included_clusters, age_group_index] ~ binomial(
+              cluster_size[included_clusters, age_group_index], 
+              // reduced_cluster_takeup_prob[included_clusters]
+              Phi_approx(reduced_cluster_benefit_cost[included_clusters] + cluster_treatment_design_matrix[included_clusters] * reduced_beta_age_group[age_group_index]')
+            );
+          }
+        }
+      } else {
+        // takeup[included_monitored_obs] ~ bernoulli(reduced_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
+        if (sbc == 1) {
+          sim_takeup[included_monitored_obs] ~ bernoulli(
+            Phi_approx(
+              reduced_cluster_benefit_cost[obs_cluster_id[included_monitored_obs]] + rows_dot_product(cluster_treatment_design_matrix[obs_cluster_id[included_monitored_obs]], reduced_beta_age_group[obs_age_group[included_monitored_obs]])
+            )
+          );
+        } else {
+          takeup[included_monitored_obs] ~ bernoulli(
+            Phi_approx(
+              reduced_cluster_benefit_cost[obs_cluster_id[included_monitored_obs]] + rows_dot_product(cluster_treatment_design_matrix[obs_cluster_id[included_monitored_obs]], reduced_beta_age_group[obs_age_group[included_monitored_obs]])
+            )
+          );
+
+        }
       }
-    } else {
-      // takeup[included_monitored_obs] ~ bernoulli(reduced_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
-      takeup[included_monitored_obs] ~ bernoulli(
-        Phi_approx(
-          reduced_cluster_benefit_cost[obs_cluster_id[included_monitored_obs]] + rows_dot_product(cluster_treatment_design_matrix[obs_cluster_id[included_monitored_obs]], reduced_beta_age_group[obs_age_group[included_monitored_obs]])
-        )
-      );
     }
-  }
+  } 
 }
 
 generated quantities { 
+  array[num_dist_group_treatments] int ranks_;
+  profile("rank generation") {
+    for (k in 1:num_dist_group_treatments) {
+      if (sbc == 1){
+        ranks_[k] = beta[k] > beta_[k];
+      } else {
+        ranks_[k] = -1;
+      }
+    }
+  }
+   
   array[num_dist_group_treatments] matrix[num_clusters, num_age_groups] cluster_age_group_cf_benefit_cost; 
   array[num_dist_group_treatments, 1] matrix[num_clusters, num_age_groups] cluster_age_group_cf_cutoff; 
   
