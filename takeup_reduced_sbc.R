@@ -192,6 +192,7 @@ models <- lst(
     
     iter = script_options$iter,
     thin = script_options$thin
+    sbc = FALSE # since we generate fake data in R, don't pass SBC = TRUE to stan
   )
   
 )
