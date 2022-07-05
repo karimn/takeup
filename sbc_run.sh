@@ -4,7 +4,7 @@
 #SBATCH --job-name=sbc-takeup        # create a short name for your job
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
-#SBATCH --cpus-per-task=4       # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --cpus-per-task=24       # cpu-cores per task (>1 if multi-threaded tasks)
 #SBATCH --mem-per-cpu=2G        # memory per cpu-core (4G is default)
 #SBATCH --time=0-06:00:00        # maximum time needed (HH:MM:SS)
 #SBATCH --mail-type=begin        # send email when job begins
@@ -41,17 +41,16 @@ STAN_THREADS=1
 
 # SBC
 Rscript ./takeup_reduced_sbc.R sbc --cmdstanr \
-                                   --num-sbc-draws=10 \
+                                   --num-sbc-draws=200 \
                                    --iter=2000 \
                                    --chains=1 \
-                                   --outputname=test \
+                                   --outputname=reduced_form_sbc \
                                    --models=REDUCED_FORM_NO_RESTRICT \
                                    --output-path=data/sbc_output_data \
                                    --include-paths=stan_models \
                                    --multilevel \
-                                   --test-run \
                                    --save-mem \
-                                   --num-cores=2
+                                   --num-cores=20
 # Distance
 #Rscript ./run_takeup.R dist prior --chains=4 --iter 800 --outputname=dist_model_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel &
 #Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist_model_fit   --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel
