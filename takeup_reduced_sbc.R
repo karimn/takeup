@@ -549,8 +549,4 @@ write_csv(
 
 
 
-if (!interactive()) {
-  stopCluster(cl)
-  mpi.quit()
-}
 
