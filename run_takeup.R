@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
   run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
@@ -27,7 +27,7 @@ Options:
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup prior --cmdstanr --chains=8 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --age --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup fit --cmdstanr --chains=1 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=data/sbc_output_data --include-paths=stan_models --sequential --sbc --num-sbc-sims=8" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
@@ -36,12 +36,13 @@ library(magrittr)
 library(tidyverse)
 library(parallel)
 library(pbmcapply)
+library(furrr)
 library(HRW)
 library(splines2)
 library(loo)
 
 script_options %<>% 
-  modify_at(c("chains", "iter", "threads", "num_mix_groups"), as.integer) %>% 
+  modify_at(c("chains", "iter", "threads", "num_mix_groups", "num_sbc_sims"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
 
 if (script_options$cmdstanr || script_options$beliefs || script_options$dist) {
@@ -69,6 +70,9 @@ output_name <- if (!is_null(script_options$outputname)) {
   "dist"
 }
 
+if (script_options$sbc & !str_detect(output_name, "sbc")) {
+  output_name = str_c("sbc_", output_name)
+}
 output_file_name <- file.path(script_options$output_path, str_c(output_name, ".RData"))
 thin_by <- as.integer(script_options$thin)
 
@@ -155,7 +159,7 @@ struct_model_stan_pars <- c(
 reduced_model_stan_pars <- c(
   "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
   "beta", "cluster_cf_benefit_cost", 
-  "cluster_rep_benefit_cost")
+  "cluster_rep_benefit_cost", "ranks_")
 
 models <- lst(
   # STRUCTURAL_QUADRATIC = lst(
@@ -872,13 +876,16 @@ stan_data <- lst(
   age_group_alpha_sd = c(0.5, rep(0.25, num_treatments * num_discrete_dist - 1)),
   age_group_rho_sd = rep(1, num_treatments * num_discrete_dist),
   
-  analysis_data
+  analysis_data,
+  # SBC
+  sbc = script_options$sbc
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
   list_modify(!!!wtp_stan_data) 
-
+if (script_options$sbc & !script_options$takeup) {
+  stop("Not yet implemented")
+}
 # Stan Run ----------------------------------------------------------------
-
 ## Takeup ------------------------------------------------------------------
 if (script_options$takeup) {
   models <- if (!is_null(script_options$models)) {
@@ -890,37 +897,61 @@ if (script_options$takeup) {
   } else {
     models
   }
-  
   if (script_options$fit || script_options$prior) {
-    dist_fit <- models %>% 
-      stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
-    
-    if (script_options$cmdstanr) {
-      dist_fit_obj <- dist_fit
+    if (script_options$sbc) {
+      rank_fit = function(x){
+        no_sbc_dist_fit = models %>% 
+            stan_list(
+              stan_data %>% list_modify(sbc = FALSE), 
+              script_options, 
+              use_cmdstanr = script_options$cmdstanr, 
+              include_paths = script_options$include_paths)
+        rank_stat = map2_dfr(dist_fit, names(dist_fit),
+                          ~.x$summary(variables = "ranks_", "mean") %>%
+                              mutate(model = .y, draw = x))
+          return(rank_stat)
+        }
+      poss_rank_fit = possibly(rank_fit, otherwise = tibble(fail = TRUE))
+      plan(cluster, workers = availableWorkers())
+      rank_stats = future_map_dfr(1:script_options$num_sbc_sims,
+                        poss_rank_fit,
+                        .options = furrr_options(seed = TRUE,
+                                                 scheduling = 2)
+                      )
+      save(rank_stats, file = output_file_name)
+
+    } else {
+
+      dist_fit <- models %>% 
+        stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
       
-      dist_fit %<>%
-        imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
-     
-      # BUG spaces in paths causing problems. Wait till it is fixed.
-      try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
-      
-      dist_fit_obj %>% 
-        iwalk(~ {
-          cat(.y, "Diagnosis ---------------------------------\n")
-          .x$cmdstan_diagnose()
-        })
-    }
-    
-    if (script_options$update_output) {
-      new_dist_fit <- dist_fit
-    
-      dist_fit <- tryCatch({
-        old_data_env <- new.env()
-        load(output_file_name, envir = old_data_env)
+      if (script_options$cmdstanr) {
+        dist_fit_obj <- dist_fit
         
-        list_modify(old_data_env$dist_fit, !!!new_dist_fit)
-      }, error = function(e) dist_fit)  
-    }
+        dist_fit %<>%
+          imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+      
+        # BUG spaces in paths causing problems. Wait till it is fixed.
+        try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
+        
+        dist_fit_obj %>% 
+          iwalk(~ {
+            cat(.y, "Diagnosis ---------------------------------\n")
+            .x$cmdstan_diagnose()
+          })
+      }
+      
+      if (script_options$update_output) {
+        new_dist_fit <- dist_fit
+      
+        dist_fit <- tryCatch({
+          old_data_env <- new.env()
+          load(output_file_name, envir = old_data_env)
+          
+          list_modify(old_data_env$dist_fit, !!!new_dist_fit)
+        }, error = function(e) dist_fit)  
+      }
+      }
   } else if (script_options$cv) {
     dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
     
@@ -943,7 +974,7 @@ if (script_options$takeup) {
     }
   }
   
-  if (!script_options$no_save) {
+  if (!script_options$no_save & !script_options$sbc) {
     if (script_options$fit || script_options$prior) {
       save(dist_fit, models, grid_dist, stan_data, file = output_file_name)
       
