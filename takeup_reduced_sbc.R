@@ -22,7 +22,6 @@ library(magrittr)
 library(tidyverse)
 library(parallel)
 library(pbmcapply)
-library(Rmpi)
 library(HRW)
 library(splines2)
 library(loo)
@@ -500,15 +499,7 @@ if (interactive()) {
   plan(multisession, workers = script_options$num_cores)
 } else {
 
-  library(parallel)
-  library(Rmpi)
-  cl = makeCluster(script_options$num_cores, type = "MPI")
-  plan(
-    list(
-      tweak(future::cluster, workers = cl),
-      multicore
-    )
-  )
+  plan(cluster, workers = availableWorkers())
 }
 
 simulated_draws = 1:script_options$num_sbc_draws %>%
@@ -544,9 +535,4 @@ write_csv(
 )
 
 
-
-if (!interactive()) {
-  stopCluster(cl)
-  mpi.quit()
-}
 
