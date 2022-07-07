@@ -991,7 +991,7 @@ rf_analysis_data %>%
 age_group_te_iter_data <- dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "prior-predict"),
+    # fct_match(fit_type, "prior-predict"),
   ) %>% 
   select(model, model_name, est_age_group_takeup_te, fit_type) %>% 
   unnest(est_age_group_takeup_te) %>% 
@@ -1025,7 +1025,7 @@ age_group_te_iter_data %>%
 dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "prior-predict")
+    # fct_match(fit_type, "prior-predict")
   ) %>% 
   select(model, model_name, est_age_group_takeup_level, fit_type) %>% 
   unnest(est_age_group_takeup_level) %>% 
