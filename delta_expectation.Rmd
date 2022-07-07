@@ -976,14 +976,25 @@ rf_analysis_data %>%
 ```
 
 ```{r, fig.width=10}
-rf_analysis_data %>%
-  group_by(age_group = age.census_group, assigned_treatment, assigned_dist_group) %>% 
-  summarize(obs_takeup_prop = mean(dewormed), .groups = "drop") %>% 
+obs_takeup_by_age <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %>% 
+  select(obs_age_group_cluster_takeup_level) %>% 
+  unnest(obs_age_group_cluster_takeup_level) %>%  
+  group_by(age_group, assigned_treatment_obs, assigned_dist_group_obs) %>%
+  summarize(obs_takeup_prop = sum(obs_num_takeup) / sum(cluster_size), .groups = "drop")
+# rf_analysis_data %>%
+#   group_by(age_group = age.census_group, assigned_treatment, assigned_dist_group) %>% 
+#   summarize(obs_takeup_prop = mean(dewormed), .groups = "drop") %>% 
+
+obs_takeup_by_age %>% 
   ggplot(aes(age_group, obs_takeup_prop)) +
-  geom_col(aes(fill = assigned_treatment), position = "dodge", alpha = 0.5) +
+  geom_col(aes(fill = assigned_treatment_obs), position = "dodge", alpha = 0.5) +
   scale_fill_discrete("", labels = str_to_title) +
   labs(title = "Takeup by Age Group", x = "Age Group", y = "Size") +
-  facet_wrap(vars(assigned_dist_group), labeller = labeller(.default = str_to_title))
+  facet_wrap(vars(assigned_dist_group_obs), labeller = labeller(.default = str_to_title))
 ```
 
 
@@ -1016,7 +1027,7 @@ age_group_te_iter_data %>%
   stat_lineribbon(aes(fill = fit_type, color = fit_type), size = 0.5, .width = c(0.5, 0.8), alpha = 0.25) +
   geom_hline(yintercept = 0, linetype = "dotted") +
   scale_fill_discrete("", labels = c("fit" = "Posterior", "prior-predict" = "Prior Predict"), aesthetics = c("fill", "color")) +
-  labs(x = "Age Group", y = "") +
+  labs(title = "Takeup Treatment Effect by Age Group", x = "Age Group", y = "") +
   facet_grid(vars(assigned_dist_group_left), vars(assigned_treatment_left)) +
   theme(legend.position = "top")
 ```
@@ -1030,19 +1041,19 @@ dist_fit_data %>%
   select(model, model_name, est_age_group_takeup_level, fit_type) %>% 
   unnest(est_age_group_takeup_level) %>% 
   mutate(
-    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    assigned_treatment = str_to_title(assigned_treatment),
+    assigned_dist_group = fct_explicit_na(assigned_dist_group, "combined") %>% 
+      # fct_relabel(str_to_title) %>% 
+      fct_relevel("combined"),
   ) %>% 
   select(!c(mean_est, starts_with("per_"))) %>% 
   unnest(iter_data) %>% 
   ggplot(aes(age_group, iter_prop_takeup)) +
   # geom_line(aes(color = fit_type, group = str_c(fit_type, iter_id)), alpha = 0.1, data = . %>% filter(iter_id <= 100)) +
   stat_lineribbon(aes(fill = fit_type, color = fit_type), size = 0.5, .width = c(0.5, 0.8), alpha = 0.25) +
+  geom_point(aes(y = obs_takeup_prop), size = 0.5, data = obs_takeup_by_age %>% rename_with(str_remove, ends_with("_obs"), "_obs$")) +
   scale_fill_discrete("", labels = c("fit" = "Posterior", "prior-predict" = "Prior Predict"), aesthetics = c("fill", "color")) +
-  labs(x = "Age Group", y = "") +
-  facet_grid(vars(assigned_dist_group), vars(assigned_treatment)) +
+  labs(title = "Takeup Levels by Age Group", x = "Age Group", y = "", subtitle = "Black points: observed levels.") +
+  facet_grid(vars(assigned_dist_group), vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "top")
 ```
 
