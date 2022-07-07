@@ -166,20 +166,11 @@ model {
         }
       }
     }
-  } 
+  }
 }
 
 generated quantities { 
   array[num_dist_group_treatments] int ranks_;
-  profile("rank generation") {
-    for (k in 1:num_dist_group_treatments) {
-      if (sbc == 1){
-        ranks_[k] = beta[k] > beta_[k];
-      } else {
-        ranks_[k] = -1;
-      }
-    }
-  }
    
   array[num_dist_group_treatments] matrix[num_clusters, num_age_groups] cluster_age_group_cf_benefit_cost; 
   array[num_dist_group_treatments, 1] matrix[num_clusters, num_age_groups] cluster_age_group_cf_cutoff; 
@@ -194,7 +185,15 @@ generated quantities {
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_included_clusters : num_included_obs) : 0] log_lik;
   vector[cross_validate ? (use_binomial || cluster_log_lik ? num_excluded_clusters : num_excluded_obs) : 0] log_lik_heldout;
   
-  // matrix[num_age_groups, num_dist_group_treatments] reduced_beta_age_group = rep_matrix(0, num_age_groups, num_dist_group_treatments);
+  profile("rank generation") {
+    for (k in 1:num_dist_group_treatments) {
+      if (sbc == 1){
+        ranks_[k] = beta[k] > beta_[k];
+      } else {
+        ranks_[k] = -1;
+      }
+    }
+  }
     
   for (treatment_index in 1:num_dist_group_treatments) {
     cluster_age_group_cf_benefit_cost[treatment_index] =
