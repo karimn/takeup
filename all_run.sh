@@ -16,7 +16,7 @@
 
 LATEST_VERSION=53
 VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
-CMDSTAN_ARGS="--cmdstanr --include-paths=~/Code/takeup/stan_models"
+CMDSTAN_ARGS="--cmdstanr --include-paths=stan_models"
 SLURM_INOUT_DIR=~/scratch-midway2
 
 if [[ -v IN_SLURM ]]; then
@@ -31,7 +31,7 @@ if [[ -v IN_SLURM ]]; then
   echo "Running with ${CORES} cores."
   echo "INOUT ARGS: ${POSTPROCESS_INOUT_ARGS}."
 else
-  OUTPUT_ARGS="--output-path=~/Code/takeup/data/stan_analysis_data"
+  OUTPUT_ARGS="--output-path=data/stan_analysis_data"
   POSTPROCESS_INOUT_ARGS=
   CORES=12
 fi
@@ -39,13 +39,13 @@ fi
 STAN_THREADS=$((${CORES} / 4))
 
 # Distance
-#Rscript ./run_takeup.R dist prior --chains=4 --iter 800 --outputname=dist_model_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel &
-#Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist_model_fit   --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel
+#Rscript ./run_takeup.R dist prior --chains=4 --iter 800 --outputname=dist_model_prior --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel &
+#Rscript ./run_takeup.R dist fit   --chains=4 --iter 800 --outputname=dist_model_fit   --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel
 #wait
 
 # Beliefs
-#Rscript ./run_takeup.R beliefs prior --chains=4 --iter 1000 --outputname=beliefs_prior --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models &
-#Rscript ./run_takeup.R beliefs fit   --chains=4 --iter 1000 --outputname=beliefs       --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1
+#Rscript ./run_takeup.R beliefs prior --chains=4 --iter 1000 --outputname=beliefs_prior --output-path=data/stan_analysis_data --include-paths=stan_models &
+#Rscript ./run_takeup.R beliefs fit   --chains=4 --iter 1000 --outputname=beliefs       --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1
 #wait
 
 # Reduced Form 
