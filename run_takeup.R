@@ -6,11 +6,14 @@ script_options <- docopt::docopt(
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
   run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
-  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
-  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
+  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
   
   run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
+  
+  run_takeup.R wtp prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R wtp fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
@@ -45,7 +48,7 @@ script_options %<>%
   modify_at(c("chains", "iter", "threads", "num_mix_groups", "num_sbc_sims"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
 
-if (script_options$cmdstanr || script_options$beliefs || script_options$dist) {
+if (script_options$cmdstanr || script_options$beliefs || script_options$dist || script_options$wtp) {
   library(cmdstanr)
 } else {
   library(rstan)
@@ -1045,6 +1048,45 @@ if (script_options$takeup) {
   )
 
   dist_fit$save_object(file.path(script_options$output_path, str_c(output_name, if (script_options$fit) "_fit" else "_prior", ".rds")))
+
+## Willingness-to-Pay ------------------------------------------------------
+} else if (script_options$wtp) {
+  wtp_model <- cmdstan_model(file.path("stan_models", "wtp_model.stan"), include_paths = script_options$include_paths)
+  
+  wtp_fit <- wtp_model$sample(
+    data = stan_data %>% 
+      # list_modify(!!!models$STRUCTURAL_LINEAR_U_SHOCKS) %>% 
+      list_modify(
+        use_strata_levels = script_options$multilevel,
+      ) %>% 
+      map_at(c("cluster_treatment_map"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
+      discard(~ any(is.na(.x))),
+    chains = script_options$chains,
+    parallel_chains = script_options$chains,
+    iter_warmup = script_options$iter %/% 2,
+    iter_sampling = script_options$iter %/% 2,
+    adapt_delta = 0.99,
+    max_treedepth = 12
+  )
+  
+  wtp_fit$save_output_files(
+    dir = script_options$output_path,
+    basename = str_c(output_name, "_fit"), 
+    timestamp = FALSE, random = FALSE
+  )
+  
+  wtp_fit$save_object(file.path(script_options$output_path, str_c(output_name, if (script_options$fit) "_fit" else "_prior", ".rds")))
+  
+### Results -----------------------------------------------------------------
+  
+  wtp_results <- wtp_fit$draws() %>% 
+    posterior::as_draws_df() %>% 
+    mutate(iter_id = .draw) %>% 
+    pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+    nest(iter_data = !variable) %>% 
+    get_wtp_results()
+  
+  write_rds(wtp_results, file.path(script_options$output_path, str_c(output_name, "_results.rds")))
 }
   
 cat(str_glue("All done. Saved results to output ID '{output_name}'\n\n"))
