@@ -910,10 +910,11 @@ plot_wtp_results <- function(draws) {
     filter(draws, fct_match(variable, "prob_prefer_calendar")) %>% 
       left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
       ggplot(aes(x = val_diff)) +
-      geom_line(aes(y = per_0.5)) +
-      geom_point(aes(y = per_0.5), size = 1) +
-      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+      geom_line(aes(y = per_0.5, color = fit_type), show.legend = FALSE) +
+      geom_point(aes(y = per_0.5, color = fit_type), size = 1, show.legend = FALSE) +
+      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = fit_type), alpha = 0.4, show.legend = FALSE) +
       scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
+      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
       labs(
         title = "Probability of Preference for Calendars vs. Bracelets",
         y = "" 
@@ -924,12 +925,13 @@ plot_wtp_results <- function(draws) {
     filter(draws, fct_match(variable, "hyper_wtp_mu")) %>%
       mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
       # ggplot(aes(y = str_c(variable, index))) +
-      ggplot(aes(y = str_c(variable))) +
-      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
-      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
-      geom_point(aes(x = mean_est), size = 2) +
-      geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+      ggplot(aes(y = str_c(fit_type))) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = fit_type), alpha = 0.4, size = 3, show.legend = FALSE) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = fit_type), fatten = 2, size = 0.4, width = 0.2, show.legend = FALSE) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = fit_type), size = 0.4, show.legend = FALSE) +
+      geom_point(aes(x = mean_est, color = fit_type), size = 2, show.legend = FALSE) +
+      geom_point(aes(x = mean_est, color = fit_type), color = "white", size = 0.8, show.legend = FALSE) +
+      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
       scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
       # coord_cartesian(xlim = c(-55, 55)) +
       theme(axis.text.y = element_blank()) +
