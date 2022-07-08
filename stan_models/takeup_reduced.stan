@@ -200,7 +200,7 @@ generated quantities {
       rep_matrix(reduced_beta_cluster, num_age_groups)
       + rep_matrix((reduced_beta_county * treatment_map_design_matrix[treatment_index]')[cluster_county_id], num_age_groups)
       + rep_matrix(reduced_treatment_effect[treatment_index], num_clusters, num_age_groups) 
-      + rep_matrix(reduced_beta_age_group[, treatment_index]', num_clusters);
+      + rep_matrix((treatment_map_design_matrix[treatment_index] * reduced_beta_age_group'), num_clusters);
       
     cluster_age_group_cf_cutoff[treatment_index, 1] = - cluster_age_group_cf_benefit_cost[treatment_index]; 
     
