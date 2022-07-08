@@ -24,12 +24,12 @@ Options:
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=~/Code/takeup/stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup fit --cmdstanr --chains=1 --outputname=test --models=REDUCED_FORM_NO_RESTRICT --output-path=data/sbc_output_data --include-paths=stan_models --sequential --sbc --num-sbc-sims=8" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=~/Code/takeup/data/stan_analysis_data --include-paths=~/Code/takeup/stan_models --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --include-paths=stan_models --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(magrittr)
@@ -933,7 +933,6 @@ if (script_options$takeup) {
       
         # BUG spaces in paths causing problems. Wait till it is fixed.
         try(iwalk(dist_fit_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
-        
         dist_fit_obj %>% 
           iwalk(~ {
             cat(.y, "Diagnosis ---------------------------------\n")
