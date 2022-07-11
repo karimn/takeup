@@ -401,12 +401,11 @@ generate_initializer <- function(num_treatments,
                                  use_cluster_effects = use_cluster_effects,
                                  use_county_effects = use_cluster_effects,
                                  use_param_dist_cluster_effects = use_cluster_effects,
-                                 use_mu_cluster_effects = use_cluster_effects,
+                                 use_mu_cluster_effects = FALSE,
                                  use_mu_county_effects = FALSE,
-                                 use_single_cost_model = FALSE,
+                                 use_single_cost_model = TRUE,
                                  restricted_private_incentive = FALSE,
                                  cost_model_type = NA,
-                                 num_knots = NA,
                                  name_matched = FALSE,
                                  suppress_reputation = FALSE) {
   base_list <- base_init()
@@ -447,14 +446,6 @@ generate_initializer <- function(num_treatments,
           dist_cost_k = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           dist_beta_v = if (!linear) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else rnorm(num_treatments, 0, 0.1), 
           dist_quadratic_beta_v = if (!quadratic) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else abs(rnorm(num_treatments, 0, 0.1)), 
-          u_splines_v_raw = if (!semiparam) {
-            array(dim = c(0, num_knots)) 
-          } else {
-            num_semiparam_treatments <- if (salience || use_single_cost_model) 1 else num_treatments
-            array(rnorm(num_semiparam_treatments * num_knots, 0, 0.1), dim = c(num_semiparam_treatments, num_knots))
-          },
-          u_splines_v = u_splines_v_raw,
-         
           u_sd = abs(rnorm(num_treatments, 0, 0.5)),
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),

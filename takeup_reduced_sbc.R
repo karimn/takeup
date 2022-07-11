@@ -148,7 +148,7 @@ struct_model_stan_pars <- c(
   "total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
   "structural_cluster_benefit", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost",
   "beta", "dist_beta_v", "dist_quadratic_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
-  "cluster_rep_benefit_cost", "sim_benefit_cost",
+  "cluster_rep_benefit_cost", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix",
   "dist_beta_county_raw", "dist_beta_county_sd")
 
