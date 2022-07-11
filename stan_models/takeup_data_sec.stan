@@ -7,7 +7,6 @@ int<lower = 0, upper = 1> use_private_incentive_restrictions;
 int<lower = 0, upper = 1> use_name_matched_obs;
 int<lower = 0, upper = 1> multithreaded;
 int<lower = 0, upper = 1> generate_rep;
-int<lower = 0, upper = 1> generate_sim;
 int<lower = 0, upper = 1> fit_model_to_data;
 int<lower = 0, upper = 1> cross_validate;
 
