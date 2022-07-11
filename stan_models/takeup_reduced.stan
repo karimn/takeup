@@ -1,12 +1,6 @@
 
 functions {
 #include util.stan
-
-  real normal_lb_rng(real mu, real sigma, real lb) {
-    real p = normal_cdf(lb | mu, sigma);  // cdf for bounds
-    real u = uniform_rng(p, 1);
-    return (sigma * inv_Phi(u)) + mu;  // inverse cdf for value
-  }
 }
 
 data {
@@ -58,7 +52,6 @@ parameters {
 transformed parameters {
   vector[num_dist_group_treatments] beta; 
   vector[num_dist_group_treatments] reduced_treatment_effect;
-  // matrix[num_clusters, num_age_groups] reduced_cluster_benefit_cost;
   vector[num_clusters] reduced_cluster_benefit_cost;
   vector[num_clusters] reduced_beta_cluster = rep_vector(0, num_clusters);
   matrix[num_counties, num_dist_group_treatments] reduced_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
@@ -72,13 +65,11 @@ transformed parameters {
   }
  
   reduced_treatment_effect = treatment_map_design_matrix * beta;
-  // reduced_cluster_benefit_cost = rep_matrix(reduced_treatment_effect[cluster_assigned_dist_group_treatment], num_age_groups);
   reduced_cluster_benefit_cost = reduced_treatment_effect[cluster_assigned_dist_group_treatment];
   
   if (use_cluster_effects) {
     reduced_beta_cluster = reduced_beta_cluster_raw * reduced_beta_cluster_sd;
     
-    // reduced_cluster_benefit_cost += rep_matrix(reduced_beta_cluster, num_age_groups);
     reduced_cluster_benefit_cost += reduced_beta_cluster;
   }
   
@@ -88,7 +79,6 @@ transformed parameters {
     reduced_beta_county = reduced_beta_county_raw .* rep_matrix(reduced_beta_county_sd, num_counties);
     
     county_effects = rows_dot_product(cluster_treatment_design_matrix, reduced_beta_county[cluster_county_id]); 
-    // reduced_cluster_benefit_cost += rep_matrix(county_effects, num_age_groups);
     reduced_cluster_benefit_cost += county_effects;
   }
   
@@ -149,7 +139,6 @@ model {
           }
         }
       } else {
-        // takeup[included_monitored_obs] ~ bernoulli(reduced_cluster_takeup_prob[obs_cluster_id[included_monitored_obs]]);
         if (sbc == 1) {
           sim_takeup[included_monitored_obs] ~ bernoulli(
             Phi_approx(
@@ -283,8 +272,6 @@ generated quantities {
         + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * reduced_beta_age_group';
         
       cluster_rep_benefit_cost[cluster_index] = cluster_age_group_rep_benefit_cost[cluster_index] * cluster_age_group_prop[cluster_index]';
-      // cluster_rep_benefit_cost[cluster_index] = reduced_treatment_effect[cluster_assigned_dist_group_treatment[cluster_index]]
-      //   + rep_beta_cluster + treatment_map_design_matrix[cluster_assigned_dist_group_treatment[cluster_index]] * rep_beta_county;
     }
   }
 }
