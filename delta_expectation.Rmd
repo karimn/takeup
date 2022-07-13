@@ -590,11 +590,19 @@ dist_fit_data %>%
 
 # Willingness-to-Pay
 
+```{r, eval=FALSE}
+wtp_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model_fit_results.rds")) 
+wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model_prior_results.rds"))
+```
+
 ```{r wtp-post}
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+joint_wtp_results <- dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   pull(wtp_results) %>%
-  first() %>%
+  first()
+
+joint_wtp_results %>% 
+  mutate(fit_type = "joint") %>% 
   plot_wtp_results()
 ```
 
@@ -603,6 +611,16 @@ dist_fit_data %>%
   filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
   pull(wtp_results) %>%
   first() %>%
+  mutate(fit_type = "joint") %>% 
+  plot_wtp_results()
+```
+
+```{r wtp-post-compare, eval=FALSE}
+bind_rows(
+  joint = joint_wtp_results,
+  alone = wtp_results, 
+  .id = "fit_type"
+) %>%
   plot_wtp_results()
 ```
 
@@ -612,6 +630,12 @@ dist_fit_data %>%
 beliefs_results <- read_rds(file.path("data", "stan_analysis_data", "beliefs_results.rds"))
 beliefs_prior_results <- read_rds(file.path("data", "stan_analysis_data", "beliefs_prior_results.rds"))
 ```
+
+```{r beliefs-line-plot-post-alone, fig.width=8, fig.height=8, eval=FALSE}
+beliefs_results %>%
+  plot_beliefs_est("Posterior Estimation")
+```
+
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
 dist_fit_data %>%
@@ -734,10 +758,12 @@ dist_fit_data %>%
 # Distance Model
 
 ```{r, eval=FALSE}
-dist_fit_data$group_dist_param[[1]] <- read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>% 
+alone_dist_fit_data <- dist_fit_data
+
+alone_dist_fit_data$group_dist_param[[1]] <- read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>% 
   get_dist_results(dist_fit_data$stan_data[[1]])
 
-dist_fit_data$group_dist_param[[2]] <- read_rds("data/stan_analysis_data/dist_model_prior_prior.rds") %>% 
+alone_dist_fit_data$group_dist_param[[2]] <- read_rds("data/stan_analysis_data/dist_model_prior_prior.rds") %>% 
   get_dist_results(dist_fit_data$stan_data[[1]])
 ```
 
@@ -754,8 +780,7 @@ dist_fit_data$stan_data %>%
   NULL
 ```
 
-
-```{r dist-post, fig.width=10}
+```{r}
 plot_dist_model <- function(results, plot_obs_dist = TRUE, subsample_size = 1500, x_range = seq(-500, 3000, 10)) {
   plot_obj <- results %>% 
     select(stan_data, group_dist_param) %>% 
@@ -811,6 +836,15 @@ plot_dist_model <- function(results, plot_obs_dist = TRUE, subsample_size = 1500
   return(plot_obj)
 }
 
+```
+
+```{r dist-post-alone, fig.width=10, eval=FALSE}
+alone_dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  plot_dist_model(subsample_size = NULL)
+```
+
+```{r dist-post, fig.width=10}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   plot_dist_model(subsample_size = NULL)
