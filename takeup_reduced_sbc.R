@@ -102,39 +102,15 @@ nosms_data <- analysis.data %>%
 analysis_data <- monitored_nosms_data %>% 
   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
 
-# Splines -----------------------------------------------------------------
-cat("Splines\n")
 
 # These are used for semiparameteric models. Currently, we are not using any semiparameteric models.
-
-num_interior_knots <- 100
-
 cluster_standard_dist <- distinct(analysis_data, cluster_id, standard_cluster.dist.to.pot) %>% 
   arrange(cluster_id) %>% 
   pull(standard_cluster.dist.to.pot)
 
-Z_osullivan <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, spline_type = "osullivan")
-Z_i_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, spline_type = "i-spline")
-Z_b_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, spline_type = "b-spline")
-
-grid_dist <- get_spline_range(cluster_standard_dist) %>% unname() %>% list_modify(length = 1001) %>% do.call(seq, .)
-
-Z_grid_osullivan <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "osullivan")
-Z_grid_i_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "i-spline")
-Z_grid_b_spline <- calculate_splines(cluster_standard_dist, num_interior_knots = num_interior_knots, splines_for = grid_dist, spline_type = "b-spline")
-
 treatment_dist <- distinct(analysis_data, assigned.treatment, standard_cluster.dist.to.pot) %>% 
   group_by(assigned.treatment) %>% 
   group_map(~ pull(.x, "standard_cluster.dist.to.pot"))
-
-grid_dist2 <- treatment_dist %>% 
-  map(get_spline_range) %>% 
-  map(unname) %>% 
-  map(list_modify, length = 1001) %>% 
-  map(~ do.call(seq, .))
-
-Z_grid_osullivan2 <- map2(treatment_dist, grid_dist2, ~ calculate_splines(.x, num_interior_knots = num_interior_knots, splines_for = .y, spline_type = "osullivan")) 
-
 # Models ------------------------------------------------------------------
 cat("Models\n")
 
@@ -148,7 +124,7 @@ struct_model_stan_pars <- c(
   "total_error_sd", "cluster_dist_cost", "structural_cluster_benefit_cost", "structural_cluster_obs_v", "structural_cluster_takeup_prob",
   "structural_cluster_benefit", "cluster_linear_dist_cost", "cluster_quadratic_dist_cost",
   "beta", "dist_beta_v", "dist_quadratic_beta_v", "mu_rep", "cluster_cf_benefit_cost", "mu_cluster_effects_raw", "mu_cluster_effects_sd", "cluster_mu_rep", # "linear_dist_cost", 
-  "cluster_rep_benefit_cost", "sim_benefit_cost",
+  "cluster_rep_benefit_cost", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix",
   "dist_beta_county_raw", "dist_beta_county_sd")
 
@@ -299,7 +275,6 @@ stan_data <- lst(
   
   # Take-up Model 
   num_obs = nrow(analysis_data),
-  num_grid_obs = length(grid_dist),
   num_treatments,
   is_name_matched = !analysis_data$monitored,
   num_clusters,
@@ -350,23 +325,11 @@ stan_data <- lst(
     pull(treatment_id),
   
   num_dist_group_treatments = n_distinct(cluster_assigned_dist_group_treatment),
-  grid_dist,
-  grid_dist2,
   
   num_discrete_dist = 2,
   
   num_dist_group_mix = script_options$num_mix_groups,
   
-  small_grid_dist = grid_dist[(seq_along(grid_dist) %% 100) == 0],
-  num_small_grid_obs = length(small_grid_dist),
-  
-  Z_splines_v = Z_osullivan,
-  num_knots_v = ncol(Z_splines_v),
-  
-  Z_grid_v = Z_grid_osullivan,
-  Z_grid_v2 = Z_grid_osullivan2,
-  
- 
   num_excluded_clusters = 0,
   excluded_clusters = array(dim = 0),
 
@@ -400,7 +363,6 @@ stan_data <- lst(
   
   # Priors
   
-  u_splines_v_sigma_sd = 1,
   
   dist_beta_v_sd = 0.25,
   

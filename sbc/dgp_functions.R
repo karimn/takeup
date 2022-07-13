@@ -64,14 +64,7 @@ meta_gen_data = function(gen_data_args) {
         CALENDAR_TREATMENT_INDEX = gen_data_args$CALENDAR_TREATMENT_INDEX
         BRACELET_TREATMENT_INDEX = gen_data_args$BRACELET_TREATMENT_INDEX 
 
-        # TODO/Remember `takeup`, `is_name_matched` to go into modelled_data
 
-        # Semiparametric Cost Model (Splines) 
-        # ed: I think this is superfluous?
-        num_knots_v = gen_data_args$num_knots_v
-        Z_splines_v = matrix(0, num_clusters, num_knots_v) 
-        Z_grid_v = matrix(0, gen_data_args$num_grid_obs, gen_data_args$num_knots_v)
-        u_splines_v_sigma_sd = gen_data_args$u_splines_v_sigma_sd
         # K-fold CV
         cluster_log_lik = gen_data_args$cluster_log_lik 
         num_excluded_clusters = gen_data_args$num_excluded_clusters
@@ -79,10 +72,6 @@ meta_gen_data = function(gen_data_args) {
 
 
         # Simulation
-        num_grid_obs = gen_data_args$num_grid_obs
-        num_small_grid_obs = gen_data_args$num_small_grid_obs
-        grid_dist = gen_data_args$grid_dist
-        small_grid_dist = gen_data_args$small_grid_dist
 
         beta_control_sd = gen_data_args$beta_control_sd
         beta_ink_effect_sd = gen_data_args$beta_ink_effect_sd
@@ -144,17 +133,9 @@ meta_gen_data = function(gen_data_args) {
             alg_sol_max_steps,
             CALENDAR_TREATMENT_INDEX,
             BRACELET_TREATMENT_INDEX,
-            num_knots_v,
-            Z_splines_v,
-            u_splines_v_sigma_sd,
             cluster_log_lik,
             num_excluded_clusters,
             excluded_clusters,
-            num_grid_obs,
-            num_small_grid_obs,
-            grid_dist,
-            small_grid_dist,
-            Z_grid_v,
             beta_control_sd,
             beta_ink_effect_sd,
             beta_calendar_effect_sd,
@@ -182,7 +163,8 @@ meta_gen_data = function(gen_data_args) {
             obs_age_group,
             use_age_group_gp,
             age_group_alpha_sd,
-            age_group_rho_sd
+            age_group_rho_sd,
+            sbc = FALSE
 
         ))
     }

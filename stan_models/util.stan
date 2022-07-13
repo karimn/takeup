@@ -304,3 +304,9 @@ vector calc_gp_trend(array[] int dist, real alpha, real rho, vector raw) {
 
   return trend;
 }
+
+real normal_lb_rng(real mu, real sigma, real lb) {
+  real p = normal_cdf(lb | mu, sigma);  // cdf for bounds
+  real u = uniform_rng(p, 1);
+  return (sigma * inv_Phi(u)) + mu;  // inverse cdf for value
+}

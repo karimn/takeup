@@ -36,14 +36,6 @@ vector expect_y_partial_bbar(vector v, vector sm) {
   return result;
 }
 
-vector param_kappa_dist_cost(vector dist, vector k) {
-  if (num_elements(k) == 1) {
-    return (k[1] * square(dist)) / 2;
-  } else {
-    return (k .* square(dist)) / 2;
-  }
-}
-
 vector param_dist_cost(vector dist, vector linear_dist_cost, vector quadratic_dist_cost) {
   int num_cost = num_elements(dist);
   vector[num_cost] cost = rep_vector(0, num_cost); 
@@ -63,7 +55,7 @@ vector param_dist_cost(vector dist, vector linear_dist_cost, vector quadratic_di
   return cost;
 }
 
-vector param_dist_cost_with_splines(vector dist, vector linear_dist_cost, vector quadratic_dist_cost, matrix u_splines, matrix Z_splines) {
+vector param_dist_cost(vector dist, vector linear_dist_cost, vector quadratic_dist_cost, matrix u_splines, matrix Z_splines) {
   return rows_dot_product(u_splines, Z_splines) + param_dist_cost(dist, linear_dist_cost, quadratic_dist_cost);
 }
 
@@ -97,16 +89,6 @@ real expected_delta_part(real v, real xc, array[] real theta, data array[] real 
   real v_lpdf = normal_lpdf(v | 0, 1);
   real wmv_lcdf = normal_lcdf(w - v | 0, u_sd);
   
-  // real wmv_cdf;
-  // if (std_wmv > 5) { 
-  //   wmv_cdf = 1; 
-  // } else if (std_wmv < -5) {
-  //   wmv_cdf = 0; 
-  // } else {
-    // wmv_cdf = Phi_approx(std_wmv);
-  // }
-  
-  // return v * exp(v_lpdf) * wmv_cdf; 
   return v * exp(v_lpdf + wmv_lcdf);
 }
 
@@ -220,7 +202,6 @@ vector map_find_fixedpoint_solution(vector benefit_cost, vector mu_rep,
   int num_clusters = num_elements(benefit_cost);
   vector[1] phi = total_error_sd[1:1];
   array[num_clusters] vector[4] thetas;
-  // real x_rs[num_clusters, 3] = rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters);
   array[num_clusters, 1] int x_is = rep_array({ use_u_in_delta }, num_clusters);
   
   for (cluster_index in 1:num_clusters) {
@@ -273,11 +254,9 @@ matrix map_calculate_roc_diff(
   vector[1] phi = total_error_sd[1:1];
   array[num_clusters] vector[9] thetas;
   
-  // real x_rs[num_clusters, 1] = rep_array(x_r, num_clusters); // There seems to be a bug in STAN where this doesn't work. I have to call rep_array() below
   array[num_clusters, 3] int x_is = rep_array({ use_u_in_delta, treatment_id_left, treatment_id_right }, num_clusters);
   
   for (cluster_index in 1:num_clusters) {
-    // thetas[cluster_index] = [ w[cluster_index], total_error_sd[cluster_index], u_sd[cluster_index], dist_beta[cluster_index], 
     thetas[cluster_index] = [ benefit_cost_left[cluster_index], benefit_cost_right[cluster_index], 
                               total_error_sd[cluster_index], u_sd[cluster_index], dist_beta[cluster_index], 
                               mu_left[cluster_index], mu_right[cluster_index], mu_deriv_left[cluster_index], mu_deriv_right[cluster_index]  ]';
@@ -308,10 +287,3 @@ array[] int prepare_cluster_assigned_dist_group_treatment(array[] int cluster_as
   
   return treatment_id;
 }
-
-real normal_lb_rng(real mu, real sigma, real lb) {
-  real p = normal_cdf(lb | mu, sigma);  // cdf for bounds
-  real u = uniform_rng(p, 1);
-  return (sigma * inv_Phi(u)) + mu;  // inverse cdf for value
-}
-
