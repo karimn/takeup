@@ -33,7 +33,7 @@ Options:
   # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --include-paths=stan_models --sequential" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=10 --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
 
@@ -550,7 +550,7 @@ if (script_options$takeup) {
         load(output_file_name, envir = old_data_env)
         
         list_modify(old_data_env$dist_kfold, !!!new_dist_kfold)
-      })  
+      }, error = function(e) dist_kfold)  
     }
   }
   
