@@ -625,10 +625,10 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
           dist_model = dist_model,
           stan_data = stan_data,
           use_cmdstanr = use_cmdstanr,
-          model_name = model_name
-          # ignore.interactive = TRUE,
-          # mc.silent = !script_options$sequential,
-          # mc.cores = if (script_options$sequential) 1 else 3
+          model_name = model_name,
+          ignore.interactive = TRUE,
+          mc.silent = !script_options$sequential,
+          mc.cores = if (script_options$sequential) 1 else script_options$parallel_folds 
           )
           
         return(tryCatch(kfold(log_lik_list), 
