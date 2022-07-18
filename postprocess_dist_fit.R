@@ -190,15 +190,15 @@ dist_fit_data <- tryCatch({
       
       kfold = set_names(kfold, model)
     ) %>% 
-    group_by(model_type) %>% 
-    mutate(
-      stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
-        do.call(rbind, .) %>% 
-        t() %>% { 
-        tryCatch(loo::stacking_weights(.), error = function(err) NA)
-        }
-    ) %>% 
-    ungroup() %>% 
+    # group_by(model_type) %>% 
+    # mutate(
+    #   stacking_weight_by_type = map(kfold, pluck, "pointwise") %>% 
+    #     do.call(rbind, .) %>% 
+    #     t() %>% { 
+    #     tryCatch(loo::stacking_weights(.), error = function(err) NA)
+    #     }
+    # ) %>% 
+    # ungroup() %>% 
     left_join(kfold_compare(x = discard(.$kfold, is_null)), by = "model") %>% 
     left_join(dist_fit_data, ., by = c("model", "fit_type")) %>% 
     select(-one_of("model_type")) %>% 
