@@ -540,7 +540,7 @@ if (script_options$takeup) {
       # dist_kfold %<>%
       #   imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
       
-      try(iwalk(dist_kfold_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
+      # try(iwalk(dist_kfold_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
     }
     
     if (script_options$update_output) {
