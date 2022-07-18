@@ -502,7 +502,6 @@ if (script_options$takeup) {
       save(rank_stats, file = output_file_name)
 
     } else {
-
       dist_fit <- models %>% 
         stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
       
@@ -531,15 +530,17 @@ if (script_options$takeup) {
           list_modify(old_data_env$dist_fit, !!!new_dist_fit)
         }, error = function(e) dist_fit)  
       }
-      }
+    }
   } else if (script_options$cv) {
     dist_kfold <- models %>% stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
     
     if (script_options$cmdstanr) {
       dist_kfold_obj <- dist_kfold
       
-      dist_kfold %<>%
-        imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+      # dist_kfold %<>%
+      #   imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+      
+      try(iwalk(dist_kfold_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
     }
     
     if (script_options$update_output) {
