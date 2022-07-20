@@ -22,7 +22,7 @@ Options:
   --threads=<threads>  Number of threads per chain [default: 1]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]
-  --include-paths=<paths>  Includes path for cmdstanr [default: .]
+  --include-paths=<paths>  Includes path for cmdstanr [default: stan_models]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
   --num-mix-groups=<num>  Number of finite mixtures in distance model [default: 2]
 "),
@@ -33,8 +33,8 @@ Options:
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --include-paths=stan_models --sequential" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS --output-path=data/stan_analysis_data --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
 
@@ -149,6 +149,60 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
+    use_homoskedastic_shocks = TRUE,
+    use_strata_levels = use_county_effects, # WTP
+    suppress_reputation = FALSE,
+    generate_sim = FALSE,
+    iter = 800,
+    thin = 1,
+    alg_sol_f_tol = 0.001,
+    alg_sol_max_steps = 1e9L,
+    alg_sol_rel_tol = 0.0000001,
+
+    # Priors
+    mu_rep_sd = 0.25,
+    # mu_beliefs_effects_sd = 1.5,
+    mu_beliefs_effects_lambda = 1,
+   
+    beta_control_sd = 1,
+    beta_ink_effect_sd = 0.25,
+    beta_calendar_effect_sd = 0.25,
+    beta_bracelet_effect_sd = 0.25,
+    
+    structural_beta_county_sd_sd = 0.05,
+    structural_beta_cluster_sd_sd = 0.25,
+
+    init = generate_initializer(
+      num_treatments = num_treatments,
+      num_clusters = num_clusters,
+      num_counties = num_counties,
+      structural_type = 1,
+      num_dist_mix = script_options$num_mix_groups,
+      use_cluster_effects = use_cluster_effects,
+      use_county_effects = use_county_effects,
+      use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+      restricted_private_incentive = use_private_incentive_restrictions,
+      cost_model_type = use_cost_model,
+      name_matched = FALSE,
+      suppress_reputation = suppress_reputation)) %>%
+    list_modify(!!!enum2stan_data(cost_model_types)),
+  
+  STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS = lst(
+    model_file = "takeup_struct.stan",
+    pars = struct_model_stan_pars,
+    control = lst(max_treedepth = 12, adapt_delta = 0.99),
+    use_binomial = FALSE,
+    use_cost_model = cost_model_types["param_linear"],
+    use_private_incentive_restrictions = FALSE,
+    use_cluster_effects = FALSE,
+    use_county_effects = script_options$multilevel,
+    use_param_dist_cluster_effects = FALSE,
+    use_param_dist_county_effects = FALSE,
+    use_restricted_mu = TRUE,
+    use_u_in_delta = TRUE,
+    use_wtp_model = TRUE,
+    fit_wtp_model_to_data = FALSE,
+    fit_beliefs_model_to_data = FALSE, 
     use_homoskedastic_shocks = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
@@ -352,8 +406,6 @@ stan_data <- lst(
   beliefs_ate_pairs,
   num_beliefs_ate_pairs = nrow(beliefs_ate_pairs),
   
-  fit_beliefs_model_to_data = !script_options$prior, # || script_options$takeup,
-  
   # Take-up Model 
   num_obs = nrow(analysis_data),
   num_treatments,
@@ -426,6 +478,7 @@ stan_data <- lst(
   generate_rep = FALSE,
   fit_model_to_data = !script_options$prior,
   fit_wtp_model_to_data = !script_options$prior,
+  fit_beliefs_model_to_data = !script_options$prior, # || script_options$takeup,
   fit_dist_model_to_data = !script_options$prior,
   cross_validate = script_options$cv,
   use_wtp_model = FALSE,
