@@ -150,7 +150,7 @@ transformed parameters {
     }
   }
  
-  structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
+  structural_treatment_effect = treatment_map_design_matrix * beta;
   
   // Levels: control ink calendar bracelet
  
