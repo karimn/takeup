@@ -28,7 +28,7 @@ array[num_excluded_clusters] int<lower = 1, upper = num_clusters> excluded_clust
 
 // Prior hyperparameters
 
-real<lower = 0> beta_control_sd;
+real<lower = 0> beta_intercept_sd;
 real<lower = 0> beta_ink_effect_sd;
 real<lower = 0> beta_calendar_effect_sd;
 real<lower = 0> beta_bracelet_effect_sd;
