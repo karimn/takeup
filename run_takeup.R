@@ -4,7 +4,7 @@ script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
-  run_takeup.R takeup cv [--folds=<number of folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
+  run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
   run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
@@ -17,6 +17,7 @@ script_options <- docopt::docopt(
   
 Options:
   --folds=<number of folds>  Cross validation folds [default: 10]
+  --parallel-folds=<parallel-folds>  Number of CV folds to run in parallel [default: 2]
   --chains=<chains>  Number of Stan chains [default: 4]
   --threads=<threads>  Number of threads per chain [default: 1]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
@@ -30,9 +31,11 @@ Options:
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --include-paths=stan_models --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
+
 ) 
 
 library(magrittr)
@@ -44,7 +47,7 @@ library(HRW)
 library(loo)
 
 script_options %<>% 
-  modify_at(c("chains", "iter", "threads", "num_mix_groups", "num_sbc_sims"), as.integer) %>% 
+  modify_at(c("chains", "iter", "threads", "num_mix_groups", "num_sbc_sims", "parallel_folds"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
 
 if (script_options$cmdstanr || script_options$beliefs || script_options$dist || script_options$wtp) {
@@ -500,7 +503,6 @@ if (script_options$takeup) {
       save(rank_stats, file = output_file_name)
 
     } else {
-
       dist_fit <- models %>% 
         stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
       
@@ -529,15 +531,17 @@ if (script_options$takeup) {
           list_modify(old_data_env$dist_fit, !!!new_dist_fit)
         }, error = function(e) dist_fit)  
       }
-      }
+    }
   } else if (script_options$cv) {
-    dist_kfold <- models %>% stan_list(stan_data, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+    dist_kfold <- models %>% stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
     
     if (script_options$cmdstanr) {
       dist_kfold_obj <- dist_kfold
       
-      dist_kfold %<>%
-        imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+      # dist_kfold %<>%
+      #   imap(~ file.path(script_options$output_path, str_c(output_name, "_", .y, ".rds")))
+      
+      # try(iwalk(dist_kfold_obj, ~ .x$save_output_files(dir = script_options$output_path, basename = str_c(output_name, .y, sep = "_"), timestamp = FALSE, random = FALSE)))
     }
     
     if (script_options$update_output) {
@@ -548,7 +552,7 @@ if (script_options$takeup) {
         load(output_file_name, envir = old_data_env)
         
         list_modify(old_data_env$dist_kfold, !!!new_dist_kfold)
-      })  
+      }, error = function(e) dist_kfold)  
     }
   }
   

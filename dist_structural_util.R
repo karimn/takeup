@@ -584,17 +584,20 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
         log_lik_list <- map(seq(folds), ~ which(kfold_groups == .)) %>% 
           pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data, use_cmdstanr) {
             curr_stan_data <- stan_data %>%
+              map_at(c("cluster_treatment_map", "beliefs_ate_pairs"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
               list_modify(!!!curr_model,
                           excluded_clusters = excluded_clusters,
-                          num_excluded_clusters = length(excluded_clusters)) %>%
-              map_if(is.factor, as.integer)
+                          num_excluded_clusters = length(excluded_clusters)) %>% 
+              map_if(is.factor, as.integer) 
             
             curr_iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
             curr_chains <- chains
             
             if (use_cmdstanr) {
               fit <- dist_model$sample(
-                data = curr_stan_data,
+                data = curr_stan_data %>% 
+                  discard(~ is_function(.x) | is.character(.)) %>% 
+                  list_modify(analysis_data = NULL),
                 iter_warmup = curr_iter %/% 2,
                 iter_sampling = curr_iter %/% 2,
                 save_warmup = FALSE,
@@ -625,7 +628,8 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
           model_name = model_name,
           ignore.interactive = TRUE,
           mc.silent = !script_options$sequential,
-          mc.cores = if (script_options$sequential) 1 else 3)
+          mc.cores = if (script_options$sequential) 1 else script_options$parallel_folds 
+          )
           
         return(tryCatch(kfold(log_lik_list), 
                         error = function(err) { 
