@@ -133,17 +133,17 @@ $$
     \begin{align*}
       \bar{b}(z,d) &= z'\boldsymbol{\beta} + \delta \cdot d \\
       \\
-      \boldsymbol{\beta} &= (\beta_\textrm{control}, \beta_\textrm{ink}, \beta_\textrm{calendar}, \beta_\textrm{bracelet})' \\
-      \beta_\textrm{control} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{control}) \\ 
+      \boldsymbol{\beta} &= (\beta_\textrm{intercept}, \beta_\textrm{ink}, \beta_\textrm{calendar}, \beta_\textrm{bracelet})' \\
+      \beta_\textrm{intercept} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{intercept}) \\ 
       \beta_\textrm{ink} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{ink}) \\ 
       \beta_\textrm{calendar} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{calendar}) \\ 
       \beta_\textrm{bracelet} &= \beta_\textrm{calendar} + \gamma\mu^\textrm{wtp} \\
       \gamma &\sim \mathtt{Normal}^+(0, \tau^\gamma)
     \end{align*}
     
-    - $z$ is a binary vector representing assigned incentive treatment where the first cell is always 1.^[$\beta_\textrm{control}$ should actually be called $\beta_\textrm{intercept}$.]
+    - $z$ is a binary vector representing assigned incentive treatment where the first cell is always 1.
     - The relationship between $\beta_\textrm{bracelet}$ and $\beta_\textrm{calendar}$ is calibrated using data from the WTP experiment. 
-    - $\tau^\beta_\textrm{control}, \tau^\beta_\textrm{ink}, \tau^\beta_\textrm{calendar},$ and $\tau^\gamma$ are hyperparameters. 
+    - $\tau^\beta_\textrm{intercept}, \tau^\beta_\textrm{ink}, \tau^\beta_\textrm{calendar},$ and $\tau^\gamma$ are hyperparameters. 
     
 * $\mu(z,d)$ parameterizes reputational concerns where
     \begin{align*}
@@ -154,7 +154,7 @@ $$
     
     - $\mu(z,d)$ are calibrated by the beliefs sub-model via the latent predictor $\eta^\textrm{1ord}(z,d)$.
     - Should the incentives and distance have no effect on visibility $\mu(z,d) = \mu_\circ$.
-    - See \eqref{eq:delta} on how $\Delta^*(z,d)$ is defined.
+    - See Equation \eqref{eq:delta} on how $\Delta^*(\bar{b}(z,d))$ is defined.
     - $\tau^\mu$ is a hyperparameter.
     
 * The WTP sub-model is
@@ -163,11 +163,19 @@ $$
       \mu^\textrm{wtp} &\sim \mathtt{Normal}(0, \tau^{\mu,\textrm{wtp}}) \\
       \sigma^\textrm{wtp} &\sim \mathtt{Normal}(0, \tau^{\sigma,\textrm{wtp}})
     \end{align*}
+    \begin{equation*}
+    \prob{G = g, S(m) = s | \mu^\textrm{wtp}, \sigma^\textrm{wtp}} = 
+      \begin{cases}
+        \prob{V^{\textrm{wtp}} < -m} & s = 0 \land g = -1 \\ 
+        \prob{V^{\textrm{wtp}} > m} & s = 0 \land g = 1 \\ 
+        g\cdot\left(\prob{V^{\textrm{wtp}} < g \cdot m} - \prob{V^{\textrm{wtp}} < 0}\right) & s = 1
+      \end{cases}
+    \end{equation*}
     
     - $V^\textrm{wtp}$ is the difference in monetary valuation for bracelets vs. calendars.
     - This sub-model is estimated using observed choices in the WTP experiment:
-        (a) Initial choice of incentive (calendar or bracelet).
-        (b) Decision to switch in response to a random price.
+        (a) Initial choice of incentive (calendar or bracelet), $G \in \{-1, 1\}$.
+        (b) Decision to switch, $S(m) \in \{0, 1\}$, in response to a random price (Ksh), $m \in \{0, 10, 20,\ldots, 100\}$.
     - $\tau^{\mu,\textrm{wtp}}$ and $\tau^{\sigma,\textrm{wtp}}$ are hyperparameters.
     
 * The beliefs sub-model is
@@ -184,9 +192,9 @@ $$
     
 So given the parameters 
 
-* $\boldsymbol{\theta}^\textrm{takeup} = \{\beta_\textrm{control}, \beta_\textrm{ink}, \beta_\textrm{calendar}, \gamma, \mu_\circ, \sigma_u, \sigma_w \}$.
+* $\boldsymbol{\theta}^\textrm{takeup} = \{\beta_\textrm{intercept}, \beta_\textrm{ink}, \beta_\textrm{calendar}, \gamma, \mu_\circ, \sigma_u, \sigma_w \}$.
 * $\boldsymbol{\theta}^\textrm{wtp} = \{\mu^\textrm{wtp}, \sigma^\textrm{wtp}\}$.
-* $\boldsymbol{\theta}^\textrm{1ord} = \{\beta^\textrm{1ord}_\textrm{control}, \beta^\textrm{1ord}_\textrm{ink}, \beta^\textrm{1ord}_\textrm{calendar},\beta^\textrm{1ord}_\textrm{bracelet},\delta^\textrm{1ord}_\textrm{control}, \delta^\textrm{1ord}_\textrm{ink}, \delta^\textrm{1ord}_\textrm{calendar},\delta^\textrm{1ord}_\textrm{bracelet}\}$.
+* $\boldsymbol{\theta}^\textrm{1ord} = \{\beta^\textrm{1ord}_\textrm{intercept}, \beta^\textrm{1ord}_\textrm{ink}, \beta^\textrm{1ord}_\textrm{calendar},\beta^\textrm{1ord}_\textrm{bracelet},\delta^\textrm{1ord}_\textrm{intercept}, \delta^\textrm{1ord}_\textrm{ink}, \delta^\textrm{1ord}_\textrm{calendar},\delta^\textrm{1ord}_\textrm{bracelet}\}$.
 
 we can compute the posterior
 
