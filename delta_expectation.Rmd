@@ -873,6 +873,15 @@ read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>%
 
 # Reduced Form
 
+```{r}
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+```
+
 ```{r reduced-form-incentive-te, fig.width=8, fig.height=9}
 dist_fit_data %>%
   filter(fct_match(model_type, "reduced form")) %>% 
@@ -993,16 +1002,6 @@ dist_fit_data %>%
 ## By Age Group
 
 ```{r}
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
-```
-
-
-```{r}
 rf_analysis_data %>% 
   ggplot(aes(age.census_group)) +
   geom_bar(alpha = 0.5) +
@@ -1089,5 +1088,25 @@ dist_fit_data %>%
   labs(title = "Takeup Levels by Age Group", x = "Age Group", y = "", subtitle = "Black points: observed levels.") +
   facet_grid(vars(assigned_dist_group), vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "top")
+```
+
+## Over Time
+
+```{r, fig.width=8}
+rf_analysis_data %>% 
+  count(assigned_treatment, dewormed, dewormed.day) %>% 
+  group_by(assigned_treatment) %>% 
+  mutate(p = n / sum(n)) %>% 
+  ungroup() %>% 
+  filter(
+    !is.na(dewormed.day),
+    # fct_match(assigned_treatment, c("control", "bracelet"))
+  ) %>% 
+  ggplot(aes(dewormed.day, p)) +
+  geom_step(aes(color = assigned_treatment), data = . %>% filter(!fct_match(assigned_treatment, "control"))) +
+  geom_step(linetype = "dotted", size = 1, alpha = 0.5, data = . %>% filter(fct_match(assigned_treatment, "control"))) +
+  scale_x_continuous("Deworming Day", breaks = 1:12) +
+  scale_color_discrete("", labels = str_to_title) +
+  labs(title = "Proportion Dewormed by Day", y = "", caption = "Dotted line is the control proportion.")
 ```
 
