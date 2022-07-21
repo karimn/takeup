@@ -263,6 +263,11 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         fit_beliefs_model_to_data = FALSE, 
+      ),
+    
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        fit_wtp_model_to_data = FALSE,
       )
   )
 
