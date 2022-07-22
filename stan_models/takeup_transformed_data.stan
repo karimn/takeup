@@ -1,5 +1,4 @@
 matrix<lower = 0, upper = 1>[num_dist_group_treatments, num_dist_group_treatments] treatment_map_design_matrix = rep_matrix(0, num_dist_group_treatments, num_dist_group_treatments);
-matrix<lower = 0, upper = 1>[num_dist_group_treatments, num_dist_group_treatments] restricted_treatment_map_design_matrix;
 matrix<lower = 0, upper = 1>[num_clusters, num_dist_group_treatments] cluster_treatment_design_matrix = rep_matrix(0, num_clusters, num_dist_group_treatments);
 
 // array[num_clusters] int<lower = 0> cluster_takeup_count = count_by_group_test(takeup, obs_cluster_id, { 1 }, 1);
@@ -60,13 +59,6 @@ if (num_excluded_obs > 0) {
       treatment_map_design_matrix[treatment_index, treatment_index - max_close_index] = 1;
     }
   }
-}
-
-restricted_treatment_map_design_matrix = treatment_map_design_matrix;
-
-if (use_private_incentive_restrictions) {
-  // restricted_treatment_map_design_matrix[3,4] = 1; // Calendar effect is > then bracelet
-  // restricted_treatment_map_design_matrix[7,8] = 1; // Calendar effect is > then bracelet
 }
 
 cluster_treatment_design_matrix = 

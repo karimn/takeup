@@ -164,7 +164,7 @@ models <- lst(
     # mu_beliefs_effects_sd = 1.5,
     mu_beliefs_effects_lambda = 1,
    
-    beta_control_sd = 1,
+    beta_intercept_sd = 1,
     beta_ink_effect_sd = 0.25,
     beta_calendar_effect_sd = 0.25,
     beta_bracelet_effect_sd = 0.25,
@@ -237,7 +237,7 @@ models <- lst(
     suppress_reputation = TRUE,
     use_age_group_gp = TRUE,
     
-    beta_control_sd = 0.75,
+    beta_intercept_sd = 0.75,
     beta_far_effect_sd = 0.35,
     beta_ink_effect_sd = 0.35,
     beta_calendar_effect_sd = 0.35,

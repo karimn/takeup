@@ -29,6 +29,10 @@ canva_palette_vibrant <- "Primary colors with a vibrant twist"
 takeup_version <- 53 
 ```
 
+# Structural Model
+
+## Adding non-prosocial shock
+
 Previously, we modeled the take-up probability as 
 \[ \bar{y}(b,c) = \prob{b - c + \mu\Delta^*(b,c) + V > 0}, \]
 where 
@@ -43,7 +47,8 @@ Now consider adding an unobservable shock $U$, and allowing $\mu$ to vary with c
 We define $W = V + U$ and $w^*(b,c)$ is implicitly defined as
 \[ w^*(b,c) = - b + c - \mu(c)\Delta[w^*(c,d)], \]
 which is no longer the prosocial type cutoff. In calculating $\Delta^*$ individuals must now account for the non-prosocial shocks $U$, such that
-\begin{align*}
+\begin{equation}
+\begin{aligned}
   \Delta^*(b,c) &= \Delta[w^*(b,c)] \\
            &=\expect{V | b,c, y = 1} - \expect{V | b,c, y = 0} \\ 
            &= \expect{V | W > w^*(b,c)} - \expect{V | W \leq w^*(b,c)} \\
@@ -51,8 +56,9 @@ which is no longer the prosocial type cutoff. In calculating $\Delta^*$ individu
            &= \int_{-\infty}^\infty \frac{v\prob{W > w^*(b,c) | V = v}\prob{V = v}}{\prob{W > w^*(b,c)}}\,\mathrm{d}v - \int_{-\infty}^\infty \frac{v\prob{W \leq w^*(b,c) | V = v}\prob{V = v}}{\prob{W \leq w^*(b,c)}}\,\mathrm{d}v \\ 
            &= \int_{-\infty}^\infty \frac{v\prob{U > w^*(b,c) - v}\prob{V = v}}{\prob{W > w^*(b,c)}}\,\mathrm{d}v - \int_{-\infty}^\infty \frac{v\prob{U \leq w^*(b,c) - v}\prob{V = v}}{\prob{W \leq w^*(b,c)}}\,\mathrm{d}v \\ 
            &= \int_{-\infty}^\infty \frac{v \left[1 - F_u\left(w^*(b,c) - v\right)\right]f_v(v)}{1 - F_w\left(w^*(b,c)\right)}\,\mathrm{d}v - \int_{-\infty}^\infty\frac{v F_u\left(w^*(b,c) - v\right)f_v(v)}{F_w\left(w^*(b,c)\right)}\,\mathrm{d}v \\ 
-           &= \frac{-1}{F_w\left(w^*(b,c)\right)[1 - F_w\left(w^*(b,c)\right)]} \int_{-\infty}^\infty v F_u\left(w^*(b,c) - v\right)f_v(v)\,\mathrm{d}v.
-\end{align*}
+           &= \frac{-1}{F_w\left(w^*(b,c)\right)[1 - F_w\left(w^*(b,c)\right)]} \int_{-\infty}^\infty v F_u\left(w^*(b,c) - v\right)f_v(v)\,\mathrm{d}v\label{eq:delta}.
+\end{aligned}
+\end{equation}
 $f(\cdot)$ and $F(\cdot)$ are the pdf and cdf, respectively, for the subscript random variable (here $U, V,$ and $W$).
 
 To get a sense of what flexibility this affords our model, consider how $\mu\Delta^*$ changes in two different scenarios: first, don't include the shock $u$ but allow $\mu$ to vary, second, hold $\mu$ fixed at 1 and allow the standard deviation of $u$ to vary. From here on I'm assuming that $V \sim N(0,1)$, $U \sim N(0, \sigma_u)$, and they are uncorrelated.
@@ -103,6 +109,107 @@ sim_int %>%
   NULL
 ```
 
+\break
+
+## The Complete Model
+
+$$
+\expect{Y^\textrm{takeup}(z,d)} = \expect{Y^\textrm{takeup} | Z = z, D = d} = \prob{\bar{b}(z,d) + \mu(z,d)\Delta^*(\bar{b}(z,d)) + U + V > 0}
+$$
+
+* Two types of shocks (as described above)
+    \begin{align*}
+      V &\sim \mathtt{Normal}(0,1) \\
+      U &\sim \mathtt{Normal}(0,\sigma_u) \\
+      W &= V + U \sim \mathtt{Normal}(0,\sigma_w) \\
+      \sigma_u &\sim \mathtt{Normal}^+(0, \tau^{\sigma}_u) \\
+      \sigma_w &\sim \mathtt{Normal}^+(0, \tau^{\sigma}_w) 
+    \end{align*}
+   
+    - $V$ is the prosocial type.
+    - $U$ is any other non-prosocial shocks.
+    - $\tau^\sigma_u$ and $\tau^\sigma_w$ are hyperparameters.
+* $\bar{b}(z,d)$ is the average net private benefit of deworming in response to incentive and distance treatments $z$ and $d$.
+    \begin{align*}
+      \bar{b}(z,d) &= z'\boldsymbol{\beta} + \delta \cdot d \\
+      \\
+      \boldsymbol{\beta} &= (\beta_\textrm{intercept}, \beta_\textrm{ink}, \beta_\textrm{calendar}, \beta_\textrm{bracelet})' \\
+      \beta_\textrm{intercept} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{intercept}) \\ 
+      \beta_\textrm{ink} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{ink}) \\ 
+      \beta_\textrm{calendar} &\sim \mathtt{Normal}(0, \tau^\beta_\textrm{calendar}) \\ 
+      \beta_\textrm{bracelet} &= \beta_\textrm{calendar} + \gamma\mu^\textrm{wtp} \\
+      \gamma &\sim \mathtt{Normal}^+(0, \tau^\gamma)
+    \end{align*}
+    
+    - $z$ is a binary vector representing assigned incentive treatment where the first cell is always 1.
+    - The relationship between $\beta_\textrm{bracelet}$ and $\beta_\textrm{calendar}$ is calibrated using data from the WTP experiment. 
+    - $\tau^\beta_\textrm{intercept}, \tau^\beta_\textrm{ink}, \tau^\beta_\textrm{calendar},$ and $\tau^\gamma$ are hyperparameters. 
+    
+* $\mu(z,d)$ parameterizes reputational concerns where
+    \begin{align*}
+      \mu(z,d) &= \mu_\circ \cdot \exp\left(\eta^\textrm{1ord}(z,d) - \eta^\textrm{1ord}(\textrm{control}, 0)\right) \\
+      \\
+      \mu_\circ &\sim \mathtt{Normal}^+(0, \tau^\mu) 
+    \end{align*}
+    
+    - $\mu(z,d)$ are calibrated by the beliefs sub-model via the latent predictor $\eta^\textrm{1ord}(z,d)$.
+    - Should the incentives and distance have no effect on visibility $\mu(z,d) = \mu_\circ$.
+    - See Equation \eqref{eq:delta} on how $\Delta^*(\bar{b}(z,d))$ is defined.
+    - $\tau^\mu$ is a hyperparameter.
+    
+* The WTP sub-model is
+    \begin{align*}
+      V^\textrm{wtp} &\sim \mathtt{Normal}(\mu^\textrm{wtp}, \sigma^\textrm{wtp}) \\
+      \mu^\textrm{wtp} &\sim \mathtt{Normal}(0, \tau^{\mu,\textrm{wtp}}) \\
+      \sigma^\textrm{wtp} &\sim \mathtt{Normal}(0, \tau^{\sigma,\textrm{wtp}})
+    \end{align*}
+    \begin{equation*}
+    \prob{G = g, S(m) = s | \mu^\textrm{wtp}, \sigma^\textrm{wtp}} = 
+      \begin{cases}
+        \prob{V^{\textrm{wtp}} < -m} & s = 0 \land g = -1 \\ 
+        \prob{V^{\textrm{wtp}} > m} & s = 0 \land g = 1 \\ 
+        g\cdot\left(\prob{V^{\textrm{wtp}} < g \cdot m} - \prob{V^{\textrm{wtp}} < 0}\right) & s = 1
+      \end{cases}
+    \end{equation*}
+    
+    - $V^\textrm{wtp}$ is the difference in monetary valuation for bracelets vs. calendars.
+    - This sub-model is estimated using observed choices in the WTP experiment:
+        (a) Initial choice of incentive (calendar or bracelet), $G \in \{-1, 1\}$.
+        (b) Decision to switch, $S(m) \in \{0, 1\}$, in response to a random price (Ksh), $m \in \{0, 10, 20,\ldots, 100\}$.
+    - $\tau^{\mu,\textrm{wtp}}$ and $\tau^{\sigma,\textrm{wtp}}$ are hyperparameters.
+    
+* The beliefs sub-model is
+    \begin{align*}
+      Y^{\textrm{1ord}}(z,d) &\sim \mathtt{Binomial}(Y^{\textrm{rec}}, p^{\textrm{1ord}}) \\
+      p^{\textrm{1ord}}(z,d) &= \mathsf{logit}^{-1}(\eta^\textrm{1ord}(z,d)) \\
+      \eta^\textrm{1ord}(z,d) &= z'(\boldsymbol{\beta}^\textrm{1ord} + \boldsymbol{\delta}^\textrm{1ord}\cdot d) \\
+      \beta^\textrm{1ord}_z &\sim \mathtt{Normal}(0, \tau^{\beta,\textrm{1ord}}_z) \\
+      \delta^\textrm{1ord}_z &\sim \mathtt{Normal}(0, \tau^{\delta,\textrm{1ord}}_z)
+    \end{align*}
+    
+    - $Y^\textrm{1ord}$ is the number of known community members, $Y^\textrm{rec}$, for whom a respondent reports knowing their deworming status.
+    - $\tau^{\beta,\textrm{1ord}}$ and $\tau^{\beta,\textrm{1ord}}$ are hyperparameters.  
+    
+So given the parameters 
+
+* $\boldsymbol{\theta}^\textrm{takeup} = \{\beta_\textrm{intercept}, \beta_\textrm{ink}, \beta_\textrm{calendar}, \gamma, \mu_\circ, \sigma_u, \sigma_w \}$.
+* $\boldsymbol{\theta}^\textrm{wtp} = \{\mu^\textrm{wtp}, \sigma^\textrm{wtp}\}$.
+* $\boldsymbol{\theta}^\textrm{1ord} = \{\beta^\textrm{1ord}_\textrm{intercept}, \beta^\textrm{1ord}_\textrm{ink}, \beta^\textrm{1ord}_\textrm{calendar},\beta^\textrm{1ord}_\textrm{bracelet},\delta^\textrm{1ord}_\textrm{intercept}, \delta^\textrm{1ord}_\textrm{ink}, \delta^\textrm{1ord}_\textrm{calendar},\delta^\textrm{1ord}_\textrm{bracelet}\}$.
+
+we can compute the posterior
+
+$$
+\prob{\boldsymbol{\theta}^\textrm{takeup} | Y^\textrm{takeup}} \propto \prob{ Y^\textrm{takeup}| \boldsymbol{\theta}^\textrm{takeup}, \boldsymbol{\theta}^\textrm{wtp}, \boldsymbol{\theta}^\textrm{1ord}}\prob{ \boldsymbol{\theta}^\textrm{takeup}, \boldsymbol{\theta}^\textrm{wtp}, \boldsymbol{\theta}^\textrm{1ord}} 
+$$
+By using the WTP and beliefs data to calibrate the WTP and beliefs sub-models we can replace $\prob{ \boldsymbol{\theta}^\textrm{takeup}, \boldsymbol{\theta}^\textrm{wtp}, \boldsymbol{\theta}^\textrm{1ord}}$ with 
+
+\begin{align*}
+\prob{ \boldsymbol{\theta}^\textrm{takeup}, \boldsymbol{\theta}^\textrm{wtp}, \boldsymbol{\theta}^\textrm{1ord}|Y^\textrm{wtp},Y^\textrm{1ord},Y^\textrm{rec}} &= \prob{\boldsymbol{\theta}^\textrm{takeup}}\prob{\boldsymbol{\theta}^\textrm{wtp} | Y^\textrm{wtp}} \prob{\boldsymbol{\theta}^\textrm{1ord} | Y^\textrm{1ord},Y^\textrm{rec}} \\
+&\propto \underbrace{\prob{\boldsymbol{\theta}^\textrm{takeup}}\prob{\boldsymbol{\theta}^\textrm{wtp}}\prob{\boldsymbol{\theta}^\textrm{1ord}}}_\textrm{priors}\prob{Y^\textrm{wtp} | \boldsymbol{\theta}^\textrm{wtp}} \prob{Y^\textrm{1ord},Y^\textrm{rec} | \boldsymbol{\theta}^\textrm{1ord}}  
+\end{align*}
+
+## Take-up Results
+
 ```{r load-processed-results}
 load(file.path("temp-data", str_glue("processed_dist_fit{takeup_version}.RData")))
 
@@ -114,9 +221,7 @@ dist_fit_data %<>%
   ), by = "fit_type")
 ```
 
-# Take-up Results
-
-## Treatment Effects
+### Treatment Effects
 
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
@@ -250,7 +355,7 @@ dist_fit_data %>%
   }
 ```
 
-## Rates of Change
+### Rates of Change
 
 To calculate the slope of $\bar{y}(b,c)$ with respect to cost,
 \begin{align*}
@@ -349,7 +454,7 @@ dist_fit_data %>%
   ) 
 ```
 
-## Levels
+### Levels
 
 ```{r, fig.width=8, fig.height=11}
 dist_fit_data %>% 
@@ -547,7 +652,7 @@ all_fit %>%
   NULL
 ```
 
-## Posterior Predictive Checking
+### Posterior Predictive Checking
 
 ```{r, fig.width=7.5, fig.height=8}
 dist_fit_data %>% 
@@ -844,13 +949,13 @@ alone_dist_fit_data %>%
   plot_dist_model(subsample_size = NULL)
 ```
 
-```{r dist-post, fig.width=10}
+```{r dist-post, fig.width=10, cache=TRUE}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
   plot_dist_model(subsample_size = NULL)
 ```
 
-```{r dist-prior, fig.width=10}
+```{r dist-prior, fig.width=10, cache=TRUE}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
   plot_dist_model(plot_obs_dist = FALSE, subsample_size = NULL) + coord_cartesian(xlim = NULL, ylim = c(0, 0.0025))
@@ -872,6 +977,15 @@ read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>%
 ```
 
 # Reduced Form
+
+```{r}
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+```
 
 ```{r reduced-form-incentive-te, fig.width=8, fig.height=9}
 dist_fit_data %>%
@@ -993,16 +1107,6 @@ dist_fit_data %>%
 ## By Age Group
 
 ```{r}
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
-```
-
-
-```{r}
 rf_analysis_data %>% 
   ggplot(aes(age.census_group)) +
   geom_bar(alpha = 0.5) +
@@ -1089,5 +1193,25 @@ dist_fit_data %>%
   labs(title = "Takeup Levels by Age Group", x = "Age Group", y = "", subtitle = "Black points: observed levels.") +
   facet_grid(vars(assigned_dist_group), vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "top")
+```
+
+## Over Time
+
+```{r, fig.width=8}
+rf_analysis_data %>% 
+  count(assigned_treatment, dewormed, dewormed.day) %>% 
+  group_by(assigned_treatment) %>% 
+  mutate(p = n / sum(n)) %>% 
+  ungroup() %>% 
+  filter(
+    !is.na(dewormed.day),
+    # fct_match(assigned_treatment, c("control", "bracelet"))
+  ) %>% 
+  ggplot(aes(dewormed.day, p)) +
+  geom_step(aes(color = assigned_treatment), data = . %>% filter(!fct_match(assigned_treatment, "control"))) +
+  geom_step(linetype = "dotted", size = 1, alpha = 0.5, data = . %>% filter(fct_match(assigned_treatment, "control"))) +
+  scale_x_continuous("Deworming Day", breaks = 1:12) +
+  scale_color_discrete("", labels = str_to_title) +
+  labs(title = "Proportion Dewormed by Day", y = "", caption = "Dotted line is the control proportion.")
 ```
 

@@ -69,7 +69,7 @@ parameters {
 #include beliefs_parameters_sec.stan
   
   // Levels: control ink calendar bracelet
-  real beta_control;
+  real beta_intercept;
   real beta_ink_effect;
   real<lower = (use_private_incentive_restrictions ? 0 : negative_infinity())> beta_calendar_effect;
   real<lower = (use_private_incentive_restrictions ? 0 : negative_infinity())> beta_bracelet_effect;
@@ -142,15 +142,15 @@ transformed parameters {
     if (dist_index > 1) {
       beta[(num_treatments + 1):] = rep_vector(0, num_treatments); 
     } else if (use_wtp_model) { 
-      beta[1:2] = [ beta_control, beta_ink_effect ]';
+      beta[1:2] = [ beta_intercept, beta_ink_effect ]';
       beta[CALENDAR_TREATMENT_INDEX] = beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu;
       beta[BRACELET_TREATMENT_INDEX] = beta_bracelet_effect;
     } else {
-      beta[1:num_treatments] = [ beta_control, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
+      beta[1:num_treatments] = [ beta_intercept, beta_ink_effect, beta_calendar_effect, beta_bracelet_effect ]';
     }
   }
  
-  structural_treatment_effect = restricted_treatment_map_design_matrix * beta;
+  structural_treatment_effect = treatment_map_design_matrix * beta;
   
   // Levels: control ink calendar bracelet
  
@@ -263,7 +263,7 @@ model {
   
   wtp_value_utility ~ normal(0, 0.1);
 
-  beta_control ~ normal(0, beta_control_sd);
+  beta_intercept ~ normal(0, beta_intercept_sd);
   
   beta_ink_effect ~ normal(0, beta_ink_effect_sd);
   beta_calendar_effect ~ normal(0, beta_calendar_effect_sd);
