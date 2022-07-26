@@ -10,8 +10,8 @@
 #SBATCH --mail-type=begin        # send email when job begins
 #SBATCH --mail-type=end          # send email when job ends
 #SBATCH --mail-user=karimn2.0@gmail.com
-#SBATCH --output=temp/log/takeup_postprocess-%j.log
-#SBATCH --error=temp/log/takeup_postprocess-%j.log
+#SBATCH --output=temp/log/takeup-%j.log
+#SBATCH --error=temp/log/takeup-%j.log
 #SBATCH --export=IN_SLURM=1
 
 LATEST_VERSION=53
@@ -60,11 +60,12 @@ STAN_THREADS=$((${CORES} / 4))
 
 # Structural
 
-# Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_prior${VERSION} --num-mix-groups=1 --sequential
-# Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
-# Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
-Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
-Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL =${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+# Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS                     ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_prior${VERSION} --num-mix-groups=1 --sequential
+# Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS                     ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+# Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS        ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL  ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL      ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_TAKEUP             ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
 # Rscript ./run_takeup.R takeup cv    --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --num-mix-groups=1 --folds=10
 
 Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=1 --load-from-csv
