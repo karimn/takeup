@@ -121,10 +121,10 @@ model_info <- tribble(
   
   "STACKED",                                          "Stacked Model",                             "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",                               "Structural Stacked Model",                  "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS",          "Structural without Submodels",              "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Submodel",       "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Submodel",           "structural",
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Submodel", "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS",          "Structural without Any Submodel Data",      "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Data",           "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Data",               "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Data",     "structural",
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
