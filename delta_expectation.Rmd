@@ -213,19 +213,30 @@ By using the WTP and beliefs data to calibrate the WTP and beliefs sub-models we
 ```{r load-processed-results}
 load(file.path("temp-data", str_glue("processed_dist_fit{takeup_version}.RData")))
 
-dist_fit_data %<>%
-  left_join(tribble(
-    ~ fit_type,        ~ model_color,
-      "fit",           "black", 
-      "prior-predict", "darkgrey",
-  ), by = "fit_type")
+dist_fit_data %<>% 
+  mutate(
+    model = fct_expand(model, c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "REDUCED_FORM_NO_RESTRICT_PRIOR")),
+    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", levels = levels(model)), model),
+    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
+    model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
+  ) %>% 
+  left_join(
+    bind_rows(
+      filter(., fct_match(model_type, "structural"), fct_match(fit_type, "fit")) %>%
+        select(model, model_type, fit_type) %>% 
+        mutate(model_color = canva_pal(canva_palette_vibrant)(n())),
+      filter(., !fct_match(model_type, "structural") | !fct_match(fit_type, "fit")) %>%
+        select(model, model_type, fit_type) %>% 
+        mutate(model_color = if_else(fct_match(fit_type, "fit"), "black", "darkgrey"))
+    ),
+  by = c("model", "model_type", "fit_type"))
 ```
 
 ### Treatment Effects
 
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
-```{r incentive-te, fig.width=8, fig.height=9}
+```{r incentive-te, fig.width=8, fig.height=17}
 dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>% 
   mutate(est_takeup_te =
@@ -235,16 +246,19 @@ dist_fit_data %>%
         assigned_treatment_left != assigned_treatment_right,
         fct_match(assigned_treatment_right, c("control")),
         fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
-  select(model, model_name, est_takeup_te, fit_type) %>% 
-  unnest(est_takeup_te) %>%
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    assigned_treatment_left = str_to_title(assigned_treatment_left)
+    est_takeup_te = map(
+      est_takeup_te,
+      mutate,
+      assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+        fct_relabel(str_to_title) %>% 
+        fct_relevel("Combined"),
+      assigned_treatment_left = str_to_title(assigned_treatment_left)
+    )
   ) %>% {
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_te, assigned_treatment_left) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
         labs(
@@ -253,41 +267,45 @@ dist_fit_data %>%
         ggforce::facet_col(vars(assigned_dist_group_left), 
                    space = "free",
                    scales = "free_y") +
-        theme(legend.position = "none") +
         NULL,
       
-      plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_te, iter_takeup_te, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group_left), rows = vars(assigned_treatment_left)) +
         theme(legend.position = "none") +
         NULL,
       
-      ncol = 1
+      ncol = 1, 
+      rel_heights = c(1, 0.4)
     )
   } 
 ```
 
-```{r signaling-te, fig.width=8, fig.height=10}
+```{r signaling-te, fig.width=8, fig.height=17}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_te, fit_type) %>% 
-  unnest(est_takeup_te) %>%
-  filter(
-    (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-    across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
-    !is.na(mu_assigned_treatment_left),
-    fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
-    fct_match(mu_assigned_treatment_right, "control"),
-  ) %>%
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left),
-  ) %>% {
+    est_takeup_te = map(
+      est_takeup_te,
+      filter,
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+      !is.na(mu_assigned_treatment_left),
+      fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+      fct_match(mu_assigned_treatment_right, "control"),
+    ) %>% 
+      map(
+        mutate,
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left),
+      )
+  ) %>% { 
     cowplot::plot_grid(
-      plot_estimands(., mu_assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_te, mu_assigned_treatment_left) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
@@ -296,61 +314,61 @@ dist_fit_data %>%
         ggforce::facet_col(vars(assigned_dist_group_left), 
                    space = "free",
                    scales = "free_y") +
-        theme(legend.position = "none") +
         NULL,
       
-      plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_te, iter_takeup_te, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group_left), rows = vars(mu_assigned_treatment_left)) +
         theme(legend.position = "none") +
         NULL,
       
-      ncol = 1
+      ncol = 1, rel_heights = c(1, 0.4)
     )
   } 
 ```
 
-```{r private-incentive-te, fig.width=8, fig.height=10}
+```{r private-incentive-te, fig.width=8, fig.height=17}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_te, fit_type) %>% 
-  unnest(est_takeup_te) %>%
-  filter(
-    (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-    !is.na(mu_assigned_treatment_left),
-    !is.na(mu_assigned_treatment_right),
-    across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
-    fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
-    fct_match(assigned_treatment_right, "control"),
-  ) %>%
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    assigned_treatment_left = str_to_title(assigned_treatment_left),
+    est_takeup_te = map(
+      est_takeup_te,
+      filter,
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      !is.na(mu_assigned_treatment_left),
+      !is.na(mu_assigned_treatment_right),
+      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+      fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
+      fct_match(assigned_treatment_right, "control"),
+    ) %>% 
+      map(
+        mutate,
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      )
   ) %>% {
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_te, assigned_treatment_left) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
           title = "Private Incentive Average Treatment Effect",
           subtitle = "Holding signaling at the control level.") +
-        ggforce::facet_col(vars(assigned_dist_group_left), 
-                   space = "free",
-                   scales = "free_y") +
-        theme(legend.position = "none") +
+        ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
         NULL,
       
-      plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_te, iter_takeup_te, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group_left), rows = vars(assigned_treatment_left)) +
         theme(legend.position = "none") +
         NULL,
       
-      ncol = 1
+      ncol = 1, rel_heights = c(1, 0.4)
     )
   }
 ```
@@ -368,28 +386,32 @@ where
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
-  transmute(y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
-    mutate(.x,
-      roc_distance = roc_distance / 1000,
-      across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
-      across(starts_with("per_"), multiply_by, 1000)
-    ) 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  transmute(
+    model,
+    y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
+      mutate(.x,
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
+        across(starts_with("per_"), multiply_by, 1000)
+      ) 
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+  geom_line(aes(y = per_0.5, color = model)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model), alpha = 0.25) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model), alpha = 0.25) +
+  scale_color_manual("", values = "black", aesthetics = c("color", "fill")) +
   labs(
     x = "Distance to Treatment", y = ""
   ) +
+  theme(legend.position = "none") +
   coord_cartesian(ylim = c(0, 0.1))
 ```
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(across(c(cluster_w_cutoff_control, cluster_w_cutoff_bracelet), map, mutate, roc_distance = roc_distance / 1000)) %>% 
   pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
   unnest(value) %>% 
@@ -406,7 +428,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(across(c(cluster_social_multiplier_control, cluster_social_multiplier_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
   pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
   unnest(value) %>% 
@@ -423,7 +445,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   select(sim_delta) %>% 
   unnest(sim_delta) %>% 
   ggplot(aes(w)) +
@@ -439,7 +461,7 @@ dist_fit_data %>%
 
 ```{r, eval=FALSE}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   pluck("y_rate_of_change_diff", 1) %>% 
   mutate(
     roc_distance = roc_distance / 1000,
@@ -456,33 +478,34 @@ dist_fit_data %>%
 
 ### Levels
 
-```{r, fig.width=8, fig.height=11}
+```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  mutate(est_takeup_level =
-    map(est_takeup_level, filter, assigned_treatment == mu_assigned_treatment)) %>%  
-  select(model, model_name, est_takeup_level, fit_type) %>% 
-  unnest(est_takeup_level) %>%
+  select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    assigned_treatment = str_to_title(assigned_treatment),
+    est_takeup_level = map(
+      est_takeup_level, 
+      filter, assigned_treatment == mu_assigned_treatment
+    ) %>%  
+      map(
+      mutate,
+      assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+        fct_relabel(str_to_title) %>% 
+        fct_relevel("Combined"),
+      assigned_treatment = str_to_title(assigned_treatment),
+    )
   ) %>% {
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_level, assigned_treatment) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
         labs(
           title = "Incentive Take-up Level"
         ) +
-        ggforce::facet_col(vars(assigned_dist_group), 
-                   space = "free",
-                   scales = "free_y") +
-        theme(legend.position = "none") +
+        ggforce::facet_col(vars(assigned_dist_group), space = "free", scales = "free_y") +
         NULL,
       
-      plot_estimand_hist(., iter_prop_takeup, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_level, iter_prop_takeup, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group), rows = vars(assigned_treatment), scales = "free_y") +
@@ -490,42 +513,43 @@ dist_fit_data %>%
         coord_cartesian(ylim = c(0, 0.2)) +
         NULL,
       
-      ncol = 1
+      ncol = 1, rel_heights = c(1, 0.4)
     )
   }
 ```
 
-```{r, fig.width=8, fig.height=11}
+```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_level, fit_type) %>% 
-  unnest(est_takeup_level) %>%
-  filter(
-    fct_match(assigned_treatment, "control"),
-    !is.na(mu_assigned_treatment),
-  ) %>%
+  select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    
-    mu_assigned_treatment = str_to_title(mu_assigned_treatment),
+    est_takeup_level = map(
+      est_takeup_level,
+      filter,
+      fct_match(assigned_treatment, "control"),
+      !is.na(mu_assigned_treatment),
+    ) %>% 
+      map(
+        mutate,
+        assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        
+        mu_assigned_treatment = str_to_title(mu_assigned_treatment),
+      )
   ) %>% {
     cowplot::plot_grid(
-      plot_estimands(., mu_assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_level, mu_assigned_treatment) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("", labels = str_to_title) +
         labs(
           title = "Signaling Level",
           subtitle = "Holding private incentive at the control level."
         ) +
-        ggforce::facet_col(vars(assigned_dist_group), 
-                   space = "free",
-                   scales = "free_y") +
-        theme(legend.position = "none") +
+        ggforce::facet_col(vars(assigned_dist_group), space = "free", scales = "free_y") +
         NULL,
       
-      plot_estimand_hist(., iter_prop_takeup, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_level, iter_prop_takeup, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group), rows = vars(mu_assigned_treatment)) +
@@ -533,50 +557,51 @@ dist_fit_data %>%
         theme(legend.position = "none") +
         NULL,
       
-      ncol = 1
+      ncol = 1, rel_heights = c(1, 0.4)
     )
   }
   
 ```
 
-```{r, fig.width=8, fig.height=11}
+```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_level, fit_type) %>% 
-  unnest(est_takeup_level) %>%
-  filter(
-    !is.na(mu_assigned_treatment),
-    fct_match(mu_assigned_treatment, "control"),
-  ) %>%
+  select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    
-    assigned_treatment = str_to_title(assigned_treatment)
+    est_takeup_level = map(
+      est_takeup_level,
+      filter,
+      !is.na(mu_assigned_treatment),
+      fct_match(mu_assigned_treatment, "control"),
+    ) %>% 
+      map(
+        mutate,
+        assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        
+        assigned_treatment = str_to_title(assigned_treatment)
+      )
   ) %>% {
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_level, assigned_treatment) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
         labs(
           title = "Private Incentive Level",
           subtitle = "Holding signaling at the control level."
         ) +
-        ggforce::facet_col(vars(assigned_dist_group), 
-                   space = "free",
-                   scales = "free_y") +
-        theme(legend.position = "none") +
+        ggforce::facet_col(vars(assigned_dist_group), space = "free", scales = "free_y") +
         NULL,
       
-      plot_estimand_hist(., iter_prop_takeup, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_level, iter_prop_takeup, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group), rows = vars(assigned_treatment)) +
         theme(legend.position = "none") +
         NULL,
       
-      ncol = 1
+      ncol = 1, rel_heights = c(1, 0.4)
     )
   }
 ```
@@ -656,14 +681,10 @@ all_fit %>%
 
 ```{r, fig.width=7.5, fig.height=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>% 
   select(model_type, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
-  # mutate(
-  #   quants = map(iter_data, quantilize_est, prob, na.rm = TRUE)
-  # ) %>% 
-  # unnest(quants) %>% 
   ggplot(aes(assigned_dist_obs)) +
   geom_point(aes(y = obs_prop_takeup, color = assigned_treatment), size = 0.8, show.legend = FALSE) + #, data = . %>% filter(fct_match(model_type, "structural"))) +
   # geom_pointrange(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), # color = model_type, group = model_type), 
@@ -676,7 +697,7 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>% 
   select(model_type, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
@@ -702,7 +723,7 @@ wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model
 
 ```{r wtp-post}
 joint_wtp_results <- dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
   pull(wtp_results) %>%
   first()
 
@@ -744,7 +765,7 @@ beliefs_results %>%
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
@@ -844,9 +865,9 @@ plot_beliefs_hist <- function(beliefs_results, top_title, binwidth = NULL) {
 }
 
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
   pull(beliefs_results) %>%
-first() %>%
+  first() %>%
 # beliefs_prior_results %>% 
   plot_beliefs_hist("Posterior Estimation", binwidth = 0.01)
 ```
@@ -951,7 +972,7 @@ alone_dist_fit_data %>%
 
 ```{r dist-post, fig.width=10, cache=TRUE}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
   plot_dist_model(subsample_size = NULL)
 ```
 
@@ -996,29 +1017,27 @@ dist_fit_data %>%
         (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
         assigned_treatment_left != assigned_treatment_right,
         fct_match(assigned_treatment_right, c("control")),
-        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
-  select(model, model_name, est_takeup_te, fit_type) %>% 
-  unnest(est_takeup_te) %>%
-  mutate(
-    assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    assigned_treatment_left = str_to_title(assigned_treatment_left)
-  ) %>% {
+        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")) %>% 
+      map(
+        mutate,
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left)
+      )
+  ) %>% 
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% {
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
-        # scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+      plot_estimands(., est_takeup_te, assigned_treatment_left) +
         scale_y_discrete("") +
         labs(
           title = "Incentive Average Treatment Effect"
         ) +
-        ggforce::facet_col(vars(assigned_dist_group_left), 
-                   space = "free",
-                   scales = "free_y") +
+        ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
         theme(legend.position = "none") +
         NULL,
       
-      plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_te, iter_takeup_te, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group_left), rows = vars(assigned_treatment_left)) +
@@ -1033,28 +1052,29 @@ dist_fit_data %>%
 ```{r, fig.width=8, fig.height=11}
 dist_fit_data %>% 
   filter(fct_match(model_type, "reduced form")) %>% 
-  select(model, model_name, est_takeup_level, fit_type) %>% 
-  unnest(est_takeup_level) %>%
+  select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
-    assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined"),
-    assigned_treatment = str_to_title(assigned_treatment),
+    est_takeup_level = map(
+      est_takeup_level,
+      mutate,
+      assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+        fct_relabel(str_to_title) %>% 
+        fct_relevel("Combined"),
+      assigned_treatment = str_to_title(assigned_treatment),
+    )
   ) %>% {
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_level, assigned_treatment) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
         labs(
           title = "Incentive Take-up Level"
         ) +
-        ggforce::facet_col(vars(assigned_dist_group), 
-                   space = "free",
-                   scales = "free_y") +
+        ggforce::facet_col(vars(assigned_dist_group), space = "free", scales = "free_y") +
         theme(legend.position = "none") +
         NULL,
       
-      plot_estimand_hist(., iter_prop_takeup, binwidth = 0.05, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_level, iter_prop_takeup, binwidth = 0.05) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_continuous("") +
         facet_grid(cols = vars(assigned_dist_group), rows = vars(assigned_treatment), scales = "free_y") +
@@ -1076,14 +1096,15 @@ dist_fit_data %>%
         !is.na(assigned_dist_group_left) & !is.na(assigned_dist_group_right),
         fct_match(assigned_dist_group_left, "far"), 
         fct_match(assigned_dist_group_right, "close"), 
-        assigned_treatment_left == assigned_treatment_right)) %>% 
-  select(model, model_name, est_takeup_te, fit_type) %>% 
-  unnest(est_takeup_te) %>%
-  mutate(
-    assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)
-  ) %>% {
+        assigned_treatment_left == assigned_treatment_right) %>% 
+      map(
+        mutate,
+        assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)
+      )
+  ) %>% 
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% { 
     cowplot::plot_grid(
-      plot_estimands(., assigned_treatment_left, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimands(., est_takeup_te, assigned_treatment_left) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
         scale_y_discrete("") +
         labs(
@@ -1092,7 +1113,7 @@ dist_fit_data %>%
         theme(legend.position = "none") +
         NULL,
       
-      plot_estimand_hist(., iter_takeup_te, binwidth = 0.02, results_group = fit_type, group_labels = c(fit = "Posterior", "prior-predict" = "Prior")) +
+      plot_estimand_hist(., est_takeup_te, iter_takeup_te, binwidth = 0.02) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.2)) +
         scale_y_continuous("") +
         facet_wrap(vars(assigned_treatment_left)) +
