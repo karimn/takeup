@@ -836,20 +836,24 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
 
 # Plotting Functions ------------------------------------------------------
 
-plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3) {
+plot_estimands <- function(.data, nested_data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3, color_data = .data) {
   plot_pos <- ggstance::position_dodgev(height = pos_height)
   
   ggplot_obj <- if (include_prior_predict) {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(x = per_0.5, y = {{ y }}, group = model)) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       NULL
   } else {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
   }
   
-  ggplot_obj +
+  ggplot_obj <- ggplot_obj +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = center_bar_size, position = plot_pos) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
@@ -857,15 +861,6 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
     geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
     geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
-                       labels = if (is_null(group_labels)) { 
-                         dist_fit_data %>% 
-                           select(model, model_name) %>% 
-                           deframe() 
-                       } else {
-                         group_labels
-                       }, aesthetics = c("color", "fill")) + 
     labs(
       caption = #"Dotted line range: 98% credible interval. 
                 "Line range: 90% credible interval. 
@@ -876,27 +871,49 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL
+  
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select(model, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  
+  return(ggplot_obj)
 }
 
-plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model, group_labels = NULL) {
-  .data %>% 
+plot_estimand_hist <- function(.data, nested_data, x, binwidth = NULL, results_group = model, group_labels = NULL, color_data = .data) {
+  ggplot_obj <- .data %>% 
+    unnest({{ nested_data }}) %>% 
     ggplot(aes(group = {{ results_group }})) + 
     geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
                    binwidth = binwidth, boundary = 0, position = "identity", alpha = 0.5,  
                    data = . %>% unnest(iter_data)) +
     geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
-                       labels = if (is_null(group_labels)) { 
-                         dist_fit_data %>% 
-                           select(model, model_name) %>% 
-                           deframe() 
-                       } else {
-                         group_labels
-                       }, aesthetics = c("color", "fill")) + 
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL
+  
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select({{ results_group }}, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  
+  return(ggplot_obj)
 }
 
 

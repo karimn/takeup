@@ -22,7 +22,7 @@ Options:
   --threads=<threads>  Number of threads per chain [default: 1]
   --iter=<iter>  Number of (warmup + sampling) iterations [default: 8000]
   --thin=<thin>  Thin samples [default: 1]
-  --include-paths=<paths>  Includes path for cmdstanr [default: .]
+  --include-paths=<paths>  Includes path for cmdstanr [default: stan_models]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
   --num-mix-groups=<num>  Number of finite mixtures in distance model [default: 2]
 "),
@@ -33,8 +33,8 @@ Options:
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --chains=8 --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --include-paths=stan_models --sequential" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_TAKEUP --output-path=data/stan_analysis_data --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
 
@@ -252,8 +252,35 @@ models <- lst(
     iter = 2000,
     thin = 1,
   ),
-)
-
+) %>% 
+  list_modify(
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        fit_wtp_model_to_data = FALSE,
+        fit_beliefs_model_to_data = FALSE, 
+      ),
+    
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        fit_beliefs_model_to_data = FALSE, 
+      ),
+    
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        fit_wtp_model_to_data = FALSE,
+      ),
+    
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_TAKEUP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        fit_model_to_data = FALSE,
+      ),
+    
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        fit_wtp_model_to_data = FALSE,
+        fit_model_to_data = FALSE,
+      )
+  )
 
 # WTP Stan Data -----------------------------------------------------------
 
@@ -352,8 +379,6 @@ stan_data <- lst(
   beliefs_ate_pairs,
   num_beliefs_ate_pairs = nrow(beliefs_ate_pairs),
   
-  fit_beliefs_model_to_data = !script_options$prior, # || script_options$takeup,
-  
   # Take-up Model 
   num_obs = nrow(analysis_data),
   num_treatments,
@@ -426,6 +451,7 @@ stan_data <- lst(
   generate_rep = FALSE,
   fit_model_to_data = !script_options$prior,
   fit_wtp_model_to_data = !script_options$prior,
+  fit_beliefs_model_to_data = !script_options$prior, # || script_options$takeup,
   fit_dist_model_to_data = !script_options$prior,
   cross_validate = script_options$cv,
   use_wtp_model = FALSE,
@@ -479,6 +505,7 @@ if (script_options$takeup) {
   } else {
     models
   }
+  
   if (script_options$fit || script_options$prior) {
     if (script_options$sbc) {
       rank_fit = function(x){
