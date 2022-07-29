@@ -37,3 +37,5 @@ real<lower = 0> dist_beta_v_sd;
 
 real<lower = 0> structural_beta_county_sd_sd;
 real<lower = 0> structural_beta_cluster_sd_sd;
+
+real<lower = 0> wtp_value_utility_sd;

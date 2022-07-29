@@ -134,7 +134,8 @@ transformed parameters {
     u_sd =  rep_vector(raw_u_sd[1], num_treatments);  
   } else {
     u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
-    u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    // u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ?  raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? sqrt(square(raw_u_sd[num_treatment_shocks]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
@@ -262,7 +263,7 @@ model {
 #include beliefs_model_sec.stan
 #include dist_model_sec.stan
   
-  wtp_value_utility ~ normal(0, 0.1);
+  wtp_value_utility ~ normal(0, wtp_value_utility_sd);
 
   beta_intercept ~ normal(0, beta_intercept_sd);
   

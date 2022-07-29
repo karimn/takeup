@@ -171,6 +171,8 @@ models <- lst(
     
     structural_beta_county_sd_sd = 0.05,
     structural_beta_cluster_sd_sd = 0.25,
+    
+    wtp_value_utility_sd = 0.01,
 
     init = generate_initializer(
       num_treatments = num_treatments,
