@@ -588,7 +588,7 @@ if (script_options$takeup) {
       save(dist_fit, models, stan_data, file = output_file_name)
       
       if (script_options$cmdstanr) {
-        # walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
+        walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
       }  
     } else if (script_options$cv) {
       save(dist_kfold, models, file = output_file_name)
