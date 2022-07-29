@@ -98,7 +98,7 @@ transformed parameters {
 }
 
 model {
-  beta_control ~ normal(0, [ beta_control_sd, beta_far_effect_sd ]');
+  beta_control ~ normal(0, [ beta_intercept_sd, beta_far_effect_sd ]');
   beta_ink_effect ~ normal(0, [ beta_ink_effect_sd, beta_far_ink_effect_sd ]');
   beta_calendar_effect ~ normal(0, [ beta_calendar_effect_sd, beta_far_calendar_effect_sd ]');
   beta_bracelet_effect ~ normal(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]');
