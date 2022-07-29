@@ -18,7 +18,7 @@ row_vector<lower = 0>[use_age_groups && use_age_group_gp ? num_dist_group_treatm
 // drawing from priors
 profile("Sim priors") {
 
-beta_control_ = to_vector(normal_rng(0, [ beta_intercept_sd, beta_far_effect_sd ]'));
+beta_control_ = to_vector(normal_rng(0, [ beta_control_sd, beta_far_effect_sd ]'));
 beta_ink_effect_ = to_vector(normal_rng(0, [ beta_ink_effect_sd, beta_far_ink_effect_sd ]'));
 beta_calendar_effect_ = to_vector(normal_rng(0, [ beta_calendar_effect_sd, beta_far_calendar_effect_sd ]'));
 beta_bracelet_effect_ = to_vector(normal_rng(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]'));
