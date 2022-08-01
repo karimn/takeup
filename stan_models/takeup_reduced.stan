@@ -25,9 +25,10 @@ data {
 transformed data {
 #include base_transformed_data.stan 
 #include takeup_transformed_data.stan
-  array[num_age_groups] int<lower = 1, upper = num_age_groups> age_groups_dist = seq_len(num_age_groups);
-#include sbc_reduced_data.stan
 
+  array[num_age_groups] int<lower = 1, upper = num_age_groups> age_groups_dist = seq_len(num_age_groups);
+
+#include sbc_reduced_data.stan
 }
 
 parameters {
