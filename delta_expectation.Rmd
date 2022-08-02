@@ -7,6 +7,8 @@ output:
     keep_tex: no
     includes:
       in_header: takeup_workingpaper_header.sty
+params:
+  takeup_version: 54
 ---
 
 ```{r setup, include=FALSE}
@@ -25,8 +27,6 @@ source("dist_structural_util.R")
 ggplot2::theme_set(theme_minimal())
 
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
-
-takeup_version <- 53 
 ```
 
 # Structural Model
@@ -141,6 +141,7 @@ $$
       \gamma &\sim \mathtt{Normal}^+(0, \tau^\gamma)
     \end{align*}
     
+    
     - $z$ is a binary vector representing assigned incentive treatment where the first cell is always 1.
     - The relationship between $\beta_\textrm{bracelet}$ and $\beta_\textrm{calendar}$ is calibrated using data from the WTP experiment. 
     - $\tau^\beta_\textrm{intercept}, \tau^\beta_\textrm{ink}, \tau^\beta_\textrm{calendar},$ and $\tau^\gamma$ are hyperparameters. 
@@ -211,7 +212,7 @@ By using the WTP and beliefs data to calibrate the WTP and beliefs sub-models we
 ## Take-up Results
 
 ```{r load-processed-results}
-load(file.path("temp-data", str_glue("processed_dist_fit{takeup_version}.RData")))
+load(file.path("temp-data", str_glue("processed_dist_fit{params$takeup_version}.RData")))
 
 dist_fit_data %<>% 
   mutate(
@@ -646,10 +647,10 @@ dist_fit_data %>%
 ```
 
 ```{r, eval=FALSE}
-load(file.path("/tigress/kn6838/takeup", str_glue("dist_prior{takeup_version}.RData")))
+load(file.path("/tigress/kn6838/takeup", str_glue("dist_prior{params$takeup_version}.RData")))
 dist_prior <- read_rds(dist_fit$STRUCTURAL_LINEAR_U_SHOCKS)
 
-load(file.path("/tigress/kn6838/takeup", str_glue("dist_fit{takeup_version}.RData")))
+load(file.path("/tigress/kn6838/takeup", str_glue("dist_fit{params$takeup_version}.RData")))
 dist_fit <- read_rds(dist_fit$STRUCTURAL_LINEAR_U_SHOCKS)
 
 all_fit <- lst(
