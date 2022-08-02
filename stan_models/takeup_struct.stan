@@ -53,7 +53,7 @@ transformed data {
   array[1] real dummy_xr = { 1.0 }; 
   array[1] int dummy_xi = { 1 }; 
   
-  int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
+  int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments; // - (use_wtp_model ? 1 : 0);
   
   int num_dist_param = 1;
   int num_dist_param_quadratic = use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC ? 1 : 0; 
