@@ -131,11 +131,12 @@ transformed parameters {
   
   if (use_homoskedastic_shocks) {
     // u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
-    u_sd =  rep_vector(raw_u_sd[1], num_treatments);  
+    u_sd = rep_vector(raw_u_sd[1], num_treatments);  
   } else {
-    u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
-    // u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ?  raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
-    u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? sqrt(square(raw_u_sd[num_treatment_shocks]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    // u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
+    // // u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ?  raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    // u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? sqrt(square(raw_u_sd[num_treatment_shocks]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    u_sd = raw_u_sd; 
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
