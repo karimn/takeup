@@ -8,7 +8,7 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  takeup_version: 54
+  takeup_version: 58
 ---
 
 ```{r setup, include=FALSE}
