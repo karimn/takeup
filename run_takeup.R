@@ -149,7 +149,7 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
-    use_homoskedastic_shocks = TRUE,
+    use_homoskedastic_shocks = FALSE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
@@ -172,7 +172,10 @@ models <- lst(
     structural_beta_county_sd_sd = 0.05,
     structural_beta_cluster_sd_sd = 0.25,
     
-    wtp_value_utility_sd = 0.01,
+    wtp_value_utility_sd = 0.0001,
+
+    raw_u_sd_alpha = 2.9,
+    raw_u_sd_beta = 2.0,
 
     init = generate_initializer(
       num_treatments = num_treatments,
