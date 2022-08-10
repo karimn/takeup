@@ -8,7 +8,8 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  takeup_version: 58
+  structural_takeup_version: 60 
+  reduced_form_takeup_version: 53
 ---
 
 ```{r setup, include=FALSE}
@@ -122,13 +123,14 @@ $$
       V &\sim \mathtt{Normal}(0,1) \\
       U &\sim \mathtt{Normal}(0,\sigma_u) \\
       W &= V + U \sim \mathtt{Normal}(0,\sigma_w) \\
-      \sigma_u &\sim \mathtt{Normal}^+(0, \tau^{\sigma}_u) \\
-      \sigma_w &\sim \mathtt{Normal}^+(0, \tau^{\sigma}_w) 
+      \sigma_u &\sim \mathtt{InverseGamma}(\alpha^\sigma_u, \beta^{\sigma}_u) \\
+      \sigma_w &= \sqrt{1 + \sigma_u^2}
     \end{align*}
    
     - $V$ is the prosocial type.
     - $U$ is any other non-prosocial shocks.
-    - $\tau^\sigma_u$ and $\tau^\sigma_w$ are hyperparameters.
+    - $\alpha^\sigma_u$ and $\beta^\sigma_u$ are hyperparameters for $\sigma_u$ selected to keep it away from zero to avoid strong degeneracy in the model. This assumption only makes it harder to pick up the effect of social signaling.
+    - We assume that $U$ and $V$ are independent.
 * $\bar{b}(z,d)$ is the average net private benefit of deworming in response to incentive and distance treatments $z$ and $d$.
     \begin{align*}
       \bar{b}(z,d) &= z'\boldsymbol{\beta} + \delta \cdot d \\
@@ -212,7 +214,19 @@ By using the WTP and beliefs data to calibrate the WTP and beliefs sub-models we
 ## Take-up Results
 
 ```{r load-processed-results}
-load(file.path("temp-data", str_glue("processed_dist_fit{params$takeup_version}.RData")))
+load(file.path("temp-data", str_glue("processed_dist_fit{params$structural_takeup_version}.RData")))
+
+if (params$structural_takeup_version != params$reduced_form_takeup_version) {
+  temp_env <- new.env()
+  load(file.path("temp-data", str_glue("processed_dist_fit{params$reduced_form_takeup_version}.RData")), envir = temp_env)
+  
+  dist_fit_data %<>% 
+    filter(fct_match(model_type, "structural")) %>% 
+    bind_rows(
+      temp_env$dist_fit_data %>% 
+        filter(fct_match(model_type, "reduced form")) 
+    )
+}
 
 dist_fit_data %<>% 
   mutate(
@@ -239,14 +253,17 @@ Running a simple model (a non-hierarchical model with a linear cost), we get the
 
 ```{r incentive-te, fig.width=8, fig.height=17}
 dist_fit_data %>%
-  filter(fct_match(model_type, "structural")) %>% 
+  filter(
+    fct_match(model_type, "structural") | (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit"))
+  ) %>% 
   mutate(est_takeup_te =
-    map(est_takeup_te, 
-        filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right,
-        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-        assigned_treatment_left != assigned_treatment_right,
-        fct_match(assigned_treatment_right, c("control")),
-        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
+    map_if(est_takeup_te, fct_match(model_type, "structural"),
+           filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
+      map(filter,
+          (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+          assigned_treatment_left != assigned_treatment_right,
+          fct_match(assigned_treatment_right, c("control")),
+          fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
     est_takeup_te = map(
@@ -647,17 +664,26 @@ dist_fit_data %>%
 ```
 
 ```{r, eval=FALSE}
-load(file.path("/tigress/kn6838/takeup", str_glue("dist_prior{params$takeup_version}.RData")))
-dist_prior <- read_rds(dist_fit$STRUCTURAL_LINEAR_U_SHOCKS)
+dist_prior <- dir("data/stan_analysis_data/", pattern = str_glue(r"{dist_prior{params$structural_takeup_version}_STRUCTURAL_LINEAR_U_SHOCKS-\d\.csv}"), full.names = TRUE) %>% 
+  as_cmdstan_fit()
 
-load(file.path("/tigress/kn6838/takeup", str_glue("dist_fit{params$takeup_version}.RData")))
-dist_fit <- read_rds(dist_fit$STRUCTURAL_LINEAR_U_SHOCKS)
+dist_fit <- dir("data/stan_analysis_data/", pattern = str_glue(r"{dist_fit{params$structural_takeup_version}_STRUCTURAL_LINEAR_U_SHOCKS-\d\.csv}"), full.names = TRUE) %>% 
+  as_cmdstan_fit()
 
 all_fit <- lst(
   prior = dist_prior,
   fit = dist_fit
-)
+) 
 ```
+
+```{r, eval=FALSE}
+all_fit %>% 
+  map(posterior::as_draws_df) %>% 
+  map_dfr(spread_draws, raw_u_sd[treatment], .id = "fit_type") %>% 
+  ggplot() +
+  geom_halfeyeh(aes(raw_u_sd, fill = fit_type), alpha = 0.25)
+```
+
 
 ```{r, fig.height=1.8, fig.width=8, eval=FALSE}
 plot_pos <- position_dodge(width = 0.75)
@@ -701,7 +727,7 @@ dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>% 
   select(model_type, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
-  filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
+  filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "ink", "bracelet"))) %>% 
   ggplot(aes(assigned_dist_obs)) +
   geom_point(aes(y = obs_prop_takeup), size = 0.8, show.legend = FALSE) + 
   geom_ribbon(aes(ymax = per_0.9, ymin = per_0.1), alpha = 0.25) +
