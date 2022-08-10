@@ -10,8 +10,8 @@ functions {
 
 transformed data {
   // Target quantiles
-  real l = 0.25; // Lower quantile
-  real u = 5;   // Upper quantile
+  real l = 0.125; // Lower quantile
+  real u = 2;   // Upper quantile
   vector[2] theta = [l, u]';
   
   // Initial guess at inverse Gamma parameters 
