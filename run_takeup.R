@@ -174,8 +174,8 @@ models <- lst(
     
     wtp_value_utility_sd = 0.0001,
 
-    raw_u_sd_alpha = 2.9,
-    raw_u_sd_beta = 2.0,
+    raw_u_sd_alpha = 3.3, 
+    raw_u_sd_beta = 1.1,
 
     init = generate_initializer(
       num_treatments = num_treatments,
