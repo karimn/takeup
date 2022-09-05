@@ -53,7 +53,7 @@ transformed data {
   array[1] real dummy_xr = { 1.0 }; 
   array[1] int dummy_xi = { 1 }; 
   
-  int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments - (use_wtp_model ? 1 : 0);
+  int<lower = 0, upper = num_treatments> num_treatment_shocks = num_treatments;
   
   int num_dist_param = 1;
   int num_dist_param_quadratic = use_cost_model == COST_MODEL_TYPE_PARAM_QUADRATIC ? 1 : 0; 
@@ -130,10 +130,9 @@ transformed parameters {
   vector<lower = 0>[num_treatments] total_error_sd;
   
   if (use_homoskedastic_shocks) {
-    u_sd = rep_vector(use_wtp_model ? sqrt(square(raw_u_sd[1]) + square(wtp_sigma * wtp_value_utility)) : raw_u_sd[1], num_treatments);  
+    u_sd = rep_vector(raw_u_sd[1], num_treatments);  
   } else {
-    u_sd[{ 1, 2, BRACELET_TREATMENT_INDEX }] = raw_u_sd[{ 1, 2, use_wtp_model ? num_treatment_shocks : BRACELET_TREATMENT_INDEX }];
-    u_sd[CALENDAR_TREATMENT_INDEX] = use_wtp_model ? raw_u_sd[num_treatment_shocks] : raw_u_sd[CALENDAR_TREATMENT_INDEX];  
+    u_sd = raw_u_sd; 
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
@@ -261,7 +260,7 @@ model {
 #include beliefs_model_sec.stan
 #include dist_model_sec.stan
   
-  wtp_value_utility ~ normal(0, 0.1);
+  wtp_value_utility ~ normal(0, wtp_value_utility_sd);
 
   beta_intercept ~ normal(0, beta_intercept_sd);
   
@@ -300,7 +299,7 @@ model {
     structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
   }
   
-  raw_u_sd ~ normal(0, 1);
+  raw_u_sd ~ inv_gamma(raw_u_sd_alpha, raw_u_sd_beta);
   
   if (fit_model_to_data) {
     // Take-up Likelihood 

@@ -33,7 +33,7 @@ Options:
   # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_TAKEUP --output-path=data/stan_analysis_data --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
@@ -149,7 +149,7 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
-    use_homoskedastic_shocks = TRUE,
+    use_homoskedastic_shocks = FALSE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
@@ -171,6 +171,11 @@ models <- lst(
     
     structural_beta_county_sd_sd = 0.05,
     structural_beta_cluster_sd_sd = 0.25,
+    
+    wtp_value_utility_sd = 0.0001,
+
+    raw_u_sd_alpha = 3.3, 
+    raw_u_sd_beta = 1.1,
 
     init = generate_initializer(
       num_treatments = num_treatments,
@@ -498,7 +503,7 @@ if (script_options$sbc & !script_options$takeup) {
 if (script_options$takeup) {
   models <- if (!is_null(script_options$models)) {
     models_to_run <- script_options$models %>% 
-      map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ str_which(names(models), .x)) %>% 
+      map_if(str_detect(., r"{\d+}"), as.integer, .else = ~ which(str_detect(names(models), str_c("^", .x, "$")))) %>% 
       unlist()
     
     models[models_to_run]
