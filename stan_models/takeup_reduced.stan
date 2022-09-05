@@ -25,9 +25,10 @@ data {
 transformed data {
 #include base_transformed_data.stan 
 #include takeup_transformed_data.stan
-  array[num_age_groups] int<lower = 1, upper = num_age_groups> age_groups_dist = seq_len(num_age_groups);
-#include sbc_reduced_data.stan
 
+  array[num_age_groups] int<lower = 1, upper = num_age_groups> age_groups_dist = seq_len(num_age_groups);
+
+#include sbc_reduced_data.stan
 }
 
 parameters {
@@ -98,7 +99,7 @@ transformed parameters {
 }
 
 model {
-  beta_control ~ normal(0, [ beta_control_sd, beta_far_effect_sd ]');
+  beta_control ~ normal(0, [ beta_intercept_sd, beta_far_effect_sd ]');
   beta_ink_effect ~ normal(0, [ beta_ink_effect_sd, beta_far_ink_effect_sd ]');
   beta_calendar_effect ~ normal(0, [ beta_calendar_effect_sd, beta_far_calendar_effect_sd ]');
   beta_bracelet_effect ~ normal(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]');
