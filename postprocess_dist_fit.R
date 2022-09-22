@@ -20,7 +20,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "53 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "test --full-outputname --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -77,7 +77,8 @@ analysis_data <- monitored_nosms_data
 # Load Data ---------------------------------------------------------------
 
 roc_param <- c("cluster_roc_diff", 
-               str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
+               # str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
+               "cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", "obs_cluster_mu_rep", # "mu_beliefs_effect", 
@@ -326,7 +327,7 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 
 summarize_roc <- function(param_data) {
   unnest(param_data, iter_data) %>%
-    group_by(roc_distance_index, roc_distance, iter_id) %>% 
+    group_by(roc_distance_index, roc_distance, treatment_id, assigned_treatment, iter_id) %>% 
     summarize(iter_est = mean(iter_est), .groups = "drop") %>% 
     ungroup() %>% 
     nest(iter_data = c(iter_id, iter_est)) %>% 
@@ -467,11 +468,10 @@ dist_fit_data %<>%
 if (!script_options$no_rate_of_change) {
   dist_fit_data %<>% 
     mutate(
-      map(roc_param, ~ map2(..2, ..3, extract_roc_param, ..1), fit, stan_data) %>% 
+      map2(roc_param, if_else(str_detect(roc_param, "diff"), 1, 0), ~ map2(..3, ..4, extract_roc_param, ..1, ..2), fit, stan_data) %>% 
         set_names(roc_param) %>% 
-        map(map_if, ~ !is_null(.x), summarize_roc) %>% 
-        as_tibble() %>% 
-        rename_with(str_replace_all, c("_left" = "_bracelet", "_right" = "_control"), .cols = everything()),
+        map(map_if, ~ !is_null(.x), summarize_roc) %>%
+        as_tibble(), 
       
       sim_delta = map2(fit, stan_data, extract_sim_delta)
     )

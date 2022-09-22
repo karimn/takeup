@@ -450,20 +450,20 @@ where
 ```{r rate-of-change}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(across(c(cluster_roc_control, cluster_roc_bracelet), ~ { map2(.x, stan_data, ~ { 
+  transmute(cluster_roc = map2(cluster_roc, stan_data, ~ { 
     mutate(.x,
       roc_distance = roc_distance / 1000,
       across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
       across(starts_with("per_"), multiply_by, 1000),
       across(starts_with("per_"), multiply_by, 100)
     ) 
-  })})) %>%
-  pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
-  unnest(value) %>% 
+  })) %>%
+  unnest(cluster_roc) %>% 
+  filter(fct_match(assigned_treatment, c("control", "ink", "bracelet"))) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
   geom_rug(
     aes(dist, color = assigned.treatment),
     alpha = 0.75,
@@ -486,11 +486,13 @@ dist_fit_data %>%
   transmute(
     model,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
-      mutate(.x,
-        roc_distance = roc_distance / 1000,
-        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
-        across(starts_with("per_"), multiply_by, 1000)
-      ) 
+      filter(.x, fct_match(assigned_treatment, c("bracelet", "ink"))) %>%
+        mutate(
+          roc_distance = roc_distance / 1000,
+          across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
+          across(starts_with("per_"), multiply_by, 1000),
+          across(starts_with("per_"), multiply_by, 100)
+        ) 
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
   ggplot(aes(roc_distance)) +
@@ -502,20 +504,22 @@ dist_fit_data %>%
     x = "Distance to Treatment [km]", y = "Difference in Rate of Change [pp/km]",
     caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
   ) +
+  facet_wrap(vars(assigned_treatment)) +
   theme(legend.position = "none") +
-  coord_cartesian(ylim = c(0, 0.15))
+  # coord_cartesian(ylim = c(0, 0.15))
+  NULL
 ```
 
 ```{r}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(across(c(cluster_w_cutoff_control, cluster_w_cutoff_bracelet), map, mutate, roc_distance = roc_distance / 1000)) %>% 
-  pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
-  unnest(value) %>% 
+  transmute(cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
+  unnest(cluster_w_cutoff) %>% 
+  filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
   labs(
     x = "Distance to Treatment", y = ""
   ) +
@@ -526,11 +530,11 @@ dist_fit_data %>%
 ```{r}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(across(c(cluster_social_multiplier_control, cluster_social_multiplier_bracelet), map, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
-  pivot_longer(everything(), names_to = "treatment", names_pattern = "_(control|bracelet)$") %>% 
-  unnest(value) %>% 
+  transmute(cluster_social_multiplier = map(cluster_social_multiplier, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
+  unnest(cluster_social_multiplier) %>% 
+  filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
+  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
   # geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.3) +
   # geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.3) +
   labs(
