@@ -17,10 +17,10 @@ Options:
   --keep-fit "), 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "53 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  # args = if (interactive()) "53 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -108,10 +108,10 @@ load_fit <- function(fit_file, input_path = script_options$input_path, load_from
 
 # Metadata on the models fit
 model_info <- tribble(
-  ~ model,                                             ~ model_name,                               ~ model_type,
+  ~ model,                                             ~ model_name,                                         ~ model_type,
   
-  "REDUCED_FORM_NO_RESTRICT",                          "Reduced Form",                             "reduced form",
-  "STRUCTURAL_LINEAR_U_SHOCKS",                        "Structural",                               "structural",
+  "REDUCED_FORM_NO_RESTRICT",                          "Reduced Form",                                       "reduced form",
+  "STRUCTURAL_LINEAR_U_SHOCKS",                        "Structural",                                         "structural",
   # "STRUCTURAL_LINEAR",              "Structural",                                "structural",
   # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
   # "STRUCTURAL_QUADRATIC_NO_SHOCKS", "Structural Quadratic Cost (No Shocks)",     "structural",
@@ -119,12 +119,13 @@ model_info <- tribble(
   # "STRUCTURAL_QUADRATIC_SALIENCE",  "Structural Quadratic Cost With Salience",   "structural",
   # "STRUCTURAL_LINEAR_SALIENCE",     "Structural With Salience",                 "structural",
   
-  "STACKED",                                          "Stacked Model",                             "combined", # Includes both reduced form and structural models
-  "STRUCTURAL_STACKED",                               "Structural Stacked Model",                  "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS",          "Structural without Any Submodel Data",      "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Data",           "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Data",               "structural",
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Data",     "structural",
+  "STACKED",                                          "Stacked Model",                                       "combined", # Includes both reduced form and structural models
+  "STRUCTURAL_STACKED",                               "Structural Stacked Model",                            "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS",          "Structural without Any Submodel Data",                "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Data",                     "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Data",                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Data",               "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST",       "Structural without no distance in beliefs model",     "structural",
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
