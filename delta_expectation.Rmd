@@ -8,7 +8,7 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: 61 
+  structural_takeup_version: test 
   reduced_form_takeup_version: 53
 ---
 
@@ -400,7 +400,7 @@ dist_fit_data %>%
 
 ```{r take-up-prob, fig.width=9}
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
     obs_cluster_takeup_level,
@@ -444,7 +444,7 @@ where
 
 ```{r rate-of-change}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(cluster_roc = map2(cluster_roc, stan_data, ~ { 
     mutate(.x,
       roc_distance = roc_distance / 1000,
@@ -477,17 +477,16 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
-      filter(.x, fct_match(assigned_treatment, c("bracelet", "ink"))) %>%
-        mutate(
-          roc_distance = roc_distance / 1000,
-          across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
-          across(starts_with("per_"), multiply_by, 1000),
-          across(starts_with("per_"), multiply_by, 100)
-        ) 
+      mutate(.x,
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
+        across(starts_with("per_"), multiply_by, 1000),
+        across(starts_with("per_"), multiply_by, 100)
+      ) 
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
   ggplot(aes(roc_distance)) +
@@ -501,7 +500,7 @@ dist_fit_data %>%
   ) +
   facet_wrap(vars(assigned_treatment)) +
   theme(legend.position = "none") +
-  # coord_cartesian(ylim = c(0, 0.15))
+  # coord_cartesian(ylim = c(0, 0.15)) + 
   NULL
 ```
 
@@ -870,7 +869,7 @@ beliefs_results %>%
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
