@@ -20,7 +20,7 @@ Options:
   # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "test --full-outputname --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "61 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -236,10 +236,14 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd, force_draw_ta
   }
   
   prob_iter_data <- if (!is_null(total_error_sd)) {
-    mutate(cutoffs, iter_data = future_map(iter_data, 
-                               ~ left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
-                                 mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)), 
-                              total_error_sd$iter_data[[1]]))
+    left_join(cutoffs, total_error_sd, by = c("assigned_treatment"), suffix = c("", "_total_error_sd")) %>%
+      mutate(
+        iter_data = map2(iter_data, iter_data_total_error_sd, ~ {
+          left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
+            mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)) 
+        })
+      ) %>% 
+      select(!ends_with("total_error_sd"))
   } else {
     mutate(cutoffs, iter_data = map(iter_data, ~ mutate(.x, prob = pnorm(- iter_est)))) 
   }
@@ -419,7 +423,8 @@ calculate_dist_ate <- function(ate_list, model_type, other_ate_join_col = NULL) 
 
 dist_fit_data %<>% 
   mutate(
-    total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
+    total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", by_treatment = TRUE, summarize_est = FALSE, quant_probs = quant_probs)) %>% 
+      map(select, !assigned_dist_group),
     u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     
     obs_cluster_mu_rep = map(fit, filter, str_detect(variable, "obs_cluster_mu_rep")),
