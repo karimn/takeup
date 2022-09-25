@@ -22,8 +22,8 @@ if (multithreaded) {
     // cluster_roc_diff[roc_dist_index] = rep_matrix(0, num_clusters, num_treatments - 1);
     
     matrix[num_clusters, 2] curr_cluster_mu_rep_control = calculate_mu_rep_deriv(
-      1, roc_cluster_dist,
-      base_mu_rep, roc_compare_treatment_id_right, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
+      roc_compare_treatment_id_right, roc_cluster_dist,
+      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
     
     for (treatment_index in 1:num_treatments) {
       matrix[num_clusters, 2] curr_cluster_mu_rep; 
