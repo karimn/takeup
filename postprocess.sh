@@ -14,7 +14,7 @@
 #SBATCH --error=temp/log/takeup_postprocess-%j.log
 #SBATCH --export=IN_SLURM=1
 
-LATEST_VERSION=60
+LATEST_VERSION=62
 VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
 CMDSTAN_ARGS="--cmdstanr"
 SLURM_INOUT_DIR=~/scratch-midway2
