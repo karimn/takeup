@@ -8,7 +8,7 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: test 
+  structural_takeup_version: "60,62" 
   reduced_form_takeup_version: 53
 ---
 
@@ -214,24 +214,37 @@ By using the WTP and beliefs data to calibrate the WTP and beliefs sub-models we
 ## Take-up Results
 
 ```{r load-processed-results}
-load(file.path("temp-data", str_glue("processed_dist_fit{params$structural_takeup_version}.RData")))
+dist_fit_data <- str_split(params$structural_takeup_version, ",") %>% 
+  pluck(1) %>% 
+  as.integer() %>% 
+  map_dfr(~ {
+    temp_env <- new.env()
+    load(file.path("temp-data", str_glue("processed_dist_fit{.x}.RData")), envir = temp_env)
+    
+    temp_env$dist_fit_data %>% 
+      filter(fct_match(model_type, "structural")) %>% 
+      mutate(version = .x)
+  }) %>% 
+  group_by(model, fit_type, model_type) %>% 
+  filter(min_rank(version) == n()) %>% 
+  ungroup()
 
 if (params$structural_takeup_version != params$reduced_form_takeup_version) {
   temp_env <- new.env()
   load(file.path("temp-data", str_glue("processed_dist_fit{params$reduced_form_takeup_version}.RData")), envir = temp_env)
   
   dist_fit_data %<>% 
-    filter(fct_match(model_type, "structural")) %>% 
     bind_rows(
       temp_env$dist_fit_data %>% 
-        filter(fct_match(model_type, "reduced form")) 
+        filter(fct_match(model_type, "reduced form")) %>% 
+        mutate(version = as.integer(params$reduced_form_takeup_version))
     )
 }
 
 dist_fit_data %<>% 
   mutate(
-    model = fct_expand(model, c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "REDUCED_FORM_NO_RESTRICT_PRIOR")),
-    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", levels = levels(model)), model),
+    model = fct_expand(model, c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", "REDUCED_FORM_NO_RESTRICT_PRIOR")),
+    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor(str_c(model, "_PRIOR"), levels = levels(model)), model),
     model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
     model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
   ) %>% 
