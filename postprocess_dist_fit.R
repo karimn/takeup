@@ -126,7 +126,7 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Data",                     "structural", 
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Data",                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Data",               "structural",
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST",       "Structural without no distance in beliefs model",     "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST",       "Structural without Distance in Beliefs Model",        "structural",
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
