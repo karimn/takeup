@@ -252,7 +252,7 @@ dist_fit_data %<>%
     bind_rows(
       filter(., fct_match(model_type, "structural"), fct_match(fit_type, "fit")) %>%
         select(model, model_type, fit_type) %>% 
-        mutate(model_color = canva_pal(canva_palette_vibrant)(n())),
+        mutate(model_color = c(canva_pal(canva_palette_vibrant)(min(4, n())), canva_pal("Pop art")(max(0, n() - 4)))),
       filter(., !fct_match(model_type, "structural") | !fct_match(fit_type, "fit")) %>%
         select(model, model_type, fit_type) %>% 
         mutate(model_color = if_else(fct_match(fit_type, "fit"), "black", "darkgrey"))
@@ -271,19 +271,24 @@ rf_analysis_data <- dist_fit_data %>%
 
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
-```{r incentive-te, fig.width=8, fig.height=17}
+```{r incentive-te, fig.width=8, fig.height=16}
 dist_fit_data %>%
   filter(
-    fct_match(model_type, "structural") | (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit"))
+    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR"))) | 
+      (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
   ) %>% 
-  mutate(est_takeup_te =
-    map_if(est_takeup_te, fct_match(model_type, "structural"),
-           filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
-      map(filter,
-          (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-          assigned_treatment_left != assigned_treatment_right,
-          fct_match(assigned_treatment_right, c("control")),
-          fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))) %>% 
+  mutate(
+    est_takeup_te =
+      map_if(est_takeup_te, fct_match(model_type, "structural"),
+             filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
+        map(filter,
+            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+            assigned_treatment_left != assigned_treatment_right,
+            fct_match(assigned_treatment_right, c("control")),
+            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
+    model_color = canva_pal(canva_palette_vibrant)(n())
+  ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
     est_takeup_te = map(
@@ -320,9 +325,12 @@ dist_fit_data %>%
   } 
 ```
 
-```{r signaling-te, fig.width=8, fig.height=17}
+```{r signaling-te, fig.width=8, fig.height=13}
 dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+  ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
     est_takeup_te = map(
@@ -340,7 +348,8 @@ dist_fit_data %>%
           fct_relabel(str_to_title) %>% 
           fct_relevel("Combined"),
         mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left),
-      )
+      ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
   ) %>% { 
     cowplot::plot_grid(
       plot_estimands(., est_takeup_te, mu_assigned_treatment_left) +
@@ -366,9 +375,12 @@ dist_fit_data %>%
   } 
 ```
 
-```{r private-incentive-te, fig.width=8, fig.height=17}
+```{r private-incentive-te, fig.width=8, fig.height=15}
 dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+  ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
     est_takeup_te = map(
@@ -387,7 +399,8 @@ dist_fit_data %>%
           fct_relabel(str_to_title) %>% 
           fct_relevel("Combined"),
         assigned_treatment_left = str_to_title(assigned_treatment_left),
-      )
+      ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_te, assigned_treatment_left) +
@@ -413,15 +426,16 @@ dist_fit_data %>%
 
 ```{r take-up-prob, fig.width=9}
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
+    model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
     obs_cluster_takeup_level,
   ) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5), data = . %>%  unnest(cluster_takeup_prop)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.3, data = . %>%  unnest(cluster_takeup_prop)) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.3, data = . %>%  unnest(cluster_takeup_prop)) +
+  geom_line(aes(y = per_0.5, color = model_name), data = . %>%  unnest(cluster_takeup_prop)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.3, data = . %>%  unnest(cluster_takeup_prop)) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.3, data = . %>%  unnest(cluster_takeup_prop)) +
   geom_rug(
     aes(dist),
     alpha = 0.5,
@@ -438,9 +452,12 @@ dist_prob_plot <- dist_fit_data %>%
   NULL
 
 dist_prob_plot +
-  geom_linerange(aes(assigned_dist_obs / 1000, ymin = per_0.1, ymax = per_0.9), data = . %>% unnest(obs_cluster_takeup_level)) +
+  geom_linerange(aes(assigned_dist_obs / 1000, ymin = per_0.1, ymax = per_0.9, color = model_name), data = . %>% unnest(obs_cluster_takeup_level)) +
   geom_point(aes(assigned_dist_obs / 1000, y = obs_prop_takeup), size = 0.25, show.legend = FALSE, data = . %>% unnest(obs_cluster_takeup_level)) +
+  scale_color_discrete("", aesthetics = c("color", "fill")) +
   facet_wrap(vars(assigned_treatment), labeller = labeller(assigned_treatment = str_to_title)) +
+  # facet_grid(rows = vars(assigned_treatment), cols = vars(model_name), labeller = labeller(.default = str_to_title)) +
+  theme(legend.position = "top") +
   NULL
 ```
 
@@ -457,42 +474,49 @@ where
 
 ```{r rate-of-change}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(cluster_roc = map2(cluster_roc, stan_data, ~ { 
-    mutate(.x,
-      roc_distance = roc_distance / 1000,
-      across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
-      across(starts_with("per_"), multiply_by, 1000),
-      across(starts_with("per_"), multiply_by, 100)
-    ) 
-  })) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  transmute(
+    model_name,
+    cluster_roc = map2(cluster_roc, stan_data, ~ { 
+      mutate(.x,
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
+        across(starts_with("per_"), multiply_by, 1000),
+        across(starts_with("per_"), multiply_by, 100)
+      ) 
+    })
+  ) %>%
   unnest(cluster_roc) %>% 
   filter(fct_match(assigned_treatment, c("control", "ink", "bracelet"))) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = model_name)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.4) +
   geom_rug(
-    aes(dist, color = assigned.treatment),
+    aes(dist),
     alpha = 0.75,
     data = rf_analysis_data %>%
-      filter(fct_match(assigned.treatment, c("control", "bracelet"))) %>%
-      distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-  scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
-  scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+      filter(fct_match(assigned.treatment, c("control", "ink", "bracelet"))) %>%
+      distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+  # scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+  # scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+  scale_color_discrete("", aesthetics = c("color", "fill")) +
   labs(
+    title = "Rates of Change",
     x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
     caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
       
   ) +
+  facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+  theme(legend.position = "top") +
   NULL
 ```
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
-    model,
+    model, model_name,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
       mutate(.x,
         roc_distance = roc_distance / 1000,
@@ -502,39 +526,45 @@ dist_fit_data %>%
       ) 
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
+  filter(fct_match(assigned_treatment, c("ink", "bracelet"))) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = model)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model), alpha = 0.25) +
-  scale_color_manual("", values = "black", aesthetics = c("color", "fill")) +
+  geom_line(aes(y = per_0.5, color = model_name)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.25) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.25) +
+  scale_color_discrete("", aesthetics = c("color", "fill")) +
   labs(
+    title = "Difference in Rate of Change",
     x = "Distance to Treatment [km]", y = "Difference in Rate of Change [pp/km]",
     caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
   ) +
-  facet_wrap(vars(assigned_treatment)) +
-  theme(legend.position = "none") +
+  facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+  theme(legend.position = "top") +
   # coord_cartesian(ylim = c(0, 0.15)) + 
   NULL
 ```
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  transmute(model_name, cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
   unnest(cluster_w_cutoff) %>% 
   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = model_name)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.4) +
+  scale_color_discrete("", aesthetics = c("color", "fill")) +
   labs(
+    title = "Type Cutoff",
     x = "Distance to Treatment", y = ""
   ) +
   # coord_cartesian(ylim = c(0, 0.1))
+  facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+  theme(legend.position = "top")
   NULL
 ```
 
-```{r}
+```{r, eval=FALSE}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(cluster_social_multiplier = map(cluster_social_multiplier, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
@@ -553,8 +583,8 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  select(sim_delta) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  select(model_name, sim_delta) %>% 
   unnest(sim_delta) %>% 
   ggplot(aes(w)) +
   geom_line(aes(y = per_0.5)) +
@@ -564,6 +594,7 @@ dist_fit_data %>%
     x = "w", y = ""
   ) +
   # coord_cartesian(ylim = c(0, 0.1))
+  facet_wrap(vars(model_name)) +
   NULL
 ```
 
@@ -588,11 +619,16 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR"))) | 
+      (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
+  ) %>% 
+  select(model, model_type, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
-    est_takeup_level = map(
+    est_takeup_level = map_if(
       est_takeup_level, 
+      !fct_match(model_type, "reduced form"),
       filter, assigned_treatment == mu_assigned_treatment
     ) %>%  
       map(
@@ -601,7 +637,8 @@ dist_fit_data %>%
         fct_relabel(str_to_title) %>% 
         fct_relevel("Combined"),
       assigned_treatment = str_to_title(assigned_treatment),
-    )
+    ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_level, assigned_treatment) +
@@ -628,11 +665,15 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
-  select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+  ) %>% 
+  select(model, model_name, model_type, est_takeup_level, fit_type, model_color) %>% 
   mutate(
-    est_takeup_level = map(
-      est_takeup_level,
+    est_takeup_level = map_if(
+      est_takeup_level, 
+      !fct_match(model_type, "reduced form"),
       filter,
       fct_match(assigned_treatment, "control"),
       !is.na(mu_assigned_treatment),
@@ -644,7 +685,8 @@ dist_fit_data %>%
           fct_relevel("Combined"),
         
         mu_assigned_treatment = str_to_title(mu_assigned_treatment),
-      )
+      ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_level, mu_assigned_treatment) +
@@ -673,7 +715,10 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+  ) %>% 
   select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
     est_takeup_level = map(
@@ -689,7 +734,8 @@ dist_fit_data %>%
           fct_relevel("Combined"),
         
         assigned_treatment = str_to_title(assigned_treatment)
-      )
+      ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_level, assigned_treatment) +
@@ -798,8 +844,8 @@ all_fit %>%
 
 ```{r, fig.width=7.5, fig.height=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>% 
-  select(model_type, cluster_cf_cutoff) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  select(model_name, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
   ggplot(aes(assigned_dist_obs)) +
@@ -807,15 +853,16 @@ dist_fit_data %>%
   # geom_pointrange(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), # color = model_type, group = model_type), 
   #                 fatten = 0.8, position = position_dodge(width = 50)) +
   geom_crossbar(aes(y = per_0.5, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), width = 40) +
+  labs(x = "Distance", y = "Take-up") +
   # facet_wrap(vars(assigned_treatment), ncol = 1) +
-  facet_wrap(vars(model_type), ncol = 1) +
+  facet_wrap(vars(model_name), ncol = 1) +
   theme(legend.position = "bottom")
 ```
 
 ```{r, fig.width=8, fig.height=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>% 
-  select(model_type, cluster_cf_cutoff) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  select(model_type, model_name, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "ink", "bracelet"))) %>% 
   ggplot(aes(assigned_dist_obs)) +
@@ -827,7 +874,7 @@ dist_fit_data %>%
     x = "Distance to Treatment", y = "Proportion of Takeup", 
     caption = "Dots: observed proportion of takeup. Line and ribbon: estimated proportion of takeup (median and 80% CI)."
   ) +
-  facet_grid(rows = vars(model_type), cols = vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+  facet_grid(rows = vars(model_name), cols = vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "bottom")
 ```
 
@@ -840,7 +887,7 @@ wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model
 
 ```{r wtp-post}
 joint_wtp_results <- dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
   pull(wtp_results) %>%
   first()
 
@@ -881,6 +928,13 @@ beliefs_results %>%
 
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
+dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  pull(beliefs_results) %>%
+  first() %>%
+# beliefs_results %>%
+  plot_beliefs_est("Posterior Estimation")
+
 dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
   pull(beliefs_results) %>%
@@ -987,6 +1041,13 @@ dist_fit_data %>%
   first() %>%
 # beliefs_prior_results %>% 
   plot_beliefs_hist("Posterior Estimation", binwidth = 0.01)
+
+dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
+  pull(beliefs_results) %>%
+  first() %>%
+# beliefs_prior_results %>% 
+  plot_beliefs_hist("Posterior Estimation", binwidth = 0.01)
 ```
 
 ```{r beliefs-hist-prior, fig.width=8, fig.height=8}
@@ -1078,7 +1139,6 @@ plot_dist_model <- function(results, plot_obs_dist = TRUE, subsample_size = 1500
   
   return(plot_obj)
 }
-
 ```
 
 ```{r dist-post-alone, fig.width=10, eval=FALSE}
@@ -1091,6 +1151,10 @@ alone_dist_fit_data %>%
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
   plot_dist_model(subsample_size = NULL)
+
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
+  plot_dist_model(subsample_size = NULL)
 ```
 
 ```{r dist-prior, fig.width=10, cache=TRUE}
@@ -1100,10 +1164,6 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=10, eval=FALSE}
-# dist_fit_data %>% 
-#   filter(fct_match(fit_type, "fit")) %>% 
-#   pull(imputed_dist) %>% 
-#   first() %>% 
 read_rds("data/stan_analysis_data/dist_model_fit_fit.rds") %>%
   get_imputed_dist(dist_fit_data$stan_data[[1]]) %>%
   filter(!is.na(obs_standard_dist)) %>% 
