@@ -510,7 +510,7 @@ fit_model <- function(curr_stan_data, chains, threads, iter, use_cmdstanr, inclu
       file.path("stan_models", curr_stan_data$model_file),
       cpp_options = list(stan_threads = TRUE),
       include_paths = include_paths,
-      stanc_options = list("O1")
+      #stanc_options = list("O1")
     )
     
     dist_model$sample(
@@ -583,7 +583,7 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
             file.path("stan_models", curr_model$model_file), 
             cpp_options = list(stan_threads = TRUE),
             include_paths = include_paths,
-            stanc_options = list("O1")
+            #stanc_options = list("O1")
           )
         } else {
           stan_model(file.path("stan_models", curr_model$model_file))
