@@ -8,7 +8,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-rate-of-change --keep-fit]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-prior --no-rate-of-change --keep-fit --models=<models>]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
@@ -20,7 +20,7 @@ Options:
   # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "61 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "62 --cores=1 --load-from-csv --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST --no-prior" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -78,13 +78,14 @@ analysis_data <- monitored_nosms_data
 
 roc_param <- c("cluster_roc_diff", 
                # str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
-               "cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
+               "cluster_roc", "cluster_rep_return", "cluster_rep_return_dist", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", "obs_cluster_mu_rep", # "mu_beliefs_effect", 
   "group_dist_mean", "group_dist_sd", "group_dist_mix", "missing_cluster_standard_dist", 
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
-  "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord"
+  "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord",
+   "wtp_travel_dist", "calendar_preference_in_dist", 
 )
 
 # param_used %<>% c("structural_cluster_takeup_prob", "missing_cluster_standard_dist") 
@@ -138,6 +139,10 @@ dist_fit_data <- tryCatch({
     load(file.path(script_options$input_path, str_interp("dist_fit${fit_version}.RData")))
   }
   
+  if (!is_null(script_options$models)) {
+    dist_fit %<>%  magrittr::extract(script_options$models)
+  }
+  
   dist_fit %<>% 
     map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
 
@@ -157,26 +162,35 @@ dist_fit_data <- tryCatch({
 }, error = function(err) NULL)
 
 # Prior predicted fit for same models
-dist_fit_data <- tryCatch({
-  load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
-  
-  dist_fit %<>% 
-    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
-  
-  dist_fit_data %<>%
-    bind_rows("fit" = .,
-              "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
-                mutate(stan_data = list(stan_data)),
-              .id = "fit_type") 
-  
-  rm(dist_fit, stan_data)
-  
-  dist_fit_data
-},
-error = function(err) {
+dist_fit_data <- if (!script_options$no_prior) { 
+  tryCatch({
+    load(file.path(script_options$input_path, str_interp("dist_prior${fit_version}.RData")))
+    
+    if (!is_null(script_options$models)) {
+      dist_fit %<>%  magrittr::extract(script_options$models)
+    }
+    
+    dist_fit %<>% 
+      map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
+    
+    dist_fit_data %<>%
+      bind_rows("fit" = .,
+                "prior-predict" = enframe(dist_fit, name = "model", value = "fit") %>% 
+                  mutate(stan_data = list(stan_data)),
+                .id = "fit_type") 
+    
+    rm(dist_fit, stan_data)
+    
+    dist_fit_data
+  },
+  error = function(err) {
+    dist_fit_data %>% 
+      mutate(fit_type = "fit")
+  })
+} else {
   dist_fit_data %>% 
     mutate(fit_type = "fit")
-})
+}
 
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
@@ -424,6 +438,21 @@ calculate_dist_ate <- function(ate_list, model_type, other_ate_join_col = NULL) 
 
 dist_fit_data %<>% 
   mutate(
+    wtp_travel_dist = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "wtp_travel_dist", stan_data = .y, iter_level = "none", quant_probs = quant_probs)) %>% 
+      map2(stan_data, ~ {
+      if (!is_null(.x)) {
+        unnest(.x, iter_data) %>% 
+          mutate(iter_est = iter_est / unstandardize(1, .y$analysis_data$cluster.dist.to.pot))
+      }
+    }),
+    calendar_preference_in_dist = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "calendar_preference_in_dist", stan_data = .y, iter_level = "none", quant_probs = quant_probs)) %>% 
+      map2(stan_data, ~ {
+      if (!is_null(.x)) {
+        unnest(.x, iter_data) %>% 
+          mutate(iter_est = unstandardize(iter_est, .y$analysis_data$cluster.dist.to.pot))
+      }
+    }),
+    
     total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", by_treatment = TRUE, summarize_est = FALSE, quant_probs = quant_probs)) %>% 
       map(select, !assigned_dist_group),
     u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
@@ -478,6 +507,13 @@ if (!script_options$no_rate_of_change) {
         set_names(roc_param) %>% 
         map(map_if, ~ !is_null(.x), summarize_roc) %>%
         as_tibble(), 
+      
+      cluster_rep_return_dist = map2(cluster_rep_return_dist, stan_data, ~ {
+        if (!is_null(.x)) {
+          mutate(.x, iter_data = map2(iter_data, .y$analysis_data, ~ mutate(.x, iter_est = iter_est / sd(.y$cluster.dist.to.pot)))) %>% 
+            summarize_roc()
+        }
+      }),
       
       sim_delta = map2(fit, stan_data, extract_sim_delta)
     )
