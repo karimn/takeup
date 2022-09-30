@@ -510,7 +510,7 @@ if (!script_options$no_rate_of_change) {
       
       cluster_rep_return_dist = map2(cluster_rep_return_dist, stan_data, ~ {
         if (!is_null(.x)) {
-          mutate(.x, iter_data = map2(iter_data, .y$analysis_data, ~ mutate(.x, iter_est = iter_est / sd(.y$cluster.dist.to.pot)))) %>% 
+          mutate(.x, iter_data = map(iter_data, ~ mutate(.x, iter_est = iter_est * .y), sd(.y$analysis_data$cluster.dist.to.pot))) %>% 
             summarize_roc()
         }
       }),
