@@ -85,7 +85,7 @@ param_used <- c(
   "group_dist_mean", "group_dist_sd", "group_dist_mix", "missing_cluster_standard_dist", 
   "prob_prefer_calendar", "strata_wtp_mu", "hyper_wtp_mu",
   "prob_1ord", "prob_2ord", "ate_1ord", "ate_2ord",
-   "wtp_travel_dist", "calendar_preference_in_dist", 
+   "wtp_travel_dist", "calendar_preference_in_dist" 
 )
 
 # param_used %<>% c("structural_cluster_takeup_prob", "missing_cluster_standard_dist") 
