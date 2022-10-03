@@ -365,7 +365,7 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
                                        probs = quant_probs)) 
 }
 
-extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+extract_roc_param <- function(fit, stan_data, par, incr_treatment_id = 0) {
   analysis_data <- stan_data$analysis_data
   
   fit_data <- tryCatch({
@@ -384,11 +384,13 @@ extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.
   if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL)
   
   fit_data %>% 
-    tidyr::extract(variable, c("cluster_id", "roc_distance_index"), r"{(\d+),(\d+)}", convert = TRUE) %>%  
+    tidyr::extract(variable, c( "roc_distance_index", "cluster_id", "treatment_id"), r"{(\d+),(\d+),(\d+)}", convert = TRUE) %>%  
     left_join(tibble(roc_distance = unstandardize(stan_data$roc_distances, analysis_data$cluster.dist.to.pot)) %>% 
                 mutate(roc_distance_index = seq(n())), by = "roc_distance_index") %>% 
     left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
-    as_tibble()
+    as_tibble() %>% 
+    mutate(treatment_id = treatment_id + incr_treatment_id) %>% 
+    left_join(distinct(stan_data$cluster_treatment_map, assigned_treatment) %>% mutate(treatment_id = seq(n())), by = c("treatment_id")) 
 }
 
 generate_initializer <- function(num_treatments,
@@ -507,7 +509,8 @@ fit_model <- function(curr_stan_data, chains, threads, iter, use_cmdstanr, inclu
     dist_model <- cmdstan_model(
       file.path("stan_models", curr_stan_data$model_file),
       cpp_options = list(stan_threads = TRUE),
-      include_paths = include_paths
+      include_paths = include_paths,
+      #stanc_options = list("O1")
     )
     
     dist_model$sample(
@@ -576,7 +579,12 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
         kfold_groups <- kfold_split_stratified(K = folds, x = stan_data$cluster_assigned_dist_group_treatment)
         
         dist_model <- if (use_cmdstanr) {
-          cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
+          cmdstan_model(
+            file.path("stan_models", curr_model$model_file), 
+            cpp_options = list(stan_threads = TRUE),
+            include_paths = include_paths,
+            #stanc_options = list("O1")
+          )
         } else {
           stan_model(file.path("stan_models", curr_model$model_file))
         }

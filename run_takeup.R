@@ -6,8 +6,8 @@ script_options <- docopt::docopt(
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
-  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
-  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel]
+  run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
+  run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
   
   run_takeup.R dist prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
   run_takeup.R dist fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --num-mix-groups=<num>]
@@ -30,10 +30,11 @@ Options:
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000 --no-dist" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --sequential" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST --output-path=data/stan_analysis_data --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
@@ -149,7 +150,7 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
-    use_homoskedastic_shocks = FALSE,
+    use_homoskedastic_shocks = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
@@ -284,6 +285,11 @@ models <- lst(
       list_modify(
         fit_wtp_model_to_data = FALSE,
         fit_model_to_data = FALSE,
+      ),
+    
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        beliefs_use_dist = FALSE,
       )
   )
 
@@ -343,17 +349,27 @@ analysis_data %<>%
   ))
 
 beliefs_ate_pairs <- cluster_treatment_map %>% 
+  #   if (script_options$no_dist) {
+  #     distinct(., assigned_treatment)
+  #   } else .
+  # } %>%  
   # filter(fct_match(assigned_dist_group, "close")) %>% 
   mutate(treatment_id = seq(n())) %>% {
-  bind_rows(
-    left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
-      filter(assigned_treatment != assigned_treatment_control) %>% 
-      select(treatment_id, treatment_id_control),
-    
-    left_join(., filter(., fct_match(assigned_dist_group, "close")), by = c("assigned_treatment"), suffix = c("", "_control")) %>% 
-      filter(assigned_dist_group != assigned_dist_group_control) %>% 
-      select(treatment_id, treatment_id_control),
-  )
+    # if (script_options$no_dist) {
+    #   mutate(., treatment_id_control = 1) %>% 
+    #     filter(treatment_id != treatment_id_control) %>% 
+    #     select(treatment_id, treatment_id_control)
+    # } else {
+      bind_rows(
+        left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
+          filter(assigned_treatment != assigned_treatment_control) %>% 
+          select(treatment_id, treatment_id_control),
+        
+        left_join(., filter(., fct_match(assigned_dist_group, "close")), by = c("assigned_treatment"), suffix = c("", "_control")) %>% 
+          filter(assigned_dist_group != assigned_dist_group_control) %>% 
+          select(treatment_id, treatment_id_control),
+      )
+    # }
 } %>%
   arrange(treatment_id, treatment_id_control) 
 
@@ -368,6 +384,7 @@ stan_data <- lst(
   beliefs_use_stratum_level = script_options$multilevel,
   beliefs_use_cluster_level = script_options$multilevel,
   beliefs_use_obs_level = script_options$multilevel,
+  beliefs_use_dist = !(script_options$no_dist %||% FALSE),
   
   know_table_A_sample_size = 10,
   num_beliefs_obs = filter(analysis_data, obs_know_person > 0) %>% nrow(),
@@ -609,6 +626,7 @@ if (script_options$takeup) {
   
   beliefs_fit <- beliefs_model$sample(
     data = stan_data %>% 
+      list_modify(fit_dist_model_to_data = .$fit_dist_model_to_data && .$beliefs_use_dist) %>% 
       map_at(c("cluster_treatment_map", "beliefs_ate_pairs"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
       discard(~ any(is.na(.x))),
     chains = script_options$chains,

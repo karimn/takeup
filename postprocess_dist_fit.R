@@ -17,10 +17,10 @@ Options:
   --keep-fit "), 
   # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "test3 --full-outputname" else commandArgs(trailingOnly = TRUE)
+  # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=4 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true) 
-  args = if (interactive()) "53 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
+  args = if (interactive()) "61 --cores=1 --load-from-csv" else commandArgs(trailingOnly = TRUE) 
 )
 
 library(magrittr)
@@ -77,7 +77,8 @@ analysis_data <- monitored_nosms_data
 # Load Data ---------------------------------------------------------------
 
 roc_param <- c("cluster_roc_diff", 
-               str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
+               # str_c(rep(c("cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop"), each = 2), c("_left", "_right")))
+               "cluster_roc", "cluster_rep_return", "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
 
 param_used <- c(
   "total_error_sd", "u_sd", "cluster_cf_cutoff", roc_param, "sim_delta", "obs_cluster_mu_rep", # "mu_beliefs_effect", 
@@ -108,10 +109,10 @@ load_fit <- function(fit_file, input_path = script_options$input_path, load_from
 
 # Metadata on the models fit
 model_info <- tribble(
-  ~ model,                                             ~ model_name,                               ~ model_type,
+  ~ model,                                             ~ model_name,                                         ~ model_type,
   
-  "REDUCED_FORM_NO_RESTRICT",                          "Reduced Form",                             "reduced form",
-  "STRUCTURAL_LINEAR_U_SHOCKS",                        "Structural",                               "structural",
+  "REDUCED_FORM_NO_RESTRICT",                          "Reduced Form",                                       "reduced form",
+  "STRUCTURAL_LINEAR_U_SHOCKS",                        "Structural",                                         "structural",
   # "STRUCTURAL_LINEAR",              "Structural",                                "structural",
   # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
   # "STRUCTURAL_QUADRATIC_NO_SHOCKS", "Structural Quadratic Cost (No Shocks)",     "structural",
@@ -119,12 +120,13 @@ model_info <- tribble(
   # "STRUCTURAL_QUADRATIC_SALIENCE",  "Structural Quadratic Cost With Salience",   "structural",
   # "STRUCTURAL_LINEAR_SALIENCE",     "Structural With Salience",                 "structural",
   
-  "STACKED",                                          "Stacked Model",                             "combined", # Includes both reduced form and structural models
-  "STRUCTURAL_STACKED",                               "Structural Stacked Model",                  "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS",          "Structural without Any Submodel Data",      "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Data",           "structural", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Data",               "structural",
-  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Data",     "structural",
+  "STACKED",                                          "Stacked Model",                                       "combined", # Includes both reduced form and structural models
+  "STRUCTURAL_STACKED",                               "Structural Stacked Model",                            "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS",          "Structural without Any Submodel Data",                "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL",   "Structural without Beliefs Data",                     "structural", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL",       "Structural without WTP Data",                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP",         "Structural without Takeup or WTP Data",               "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST",       "Structural without Distance in Beliefs Model",        "structural",
 ) %>% 
   mutate(model_type = factor(model_type, levels = c("reduced form", "structural", "combined")))
 
@@ -235,10 +237,14 @@ calculate_prob_and_num_takeup <- function(cutoffs, total_error_sd, force_draw_ta
   }
   
   prob_iter_data <- if (!is_null(total_error_sd)) {
-    mutate(cutoffs, iter_data = future_map(iter_data, 
-                               ~ left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
-                                 mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)), 
-                              total_error_sd$iter_data[[1]]))
+    left_join(cutoffs, total_error_sd, by = c("assigned_treatment"), suffix = c("", "_total_error_sd")) %>%
+      mutate(
+        iter_data = map2(iter_data, iter_data_total_error_sd, ~ {
+          left_join(.x, .y, by = "iter_id", suffix = c("", "_total_error_sd")) %>% 
+            mutate(prob = pnorm(- iter_est, sd = iter_est_total_error_sd)) 
+        })
+      ) %>% 
+      select(!ends_with("total_error_sd"))
   } else {
     mutate(cutoffs, iter_data = map(iter_data, ~ mutate(.x, prob = pnorm(- iter_est)))) 
   }
@@ -326,7 +332,7 @@ rate_of_change_stack_reducer <- function(accum, rate_of_change, stacking_weight)
 
 summarize_roc <- function(param_data) {
   unnest(param_data, iter_data) %>%
-    group_by(roc_distance_index, roc_distance, iter_id) %>% 
+    group_by(roc_distance_index, roc_distance, treatment_id, assigned_treatment, iter_id) %>% 
     summarize(iter_est = mean(iter_est), .groups = "drop") %>% 
     ungroup() %>% 
     nest(iter_data = c(iter_id, iter_est)) %>% 
@@ -418,7 +424,8 @@ calculate_dist_ate <- function(ate_list, model_type, other_ate_join_col = NULL) 
 
 dist_fit_data %<>% 
   mutate(
-    total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
+    total_error_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "total_error_sd", stan_data = .y, iter_level = "none", by_treatment = TRUE, summarize_est = FALSE, quant_probs = quant_probs)) %>% 
+      map(select, !assigned_dist_group),
     u_sd = map2(fit, stan_data, ~ extract_obs_fit_level(.x, par = "u_sd", stan_data = .y, iter_level = "none", quant_probs = quant_probs)),
     
     obs_cluster_mu_rep = map(fit, filter, str_detect(variable, "obs_cluster_mu_rep")),
@@ -467,11 +474,10 @@ dist_fit_data %<>%
 if (!script_options$no_rate_of_change) {
   dist_fit_data %<>% 
     mutate(
-      map(roc_param, ~ map2(..2, ..3, extract_roc_param, ..1), fit, stan_data) %>% 
+      map2(roc_param, if_else(str_detect(roc_param, "diff"), 1, 0), ~ map2(..3, ..4, extract_roc_param, ..1, ..2), fit, stan_data) %>% 
         set_names(roc_param) %>% 
-        map(map_if, ~ !is_null(.x), summarize_roc) %>% 
-        as_tibble() %>% 
-        rename_with(str_replace_all, c("_left" = "_bracelet", "_right" = "_control"), .cols = everything()),
+        map(map_if, ~ !is_null(.x), summarize_roc) %>%
+        as_tibble(), 
       
       sim_delta = map2(fit, stan_data, extract_sim_delta)
     )
