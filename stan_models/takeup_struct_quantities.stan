@@ -1,5 +1,6 @@
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_roc; 
 array[num_roc_distances] matrix[num_clusters, num_treatments - 1] cluster_roc_diff; 
+matrix[num_clusters, num_treatments - 1] cluster_roc_diff_diffdist; 
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_w_cutoff;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_takeup_prop;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_social_multiplier;
@@ -71,4 +72,8 @@ if (multithreaded) {
       }
     }
   }
+  
+  // matrix[num_clusters, num_treatments - 1] cluster_roc_diff_diffdist; 
+  
+  cluster_roc_diff_diffdist = cluster_roc_diff[num_roc_distances] - cluster_roc_diff[1];
 }
