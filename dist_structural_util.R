@@ -283,7 +283,7 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
         as_tibble()
     } else if (is_tibble(fit)) {
       fit %>% 
-        filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
+        filter(str_detect(variable, str_glue(r"{^{par}(\[.+\])?$}")))
     } else { 
       fit$draws(par) %>% 
         posterior::as_draws_df() %>% 

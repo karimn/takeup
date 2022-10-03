@@ -4,6 +4,7 @@ array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_w_cutoff;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_takeup_prop;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_social_multiplier;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_rep_return;
+array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_rep_return_dist;
  
 if (multithreaded) { 
   for (roc_dist_index in 1:num_roc_distances) {
@@ -61,6 +62,7 @@ if (multithreaded) {
       cluster_takeup_prop[roc_dist_index, , treatment_index] = 1 - Phi_approx(roc_results[, 1] / total_error_sd[treatment_index]);
       cluster_social_multiplier[roc_dist_index, , treatment_index] = - roc_results[, 3];
       cluster_rep_return[roc_dist_index, , treatment_index] = roc_results[, 3] .* curr_cluster_mu_rep[, 1];
+      cluster_rep_return_dist[roc_dist_index, , treatment_index] = cluster_rep_return[roc_dist_index, , treatment_index] / dist_beta_v[1]; 
       cluster_roc[roc_dist_index, , treatment_index] = roc_results[, 5];
       
       if (treatment_index > roc_compare_treatment_id_right) {

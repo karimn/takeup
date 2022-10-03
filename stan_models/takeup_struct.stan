@@ -329,6 +329,9 @@ generated quantities {
   
   vector[num_sim_delta_w] sim_delta;
   
+  real wtp_travel_dist = dist_beta_v[1] / wtp_value_utility;
+  real calendar_preference_in_dist = hyper_wtp_mu / wtp_travel_dist;
+  
 #include wtp_generated_quantities.stan
 #include takeup_struct_cv.stan
 #include takeup_struct_quantities.stan
