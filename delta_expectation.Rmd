@@ -615,6 +615,38 @@ dist_fit_data %>%
   ) 
 ```
 
+### Valuation of Reputational Returns in Distance
+
+Here estimate what is the distance, $r^*(z,d)$, that would have a disutility equal to the reputational returns at different $(z,d)$.
+
+\begin{align*}
+r^*(z,d)\delta &= \mu(z,d) \Delta[w^*(z,d)] \\
+r^*(z,d) &= \frac{\mu(z,d) \Delta[w^*(z,d)]}{\delta} \\
+\end{align*}
+
+```{r, fig.width=8}
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+  select(model_name, cluster_rep_return_dist) %>%
+  unnest(cluster_rep_return_dist) %>% 
+  mutate(
+    roc_distance = roc_distance / 1000,
+    across(starts_with("per_"), divide_by, 1000)
+  ) %>% 
+  ggplot(aes(roc_distance)) +
+  geom_line(aes(y = per_0.5, color = model_name)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.4) +
+  scale_color_discrete("", aesthetics = c("color", "fill")) +
+  labs(
+    title = "Valuation of Reputational Returns in Terms of Distance",
+    x = "Distance to Treatment [km]", y = "Distance Value [km]",
+  ) +
+  facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title), nrow = 1) +
+  theme(legend.position = "top") +
+  NULL
+```
+
 ### Levels
 
 ```{r, fig.width=8, fig.height=19}
