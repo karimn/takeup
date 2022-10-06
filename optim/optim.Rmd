@@ -162,7 +162,14 @@ demand_df %>%
         x = distance, 
         y = demand
     )) +
-    geom_point()
+    geom_point() +
+    geom_line(alpha = 0.5) +
+    theme_bw() +
+    labs(
+        x = "Distance",
+        y = "Demand", 
+        title = "Simulated Demand-Distance Curve"
+    ) 
 
 demand_df %>%
     ggplot(aes(
@@ -179,7 +186,6 @@ demand_df %>%
         alpha = demand
     )) +
     theme_bw()
-
 ```
 
 
@@ -231,47 +237,33 @@ sm_result = solve_model(sm_model, with_ROI(solver = "glpk", verbose = TRUE))
 ```
 
 ```{r}
-matching = result %>% 
-  get_solution(x[i,j]) %>%
-  filter(value > .9) %>%  
-  select(i, j) %>%
-  as_tibble()
-
-sm_matching = sm_result %>%
-    get_solution(x[i,j]) %>%
-    filter(value > 0.9) %>%
-    select(i, j) %>%
-    as_tibble()
-
-sm_tidy_output = sm_matching %>% 
-  inner_join(sim_data$customer_locations %>% 
-                rename(customer_x = x, customer_y = y), by = c("i" = "id")) %>% 
-  inner_join(sim_data$warehouse_locations %>%
-                rename(warehouse_x = x, warehouse_y = y), by = c("j" = "id")) %>%
-    mutate( 
-        fixed_cost = sim_data$fixedcost[j]
-    )
 
 
-tidy_output = matching %>% 
-  inner_join(sim_data$customer_locations %>% 
-                rename(customer_x = x, customer_y = y), by = c("i" = "id")) %>% 
-  inner_join(sim_data$warehouse_locations %>%
-                rename(warehouse_x = x, warehouse_y = y), by = c("j" = "id")) %>%
-    mutate( 
-        fixed_cost = sim_data$fixedcost[j]
-    )
+clean_output = function(model_fit, data){
+    matching = model_fit %>%
+        get_solution(x[i,j]) %>%
+        filter(value > .9) %>%  
+        select(i, j) %>%
+        as_tibble()
+    tidy_output = matching %>%
+        inner_join(data$customer_locations %>% 
+                        rename(customer_x = x, customer_y = y), by = c("i" = "id")) %>% 
+        inner_join(data$warehouse_locations %>%
+                        rename(warehouse_x = x, warehouse_y = y), by = c("j" = "id")) %>%
+        mutate( 
+            fixed_cost = data$fixedcost[j]
+        )
+    return(tidy_output)
+}
 
-
-
-customer_count = matching %>% 
-    group_by(j) %>% 
-    summarise(n = n()) %>% 
-    rename(id = j)
-sm_customer_count = sm_matching %>% 
-    group_by(j) %>% 
-    summarise(n = n()) %>% 
-    rename(id = j)
+tidy_output = clean_output(
+    result,
+    sim_data
+)
+sm_tidy_output = clean_output(
+    sm_result,
+    sim_data
+)
 
 
 comp_output = bind_rows(
@@ -279,20 +271,43 @@ comp_output = bind_rows(
     sm_tidy_output %>% mutate(type = "Subsidy")
 )
 
-comp_output
+
+calculate_pot_change = function(tidy_output_1, tidy_output_2){
+    diff_1_2 = setdiff(tidy_output_1$j, tidy_output_2$j)
+    diff_2_1 = setdiff(tidy_output_2$j, tidy_output_1$j)
+    return(
+        lst(
+            diff_1_2,
+            diff_2_1
+        )
+    )
+}
+
+diff_pot_df = calculate_pot_change(
+    tidy_output_1 = tidy_output,
+    tidy_output_2 = sm_tidy_output
+)
+
 
 sim_data$customer_locations %>%
     ggplot(aes(
         x = x,
         y = y
     )) +
-    geom_point() +
+    geom_point(alpha = 0.2) +
     geom_point(
-        data = sim_data$warehouse_locations, 
-        color = "red", 
+        data = sim_data$warehouse_locations %>%
+                mutate(
+                    clinic_type = case_when(
+                        id %in% diff_pot_df$diff_1_2 ~ "Removed w/ Sub",
+                        id %in% diff_pot_df$diff_2_1 ~ "Added w/ Sub",
+                        TRUE ~ "Unchanged"
+                    )
+                    ),
+        aes(color = clinic_type),
         shape = 17,
         size = 4, 
-        alpha = 0.2) +
+        alpha = 1) +
     theme_bw() +
     labs(
         title = "Facility Location Problem",
@@ -304,72 +319,79 @@ sim_data$customer_locations %>%
         y = customer_y, 
         xend = warehouse_x, 
         yend = warehouse_y),
-    alpha = 0.5) +
+    alpha = 0.2) +
   facet_wrap(~type, ncol = 1)
+```
 
-removed_clinics = setdiff(tidy_output$j, sm_tidy_output$j)
 
-sim_data$customer_locations %>%
+```{r}
+flat_sim_data = sim_data()
+flat_sim_data$customer_locations$y = 1
+flat_sim_data$warehouse_locations$y = 1
+
+
+flat_model = define_MIPModel(flat_sim_data, subsidy = 0)
+flat_sm_model = define_MIPModel(flat_sim_data, subsidy = 0.5)
+
+flat_result = solve_model(flat_model, with_ROI(solver = "glpk", verbose = TRUE))
+flat_sm_result = solve_model(flat_sm_model, with_ROI(solver = "glpk", verbose = TRUE))
+
+
+```
+
+
+
+```{r}
+flat_tidy_output = clean_output(
+    flat_result,
+    flat_sim_data
+)
+
+flat_sm_tidy_output = clean_output(
+    flat_sm_result,
+    flat_sim_data
+)
+
+
+
+flat_comp_output = bind_rows(
+    flat_tidy_output %>% mutate(type = "Original"),
+    flat_sm_tidy_output %>% mutate(type = "Subsidy")
+)
+
+flat_diff_pot = calculate_pot_change(flat_tidy_output, flat_sm_tidy_output)
+
+flat_sim_data$customer_locations %>%
     ggplot(aes(
         x = x,
         y = y
     )) +
-    geom_point(alpha = 0.4) +
+    geom_point(alpha = 0.2) +
     geom_point(
-        data = sim_data$warehouse_locations %>%
-                mutate(clinic_removed = id %in% removed_clinics),
-        aes(color = clinic_removed),
+        data = flat_sim_data$warehouse_locations %>%
+                mutate(
+                    clinic_type = case_when(
+                        id %in% flat_diff_pot$diff_1_2 ~ "Removed w/ Sub",
+                        id %in% flat_diff_pot$diff_2_1 ~ "Added w/ Sub",
+                        TRUE ~ "Unchanged"
+                    )
+                    ),
+        aes(color = clinic_type),
         shape = 17,
         size = 4, 
         alpha = 1) +
     theme_bw() +
     labs(
         title = "Facility Location Problem",
-        subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
+        subtitle = "Black dots indicate villages. Red triangles indicate potential clinic locations."
     ) +
   geom_segment(
-    data = comp_output, 
+    data = flat_comp_output, 
     aes(x = customer_x, 
         y = customer_y, 
         xend = warehouse_x, 
-        yend = wareho
-ggsave(
-    "optim/example-location-solved-problem.png",
-    width = 10,
-    height = 10
-)
+        yend = warehouse_y),
+    alpha = 0.2) +
+  facet_wrap(~type, ncol = 1)
 
-
-comp_output %>%
-    mutate(
-        cost = sqrt((customer_x - warehouse_x)^2 + (customer_y - warehouse_y)^2),
-        cost = pmax(cost*(1-0.5), 0)
-    ) %>%
-    group_by(
-        type
-    ) %>%
-    summarise(
-        total_cost = sum(cost) + sum(unique(fixed_cost)), 
-        n_clinics = n_distinct(j)
-    )
-
-transportcost()
-
-
-customer_count
-
-sm_customer_count
-
-nnecessary After Social Planner Accounts For Subsidy") +
-  theme(
-    legend.position = "bottom"
-  )
-
-
-```
-
-
-```{r}
-
-print("ed")
 ```
