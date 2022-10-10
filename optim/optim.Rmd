@@ -20,15 +20,16 @@ library(ROI.plugin.glpk)
 
 Suppose there are $n$ villages, indexed by $i$, and $m$ points of treatment (PoT) which we index 
 by $j$:
-
-\begin{align*}
-\max \sum_{i = 1}^n \sum_{j = 1}^m &takeup_{ij} x_{ij} \\
+$$
+\begin{aligned}
+\max \sum_{i = 1}^n \sum_{j = 1}^m &U\left(takeup_{ij} x_{ij}\right) \\
 s.t. \ \ 
 \sum_{j = 1}^m y_j &\leq \overline{M} = 10 \\
     \sum_{j=1}^{m} x_{ij} &\leq 1, \forall i \\
     x_{ij} &\leq y_j, \forall i, j  \\
  x_{ij} &\in \{0,1\}, y_j \in\{0,1\}
-\end{align*}
+\end{aligned}
+$$
 
 
 In words, $x_{ij}$ is an indicator switched on if village $i$ 'uses' point of 
@@ -50,18 +51,21 @@ unchanged.
 
 Line 4 just says a village cannot use an unfunded/unavailable PoT.
 
+For now I'm setting $U(\cdot)$ as either $\log$ or just the identity (i.e. just 
+sum of takeup). 
 
 ```{r}
-generate_data = function(...){
+generate_data = function(..., seed, n_villages = 50, m_warehouses = 30){
+    set.seed(seed)
     grid_size <- 10000
-    n <- 200
+    n <- n_villages
     customer_locations <- data.frame(
     id = 1:n,
     x = round(runif(n) * grid_size),
     y = round(runif(n) * grid_size)
     )
 
-    m <- 50
+    m <- m_warehouses
     warehouse_locations <- data.frame(
     id = 1:m,
     x = round(runif(m) * grid_size),
@@ -81,7 +85,7 @@ generate_data = function(...){
 }
 
 
-sim_data = generate_data()
+sim_data = generate_data(n_villages = 100, m_warehouses = 25, seed = 5)
 
 
 logit = function(x){
@@ -141,7 +145,7 @@ p_customer = sim_data$customer_locations %>%
 p_customer
 
 
-demands = map_dbl(1:50, 
+demands = map_dbl(1:25, 
     ~demand_function(i = 1, 
                      j = .x, 
                      sim_data$customer_locations,
@@ -185,13 +189,18 @@ demand_df %>%
         yend = w_y, 
         alpha = demand
     )) +
-    theme_bw()
+    theme_bw() + 
+    labs(
+        x = "x", 
+        y = "y", 
+        title = "Demand For Each PoT for village 1"
+    )
 ```
 
 
 
 ```{r}
-define_MIPModel = function(sim_data, subsidy = 0) {
+define_MIPModel = function(sim_data, subsidy = 0, utility_function = identity, max_m = 5) {
     n = sim_data$n 
     m = sim_data$m 
     customer_locations = sim_data$customer_locations
@@ -206,7 +215,7 @@ define_MIPModel = function(sim_data, subsidy = 0) {
         # maximize the preferences
         set_objective(
                 sum_over(
-                    x[i,j] * log(demand_function(
+                    x[i,j] * utility_function(demand_function(
                         i,
                         j,
                         customer_locations = customer_locations,
@@ -218,21 +227,35 @@ define_MIPModel = function(sim_data, subsidy = 0) {
         # if a customer is assigned to a warehouse, then this warehouse must be built
         add_constraint(x[i,j] <= y[j], i = 1:n, j = 1:m) %>%
         # there can be no more than 10 warehouses
-        add_constraint(sum_over(y[j], j = 1:m) <= 15  )
+        add_constraint(sum_over(y[j], j = 1:m) <= max_m)
     return(model)
 }
-
 
 
 ```
 
 ```{r}
 
-model = define_MIPModel(sim_data, subsidy = 0)
-sm_model = define_MIPModel(sim_data, subsidy = 0.5)
+model = define_MIPModel(sim_data, subsidy = 0, max_m = 15)
+sm_model = define_MIPModel(sim_data, subsidy = 0.5, max_m = 15)
+log_model = define_MIPModel(sim_data, subsidy = 0, utility_function = log, max_m = 15)
+log_sm_model = define_MIPModel(sim_data, subsidy = 0.5, utility_function = log, max_m = 15)
 
-result = solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
-sm_result = solve_model(sm_model, with_ROI(solver = "glpk", verbose = TRUE))
+models = lst(
+    model,
+    sm_model,
+    log_model,
+    log_sm_model
+)
+
+model_results = map(
+    models,
+    ~solve_model(.x, with_ROI(solver = "glpk", verbose = TRUE))
+)
+
+
+# result = solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
+# sm_result = solve_model(sm_model, with_ROI(solver = "glpk", verbose = TRUE))
 
 ```
 
@@ -256,20 +279,26 @@ clean_output = function(model_fit, data){
     return(tidy_output)
 }
 
-tidy_output = clean_output(
-    result,
-    sim_data
-)
-sm_tidy_output = clean_output(
-    sm_result,
-    sim_data
+
+tidy_output = map(
+    model_results,
+    clean_output,
+    data = sim_data
 )
 
 
 comp_output = bind_rows(
-    tidy_output %>% mutate(type = "Original"),
-    sm_tidy_output %>% mutate(type = "Subsidy")
-)
+    tidy_output,
+    .id = "type" 
+) %>%
+    mutate(
+        subsidy = str_detect(type, "sm"), 
+        utility = case_when(
+            str_detect(type, "log") ~ "log",
+            TRUE ~ "identity"
+        )
+        )
+
 
 
 calculate_pot_change = function(tidy_output_1, tidy_output_2){
@@ -284,9 +313,10 @@ calculate_pot_change = function(tidy_output_1, tidy_output_2){
 }
 
 diff_pot_df = calculate_pot_change(
-    tidy_output_1 = tidy_output,
-    tidy_output_2 = sm_tidy_output
+    tidy_output_1 = tidy_output[[1]],
+    tidy_output_2 = tidy_output[[2]]
 )
+
 
 
 sim_data$customer_locations %>%
@@ -314,65 +344,33 @@ sim_data$customer_locations %>%
         subtitle = "Black dots indicate villages. Red triangles indicate potential clinic locations."
     ) +
   geom_segment(
-    data = comp_output, 
+    data = comp_output %>% filter(utility == "identity"), 
     aes(x = customer_x, 
         y = customer_y, 
         xend = warehouse_x, 
         yend = warehouse_y),
     alpha = 0.2) +
-  facet_wrap(~type, ncol = 1)
-```
+  facet_wrap(~subsidy, ncol = 1)
 
-
-```{r}
-flat_sim_data = sim_data()
-flat_sim_data$customer_locations$y = 1
-flat_sim_data$warehouse_locations$y = 1
-
-
-flat_model = define_MIPModel(flat_sim_data, subsidy = 0)
-flat_sm_model = define_MIPModel(flat_sim_data, subsidy = 0.5)
-
-flat_result = solve_model(flat_model, with_ROI(solver = "glpk", verbose = TRUE))
-flat_sm_result = solve_model(flat_sm_model, with_ROI(solver = "glpk", verbose = TRUE))
-
-
-```
-
-
-
-```{r}
-flat_tidy_output = clean_output(
-    flat_result,
-    flat_sim_data
-)
-
-flat_sm_tidy_output = clean_output(
-    flat_sm_result,
-    flat_sim_data
+diff_pot_df = calculate_pot_change(
+    tidy_output_1 = tidy_output[[3]],
+    tidy_output_2 = tidy_output[[4]]
 )
 
 
 
-flat_comp_output = bind_rows(
-    flat_tidy_output %>% mutate(type = "Original"),
-    flat_sm_tidy_output %>% mutate(type = "Subsidy")
-)
-
-flat_diff_pot = calculate_pot_change(flat_tidy_output, flat_sm_tidy_output)
-
-flat_sim_data$customer_locations %>%
+sim_data$customer_locations %>%
     ggplot(aes(
         x = x,
         y = y
     )) +
     geom_point(alpha = 0.2) +
     geom_point(
-        data = flat_sim_data$warehouse_locations %>%
+        data = sim_data$warehouse_locations %>%
                 mutate(
                     clinic_type = case_when(
-                        id %in% flat_diff_pot$diff_1_2 ~ "Removed w/ Sub",
-                        id %in% flat_diff_pot$diff_2_1 ~ "Added w/ Sub",
+                        id %in% diff_pot_df$diff_1_2 ~ "Removed w/ Sub",
+                        id %in% diff_pot_df$diff_2_1 ~ "Added w/ Sub",
                         TRUE ~ "Unchanged"
                     )
                     ),
@@ -382,16 +380,99 @@ flat_sim_data$customer_locations %>%
         alpha = 1) +
     theme_bw() +
     labs(
-        title = "Facility Location Problem",
+        title = "Facility Location Problem - LOG Utility",
         subtitle = "Black dots indicate villages. Red triangles indicate potential clinic locations."
     ) +
   geom_segment(
-    data = flat_comp_output, 
+    data = comp_output %>% filter(utility == "log"), 
     aes(x = customer_x, 
         y = customer_y, 
         xend = warehouse_x, 
         yend = warehouse_y),
     alpha = 0.2) +
-  facet_wrap(~type, ncol = 1)
+  facet_wrap(utility~subsidy, ncol = 1)
+```
+
+
+
+```{r}
+
+sim_function = function(seed, n_villages, m_warehouses, max_m = 5){
+    sim_data = generate_data(seed = seed, n_villages = n_villages, m_warehouses = m_warehouses)
+
+    model = define_MIPModel(sim_data, subsidy = 0, max_m = max_m)
+    sm_model = define_MIPModel(sim_data, subsidy = 0.5, max_m = max_m)
+    log_model = define_MIPModel(sim_data, subsidy = 0, utility_function = log, max_m = max_m)
+    log_sm_model = define_MIPModel(sim_data, subsidy = 0.5, utility_function = log, max_m = max_m)
+
+    models = lst(
+        model,
+        sm_model,
+        log_model,
+        log_sm_model
+    )
+
+    model_results = map(
+        models,
+        ~solve_model(.x, with_ROI(solver = "glpk", verbose = TRUE))
+    )
+
+    tidy_output = map(
+        model_results,
+        clean_output,
+        data = sim_data
+    )
+
+
+    comp_output = bind_rows(
+        tidy_output,
+        .id = "type" 
+    ) %>%
+        mutate(
+            subsidy = str_detect(type, "sm"), 
+            utility = case_when(
+                str_detect(type, "log") ~ "log",
+                TRUE ~ "identity"
+            )
+        )
+    comp_output$seed = seed
+    return(comp_output)
+}
+
+
+
+# plan(sequential)
+# sim_fits = map_dfr(
+#     1:20,
+#     ~sim_function(
+#         seed = .x,
+#         n_villages = 100,
+#         m_warehouses = 25,
+#         max_m = 15
+#     )
+# )
+# 
+# sim_fits %>%
+#     write_csv("optim/simple-sim-fits.csv")
+
+
+sim_fits = read_csv("simple-sim-fits.csv")
+
+sim_fits %>%
+    group_by(seed, j) %>%
+    summarise(model = unique(type)) %>%
+    group_by(seed, j) %>%
+    summarise(n_models_use_j = n_distinct(model)) %>%
+    group_by(seed) %>%
+    summarise(all_4 = all(n_models_use_j == 4)) %>%
+    summarise(pr_no_switch = mean(all_4))
+
+sim_fits %>%
+    group_by(seed, j) %>%
+    summarise(model = unique(type)) %>%
+    group_by(seed, j) %>%
+    summarise(n_models_use_j = n_distinct(model)) %>%
+    group_by(seed) %>%
+    summarise(all_4 = all(n_models_use_j == 4)) 
 
 ```
