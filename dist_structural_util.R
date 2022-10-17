@@ -365,7 +365,7 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
                                        probs = quant_probs)) 
 }
 
-extract_roc_param <- function(fit, stan_data, par, incr_treatment_id = 0) {
+extract_roc_param <- function(fit, stan_data, par, incr_treatment_id = 0, diff_diffdist = FALSE) {
   analysis_data <- stan_data$analysis_data
   
   fit_data <- tryCatch({
@@ -383,10 +383,17 @@ extract_roc_param <- function(fit, stan_data, par, incr_treatment_id = 0) {
   
   if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL)
   
-  fit_data %>% 
-    tidyr::extract(variable, c( "roc_distance_index", "cluster_id", "treatment_id"), r"{(\d+),(\d+),(\d+)}", convert = TRUE) %>%  
-    left_join(tibble(roc_distance = unstandardize(stan_data$roc_distances, analysis_data$cluster.dist.to.pot)) %>% 
-                mutate(roc_distance_index = seq(n())), by = "roc_distance_index") %>% 
+  param_data <- if (!diff_diffdist) {
+    fit_data %>% 
+      tidyr::extract(variable, c("roc_distance_index", "cluster_id", "treatment_id"), r"{(\d+),(\d+),(\d+)}", convert = TRUE) %>%  
+      left_join(tibble(roc_distance = unstandardize(stan_data$roc_distances, analysis_data$cluster.dist.to.pot)) %>% 
+                  mutate(roc_distance_index = seq(n())), by = "roc_distance_index") 
+  } else {
+    fit_data %>% 
+      tidyr::extract(variable, c("cluster_id", "treatment_id"), r"{(\d+),(\d+)}", convert = TRUE) 
+  }
+  
+  param_data %>% 
     left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
     as_tibble() %>% 
     mutate(treatment_id = treatment_id + incr_treatment_id) %>% 
