@@ -543,6 +543,23 @@ dist_fit_data %>%
   NULL
 ```
 
+```{r, fig.height=2, fig.width=8}
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  select(model_name, cluster_roc_diff_diffdist) %>% 
+  unnest(cluster_roc_diff_diffdist) %>% 
+  filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
+  ggplot() +
+  geom_pointinterval(aes(y = assigned_treatment, x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = model_name), position = "dodge") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  scale_x_continuous("Difference in Difference") +
+  scale_y_discrete("", labels = str_to_title) +
+  scale_color_discrete("", aesthetics = c("color", "fill")) +
+  labs(title = "Difference in Rate of Change at 0 km and 2.5 km", caption = "Line interval shows the 80% credible interval.") +
+  theme(legend.position = "top") +
+  NULL
+```
+
 ```{r}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
