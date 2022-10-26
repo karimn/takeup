@@ -18,6 +18,8 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "--min-cost 
                              --target-constraint=0.3
+                             --output-path=optim
+                             --output-filename=dry-run.csv
                              --dry-run " else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -221,17 +223,13 @@ clean_output = function(model_fit, data, demand_data){
 }
 
 
-tidy_output = map(
-    list(fit_model),
-    clean_output,
-    data = data,
-    demand_data = demand_data
-)
+tidy_output = fit_model %>%
+  clean_output(data = data, demand_data = demand_data)
 
-output_path = file.path(script_options$output_filepath, script_options$output_filename)
-
+output_path = file.path(script_options$output_path, script_options$output_filename)
 
 write_csv(
   tidy_output,
   output_path
 )
+
