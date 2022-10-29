@@ -43,7 +43,10 @@ for (cluster_index in 1:num_clusters) {
                                                              + county_dist_effect[curr_assigned_dist_group, cluster_county_id[cluster_index]] 
                                                              + cluster_dist_effect[curr_assigned_dist_group, cluster_index],
                                                              group_dist_sd[curr_assigned_dist_group, group_dist_mix_index])  
-          + normal_lccdf(0 | group_dist_mean[curr_assigned_dist_group, group_dist_mix_index], group_dist_sd[curr_assigned_dist_group, group_dist_mix_index]) +
+          + normal_lccdf(0 | group_dist_mean[curr_assigned_dist_group, group_dist_mix_index] 
+                                                             + county_dist_effect[curr_assigned_dist_group, cluster_county_id[cluster_index]] 
+                                                             + cluster_dist_effect[curr_assigned_dist_group, cluster_index],
+                                                             group_dist_sd[curr_assigned_dist_group, group_dist_mix_index]) +
           + log(group_dist_mix[curr_assigned_dist_group, group_dist_mix_index]); 
       }
     }
