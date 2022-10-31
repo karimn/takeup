@@ -6,6 +6,7 @@ script_options <- docopt::docopt(
 
         Options:
           --dry-run  Run on simulated data
+          --dry-run-subsidy=<dry-run-subsidy>  Amount of fake subsidy. 
           --min-cost  Flag to minimise programme cost for a given takeup level.
           --max-takeup  Flag to maximise vaccine takeup for a given cost level.
           --target-constraint=<target-constraint>  Amount of takeup/budget constraint depending on [--min-cost|--max-takeup]  [default: 0.5]
@@ -16,11 +17,14 @@ script_options <- docopt::docopt(
           --pot-input-filename=<pot-input-filename>  Index and location of each PoT - a csv path. 
           --demand-input-filename=<demand-input-filename>  Estimated demand for every village i, PoT j pair.  
 "),
-  args = if (interactive()) "--min-cost 
-                             --target-constraint=0.3
-                             --output-path=optim
-                             --output-filename=dry-run.csv
-                             --dry-run " else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "
+                             --min-cost 
+                             --target-constraint=0.85
+                             --output-path=optim/data
+                             --output-filename=dry-run
+                             --dry-run 
+                             --dry-run-subsidy=0.2
+                             " else commandArgs(trailingOnly = TRUE)
 ) 
 
 library(tidyverse)
@@ -30,7 +34,8 @@ library(ompr.roi)
 library(ROI.plugin.glpk)
 
 numeric_options = c(
-  "target_constraint"
+  "target_constraint",
+  "dry_run_subsidy"
 )
 
 script_options = script_options %>%
@@ -102,7 +107,7 @@ define_baseline_MIPModel = function(data,
 if (script_options$dry_run) {
   generate_data = function(..., 
                            seed, 
-                           n_villages = 50, 
+                           n_villages = 100, 
                            m_pots = 30){
       set.seed(seed)
       grid_size <- 10000
@@ -131,9 +136,9 @@ if (script_options$dry_run) {
           )
       )
   }
-  data = generate_data(n_villages = 100, m_pots = 25, seed = 5)
-  sim_demand_function = function(i, j, village_locations, pot_locations){
-    subsidy = 0.1
+
+  data = generate_data(n_villages = 200, m_pots = 40, seed = 1)
+  sim_demand_function = function(i, j, village_locations, pot_locations, subsidy){
     logit = function(x){
         y = exp(x)/(1 + exp(x))
         return(y)
@@ -155,12 +160,20 @@ if (script_options$dry_run) {
         demand = sim_demand_function(i = .x, 
                                     j = .y, 
                                     village_locations = data$village_locations,
-                                    pot_locations = data$pot_locations),
+                                    pot_locations = data$pot_locations,
+                                    subsidy = script_options$dry_run_subsidy),
         village_i = .x,
         pot_j = .y 
      )
   ) %>%
     as.data.table()
+  data$village_locations %>%
+    write_csv(str_glue("optim/data/dry-run-subsidy-{script_options$dry_run_subsidy}-village-locations.csv"))
+    
+  data$pot_locations %>%
+    write_csv(str_glue("optim/data/dry-run-subsidy-{script_options$dry_run_subsidy}-pot-locations.csv"))
+  demand_data %>%
+    write_csv(str_glue("optim/data/dry-run-subsidy-{script_options$dry_run_subsidy}-demand-data.csv"))
 } else {
   village_input_path = file.path(script_options$input_path, 
                                  script_options$village_input_filename)
@@ -169,9 +182,9 @@ if (script_options$dry_run) {
   demand_input_path = file.path(script_options$input_path, 
                                 script_options$demand_input_filename)
               
-  village_data = read_csv(script_options$village_input_path)
-  pot_data = read_csv(script_options$pot_input_path)
-  demand_data = read_csv(script_options$demand_input_path) %>%
+  village_data = read_csv(village_input_path)
+  pot_data = read_csv(pot_input_path)
+  demand_data = read_csv(demand_input_path) %>%
     as.data.table()
   
   n = nrow(village_data)
@@ -226,7 +239,40 @@ clean_output = function(model_fit, data, demand_data){
 tidy_output = fit_model %>%
   clean_output(data = data, demand_data = demand_data)
 
-output_path = file.path(script_options$output_path, script_options$output_filename)
+## Reassign villages to closest PoT
+# SP doesn't care about distance cost atm so once he hits target takeup, can 
+# assign people to whatever PoT if they won't let him drop down to a smaller # of PoTs
+# therefore, we just reoptimise within allowed PoTs
+
+
+#### TEMPORARY FIX #####
+assigned_pots = unique(tidy_output$j)
+
+new_tidy_output = demand_data[pot_j %in% assigned_pots, max_demand := max(demand), village_i][
+  demand == max_demand
+] %>%
+  inner_join(data$village_locations %>% 
+                  rename(village_x = x, village_y = y), by = c("village_i" = "id")) %>% 
+  inner_join(data$pot_locations %>%
+                  rename(pot_x = x, pot_y = y), by = c("pot_j" = "id"))  %>%
+  rename(
+    i = village_i, 
+    j = pot_j
+  ) %>%
+  as_tibble() %>%
+  select(-max_demand)
+
+if (nrow(tidy_output) == nrow(new_tidy_output)) {
+  tidy_output = new_tidy_output
+} else {
+  stop("Temporary Fix Failed")
+}
+
+
+
+output_path = file.path(
+  script_options$output_path, 
+  str_glue("{script_options$output_filename}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.csv"))
 
 write_csv(
   tidy_output,
