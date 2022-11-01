@@ -66,7 +66,7 @@ matrix param_dist_cost(real dist, matrix linear_dist_cost, matrix quadratic_dist
   // int num_treatments = cols(linear_dist_cost);
   // matrix[num_clusters, num_treatments] cost = rep_matrix(0, num_clusters, num_treatments); 
   
-  return dist .* linear_dist_cost + square(dist) .* quadratic_dist_cost;
+  return dist * linear_dist_cost + square(dist) * quadratic_dist_cost;
 }
 
 vector calculate_mu_rep(array[] int treatment_ids, vector dist,
