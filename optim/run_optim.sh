@@ -6,6 +6,7 @@ set -e
 DRYRUN="--dry-run" # "--sub-sample", "--fake-data"
 SKIPOPTIMISATION="ed"
 SUBSIDY=0.25
+TARGETCONSTRAINT=0.85
 
 if [ $DRYRUN == "--dry-run" ]
 then
@@ -19,7 +20,7 @@ then
     # Run with 0 subsidy 
     Rscript ./optim/optimal_allocation.R  ${DRYRUN} \
         --min-cost  \
-        --target-constraint=0.85 \
+        --target-constraint=${TARGETCONSTRAINT} \
         --output-path=optim/data \
         --output-filename=dry-run \
         --dry-run-subsidy=0 # i.e. Social planner doesn't know
@@ -29,7 +30,7 @@ then
     # Run with actual subsidy
     Rscript ./optim/optimal_allocation.R  ${DRYRUN} \
         --min-cost  \
-        --target-constraint=0.85 \
+        --target-constraint=${TARGETCONSTRAINT} \
         --output-path=optim/data \
         --output-filename=dry-run \
         --dry-run-subsidy=${SUBSIDY} # i.e. Social planner doesn't know
@@ -42,7 +43,7 @@ printf "\n\n\n Running postprocessing 1 \n\n\n"
 # Social planner doesn't know 
 Rscript ./optim/postprocess_allocation.R  \
     --min-cost  \
-    --target-constraint=0.85  \
+    --target-constraint=${TARGETCONSTRAINT}  \
     --input-path=optim/data \
     --optim-input-filename=dry-run-subsidy-0-optimal-allocation.csv \
     --village-input-filename=dry-run-subsidy-0-village-locations.csv \
@@ -58,7 +59,7 @@ printf "\n\n\n Running postprocessing 2 \n\n\n"
 # Social planner does know 
 Rscript ./optim/postprocess_allocation.R  \
     --min-cost  \
-    --target-constraint=0.85 \
+    --target-constraint=${TARGETCONSTRAINT} \
     --input-path=optim/data \
     --optim-input-filename=dry-run-subsidy-${SUBSIDY}-optimal-allocation.csv \
     --village-input-filename=dry-run-subsidy-${SUBSIDY}-village-locations.csv \
