@@ -4,7 +4,8 @@
 set -e
 # Setting arguments
 DRYRUN="--dry-run" # "--sub-sample", "--fake-data"
-SKIPOPTIMISATION="ed"
+SKIPOPTIMISATION="--skip"
+# SKIPOPTIMISATION="dont-skip-pls"
 SUBSIDY=0.25
 TARGETCONSTRAINT=0.85
 
@@ -45,14 +46,15 @@ Rscript ./optim/postprocess_allocation.R  \
     --min-cost  \
     --target-constraint=${TARGETCONSTRAINT}  \
     --input-path=optim/data \
-    --optim-input-filename=dry-run-subsidy-0-optimal-allocation.csv \
+    --optim-input-a-filename=dry-run-subsidy-0-optimal-allocation.csv \
     --village-input-filename=dry-run-subsidy-0-village-locations.csv \
     --pot-input-filename=dry-run-subsidy-0-pot-locations.csv \
-    --demand-input-filename=dry-run-subsidy-0-demand-data.csv \
-    --true-demand-input-filename=dry-run-subsidy-${SUBSIDY}-demand-data.csv \
+    --demand-input-a-filename=dry-run-subsidy-0-demand-data.csv \
+    --demand-input-b-filename=dry-run-subsidy-${SUBSIDY}-demand-data.csv \
     --output-path=optim \
-    --output-filename=problem-a-optimal-pot-plot.png \
-    --comp-demand
+    --output-basename=sim-optim-example-ms \
+    --comp-demand \
+    --map-plot
 printf "\n\n\n Postprocessing 1 Finished \n\n\n"
 
 printf "\n\n\n Running postprocessing 2 \n\n\n"
@@ -61,12 +63,11 @@ Rscript ./optim/postprocess_allocation.R  \
     --min-cost  \
     --target-constraint=${TARGETCONSTRAINT} \
     --input-path=optim/data \
-    --optim-input-filename=dry-run-subsidy-${SUBSIDY}-optimal-allocation.csv \
+    --optim-input-a-filename=dry-run-subsidy-${SUBSIDY}-optimal-allocation.csv \
+    --optim-input-b-filename=dry-run-subsidy-0-optimal-allocation.csv \
     --village-input-filename=dry-run-subsidy-${SUBSIDY}-village-locations.csv \
     --pot-input-filename=dry-run-subsidy-${SUBSIDY}-pot-locations.csv \
-    --demand-input-filename=dry-run-subsidy-${SUBSIDY}-demand-data.csv \
-    --true-demand-input-filename=dry-run-subsidy-${SUBSIDY}-demand-data.csv \
-    --misspecified-optim-input-filename=dry-run-subsidy-0-optimal-allocation.csv \
+    --demand-input-a-filename=dry-run-subsidy-${SUBSIDY}-demand-data.csv \
     --output-path=optim \
-    --output-filename=problem-c-optimal-pot-plot.png 
+    --output-basename=sim-optim-example
 printf "\n\n\n Postprocessing 2 Finished \n\n\n"
