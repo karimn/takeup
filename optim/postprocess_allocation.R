@@ -22,14 +22,15 @@ script_options <- docopt::docopt(
                              --min-cost 
                              --target-constraint=0.85
                              --input-path=optim/data
-                             --optim-input-filename=dry-run-subsidy-0.2-optimal-allocation.csv
+                             --optim-input-filename=dry-run-subsidy-0-optimal-allocation.csv
                              --misspecified-optim-input-filename=dry-run-subsidy-0-optimal-allocation.csv
-                             --village-input-filename=dry-run-subsidy-0.2-village-locations.csv
-                             --pot-input-filename=dry-run-subsidy-0.2-pot-locations.csv
-                             --demand-input-filename=dry-run-subsidy-0.2-demand-data.csv
+                             --village-input-filename=dry-run-subsidy-0-village-locations.csv
+                             --pot-input-filename=dry-run-subsidy-0-pot-locations.csv
+                             --demand-input-filename=dry-run-subsidy-0-demand-data.csv
                              --true-demand-input-filename=dry-run-subsidy-0.2-demand-data.csv
                              --output-path=optim
                              --output-filename=problem-c-optimal-pot-plot.png
+                             --comp-demand
                              
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -126,13 +127,21 @@ optimal_pot_plot = data$village_locations %>%
             y = village_y, 
             xend = pot_x, 
             yend = pot_y),
-        alpha = 0.1) 
+        alpha = 0.1)  +
+    labs(x = "", y = "") + 
+    theme(
+    axis.title.x=element_blank(),
+    axis.text.x=element_blank(),
+    axis.ticks.x=element_blank(),
+    axis.title.y=element_blank(),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank())
+
 
 if (!is.null(ms_optim_data)) {
 
     ms_pots = ms_optim_data$j
     dropped_pots = setdiff(ms_pots, assigned_pots)
-
 
     optimal_pot_plot = optimal_pot_plot +
         geom_point(
@@ -146,10 +155,6 @@ if (!is.null(ms_optim_data)) {
         subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations. 
 Extraneous PoTs in red"
     )  
-        
-
-
-
 
 
 }
@@ -194,17 +199,17 @@ comp_demand_plot = comp_demand_data %>%
 
 
 
-overshoot_df = optim_data %>%
+total_overshoot = optim_data %>%
     left_join(
         true_demand_data %>% rename(true_demand = demand),
         by = c("j" = "pot_j", "i" = "village_i")) %>%
-    summarise(
-        mean_takeup_naive_sp = mean(demand),
-        mean_takeup_reality = mean(true_demand)
+    mutate(
+        diff = abs(demand - true_demand)
     ) %>%
-    mutate(overshoot_pct = (mean_takeup_reality/mean_takeup_naive_sp - 1)*100)
+    summarise(total_overshoot = sum(diff)) %>%
+    pull()
 
-
+print(str_glue("Total overshoot: {total_overshoot}"))
 
 if (script_options$comp_demand) {
 
@@ -237,7 +242,7 @@ if (script_options$comp_demand) {
                     true_demand_data %>% rename(true_demand = demand),
                     by = c("j" = "pot_j", "i" = "village_i"))  %>%
                 mutate(
-                    diff = demand - true_demand, 
+                    diff = true_demand - demand, 
                     pct_diff = 100*diff/demand
                 ),
             aes(x = village_x, 
@@ -246,14 +251,14 @@ if (script_options$comp_demand) {
                 yend = pot_y, 
                 colour = pct_diff),
             alpha = 0.5) +
-            scale_colour_viridis_c(option = "magma") +
+            scale_colour_viridis_c(option = "magma", direction = -1) +
         geom_point(
             data = data$optim_data %>%
                 left_join(
                     true_demand_data %>% rename(true_demand = demand),
                     by = c("j" = "pot_j", "i" = "village_i"))  %>%
                 mutate(
-                    diff = demand - true_demand, 
+                    diff = true_demand - demand, 
                     pct_diff = 100*diff/demand
                 ),
             aes(
@@ -262,8 +267,19 @@ if (script_options$comp_demand) {
                 colour = pct_diff)
         ) +
         theme(legend.position = "bottom") +
+        labs(x = "", y = "") + 
+        theme(
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
         labs(
-            colour = "Percentage Takeup Misestimated"
+            colour = "Percentage Takeup Overestimate",
+            caption = str_glue(
+                "Ignoring reputational concerns leads to overshooting target takeup by {round(total_overshoot, 2)} percentage points"
+            )
         )
     ggsave("optim/problem-b-optimal-pot-plot.png",
     width = 8,
@@ -272,5 +288,4 @@ if (script_options$comp_demand) {
 
 
 }
-
 

@@ -4,32 +4,37 @@
 set -e
 # Setting arguments
 DRYRUN="--dry-run" # "--sub-sample", "--fake-data"
-SUBSIDY=0.2
+SKIPOPTIMISATION="ed"
+SUBSIDY=0.25
 
 if [ $DRYRUN == "--dry-run" ]
 then
     printf "\n\n\n Dry Run \n\n\n"
 fi
 
-printf "\n\n\n Running 0 Subsidy \n\n\n"
-# Run with 0 subsidy 
-Rscript ./optim/optimal_allocation.R  ${DRYRUN} \
-    --min-cost  \
-    --target-constraint=0.85 \
-    --output-path=optim/data \
-    --output-filename=dry-run \
-    --dry-run-subsidy=0 # i.e. Social planner doesn't know
-printf "\n\n\n 0 Subsidy Finished \n\n\n"
 
-printf "\n\n\n Running ${SUBSIDY} Subsidy \n\n\n"
-# Run with actual subsidy
-Rscript ./optim/optimal_allocation.R  ${DRYRUN} \
-    --min-cost  \
-    --target-constraint=0.85 \
-    --output-path=optim/data \
-    --output-filename=dry-run \
-    --dry-run-subsidy=0.2 # i.e. Social planner doesn't know
-printf "\n\n\n ${SUBSIDY} Subsidy Finished \n\n\n"
+if [ $SKIPOPTIMISATION != "--skip" ] 
+then
+    printf "\n\n\n Running 0 Subsidy \n\n\n"
+    # Run with 0 subsidy 
+    Rscript ./optim/optimal_allocation.R  ${DRYRUN} \
+        --min-cost  \
+        --target-constraint=0.85 \
+        --output-path=optim/data \
+        --output-filename=dry-run \
+        --dry-run-subsidy=0 # i.e. Social planner doesn't know
+    printf "\n\n\n 0 Subsidy Finished \n\n\n"
+
+    printf "\n\n\n Running ${SUBSIDY} Subsidy \n\n\n"
+    # Run with actual subsidy
+    Rscript ./optim/optimal_allocation.R  ${DRYRUN} \
+        --min-cost  \
+        --target-constraint=0.85 \
+        --output-path=optim/data \
+        --output-filename=dry-run \
+        --dry-run-subsidy=${SUBSIDY} # i.e. Social planner doesn't know
+    printf "\n\n\n ${SUBSIDY} Subsidy Finished \n\n\n"
+fi
 
 # Now postprocessing
 
