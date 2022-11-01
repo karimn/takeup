@@ -276,7 +276,7 @@ if (script_options$comp_demand) {
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank()) +
         labs(
-            colour = "Percentage Takeup Overestimate",
+            colour = "Percentage Takeup Underestimated",
             caption = str_glue(
                 "Ignoring reputational concerns leads to overshooting target takeup by {round(total_overshoot, 2)} percentage points"
             )
