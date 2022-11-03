@@ -3,7 +3,7 @@ library(tidybayes)
 library(cmdstanr)
 
 
-beliefs_results = read_rds("data/stan_analysis_data/beliefs_results.rds")
+beliefs_results = read_rds("data/stan_analysis_data/beliefs_ml_results.rds")
 
 
 beliefs_results$ate %>%
@@ -28,7 +28,7 @@ beliefs_results$ate %>%
         y = "Treatment"
     ) +
     geom_vline(xintercept = 0, linetype = "longdash")
-ggsave("temp-data/ATE-beliefs-estimates.png", width = 10, height = 10, dpi = 500)
+ggsave("temp-data/ATE-beliefs-ml-estimates.png", width = 10, height = 10, dpi = 500)
 
 beliefs_results$prob_knows %>%
     janitor::clean_names() %>%
@@ -50,7 +50,7 @@ beliefs_results$prob_knows %>%
         y = "Treatment"
     )
 
-ggsave("temp-data/prop-beliefs-estimates.png", width = 10, height = 10, dpi = 500)
+ggsave("temp-data/prop-beliefs-ml-estimates.png", width = 10, height = 10, dpi = 500)
 
 ## Data Prep
 
