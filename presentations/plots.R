@@ -100,7 +100,7 @@ belief_data$ate_knows %>%
     labs(subtitle = "Treatment Effects") +
     NULL
 
-ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-te-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+ggsave(file.path(output_basepath, str_glue("belief-te-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 
 belief_data$ate_knows %>%
   filter(assigned_treatment_left != "control") %>%
@@ -112,7 +112,7 @@ belief_data$ate_knows %>%
     labs(subtitle = "Treatment Effects") +
     NULL
 
-ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-te-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+ggsave(file.path(output_basepath, str_glue("belief-te-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 
 ## Props
 
@@ -128,7 +128,7 @@ belief_data$prob_knows %>%
     labs(subtitle = "Proportion") +
     NULL
 
-ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-prop-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+ggsave(file.path(output_basepath, str_glue("belief-prop-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 
 belief_data$prob_knows %>%
     mutate(assigned_treatment = fct_drop(assigned_treatment)) %>%
@@ -142,7 +142,7 @@ belief_data$prob_knows %>%
     labs(subtitle = "Proportion") +
     NULL
 
-ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-prop-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+ggsave(file.path(output_basepath, str_glue("belief-prop-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 
 #### Belief ATEs combined ####
 belief_data_control = belief_data$prob_knows %>%
@@ -225,8 +225,68 @@ ggsave(
     )
 
 
+#### Rate of Change
+roc_df = dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  transmute(
+    model_name,
+    cluster_roc = map2(cluster_roc, stan_data, ~ { 
+      mutate(.x,
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
+        across(starts_with("per_"), multiply_by, 1000),
+        across(starts_with("per_"), multiply_by, 100)
+      ) 
+    })
+  ) %>%
+  unnest(cluster_roc) %>% 
+  filter(fct_match(assigned_treatment, c("control", "ink", "bracelet", "calendar"))) 
 
-#### Rate of Change ####
+
+
+roc_plot = function(roc_df, treatment) {
+    plot = roc_df %>%
+        filter(assigned_treatment %in% c(treatment, "control")) %>%
+        ggplot(aes(roc_distance)) +
+        geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+        geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
+        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
+        scale_color_discrete("", aesthetics = c("color", "fill")) +
+        labs(
+        title = "Rates of Change",
+        subtitle = str_glue("{str_to_title(treatment)} and Control"),
+        x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
+        caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+        ) +
+        theme(legend.position = "top") +
+        NULL
+
+    return(plot)
+}
+
+treatments = c(
+    "bracelet",
+    "calendar",
+    "ink"
+)
+
+single_roc_plots[[2]]
+
+single_roc_plots = map(treatments, ~ roc_df %>%
+    roc_plot(treatment = .x)
+)
+
+iwalk(
+    single_roc_plots,
+    ~ggsave(plot = .x, 
+    filename = file.path(output_basepath, str_glue("single-roc-{treatments[.y]}.png")),
+    width = 7.5, height = 5.0, dpi = 500 )
+)
+
+
+
+
+#### Difference in Rate of Change ####
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
@@ -523,7 +583,7 @@ df = expand.grid(
 ) %>%
     as_tibble() %>%
     mutate(
-        delta = ed_calculate_ln_delta(mu = ml, sigma = sl, cutoff = w)
+        delta = calculate_ln_delta(mu = ml, sigma = sl, cutoff = w)
     )
 df %>%
     ggplot(aes(
@@ -539,4 +599,31 @@ df %>%
 ggsave("temp-data/skew-delta-w.png", width = 8, height = 6, dpi = 500)
 
 
-exp(mean)
+## Delta[w]
+
+delta_w_plot = dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  select(model_name, sim_delta) %>% 
+  unnest(sim_delta) %>% 
+  ggplot(aes(w)) +
+  geom_line(aes(y = per_0.5)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.3) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.3) +
+  labs(
+    x = "w", y = "", 
+    caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval."
+  ) +
+  # coord_cartesian(ylim = c(0, 0.1))
+  NULL
+
+
+ggsave(
+    plot= delta_w_plot, 
+    filename = file.path(
+        output_basepath,
+        str_glue("delta-w-plot.png")
+    ),
+    width = 7.5, 
+    height = 5.0,
+    dpi = 500
+)
