@@ -22,8 +22,11 @@ source(file.path("analysis_util.R"))
 source(file.path( "dist_structural_util.R"))
 
 
+source(file.path("multilvlr", "multilvlr_util.R"))
 
 fit_version <- 66
+
+quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
 output_basepath = str_glue("temp-data/output_dist_fit{fit_version}")
 
@@ -89,7 +92,7 @@ belief_data = dist_fit_data %>%
 #### Separate Beliefs ####
 belief_data$ate_knows %>%
   filter(assigned_treatment_left != "control") %>%
-  mutate(assigned_treatment_left = as.character(assigned_treatment_left)) %>%
+  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left)) %>%
   plot_single_beliefs_est(
     width = 0.7, 
     order = 1,
@@ -101,7 +104,7 @@ ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-te-1ord
 
 belief_data$ate_knows %>%
   filter(assigned_treatment_left != "control") %>%
-  mutate(assigned_treatment_left = as.character(assigned_treatment_left)) %>%
+  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left)) %>%
   plot_single_beliefs_est(
     width = 0.7, 
     order = 2,
@@ -110,6 +113,116 @@ belief_data$ate_knows %>%
     NULL
 
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-te-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+
+## Props
+
+belief_data$prob_knows %>%
+    mutate(assigned_treatment = fct_drop(assigned_treatment))  %>%
+    mutate(assigned_treatment_left = assigned_treatment, assigned_treatment_right = assigned_treatment) %>%
+    mutate(assigned_dist_group_left = assigned_dist_group, assigned_dist_group_right = assigned_dist_group) %>%
+  plot_single_beliefs_est(
+    width = 0.7, 
+    order = 1,
+    crossbar_width = 0.4, 
+    vline = FALSE) +
+    labs(subtitle = "Proportion") +
+    NULL
+
+ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-prop-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+
+belief_data$prob_knows %>%
+    mutate(assigned_treatment = fct_drop(assigned_treatment)) %>%
+    mutate(assigned_treatment_left = assigned_treatment, assigned_treatment_right = assigned_treatment) %>%
+    mutate(assigned_dist_group_left = assigned_dist_group, assigned_dist_group_right = assigned_dist_group) %>%
+    plot_single_beliefs_est(
+    width = 0.7, 
+    order = 2,
+    crossbar_width = 0.4, 
+    vline = FALSE) +
+    labs(subtitle = "Proportion") +
+    NULL
+
+ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-belief-prop-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+
+#### Belief ATEs combined ####
+belief_data_control = belief_data$prob_knows %>%
+    filter(assigned_treatment == "control")  %>%
+    select(assigned_treatment, assigned_dist_group, iter_data, ord) %>%
+    unnest(iter_data)
+
+combined_belief_ate = belief_data$prob_knows %>%
+    filter(assigned_treatment != "control") %>%
+    select(assigned_treatment, iter_data, ord) %>%
+    unnest(iter_data) %>%
+    rename(assigned_treatment_left = assigned_treatment) %>%
+    left_join(
+        belief_data_control %>% 
+            rename(assigned_treatment_right = assigned_treatment) %>%
+            select(iter_est_right = iter_est, iter_id, ord, assigned_treatment_right),
+        by = c("iter_id", "ord")
+    ) %>%
+    mutate(
+        iter_est_te = iter_est - iter_est_right
+    )  %>%
+    select(-.chain, -.iteration, -.draw) %>%
+    nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+    mutate(
+        mean_est = map_dbl(iter_data, ~mean(.x$iter_est_te)), 
+        quants = map(iter_data, quantilize_est, iter_est_te, quant_probs = quant_probs, na.rm = TRUE)
+    )  %>%
+    unnest(quants) %>%
+    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
+    mutate(
+        assigned_treatment_left = fct_drop(assigned_treatment_left), 
+        assigned_treatment_right = fct_drop(assigned_treatment_right)
+    ) 
+
+combined_belief_prop = belief_data$prob_knows %>%
+    select(assigned_treatment, iter_data, ord) %>%
+    unnest(iter_data) %>%
+    rename(assigned_treatment_left = assigned_treatment) %>%
+    select(-.chain, -.iteration, -.draw) %>%
+    nest(iter_data = c(iter_id, iter_est)) %>%
+    mutate(
+        mean_est = map_dbl(iter_data, ~mean(.x$iter_est)), 
+        quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
+    )  %>%
+   unnest(quants) %>%
+    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
+    mutate(
+        assigned_treatment_right = fct_drop(assigned_treatment_left)
+    ) 
+
+combined_belief_prop %>%
+  plot_single_beliefs_est(
+    width = 0.7, 
+    order = 1,
+    crossbar_width = 0.4, 
+    vline = FALSE) +
+    labs(subtitle = "Proportion") +
+    NULL
+
+
+
+combined_belief_ate %>%
+    plot_single_beliefs_est(order = 1)  +
+    labs(subtitle = "Treatment Effects")
+ggsave(
+    file.path(output_basepath, str_glue("combined-ate-fob.png")), 
+    width = 7.5, 
+    height = 5.0, 
+    dpi = 500
+    )
+
+combined_belief_ate %>%
+    plot_single_beliefs_est(order = 2)  +
+    labs(subtitle = "Treatment Effects")
+ggsave(
+    file.path(output_basepath, str_glue("combined-ate-sob.png")), 
+    width = 7.5, 
+    height = 5.0, 
+    dpi = 500
+    )
 
 
 
@@ -247,6 +360,97 @@ dist_fit_data %>%
   NULL
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-rep-returns-dist-facet-treat.png")), width = 7.5, height = 5.0, dpi = 500)
 
+
+## Rep returns one by one
+
+plot_rep_returns_one_by_one = function(data, treatment) {
+    subtitle_str = str_to_title(treatment)
+    plot = data %>%
+        filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+        select(model_name, cluster_rep_return_dist) %>%
+        unnest(cluster_rep_return_dist) %>% 
+        filter(assigned_treatment == treatment) %>%
+        mutate(
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, 1000)
+        ) %>% 
+        ggplot(aes(roc_distance)) +
+        geom_line(aes(y = per_0.5)) +
+        geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
+        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+        scale_color_discrete("", aesthetics = c("color", "fill")) +
+        labs(
+        title = "Valuation of Reputational Returns in Terms of Distance",
+        x = "Distance to Treatment [km]", y = "Distance Value [km]", 
+        subtitle = subtitle_str
+        ) +
+        theme(legend.position = "top") +
+        NULL
+    return(plot)
+}
+
+
+treatments = c(
+    "bracelet",
+    "calendar",
+    "ink",
+    "control"
+)
+
+single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
+    plot_rep_returns_one_by_one(treatment = .x)
+)
+
+iwalk(
+    single_rep_return_plots,
+    ~ggsave(plot = .x, 
+    filename = file.path(output_basepath, str_glue("single-rep-return-{treatments[.y]}.png")),
+    width = 7.5, height = 5.0, dpi = 500 )
+)
+
+## Rep returns vs control
+
+rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) %>%
+  mutate(
+    roc_distance = roc_distance / 1000
+  ) 
+
+rep_return_plot = function(data, treatment) {
+    plot = data %>%
+        ggplot(aes(roc_distance)) +
+        geom_line(aes(y = per_0.5)) +
+        geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
+        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+        scale_color_discrete("", aesthetics = c("color", "fill")) +
+        labs(
+            title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
+            subtitle =  str_glue("{str_to_title(treatment)} Compared to Control"),
+            x = "Distance to Treatment [km]", y = "Distance Value Compared to Control[km]",
+        ) +
+        theme(legend.position = "top") +
+        geom_hline(yintercept = 0, linetype = "longdash") + 
+        NULL
+    return(plot)
+}
+
+
+treatments = c(
+    "bracelet",
+    "calendar",
+    "ink"
+)
+
+comp_rep_return_plots = map(treatments, ~ rep_return_df %>%
+    filter(assigned_treatment == .x) %>%
+    rep_return_plot(treatment = .x)
+)
+
+iwalk(
+    comp_rep_return_plots,
+    ~ggsave(plot = .x, 
+    filename = file.path(output_basepath, str_glue("comp-rep-return-{treatments[.y]}.png")),
+    width = 7.5, height = 5.0, dpi = 500 )
+)
 
 
 #### Different Distributions and Delta ####
