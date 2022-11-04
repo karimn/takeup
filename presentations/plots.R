@@ -251,14 +251,15 @@ roc_plot = function(roc_df, treatment) {
         geom_line(aes(y = per_0.5, color = assigned_treatment)) +
         geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
         geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
-        scale_color_discrete("", aesthetics = c("color", "fill")) +
+        scale_color_discrete(aesthetics = c("color", "fill")) +
         labs(
         title = "Rates of Change",
         subtitle = str_glue("{str_to_title(treatment)} and Control"),
         x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
-        caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+        caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." , 
+        colour = "Treatment (z)", fill = "Treatment (z)" 
         ) +
-        theme(legend.position = "top") +
+        theme(legend.position = "bottom") +
         NULL
 
     return(plot)
@@ -270,7 +271,6 @@ treatments = c(
     "ink"
 )
 
-single_roc_plots[[2]]
 
 single_roc_plots = map(treatments, ~ roc_df %>%
     roc_plot(treatment = .x)
@@ -287,7 +287,7 @@ iwalk(
 
 
 #### Difference in Rate of Change ####
-dist_fit_data %>% 
+diff_roc_df = dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
     model, model_name,
@@ -300,23 +300,48 @@ dist_fit_data %>%
       ) 
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
-  filter(fct_match(assigned_treatment, c("ink", "bracelet"))) %>% 
-  ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.25) +
-  scale_color_discrete("", aesthetics = c("color", "fill")) +
-  labs(
-    title = "Difference in Rate of Change",
-    x = "Distance to Treatment [km]", y = "Difference in Rate of Change [pp/km]",
-    caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
-  ) +
-#   facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
-  guides( colour = "none") +
-  theme_bw() +
-  theme(legend.position = "bottom") +
-  # coord_cartesian(ylim = c(0, 0.15)) + 
-  NULL 
+  filter(fct_match(assigned_treatment, c("ink", "bracelet", "calendar"))) 
+
+plot_roc_diff = function(data, treatment) {
+    plot = 
+        data %>%
+            filter(assigned_treatment == treatment) %>%
+            ggplot(aes(roc_distance)) +
+            geom_line(aes(y = per_0.5)) +
+            geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
+            geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+            scale_color_discrete("", aesthetics = c("color", "fill")) +
+            labs(
+            title = "Difference in Rate of Change",
+            subtitle = str_glue("{str_to_title(treatment)}"),
+            x = "Distance to Treatment [km]", y = "Difference in Rate of Change [pp/km]",
+            caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+            ) +
+            #   facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+            guides( colour = "none") +
+            theme_bw() +
+            theme(legend.position = "bottom") +
+            # coord_cartesian(ylim = c(0, 0.15)) + 
+            NULL 
+    return(plot)
+}  
+
+
+
+
+single_roc_diff_plots = map(treatments, ~ diff_roc_df %>%
+    plot_roc_diff(treatment = .x)
+)
+
+iwalk(
+    single_roc_diff_plots,
+    ~ggsave(plot = .x, 
+    filename = file.path(output_basepath, str_glue("single-roc-diff-{treatments[.y]}.png")),
+    width = 7.5, height = 5.0, dpi = 500 )
+)
+
+
+
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-diff-roc-by-treat.png")), width = 7.5, height = 5.0, dpi = 500)
 
 dist_fit_data %>% 
@@ -599,7 +624,7 @@ df %>%
 ggsave("temp-data/skew-delta-w.png", width = 8, height = 6, dpi = 500)
 
 
-## Delta[w]
+#### Delta[w] ####
 
 delta_w_plot = dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
