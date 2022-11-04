@@ -246,3 +246,93 @@ dist_fit_data %>%
   guides(fill = "none", colour = "none") +
   NULL
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-rep-returns-dist-facet-treat.png")), width = 7.5, height = 5.0, dpi = 500)
+
+
+
+#### Different Distributions and Delta ####
+
+find_truncated_normal_mean = function(mu, sigma, a, b){
+    alpha = (a - mu)/sigma
+    beta = (b - mu)/sigma
+
+    Z = pnorm(beta) - pnorm(alpha)
+
+    tmean = mu + sigma*(dnorm(alpha) - dnorm(beta))/Z
+    return(tmean)
+}
+
+
+a = find_truncated_normal_mean(0, 1, -Inf, 0.5)
+b = find_truncated_normal_mean(0, 1, 0.5, Inf)
+
+
+
+calculate_normal_delta = function(cutoff, mu, sigma) {
+    m_minus = find_truncated_normal_mean(mu = mu, sigma = sigma, a = -Inf, b = cutoff )
+    m_plus = find_truncated_normal_mean(mu = mu, sigma = sigma, a = cutoff, b = Inf )
+    return(m_plus - m_minus)
+}
+
+kappa <- function(df, a, b) {
+  gamma((df + 1)/2)/((pt(b, df = df) - pt(a, df = df))*gamma(df/2)*(df*pi)^(1/2))
+}
+
+tau <- function(df, j) {
+  (df - 2*j)/df
+}
+
+ex <- function(df, a, b) {
+  ((kappa(df = df, a = a, b = b)*df)/(df - 1))*((1 + a^2/df)^(-(df - 1)/2) - (1 + b^2/df)^(-(df - 1)/2))
+}
+
+ex2 <- function(df, a, b) {
+  ((df - 1)/tau(df = df, j = 1))*((pt(b*sqrt(tau(df = df, j = 1)), df = (df - 2)) - pt(a*sqrt(tau(df = df, j = 1)), df = (df - 2)))/(pt(b, df = df) - pt(a, df = df))) - df
+}
+
+calculate_t_delta = function(df, cutoff) {
+    m_minus = ex(df, a = -Inf, b = cutoff )
+    m_plus = ex(df, a = cutoff, b = Inf )
+    return(m_plus - m_minus)
+}
+
+## Conditional Log Normal Expectation
+E_ln_minus = function(k, mu, sigma){
+    exp(mu + (sigma^2)/2) * pnorm((log(k) - mu - sigma^2)/sigma) / pnorm((log(k) - mu)/sigma)
+}
+
+E_ln_plus = function(k, mu, sigma){
+    exp(mu + (sigma^2)/2) * pnorm((-log(k) +  mu + sigma^2)/sigma) / (1 - pnorm((log(k) - mu)/sigma))
+}
+
+calculate_ln_delta = function(cutoff, mu, sigma){
+    m_minus = E_ln_minus(mu = mu, sigma = sigma, k = cutoff )
+    m_plus = E_ln_plus(mu = mu, sigma = sigma, k = cutoff )
+    return(m_plus - m_minus)
+}
+
+
+
+ml = 1
+sl = 1
+df = expand.grid(
+    w = seq(from = 0, to = 6, length.out = 100)
+) %>%
+    as_tibble() %>%
+    mutate(
+        delta = ed_calculate_ln_delta(mu = ml, sigma = sl, cutoff = w)
+    )
+df %>%
+    ggplot(aes(
+        x = w, 
+        y = delta
+    )) +
+    geom_point() +
+    stat_function(fun = dlnorm, n = 200, args = list(meanlog = ml, sdlog = sl)) + ylab("")  +
+    geom_vline(xintercept = exp(ml - sl^2), linetype = "longdash") + 
+    labs(
+        title = "Log Normal Prosociality Distribution", 
+        subtitle = "Density's mode doesn't correspond to Delta(w)'s minimum" )
+ggsave("temp-data/skew-delta-w.png", width = 8, height = 6, dpi = 500)
+
+
+exp(mean)
