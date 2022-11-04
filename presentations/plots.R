@@ -24,7 +24,20 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 66
+fit_version <- 62
+
+# 66 ed fit
+# 60 Karim fit
+# 62 also Karim fit
+
+
+model_fit_by = if_else(fit_version %in% c(60, 62), "Karim", "Ed")
+
+
+models_we_want = c(
+  "STRUCTURAL_LINEAR_U_SHOCKS"
+)
+
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
@@ -202,6 +215,28 @@ combined_belief_prop %>%
     labs(subtitle = "Proportion") +
     NULL
 
+ggsave(
+    file.path(output_basepath, str_glue("combined-prop-fob.png")), 
+    width = 7.5, 
+    height = 5.0, 
+    dpi = 500
+    )
+
+combined_belief_prop %>%
+  plot_single_beliefs_est(
+    width = 0.7, 
+    order = 2,
+    crossbar_width = 0.4, 
+    vline = FALSE) +
+    labs(subtitle = "Proportion") +
+    NULL
+
+ggsave(
+    file.path(output_basepath, str_glue("combined-prop-sob.png")), 
+    width = 7.5, 
+    height = 5.0, 
+    dpi = 500
+    )
 
 
 combined_belief_ate %>%
@@ -224,10 +259,9 @@ ggsave(
     dpi = 500
     )
 
-
 #### Rate of Change
 roc_df = dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
     model_name,
     cluster_roc = map2(cluster_roc, stan_data, ~ { 
@@ -275,7 +309,6 @@ treatments = c(
 single_roc_plots = map(treatments, ~ roc_df %>%
     roc_plot(treatment = .x)
 )
-
 iwalk(
     single_roc_plots,
     ~ggsave(plot = .x, 
@@ -288,7 +321,7 @@ iwalk(
 
 #### Difference in Rate of Change ####
 diff_roc_df = dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
     model, model_name,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
@@ -332,7 +365,6 @@ plot_roc_diff = function(data, treatment) {
 single_roc_diff_plots = map(treatments, ~ diff_roc_df %>%
     plot_roc_diff(treatment = .x)
 )
-
 iwalk(
     single_roc_diff_plots,
     ~ggsave(plot = .x, 
@@ -345,7 +377,7 @@ iwalk(
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-diff-roc-by-treat.png")), width = 7.5, height = 5.0, dpi = 500)
 
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
     model, model_name,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
@@ -379,7 +411,7 @@ ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-diff-roc-facet
 
 #### Difference Rep Returns by Dist ####
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   select(model_name, cluster_rep_return_dist) %>%
   unnest(cluster_rep_return_dist) %>% 
   mutate(
@@ -400,7 +432,7 @@ dist_fit_data %>%
   NULL
 
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   select(model_name, cluster_rep_return_dist) %>%
   unnest(cluster_rep_return_dist) %>% 
   mutate(
@@ -422,7 +454,7 @@ dist_fit_data %>%
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-rep-returns-dist-by-treat.png")), width = 7.5, height = 5.0, dpi = 500)
 
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   select(model_name, cluster_rep_return_dist) %>%
   unnest(cluster_rep_return_dist) %>% 
   mutate(
@@ -451,7 +483,7 @@ ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-rep-returns-di
 plot_rep_returns_one_by_one = function(data, treatment) {
     subtitle_str = str_to_title(treatment)
     plot = data %>%
-        filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+        filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
         select(model_name, cluster_rep_return_dist) %>%
         unnest(cluster_rep_return_dist) %>% 
         filter(assigned_treatment == treatment) %>%
@@ -485,7 +517,6 @@ treatments = c(
 single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
     plot_rep_returns_one_by_one(treatment = .x)
 )
-
 iwalk(
     single_rep_return_plots,
     ~ggsave(plot = .x, 
@@ -494,48 +525,50 @@ iwalk(
 )
 
 ## Rep returns vs control
+if (model_fit_by == "Ed") {
 
-rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) %>%
-  mutate(
-    roc_distance = roc_distance / 1000
-  ) 
+  rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) %>%
+    mutate(
+      roc_distance = roc_distance / 1000
+    ) 
 
-rep_return_plot = function(data, treatment) {
-    plot = data %>%
-        ggplot(aes(roc_distance)) +
-        geom_line(aes(y = per_0.5)) +
-        geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
-        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
-        scale_color_discrete("", aesthetics = c("color", "fill")) +
-        labs(
-            title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
-            subtitle =  str_glue("{str_to_title(treatment)} Compared to Control"),
-            x = "Distance to Treatment [km]", y = "Distance Value Compared to Control[km]",
-        ) +
-        theme(legend.position = "top") +
-        geom_hline(yintercept = 0, linetype = "longdash") + 
-        NULL
-    return(plot)
+  rep_return_plot = function(data, treatment) {
+      plot = data %>%
+          ggplot(aes(roc_distance)) +
+          geom_line(aes(y = per_0.5)) +
+          geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
+          geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+          scale_color_discrete("", aesthetics = c("color", "fill")) +
+          labs(
+              title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
+              subtitle =  str_glue("{str_to_title(treatment)} Compared to Control"),
+              x = "Distance to Treatment [km]", y = "Distance Value Compared to Control[km]",
+          ) +
+          theme(legend.position = "top") +
+          geom_hline(yintercept = 0, linetype = "longdash") + 
+          NULL
+      return(plot)
+  }
+
+
+  treatments = c(
+      "bracelet",
+      "calendar",
+      "ink"
+  )
+
+  comp_rep_return_plots = map(treatments, ~ rep_return_df %>%
+      filter(assigned_treatment == .x) %>%
+      rep_return_plot(treatment = .x)
+  )
+
+  iwalk(
+      comp_rep_return_plots,
+      ~ggsave(plot = .x, 
+      filename = file.path(output_basepath, str_glue("comp-rep-return-{treatments[.y]}.png")),
+      width = 7.5, height = 5.0, dpi = 500 )
+  )
 }
-
-
-treatments = c(
-    "bracelet",
-    "calendar",
-    "ink"
-)
-
-comp_rep_return_plots = map(treatments, ~ rep_return_df %>%
-    filter(assigned_treatment == .x) %>%
-    rep_return_plot(treatment = .x)
-)
-
-iwalk(
-    comp_rep_return_plots,
-    ~ggsave(plot = .x, 
-    filename = file.path(output_basepath, str_glue("comp-rep-return-{treatments[.y]}.png")),
-    width = 7.5, height = 5.0, dpi = 500 )
-)
 
 
 #### Different Distributions and Delta ####
@@ -627,7 +660,7 @@ ggsave("temp-data/skew-delta-w.png", width = 8, height = 6, dpi = 500)
 #### Delta[w] ####
 
 delta_w_plot = dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% 
   select(model_name, sim_delta) %>% 
   unnest(sim_delta) %>% 
   ggplot(aes(w)) +
@@ -641,7 +674,6 @@ delta_w_plot = dist_fit_data %>%
   # coord_cartesian(ylim = c(0, 0.1))
   NULL
 
-
 ggsave(
     plot= delta_w_plot, 
     filename = file.path(
@@ -651,4 +683,168 @@ ggsave(
     width = 7.5, 
     height = 5.0,
     dpi = 500
+)
+
+
+
+## ATEs
+
+dist_fit_data %>%
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit")) | 
+      (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
+  ) %>% 
+  mutate(
+    est_takeup_te =
+      map_if(est_takeup_te, fct_match(model_type, "structural"),
+             filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
+        map(filter,
+            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+            assigned_treatment_left != assigned_treatment_right,
+            fct_match(assigned_treatment_right, c("control")),
+            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
+    model_color = canva_pal(canva_palette_vibrant)(n())
+  ) %>% 
+  select(model, model_name, est_takeup_te, fit_type, model_color) 
+
+dist_fit_data %>%
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit")) | 
+      (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
+  ) %>% 
+  mutate(
+    est_takeup_te =
+      map_if(est_takeup_te, fct_match(model_type, "structural"),
+             filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
+        map(filter,
+            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+            assigned_treatment_left != assigned_treatment_right,
+            fct_match(assigned_treatment_right, c("control")),
+            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
+    model_color = canva_pal(canva_palette_vibrant)(n())
+  ) %>% 
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+  mutate(
+    est_takeup_te = map(
+      est_takeup_te,
+      mutate,
+      assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+        fct_relabel(str_to_title) %>% 
+        fct_relevel("Combined"),
+      assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left)))
+    )
+  ) %>% 
+      plot_estimands(., est_takeup_te, assigned_treatment_left) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+        scale_y_discrete("") +
+        labs(
+          title = "Incentive Average Treatment Effect", 
+          subtitle = str_glue("Model fit by: {model_fit_by}" )
+        ) +
+        ggforce::facet_col(vars(assigned_dist_group_left), 
+                   space = "free",
+                   scales = "free_y") +
+        NULL
+
+ggsave(
+  filename = file.path(
+    output_basepath,
+    "incentive-ate-plot.png"
+  ),
+  width = 10,
+  height = 10,
+  dpi = 500
+)
+
+
+dist_fit_data %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit"))  
+  ) %>% 
+  filter(fit_type == "fit") %>%
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+  mutate(
+    est_takeup_te = map(
+      est_takeup_te,
+      filter,
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+      !is.na(mu_assigned_treatment_left),
+      fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+      fct_match(mu_assigned_treatment_right, "control"),
+    ) %>% 
+      map(
+        mutate,
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        mu_assigned_treatment_left = fct_rev(factor(str_to_title(mu_assigned_treatment_left))),
+      ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
+  ) %>% 
+      plot_estimands(., est_takeup_te, mu_assigned_treatment_left) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
+        scale_y_discrete("") +
+        labs(
+          title = "Signaling Average Treatment Effect",
+          subtitle = str_glue("
+          Holding private incentive at the control level. Model fit by: {model_fit_by}")) +
+        ggforce::facet_col(vars(assigned_dist_group_left), 
+                   space = "free",
+                   scales = "free_y") +
+        NULL
+
+ggsave(
+  filename = file.path(
+    output_basepath,
+    "signaling-ate-plot.png"
+  ),
+  width = 10,
+  height = 10,
+  dpi = 500
+)
+
+dist_fit_data %>% 
+  filter(
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit"))  
+  ) %>% 
+  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+  mutate(
+    est_takeup_te = map(
+      est_takeup_te,
+      filter,
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      !is.na(mu_assigned_treatment_left),
+      !is.na(mu_assigned_treatment_right),
+      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+      fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
+      fct_match(assigned_treatment_right, "control"),
+    ) %>% 
+      map(
+        mutate,
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left))),
+      ),
+    model_color = canva_pal(canva_palette_vibrant)(n())
+  ) %>%
+      plot_estimands(., est_takeup_te, assigned_treatment_left) +
+        scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
+        scale_y_discrete("") +
+        labs(
+          title = "Private Incentive Average Treatment Effect",
+          subtitle = str_glue("
+          Holding signaling at the control level. Model fit by: {model_fit_by}")) +
+        ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
+        NULL
+      
+ggsave(
+  filename = file.path(
+    output_basepath,
+    "private-ate-plot.png"
+  ),
+  width = 10,
+  height = 10,
+  dpi = 500
 )

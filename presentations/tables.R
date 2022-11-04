@@ -80,12 +80,13 @@ dist_fit_data %<>%
     ~ fit_type,        ~ model_color,
       "fit",           "black", 
       "prior-predict", "darkgrey",
-  ), by = "fit_type")
+  ), by = "fit_type") %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS")))
 
 delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
 belief_data = dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   pull(beliefs_results) %>%
   first() 
 
@@ -100,7 +101,7 @@ cols_we_want = c(
 
 
 dist_fit_data %>%
-    filter(fit_type == "fit") %>%
+    filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
     select(est_takeup_te) %>%
     unnest() %>%
     filter(
@@ -113,14 +114,13 @@ dist_fit_data %>%
     filter(fit_type == "fit") %>%
     select(any_of(cols_we_want)) %>%
     unnest(cols = c(est_takeup_level))
-    colnames()
 
 
 
 
 
 incentive_te = dist_fit_data %>%
-  filter(fit_type == "fit") %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   mutate(
     est_takeup_te =
       map_if(est_takeup_te, fct_match(model_type, "structural"),
@@ -149,7 +149,7 @@ incentive_te = dist_fit_data %>%
 
 signalling_te = dist_fit_data %>% 
   filter(fit_type == "fit") %>%
-  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
   mutate(
     est_takeup_te = map(
       est_takeup_te,
@@ -176,7 +176,7 @@ signalling_te = dist_fit_data %>%
 
 private_te = dist_fit_data %>% 
   filter(fit_type == "fit") %>%
-  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+  select(model, model_name, est_takeup_te, fit_type) %>% 
   mutate(
     est_takeup_te = map(
       est_takeup_te,
@@ -209,6 +209,10 @@ structural_combined_te = inner_join(
     by = "treatment"
 ) %>%
     left_join(signalling_te, by = "treatment")
+
+
+
+structural_combined_te
 
 structural_combined_te %>%
     write_csv(
