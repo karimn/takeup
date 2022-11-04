@@ -20,7 +20,7 @@ Options:
   # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=1 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true)
-  args = if (interactive()) "test --full-outputname --cores=1 --load-from-csv --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST --no-prior" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "66  --cores=1 --load-from-csv --models=STRUCTURAL_LINEAR_U_SHOCKS --no-prior" else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -191,7 +191,6 @@ dist_fit_data <- if (!script_options$no_prior) {
   dist_fit_data %>% 
     mutate(fit_type = "fit")
 }
-
 dist_fit_data %<>% 
   mutate(fit_type = factor(fit_type, levels = c("fit", "prior-predict")))
     
@@ -229,7 +228,6 @@ dist_fit_data <- tryCatch({
   return(dist_fit_data)
 },
 error = function(error) dist_fit_data)
-
 dist_fit_data %<>% 
   inner_join(select(model_info, model, model_type), by = "model") 
 
@@ -240,7 +238,6 @@ observed_takeup <- monitored_nosms_data %>%
             prop_takeup_ub = prop_takeup + se,
             prop_takeup_lb = prop_takeup - se, 
             .groups = "drop") 
-
 # Functions ---------------------------------------------------------------
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
@@ -503,6 +500,41 @@ dist_fit_data %<>%
   )
 
 if (!script_options$no_rate_of_change) {
+  
+  ## Ed edits because Anne wants rep return vs control  
+  cluster_rep_return_dist_control = dist_fit_data %>%
+    select(cluster_rep_return_dist) %>%
+    unnest(cols = c(cluster_rep_return_dist)) %>%
+    filter(assigned_treatment == "control")
+
+  cluster_rep_return_te_df = dist_fit_data %>%
+      select(cluster_rep_return_dist) %>%
+      unnest(cols = c(cluster_rep_return_dist))  %>%
+      # filter(assigned_treatment != "control")  %>%
+      unnest(iter_data) %>%
+      left_join(
+        cluster_rep_return_dist_control %>% 
+          select(roc_distance_index, iter_data) %>%
+          unnest(iter_data) %>%
+          rename(iter_est_right = iter_est),
+        by = c("roc_distance_index", "iter_id")
+      ) %>%
+      mutate( 
+        iter_est_te = iter_est - iter_est_right
+      ) %>%
+      nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+      select(-contains("per"), -mean_est) %>%
+      mutate(
+        mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
+        takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs))
+      ) %>% 
+      unnest(takeup_quantiles)
+
+  cluster_rep_return_te_df %>%
+    select(-iter_data) %>%
+    write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
+
+  # Back to Karim work
   dist_fit_data %<>% 
     mutate(
       pmap(list(param = roc_param, incr = if_else(str_detect(roc_param, "diff"), 1, 0), diff_diff = str_detect(roc_param, "diff_diffdist")), 
@@ -510,7 +542,6 @@ if (!script_options$no_rate_of_change) {
         set_names(roc_param) %>% 
         map(map_if, ~ !is_null(.x), summarize_roc) %>%
         as_tibble(), 
-      
       cluster_rep_return_dist = map2(cluster_rep_return_dist, stan_data, ~ {
         if (!is_null(.x)) {
           mutate(.x, iter_data = map(iter_data, ~ mutate(.x, iter_est = iter_est * .y), sd(.y$analysis_data$cluster.dist.to.pot))) %>% 
@@ -520,6 +551,11 @@ if (!script_options$no_rate_of_change) {
       
       sim_delta = map2(fit, stan_data, extract_sim_delta),
     )
+
+
+
+
+
 }
 
 dist_fit_data %<>%
