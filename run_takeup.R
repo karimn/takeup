@@ -243,6 +243,12 @@ models <- lst(
     suppress_reputation = TRUE,
     use_age_group_gp = TRUE,
     
+
+    # just here so the reduced form model runs - don't think actually used
+    wtp_value_utility_sd = 0.0001,
+    raw_u_sd_alpha = 3.3, 
+    raw_u_sd_beta = 1.1,
+
     beta_intercept_sd = 0.75,
     beta_far_effect_sd = 0.35,
     beta_ink_effect_sd = 0.35,
