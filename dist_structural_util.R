@@ -105,6 +105,59 @@ extract_rep_level <- function(fit, par, stan_data, quant_probs = c(0.05, 0.1, 0.
     as_tibble()
 }
 
+extract_obs_cluster_age_group_cutoff_cf <- function(fit, stan_data, model_type = "reduced form", quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
+  if (model_type != "reduced form") return(NULL)
+  
+  analysis_data <- stan_data$analysis_data
+  
+  cluster_treatment_map <- stan_data$cluster_treatment_map %>% 
+    mutate(treatment_index = seq(n()))
+  
+  is_stanfit <- is(fit, "stanfit")
+  
+  fit %>% {
+    if (is_stanfit) {
+      stop("Only supports cmdstanr")
+    } else if (is_tibble(.)) {
+      filter(., str_detect(variable, r"{^cluster_age_group_cf_cutoff\[.+\]$}"))
+    } else {
+      .$draws("cluster_age_group_cf_cutoff") %>% 
+        posterior::as_draws_df() %>% 
+        recover_types(rename(analysis_data, age_group = census.age_group)) %>% 
+        gather_draws(cluster_age_group_cf_cutoff[treatment_index, mu_treatment_index, cluster_id, age_group]) %>% 
+        mutate(iter_id = .draw) %>% 
+        rename(iter_est = .value) %>% 
+        # pivot_longer(!c(iter_id, .draw, .iteration, .chain), names_to = "variable", values_to = "iter_est") %>% 
+        # nest(iter_data = !variable)
+        nest(iter_data = c(iter_id, .draw, .iteration, .chain, iter_est))
+    }
+  } %>%   
+    tidyr::extract(variable, c("treatment_index", "mu_treatment_index", "cluster_id", "age_group"), r"{(\d+),(\d+),(\d+)(?:,(\d+))?}", convert = TRUE) %>%  
+    mutate(
+      treatment_index_obs = stan_data$cluster_assigned_dist_group_treatment[cluster_id],
+      assigned_dist_standard_obs = stan_data$cluster_standard_dist[cluster_id],
+      assigned_dist_obs = unstandardize(assigned_dist_standard_obs, analysis_data$cluster.dist.to.pot),
+      mu_assigned_treatment = factor(mu_treatment_index, levels = 1:4, labels = levels(stan_data$cluster_assigned_treatment)), 
+      age_group = factor(age_group, labels = levels(analysis_data$age.census_group))
+    ) %>% 
+    left_join(cluster_treatment_map, by = "treatment_index") %>% 
+    left_join(cluster_treatment_map, by = c("treatment_index_obs" = "treatment_index"), suffix = c("", "_obs")) %>% 
+    left_join(analysis_data %>% count(cluster_id, age_group = age.census_group, name = "cluster_size"), by = c("cluster_id", "age_group")) %>% 
+    left_join(
+      stan_data$analysis_data %>%
+        select(cluster_id, age_group = age.census_group, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group, {{ dewormed_var }}) %>%
+        group_by(cluster_id, age_group, assigned_treatment, assigned_dist_group) %>%
+        summarize(obs_num_takeup = sum({{ dewormed_var }}), .groups = "drop"),
+      by = c("cluster_id", "age_group", "assigned_treatment", "assigned_dist_group")
+    ) %>%
+    mutate(
+      # obs_num_takeup = if_else(is.na(mu_assigned_treatment) | treatment_index == mu_treatment_index, obs_num_takeup, NA_integer_)
+      obs_num_takeup = if_else(fct_match(model_type, "reduced form") | is.na(mu_assigned_treatment) | assigned_treatment == mu_assigned_treatment, obs_num_takeup, NA_integer_),
+      obs_prop_takeup = obs_num_takeup / cluster_size
+    ) %>% 
+    as_tibble()
+}
+
 extract_obs_cluster_cutoff_cf <- function(fit, stan_data, model_type = "structural", quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
   
@@ -155,6 +208,7 @@ extract_obs_cluster_cutoff_cf <- function(fit, stan_data, model_type = "structur
     ) %>% 
     as_tibble()
 }
+
 
 extract_obs_cf <- function(fit, par, stan_data, iter_level = c("obs", "cluster"), quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95), thin = 1, dewormed_var = dewormed, always_diagnose = TRUE) {
   analysis_data <- stan_data$analysis_data
@@ -229,7 +283,7 @@ extract_obs_fit_level <- function(fit, par, stan_data, iter_level = c("obs", "cl
         as_tibble()
     } else if (is_tibble(fit)) {
       fit %>% 
-        filter(str_detect(variable, str_glue(r"{^{par}\[.+\]$}")))
+        filter(str_detect(variable, str_glue(r"{^{par}(\[.+\])?$}")))
     } else { 
       fit$draws(par) %>% 
         posterior::as_draws_df() %>% 
@@ -311,7 +365,7 @@ extract_sim_diff <- function(level, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) 
                                        probs = quant_probs)) 
 }
 
-extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.5, 0.9, 0.95)) {
+extract_roc_param <- function(fit, stan_data, par, incr_treatment_id = 0, diff_diffdist = FALSE) {
   analysis_data <- stan_data$analysis_data
   
   fit_data <- tryCatch({
@@ -329,12 +383,21 @@ extract_roc_param <- function(fit, stan_data, par, quant_probs = c(0.05, 0.1, 0.
   
   if (is_null(fit_data) || nrow(fit_data) == 0) return(NULL)
   
-  fit_data %>% 
-    tidyr::extract(variable, c("cluster_id", "roc_distance_index"), r"{(\d+),(\d+)}", convert = TRUE) %>%  
-    left_join(tibble(roc_distance = unstandardize(stan_data$roc_distances, analysis_data$cluster.dist.to.pot)) %>% 
-                mutate(roc_distance_index = seq(n())), by = "roc_distance_index") %>% 
+  param_data <- if (!diff_diffdist) {
+    fit_data %>% 
+      tidyr::extract(variable, c("roc_distance_index", "cluster_id", "treatment_id"), r"{(\d+),(\d+),(\d+)}", convert = TRUE) %>%  
+      left_join(tibble(roc_distance = unstandardize(stan_data$roc_distances, analysis_data$cluster.dist.to.pot)) %>% 
+                  mutate(roc_distance_index = seq(n())), by = "roc_distance_index") 
+  } else {
+    fit_data %>% 
+      tidyr::extract(variable, c("cluster_id", "treatment_id"), r"{(\d+),(\d+)}", convert = TRUE) 
+  }
+  
+  param_data %>% 
     left_join(stan_data$analysis_data %>% count(cluster_id, name = "cluster_size"), by = "cluster_id") %>% 
-    as_tibble()
+    as_tibble() %>% 
+    mutate(treatment_id = treatment_id + incr_treatment_id) %>% 
+    left_join(distinct(stan_data$cluster_treatment_map, assigned_treatment) %>% mutate(treatment_id = seq(n())), by = c("treatment_id")) 
 }
 
 generate_initializer <- function(num_treatments,
@@ -347,12 +410,11 @@ generate_initializer <- function(num_treatments,
                                  use_cluster_effects = use_cluster_effects,
                                  use_county_effects = use_cluster_effects,
                                  use_param_dist_cluster_effects = use_cluster_effects,
-                                 use_mu_cluster_effects = use_cluster_effects,
+                                 use_mu_cluster_effects = FALSE,
                                  use_mu_county_effects = FALSE,
-                                 use_single_cost_model = FALSE,
+                                 use_single_cost_model = TRUE,
                                  restricted_private_incentive = FALSE,
                                  cost_model_type = NA,
-                                 num_knots = NA,
                                  name_matched = FALSE,
                                  suppress_reputation = FALSE) {
   base_list <- base_init()
@@ -393,14 +455,6 @@ generate_initializer <- function(num_treatments,
           dist_cost_k = if (!param_kappa) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)),
           dist_beta_v = if (!linear) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else rnorm(num_treatments, 0, 0.1), 
           dist_quadratic_beta_v = if (!quadratic) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else abs(rnorm(num_treatments, 0, 0.1)), 
-          u_splines_v_raw = if (!semiparam) {
-            array(dim = c(0, num_knots)) 
-          } else {
-            num_semiparam_treatments <- if (salience || use_single_cost_model) 1 else num_treatments
-            array(rnorm(num_semiparam_treatments * num_knots, 0, 0.1), dim = c(num_semiparam_treatments, num_knots))
-          },
-          u_splines_v = u_splines_v_raw,
-         
           u_sd = abs(rnorm(num_treatments, 0, 0.5)),
           
           structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
@@ -462,7 +516,8 @@ fit_model <- function(curr_stan_data, chains, threads, iter, use_cmdstanr, inclu
     dist_model <- cmdstan_model(
       file.path("stan_models", curr_stan_data$model_file),
       cpp_options = list(stan_threads = TRUE),
-      include_paths = include_paths
+      include_paths = include_paths,
+      #stanc_options = list("O1")
     )
     
     dist_model$sample(
@@ -531,7 +586,12 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
         kfold_groups <- kfold_split_stratified(K = folds, x = stan_data$cluster_assigned_dist_group_treatment)
         
         dist_model <- if (use_cmdstanr) {
-          cmdstan_model(file.path("stan_models", curr_model$model_file), include_paths = include_paths)
+          cmdstan_model(
+            file.path("stan_models", curr_model$model_file), 
+            cpp_options = list(stan_threads = TRUE),
+            include_paths = include_paths,
+            #stanc_options = list("O1")
+          )
         } else {
           stan_model(file.path("stan_models", curr_model$model_file))
         }
@@ -539,17 +599,20 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
         log_lik_list <- map(seq(folds), ~ which(kfold_groups == .)) %>% 
           pbmclapply(function(excluded_clusters, model_name, dist_model, stan_data, use_cmdstanr) {
             curr_stan_data <- stan_data %>%
+              map_at(c("cluster_treatment_map", "beliefs_ate_pairs"), ~ mutate(.x, across(.fns = as.integer)) %>% as.matrix()) %>%  # A tibble of factors no longer gets converted into an "array[,] int" in Stan.
               list_modify(!!!curr_model,
                           excluded_clusters = excluded_clusters,
-                          num_excluded_clusters = length(excluded_clusters)) %>%
-              map_if(is.factor, as.integer)
+                          num_excluded_clusters = length(excluded_clusters)) %>% 
+              map_if(is.factor, as.integer) 
             
             curr_iter <- if (script_options$force_iter) iter else (curr_stan_data$iter %||% iter)
             curr_chains <- chains
             
             if (use_cmdstanr) {
               fit <- dist_model$sample(
-                data = curr_stan_data,
+                data = curr_stan_data %>% 
+                  discard(~ is_function(.x) | is.character(.)) %>% 
+                  list_modify(analysis_data = NULL),
                 iter_warmup = curr_iter %/% 2,
                 iter_sampling = curr_iter %/% 2,
                 save_warmup = FALSE,
@@ -580,7 +643,8 @@ stan_list <- function(models_info, stan_data, script_options, use_cmdstanr = FAL
           model_name = model_name,
           ignore.interactive = TRUE,
           mc.silent = !script_options$sequential,
-          mc.cores = if (script_options$sequential) 1 else 3)
+          mc.cores = if (script_options$sequential) 1 else script_options$parallel_folds 
+          )
           
         return(tryCatch(kfold(log_lik_list), 
                         error = function(err) { 
@@ -787,20 +851,24 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
 
 # Plotting Functions ------------------------------------------------------
 
-plot_estimands <- function(.data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3) {
+plot_estimands <- function(.data, nested_data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3, color_data = .data) {
   plot_pos <- ggstance::position_dodgev(height = pos_height)
   
   ggplot_obj <- if (include_prior_predict) {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = model)) +
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(x = per_0.5, y = {{ y }}, group = model)) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       NULL
   } else {
-    ggplot(.data, aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
   }
   
-  ggplot_obj +
+  ggplot_obj <- ggplot_obj +
     geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = center_bar_size, position = plot_pos) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
@@ -808,15 +876,6 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
     geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
     geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
-                       labels = if (is_null(group_labels)) { 
-                         dist_fit_data %>% 
-                           select(model, model_name) %>% 
-                           deframe() 
-                       } else {
-                         group_labels
-                       }, aesthetics = c("color", "fill")) + 
     labs(
       caption = #"Dotted line range: 98% credible interval. 
                 "Line range: 90% credible interval. 
@@ -827,27 +886,49 @@ plot_estimands <- function(.data, y, results_group = model, group_labels = NULL,
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL
+  
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select(model, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  
+  return(ggplot_obj)
 }
 
-plot_estimand_hist <- function(.data, x, binwidth = NULL, results_group = model, group_labels = NULL) {
-  .data %>% 
+plot_estimand_hist <- function(.data, nested_data, x, binwidth = NULL, results_group = model, group_labels = NULL, color_data = .data) {
+  ggplot_obj <- .data %>% 
+    unnest({{ nested_data }}) %>% 
     ggplot(aes(group = {{ results_group }})) + 
     geom_histogram(aes(x = {{ x }}, y = stat(density) * (binwidth %||% 1), fill = {{ results_group }}), 
                    binwidth = binwidth, boundary = 0, position = "identity", alpha = 0.5,  
                    data = . %>% unnest(iter_data)) +
     geom_vline(xintercept = 0, linetype = "dotted") +
-    scale_color_manual("", 
-                       values = select(dist_fit_data, {{ results_group }}, model_color) %>% deframe(), 
-                       labels = if (is_null(group_labels)) { 
-                         dist_fit_data %>% 
-                           select(model, model_name) %>% 
-                           deframe() 
-                       } else {
-                         group_labels
-                       }, aesthetics = c("color", "fill")) + 
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL
+  
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select({{ results_group }}, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  
+  return(ggplot_obj)
 }
 
 
@@ -856,10 +937,11 @@ plot_wtp_results <- function(draws) {
     filter(draws, fct_match(variable, "prob_prefer_calendar")) %>% 
       left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
       ggplot(aes(x = val_diff)) +
-      geom_line(aes(y = per_0.5)) +
-      geom_point(aes(y = per_0.5), size = 1) +
-      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+      geom_line(aes(y = per_0.5, color = fit_type), show.legend = FALSE) +
+      geom_point(aes(y = per_0.5, color = fit_type), size = 1, show.legend = FALSE) +
+      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = fit_type), alpha = 0.4, show.legend = FALSE) +
       scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
+      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
       labs(
         title = "Probability of Preference for Calendars vs. Bracelets",
         y = "" 
@@ -870,12 +952,13 @@ plot_wtp_results <- function(draws) {
     filter(draws, fct_match(variable, "hyper_wtp_mu")) %>%
       mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
       # ggplot(aes(y = str_c(variable, index))) +
-      ggplot(aes(y = str_c(variable))) +
-      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75), alpha = 0.4, size = 3) +
-      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9), fatten = 2, size = 0.4, width = 0.2) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95), size = 0.4) +
-      geom_point(aes(x = mean_est), size = 2) +
-      geom_point(aes(x = mean_est), color = "white", size = 0.8) +
+      ggplot(aes(y = str_c(fit_type))) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = fit_type), alpha = 0.4, size = 3, show.legend = FALSE) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = fit_type), fatten = 2, size = 0.4, width = 0.2, show.legend = FALSE) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = fit_type), size = 0.4, show.legend = FALSE) +
+      geom_point(aes(x = mean_est, color = fit_type), size = 2, show.legend = FALSE) +
+      geom_point(aes(x = mean_est, color = fit_type), color = "white", size = 0.8, show.legend = FALSE) +
+      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
       scale_x_continuous("", labels = scales::label_number(suffix = " KSh")) +
       # coord_cartesian(xlim = c(-55, 55)) +
       theme(axis.text.y = element_blank()) +
