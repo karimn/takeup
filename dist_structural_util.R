@@ -974,7 +974,165 @@ plot_wtp_results <- function(draws) {
   )
 }
 
-plot_beliefs_est <- function(beliefs_results, top_title = NULL, width = 0.3, crossbar_width = 0.2, include = c("both", "1ord")) {
+plot_single_beliefs_est <- function(beliefs_results_type_df, 
+                                    order, 
+                                    top_title = NULL, 
+                                    width = 0.3, 
+                                    crossbar_width = 0.2, 
+                                    vline = TRUE) {
+  pos_dodge <- position_dodge(width = width)
+  if (order == 1) {
+    str_title = "First Order Beliefs"
+  } else {
+    str_title = "Second Order Beliefs"
+  }
+  belief_plot = 
+      beliefs_results_type_df %>% 
+        filter(ord == order, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = str_title,
+          subtitle = "",
+          x = "", y = "") +
+        theme(
+          legend.position = "bottom"
+        ) + 
+        NULL
+
+  if (vline == TRUE) {
+    belief_plot = belief_plot +
+         geom_vline(xintercept = 0, linetype = "dotted") 
+  }
+        
+  return(belief_plot)
+} 
+
+plot_beliefs_est <- function(beliefs_results, 
+                             top_title = NULL, 
+                             width = 0.3, 
+                             crossbar_width = 0.2, 
+                             include = c("both", "1ord"), 
+                             include_type = c("both", "ate")) {
+  include <- rlang::arg_match(include)
+  include_type <- rlang::arg_match(include_type)
+  pos_dodge <- position_dodge(width = width)
+
+    first_plot <- beliefs_results$prob_knows %>% 
+      filter(ord == 1) %>% 
+      ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+      geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
+      geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+      scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+      scale_y_discrete("", labels = str_to_title) +
+      labs(
+        title = "First Order Beliefs",
+        subtitle = "Proportion",
+        x = "") +
+      theme(legend.position = "top") +
+      NULL
+  
+  cowplot::plot_grid(
+    if (!is_null(top_title)) { 
+      cowplot::ggdraw() +
+        cowplot::draw_label(top_title, size = 20, fontface = "italic")
+    },
+    
+    cowplot::plot_grid(
+      if (include_type == "both") first_plot +
+          theme(
+            legend.position = "none"
+          ) +
+          NULL,
+      
+      beliefs_results$ate_knows %>% 
+        filter(ord == 1, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_vline(xintercept = 0, linetype = "dotted") +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = "",
+          subtitle = "Treatment Effect",
+          x = "", y = "") +
+        theme(
+          axis.text.y = element_blank(),
+          legend.position = "none"
+        ) +
+        NULL, 
+      
+      if (include == "both" & include_type == "both") beliefs_results$prob_knows %>% 
+        filter(ord == 2) %>% 
+        ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        scale_y_discrete("", labels = str_to_title) +
+        labs(
+          title = "Second Order Beliefs",
+          subtitle = "Proportion",
+          x = "") +
+        theme(
+          legend.position = "none"
+        ) +
+        NULL,
+      
+      if (include == "both") beliefs_results$ate_knows %>% 
+        filter(ord == 2, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_vline(xintercept = 0, linetype = "dotted") +
+        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
+        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
+        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = "",
+          subtitle = "Treatment Effect",
+          x = "", y = "",
+          caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval. Thick vertical line: median. Point: mean."
+        ) +
+        theme(
+          axis.text.y = element_blank(),
+          legend.position = "none",
+          plot.caption = element_text(size = 8)
+        ) +
+        NULL,
+      
+      ncol = if_else(include_type == "both", 2, 1), axis = "b", align = "h" 
+    ),
+    
+    cowplot::get_legend(first_plot),
+    
+    ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.08)
+  )
+}
+
+plot_beliefs_est <- function(beliefs_results, 
+                             top_title = NULL, 
+                             width = 0.3, 
+                             crossbar_width = 0.2, 
+                             include = c("both", "1ord"), 
+                             include_type = c("both", "ate")) {
   include <- rlang::arg_match(include)
   pos_dodge <- position_dodge(width = width)
 
