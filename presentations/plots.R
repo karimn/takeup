@@ -24,7 +24,7 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 62
+fit_version <- 66
 
 # 66 ed fit
 # 60 Karim fit
@@ -410,6 +410,8 @@ ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-diff-roc-facet
 
 
 #### Difference Rep Returns by Dist ####
+
+
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   select(model_name, cluster_rep_return_dist) %>%
@@ -527,13 +529,13 @@ iwalk(
 ## Rep returns vs control
 if (model_fit_by == "Ed") {
 
-  rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) %>%
-    mutate(
-      roc_distance = roc_distance / 1000
-    ) 
-
+  rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) 
   rep_return_plot = function(data, treatment) {
       plot = data %>%
+          mutate(
+            roc_distance = roc_distance / 1000,
+            across(starts_with("per_"), divide_by, 1000)
+          ) %>% 
           ggplot(aes(roc_distance)) +
           geom_line(aes(y = per_0.5)) +
           geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
@@ -543,6 +545,7 @@ if (model_fit_by == "Ed") {
               title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
               subtitle =  str_glue("{str_to_title(treatment)} Compared to Control"),
               x = "Distance to Treatment [km]", y = "Distance Value Compared to Control[km]",
+              caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval."
           ) +
           theme(legend.position = "top") +
           geom_hline(yintercept = 0, linetype = "longdash") + 
