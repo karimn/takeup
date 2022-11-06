@@ -330,7 +330,6 @@ iwalk(
 
 
 
-
 #### Difference in Rate of Change ####
 diff_roc_df = dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
@@ -783,7 +782,7 @@ ggsave(
 
 structural_incentive_ate_plot = dist_fit_data %>%
   grab_incentive_ate(., model_type_to_plot = "structural") %>%
-  plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+  plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type, single_prior_predict = TRUE) +
     scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
     scale_y_discrete("") +
     labs(
@@ -794,7 +793,7 @@ structural_incentive_ate_plot = dist_fit_data %>%
                 scales = "free_y") +
     NULL  +
     guides(colour = "none")
-        
+
 
 ggsave(
   plot = structural_incentive_ate_plot,
@@ -840,7 +839,11 @@ grab_signalling_ate = function(data, model_type_to_plot, models_we_want) {
 
 structural_signalling_ate_plot = dist_fit_data %>%
   grab_signalling_ate(., "structural", models_we_want) %>%
-      plot_estimands(., est_takeup_te, mu_assigned_treatment_left, results_group = fit_type) +
+      plot_estimands(., 
+                     est_takeup_te, 
+                     mu_assigned_treatment_left, 
+                     results_group = fit_type,
+                     single_prior_predict = TRUE) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
@@ -851,7 +854,6 @@ structural_signalling_ate_plot = dist_fit_data %>%
                    scales = "free_y") +
         guides(colour = "none") +
         NULL
-
 ggsave(
   plot = structural_signalling_ate_plot,
   filename = file.path(
@@ -895,7 +897,11 @@ grab_private_ate = function(data, model_type_to_plot, models_we_want) {
 
 structural_private_ate_plot = dist_fit_data %>%
   grab_private_ate(., model_type_to_plot = "structural", models_we_want) %>%
-      plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+      plot_estimands(., 
+                     est_takeup_te, 
+                     assigned_treatment_left, 
+                     results_group = fit_type, 
+                     single_prior_predict = TRUE) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
@@ -904,7 +910,6 @@ structural_private_ate_plot = dist_fit_data %>%
         ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
       guides(colour = "none") +
         NULL
-
 
 ggsave(
   plot = structural_private_ate_plot,
@@ -978,7 +983,10 @@ plot_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_wa
                             model_type_to_plot = model_type_to_plot, 
                             models_we_want =  models_we_want
                             ) %>%
-    plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+    plot_estimands(., 
+                   est_takeup_te, 
+                   assigned_treatment_left, 
+                   results_group = fit_type) +
       scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
       scale_y_discrete("") +
       labs(
@@ -1001,7 +1009,6 @@ p_ate_diffs = map(
     models_we_want = "REDUCED_FORM_NO_RESTRICT"
   )
 )
-
 
 iwalk(
     p_ate_diffs,

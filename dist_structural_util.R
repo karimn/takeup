@@ -851,12 +851,33 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
 
 # Plotting Functions ------------------------------------------------------
 
-plot_estimands <- function(.data, nested_data, y, results_group = model, group_labels = NULL, include_prior_predict = FALSE, pos_height = 0.8, center_bar_size = 3, color_data = .data) {
+plot_estimands <- function(.data, 
+                           nested_data, 
+                           y, 
+                           results_group = model, 
+                           group_labels = NULL, 
+                           include_prior_predict = FALSE, 
+                           pos_height = 0.8, 
+                           center_bar_size = 3, 
+                           color_data = .data, 
+                           single_prior_predict = FALSE,
+                           top_levels = c("Bracelet", "Combined")) {
   plot_pos <- ggstance::position_dodgev(height = pos_height)
   
+  
+  if (single_prior_predict == TRUE) {
+    .data = .data %>%
+              mutate({{  nested_data  }} := map_if({{nested_data }},
+                fct_match(fit_type, "prior-predict"), ~filter(.x, 
+                  fct_match({{ y }},  top_levels[1]),
+                  fct_match(assigned_dist_group_left,  top_levels[2]),
+              )))
+  }
+
   ggplot_obj <- if (include_prior_predict) {
-    .data %>% 
-      unnest({{ nested_data }}) %>% 
+    subset_data = .data %>% 
+      unnest({{ nested_data }})
+    subset_data %>%
       ggplot(aes(x = per_0.5, y = {{ y }}, group = model)) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
