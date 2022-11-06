@@ -921,11 +921,16 @@ ggsave(
 
 ## Differences Between Reduced Form Treatment Arms
 
-# Technically we can do this with est_takeup_te but I find it nicer to work 
-# with est_takeup_te_diff
-# TODO: refactor est_takeup_te_diff into a filter function here
+# TODO: remove est_takeup_te_diff - don't actually need can just filter here
 
 
+#' Calculate Difference in ATEs across treatments, within distance groups
+#'
+#' Filtering process:
+#' Ensure treat_left != treat_right. Ensure mu_assigned either matches treatment 
+#' or is set to control in RF. Make sure distance groups match or are both NA
+#'
+#'
 grab_incentive_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_want){
   data =  data %>%
     filter(
