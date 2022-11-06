@@ -25,6 +25,7 @@ source(file.path( "dist_structural_util.R"))
 source(file.path("multilvlr", "multilvlr_util.R"))
 
 fit_version <- 66
+default_top_levels = c("Bracelet", "Combined")
 
 # 66 ed fit
 # 60 Karim fit
@@ -116,7 +117,7 @@ belief_data$ate_knows %>%
     width = 0.7, 
     order = 1,
     crossbar_width = 0.4) +
-    labs(subtitle = "Treatment Effects") +
+    labs(subtitle = "Treatment Effects") + 
     NULL
 
 ggsave(file.path(output_basepath, str_glue("belief-te-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
@@ -194,8 +195,8 @@ combined_belief_ate = belief_data$prob_knows %>%
     mutate(
         assigned_treatment_left = fct_drop(assigned_treatment_left), 
         assigned_treatment_right = fct_drop(assigned_treatment_right)
-    ) 
-
+    )  %>%
+    mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)) 
 combined_belief_prop = belief_data$prob_knows %>%
     select(assigned_treatment, iter_data, ord) %>%
     unnest(iter_data) %>%
@@ -210,7 +211,8 @@ combined_belief_prop = belief_data$prob_knows %>%
     mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
     mutate(
         assigned_treatment_right = fct_drop(assigned_treatment_left)
-    ) 
+    )  %>%
+    mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title))
 
 combined_belief_prop %>%
   plot_single_beliefs_est(
@@ -219,7 +221,8 @@ combined_belief_prop %>%
     crossbar_width = 0.4, 
     vline = FALSE) +
     labs(subtitle = "Proportion") +
-    NULL
+    guides(colour = "none") +
+    NULL 
 
 ggsave(
     file.path(output_basepath, str_glue("combined-prop-fob.png")), 
@@ -235,6 +238,7 @@ combined_belief_prop %>%
     crossbar_width = 0.4, 
     vline = FALSE) +
     labs(subtitle = "Proportion") +
+    guides(colour = "none") +
     NULL
 
 ggsave(
@@ -247,7 +251,8 @@ ggsave(
 
 combined_belief_ate %>%
     plot_single_beliefs_est(order = 1)  +
-    labs(subtitle = "Treatment Effects")
+    labs(subtitle = "Treatment Effects") +
+    guides(colour = "none") 
 ggsave(
     file.path(output_basepath, str_glue("combined-ate-fob.png")), 
     width = 7.5, 
@@ -257,7 +262,8 @@ ggsave(
 
 combined_belief_ate %>%
     plot_single_beliefs_est(order = 2)  +
-    labs(subtitle = "Treatment Effects")
+    labs(subtitle = "Treatment Effects") +
+    guides(colour = "none")
 ggsave(
     file.path(output_basepath, str_glue("combined-ate-sob.png")), 
     width = 7.5, 
@@ -287,6 +293,7 @@ roc_df = dist_fit_data %>%
 roc_plot = function(roc_df, treatment) {
     plot = roc_df %>%
         filter(assigned_treatment %in% c(treatment, "control")) %>%
+        mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
         ggplot(aes(roc_distance)) +
         geom_line(aes(y = per_0.5, color = assigned_treatment)) +
         geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
@@ -296,6 +303,7 @@ roc_plot = function(roc_df, treatment) {
           alpha = 0.75,
           data = rf_analysis_data %>%
             filter(fct_match(assigned.treatment, c("control", treatment))) %>%
+            mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
             distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
         scale_color_discrete(aesthetics = c("color", "fill")) +
         labs(
@@ -350,6 +358,7 @@ plot_roc_diff = function(data, treatment) {
     plot = 
         data %>%
             filter(assigned_treatment == treatment) %>%
+            mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
             ggplot(aes(roc_distance)) +
             geom_line(aes(y = per_0.5)) +
             geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
@@ -359,12 +368,13 @@ plot_roc_diff = function(data, treatment) {
               alpha = 0.75,
               data = rf_analysis_data %>%
                 filter(fct_match(assigned.treatment, c("control", treatment))) %>%
+                mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
                 distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
             scale_color_discrete("", aesthetics = c("color", "fill")) +
             labs(
-            title = "Difference in Rate of Change",
+            title = "Difference in Takeup Derivative",
             subtitle = str_glue("{str_to_title(treatment)}"),
-            x = "Distance to Treatment [km]", y = "Difference in Rate of Change [pp/km]",
+            x = "Distance to Treatment [km]", y = "Difference in Takeup Derivative [pp/km]",
             caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
             ) +
             #   facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
@@ -415,8 +425,8 @@ dist_fit_data %>%
   geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.25) +
   scale_color_discrete("", aesthetics = c("color", "fill")) +
   labs(
-    title = "Difference in Rate of Change",
-    x = "Distance to Treatment [km]", y = "Difference in Rate of Change [pp/km]",
+    title = "Difference in Takeup Derivative",
+    x = "Distance to Treatment [km]", y = "Difference in Takeup Derivative [pp/km]",
     caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
   ) +
   facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
@@ -529,6 +539,7 @@ plot_rep_returns_one_by_one = function(data, treatment) {
         subtitle = subtitle_str
         ) +
         theme(legend.position = "top") +
+        guides(colour = "none") +
         NULL
     return(plot)
 }
@@ -542,7 +553,7 @@ treatments = c(
 )
 
 single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
-    plot_rep_returns_one_by_one(treatment = .x)
+    plot_rep_returns_one_by_one(treatment = .x)  
 )
 iwalk(
     single_rep_return_plots,
@@ -580,6 +591,7 @@ if (model_fit_by == "Ed") {
           ) +
           theme(legend.position = "top") +
           geom_hline(yintercept = 0, linetype = "longdash") + 
+          guides(colour = "none") +
           NULL
       return(plot)
   }
@@ -757,7 +769,12 @@ grab_incentive_ate = function(data, model_type_to_plot) {
 
 reduced_incentive_ate_plot = dist_fit_data %>%
   grab_incentive_ate(., model_type_to_plot = "reduced form") %>%
-  plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+  plot_estimands(., 
+                 est_takeup_te, 
+                 assigned_treatment_left, 
+                 results_group = fit_type, 
+                 single_prior_predict = TRUE, 
+                 top_levels = default_top_levels) +
     scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
     scale_y_discrete("") +
     labs(
@@ -782,7 +799,12 @@ ggsave(
 
 structural_incentive_ate_plot = dist_fit_data %>%
   grab_incentive_ate(., model_type_to_plot = "structural") %>%
-  plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type, single_prior_predict = TRUE) +
+  plot_estimands(., 
+                 est_takeup_te, 
+                 assigned_treatment_left, 
+                 results_group = fit_type, 
+                 single_prior_predict = TRUE, 
+                 top_levels = default_top_levels) +
     scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
     scale_y_discrete("") +
     labs(
@@ -843,7 +865,8 @@ structural_signalling_ate_plot = dist_fit_data %>%
                      est_takeup_te, 
                      mu_assigned_treatment_left, 
                      results_group = fit_type,
-                     single_prior_predict = TRUE) +
+                     single_prior_predict = TRUE, 
+                     top_levels = default_top_levels) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
@@ -854,6 +877,7 @@ structural_signalling_ate_plot = dist_fit_data %>%
                    scales = "free_y") +
         guides(colour = "none") +
         NULL
+
 ggsave(
   plot = structural_signalling_ate_plot,
   filename = file.path(
@@ -901,7 +925,8 @@ structural_private_ate_plot = dist_fit_data %>%
                      est_takeup_te, 
                      assigned_treatment_left, 
                      results_group = fit_type, 
-                     single_prior_predict = TRUE) +
+                     single_prior_predict = TRUE, 
+                     top_levels = default_top_levels) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
@@ -977,6 +1002,11 @@ grab_incentive_ate_diff = function(data, base_comparison, model_type_to_plot, mo
 
 
 plot_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_want) {
+  if (base_comparison == "bracelet") {
+    top_levels = c("Calendar", "Combined")
+  } else {
+    top_levels = c("Bracelet", "Combined")
+  }
   p = data %>%
     grab_incentive_ate_diff(data = .,
                             base_comparison = base_comparison, 
@@ -986,7 +1016,9 @@ plot_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_wa
     plot_estimands(., 
                    est_takeup_te, 
                    assigned_treatment_left, 
-                   results_group = fit_type) +
+                   results_group = fit_type,
+                   single_prior_predict = TRUE,
+                   top_levels = top_levels) +
       scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
       scale_y_discrete("") +
       labs(
@@ -997,6 +1029,8 @@ plot_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_wa
       NULL
   return(p)
 }
+
+
 
 
 
