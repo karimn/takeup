@@ -94,6 +94,12 @@ dist_fit_data %<>%
       "prior-predict", "darkgrey",
   ), by = "fit_type")
 
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
 delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
 belief_data = dist_fit_data %>%
@@ -285,6 +291,12 @@ roc_plot = function(roc_df, treatment) {
         geom_line(aes(y = per_0.5, color = assigned_treatment)) +
         geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
         geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
+        geom_rug(
+          aes(dist, color = assigned_treatment),
+          alpha = 0.75,
+          data = rf_analysis_data %>%
+            filter(fct_match(assigned.treatment, c("control", treatment))) %>%
+            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
         scale_color_discrete(aesthetics = c("color", "fill")) +
         labs(
         title = "Rates of Change",
@@ -343,6 +355,12 @@ plot_roc_diff = function(data, treatment) {
             geom_line(aes(y = per_0.5)) +
             geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
             geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+            geom_rug(
+              aes(dist, color = assigned_treatment),
+              alpha = 0.75,
+              data = rf_analysis_data %>%
+                filter(fct_match(assigned.treatment, c("control", treatment))) %>%
+                distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
             scale_color_discrete("", aesthetics = c("color", "fill")) +
             labs(
             title = "Difference in Rate of Change",
@@ -365,6 +383,8 @@ plot_roc_diff = function(data, treatment) {
 single_roc_diff_plots = map(treatments, ~ diff_roc_df %>%
     plot_roc_diff(treatment = .x)
 )
+
+
 iwalk(
     single_roc_diff_plots,
     ~ggsave(plot = .x, 
@@ -497,6 +517,12 @@ plot_rep_returns_one_by_one = function(data, treatment) {
         geom_line(aes(y = per_0.5)) +
         geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
         geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+        geom_rug(
+          aes(dist, color = assigned_treatment),
+          alpha = 0.75,
+          data = rf_analysis_data %>%
+            filter(fct_match(assigned.treatment, c(treatment))) %>%
+            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
         scale_color_discrete("", aesthetics = c("color", "fill")) +
         labs(
         title = "Valuation of Reputational Returns in Terms of Distance",
@@ -540,6 +566,12 @@ if (model_fit_by == "Ed") {
           geom_line(aes(y = per_0.5)) +
           geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
           geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+          geom_rug(
+            aes(dist, color = assigned_treatment),
+            alpha = 0.75,
+            data = rf_analysis_data %>%
+              filter(fct_match(assigned.treatment, c("control", treatment))) %>%
+              distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
           scale_color_discrete("", aesthetics = c("color", "fill")) +
           labs(
               title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
@@ -677,6 +709,8 @@ delta_w_plot = dist_fit_data %>%
   # coord_cartesian(ylim = c(0, 0.1))
   NULL
 
+delta_w_plot
+
 ggsave(
     plot= delta_w_plot, 
     filename = file.path(
@@ -692,162 +726,282 @@ ggsave(
 
 ## ATEs
 
-dist_fit_data %>%
-  filter(
-    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit")) | 
-      (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
-  ) %>% 
-  mutate(
-    est_takeup_te =
-      map_if(est_takeup_te, fct_match(model_type, "structural"),
-             filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
-        map(filter,
-            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-            assigned_treatment_left != assigned_treatment_right,
-            fct_match(assigned_treatment_right, c("control")),
-            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
-    model_color = canva_pal(canva_palette_vibrant)(n())
-  ) %>% 
-  select(model, model_name, est_takeup_te, fit_type, model_color) 
+grab_incentive_ate = function(data, model_type_to_plot) {
 
-dist_fit_data %>%
-  filter(
-    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit")) | 
-      (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
-  ) %>% 
-  mutate(
-    est_takeup_te =
-      map_if(est_takeup_te, fct_match(model_type, "structural"),
-             filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
-        map(filter,
-            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-            assigned_treatment_left != assigned_treatment_right,
-            fct_match(assigned_treatment_right, c("control")),
-            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
-    model_color = canva_pal(canva_palette_vibrant)(n())
-  ) %>% 
-  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
-  mutate(
-    est_takeup_te = map(
-      est_takeup_te,
-      mutate,
-      assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-        fct_relabel(str_to_title) %>% 
-        fct_relevel("Combined"),
-      assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left)))
-    )
-  ) %>% 
-      plot_estimands(., est_takeup_te, assigned_treatment_left) +
-        scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
-        scale_y_discrete("") +
-        labs(
-          title = "Incentive Average Treatment Effect", 
-          subtitle = str_glue("Model fit by: {model_fit_by}" )
-        ) +
-        ggforce::facet_col(vars(assigned_dist_group_left), 
-                   space = "free",
-                   scales = "free_y") +
-        NULL
-
-ggsave(
-  filename = file.path(
-    output_basepath,
-    "incentive-ate-plot.png"
-  ),
-  width = 10,
-  height = 10,
-  dpi = 500
-)
-
-
-dist_fit_data %>% 
-  filter(
-    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit"))  
-  ) %>% 
-  filter(fit_type == "fit") %>%
-  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
-  mutate(
-    est_takeup_te = map(
-      est_takeup_te,
-      filter,
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
-      !is.na(mu_assigned_treatment_left),
-      fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
-      fct_match(mu_assigned_treatment_right, "control"),
+  subset_data = data %>%
+    filter(
+      (fct_match(model_type, model_type_to_plot))
     ) %>% 
-      map(
+    mutate(
+      est_takeup_te =
+        map_if(est_takeup_te, fct_match(model_type, "structural"),
+              filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
+          map(filter,
+              (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+              assigned_treatment_left != assigned_treatment_right,
+              fct_match(assigned_treatment_right, c("control")),
+              fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))
+    )  %>%
+    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+    mutate(
+      est_takeup_te = map(
+        est_takeup_te,
         mutate,
         assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
           fct_relabel(str_to_title) %>% 
           fct_relevel("Combined"),
-        mu_assigned_treatment_left = fct_rev(factor(str_to_title(mu_assigned_treatment_left))),
-      ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
-  ) %>% 
-      plot_estimands(., est_takeup_te, mu_assigned_treatment_left) +
+        assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left)))
+      )
+    ) 
+    return(subset_data)
+}
+
+reduced_incentive_ate_plot = dist_fit_data %>%
+  grab_incentive_ate(., model_type_to_plot = "reduced form") %>%
+  plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+    scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+    scale_y_discrete("") +
+    labs(
+      title = "Incentive Average Treatment Effect"
+    ) +
+    ggforce::facet_col(vars(assigned_dist_group_left), 
+                space = "free",
+                scales = "free_y") +
+    NULL  +
+    guides(colour = "none")
+        
+ggsave(
+  plot = reduced_incentive_ate_plot,
+  filename = file.path(
+    output_basepath,
+    "reduced-incentive-ate-plot.png"
+  ),
+  width = 7.5,
+  height = 5,
+  dpi = 500
+)
+
+structural_incentive_ate_plot = dist_fit_data %>%
+  grab_incentive_ate(., model_type_to_plot = "structural") %>%
+  plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+    scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+    scale_y_discrete("") +
+    labs(
+      title = "Incentive Average Treatment Effect"
+    ) +
+    ggforce::facet_col(vars(assigned_dist_group_left), 
+                space = "free",
+                scales = "free_y") +
+    NULL  +
+    guides(colour = "none")
+        
+
+ggsave(
+  plot = structural_incentive_ate_plot,
+  filename = file.path(
+    output_basepath,
+    "structural-incentive-ate-plot.png"
+  ),
+  width = 7.5,
+  height = 5.0,
+  dpi = 500
+)
+
+## SIGNALLING
+
+grab_signalling_ate = function(data, model_type_to_plot, models_we_want) {
+  data = data %>% 
+    filter(
+      (fct_match(model_type, model_type_to_plot) & fct_match(model, models_we_want) )  
+    ) %>% 
+    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+    mutate(
+      est_takeup_te = map(
+        est_takeup_te,
+        filter,
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+        across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+        !is.na(mu_assigned_treatment_left),
+        fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+        fct_match(mu_assigned_treatment_right, "control"),
+      ) %>% 
+        map(
+          mutate,
+          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+            fct_relabel(str_to_title) %>% 
+            fct_relevel("Combined"),
+          mu_assigned_treatment_left = fct_rev(factor(str_to_title(mu_assigned_treatment_left))),
+        )
+    ) 
+  return(data)
+
+}
+
+
+structural_signalling_ate_plot = dist_fit_data %>%
+  grab_signalling_ate(., "structural", models_we_want) %>%
+      plot_estimands(., est_takeup_te, mu_assigned_treatment_left, results_group = fit_type) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
           title = "Signaling Average Treatment Effect",
-          subtitle = str_glue("
-          Holding private incentive at the control level. Model fit by: {model_fit_by}")) +
+          subtitle = str_glue("Holding private incentive at the control level.")) +
         ggforce::facet_col(vars(assigned_dist_group_left), 
                    space = "free",
                    scales = "free_y") +
+        guides(colour = "none") +
         NULL
 
 ggsave(
+  plot = structural_signalling_ate_plot,
   filename = file.path(
     output_basepath,
-    "signaling-ate-plot.png"
+    "structural-signaling-ate-plot.png"
   ),
-  width = 10,
-  height = 10,
+  width = 7.5,
+  height = 5.0,
   dpi = 500
 )
 
-dist_fit_data %>% 
-  filter(
-    (fct_match(model_type, "structural") & fct_match(model, models_we_want) & fct_match(fit_type, "fit"))  
-  ) %>% 
-  select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
-  mutate(
-    est_takeup_te = map(
-      est_takeup_te,
-      filter,
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      !is.na(mu_assigned_treatment_left),
-      !is.na(mu_assigned_treatment_right),
-      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
-      fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
-      fct_match(assigned_treatment_right, "control"),
+
+
+grab_private_ate = function(data, model_type_to_plot, models_we_want) {
+  data = data %>%  
+    filter(
+      (fct_match(model_type, model_type_to_plot) & fct_match(model, models_we_want) )  
     ) %>% 
-      map(
-        mutate,
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left))),
-      ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
-  ) %>%
-      plot_estimands(., est_takeup_te, assigned_treatment_left) +
+    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+    mutate(
+      est_takeup_te = map(
+        est_takeup_te,
+        filter,
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+        !is.na(mu_assigned_treatment_left),
+        !is.na(mu_assigned_treatment_right),
+        across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
+        fct_match(assigned_treatment_right, "control"),
+      ) %>% 
+        map(
+          mutate,
+          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+            fct_relabel(str_to_title) %>% 
+            fct_relevel("Combined"),
+          assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left))),
+        )
+    )
+  return(data)
+}
+
+structural_private_ate_plot = dist_fit_data %>%
+  grab_private_ate(., model_type_to_plot = "structural", models_we_want) %>%
+      plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
           title = "Private Incentive Average Treatment Effect",
-          subtitle = str_glue("
-          Holding signaling at the control level. Model fit by: {model_fit_by}")) +
+          subtitle = str_glue("Holding signaling at the control level")) +
         ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
+      guides(colour = "none") +
         NULL
-      
+
+
 ggsave(
+  plot = structural_private_ate_plot,
   filename = file.path(
     output_basepath,
-    "private-ate-plot.png"
+    "structural-private-ate-plot.png"
   ),
-  width = 10,
-  height = 10,
+  width = 7.5,
+  height = 5.0,
   dpi = 500
 )
+
+
+
+## Differences Between Reduced Form Treatment Arms
+
+# Technically we can do this with est_takeup_te but I find it nicer to work 
+# with est_takeup_te_diff
+# TODO: refactor est_takeup_te_diff into a filter function here
+
+
+grab_incentive_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_want){
+  data =  data %>%
+    filter(
+      (fct_match(model_type, model_type_to_plot) & fct_match(model, models_we_want) )  
+    ) %>% 
+    select(model, model_name, est_takeup_te, fit_type, model_type, model_color) %>% 
+      mutate(
+        est_takeup_te = map_if(est_takeup_te,
+        fct_match(model_type, "structural"), ~ {
+          if (!is_null(.x)) {
+            filter(.,
+              (assigned_treatment_left != assigned_treatment_right) &
+              mu_assigned_treatment_left == assigned_treatment_left &
+              mu_assigned_treatment_right == assigned_treatment_right &
+              ((is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
+              (assigned_dist_group_left == assigned_dist_group_right) &
+             fct_match(assigned_treatment_right, base_comparison))
+            )
+          }
+        },
+        .else = ~ filter(.,
+          (assigned_treatment_left != assigned_treatment_right) &
+          mu_assigned_treatment_left == "control" &
+          mu_assigned_treatment_right == "control" &
+          ((is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) |
+          (assigned_dist_group_left == assigned_dist_group_right)) &
+          fct_match(assigned_treatment_right,  base_comparison))
+      ) %>%
+        map(
+          mutate,
+          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+            fct_relabel(str_to_title) %>% 
+            fct_relevel("Combined"),
+          assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left)))
+        )
+      )
+  return(data)
+}
+
+
+plot_ate_diff = function(data, base_comparison, model_type_to_plot, models_we_want) {
+  p = data %>%
+    grab_incentive_ate_diff(data = .,
+                            base_comparison = base_comparison, 
+                            model_type_to_plot = model_type_to_plot, 
+                            models_we_want =  models_we_want
+                            ) %>%
+    plot_estimands(., est_takeup_te, assigned_treatment_left, results_group = fit_type) +
+      scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
+      scale_y_discrete("") +
+      labs(
+        title = str_glue("Incentive Average Treatment Effect Difference"), 
+        subtitle =  str_glue("Treatment Effect Difference Compared to {str_to_title(base_comparison)}")) +
+      ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
+    guides(colour = "none") +
+      NULL
+  return(p)
+}
+
+
+
+p_ate_diffs = map(
+  treatments, 
+  ~plot_ate_diff(
+    data = dist_fit_data,
+    base_comparison = .x, 
+    model_type_to_plot = "reduced form",
+    models_we_want = "REDUCED_FORM_NO_RESTRICT"
+  )
+)
+
+
+iwalk(
+    p_ate_diffs,
+    ~ggsave(plot = .x, 
+    filename = file.path(output_basepath, str_glue("reduced-form-incentive-ate-diffs-{treatments[.y]}.png")),
+    width = 7.5, height = 5.0, dpi = 500 )
+)
+
