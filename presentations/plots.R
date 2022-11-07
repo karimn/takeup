@@ -307,7 +307,7 @@ roc_plot = function(roc_df, treatment) {
             distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
         scale_color_discrete(aesthetics = c("color", "fill")) +
         labs(
-        title = "Rates of Change",
+        # title = "Rates of Change",
         subtitle = str_glue("{str_to_title(treatment)} and Control"),
         x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
         caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." , 
@@ -372,8 +372,8 @@ plot_roc_diff = function(data, treatment) {
                 distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
             scale_color_discrete("", aesthetics = c("color", "fill")) +
             labs(
-            title = "Difference in Takeup Derivative",
-            subtitle = str_glue("{str_to_title(treatment)}"),
+            # title = "Difference in Takeup Derivative",
+            # subtitle = str_glue("{str_to_title(treatment)}"),
             x = "Distance to Treatment [km]", y = "Difference in Takeup Derivative [pp/km]",
             caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
             ) +
@@ -534,7 +534,7 @@ plot_rep_returns_one_by_one = function(data, treatment) {
             distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
         scale_color_discrete("", aesthetics = c("color", "fill")) +
         labs(
-        title = "Valuation of Reputational Returns in Terms of Distance",
+        # title = "Valuation of Reputational Returns in Terms of Distance",
         x = "Distance to Treatment [km]", y = "Distance Value [km]", 
         subtitle = subtitle_str
         ) +
@@ -584,7 +584,7 @@ if (model_fit_by == "Ed") {
               distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
           scale_color_discrete("", aesthetics = c("color", "fill")) +
           labs(
-              title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
+              # title = str_glue("Valuation of Reputational Returns in Terms of Distance"),
               subtitle =  str_glue("{str_to_title(treatment)} Compared to Control"),
               x = "Distance to Treatment [km]", y = "Distance Value Compared to Control[km]",
               caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval."
@@ -736,16 +736,15 @@ ggsave(
 
 
 ## ATEs
-
-grab_incentive_ate = function(data, model_type_to_plot) {
+grab_incentive_ate = function(data, model_type_to_plot, nested_data = est_takeup_te) {
 
   subset_data = data %>%
     filter(
       (fct_match(model_type, model_type_to_plot))
     ) %>% 
     mutate(
-      est_takeup_te =
-        map_if(est_takeup_te, fct_match(model_type, "structural"),
+      {{ nested_data }} :=
+        map_if({{ nested_data }}, fct_match(model_type, "structural"),
               filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
           map(filter,
               (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
@@ -753,10 +752,10 @@ grab_incentive_ate = function(data, model_type_to_plot) {
               fct_match(assigned_treatment_right, c("control")),
               fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))
     )  %>%
-    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+    select(model, model_name, {{ nested_data }}, fit_type, model_color) %>% 
     mutate(
-      est_takeup_te = map(
-        est_takeup_te,
+      {{ nested_data }} := map(
+        {{ nested_data }},
         mutate,
         assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
           fct_relabel(str_to_title) %>% 
@@ -766,6 +765,62 @@ grab_incentive_ate = function(data, model_type_to_plot) {
     ) 
     return(subset_data)
 }
+
+reduced_incentive_level_plot = dist_fit_data %>%
+    filter(
+      (fct_match(model_type, "reduced form"))
+    )  %>%
+    mutate(est_takeup_level = map_if(est_takeup_level,
+        fct_match(fit_type, "prior-predict"), 
+        ~mutate(.x, 
+          across(
+            c(contains("per"), mean_est),
+            ~if_else(
+              !(fct_match(assigned_treatment,  "bracelet") & is.na(assigned_dist_group)),
+              NA_real_,
+              .x 
+            )
+          )
+        )
+      )
+    ) %>%
+    mutate(
+      est_takeup_level = map(
+        est_takeup_level,
+        mutate,
+        assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment = fct_rev(factor(str_to_title(assigned_treatment), 
+                                    levels = c("Bracelet",
+                                                "Calendar",
+                                                "Ink",
+                                                "Control")))
+        )
+        ) %>%
+  plot_estimands(.,est_takeup_level, assigned_treatment, results_group = fit_type) +
+    scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+    scale_y_discrete("") +
+    labs(
+      # title = "Incentive Average Treatment Effect"
+    ) +
+    ggforce::facet_col(vars(assigned_dist_group), 
+                space = "free",
+                scales = "free_y") +
+    NULL  +
+    guides(colour = "none")
+
+ggsave(
+  plot = reduced_incentive_level_plot,
+  filename = file.path(
+    output_basepath,
+    "reduced-incentive-level-plot.png"
+  ),
+  width = 7.5,
+  height = 5,
+  dpi = 500
+)
+
 
 reduced_incentive_ate_plot = dist_fit_data %>%
   grab_incentive_ate(., model_type_to_plot = "reduced form") %>%
@@ -778,14 +833,13 @@ reduced_incentive_ate_plot = dist_fit_data %>%
     scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
     scale_y_discrete("") +
     labs(
-      title = "Incentive Average Treatment Effect"
+      # title = "Incentive Average Treatment Effect"
     ) +
     ggforce::facet_col(vars(assigned_dist_group_left), 
                 space = "free",
                 scales = "free_y") +
     NULL  +
     guides(colour = "none")
-        
 ggsave(
   plot = reduced_incentive_ate_plot,
   filename = file.path(
@@ -808,7 +862,7 @@ structural_incentive_ate_plot = dist_fit_data %>%
     scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
     scale_y_discrete("") +
     labs(
-      title = "Incentive Average Treatment Effect"
+      # title = "Incentive Average Treatment Effect"
     ) +
     ggforce::facet_col(vars(assigned_dist_group_left), 
                 space = "free",
@@ -870,8 +924,9 @@ structural_signalling_ate_plot = dist_fit_data %>%
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
-          title = "Signaling Average Treatment Effect",
-          subtitle = str_glue("Holding private incentive at the control level.")) +
+          # title = "Signaling Average Treatment Effect",
+          # subtitle = str_glue("Holding private incentive at the control level.")
+          ) +
         ggforce::facet_col(vars(assigned_dist_group_left), 
                    space = "free",
                    scales = "free_y") +
@@ -930,8 +985,9 @@ structural_private_ate_plot = dist_fit_data %>%
         scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
         scale_y_discrete("") +
         labs(
-          title = "Private Incentive Average Treatment Effect",
-          subtitle = str_glue("Holding signaling at the control level")) +
+          # title = "Private Incentive Average Treatment Effect",
+          # subtitle = str_glue("Holding signaling at the control level")
+          ) +
         ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
       guides(colour = "none") +
         NULL
@@ -1050,4 +1106,183 @@ iwalk(
     filename = file.path(output_basepath, str_glue("reduced-form-incentive-ate-diffs-{treatments[.y]}.png")),
     width = 7.5, height = 5.0, dpi = 500 )
 )
+
+
+
+## Social Multiplier ##
+
+
+# dist_fit_data %>%
+#   filter(
+#     fct_match(model_type, "structural")
+#     ) %>%
+#     select(fit_type, cluster_social_multiplier) %>%
+#     unnest() %>%
+#     filter(assigned_treatment == "control") %>%
+#     select( 
+#       fit_type, roc_distance, mean_est
+#     ) %>%
+#     spread(fit_type, mean_est) %>%
+#     mutate(diff = fit - `prior-predict`) %>%
+#     ggplot(aes(
+#       x = roc_distance, 
+#       y = diff
+#     )) +
+#     geom_point()
+
+
+# dist_fit_data %>%
+#   filter(
+#     fct_match(model_type, "structural")
+#     ) %>%
+#     select(fit_type, cluster_social_multiplier) %>%
+#     filter(fit_type == "fit") %>%
+#     unnest() %>%
+#     filter(assigned_treatment == "control") %>%
+#     mutate(roc_distance = roc_distance / 1000) %>%
+#     ggplot(aes(roc_distance)) +
+#     geom_line(aes( 
+#       y = mean_est,
+#       group = fit_type, 
+#       linetype = fit_type
+#     ),  colour = "black") 
+
+# dist_fit_data %>%
+#   filter(
+#     fct_match(model_type, "structural")
+#     ) %>%
+#     select(fit_type, cluster_social_multiplier) %>%
+#     unnest() %>%
+#     filter(assigned_treatment == "control") %>%
+#     mutate(roc_distance = roc_distance / 1000) %>%
+#     ggplot(aes(roc_distance)) +
+#     geom_line(aes( 
+#       y = mean_est,
+#       group = fit_type, 
+#       linetype = fit_type
+#     ),  colour = "black")  +
+#     geom_ribbon(
+#       data = . %>% filter(fit_type == "prior-predict"),
+#       aes(
+#         ymin = per_0.25,
+#         y = mean_est,
+#         ymax = per_0.75, 
+#         fill = fit_type
+#       ), 
+#       alpha = 0.2
+#     ) +
+#     geom_ribbon(
+#       data = . %>% filter(fit_type != "prior-predict"),
+#       aes(
+#         ymin = per_0.25,
+#         y = mean_est,
+#         ymax = per_0.75, 
+#         fill = fit_type
+#       ), 
+#       alpha = 0.4
+#     ) +
+#     geom_hline(yintercept = -1, linetype = "longdash") +
+#     geom_rug(
+#       aes(dist),
+#       alpha = 0.75,
+#       data = rf_analysis_data %>%
+#         mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
+#         distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+#     labs(
+#       x = "Distance to Treatment (d) [km]", 
+#       y = "Social Multiplier" , 
+#       fill = "", 
+#       colour = "", 
+#       linetype = "",
+#       caption = "Line: Median. Ribbon: 50% credible interval."
+#     ) +
+#     scale_fill_discrete(
+#       breaks = c("fit", "prior-predict"),
+#       labels = c("Structural Model", "Prior")
+#     ) +
+#     scale_linetype_discrete(
+#       breaks = c("fit", "prior-predict"),
+#       labels = c("Structural Model", "Prior")
+#     ) +
+#     xlim(0, 2.5) +
+#     NULL
+
+
+# ggsave(
+#   file.path(
+#     output_basepath, 
+#     str_glue("social-multiplier-estim-plot.png")), 
+#     width = 7.5, height = 5.0, dpi = 500)
+
+
+# dist_fit_data %>%
+#   filter(
+#     fct_match(model_type, "structural")
+#     ) %>%
+#     select(fit_type, cluster_social_multiplier) %>%
+#     filter(fit_type == "fit") %>%
+#     unnest() %>%
+#     # filter(assigned_treatment == "control") %>%
+#     mutate(roc_distance = roc_distance / 1000) %>%
+#     ggplot(aes(roc_distance)) +
+#     geom_line(aes( 
+#       y = mean_est,
+#       colour = assigned_treatment
+#     ))  +
+#     # geom_hline(yintercept = -1, linetype = "longdash")
+#     # geom_ribbon(
+#     #   data = . %>% filter(fit_type != "prior-predict"),
+#     #   aes(
+#     #     ymin = per_0.25,
+#     #     y = mean_est,
+#     #     ymax = per_0.75, 
+#     #     fill = fit_type
+#     #   ), 
+#     #   alpha = 0.4
+#     # ) +
+#     geom_rug(
+#       aes(dist),
+#       alpha = 0.75,
+#       data = rf_analysis_data %>%
+#         mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
+#         distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+#     labs(
+#       x = "Distance to Treatment (d) [km]", 
+#       y = "Social Multiplier" , 
+#       fill = "", 
+#       colour = "", 
+#       linetype = "",
+#       caption = "Line: Median"
+#     )  +
+#     xlim(0, 2.5) +
+#     facet_wrap(~assigned_treatment)
+
+# ggsave(
+#   file.path(
+#     output_basepath, 
+#     str_glue("social-multiplier-point-estim-plot.png")), 
+#     width = 7.5, height = 5.0, dpi = 500)
+
+
+
+# dist_fit_data %>%
+#   filter(
+#     fct_match(model_type, "structural")
+#     ) %>%
+#     select(fit_type, cluster_social_multiplier) %>%
+#     unnest() %>%
+#     filter(assigned_treatment == "control") %>%
+#     ggplot(aes(roc_distance)) +
+#     geom_line(aes(y = per_0.5, color = fit_type)) +
+#     geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = fit_type), alpha = 0.4) +
+#     geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = fit_type), alpha = 0.4) +
+#     # geom_rug(
+#     #   aes(dist, color = assigned_treatment),
+#     #   alpha = 0.75,
+#     #   data = rf_analysis_data %>%
+#     #     mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
+#     #     distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+#     scale_color_discrete(aesthetics = c("color", "fill"))  +
+
+
 
