@@ -19,13 +19,17 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "
                              --min-cost 
-                             --target-constraint=0.85
+                             --target-constraint=0.40
                              --output-path=optim/data
-                             --output-filename=dry-run
-                             --dry-run 
-                             --dry-run-subsidy=0.2
+                             --output-filename=init-approx
+                             --input-path=optim/data 
+                             --village-input-filename=school-df.csv
+                             --pot-input-filename=school-df.csv
+                             --demand-input-filename=approx-struct-demand.csv
                              " else commandArgs(trailingOnly = TRUE)
 ) 
+                            #  --dry-run 
+                            #  --dry-run-subsidy=0.2
 
 library(tidyverse)
 library(data.table)
@@ -206,7 +210,7 @@ model = define_baseline_MIPModel(
   target_constraint = script_options$target_constraint
 )
 
-
+stop()
 
 fit_model = solve_model(
   model,
