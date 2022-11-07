@@ -864,14 +864,38 @@ plot_estimands <- function(.data,
                            top_levels = c("Bracelet", "Combined")) {
   plot_pos <- ggstance::position_dodgev(height = pos_height)
   
-  
   if (single_prior_predict == TRUE) {
+    # Remove prior data that isn't first on plot. We keep data as NA so that 
+    # spacing/height-width ratio remains the same for other plots
     .data = .data %>%
-              mutate({{  nested_data  }} := map_if({{nested_data }},
-                fct_match(fit_type, "prior-predict"), ~filter(.x, 
-                  fct_match({{ y }},  top_levels[1]),
-                  fct_match(assigned_dist_group_left,  top_levels[2]),
-              )))
+      mutate({{ nested_data }} := map_if({{ nested_data }},
+          fct_match(fit_type, "prior-predict"), 
+          ~mutate(.x, 
+            across(
+              c(contains("per"), mean_est),
+              ~if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(assigned_dist_group_left,  top_levels[2])),
+                NA_real_,
+                .x 
+              )
+            )
+          )
+        )
+      ) 
+  # Can't set position in aes() so this does nothing for now
+  # eventually can just filter and add geoms twice 
+    .data = .data %>%
+      mutate({{ nested_data }} := map({{ nested_data }},
+          ~mutate(.x,
+            position = 
+              if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(assigned_dist_group_left,  top_levels[2])),
+                0,
+                pos_height 
+              )
+          )
+        )
+      ) 
   }
 
   ggplot_obj <- if (include_prior_predict) {
@@ -879,20 +903,41 @@ plot_estimands <- function(.data,
       unnest({{ nested_data }})
     subset_data %>%
       ggplot(aes(x = per_0.5, y = {{ y }}, group = model)) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_linerange(aes(
+        xmin = per_0.05, 
+        xmax = per_0.95, 
+        group = model), alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.9, group = model), alpha = 0.1, fatten = 3, size = 6, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       geom_linerange(aes(xmin = per_0.05, xmax = per_0.5, group = model), alpha = 0.1, fatten = 3, size = 4, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
       NULL
   } else {
     .data %>% 
       unnest({{ nested_data }}) %>% 
-      ggplot(aes(x = per_0.5, y = {{ y }}, group = {{ results_group }})) 
+      ggplot(aes(
+        x = per_0.5, 
+        y = {{ y }}, 
+        group = {{ results_group }})) 
   }
   
   ggplot_obj <- ggplot_obj +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ results_group }}), alpha = 0.4, size = center_bar_size, position = plot_pos) +
-    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ results_group }}), fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
-    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{ results_group }}), size = 0.4, position = plot_pos) +
+    geom_linerange(aes(
+      xmin = per_0.25, 
+      xmax = per_0.75, 
+      color = {{ results_group }}), 
+      alpha = 0.4, 
+      size = center_bar_size,
+      position = plot_pos
+      )  +
+    geom_crossbar(aes(
+      x = per_0.5, 
+      xmin = per_0.1, 
+      xmax = per_0.9, 
+      color = {{ results_group }}), 
+      fatten = 0, size = 0.4, width = 0.5, position = plot_pos) +
+    geom_linerange(aes(
+      xmin = per_0.05, 
+      xmax = per_0.95, 
+      color = {{ results_group }}), size = 0.4, position = plot_pos) +
     
     geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
     geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
@@ -907,7 +952,6 @@ plot_estimands <- function(.data,
     theme(legend.position = "top", legend.direction = "vertical") +
     guides(color = guide_legend(ncol = 3)) +
     NULL
-  
   if (!is_null(group_labels) || !is_null(color_data)) {
     ggplot_obj <- ggplot_obj +
       scale_color_manual("", 
