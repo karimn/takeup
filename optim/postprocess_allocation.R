@@ -21,24 +21,23 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "
                              --min-cost 
-                             --target-constraint=0.85
+                             --target-constraint=0.4
                              --input-path=optim/data
-                             --optim-input-a-filename=dry-run-subsidy-0-optimal-allocation.csv
-                             --optim-input-b-filename=dry-run-subsidy-0-optimal-allocation.csv
-                             --village-input-filename=dry-run-subsidy-0-village-locations.csv
-                             --pot-input-filename=dry-run-subsidy-0-pot-locations.csv
-                             --demand-input-a-filename=dry-run-subsidy-0-demand-data.csv
-                             --demand-input-b-filename=dry-run-subsidy-0.2-demand-data.csv
+                             --optim-input-a-filename=init-approx-optimal-allocation.csv
+                             --village-input-filename=school-df.csv
+                             --pot-input-filename=school-df.csv
+                             --demand-input-a-filename=approx-struct-demand.csv
                              --output-path=optim
-                             --output-basename=test-problem
-                             --comp-demand
+                             --output-basename=init-approx
                              --map-plot
-                             
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
 
+                            #  --optim-input-b-filename=dry-run-subsidy-0-optimal-allocation.csv
+                            #  --demand-input-b-filename=dry-run-subsidy-0.2-demand-data.csv
+                            #  --comp-demand
 library(tidyverse)
 library(data.table)
 
@@ -103,12 +102,13 @@ optimal_allocation_demand_comp_plot_path = file.path(
     )
 )
 
+wgs.84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 ## Loading Data
 data = list(
     n = n,
     m = m,
-    pot_locations = pot_data,
-    village_locations = village_data, 
+    pot_locations = st_as_sf(pot_data, coords = c("lon", "lat"), crs = wgs.84),
+    village_locations = st_as_sf(village_data, coords = c("lon", "lat"), crs = wgs.84), 
     optim_data = optim_a_data
 ) 
 
@@ -123,13 +123,11 @@ hex <- hue_pal()(2)
 
 
 if (script_options$map_plot){
+
     data$village_locations %>%
-        ggplot(aes(
-            x = x,
-            y = y
-        )) +
-        geom_point(alpha = 1, colour = "black") +
-        geom_point(
+        ggplot() +
+        # geom_sf()
+        geom_sf(
             data = data$pot_locations,
             colour = hex[1],
             shape = 17,
@@ -141,13 +139,14 @@ if (script_options$map_plot){
             subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
         )  +
         labs(x = "", y = "") + 
-        theme(
-        axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank())
+        # theme(
+        # axis.title.x=element_blank(),
+        # axis.text.x=element_blank(),
+        # axis.ticks.x=element_blank(),
+        # axis.title.y=element_blank(),
+        # axis.text.y=element_blank(),
+        # axis.ticks.y=element_blank()) +
+        NULL
 
     ggsave(map_plot_path, width = 8, height = 6, dpi = 500)
 }
@@ -157,18 +156,15 @@ if (script_options$map_plot){
 
 
 optimal_pot_plot = data$village_locations %>%
-    ggplot(aes(
-        x = x,
-        y = y
-    )) +
-    geom_point(alpha = 0.5) +
-    geom_point(
+    ggplot() +
+    # geom_sf(alpha = 0.5) +
+    geom_sf(
         data = data$pot_locations %>% filter(assigned_pot == FALSE),
         color = hex[1],
         shape = 17,
         size = 4, 
         alpha = 0.3) +
-    geom_point(
+    geom_sf(
         data = data$pot_locations %>% filter(assigned_pot == TRUE),
         color = hex[2],
         shape = 17,
@@ -176,24 +172,20 @@ optimal_pot_plot = data$village_locations %>%
         alpha = 1) +
     theme_bw() +
     labs(
-        title = "Optimal PoT Allocation Problem",
-        subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
+        title = "Optimal PoT Allocation Problem"
     )  +
     geom_segment(
         data = data$optim_data, 
-        aes(x = village_x, 
-            y = village_y, 
-            xend = pot_x, 
-            yend = pot_y),
+        aes(x = village_lon, 
+            y = village_lat, 
+            xend = pot_lon, 
+            yend = pot_lat),
         alpha = 0.1)  +
-    labs(x = "", y = "") + 
-    theme(
-    axis.title.x=element_blank(),
-    axis.text.x=element_blank(),
-    axis.ticks.x=element_blank(),
-    axis.title.y=element_blank(),
-    axis.text.y=element_blank(),
-    axis.ticks.y=element_blank())
+    labs(x = "", y = "")  +
+    scale_color_manual(
+        values = hex,
+        labels = c("PoT Used", "PoT Unused")
+    )
 
 
 ## If we provide comparison data

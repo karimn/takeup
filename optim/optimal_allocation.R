@@ -118,15 +118,15 @@ if (script_options$dry_run) {
       n <- n_villages
       village_locations <- data.frame(
       id = 1:n,
-      x = round(runif(n) * grid_size),
-      y = round(runif(n) * grid_size)
+      lon = round(runif(n) * grid_size),
+      lat = round(runif(n) * grid_size)
       )
 
       m <- m_pots
       pot_locations <- data.frame(
       id = 1:m,
-      x = round(runif(m) * grid_size),
-      y = round(runif(m) * grid_size)
+      lon = round(runif(m) * grid_size),
+      lat = round(runif(m) * grid_size)
       )
       fixedcost <- abs(round(rnorm(m, mean = grid_size/20, sd = grid_size)))
       return(
@@ -149,7 +149,7 @@ if (script_options$dry_run) {
     }
     village <- village_locations[i, ]
     pot <- pot_locations[j, ]
-    distance_away = sqrt((village$x - pot$x)^2 + (village$y - pot$y)^2)
+    distance_away = sqrt((village$lon - pot$lon)^2 + (village$lat - pot$lat)^2)
     distance_away = distance_away*(1 - subsidy)
     max_distance = sqrt(2)*10000 # gridsize hardcoded booo
     unit_interval_distance = distance_away/max_distance - 0.5
@@ -210,7 +210,6 @@ model = define_baseline_MIPModel(
   target_constraint = script_options$target_constraint
 )
 
-stop()
 
 fit_model = solve_model(
   model,
@@ -228,9 +227,9 @@ clean_output = function(model_fit, data, demand_data){
         as_tibble()
     tidy_output = matching %>%
         inner_join(data$village_locations %>% 
-                        rename(village_x = x, village_y = y), by = c("i" = "id")) %>% 
+                        rename(village_lon = lon, village_lat = lat), by = c("i" = "id")) %>% 
         inner_join(data$pot_locations %>%
-                        rename(pot_x = x, pot_y = y), by = c("j" = "id")) 
+                        rename(pot_lon = lon, pot_lat = lat), by = c("j" = "id")) 
     tidy_output = left_join(
       tidy_output,
       demand_data,
@@ -240,8 +239,10 @@ clean_output = function(model_fit, data, demand_data){
 }
 
 
+
 tidy_output = fit_model %>%
   clean_output(data = data, demand_data = demand_data)
+
 
 ## Reassign villages to closest PoT
 # SP doesn't care about distance cost atm so once he hits target takeup, can 
@@ -256,9 +257,9 @@ new_tidy_output = demand_data[pot_j %in% assigned_pots, max_demand := max(demand
   demand == max_demand
 ] %>%
   inner_join(data$village_locations %>% 
-                  rename(village_x = x, village_y = y), by = c("village_i" = "id")) %>% 
+                  rename(village_lon = lon, village_lat = lat), by = c("village_i" = "id")) %>% 
   inner_join(data$pot_locations %>%
-                  rename(pot_x = x, pot_y = y), by = c("pot_j" = "id"))  %>%
+                  rename(pot_lon = lon, pot_lat = lat), by = c("pot_j" = "id"))  %>%
   rename(
     i = village_i, 
     j = pot_j
@@ -273,10 +274,18 @@ if (nrow(tidy_output) == nrow(new_tidy_output)) {
 }
 
 
+if (script_options$dry_run) {
+  output_path = file.path(
+    script_options$output_path, 
+    str_glue("{script_options$output_filename}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.csv"))
+} else {
+  output_path = file.path(
+    script_options$output_path, 
+    str_glue("{script_options$output_filename}-optimal-allocation.csv"))
 
-output_path = file.path(
-  script_options$output_path, 
-  str_glue("{script_options$output_filename}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.csv"))
+}
+
+
 
 write_csv(
   tidy_output,
