@@ -809,7 +809,7 @@ reduced_incentive_level_plot = dist_fit_data %>%
                 scales = "free_y") +
     NULL  +
     guides(colour = "none")
-
+reduced_incentive_level_plot
 ggsave(
   plot = reduced_incentive_level_plot,
   filename = file.path(
@@ -830,7 +830,7 @@ reduced_incentive_ate_plot = dist_fit_data %>%
                  results_group = fit_type, 
                  single_prior_predict = TRUE, 
                  top_levels = default_top_levels) +
-    scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+    scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05)) +
     scale_y_discrete("") +
     labs(
       # title = "Incentive Average Treatment Effect"
@@ -840,6 +840,7 @@ reduced_incentive_ate_plot = dist_fit_data %>%
                 scales = "free_y") +
     NULL  +
     guides(colour = "none")
+reduced_incentive_ate_plot
 ggsave(
   plot = reduced_incentive_ate_plot,
   filename = file.path(
@@ -851,6 +852,8 @@ ggsave(
   dpi = 500
 )
 
+default_ate_limits = c(-0.1, 0.2)
+
 structural_incentive_ate_plot = dist_fit_data %>%
   grab_incentive_ate(., model_type_to_plot = "structural") %>%
   plot_estimands(., 
@@ -859,7 +862,10 @@ structural_incentive_ate_plot = dist_fit_data %>%
                  results_group = fit_type, 
                  single_prior_predict = TRUE, 
                  top_levels = default_top_levels) +
-    scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
+    scale_x_continuous(
+      "", 
+      breaks = seq(-0.2, 0.2, 0.05), 
+      limits = default_ate_limits) +
     scale_y_discrete("") +
     labs(
       # title = "Incentive Average Treatment Effect"
@@ -868,8 +874,9 @@ structural_incentive_ate_plot = dist_fit_data %>%
                 space = "free",
                 scales = "free_y") +
     NULL  +
-    guides(colour = "none")
+    guides(colour = "none") 
 
+structural_incentive_ate_plot
 
 ggsave(
   plot = structural_incentive_ate_plot,
@@ -921,7 +928,9 @@ structural_signalling_ate_plot = dist_fit_data %>%
                      results_group = fit_type,
                      single_prior_predict = TRUE, 
                      top_levels = default_top_levels) +
-        scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
+        scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
+          limits = default_ate_limits
+        ) +
         scale_y_discrete("") +
         labs(
           # title = "Signaling Average Treatment Effect",
@@ -932,7 +941,7 @@ structural_signalling_ate_plot = dist_fit_data %>%
                    scales = "free_y") +
         guides(colour = "none") +
         NULL
-
+structural_signalling_ate_plot
 ggsave(
   plot = structural_signalling_ate_plot,
   filename = file.path(
@@ -982,7 +991,9 @@ structural_private_ate_plot = dist_fit_data %>%
                      results_group = fit_type, 
                      single_prior_predict = TRUE, 
                      top_levels = default_top_levels) +
-        scale_x_continuous("", breaks = seq(-1, 1, 0.05)) +
+        scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
+          limits =  default_ate_limits
+          ) +
         scale_y_discrete("") +
         labs(
           # title = "Private Incentive Average Treatment Effect",
@@ -991,7 +1002,7 @@ structural_private_ate_plot = dist_fit_data %>%
         ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
       guides(colour = "none") +
         NULL
-
+structural_private_ate_plot
 ggsave(
   plot = structural_private_ate_plot,
   filename = file.path(
@@ -1283,6 +1294,7 @@ iwalk(
 #     #     mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
 #     #     distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
 #     scale_color_discrete(aesthetics = c("color", "fill"))  +
+
 
 
 
