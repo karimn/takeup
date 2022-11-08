@@ -154,7 +154,7 @@ models <- lst(
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
-    iter = 800,
+    iter = script_options$iter,
     thin = 1,
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
@@ -250,10 +250,10 @@ models <- lst(
     raw_u_sd_beta = 1.1,
 
     beta_intercept_sd = 0.75,
-    beta_far_effect_sd = 0.35,
-    beta_ink_effect_sd = 0.35,
-    beta_calendar_effect_sd = 0.35,
-    beta_bracelet_effect_sd = 0.35,
+    beta_far_effect_sd = 0.25,
+    beta_ink_effect_sd = 0.25,
+    beta_calendar_effect_sd = 0.25,
+    beta_bracelet_effect_sd = 0.25,
     beta_far_ink_effect_sd = 0.25,
     beta_far_calendar_effect_sd = 0.25, 
     beta_far_bracelet_effect_sd = 0.25,
@@ -261,7 +261,7 @@ models <- lst(
     reduced_beta_county_sd_sd = 0.25,
     reduced_beta_cluster_sd_sd = 0.1,
     
-    iter = 2000,
+    iter = script_options$iter,
     thin = 1,
   ),
 ) %>% 
