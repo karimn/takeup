@@ -174,7 +174,7 @@ clean_param_summary = param_summary %>%
 # very hardcoded
 calculate_belief_latent_predictor = function(beta, dist_beta, dist) {
     # intercept + treatment - intercept
-    val =  beta + dist*dist_beta + dist*dist_beta
+    val =  beta + dist*dist_beta 
     return(val)
 }
 
