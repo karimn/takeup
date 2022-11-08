@@ -21,14 +21,14 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "
                              --min-cost 
-                             --target-constraint=0.4
+                             --target-constraint=0.33
                              --input-path=optim/data
-                             --optim-input-a-filename=init-approx-optimal-allocation.csv
-                             --village-input-filename=school-df.csv
-                             --pot-input-filename=school-df.csv
-                             --demand-input-a-filename=approx-struct-demand.csv
+                             --optim-input-a-filename=init-bracelet-optimal-allocation.csv
+                             --village-input-filename=village-df.csv
+                             --pot-input-filename=pot-df.csv
+                             --demand-input-a-filename=approx-bracelet-demand.csv
                              --output-path=optim
-                             --output-basename=init-approx
+                             --output-basename=init-bracelet
                              --map-plot
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -39,6 +39,7 @@ script_options <- docopt::docopt(
                             #  --demand-input-b-filename=dry-run-subsidy-0.2-demand-data.csv
                             #  --comp-demand
 library(tidyverse)
+library(sf)
 library(data.table)
 
 numeric_options = c(
@@ -113,6 +114,7 @@ data = list(
 ) 
 
 assigned_pots = unique(optim_a_data$j)
+n_pots_used =  length(assigned_pots)
 
 data$pot_locations$assigned_pot = data$pot_locations$id %in% assigned_pots
 
@@ -126,13 +128,13 @@ if (script_options$map_plot){
 
     data$village_locations %>%
         ggplot() +
-        # geom_sf()
+        geom_sf() +
         geom_sf(
             data = data$pot_locations,
             colour = hex[1],
             shape = 17,
             size = 4, 
-            alpha = 1) +
+            alpha = 0.7) +
         theme_bw() +
         labs(
             title = "Optimal PoT Allocation Problem",
@@ -154,16 +156,15 @@ if (script_options$map_plot){
 
 
 
-
 optimal_pot_plot = data$village_locations %>%
     ggplot() +
-    # geom_sf(alpha = 0.5) +
+    geom_sf(alpha = 1) +
     geom_sf(
         data = data$pot_locations %>% filter(assigned_pot == FALSE),
         color = hex[1],
         shape = 17,
         size = 4, 
-        alpha = 0.3) +
+        alpha = 0.2) +
     geom_sf(
         data = data$pot_locations %>% filter(assigned_pot == TRUE),
         color = hex[2],
@@ -171,25 +172,22 @@ optimal_pot_plot = data$village_locations %>%
         size = 4, 
         alpha = 1) +
     theme_bw() +
-    labs(
-        title = "Optimal PoT Allocation Problem"
-    )  +
     geom_segment(
         data = data$optim_data, 
         aes(x = village_lon, 
             y = village_lat, 
             xend = pot_lon, 
             yend = pot_lat),
-        alpha = 0.1)  +
-    labs(x = "", y = "")  +
+        alpha = 0.2)  +
+    labs(x = "", y = "", subtitle = str_glue("
+    Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
     scale_color_manual(
         values = hex,
         labels = c("PoT Used", "PoT Unused")
-    )
+    ) 
 
 
 ## If we provide comparison data
-if (!is.null(optim_b_data)) {
 
     ms_pots = optim_b_data$j
     dropped_pots = setdiff(ms_pots, assigned_pots)
@@ -202,12 +200,10 @@ if (!is.null(optim_b_data)) {
             size = 4, 
             alpha = 1)  +
     labs(
-        title = "Optimal PoT Allocation Problem",
-        subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations. 
+        title = str_glue("Optimal PoT Allocation Problem"),
+        caption = "Black dots indicate villages. Triangles indicate potential clinic locations. 
 Extraneous PoTs in red"
     )  
-
-}
 
 ggsave(
     plot = optimal_pot_plot,

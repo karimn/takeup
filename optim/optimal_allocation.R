@@ -19,13 +19,13 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "
                              --min-cost 
-                             --target-constraint=0.40
+                             --target-constraint=0.32
                              --output-path=optim/data
-                             --output-filename=init-approx
+                             --output-filename=init-reduced
                              --input-path=optim/data 
-                             --village-input-filename=school-df.csv
-                             --pot-input-filename=school-df.csv
-                             --demand-input-filename=approx-struct-demand.csv
+                             --village-input-filename=village-df.csv
+                             --pot-input-filename=pot-df.csv
+                             --demand-input-filename=approx-reduced-bracelet-demand.csv
                              " else commandArgs(trailingOnly = TRUE)
 ) 
                             #  --dry-run 
@@ -36,6 +36,7 @@ library(data.table)
 library(ompr)
 library(ompr.roi)
 library(ROI.plugin.glpk)
+library(sf)
 
 numeric_options = c(
   "target_constraint",
@@ -105,6 +106,7 @@ define_baseline_MIPModel = function(data,
 }
 
 
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
 
 
@@ -186,8 +188,20 @@ if (script_options$dry_run) {
   demand_input_path = file.path(script_options$input_path, 
                                 script_options$demand_input_filename)
               
-  village_data = read_csv(village_input_path)
-  pot_data = read_csv(pot_input_path)
+  village_data = read_csv(village_input_path) %>%
+    st_as_sf(
+      coords = c("lon", "lat"), 
+      crs = wgs.84) %>%
+    mutate(
+        lon = sf::st_coordinates(.)[, 1],
+        lat = sf::st_coordinates(.)[, 2])
+  pot_data = read_csv(pot_input_path) %>%
+    st_as_sf(
+      coords = c("lon", "lat"), 
+      crs = wgs.84) %>%
+    mutate(
+        lon = sf::st_coordinates(.)[, 1],
+        lat = sf::st_coordinates(.)[, 2])
   demand_data = read_csv(demand_input_path) %>%
     as.data.table()
   
@@ -202,7 +216,6 @@ if (script_options$dry_run) {
   ) 
 }
 
-
 model = define_baseline_MIPModel(
   data,
   demand_data,
@@ -210,13 +223,10 @@ model = define_baseline_MIPModel(
   target_constraint = script_options$target_constraint
 )
 
-
 fit_model = solve_model(
   model,
   with_ROI(solver = "glpk", verbose = TRUE)
 )
-
-
 
 
 clean_output = function(model_fit, data, demand_data){
@@ -237,7 +247,6 @@ clean_output = function(model_fit, data, demand_data){
     )
     return(tidy_output)
 }
-
 
 
 tidy_output = fit_model %>%
