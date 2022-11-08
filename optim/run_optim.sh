@@ -32,15 +32,15 @@ Rscript ./optim/postprocess_allocation.R --min-cost \
                              --output-basename=init-bracelet 
 
 
-# Rscript ./optim/postprocess_allocation.R --min-cost \
-#                              --target-constraint=0.33 \
-#                              --input-path=optim/data \
-#                              --optim-input-a-filename=init-reduced-optimal-allocation.csv \
-#                              --village-input-filename=village-df.csv \
-#                              --pot-input-filename=pot-df.csv \
-#                              --demand-input-a-filename=approx-reduced-bracelet-demand.csv \
-#                              --output-path=optim \
-#                              --output-basename=init-bracelet 
+Rscript ./optim/postprocess_allocation.R --min-cost \
+                             --target-constraint=0.33 \
+                             --input-path=optim/data \
+                             --optim-input-a-filename=init-reduced-optimal-allocation.csv \
+                             --village-input-filename=village-df.csv \
+                             --pot-input-filename=pot-df.csv \
+                             --demand-input-a-filename=approx-reduced-bracelet-demand.csv \
+                             --output-path=optim \
+                             --output-basename=init-reduced-bracelet 
 
 # if [ $DRYRUN == "--dry-run" ]
 # then
