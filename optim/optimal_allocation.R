@@ -228,7 +228,6 @@ fit_model = solve_model(
   with_ROI(solver = "glpk", verbose = TRUE)
 )
 
-
 clean_output = function(model_fit, data, demand_data){
     matching = model_fit %>%
         get_solution(x[i,j]) %>%
@@ -258,13 +257,12 @@ tidy_output = fit_model %>%
 # assign people to whatever PoT if they won't let him drop down to a smaller # of PoTs
 # therefore, we just reoptimise within allowed PoTs
 
-
 #### TEMPORARY FIX #####
 assigned_pots = unique(tidy_output$j)
 
-new_tidy_output = demand_data[pot_j %in% assigned_pots, max_demand := max(demand), village_i][
-  demand == max_demand
-] %>%
+new_tidy_output = demand_data[pot_j %in% assigned_pots, min_dist_avail := min(dist), village_i][
+  dist == min_dist_avail
+  ] %>%
   inner_join(data$village_locations %>% 
                   rename(village_lon = lon, village_lat = lat), by = c("village_i" = "id")) %>% 
   inner_join(data$pot_locations %>%
@@ -274,12 +272,13 @@ new_tidy_output = demand_data[pot_j %in% assigned_pots, max_demand := max(demand
     j = pot_j
   ) %>%
   as_tibble() %>%
-  select(-max_demand)
+  select(-min_dist_avail)
+
 
 if (nrow(tidy_output) == nrow(new_tidy_output)) {
   tidy_output = new_tidy_output
 } else {
-  stop("Temporary Fix Failed")
+  warning("Temporary fix failed, using original allocation.")
 }
 
 
