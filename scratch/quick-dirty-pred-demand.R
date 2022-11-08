@@ -113,8 +113,6 @@ delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.
 
 
 
-
-
 takeup_data = dist_fit_data %>%
   filter( 
     fct_match(fit_type, "fit") &
@@ -152,9 +150,8 @@ struct_bracelet_spline =
 lm_fit = analysis_data %>%
   lm(
     data = ., 
-    dewormed ~ cluster.dist.to.pot*factor(assigned.treatment)
+    dewormed ~ cluster.dist.to.pot*factor(assigned.treatment) + factor(assigned.treatment)*cluster.dist.to.pot^2
   )
-
 
 
 
@@ -255,7 +252,13 @@ reduced_bracelet_demand_df = long_distance_mat %>%
   mutate(pred_takeup = lm_preds, 
         pred_takeup = pmax(pred_takeup, 0),
         pred_takeup = replace_na(pred_takeup, 0)) %>%
-  rename(village_i = index_i, pot_j = index_j, demand = pred_takeup)
+  rename(
+    village_i = index_i, 
+    pot_j = index_j, 
+    demand = pred_takeup) %>%
+  group_by(village_i) %>%
+  mutate(closest_pot = dist == min(dist)) %>%
+  ungroup()
 
 
 reduced_bracelet_demand_df %>%
