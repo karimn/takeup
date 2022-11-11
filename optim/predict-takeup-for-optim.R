@@ -84,6 +84,12 @@ monitored_nosms_data <- analysis.data %>%
 
 analysis_data <- monitored_nosms_data
 
+dist_sd <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+    summarise(ed_sd = sd(cluster.dist.to.pot)) %>%
+    pull()
 
 ## Fit Loading
 
@@ -97,35 +103,34 @@ dist_fit_data %<>%
   ), by = "fit_type")
 
 
-stan_data = dist_fit_data %>%
+stan_data = (dist_fit_data %>%
     slice(1) %>%
-    pull(stan_data)
+    pull(stan_data))[[1]]
 
-stan_data[[1]]$COST_MODEL_TYPE_PARAM_QUADRATIC
-
+rf_analysis_data = stan_data$analysis_data
 
 model_files = fs::dir_ls("data/stan_analysis_data", regex = str_glue("dist_fit{fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.*\\.csv"))
-# model_fit = as_cmdstan_fit(model_files)
+model_fit = as_cmdstan_fit(model_files)
 
-
+stop()
 #  Levels: control ink calendar bracelet
-# param_summary = model_fit$summary(c(
-#     "beta", 
-#     "dist_beta_v",
-#     "centered_cluster_beta_1ord",
-#     "centered_cluster_dist_beta_1ord",
-#     "base_mu_rep", 
-#     "total_error_sd",
-#     "u_sd"))
-# saveRDS(param_summary, "temp-data/ed-temp-param-summary.rds")
+param_summary = model_fit$summary(c(
+    "beta", 
+    "dist_beta_v",
+    "centered_cluster_beta_1ord",
+    "centered_cluster_dist_beta_1ord",
+    "base_mu_rep", 
+    "total_error_sd",
+    "u_sd"))
+#  saveRDS(param_summary, "temp-data/ed-temp-param-summary.rds")
 
-param_summary = read_rds("temp-data/ed-temp-param-summary.rds")
+# param_summary = read_rds("temp-data/ed-temp-param-summary.rds")
 
 param_summary
 
 
-# rm(model_fit)
-# gc()
+#  rm(model_fit)
+#  gc()
 
 ## B(z,d):
 # \beta is treatment effect
@@ -178,11 +183,11 @@ calculate_belief_latent_predictor = function(beta, dist_beta, dist) {
     return(val)
 }
 
-calculate_mu_rep = function(dist, base_mu_rep, mu_beliefs_effect, beta, dist_beta) {
+calculate_mu_rep = function(dist, base_mu_rep, mu_beliefs_effect, beta, dist_beta, beta_control) {
 
     beliefs_latent = calculate_belief_latent_predictor(beta = beta, dist_beta = dist_beta, dist = dist)
     return(
-        base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent))
+        base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
     )
 }
 
@@ -190,18 +195,21 @@ extract_mu_betas = function(summ_df, index){
     summ_df %>%
         filter(index_1 == index) %>%
         filter(str_detect(variable, "cluster")) %>%
-        pull(median, name = variable)
+        pull(mean, name = variable)
 }
 
 extract_betas = function(summ_df, index){
     summ_df %>%
         filter((variable == "beta" & index_1 == index) | (variable == "dist_beta_v"))  %>%
-        pull(median, name = variable)
+        pull(mean, name = variable)
 }
 
 mu_betas = map(1:4, ~extract_mu_betas(clean_param_summary, .x))
 betas = map(1:4, ~extract_betas(clean_param_summary, .x))
-mu_betas[[1]][1] = 0 # control have to net off intercept and use \mu_0 pre-mult exp
+# mu_betas[[1]][1] = 0 # control have to net off intercept and use \mu_0 pre-mult exp
+
+
+betas
 
 
 
@@ -226,14 +234,18 @@ dist_df = imap_dfr(
                                     pull(mean), 
                                   mu_beliefs_effect = 1, 
                                   beta = .x[1], 
-                                  dist_beta = .x[2]),
+                                  dist_beta = .x[2], 
+                                  beta_control = mu_betas[[1]][1]),
         treatment = treatments[.y]
     )
-)
+) %>%
+    mutate(orig_dist = dist*dist_sd)
+
+
 dist_df %>%
     # filter(treatment %in% c("bracelet", "control")) %>%
     ggplot(aes(
-        x = dist, 
+        x = orig_dist, 
         y = mu_rep, 
         colour = treatment
     )) +
@@ -262,15 +274,17 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
 }
 
 
-find_pred_takeup = function(beta, mu_beta, base_mu_rep, total_error_sd, u_sd) {
+find_pred_takeup = function(beta, mu_beta, base_mu_rep, total_error_sd, u_sd, dist_sd, beta_control) {
     function(distance){
+        distance = distance/dist_sd
         b = beta[1] - beta[2]*distance
         mu_rep = calculate_mu_rep(
             dist = distance,
             base_mu_rep = base_mu_rep,
             mu_beliefs_effect = 1,
             beta = mu_beta[1],
-            dist_beta = mu_beta[2])
+            dist_beta = mu_beta[2],
+            beta_control = beta_control)
         v_star_soln = find_v_star(
             distance = distance,
             b = b,
@@ -283,7 +297,7 @@ find_pred_takeup = function(beta, mu_beta, base_mu_rep, total_error_sd, u_sd) {
         v_star = v_star_soln$v_star
 
         linear_pred = b + mu_rep*delta_v_star
-        pred_takeup = pnorm(-v_star/(total_error_sd))
+        pred_takeup = 1 - pnorm(v_star/(total_error_sd))
         return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star))
     }
 }
@@ -292,25 +306,25 @@ clean_param_summary
 hat_total_error_sd = clean_param_summary %>%
     ungroup() %>%
     filter(variable == "total_error_sd") %>%
-    select(median) %>%
+    select(mean) %>%
     unique() %>%
     pull()
 hat_u_sd = clean_param_summary %>%
     ungroup() %>%
     filter(variable == "u_sd") %>%
-    select(median) %>%
+    select(mean) %>%
     unique() %>%
     pull()
 hat_base_mu_rep = clean_param_summary %>%
     ungroup() %>%
     filter(variable == "base_mu_rep") %>%
-    select(median) %>%
+    select(mean) %>%
     unique() %>%
     pull()
 hat_dist_beta_v = clean_param_summary %>%
     ungroup() %>%
     filter(variable == "dist_beta_v") %>%
-    select(median) %>%
+    select(mean) %>%
     unique() %>%
     pull()
 hat_base_mu_rep
@@ -324,31 +338,183 @@ pred_funcs = map(1:4,
                 mu_beta = mu_betas[[.x]],
                 base_mu_rep = hat_base_mu_rep,
                 total_error_sd = hat_total_error_sd,
-                u_sd = hat_u_sd
+                u_sd = hat_u_sd,
+                dist_sd = dist_sd,
+                beta_control = mu_betas[[1]][1]
             )
 )
 
 
-pred_funcs[[1]](2) %>%
-    as_tibble()
-
+treat_levels = c(
+    "bracelet",
+    "ink",
+    "calendar",
+    "control"
+)
 pred_df = imap_dfr(pred_funcs,
-    ~tibble(distance = seq(from = 0, to = 4, length.out = 40)) %>% mutate(as_tibble(.x(distance)), treatment = treatments[.y])
-) 
+    ~tibble(distance = seq(from = 0, to = 2500, length.out = 40)) %>% mutate(as_tibble(.x(distance)), treatment = treatments[.y])
+)  %>%
+    mutate(
+        treatment = factor(treatment, levels = treat_levels)
+    ) 
 
+
+pred_df  %>%
+    ggplot(aes(
+        x = distance, 
+        colour = treatment, 
+        y = mu_rep
+    )) +
+    geom_line() +
+    geom_point()
+
+filter_structural_fit = function(data){
+    data %>%
+        filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) 
+}
+
+treat_levels = c(
+    "bracelet",
+    "ink",
+    "calendar", 
+    "control"
+)
+
+pred_df
 
 pred_df  %>%
     mutate(
         r_by_d = mu_rep*delta_v_star/hat_dist_beta_v
     ) %>%
-    filter(v_star > -5) %>%
     ggplot(aes(
         x = distance, 
         colour = treatment, 
-        y = r_by_d
+        y = pred_takeup
     )) +
     geom_line() +
     geom_point()
+
+dist_fit_data %>%
+    filter_structural_fit() %>%
+    select(cluster_takeup_prop) %>%
+    unnest() %>%
+    mutate(
+        treatment = factor(assigned_treatment, levels = treat_levels), 
+        type = "stan", 
+        pred_takeup = mean_est, 
+        distance = roc_distance
+    ) %>%
+    bind_rows(
+        pred_df %>%
+            mutate(type = "extracted")
+    ) %>%
+    select( 
+        treatment,
+        distance, 
+        pred_takeup, 
+        type
+    ) %>%
+    ggplot(aes(
+        x = distance, 
+        y = pred_takeup, 
+        colour = type 
+    )) + 
+    geom_point() +
+    geom_line() +
+    facet_wrap(~treatment) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    labs(
+        title = "Comparing Stan Posterior Means and R Extractions"
+    )
+ggsave(
+    "temp-p-comp.png",
+    width = 10,
+    height = 10,
+    dpi = 500
+)
+    
+    
+    
+    
+    
+    
+    %>%
+    ggplot(aes(
+        x = roc_distance, 
+        y = mean_est, 
+        colour = assigned_treatment
+    )) +
+    geom_point() +
+    geom_line(),
+
+pred_df  %>%
+    mutate(
+        r_by_d = mu_rep*delta_v_star
+    ) %>%
+    ggplot(aes(
+        x = distance, 
+        colour = treatment, 
+        y = pred_takeup
+    )) +
+    geom_line() +
+    geom_point()
+cowplot::plot_grid(
+    dist_fit_data %>%
+        filter_structural_fit() %>%
+        select(cluster_takeup_prop) %>%
+        unnest() %>%
+        mutate(
+            assigned_treatment = factor(assigned_treatment, levels = treat_levels)
+        ) %>%
+        ggplot(aes(
+            x = roc_distance, 
+            y = mean_est, 
+            colour = assigned_treatment
+        )) +
+        geom_point() +
+        geom_line(),
+
+    pred_df  %>%
+        mutate(
+            r_by_d = mu_rep*delta_v_star
+        ) %>%
+        ggplot(aes(
+            x = distance, 
+            colour = treatment, 
+            y = pred_takeup
+        )) +
+        geom_line() +
+        geom_point()
+)
+cowplot::plot_grid(
+    dist_fit_data %>%
+        filter_structural_fit() %>%
+        select(cluster_rep_return) %>%
+        unnest() %>%
+        mutate(
+            assigned_treatment = factor(assigned_treatment, levels = treat_levels)
+        ) %>%
+        ggplot(aes(
+            x = roc_distance, 
+            y = mean_est, 
+            colour = assigned_treatment
+        )) +
+        geom_point() +
+        geom_line(),
+
+    pred_df  %>%
+        mutate(
+            r_by_d = mu_rep*delta_v_star
+        ) %>%
+        ggplot(aes(
+            x = distance, 
+            colour = treatment, 
+            y = r_by_d
+        )) +
+        geom_line() +
+        geom_point()
+)
 
 pred_df  %>%
     filter(v_star > -5) %>%
@@ -361,7 +527,6 @@ pred_df  %>%
     geom_point()
 
 pred_df  %>%
-    filter(v_star > -5) %>%
     ggplot(aes(
         x = distance, 
         colour = treatment, 
@@ -369,6 +534,24 @@ pred_df  %>%
     )) +
     geom_line() +
     geom_point()
+
+
+dist_fit_data %>%
+    filter_structural_fit()  %>%
+    colnames()
+
+dist_fit_data %>%
+    filter_structural_fit()  %>%
+    select(cluster_w_cutoff) %>%
+    unnest() %>%
+    ggplot(aes(
+        x = roc_distance, 
+        y = mean_est, 
+        colour = assigned_treatment
+    )) +
+    geom_point() +
+    geom_line()
+
 
 pred_df  %>%
     filter(v_star > -5) %>%
@@ -384,7 +567,7 @@ pred_df  %>%
 pred_df  %>%
     filter(v_star > -5) %>%
     filter(distance <= 2.5) %>%
-    filter(treatment %in% c("bracelet", "control")) %>%
+    # filter(treatment %in% c("bracelet", "control")) %>%
     ggplot(aes(
         x = distance, 
         colour = treatment, 
@@ -396,6 +579,23 @@ pred_df  %>%
         yintercept = c(0.5, 0.2), 
         linetype = "longdash"
     ) 
+
+
+dist_prob_plot <- dist_fit_data %>% 
+    filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural"))  %>%
+    select(cluster_takeup_prop) %>%
+    unnest() %>%
+    ggplot(aes(
+        x = roc_distance, 
+        y = mean_est, 
+        colour = assigned_treatment
+    )) +
+    geom_line()
+
+
+dist_prob_plot  
+
+
 
 pred_df  %>%
     filter(v_star > -5) %>%
@@ -412,7 +612,6 @@ pred_df %>%
 
 
 
-pred_df$
 pred_df %>%
     ggplot(aes(
         x = distance,
