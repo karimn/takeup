@@ -110,9 +110,34 @@ stan_data = (dist_fit_data %>%
 rf_analysis_data = stan_data$analysis_data
 
 model_files = fs::dir_ls("data/stan_analysis_data", regex = str_glue("dist_fit{fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.*\\.csv"))
-model_fit = as_cmdstan_fit(model_files)
+# model_fit = as_cmdstan_fit(model_files)
+
+library(tidybayes)
+param_draws = model_fit %>%
+    gather_draws(
+        beta[k],
+        dist_beta_v[j],
+        centered_cluster_beta_1ord[j, k],
+        centered_cluster_dist_beta_1ord[j, k],
+        base_mu_rep, 
+        total_error_sd[k],
+        u_sd[k]
+    )
+
+# param_draws %>%
+#     write_csv("optim/data/temp-param-draws.csv")
+
+
+param_draws
 
 stop()
+
+param_summary %>%
+    select(variable) %>%
+    unique() %>%
+    tail(20)
+
+# stop()
 #  Levels: control ink calendar bracelet
 param_summary = model_fit$summary(c(
     "beta", 
@@ -124,17 +149,7 @@ param_summary = model_fit$summary(c(
     "u_sd"))
 #  saveRDS(param_summary, "temp-data/ed-temp-param-summary.rds")
 
-# param_summary = read_rds("temp-data/ed-temp-param-summary.rds")
-
-param_summary
-
-
-#  rm(model_fit)
-#  gc()
-
-## B(z,d):
-# \beta is treatment effect
-# dist_beta_v is distance cost
+param_summary = read_rds("temp-data/ed-temp-param-summary.rds")
 
 
 clean_param_summary = param_summary %>%
@@ -146,6 +161,15 @@ clean_param_summary = param_summary %>%
     group_by(variable, index_1) %>%
     select(mean, median) %>%
     unique()
+
+
+# rm(model_fit) 
+# gc()
+
+## B(z,d):
+# \beta is treatment effect
+# dist_beta_v is distance cost
+
 
 
 
@@ -175,22 +199,6 @@ clean_param_summary = param_summary %>%
 # matrix[num_clusters, num_treatments] centered_cluster_dist_beta_1ord; 
 
 
-
-# very hardcoded
-calculate_belief_latent_predictor = function(beta, dist_beta, dist) {
-    # intercept + treatment - intercept
-    val =  beta + dist*dist_beta 
-    return(val)
-}
-
-calculate_mu_rep = function(dist, base_mu_rep, mu_beliefs_effect, beta, dist_beta, beta_control) {
-
-    beliefs_latent = calculate_belief_latent_predictor(beta = beta, dist_beta = dist_beta, dist = dist)
-    return(
-        base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
-    )
-}
-
 extract_mu_betas = function(summ_df, index){
     summ_df %>%
         filter(index_1 == index) %>%
@@ -206,11 +214,6 @@ extract_betas = function(summ_df, index){
 
 mu_betas = map(1:4, ~extract_mu_betas(clean_param_summary, .x))
 betas = map(1:4, ~extract_betas(clean_param_summary, .x))
-# mu_betas[[1]][1] = 0 # control have to net off intercept and use \mu_0 pre-mult exp
-
-
-betas
-
 
 
 treatments = c(
@@ -219,43 +222,39 @@ treatments = c(
     "calendar", 
     "bracelet"
 )
+#' Calculate latent predictor for beliefs model
+#'
+#' Typically takes as input the distance, the coef on beliefs for each treatment 
+#' and the coef on beliefs for each distance x treatment
+calculate_belief_latent_predictor = function(beta, dist_beta, dist) {
+    val =  beta + dist*dist_beta 
+    return(val)
+}
 
-
-dist_df = imap_dfr(
-    mu_betas,
-    ~expand.grid(
-        dist = seq(from = 0, to = 4, length.out = 100)
-    ) %>%
-    tibble() %>%
-    mutate(
-        mu_rep = calculate_mu_rep(dist = dist, 
-                                  base_mu_rep = clean_param_summary %>%  
-                                    filter(variable == "base_mu_rep") %>%
-                                    pull(mean), 
-                                  mu_beliefs_effect = 1, 
-                                  beta = .x[1], 
-                                  dist_beta = .x[2], 
-                                  beta_control = mu_betas[[1]][1]),
-        treatment = treatments[.y]
-    )
-) %>%
-    mutate(orig_dist = dist*dist_sd)
-
-
-dist_df %>%
-    # filter(treatment %in% c("bracelet", "control")) %>%
-    ggplot(aes(
-        x = orig_dist, 
-        y = mu_rep, 
-        colour = treatment
-    )) +
-    geom_point() +
-    labs(title = "Mu(z, d) from model") +
-    theme_bw()
+#' Calculate Visibility \mu(z,d)
+#' 
+#' Takes in distance, base_mu_rep which act as control, mu_beliefs_effect (=1),
+#' betas from beliefs model, dist_beta from beliefs model and the control coef
+#' from the beliefs model.
+#' (The exponential model defines \mu_0 exp(\beta_dist d)) as the control effect
+calculate_mu_rep = function(dist, 
+                            base_mu_rep, 
+                            mu_beliefs_effect, 
+                            beta, 
+                            dist_beta, 
+                            beta_control) {
+    beliefs_latent = calculate_belief_latent_predictor(beta = beta, dist_beta = dist_beta, dist = dist)
+    mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
+    return(mu_rep)
+}
 
 
 
-
+#' Find Cutoff Type
+#' 
+#'  Given net benefit b, visibility \mu, total error sd and u_sd  we calculate
+#' the cutoff type.
+#' 
 find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
     v_f = generate_v_cutoff_fixedpoint(
         b = b,
@@ -274,7 +273,26 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
 }
 
 
-find_pred_takeup = function(beta, mu_beta, base_mu_rep, total_error_sd, u_sd, dist_sd, beta_control) {
+#' Find Predicted Takeup
+#'
+#' @param beta The coefficients on private benefit (i.e. coef on treatment in B(z,d)).
+#'  First element is treatment effect, second element is distance effect.
+#' @param mu_beta The coefficients on beliefs that feed into \mu(z,d) model. 
+#'  First coef is on treatment, second on distance.
+#' @param total_error_sd Total sd of W
+#' @param u_sd Variance of idiosyncratic shock.
+#' @param dist_sd standard deviation of distance in the study. Stan uses 
+#'  standardised distance to estimate models so we need to give it standardised 
+#'  distance for our prediction exercise.
+#' @param beta_control The coefficient on mu_beta in the control arm - needed to 
+#'  renormalise \mu(z,d) given \mu_0 exp(.) setup.
+find_pred_takeup = function(beta, 
+                            mu_beta, 
+                            base_mu_rep, 
+                            total_error_sd, 
+                            u_sd, 
+                            dist_sd, 
+                            beta_control) {
     function(distance){
         distance = distance/dist_sd
         b = beta[1] - beta[2]*distance
@@ -301,6 +319,10 @@ find_pred_takeup = function(beta, mu_beta, base_mu_rep, total_error_sd, u_sd, di
         return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star))
     }
 }
+
+
+
+
 
 clean_param_summary
 hat_total_error_sd = clean_param_summary %>%
@@ -352,7 +374,7 @@ treat_levels = c(
     "control"
 )
 pred_df = imap_dfr(pred_funcs,
-    ~tibble(distance = seq(from = 0, to = 2500, length.out = 40)) %>% mutate(as_tibble(.x(distance)), treatment = treatments[.y])
+    ~tibble(distance = seq(from = 0, to = 5000, length.out = 40)) %>% mutate(as_tibble(.x(distance)), treatment = treatments[.y])
 )  %>%
     mutate(
         treatment = factor(treatment, levels = treat_levels)
@@ -393,7 +415,6 @@ pred_df  %>%
     )) +
     geom_line() +
     geom_point()
-
 dist_fit_data %>%
     filter_structural_fit() %>%
     select(cluster_takeup_prop) %>%
@@ -439,15 +460,6 @@ ggsave(
     
     
     
-    %>%
-    ggplot(aes(
-        x = roc_distance, 
-        y = mean_est, 
-        colour = assigned_treatment
-    )) +
-    geom_point() +
-    geom_line(),
-
 pred_df  %>%
     mutate(
         r_by_d = mu_rep*delta_v_star
@@ -685,3 +697,38 @@ model_fit$variables()
 model_fit$metadata() %>% head(20)
 
 str(model_fit)
+
+
+dist_df = imap_dfr(
+    mu_betas,
+    ~expand.grid(
+        dist = seq(from = 0, to = 4, length.out = 100)
+    ) %>%
+    tibble() %>%
+    mutate(
+        mu_rep = calculate_mu_rep(dist = dist, 
+                                  base_mu_rep = clean_param_summary %>%  
+                                    filter(variable == "base_mu_rep") %>%
+                                    pull(mean), 
+                                  mu_beliefs_effect = 1, 
+                                  beta = .x[1], 
+                                  dist_beta = .x[2], 
+                                  beta_control = mu_betas[[1]][1]),
+        treatment = treatments[.y]
+    )
+) %>%
+    mutate(orig_dist = dist*dist_sd)
+
+
+dist_df %>%
+    # filter(treatment %in% c("bracelet", "control")) %>%
+    ggplot(aes(
+        x = orig_dist, 
+        y = mu_rep, 
+        colour = treatment
+    )) +
+    geom_point() +
+    labs(title = "Mu(z, d) from model") +
+    theme_bw()
+
+
