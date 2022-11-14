@@ -356,10 +356,10 @@ comp_belief_data %>%
   filter(belief_type == "1ord") %>%
   filter(assigned_dist_group == "close") %>%
   plot_belief_breakdown() +
-  NULL
-  # labs(
-  #   title = "Disaggregated First Order Beliefs - Close"
-  # )
+  labs(
+    title = "Disaggregated First Order Beliefs - Close", 
+    subtitle = "Proportion"
+  )
 
 ggsave(file.path(
   output_basepath,
@@ -375,10 +375,10 @@ comp_belief_data %>%
   filter(belief_type == "1ord") %>%
   filter(assigned_dist_group == "far") %>%
   plot_belief_breakdown() +
-  NULL
-  # labs(
-  #   title = "Disaggregated First Order Beliefs - Far"
-  # )
+  labs(
+    title = "Disaggregated First Order Beliefs - Far",
+    subtitle = "Proportion"
+  )
   
 
 ggsave(file.path(
@@ -388,7 +388,6 @@ ggsave(file.path(
   width = 7.5,
   height = 5.0,
   dpi = 500)
-
 
 #### Rate of Change
 roc_df = dist_fit_data %>% 
