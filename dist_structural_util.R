@@ -1079,6 +1079,38 @@ plot_single_beliefs_est <- function(beliefs_results_type_df,
   return(belief_plot)
 } 
 
+
+plot_belief_breakdown = function(data, width = 0.3, crossbar_width = 0.2) {
+  pos_dodge <- position_dodge(width = width)
+  p = data %>%
+    ggplot(aes(y = assigned.treatment, group = knowledge_type)) +
+    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = knowledge_type), position = pos_dodge, size = 0.3) +
+    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = knowledge_type), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = knowledge_type), position = pos_dodge, alpha = 0.4, size = 2.25) +
+    geom_point(aes(x = per_0.5, color = knowledge_type), position = pos_dodge, size = 1.8) +
+    geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+    scale_y_discrete(drop = FALSE) +
+    scale_color_canva("", palette = canva_palette_vibrant) + 
+    labs(
+      title = "",
+      subtitle = "",
+      x = "", y = "", 
+      caption = "Line range: 95% confidence interval.
+                 Outer box: 90% confidence interval. Inner box: 50% confidence interval.
+                 Thick vertical line: median. Point: Median"      
+        ) +
+    theme(
+      legend.position = "bottom"
+    ) + 
+    scale_x_continuous(
+      "", 
+      breaks = seq(0, 1, 0.1),
+      limits = c(0, 1)
+      ) +
+    geom_vline(xintercept = 0, linetype = "longdash") +
+    NULL
+  return(p)
+}
 plot_beliefs_est <- function(beliefs_results, 
                              top_title = NULL, 
                              width = 0.3, 

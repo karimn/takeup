@@ -108,7 +108,6 @@ belief_data = dist_fit_data %>%
   pull(beliefs_results) %>%
   first() 
 
-
 #### Separate Beliefs ####
 belief_data$ate_knows %>%
   filter(assigned_treatment_left != "control") %>%
@@ -270,6 +269,126 @@ ggsave(
     height = 5.0, 
     dpi = 500
     )
+
+#### Disaggregated FOBs ####
+
+cv = function(alpha){
+  qnorm(1 - (alpha/2))
+}
+
+comp_belief_data = analysis_data %>%
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>%
+  nest_join(
+    endline.know.table.data %>% 
+      filter(fct_match(know.table.type, "table.A")),
+    by = "KEY.individ", 
+    name = "knowledge_data"
+  ) %>% 
+  mutate(
+    map_dfr(knowledge_data, ~ {
+      tibble(
+        obs_know_person = sum(.x$num.recognized),
+        obs_know_person_prop = mean(.x$num.recognized),
+        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
+        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
+        knows_other_dewormed_no = sum(fct_match(.x$dewormed, "no"), na.rm = TRUE),
+        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
+        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
+        thinks_other_knows_no = sum(fct_match(.x$second.order, "no"), na.rm = TRUE),
+      )
+    }
+  )) %>%
+    filter(obs_know_person > 0)  %>%
+    select(KEY.individ, contains("know"), assigned.treatment, dist.pot.group, assigned_dist_group) %>%
+    mutate(
+        doesnt_know_other_dewormed = obs_know_person - knows_other_dewormed, 
+        doesnt_think_other_knows = obs_know_person - thinks_other_knows
+    ) %>% 
+    select(KEY.individ, 
+           assigned.treatment,
+           assigned_dist_group,
+           obs_know_person,
+           knows_other_dewormed_yes,
+           knows_other_dewormed_no,
+           doesnt_know_other_dewormed, 
+           thinks_other_knows_yes, 
+           thinks_other_knows_no, 
+           doesnt_think_other_knows
+           ) %>%
+    gather(variable, value, 
+        knows_other_dewormed_yes:doesnt_think_other_knows)   %>%
+    mutate(knowledge_type = case_when(
+        str_detect(variable, "_yes") ~ "yes",
+        str_detect(variable, "_no") ~ "no",
+        str_detect(variable, "doesnt") ~ "doesn't know"
+    )) %>%
+    mutate(belief_type = if_else(str_detect(variable, "think"), "2ord", "1ord")) %>%
+    mutate(prop = value/obs_know_person) %>%
+    group_by(assigned.treatment, assigned_dist_group, knowledge_type, belief_type) %>% 
+    summarise(
+        mean_est = mean(prop), 
+        std.error = sd(prop)/sqrt(n()),
+        per_0.5 = mean(prop), 
+        per_0.05 = per_0.5 - cv(0.05)*std.error, 
+        per_0.95 = per_0.5 + cv(0.05)*std.error,
+        per_0.1 =  per_0.5 - cv(0.1)*std.error,
+        per_0.9 =  per_0.5 + cv(0.1)*std.error,
+        per_0.25 =  per_0.5 - cv(0.5)*std.error,
+        per_0.75 =  per_0.5 + cv(0.5)*std.error
+    ) %>%
+    mutate(
+      knowledge_type = factor(knowledge_type, levels = c("yes", "no", "doesn't know")), 
+      knowledge_type = fct_relabel(knowledge_type, str_to_title) %>% fct_rev
+    ) %>%
+    mutate(
+      assigned.treatment = factor(assigned.treatment, 
+                                  levels = c("bracelet",
+                                             "calendar", 
+                                             "ink",
+                                             "control")) %>%
+                          fct_relabel(str_to_title) %>%
+                          fct_rev
+    )
+
+
+
+comp_belief_data %>%
+  filter(belief_type == "1ord") %>%
+  filter(assigned_dist_group == "close") %>%
+  plot_belief_breakdown() +
+  NULL
+  # labs(
+  #   title = "Disaggregated First Order Beliefs - Close"
+  # )
+
+ggsave(file.path(
+  output_basepath,
+  "disagg-fob-close.png"
+  ),
+  width = 7.5,
+  height = 5.0,
+  dpi = 500)
+
+
+
+comp_belief_data %>%
+  filter(belief_type == "1ord") %>%
+  filter(assigned_dist_group == "far") %>%
+  plot_belief_breakdown() +
+  NULL
+  # labs(
+  #   title = "Disaggregated First Order Beliefs - Far"
+  # )
+  
+
+ggsave(file.path(
+  output_basepath,
+  "disagg-fob-far.png"
+  ),
+  width = 7.5,
+  height = 5.0,
+  dpi = 500)
+
 
 #### Rate of Change
 roc_df = dist_fit_data %>% 
