@@ -1,20 +1,28 @@
-library(magrittr)
+
+#!/usr/bin/Rscript
+
+script_options = docopt::docopt(
+    stringr::str_glue("Usage:
+    predict-takeup-for-optim.R <fit-version> [options] [ --from-csv | --to-csv ]
+
+    Takes posterior fits and calculates estimated takeup for a given distance.
+
+
+    Options:
+        --from-csv  Load parameter draws from a csv file
+        --to-csv   Load stanfit object and write draws to csv
+        --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+        --output-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+    "),
+    args = if (interactive()) "66 --from-csv"
+)
+
+
 library(posterior)
 library(tidyverse)
+library(tidybayes)
 library(broom)
-library(ggrepel)
-library(ggmap)
-library(ggstance)
-library(gridExtra)
-library(cowplot)
-library(rgeos)
-library(sp)
-library(knitr)
-library(modelr)
-library(car)
 library(rstan)
-library(latex2exp)
-library(ggthemes)
 
 library(nleqslv)
 library(cmdstanr)
@@ -26,29 +34,11 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 66
-
-# 66 ed fit
-# 60 Karim fit
-# 62 also Karim fit
-
-
-model_fit_by = if_else(fit_version %in% c(60, 62), "Karim", "Ed")
-
+fit_version = script_options$fit_version
 
 models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS"
 )
-
-
-quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
-
-output_basepath = str_glue("temp-data/output_dist_fit{fit_version}")
-
-canva_palette_vibrant <- "Primary colors with a vibrant twist"
-
-theme_set(theme_minimal() +
-            theme(legend.position = "bottom"))
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
@@ -92,79 +82,50 @@ dist_sd <- analysis.data %>%
     pull()
 
 ## Fit Loading
-
+# always load processed fit as we can grab analysis_data used for model and 
+# calculate sd to unstandardise
 load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-
-dist_fit_data %<>%
-  left_join(tribble(
-    ~ fit_type,        ~ model_color,
-      "fit",           "black", 
-      "prior-predict", "darkgrey",
-  ), by = "fit_type")
 
 
 stan_data = (dist_fit_data %>%
-    slice(1) %>%
+    slice(1) %>% # just take first model as only using for analysis_data
     pull(stan_data))[[1]]
-
 rf_analysis_data = stan_data$analysis_data
+if (script_options$to_csv) {
+    model_files = fs::dir_ls(script_options$input_path, regex = str_glue("dist_fit{fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.*\\.csv"))
+    model_fit = as_cmdstan_fit(model_files)
+    # N.B. this is very hardcoded for vanilla structural model
+    param_draws = model_fit %>%
+        gather_draws(
+            beta[k],
+            dist_beta_v[j],
+            centered_cluster_beta_1ord[j, k],
+            centered_cluster_dist_beta_1ord[j, k],
+            base_mu_rep, 
+            total_error_sd[k],
+            u_sd[k]
+        )
+    # model_fit is huge so get rid of it asap
+    rm(model_fit) 
+    gc()
+    # N.B. we use input path for `to_csv` output and reserve output_path for 
+    # output later in script
+    param_draws %>%
+        write_csv(file.path(script_options$input_path, str_interp("param_posterior_draws_dist_fit${fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.csv") ))
+} 
 
-model_files = fs::dir_ls("data/stan_analysis_data", regex = str_glue("dist_fit{fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.*\\.csv"))
-# model_fit = as_cmdstan_fit(model_files)
-
-library(tidybayes)
-param_draws = model_fit %>%
-    gather_draws(
-        beta[k],
-        dist_beta_v[j],
-        centered_cluster_beta_1ord[j, k],
-        centered_cluster_dist_beta_1ord[j, k],
-        base_mu_rep, 
-        total_error_sd[k],
-        u_sd[k]
+if (script_options$from_csv) {
+    param_draws = read_csv(
+        file.path(
+            script_options$input_path, 
+            str_interp(
+                "param_posterior_draws_dist_fit${fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.csv"
+            )
+        )
     )
-
-# param_draws %>%
-#     write_csv("optim/data/temp-param-draws.csv")
+}
 
 
-param_draws
-
-stop()
-
-param_summary %>%
-    select(variable) %>%
-    unique() %>%
-    tail(20)
-
-# stop()
-#  Levels: control ink calendar bracelet
-param_summary = model_fit$summary(c(
-    "beta", 
-    "dist_beta_v",
-    "centered_cluster_beta_1ord",
-    "centered_cluster_dist_beta_1ord",
-    "base_mu_rep", 
-    "total_error_sd",
-    "u_sd"))
-#  saveRDS(param_summary, "temp-data/ed-temp-param-summary.rds")
-
-param_summary = read_rds("temp-data/ed-temp-param-summary.rds")
-
-
-clean_param_summary = param_summary %>%
-    mutate(
-        index_1 = as.numeric(str_extract(variable, "(?<=\\[)\\d+(?=\\,|\\])")),
-        index_2 = as.numeric(str_extract(variable, "(?<=,)\\d+(?=\\])"))) %>%
-    mutate(variable = str_remove_all(variable, "\\[.*$"))   %>%
-    mutate(index_1 = if_else(str_detect(variable, "centered"), index_2, index_1)) %>% # should have used tidybayes
-    group_by(variable, index_1) %>%
-    select(mean, median) %>%
-    unique()
-
-
-# rm(model_fit) 
-# gc()
 
 ## B(z,d):
 # \beta is treatment effect
@@ -196,24 +157,7 @@ clean_param_summary = param_summary %>%
 #   }
 # }
 
-# matrix[num_clusters, num_treatments] centered_cluster_dist_beta_1ord; 
 
-
-extract_mu_betas = function(summ_df, index){
-    summ_df %>%
-        filter(index_1 == index) %>%
-        filter(str_detect(variable, "cluster")) %>%
-        pull(mean, name = variable)
-}
-
-extract_betas = function(summ_df, index){
-    summ_df %>%
-        filter((variable == "beta" & index_1 == index) | (variable == "dist_beta_v"))  %>%
-        pull(mean, name = variable)
-}
-
-mu_betas = map(1:4, ~extract_mu_betas(clean_param_summary, .x))
-betas = map(1:4, ~extract_betas(clean_param_summary, .x))
 
 
 treatments = c(
@@ -275,34 +219,36 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
 
 #' Find Predicted Takeup
 #'
-#' @param beta The coefficients on private benefit (i.e. coef on treatment in B(z,d)).
-#'  First element is treatment effect, second element is distance effect.
-#' @param mu_beta The coefficients on beliefs that feed into \mu(z,d) model. 
-#'  First coef is on treatment, second on distance.
+#' @param beta_b_z The coefficients on private benefit - treatment effect. 
+#' @param beta_b_d The coefficients on private benefit - distance effect.
+#' @param mu_beta_z The coefficients on beliefs that feed into \mu(z,d) model - treatment effect
+#' @param mu_beta_d The coefficients on beliefs that feed into \mu(z,d) model - distance effect
 #' @param total_error_sd Total sd of W
 #' @param u_sd Variance of idiosyncratic shock.
 #' @param dist_sd standard deviation of distance in the study. Stan uses 
 #'  standardised distance to estimate models so we need to give it standardised 
 #'  distance for our prediction exercise.
-#' @param beta_control The coefficient on mu_beta in the control arm - needed to 
+#' @param mu_beta_z_control The coefficient on mu_beta in the control arm - needed to 
 #'  renormalise \mu(z,d) given \mu_0 exp(.) setup.
-find_pred_takeup = function(beta, 
-                            mu_beta, 
+.find_pred_takeup = function(beta_b_z, 
+                            beta_b_d,
+                            mu_beta_z, 
+                            mu_beta_d, 
                             base_mu_rep, 
                             total_error_sd, 
                             u_sd, 
                             dist_sd, 
-                            beta_control) {
+                            mu_beta_z_control) {
     function(distance){
         distance = distance/dist_sd
-        b = beta[1] - beta[2]*distance
+        b = beta_b_z - beta_b_d*distance
         mu_rep = calculate_mu_rep(
             dist = distance,
             base_mu_rep = base_mu_rep,
             mu_beliefs_effect = 1,
-            beta = mu_beta[1],
-            dist_beta = mu_beta[2],
-            beta_control = beta_control)
+            beta = mu_beta_z,
+            dist_beta = mu_beta_d,
+            beta_control = mu_beta_z_control)
         v_star_soln = find_v_star(
             distance = distance,
             b = b,
@@ -320,52 +266,91 @@ find_pred_takeup = function(beta,
     }
 }
 
+find_pred_takeup = function(params) {
+    .find_pred_takeup(
+        beta_b_z = params$beta,
+        beta_b_d = params$dist_beta_v,
+        mu_beta_z = params$centered_cluster_beta_1ord,
+        mu_beta_d = params$centered_cluster_dist_beta_1ord,
+        base_mu_rep = params$base_mu_rep,
+        total_error_sd = params$total_error_sd,
+        u_sd = params$u_sd,
+        dist_sd = params$dist_sd,
+        mu_beta_z_control = params$mu_beta_z_control
+    )
+}
 
 
+extract_params = function(param_draws, treatment, draw_id, j_id, dist_sd) {
+
+    treatments = c(
+        "control",
+        "ink",
+        "calendar",
+        "bracelet"
+    )
+    treatment_id  = which(treatments == treatment)
+    draw_df = param_draws %>%
+        filter(.draw == draw_id) 
+
+    params = draw_df %>%
+        filter((k == treatment_id | is.na(k)) & (j == j_id | is.na(j)) ) %>%
+        pull(.value, name = .variable)
+    
+    mu_beta_z_control = draw_df %>%
+        filter(.variable == "centered_cluster_beta_1ord" & k == 1 & (j == j_id | is.na(j)) ) %>%
+        pull(.value)
+    params = c(params, "mu_beta_z_control" = mu_beta_z_control, "dist_sd" = dist_sd) %>%
+        as.list()
+    return(params)
+}
 
 
-clean_param_summary
-hat_total_error_sd = clean_param_summary %>%
-    ungroup() %>%
-    filter(variable == "total_error_sd") %>%
-    select(mean) %>%
-    unique() %>%
-    pull()
-hat_u_sd = clean_param_summary %>%
-    ungroup() %>%
-    filter(variable == "u_sd") %>%
-    select(mean) %>%
-    unique() %>%
-    pull()
-hat_base_mu_rep = clean_param_summary %>%
-    ungroup() %>%
-    filter(variable == "base_mu_rep") %>%
-    select(mean) %>%
-    unique() %>%
-    pull()
-hat_dist_beta_v = clean_param_summary %>%
-    ungroup() %>%
-    filter(variable == "dist_beta_v") %>%
-    select(mean) %>%
-    unique() %>%
-    pull()
-hat_base_mu_rep
-hat_total_error_sd
-hat_u_sd
-
-
-pred_funcs = map(1:4,
-            ~find_pred_takeup(
-                beta = betas[[.x]],
-                mu_beta = mu_betas[[.x]],
-                base_mu_rep = hat_base_mu_rep,
-                total_error_sd = hat_total_error_sd,
-                u_sd = hat_u_sd,
-                dist_sd = dist_sd,
-                beta_control = mu_betas[[1]][1]
-            )
+draw_treat_grid =  expand.grid(
+    draw = 1:800,
+    treatment = treatments
 )
 
+pred_functions = map2(
+    draw_treat_grid$draw,
+    draw_treat_grid$treatment,
+    ~extract_params(
+        param_draws = param_draws,
+        treatment = .y,
+        draw_id = .x,
+        dist_sd = dist_sd,
+        j_id = 1
+    ) %>% find_pred_takeup()
+)
+
+library(furrr)
+plan(multisession, workers = 12)
+
+pred_df = future_imap_dfr(pred_functions,
+    ~tibble(
+        distance = seq(from = 0, to = 5000, length.out = 40)) %>% 
+            mutate(
+                as_tibble(.x(distance)), 
+                treatment = draw_treat_grid[.y, "treatment"],
+                draw = draw_treat_grid[.y, "draw"]),
+    .options = furrr_options(
+        globals = c(
+            "draw_treat_grid",
+            "extract_params", 
+            "param_draws", 
+            "dist_sd", 
+            "find_pred_takeup",
+            ".find_pred_takeup",
+            "calculate_mu_rep",
+            "calculate_belief_latent_predictor",
+            "find_v_star",
+            "generate_v_cutoff_fixedpoint",
+            "calculate_delta",
+            "integrate_delta_part"),
+        packages = c("dplyr", "nleqslv")
+    ),
+    .progress = TRUE
+)  
 
 treat_levels = c(
     "bracelet",
@@ -373,22 +358,98 @@ treat_levels = c(
     "calendar",
     "control"
 )
-pred_df = imap_dfr(pred_funcs,
-    ~tibble(distance = seq(from = 0, to = 5000, length.out = 40)) %>% mutate(as_tibble(.x(distance)), treatment = treatments[.y])
-)  %>%
-    mutate(
-        treatment = factor(treatment, levels = treat_levels)
-    ) 
+pred_df = pred_df %>%
+    mutate(treatment = factor(treatment, levels = treat_levels))
 
+pred_df %>%
+    write_csv(
+        file.path(
+            script_options$output_path, 
+            str_interp("pred_posterior_draws_dist_fit${fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.csv")
+        )
+    )
 
-pred_df  %>%
+summ_pred_df = pred_df %>%
+    group_by(distance, treatment) %>%
+    summarise_all(median) %>%
+    mutate(treatment = factor(treatment, levels = treat_levels))
+
+pred_df %>%
     ggplot(aes(
         x = distance, 
-        colour = treatment, 
-        y = mu_rep
+        y = pred_takeup, 
+        group = interaction(draw, treatment), 
+        colour = treatment
     )) +
-    geom_line() +
-    geom_point()
+    geom_line(
+        alpha = 0.1
+    )   +
+    geom_line(
+        data = summ_pred_df, 
+        inherit.aes = FALSE,
+        aes(
+            x = distance, 
+            y = pred_takeup, 
+            group = interaction(treatment), 
+            colour = treatment), 
+        size = 1
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        title = "Predicted Takeup", 
+        y = "Pred Takeup", 
+        x = "Distance (m)"
+    )
+
+ggsave(
+    "temp-plots/pred-takeup.png", 
+    width = 10,
+    height = 10,
+    dpi = 500
+    )
+
+pred_df %>%
+    ggplot(aes(
+        x = distance, 
+        y = pred_takeup, 
+        group = interaction(draw, treatment),
+        colour = treatment
+    )) +
+    geom_line(
+        alpha = 0.3
+    )  +
+    geom_line(
+        data = summ_pred_df, 
+        inherit.aes = FALSE,
+        aes(
+            x = distance, 
+            y = pred_takeup, 
+            group = interaction(treatment)), 
+        colour = "black",
+        size = 1
+    ) +
+    facet_wrap(~treatment) +
+    theme_bw() +
+    guides(color = "none") +
+    labs(
+        title = "Pred Takeup", 
+        y = "Takeup", 
+        x = "Distance (m)"
+    )
+    
+ggsave(
+    "temp-plots/pred-takeup-facet.png", 
+    width = 10,
+    height = 10,
+    dpi = 500
+    )
+
+    
+
+
+
+
 
 filter_structural_fit = function(data){
     data %>%
@@ -402,19 +463,6 @@ treat_levels = c(
     "control"
 )
 
-pred_df
-
-pred_df  %>%
-    mutate(
-        r_by_d = mu_rep*delta_v_star/hat_dist_beta_v
-    ) %>%
-    ggplot(aes(
-        x = distance, 
-        colour = treatment, 
-        y = pred_takeup
-    )) +
-    geom_line() +
-    geom_point()
 dist_fit_data %>%
     filter_structural_fit() %>%
     select(cluster_takeup_prop) %>%
@@ -424,9 +472,21 @@ dist_fit_data %>%
         type = "stan", 
         pred_takeup = mean_est, 
         distance = roc_distance
+    ) 
+
+dist_fit_data %>%
+    filter_structural_fit() %>%
+    select(cluster_takeup_prop) %>%
+    unnest() %>%
+    mutate(
+        treatment = factor(assigned_treatment, levels = treat_levels), 
+        type = "stan", 
+        pred_takeup = per_0.5, 
+        distance = roc_distance
     ) %>%
     bind_rows(
-        pred_df %>%
+        summ_pred_df %>%
+            filter(distance < 2500) %>%
             mutate(type = "extracted")
     ) %>%
     select( 
@@ -446,10 +506,11 @@ dist_fit_data %>%
     theme_bw() +
     theme(legend.position = "bottom") +
     labs(
-        title = "Comparing Stan Posterior Means and R Extractions"
+        title = "Comparing Stan vs R Posterior Medians"
     )
+
 ggsave(
-    "temp-p-comp.png",
+    "temp-plots/temp-p-comp.png",
     width = 10,
     height = 10,
     dpi = 500
@@ -458,9 +519,9 @@ ggsave(
     
     
     
+pred_df    
     
-    
-pred_df  %>%
+summ_pred_df  %>%
     mutate(
         r_by_d = mu_rep*delta_v_star
     ) %>%
@@ -471,6 +532,7 @@ pred_df  %>%
     )) +
     geom_line() +
     geom_point()
+
 cowplot::plot_grid(
     dist_fit_data %>%
         filter_structural_fit() %>%
@@ -481,13 +543,14 @@ cowplot::plot_grid(
         ) %>%
         ggplot(aes(
             x = roc_distance, 
-            y = mean_est, 
+            y = per_0.5, 
             colour = assigned_treatment
         )) +
         geom_point() +
         geom_line(),
 
-    pred_df  %>%
+    summ_pred_df  %>%
+        filter(distance <= 2500) %>%
         mutate(
             r_by_d = mu_rep*delta_v_star
         ) %>%
@@ -497,48 +560,112 @@ cowplot::plot_grid(
             y = pred_takeup
         )) +
         geom_line() +
-        geom_point()
-)
-cowplot::plot_grid(
-    dist_fit_data %>%
-        filter_structural_fit() %>%
-        select(cluster_rep_return) %>%
-        unnest() %>%
-        mutate(
-            assigned_treatment = factor(assigned_treatment, levels = treat_levels)
-        ) %>%
-        ggplot(aes(
-            x = roc_distance, 
-            y = mean_est, 
-            colour = assigned_treatment
-        )) +
-        geom_point() +
-        geom_line(),
+        geom_point() 
+) 
 
-    pred_df  %>%
-        mutate(
-            r_by_d = mu_rep*delta_v_star
-        ) %>%
-        ggplot(aes(
-            x = distance, 
-            colour = treatment, 
-            y = r_by_d
-        )) +
-        geom_line() +
-        geom_point()
-)
+# cowplot::plot_grid(
+#     dist_fit_data %>%
+#         filter_structural_fit() %>%
+#         select(cluster_rep_return) %>%
+#         unnest() %>%
+#         mutate(
+#             assigned_treatment = factor(assigned_treatment, levels = treat_levels)
+#         ) %>%
+#         ggplot(aes(
+#             x = roc_distance, 
+#             y = per_0.5, 
+#             colour = assigned_treatment
+#         )) +
+#         geom_point() +
+#         geom_line(),
+#     summ_pred_df  %>%
+#         filter(distance <= 2500) %>%
+#         mutate(
+#             r_by_d = mu_rep*delta_v_star
+#         ) %>%
+#         ggplot(aes(
+#             x = distance, 
+#             colour = treatment, 
+#             y = r_by_d
+#         )) +
+#         geom_line() +
+#         geom_point()
+# )
 
 pred_df  %>%
-    filter(v_star > -5) %>%
+    # filter(v_star > -5) %>%
+    ggplot(aes(
+        x = v_star, 
+        group = interaction(draw, treatment),
+        colour = treatment, 
+        y = delta_v_star
+    )) +
+    geom_line(alpha = 0.2) +
+    geom_point(alpha = 0.2) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        title = "Delta(v^*) vs v^*"
+    )
+
+ggsave(
+    "temp-plots/all-delta-v-vs-v.png",
+    width = 10,
+    height = 10,
+    dpi = 500
+)
+
+
+
+pred_df  %>%
+    filter(abs(v_star) < 2) %>%
+    # filter(v_star > -5) %>%
+    ggplot(aes(
+        x = v_star, 
+        group = interaction(draw, treatment),
+        colour = treatment, 
+        y = delta_v_star
+    )) +
+    geom_line(alpha = 0.2) +
+    geom_point(alpha = 0.2) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        title = "Delta(v^*) vs v^*"
+    )
+
+ggsave(
+    "temp-plots/subset-delta-v-vs-v.png",
+    width = 10,
+    height = 10,
+    dpi = 500
+)
+
+summ_pred_df  %>%
+    # filter(v_star > -5) %>%
     ggplot(aes(
         x = v_star, 
         colour = treatment, 
         y = delta_v_star
     )) +
     geom_line() +
-    geom_point()
+    geom_point() +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        title = "Delta(v^*) vs v^*"
+    )
 
-pred_df  %>%
+
+ggsave(
+    "temp-plots/delta-v-vs-v.png",
+    width = 10,
+    height = 10,
+    dpi = 500
+)
+
+
+summ_pred_df  %>%
     ggplot(aes(
         x = distance, 
         colour = treatment, 
