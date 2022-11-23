@@ -116,11 +116,14 @@ stan_data = (dist_fit_data %>%
     slice(1) %>% # just take first model as only using for analysis_data
     pull(stan_data))[[1]]
 rf_analysis_data = stan_data$analysis_data
+
+sd_of_dist = sd(rf_analysis_data$cluster.dist.to.pot)
+
 if (script_options$to_csv) {
-    model_files = fs::dir_ls(script_options$input_path, regex = str_glue("dist_fit{fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.*\\.csv"))
-    model_fit = as_cmdstan_fit(model_files)
+    struct_model_files = fs::dir_ls(script_options$input_path, regex = str_glue("dist_fit{fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.*\\.csv"))
+    struct_model_fit = as_cmdstan_fit(struct_model_files)
     # N.B. this is very hardcoded for vanilla structural model
-    param_draws = model_fit %>%
+    struct_param_draws = struct_model_fit %>%
         gather_draws(
             beta[k],
             dist_beta_v[j],
@@ -131,16 +134,46 @@ if (script_options$to_csv) {
             u_sd[k]
         )
     # model_fit is huge so get rid of it asap
-    rm(model_fit) 
+    rm(struct_model_fit) 
     gc()
     # N.B. we use input path for `to_csv` output and reserve output_path for 
     # output later in script
-    param_draws %>%
+    struct_param_draws %>%
         write_csv(file.path(script_options$input_path, str_interp("param_posterior_draws_dist_fit${fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.csv") ))
+    ## Now reduced form  - we actually fit rf model continuous in distance here
+    # since main analysis RF just uses close/far
+
+    library(brms)
+    brms_rf_analysis_data = rf_analysis_data %>%
+        select(
+            dewormed,
+            assigned.treatment, 
+            cluster.id, 
+            county, 
+            cluster.dist.to.pot
+        ) %>%
+        mutate(sd_dist = cluster.dist.to.pot/sd(cluster.dist.to.pot))
+
+
+    options(mc.cores = script_options$num_cores)
+    rf_model_fit = brm(
+        data = brms_rf_analysis_data,
+        dewormed ~ (1 | cluster.id) + sd_dist*assigned.treatment, 
+        bernoulli(link = "probit")
+    )
+
+    rf_model_fit %>%
+        saveRDS(
+            file.path(
+                script_options$input_path, 
+                str_interp("param_posterior_draws_dist_fit${fit_version}_REDUCED_FORM_NO_RESTRICT.rds") ))
+    rm(rf_model_fit)
+    gc() # not as big but get rid of it anyway
+
 } 
 
 if (script_options$from_csv) {
-    param_draws = read_csv(
+    struct_param_draws = read_csv(
         file.path(
             script_options$input_path, 
             str_interp(
@@ -148,7 +181,18 @@ if (script_options$from_csv) {
             )
         )
     )
+    rf_model_fit = read_rds(
+        file.path(
+            script_options$input_path, 
+            str_interp(
+                "param_posterior_draws_dist_fit${fit_version}_REDUCED_FORM_NO_RESTRICT.rds"
+            )
+        )
+    )
 }
+
+
+rf_model_fit
 
 
 
@@ -333,7 +377,7 @@ extract_params = function(param_draws,
 }
 
 ## Create estimated demand functions
-max_draw = max(param_draws$.draw)
+max_draw = max(struct_param_draws$.draw)
 draw_treat_grid = expand.grid(
     draw = 1:min(max_draw, script_options$num_post_draws),
     treatment = script_options$treatment
@@ -344,7 +388,7 @@ pred_functions = map2(
     draw_treat_grid$draw,
     draw_treat_grid$treatment,
     ~extract_params(
-        param_draws = param_draws,
+        param_draws = struct_param_draws,
         treatment = .y,
         draw_id = .x,
         dist_sd = dist_sd,
@@ -403,6 +447,37 @@ long_distance_mat = distance_matrix %>%
     mutate(
         dist = as.numeric(dist),
         dist_km = as.numeric(dist/1000))
+
+
+brms_long_distance_mat = long_distance_mat %>%
+    left_join(
+        village_df %>% as_tibble() %>% select(cluster.id, id),
+        by = c("index_i" = "id")
+    )  %>%
+    mutate(
+        sd_dist = dist / sd_of_dist, 
+        assigned.treatment = "bracelet"
+    ) 
+
+
+rf_pred_df = map_dfr(
+    script_options$treatment,
+    ~{
+        add_epred_draws(
+            brms_long_distance_mat %>% mutate(assigned.treatment = .x),
+            rf_model_fit,
+            ndraws = script_options$num_post_draws
+        )
+    }
+) %>%
+    rename(
+        treatment = assigned.treatment, 
+        draw = .draw, 
+        demand = .epred
+    )  %>%
+    ungroup() 
+
+
 plan(multisession, workers = script_options$num_cores)
 pred_df = future_imap_dfr(
     pred_functions,
@@ -421,7 +496,7 @@ pred_df = future_imap_dfr(
             "script_options",
             "long_distance_mat",
             "extract_params", 
-            "param_draws", 
+            "struct_param_draws", 
             "dist_sd", 
             "find_pred_takeup",
             ".find_pred_takeup",
@@ -482,7 +557,33 @@ structural_demand_df = long_distance_mat %>%
     model = "STRUCTURAL_LINEAR_U_SHOCK"
   )
 
-structural_demand_df %>%
+
+rf_demand_df = rf_pred_df %>%
+    rename(
+        village_i = index_i, 
+        pot_j = index_j, 
+    ) %>%
+    group_by(village_i, closest_pot = dist == min(dist)) %>%
+    ungroup() %>%
+    mutate(
+        model = "REDUCED_FORM_NO_RESTRICT"
+    ) %>%
+    mutate(
+        demand = if_else(
+            dist > script_options$dist_cutoff,
+            0,
+            demand
+        )
+    ) %>%
+    select(-`.row`, -`.chain`, -`.iteration`)
+
+
+
+
+bind_rows(
+    structural_demand_df,
+    rf_demand_df
+) %>%
     write_csv(
         file.path(
             script_options$output_path, 
@@ -532,7 +633,7 @@ if (script_options$pred_distance) {
             globals = c(
                 "draw_treat_grid",
                 "extract_params", 
-                "param_draws", 
+                "struct_param_draws", 
                 "dist_sd", 
                 "find_pred_takeup",
                 ".find_pred_takeup",
