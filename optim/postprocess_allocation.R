@@ -23,12 +23,12 @@ script_options <- docopt::docopt(
                              --min-cost 
                              --target-constraint=0.33
                              --input-path=optim/data
-                             --optim-input-a-filename=init-bracelet-optimal-allocation.csv
+                             --optim-input-a-filename=structural-optimal-allocation.csv
                              --village-input-filename=village-df.csv
                              --pot-input-filename=pot-df.csv
-                             --demand-input-a-filename=approx-bracelet-demand.csv
+                             --demand-input-a-filename=pred_demand_dist_fit66_STRUCTURAL_LINEAR_U_SHOCKS.csv
                              --output-path=optim
-                             --output-basename=init-bracelet
+                             --output-basename=structural-test
                              --map-plot
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -154,7 +154,102 @@ if (script_options$map_plot){
 }
 
 
+optimal_df = data$optim_data
 
+summ_optimal_df = optimal_df %>%
+    group_by(
+        i,
+        j,
+        treatment
+    ) %>%
+    summarise( 
+        n_links = n(),
+        village_lon = unique(village_lon), 
+        village_lat = unique(village_lat), 
+        pot_lon = unique(pot_lon), 
+        pot_lat = unique(pot_lat)
+    ) %>%
+    mutate(
+        pct_links = n_links / 50
+        )
+
+pot_summ_optimal_df = optimal_df %>%
+    select(j, draw, treatment) %>%
+    unique() %>%
+    group_by(j, treatment) %>%
+    summarise(
+        n_used = n(),
+        across(contains("_lon"), unique), 
+        across(contains("_lat"), unique)
+        ) %>%
+    mutate(pct_used = n_used / 50)
+
+optimal_df %>%
+    select(solver_status)
+
+optimal_df  %>%
+    filter(is.na(solver_status)) %>%
+    group_by(draw, treatment) %>%
+    summarise(
+        n_pots = n_distinct(j)
+    ) %>%
+    ggplot(aes( 
+        x = n_pots, 
+        fill = treatment
+    )) + 
+    geom_histogram()
+
+
+
+data$pot_locations %>%
+    left_join(
+        pot_summ_optimal_df, 
+        by = c("id" = "j")
+    ) %>%
+    filter(!is.na(treatment)) %>%
+    ggplot() +
+    geom_sf(
+        aes(color = pct_used)
+    ) +
+    facet_wrap(~treatment)
+
+ data$pot_locations %>%
+    ggplot() +
+    geom_sf(
+        aes(color = pct_used)
+        shape = 17,
+        size = 4, 
+        alpha = 0.2) 
+
+ data$village_locations %>%
+    ggplot() +
+    geom_sf(alpha = 1) +
+    geom_sf(
+        data = data$pot_locations %>% filter(assigned_pot == FALSE),
+        color = hex[1],
+        shape = 17,
+        size = 4, 
+        alpha = 0.2) +
+    geom_sf(
+        data = data$pot_locations %>% filter(assigned_pot == TRUE),
+        color = hex[2],
+        shape = 17,
+        size = 4, 
+        alpha = 1) +
+    theme_bw() +
+    geom_segment(
+        data = summ_optimal_df, 
+        aes(x = village_lon, 
+            y = village_lat, 
+            xend = pot_lon, 
+            yend = pot_lat, 
+            alpha = pct_links))  +
+    labs(x = "", y = "", subtitle = str_glue("
+    Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
+    scale_color_manual(
+        values = hex,
+        labels = c("PoT Used", "PoT Unused")
+    ) 
 
 optimal_pot_plot = data$village_locations %>%
     ggplot() +
@@ -173,12 +268,12 @@ optimal_pot_plot = data$village_locations %>%
         alpha = 1) +
     theme_bw() +
     geom_segment(
-        data = data$optim_data, 
+        data = summ_optimal_df, 
         aes(x = village_lon, 
             y = village_lat, 
             xend = pot_lon, 
-            yend = pot_lat),
-        alpha = 0.2)  +
+            yend = pot_lat, 
+            alpha = pct_links))  +
     labs(x = "", y = "", subtitle = str_glue("
     Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
     scale_color_manual(
@@ -186,6 +281,7 @@ optimal_pot_plot = data$village_locations %>%
         labels = c("PoT Used", "PoT Unused")
     ) 
 
+optimal_pot_plot
 
 ## If we provide comparison data
 

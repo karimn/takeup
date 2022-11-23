@@ -3,44 +3,65 @@
 
 set -e
 # Setting arguments
-DRYRUN="--dry-run" # "--sub-sample", "--fake-data"
-SKIPOPTIMISATION="--skip"
+DRYRUN="" # "--sub-sample", "--fake-data"
+SKIPOPTIMISATION=""
 # SKIPOPTIMISATION="dont-skip-pls"
 SUBSIDY=0.25
-TARGETCONSTRAINT=0.85
+TARGETCONSTRAINT=0.32
+VERSION=66
 
 
-Rscript ./optim/postprocess_allocation.R --min-cost \
-                             --target-constraint=0.33 \
-                             --input-path=optim/data \
-                             --optim-input-a-filename=init-control-optimal-allocation.csv \
+
+Rscript ./optim/predict-takeup-for-optim.R 66 \
+    --num-post-draws=20 \
+    --from-csv \
+    bracelet \
+    control
+
+Rscript ./optim/optimal_allocation.R  \
+                             --posterior-median \
+                             --num-cores=12 \
+                             --min-cost  \
+                             --target-constraint=${TARGETCONSTRAINT} \
+                             --output-path=optim/data \
+                             --output-filename=structural \
+                             --input-path=optim/data  \
                              --village-input-filename=village-df.csv \
                              --pot-input-filename=pot-df.csv \
-                             --demand-input-a-filename=approx-control-demand.csv \
-                             --output-path=optim \
-                             --output-basename=init-control \
-                             --map-plot 
-
-Rscript ./optim/postprocess_allocation.R --min-cost \
-                             --target-constraint=0.33 \
-                             --input-path=optim/data \
-                             --optim-input-a-filename=init-bracelet-optimal-allocation.csv \
-                             --village-input-filename=village-df.csv \
-                             --pot-input-filename=pot-df.csv \
-                             --demand-input-a-filename=approx-bracelet-demand.csv \
-                             --output-path=optim \
-                             --output-basename=init-bracelet 
+                             --demand-input-filename=pred_demand_dist_fit${VERSION}.csv
 
 
-Rscript ./optim/postprocess_allocation.R --min-cost \
-                             --target-constraint=0.33 \
-                             --input-path=optim/data \
-                             --optim-input-a-filename=init-reduced-optimal-allocation.csv \
-                             --village-input-filename=village-df.csv \
-                             --pot-input-filename=pot-df.csv \
-                             --demand-input-a-filename=approx-reduced-bracelet-demand.csv \
-                             --output-path=optim \
-                             --output-basename=init-reduced-bracelet 
+# Rscript ./optim/postprocess_allocation.R --min-cost \
+#                              --target-constraint=0.33 \
+#                              --input-path=optim/data \
+#                              --optim-input-a-filename=init-control-optimal-allocation.csv \
+#                              --village-input-filename=village-df.csv \
+#                              --pot-input-filename=pot-df.csv \
+#                              --demand-input-a-filename=approx-control-demand.csv \
+#                              --output-path=optim \
+#                              --output-basename=init-control \
+#                              --map-plot 
+
+# Rscript ./optim/postprocess_allocation.R --min-cost \
+#                              --target-constraint=0.33 \
+#                              --input-path=optim/data \
+#                              --optim-input-a-filename=init-bracelet-optimal-allocation.csv \
+#                              --village-input-filename=village-df.csv \
+#                              --pot-input-filename=pot-df.csv \
+#                              --demand-input-a-filename=approx-bracelet-demand.csv \
+#                              --output-path=optim \
+#                              --output-basename=init-bracelet 
+
+
+# Rscript ./optim/postprocess_allocation.R --min-cost \
+#                              --target-constraint=0.33 \
+#                              --input-path=optim/data \
+#                              --optim-input-a-filename=init-reduced-optimal-allocation.csv \
+#                              --village-input-filename=village-df.csv \
+#                              --pot-input-filename=pot-df.csv \
+#                              --demand-input-a-filename=approx-reduced-bracelet-demand.csv \
+#                              --output-path=optim \
+#                              --output-basename=init-reduced-bracelet 
 
 # if [ $DRYRUN == "--dry-run" ]
 # then

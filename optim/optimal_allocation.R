@@ -16,16 +16,21 @@ script_options <- docopt::docopt(
           --village-input-filename=<village-input-filename>  Index and location of each village - a csv path.
           --pot-input-filename=<pot-input-filename>  Index and location of each PoT - a csv path. 
           --demand-input-filename=<demand-input-filename>  Estimated demand for every village i, PoT j pair.  
+          --num-cores=<num-cores>  Number of cores to use in parallel [default: 8]
+          --time-limit=<time-limit>  GLPK solver time limit [default: 1000]
+          --posterior-median  Use median demand rather than solve across all draws
 "),
   args = if (interactive()) "
+                             --posterior-median
+                             --num-cores=12
                              --min-cost 
                              --target-constraint=0.32
                              --output-path=optim/data
-                             --output-filename=init-reduced
+                             --output-filename=structural
                              --input-path=optim/data 
                              --village-input-filename=village-df.csv
                              --pot-input-filename=pot-df.csv
-                             --demand-input-filename=approx-reduced-bracelet-demand.csv
+                             --demand-input-filename=pred_demand_dist_fit66.csv
                              " else commandArgs(trailingOnly = TRUE)
 ) 
                             #  --dry-run 
@@ -40,13 +45,16 @@ library(sf)
 
 numeric_options = c(
   "target_constraint",
-  "dry_run_subsidy"
+  "dry_run_subsidy",
+  "num_cores",
+  "time_limit"
 )
 
 script_options = script_options %>%
   modify_at(numeric_options, as.numeric)
 
 optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
+stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
 #' Create a MIP Model
 #' 
@@ -57,10 +65,7 @@ optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 #' @param optim_type Whether to solve takeup maximisation given budget or min cost given takeup target. 
 #' Accepts: `min_cost` or `max_takeup`
 #' @target_constraint What to put in the budget constraint 
-define_baseline_MIPModel = function(data, 
-                                    demand_data, 
-                                    optim_type, 
-                                    target_constraint) {
+define_baseline_MIPModel = function(data) {
     n = data$n  # N villages
     m = data$m  # M points of treatment
     village_locations = data$village_locations # Village location df
@@ -75,6 +80,23 @@ define_baseline_MIPModel = function(data,
         add_constraint(sum_over(x[i, j], j = 1:m) == 1, i = 1:n) %>% 
         # if a village is assigned to a PoT, then this PoT must be online
         add_constraint(x[i,j] <= y[j], i = 1:n, j = 1:m) 
+    return(model)
+}
+
+#' Add objectives to baseline MIPModel
+#'
+#' @param data list with n and m (n villages and PoTs). Also village_locations
+#' df and treatment_locations df
+#' @param demand_function function that takes as arguments: i, j, village_locations, pot_locations
+#' i is village index, j is PoT index and village_locations, pot_locations are dfs indexed by i,j
+#' @param optim_type Whether to solve takeup maximisation given budget or min cost given takeup target. 
+#' Accepts: `min_cost` or `max_takeup`
+#' @target_constraint What to put in the budget constraint 
+add_MIPModel_objective = function(model, data, demand_data, optim_type, target_constraint) {
+    n = data$n  # N villages
+    m = data$m  # M points of treatment
+    village_locations = data$village_locations # Village location df
+    pot_locations = data$pot_locations # PoT location df
 
     if (optim_type == "min_cost") {
       model = model %>%
@@ -101,8 +123,83 @@ define_baseline_MIPModel = function(data,
                     x[i,j] * demand_data[village_i == i & pot_j == j, demand], 
                     i = 1:n, j = 1:m), "max")
     }
-
     return(model)
+
+}
+
+
+define_and_solve_model = function(baseline_model,
+                                  data,
+                                  demand_data,
+                                  optim_type,
+                                  target_constraint){
+  model = baseline_model %>%
+    add_MIPModel_objective(
+      model =  .,
+      data = data,
+      demand_data = demand_data,
+      optim_type = optim_type,
+      target_constraint = target_constraint
+    )                            
+  fit_model = solve_model(
+    model,
+    with_ROI(solver = "glpk", verbose = TRUE, control = list(tm_limit = script_options$time_limit))
+  )
+  status = solver_status(fit_model)
+  if (status == "success"){
+    tidy_output = clean_output(fit_model, data, demand_data) 
+    return(tidy_output)
+  } else {
+    return(tibble(fail = TRUE, solver_status = status))
+  }
+}
+
+safe_define_and_solve_model = possibly(define_and_solve_model, otherwise = tibble(fail = TRUE))
+
+clean_output = function(model_fit, data, demand_data){
+    matching = model_fit %>%
+        get_solution(x[i,j]) %>%
+        filter(value > .9) %>%  
+        select(i, j) %>%
+        as_tibble()
+    tidy_output = matching %>%
+        inner_join(data$village_locations %>% 
+                        rename(village_lon = lon, village_lat = lat), by = c("i" = "id")) %>% 
+        inner_join(data$pot_locations %>%
+                        rename(pot_lon = lon, pot_lat = lat), by = c("j" = "id")) 
+    tidy_output = left_join(
+      tidy_output,
+      demand_data,
+      by = c("i" = "village_i", "j" = "pot_j")
+    )
+
+  ## Reassign villages to closest PoT
+  # SP doesn't care about distance cost atm so once he hits target takeup, can 
+  # assign people to whatever PoT if they won't let him drop down to a smaller # of PoTs
+  # therefore, we just reoptimise within allowed PoTs
+
+  #### TEMPORARY FIX #####
+  dd = copy(demand_data)
+  assigned_pots = unique(tidy_output$j)
+  new_tidy_output = dd[pot_j %in% assigned_pots, min_dist_avail := min(dist), village_i][
+    dist == min_dist_avail
+    ] %>%
+    inner_join(data$village_locations %>% 
+                    rename(village_lon = lon, village_lat = lat), by = c("village_i" = "id")) %>% 
+    inner_join(data$pot_locations %>%
+                    rename(pot_lon = lon, pot_lat = lat), by = c("pot_j" = "id"))  %>%
+    rename(
+      i = village_i, 
+      j = pot_j
+    ) %>%
+    as_tibble() %>%
+    select(-min_dist_avail)
+  if (nrow(tidy_output) == nrow(new_tidy_output)) {
+    tidy_output = new_tidy_output
+  } else {
+    warning("Temporary fix failed, using original allocation.")
+  }
+    return(tidy_output)
 }
 
 
@@ -203,8 +300,17 @@ if (script_options$dry_run) {
         lon = sf::st_coordinates(.)[, 1],
         lat = sf::st_coordinates(.)[, 2])
   demand_data = read_csv(demand_input_path) %>%
-    as.data.table()
-  
+    as.data.table() 
+
+  if (script_options$posterior_median) {
+    demand_data = demand_data[
+      , 
+      .(demand = median(demand), dist = unique(dist)), 
+      .(village_i,
+        pot_j, 
+        treatment, 
+        model)]
+  }
   n = nrow(village_data)
   m = nrow(pot_data)
 
@@ -216,81 +322,41 @@ if (script_options$dry_run) {
   ) 
 }
 
-model = define_baseline_MIPModel(
-  data,
-  demand_data,
-  optim_type = optim_type,
-  target_constraint = script_options$target_constraint
-)
+library(furrr)
+plan(multicore, workers = script_options$num_cores)
+baseline_model = define_baseline_MIPModel(data)
 
-fit_model = solve_model(
-  model,
-  with_ROI(solver = "glpk", verbose = TRUE)
-)
 
-clean_output = function(model_fit, data, demand_data){
-    matching = model_fit %>%
-        get_solution(x[i,j]) %>%
-        filter(value > .9) %>%  
-        select(i, j) %>%
-        as_tibble()
-    tidy_output = matching %>%
-        inner_join(data$village_locations %>% 
-                        rename(village_lon = lon, village_lat = lat), by = c("i" = "id")) %>% 
-        inner_join(data$pot_locations %>%
-                        rename(pot_lon = lon, pot_lat = lat), by = c("j" = "id")) 
-    tidy_output = left_join(
-      tidy_output,
+demand_data = demand_data %>%
+  nest(demand_data = c(village_i, pot_j, demand, dist))
+
+
+
+tidy_output = demand_data %>%
+  mutate(
+    model_output = future_map(
       demand_data,
-      by = c("i" = "village_i", "j" = "pot_j")
-    )
-    return(tidy_output)
-}
-
-
-tidy_output = fit_model %>%
-  clean_output(data = data, demand_data = demand_data)
-
-
-## Reassign villages to closest PoT
-# SP doesn't care about distance cost atm so once he hits target takeup, can 
-# assign people to whatever PoT if they won't let him drop down to a smaller # of PoTs
-# therefore, we just reoptimise within allowed PoTs
-
-#### TEMPORARY FIX #####
-assigned_pots = unique(tidy_output$j)
-
-new_tidy_output = demand_data[pot_j %in% assigned_pots, min_dist_avail := min(dist), village_i][
-  dist == min_dist_avail
-  ] %>%
-  inner_join(data$village_locations %>% 
-                  rename(village_lon = lon, village_lat = lat), by = c("village_i" = "id")) %>% 
-  inner_join(data$pot_locations %>%
-                  rename(pot_lon = lon, pot_lat = lat), by = c("pot_j" = "id"))  %>%
-  rename(
-    i = village_i, 
-    j = pot_j
-  ) %>%
-  as_tibble() %>%
-  select(-min_dist_avail)
-
-
-if (nrow(tidy_output) == nrow(new_tidy_output)) {
-  tidy_output = new_tidy_output
-} else {
-  warning("Temporary fix failed, using original allocation.")
-}
+      ~safe_define_and_solve_model(
+        baseline_model,
+        data,
+        .x,
+        optim_type = optim_type,
+        target_constraint = script_options$target_constraint
+      ),
+      .progress = TRUE,
+      .options = furrr_options(seed = TRUE)
+     )
+  )
 
 
 if (script_options$dry_run) {
   output_path = file.path(
     script_options$output_path, 
-    str_glue("{script_options$output_filename}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.csv"))
+    str_glue("{script_options$output_filename}-{stat_type}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.csv"))
 } else {
   output_path = file.path(
     script_options$output_path, 
-    str_glue("{script_options$output_filename}-optimal-allocation.csv"))
-
+    str_glue("{script_options$output_filename}-{stat_type}-optimal-allocation.csv"))
 }
 
 
