@@ -328,10 +328,9 @@ baseline_model = define_baseline_MIPModel(data)
 
 
 demand_data = demand_data %>%
-  nest(demand_data = c(village_i, pot_j, demand, dist))
+  nest(demand_data = -any_of(c("draw", "treatment", "model")))
 
-
-
+tictoc::tic()
 tidy_output = demand_data %>%
   mutate(
     model_output = future_map(
@@ -347,21 +346,21 @@ tidy_output = demand_data %>%
       .options = furrr_options(seed = TRUE)
      )
   )
-
+tictoc::toc()
 
 if (script_options$dry_run) {
   output_path = file.path(
     script_options$output_path, 
-    str_glue("{script_options$output_filename}-{stat_type}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.csv"))
+    str_glue("{script_options$output_filename}-{stat_type}-subsidy-{script_options$dry_run_subsidy}-optimal-allocation.rds"))
 } else {
   output_path = file.path(
     script_options$output_path, 
-    str_glue("{script_options$output_filename}-{stat_type}-optimal-allocation.csv"))
+    str_glue("{script_options$output_filename}-{stat_type}-optimal-allocation.rds"))
 }
 
 
 
-write_csv(
+saveRDS(
   tidy_output,
   output_path
 )

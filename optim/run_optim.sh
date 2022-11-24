@@ -13,7 +13,7 @@ VERSION=66
 
 
 Rscript ./optim/predict-takeup-for-optim.R 66 \
-    --num-post-draws=20 \
+    --num-post-draws=400 \
     --from-csv \
     bracelet \
     control
@@ -28,8 +28,45 @@ Rscript ./optim/optimal_allocation.R  \
                              --input-path=optim/data  \
                              --village-input-filename=village-df.csv \
                              --pot-input-filename=pot-df.csv \
+                             --time-limit=10000 \
                              --demand-input-filename=pred_demand_dist_fit${VERSION}.csv
 
+Rscript ./optim/optimal_allocation.R  \
+                             --num-cores=12 \
+                             --min-cost  \
+                             --target-constraint=${TARGETCONSTRAINT} \
+                             --output-path=optim/data \
+                             --output-filename=structural \
+                             --input-path=optim/data  \
+                             --village-input-filename=village-df.csv \
+                             --pot-input-filename=pot-df.csv \
+                             --time-limit=10000 \
+                             --demand-input-filename=pred_demand_dist_fit${VERSION}.csv
+
+Rscript ./optim/postprocess_allocation.R  \
+                             --min-cost \
+                             --posterior-median \
+                             --target-constraint=0.33 \
+                             --input-path=optim/data \
+                             --optim-input-a-filename=structural-median-optimal-allocation.rds \
+                             --village-input-filename=village-df.csv \
+                             --pot-input-filename=pot-df.csv \
+                             --demand-input-a-filename=pred_demand_dist_fit66.csv \
+                             --output-path=optim \
+                             --output-basename=structural-median-test \
+                             --map-plot
+
+Rscript ./optim/postprocess_allocation.R  \
+                             --min-cost \
+                             --target-constraint=0.33 \
+                             --input-path=optim/data \
+                             --optim-input-a-filename=structural-post-draws-optimal-allocation.rds \
+                             --village-input-filename=village-df.csv \
+                             --pot-input-filename=pot-df.csv \
+                             --demand-input-a-filename=pred_demand_dist_fit66.csv \
+                             --output-path=optim \
+                             --output-basename=structural-post-draws-test \
+                             --map-plot
 
 # Rscript ./optim/postprocess_allocation.R --min-cost \
 #                              --target-constraint=0.33 \
