@@ -630,7 +630,7 @@ bind_rows(
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred_demand_dist_fit${fit_version}{append_output}.csv")
+            str_interp("pred_demand_dist_fit${fit_version}${append_output}.csv")
         )
     )
         
