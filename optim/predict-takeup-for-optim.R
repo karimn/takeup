@@ -13,21 +13,26 @@ script_options = docopt::docopt(
         --to-csv   Load stanfit object and write draws to csv
         --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
         --output-path=<path>  Path to find results [default: {file.path('optim', 'data')}]
+        --output-name=<output-name>  Prepended to output file
         --pred-distance  Estimate takeup on a grid from 0 to 5km
-        --dist-cutoff=<dist-cutoff>  Don't estimate takeup past this cutoff [default: 2500]
+        --dist-cutoff=<dist-cutoff>  Don't estimate takeup past this cutoff (set takeup to 0) [default: 2500]
+        --rep-cutoff=<rep-cutoff>  Don't let reputational returns increase past this point. [default: 2500]
         --num-post-draws=<num-post-draws>  Number of posterior draws to use [default: 1600]
         --num-cores=<num-cores>  Number of cores to use [default: 8]
     "),
     args = if (interactive()) "
                             66 
+                            --output-name=rep
                             --from-csv
-                            --num-post-draws=4
+                            --num-post-draws=80
+                            --rep-cutoff=2500
+                            --dist-cutoff=5000
+                            --num-cores=12
                             bracelet
                             control
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
-
 if (length(script_options$treatment) == 0) {
     script_options$treatments = c(
         "control",
@@ -57,6 +62,7 @@ source(file.path("multilvlr", "multilvlr_util.R"))
 
 script_options = script_options %>%
     modify_at(c("dist_cutoff", 
+                "rep_cutoff",
                 "num_post_draws", 
                 "num_cores"), as.numeric)
 fit_version = script_options$fit_version
@@ -192,7 +198,6 @@ if (script_options$from_csv) {
 }
 
 
-rf_model_fit
 
 
 
@@ -263,15 +268,25 @@ calculate_mu_rep = function(dist,
 #' the cutoff type.
 #' 
 find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
+    dim_distance = length(distance)
+    n_iters = 5
+
     v_f = generate_v_cutoff_fixedpoint(
         b = b,
         mu = mu_rep,
         total_error_sd = total_error_sd,
         u_sd = u_sd
     )
-
-    soln = nleqslv(x = -b, fn = v_f)
-    v_star = soln$x
+    starting_points = map(1:n_iters, ~rnorm(dim_distance))
+    solns = map(starting_points, ~nleqslv(x = 0 + .x, fn = v_f))
+    soln_matrix = matrix(
+        map(solns, "x") %>% 
+            unlist(), 
+        nrow = n_iters, 
+        ncol = dim_distance,
+        byrow = TRUE )
+    # Take median from nleqslv with 10 different starting points
+    v_star = apply(soln_matrix, 2, median)
     delta_v_star = calculate_delta(v_star, total_error_sd, u_sd)
     return(lst(
         v_star,
@@ -301,8 +316,10 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
                              total_error_sd, 
                              u_sd, 
                              dist_sd, 
-                             mu_beta_z_control) {
+                             mu_beta_z_control,
+                             rep_cutoff = Inf) {
     function(distance){
+        over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
         b = beta_b_z - beta_b_d*distance
         mu_rep = calculate_mu_rep(
@@ -312,6 +329,16 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
             beta = mu_beta_z,
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control)
+        # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+        cutoff_mu_rep = calculate_mu_rep(
+            dist = rep_cutoff/dist_sd,
+            base_mu_rep = base_mu_rep,
+            mu_beliefs_effect = 1,
+            beta = mu_beta_z,
+            dist_beta = mu_beta_d,
+            beta_control = mu_beta_z_control)
+        mu_rep[which(over_cutoff)] = cutoff_mu_rep
+
         v_star_soln = find_v_star(
             distance = distance,
             b = b,
@@ -321,7 +348,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
         )
         delta_v_star = v_star_soln$delta_v_star
         v_star = v_star_soln$v_star
-
+        
         linear_pred = b + mu_rep*delta_v_star
         pred_takeup = 1 - pnorm(v_star/(total_error_sd))
         return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star))
@@ -338,7 +365,8 @@ find_pred_takeup = function(params) {
         total_error_sd = params$total_error_sd,
         u_sd = params$u_sd,
         dist_sd = params$dist_sd,
-        mu_beta_z_control = params$mu_beta_z_control
+        mu_beta_z_control = params$mu_beta_z_control,
+        rep_cutoff = params$rep_cutoff
     )
 }
 
@@ -348,7 +376,8 @@ extract_params = function(param_draws,
                           draw_id, 
                           j_id, 
                           dist_sd,
-                          dist_cutoff = Inf) {
+                          dist_cutoff = Inf,
+                          rep_cutoff = Inf) {
 
     treatments = c(
         "control",
@@ -367,12 +396,17 @@ extract_params = function(param_draws,
     mu_beta_z_control = draw_df %>%
         filter(.variable == "centered_cluster_beta_1ord" & k == 1 & (j == j_id | is.na(j)) ) %>%
         pull(.value)
+    
+
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 
         "dist_sd" = dist_sd,
-        "dist_cutoff" = dist_cutoff) %>%
+        "dist_cutoff" = dist_cutoff,
+        "rep_cutoff" = rep_cutoff
+        ) %>%
         as.list()
+
     return(params)
 }
 
@@ -392,7 +426,9 @@ pred_functions = map2(
         treatment = .y,
         draw_id = .x,
         dist_sd = dist_sd,
-        j_id = 1
+        j_id = 1,
+        rep_cutoff = 2500,
+        dist_cutoff = Inf
     ) %>% find_pred_takeup()
 )
 ## Now extract distance data
@@ -477,7 +513,7 @@ rf_pred_df = map_dfr(
     )  %>%
     ungroup() 
 
-
+tictoc::tic()
 plan(multisession, workers = script_options$num_cores)
 pred_df = future_imap_dfr(
     pred_functions,
@@ -506,10 +542,13 @@ pred_df = future_imap_dfr(
             "generate_v_cutoff_fixedpoint",
             "calculate_delta",
             "integrate_delta_part"),
-        packages = c("dplyr", "nleqslv")
+        packages = c("dplyr", "nleqslv", "purrr"),
+        seed = TRUE
     ),
     .progress = TRUE
 )
+tictoc::toc()
+
 
 cutoff_pred_df = future_map2_dfr(
     draw_treat_grid$draw,
@@ -578,7 +617,11 @@ rf_demand_df = rf_pred_df %>%
     select(-`.row`, -`.chain`, -`.iteration`)
 
 
-
+append_output = if (!is.null(script_options$output_name)) {
+    paste0("_", script_options$output_name)
+} else {
+    ""
+}
 
 bind_rows(
     structural_demand_df,
@@ -587,7 +630,7 @@ bind_rows(
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred_demand_dist_fit${fit_version}.csv")
+            str_interp("pred_demand_dist_fit${fit_version}{append_output}.csv")
         )
     )
         
