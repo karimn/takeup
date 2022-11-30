@@ -161,10 +161,7 @@ transformed parameters {
       base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
       mu_rep_log);
   }
-  if (mu_rep_log) {
-    base_mu_rep = 1;
-  }
-  
+
   linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments);
   
   if (use_param_dist_cluster_effects) {
