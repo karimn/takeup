@@ -12,6 +12,9 @@ bibliography: /home/karim/Documents/library.bib
 ---
 
 ```{r takeup-present-setup, include=FALSE}
+if (interactive()) {
+  setwd("presentations/")
+}
 library(magrittr)
 library(tidyverse)
 library(broom)
@@ -91,7 +94,7 @@ analysis_data <- monitored_nosms_data
 ```
 
 ```{r version}
-fit_version <- 51 
+fit_version <- 66
 
 ```
 

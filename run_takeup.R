@@ -154,7 +154,7 @@ models <- lst(
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
     generate_sim = FALSE,
-    iter = 800,
+    iter = script_options$iter,
     thin = 1,
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
@@ -243,11 +243,17 @@ models <- lst(
     suppress_reputation = TRUE,
     use_age_group_gp = TRUE,
     
+
+    # just here so the reduced form model runs - don't think actually used
+    wtp_value_utility_sd = 0.0001,
+    raw_u_sd_alpha = 3.3, 
+    raw_u_sd_beta = 1.1,
+
     beta_intercept_sd = 0.75,
-    beta_far_effect_sd = 0.35,
-    beta_ink_effect_sd = 0.35,
-    beta_calendar_effect_sd = 0.35,
-    beta_bracelet_effect_sd = 0.35,
+    beta_far_effect_sd = 0.25,
+    beta_ink_effect_sd = 0.25,
+    beta_calendar_effect_sd = 0.25,
+    beta_bracelet_effect_sd = 0.25,
     beta_far_ink_effect_sd = 0.25,
     beta_far_calendar_effect_sd = 0.25, 
     beta_far_bracelet_effect_sd = 0.25,
@@ -255,7 +261,7 @@ models <- lst(
     reduced_beta_county_sd_sd = 0.25,
     reduced_beta_cluster_sd_sd = 0.1,
     
-    iter = 2000,
+    iter = script_options$iter,
     thin = 1,
   ),
 ) %>% 
@@ -440,7 +446,7 @@ stan_data <- lst(
     pull(assigned_treatment) %>% 
     as.integer(),
   
-  roc_distances = seq(0, 2500, 100) / sd(analysis_data$cluster.dist.to.pot),
+  roc_distances = seq(0, 5000, 100) / sd(analysis_data$cluster.dist.to.pot),
   num_roc_distances = length(roc_distances),
   
   sim_delta_w = seq(-2, 2, 0.2),
