@@ -446,7 +446,7 @@ stan_data <- lst(
     pull(assigned_treatment) %>% 
     as.integer(),
   
-  roc_distances = seq(0, 2500, 100) / sd(analysis_data$cluster.dist.to.pot),
+  roc_distances = seq(0, 5000, 100) / sd(analysis_data$cluster.dist.to.pot),
   num_roc_distances = length(roc_distances),
   
   sim_delta_w = seq(-2, 2, 0.2),
