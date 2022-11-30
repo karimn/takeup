@@ -117,7 +117,7 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] structural_beta_cluster = rep_matrix(0, num_clusters, num_dist_group_treatments);
   matrix[num_counties, num_dist_group_treatments] structural_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
  
-  vector<lower = 0>[suppress_reputation ? 0 : num_clusters] obs_cluster_mu_rep;
+  vector[suppress_reputation ? 0 : num_clusters] obs_cluster_mu_rep;
   
   vector[num_clusters] structural_cluster_obs_v = rep_vector(0, num_clusters);
   row_vector<lower = 0, upper = 1>[fit_model_to_data ? num_clusters : 0] structural_cluster_takeup_prob;
@@ -160,6 +160,9 @@ transformed parameters {
       cluster_incentive_treatment_id, cluster_standard_dist, 
       base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
       mu_rep_log);
+  }
+  if (mu_rep_log) {
+    base_mu_rep = 1;
   }
   
   linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments);
