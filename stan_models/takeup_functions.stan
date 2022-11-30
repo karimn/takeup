@@ -69,23 +69,54 @@ matrix param_dist_cost(real dist, matrix linear_dist_cost, matrix quadratic_dist
   return dist * linear_dist_cost + square(dist) * quadratic_dist_cost;
 }
 
+
+// vector calculate_mu_rep_log(array[] int treatment_ids, vector dist,
+//                         matrix design_matrix,
+//                         matrix beta, matrix dist_beta) {
+// }
+
+// matrix calculate_mu_rep_log_deriv(int treatment_id, vector dist,
+//                               matrix design_matrix,
+//                               matrix beta, matrix dist_beta) {
+//   matrix[rows(beta), 2] mu_rep;
+  
+//   mu_rep[, 1] = calculate_mu_rep_log({ treatment_id }, dist, design_matrix, beta, dist_beta);
+
+//   if (rows(design_matrix) == 1) {
+//     mu_rep_lin_pred = (beta * design_matrix[1]') + ((dist_beta * design_matrix[1]') .* dist);
+//   } else {
+//     mu_rep_lin_pred = rows_dot_product(design_matrix, beta) + (rows_dot_product(design_matrix, dist_beta) .* dist);
+//   }
+//   mu_rep[, 2] = rows_dot_product(design_matrix, dist_beta) / mu_rep_lin_pred;
+//   return mu_rep;
+// }
+
 vector calculate_mu_rep(array[] int treatment_ids, vector dist,
                         real base_mu_rep, real mu_beliefs_effect,
                         matrix design_matrix,
-                        matrix beta, matrix dist_beta) {
-  vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[treatment_ids], beta, dist_beta, dist);
-  
-  return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
+                        matrix beta, matrix dist_beta, int use_log) {
+    vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[treatment_ids], beta, dist_beta, dist);
+    if (use_log == 1) {
+      return log(beliefs_latent) ;
+    } else {
+      return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
+    }
 }
 
 matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
                               real base_mu_rep, real mu_beliefs_effect,
                               matrix design_matrix,
-                              matrix beta, matrix dist_beta) {
-  matrix[rows(beta), 2] mu_rep;
+                              matrix beta, matrix dist_beta, int use_log) {
   
-  mu_rep[, 1] = calculate_mu_rep({ treatment_id }, dist, base_mu_rep, mu_beliefs_effect, design_matrix, beta, dist_beta);
-  mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
+  matrix[rows(beta), 2] mu_rep;
+  mu_rep[, 1] = calculate_mu_rep({ treatment_id }, dist, base_mu_rep, mu_beliefs_effect, design_matrix, beta, dist_beta, use_log);
+
+  if (use_log == 1) {
+    mu_rep[, 2] = (dist_beta * design_matrix[treatment_id]')  ./ exp(mu_rep[, 1]);
+    return mu_rep;
+  } else {
+    mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
+  } 
   
   return mu_rep;
 }

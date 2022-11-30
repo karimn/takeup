@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --mu-rep-log]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -34,7 +34,16 @@ Options:
   # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST --output-path=data/stan_analysis_data --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "
+    takeup fit \
+    --cmdstanr \
+    --outputname=test \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS  \
+    --output-path=data/stan_analysis_data \
+    --threads=3 \
+    --mu-rep-log \
+    --iter 800 \
+    --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
@@ -150,6 +159,7 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
+    mu_rep_log = script_options$mu_rep_log,
     use_homoskedastic_shocks = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
@@ -159,6 +169,7 @@ models <- lst(
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
     alg_sol_rel_tol = 0.0000001,
+
 
     # Priors
     mu_rep_sd = 0.25,
@@ -208,6 +219,7 @@ models <- lst(
     generate_sim = FALSE,
     iter = 4000,
     thin = 1,
+    mu_rep_log = script_options$mu_rep_log,
 
     # Priors
     mu_rep_sd = 1,
