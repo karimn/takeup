@@ -708,6 +708,220 @@ calculate_delta <- function(w, total_error_sd, u_sd) {
   return(- r / (F_w * (1 - F_w)))
 } 
 
+ed_ana = function(w, u_sd) {
+  r = (-1/u_sd) * exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * sqrt((u_sd^2)/(1 + u_sd^2))
+  F_w = pnorm(w, sd = sqrt(u_sd^2 + 1))
+  return (-r / (F_w*(1-F_w)))
+}
+
+
+ed_ana_derive = function(w, u_sd) {
+  w_sd = sqrt(1 + u_sd^2)
+  r = (-1/u_sd) *exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * (u_sd^2)/(1 + u_sd^2) +
+    dnorm(w, sd = w_sd)*(1 - 2*pnorm(w, sd = w_sd))*ed_ana(w, u_sd)
+  F_w = pnorm(w, sd = w_sd)
+  return( -r / (F_w * (1 - F_w)))
+}
+library(microbenchmark)
+
+microbenchmark(ed_ana(seq(from = -3, to = 3, by = 0.1), 0.2),
+calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2))
+
+ub = 3
+lb = -3
+bandwidth = 0
+df = expand.grid(
+  w = seq(from = lb - bandwidth, to = ub + bandwidth, 0.1 ),
+  u_sd = seq(from = 0, to = 2,  by = 0.05)
+) %>%
+  as_tibble() %>%
+  rowwise() %>%
+  mutate(
+    delta = calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
+    ed_delta = ed_ana(w, u_sd), 
+    delta_deriv = calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd),
+    ed_delta_deriv = ed_ana_derive(w, u_sd)
+    # Fw = calculate_Fw_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
+    # M_plus = calculate_M_plus(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
+    # M_minus = calculate_M_minus(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
+    # delta_bounded = pmin(calculate_delta_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)), ub)
+  )
+
+df %>%
+  filter(u_sd > 0) %>%
+  ggplot(aes(
+    x = ed_delta_deriv,
+    y = delta_deriv
+  )) +
+  geom_point() +
+  geom_abline()
+
+df %>%
+  filter(u_sd > 0) %>%
+  ggplot(aes(
+    x = ed_delta,
+    y = delta
+  )) +
+  geom_point() +
+  geom_abline()
+
+df %>%
+  filter(u_sd > 0) %>%
+  gather(variable, value, delta, ed_delta) %>%
+  ggplot(aes(
+    x = w, 
+    y = value, 
+    group = interaction(u_sd, variable), 
+    colour = variable
+  )) +
+  geom_line()  +
+  facet_wrap(~variable)
+
+df %>%
+  filter(u_sd > 0) %>%
+  filter(abs(w) < 5) %>%
+  gather(variable, value, delta, ed_delta) %>%
+  ggplot(aes(
+    x = w, 
+    y = value, 
+    group = interaction(u_sd, variable), 
+    colour = variable
+  )) +
+  geom_line()  
+
+
+df %>%
+  # filter(abs(w) < 3 ) %>%
+  group_by(u_sd) %>%
+  filter(u_sd > 0) %>%
+  # filter(!any(M_minus < -20)) %>%
+  ggplot(aes(
+    x = w, 
+    y = delta_bounded, 
+    group = u_sd
+  )) +
+  geom_line() +
+  NULL  +
+  labs(
+    title = "Bounded Rep Returns"
+  ) +
+  geom_hline(yintercept = 3, linetype = "longdash") +
+  theme_bw()
+
+ggsave(
+  "temp-plots/bounded-rep-returns.png",
+  width = 8,
+  height = 6,
+  dpi = 500
+)
+
+
+df %>%
+  # filter(abs(w) < 3 ) %>%
+  group_by(u_sd) %>%
+  filter(u_sd > 0) %>%
+  # filter(!any(M_minus < -20)) %>%
+  ggplot(aes(
+    x = w, 
+    y = M_plus - M_minus, 
+    group = u_sd
+  )) +
+  geom_line() +
+  NULL  +
+  ylim(0, 10) +
+  labs(title = "Attempt 2") +
+  geom_hline(yintercept = 3, linetype = "longdash")
+  # ylim(0, 3.5)
+
+
+
+ed_df = tibble(
+  w = seq(from = 0, to = 10, by = 0.1),
+
+val = ed_func(
+  seq(from = 0, to = 10, by = 0.1),
+  -3,
+  3,
+  0.2
+)
+)
+
+ed_df %>%
+  ggplot(aes(
+    x = w, 
+    y = val
+  )) +
+  geom_point()
+
+calculate_M_plus(seq(from = 0, to = 10, by = 0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
+calculate_M_minus(seq(from = 0, to = -10, by = -0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
+
+calculate_delta_bounded(seq(from = 0, to = -10, by = -0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
+
+
+
+calculate_M_minus = function(w, total_error_sd, u_sd, bounds) {
+  denominator = calculate_Fw_bounded(w, total_error_sd, u_sd, bounds = bounds)
+  numerator = integrate_M_minus_bounded(w, u_sd, bounds[1], bounds[2])
+  # M_minus[numerator == 0] = bounds[2]
+  M_minus = -1*exp(log(-1*numerator) - log(denominator))
+  M_minus[denominator == 0] = bounds[1]
+  M_minus = pmax(M_minus, bounds[1])
+  return(M_minus)
+}
+
+integrate_M_minus_bounded = function(w, u_sd, lb, ub) {
+  M_minus = function(v, w, u_sd) v * pnorm(w - v, sd = u_sd) * dtruncnorm(v, a = lb, b = ub)
+  M_minus_integrator = function(w, u_sd) integrate(M_minus, w = w, u_sd = u_sd, lower = lb, upper = ub, rel.tol = .Machine$double.eps^0.8, stop.on.error = FALSE)$value
+  vec_M_minus_integrator = Vectorize(M_minus_integrator, vectorize.args = c("w", "u_sd"))
+  vec_M_minus_integrator(w, u_sd)
+}
+
+calculate_M_plus = function(w, total_error_sd, u_sd, bounds) {
+  denominator = (1 - calculate_Fw_bounded(w, total_error_sd, u_sd, bounds = bounds))
+  numerator = integrate_M_plus_bounded(w, u_sd, bounds[1], bounds[2])
+  M_plus = exp(log(numerator) - log(denominator))
+  M_plus[numerator == 0] = bounds[2]
+  M_plus[denominator == 0] = bounds[2]
+  M_plus = pmin(M_plus, bounds[2]) 
+  return(M_plus)
+}
+
+calculate_Fw_bounded = function(w, total_error_sd, u_sd, bounds) {
+  lb = bounds[1]
+  ub = bounds[2]
+  conv_part = function(w, t, u_sd) ptruncnorm(w - t, a = lb, b = ub) * dnorm(t, sd = u_sd)
+  conv_part_integrator = function(w, u_sd, k) integrate(conv_part, w = w, u_sd = u_sd, -Inf, Inf, rel.tol = .Machine$double.eps^0.8, stop.on.error = FALSE)$value
+  vec_conv_part_integrator = Vectorize(conv_part_integrator, vectorize.args = c("w", "u_sd"))
+  vec_conv_part_integrator(w, u_sd)
+}
+
+
+integrate_M_plus_bounded = function(w, u_sd, lb, ub) {
+  M_plus = function(v, w, u_sd) v*(1 - pnorm(w - v, sd = u_sd))*dtruncnorm(v, a = lb, b = ub)
+  M_plus_integrator = function(w, u_sd) integrate(M_plus, w = w, u_sd = u_sd, lower = lb, upper = ub, rel.tol = .Machine$double.eps^0.8, stop.on.error = FALSE)$value
+  vec_M_plus_integrator = Vectorize(M_plus_integrator, vectorize.args = c("w", "u_sd"))
+  vec_M_plus_integrator(w, u_sd)
+}
+
+integrate_delta_part_bounded = function(w, u_sd, lb, ub) {
+  delta_part = function(v, w, u_sd) v*pnorm(w - v, sd = u_sd) * dtruncnorm(v, a = lb, b = ub)
+  delta_part_integrator = function(w, u_sd) integrate(delta_part, w = w, u_sd = u_sd, lower = lb,upper =  ub, rel.tol = .Machine$double.eps^0.8)$value
+  vec_delta_part_integrator = Vectorize(delta_part_integrator, vectorize.args = c("w", "u_sd"))
+  vec_delta_part_integrator(w, u_sd)
+}
+
+calculate_delta_bounded = function(w, total_error_sd, u_sd, bounds) {
+  F_w = calculate_Fw_bounded(w, total_error_sd, u_sd, bounds)
+  r = integrate_delta_part_bounded(w, u_sd, bounds[1], bounds[2])
+  bottom = F_w * (1 - F_w)
+  val = -r / bottom
+  new_val = val 
+  new_val[bottom < .Machine$double.eps^0.9] = bounds[2]
+  new_val = pmin(new_val, bounds[2])
+  new_val = pmax(new_val, bounds[1])
+  return(new_val)
+}
 
 generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0) {
   function(v_cutoff) {
