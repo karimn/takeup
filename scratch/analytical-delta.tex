@@ -1,0 +1,203 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\begin{document}
+    
+
+We want to find:
+
+\begin{align*}
+    \Delta^*(b,c) &= \frac{
+        -1
+    }{
+        F_w(w^*(b,c)) [1 - F_w(w^*(b,c))]
+    } \int^\infty_{-\infty} vF_u(w^*(b,c) - v) f_v(v) dv
+\end{align*}
+
+We suppress $w^*(b,c)$ notation and just write $w$. $V \sim N(0, 1), U \sim N(0, \sigma)$ 
+and the two are independent.
+
+
+Ignoring the first fraction:
+
+\begin{align*}
+    &\int vF_u(w^*(b,c) - v) f_v(v) dv \\
+    &= 
+    \int \underbrace{v \phi(v)}_{d(-\phi(v))} \Phi\left(\frac{w-v}{\sigma}\right) dv \\
+    &= \int - \Phi\left(\frac{w-v}{\sigma}\right) d \phi(v) \\
+    &= \left[
+        -\phi(v) \Phi\left(\frac{w-v}{\sigma}\right) 
+    \right]^\infty_{-\infty} - \int \frac{-1}{\sigma}\phi\left(\frac{w - v}{\sigma}\right) (-) \phi(v) dv \ \text{ (Integration by parts)} \\ 
+    &= \left[
+        -\phi(v) \Phi\left(\frac{w-v}{\sigma}\right) 
+    \right]^\infty_{-\infty} -\frac{1}{\sigma} \int \phi\left(\frac{w - v}{\sigma}\right) \phi(v) dv 
+\end{align*}
+
+
+Now focus solely on the remaining integral:
+
+\begin{align*}
+\int \phi\left(\frac{w - v}{\sigma}\right) \phi(v) dv  &= 
+\frac{1}{\sqrt{2\pi}} \frac{1}{\sqrt{2\pi}} 
+\int \exp \left[
+    -\frac{1}{2} 
+    \left(
+        \left(\frac{w - v}{\sigma}\right)^2 +
+        v^2
+    \right)
+\right] dv \\
+&= 
+\frac{1}{\sqrt{2\pi}} \frac{1}{\sqrt{2\pi}} 
+\int \exp \left[
+    -\frac{1}{2} 
+    \left(
+        \left(\frac{w }{\sigma}\right)^2 +
+        \left(\frac{v }{\sigma}\right)^2 
+        -\left(\frac{2wv }{\sigma}\right)^2 +
+        v^2
+    \right)
+\right] dv \\
+&=
+\frac{1}{\sqrt{2\pi}} \frac{1}{\sqrt{2\pi}} 
+ \int \exp \left[
+    -\frac{1}{2} 
+    \left(
+        \left(\frac{w }{\sigma}\right)^2 +
+        v^2 \frac{\sigma^2 + 1}{\sigma^2}  
+        -\left(\frac{2wv }{\sigma}\right)^2 
+    \right)
+\right] dv \\
+&=
+\frac{1}{\sqrt{2\pi}} \frac{1}{\sqrt{2\pi}} 
+ \int \exp \left[
+    -\frac{1}{2} 
+    \left(
+        \left(\frac{w }{\sigma}\right)^2 +
+        \frac{\sigma^2 + 1}{\sigma^2} \left[
+            \left(
+                v - \frac{w}{\sigma^2 + 1}
+            \right)^2 - \frac{w^2}{(\sigma^2 + 1)^2}
+        \right]
+    \right)
+\right] dv \\ &\text{ (Completing  The Square)} \\
+&=
+\frac{1}{\sqrt{2\pi}} \frac{1}{\sqrt{2\pi}} 
+ \int \exp \left[
+    -\frac{1}{2} 
+    \left(
+        \frac{w^2 }{\sigma^2 + 1} +
+        \frac{\sigma^2 + 1}{\sigma^2} 
+            \left(
+                v - \frac{w}{\sigma^2 + 1}
+            \right)^2 
+    \right)
+\right] dv \  \\
+&= 
+\frac{1}{\sqrt{2\pi}} \frac{1}{\sqrt{2\pi}} 
+ \exp \left(
+    -\frac{1}{2} 
+        \frac{w^2 }{\sigma^2 + 1}
+         \right)
+\int \exp\left[
+        \frac{\sigma^2 + 1}{\sigma^2} 
+            \left(
+                v - \frac{w}{\sigma^2 + 1}
+            \right)^2 
+\right] dv \  \\
+\end{align*}
+
+The first exponential term is just a function of $w$ and $\sigma$ 
+whilst the the second term is very nearly a normal pdf:
+
+\begin{align*}
+\frac{1}{\sqrt{2\pi}}
+\int \exp\left[
+        \frac{\sigma^2 + 1}{\sigma^2} 
+            \left(
+                v - \frac{w}{\sigma^2 + 1}
+            \right)^2 
+\right] dv &=  
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    } \times
+\frac{1}{\sqrt{2\pi}} 
+\frac{1}{
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    }
+}
+\int \exp\left[
+        \frac{\sigma^2 + 1}{\sigma^2} 
+            \left(
+                \frac{v - \frac{w}{\sigma^2 + 1}}{
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    }
+                }
+            \right)^2 
+\right] dv  \\
+&= 
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    } 
+\end{align*}
+
+Putting this back together:
+\begin{align*}
+ \left[
+        -\phi(v) \Phi\left(\frac{w-v}{\sigma}\right) 
+    \right]^\infty_{-\infty} &-\frac{1}{\sigma} \int \phi\left(\frac{w - v}{\sigma}\right) \phi(v) dv  
+     \\
+    &=
+ \left[
+        -\phi(v) \Phi\left(\frac{w-v}{\sigma}\right) 
+    \right]^\infty_{-\infty} -
+    \frac{1}{\sigma} \frac{
+        \exp \left[
+            -\frac{1}{2}\frac{w^2}{\sigma^2 + 1}
+        \right]
+    }{\sqrt{2\pi}} \times 
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    }  \\
+&=
+    \frac{-1}{\sigma} \frac{
+        \exp \left[
+            -\frac{1}{2}\frac{w^2}{\sigma^2 + 1}
+        \right]
+    }{\sqrt{2\pi}} \times 
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    }  \\
+\end{align*}
+
+
+Plus the original fraction we ignored:
+
+\begin{align*}
+    \Delta^*(b,c) &= \frac{
+        -1
+    }{
+        F_w(w^*(b,c)) [1 - F_w(w^*(b,c))]
+    } \int^\infty_{-\infty} vF_u(w^*(b,c) - v) f_v(v) dv \\
+     &= 
+\frac{
+        1
+    }{
+        \Phi\left(\frac{w}{\sqrt{\sigma^2 + 1}}\right)
+         \left[1 - \Phi\left(\frac{
+            w
+        }{
+            \sqrt{\sigma^2 + 1}
+        }\right)\right]
+    } \times 
+    \frac{1}{\sigma} \frac{
+        \exp \left[
+            -\frac{1}{2}\frac{w^2}{\sigma^2 + 1}
+        \right]
+    }{\sqrt{2\pi}} \times 
+                    \sqrt{
+                        \frac{\sigma^2}{\sigma^2 + 1}
+                    }  \\
+\end{align*}
+\end{document}
