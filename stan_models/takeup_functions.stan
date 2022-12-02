@@ -134,10 +134,13 @@ real expected_delta_part(real v, real xc, array[] real theta, data array[] real 
 
 real expected_delta(real w, real total_error_sd, real u_sd, data array[] real x_r, data array[] int x_i) {
   real F_w = Phi_approx(w / total_error_sd); 
+  real r;
+
+  r = (-1/u_sd) * exp(-0.5 * (w^2)/(1 + u_sd^2)) * (1/sqrt(2*pi())) * sqrt((u_sd^2)/(1 + u_sd^2));
  
-  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
-  
-  return - delta_part / (F_w * (1 - F_w));
+  // real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+
+  return - r / (F_w * (1 - F_w));
 }
 
 real expected_delta_deriv_part(real v, real xc, array[] real theta, data array[] real x_r, data array[] int x_i) {
@@ -154,9 +157,12 @@ vector expected_delta_deriv(real w, real total_error_sd, real u_sd, data array[]
   real F_w = Phi_approx(w / total_error_sd); 
  
   real delta = expected_delta(w, total_error_sd, u_sd, x_r, x_i);
-  real delta_deriv_part = integrate_1d(expected_delta_deriv_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
-  
-  return [delta, - (delta_deriv_part + delta * (1 - 2 * F_w)) / (F_w * (1 - F_w)) ]';
+  // real delta_deriv_part = integrate_1d(expected_delta_deriv_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+  real Sigma = sqrt((u_sd^2)/(1 + u_sd^2));
+  real mu = w/(u_sd^2 + 1);
+  real H = (1/u_sd) * (1/sqrt(2*pi())) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma;
+   
+  return [delta, - (H*mu + exp(normal_lpdf(w | 0, total_error_sd)) * delta * (1 - 2 * F_w)) / (F_w * (1 - F_w)) ]';
 }
 
 vector v_fixedpoint_solution_normal(vector model_param, vector theta, data array[] real x_r, data array[] int x_i) {

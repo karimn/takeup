@@ -27,7 +27,7 @@ data {
   int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
   int<lower = 0, upper = 1> use_param_dist_county_effects;
 
-  int<lower = 0, upper = 2> mu_rep_log; // Whether to use exponential or log functional form for mu_rep
+  int<lower = 0, upper = 1> mu_rep_log; // Whether to use exponential or log functional form for mu_rep
   
   // Rate of Change
   
