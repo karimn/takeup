@@ -708,155 +708,163 @@ calculate_delta <- function(w, total_error_sd, u_sd) {
   return(- r / (F_w * (1 - F_w)))
 } 
 
-ed_ana = function(w, u_sd) {
+analytical_delta = function(w, u_sd) {
   r = (-1/u_sd) * exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * sqrt((u_sd^2)/(1 + u_sd^2))
   F_w = pnorm(w, sd = sqrt(u_sd^2 + 1))
   return (-r / (F_w*(1-F_w)))
 }
-
-
-ed_ana_derive = function(w, u_sd) {
+analytical_delta_deriv = function(w, u_sd) {
   w_sd = sqrt(1 + u_sd^2)
-  r = (-1/u_sd) *exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * (u_sd^2)/(1 + u_sd^2) +
-    dnorm(w, sd = w_sd)*(1 - 2*pnorm(w, sd = w_sd))*ed_ana(w, u_sd)
+  Sigma = sqrt((u_sd^2)/(1 + u_sd^2))
+  mu = w/(u_sd^2 + 1)
+  H = (1/u_sd) * (1/sqrt(2*pi)) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma
+  r = H*mu +
+    dnorm(w, sd = w_sd)*(1 - 2*pnorm(w, sd = w_sd))*analytical_delta(w, u_sd)
   F_w = pnorm(w, sd = w_sd)
   return( -r / (F_w * (1 - F_w)))
 }
-library(microbenchmark)
+# library(microbenchmark)
 
-microbenchmark(ed_ana(seq(from = -3, to = 3, by = 0.1), 0.2),
-calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2))
+# microbenchmark(
+#   "analytical_delta" = analytical_delta(seq(from = -3, to = 3, by = 0.1), 0.2), 
+#   "numerical_delta" = calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2), 
+#   "analytical_delta_deriv" = analytical_delta_deriv(seq(from = -3, to = 3, by = 0.1), 0.2), 
+#   "numerical_delta_deriv" = calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2)
+# )
+  
+#   ed_ana(seq(from = -3, to = 3, by = 0.1), 0.2),
+# calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2))
+# library(tidyverse)
+# ub = 3
+# lb = -3
+# bandwidth = 0
+# df = expand.grid(
+#   w = seq(from = lb - bandwidth, to = ub + bandwidth, 0.1 ),
+#   u_sd = seq(from = 0, to = 2,  by = 0.05)
+# ) %>%
+#   as_tibble() %>%
+#   rowwise() %>%
+#   mutate(
+#     delta = calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
+#     ed_delta = ed_ana(w, u_sd), 
+#     delta_deriv = calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd),
+#     ed_delta_deriv = ed_ana_derive(w, u_sd)
+#     # Fw = calculate_Fw_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
+#     # M_plus = calculate_M_plus(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
+#     # M_minus = calculate_M_minus(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
+#     # delta_bounded = pmin(calculate_delta_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)), ub)
+#   )
 
-ub = 3
-lb = -3
-bandwidth = 0
-df = expand.grid(
-  w = seq(from = lb - bandwidth, to = ub + bandwidth, 0.1 ),
-  u_sd = seq(from = 0, to = 2,  by = 0.05)
-) %>%
-  as_tibble() %>%
-  rowwise() %>%
-  mutate(
-    delta = calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
-    ed_delta = ed_ana(w, u_sd), 
-    delta_deriv = calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd),
-    ed_delta_deriv = ed_ana_derive(w, u_sd)
-    # Fw = calculate_Fw_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
-    # M_plus = calculate_M_plus(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
-    # M_minus = calculate_M_minus(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
-    # delta_bounded = pmin(calculate_delta_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)), ub)
-  )
+# df %>%
+#   filter(u_sd > 0) %>%
+#   ggplot(aes(
+#     x = ed_delta_deriv,
+#     y = delta_deriv
+#   )) +
+#   geom_point() +
+#   geom_abline()
 
-df %>%
-  filter(u_sd > 0) %>%
-  ggplot(aes(
-    x = ed_delta_deriv,
-    y = delta_deriv
-  )) +
-  geom_point() +
-  geom_abline()
+# df %>%
+#   filter(u_sd > 0) %>%
+#   ggplot(aes(
+#     x = ed_delta,
+#     y = delta
+#   )) +
+#   geom_point() +
+#   geom_abline()
 
-df %>%
-  filter(u_sd > 0) %>%
-  ggplot(aes(
-    x = ed_delta,
-    y = delta
-  )) +
-  geom_point() +
-  geom_abline()
+# df %>%
+#   filter(u_sd > 0) %>%
+#   gather(variable, value, delta, ed_delta) %>%
+#   ggplot(aes(
+#     x = w, 
+#     y = value, 
+#     group = interaction(u_sd, variable), 
+#     colour = variable
+#   )) +
+#   geom_line()  +
+#   facet_wrap(~variable)
 
-df %>%
-  filter(u_sd > 0) %>%
-  gather(variable, value, delta, ed_delta) %>%
-  ggplot(aes(
-    x = w, 
-    y = value, 
-    group = interaction(u_sd, variable), 
-    colour = variable
-  )) +
-  geom_line()  +
-  facet_wrap(~variable)
-
-df %>%
-  filter(u_sd > 0) %>%
-  filter(abs(w) < 5) %>%
-  gather(variable, value, delta, ed_delta) %>%
-  ggplot(aes(
-    x = w, 
-    y = value, 
-    group = interaction(u_sd, variable), 
-    colour = variable
-  )) +
-  geom_line()  
-
-
-df %>%
-  # filter(abs(w) < 3 ) %>%
-  group_by(u_sd) %>%
-  filter(u_sd > 0) %>%
-  # filter(!any(M_minus < -20)) %>%
-  ggplot(aes(
-    x = w, 
-    y = delta_bounded, 
-    group = u_sd
-  )) +
-  geom_line() +
-  NULL  +
-  labs(
-    title = "Bounded Rep Returns"
-  ) +
-  geom_hline(yintercept = 3, linetype = "longdash") +
-  theme_bw()
-
-ggsave(
-  "temp-plots/bounded-rep-returns.png",
-  width = 8,
-  height = 6,
-  dpi = 500
-)
+# df %>%
+#   filter(u_sd > 0) %>%
+#   filter(abs(w) < 5) %>%
+#   gather(variable, value, delta, ed_delta) %>%
+#   ggplot(aes(
+#     x = w, 
+#     y = value, 
+#     group = interaction(u_sd, variable), 
+#     colour = variable
+#   )) +
+#   geom_line()  
 
 
-df %>%
-  # filter(abs(w) < 3 ) %>%
-  group_by(u_sd) %>%
-  filter(u_sd > 0) %>%
-  # filter(!any(M_minus < -20)) %>%
-  ggplot(aes(
-    x = w, 
-    y = M_plus - M_minus, 
-    group = u_sd
-  )) +
-  geom_line() +
-  NULL  +
-  ylim(0, 10) +
-  labs(title = "Attempt 2") +
-  geom_hline(yintercept = 3, linetype = "longdash")
-  # ylim(0, 3.5)
+# df %>%
+#   # filter(abs(w) < 3 ) %>%
+#   group_by(u_sd) %>%
+#   filter(u_sd > 0) %>%
+#   # filter(!any(M_minus < -20)) %>%
+#   ggplot(aes(
+#     x = w, 
+#     y = delta_bounded, 
+#     group = u_sd
+#   )) +
+#   geom_line() +
+#   NULL  +
+#   labs(
+#     title = "Bounded Rep Returns"
+#   ) +
+#   geom_hline(yintercept = 3, linetype = "longdash") +
+#   theme_bw()
+
+# ggsave(
+#   "temp-plots/bounded-rep-returns.png",
+#   width = 8,
+#   height = 6,
+#   dpi = 500
+# )
+
+
+# df %>%
+#   # filter(abs(w) < 3 ) %>%
+#   group_by(u_sd) %>%
+#   filter(u_sd > 0) %>%
+#   # filter(!any(M_minus < -20)) %>%
+#   ggplot(aes(
+#     x = w, 
+#     y = M_plus - M_minus, 
+#     group = u_sd
+#   )) +
+#   geom_line() +
+#   NULL  +
+#   ylim(0, 10) +
+#   labs(title = "Attempt 2") +
+#   geom_hline(yintercept = 3, linetype = "longdash")
+#   # ylim(0, 3.5)
 
 
 
-ed_df = tibble(
-  w = seq(from = 0, to = 10, by = 0.1),
+# ed_df = tibble(
+#   w = seq(from = 0, to = 10, by = 0.1),
 
-val = ed_func(
-  seq(from = 0, to = 10, by = 0.1),
-  -3,
-  3,
-  0.2
-)
-)
+# val = ed_func(
+#   seq(from = 0, to = 10, by = 0.1),
+#   -3,
+#   3,
+#   0.2
+# )
+# )
 
-ed_df %>%
-  ggplot(aes(
-    x = w, 
-    y = val
-  )) +
-  geom_point()
+# ed_df %>%
+#   ggplot(aes(
+#     x = w, 
+#     y = val
+#   )) +
+#   geom_point()
 
-calculate_M_plus(seq(from = 0, to = 10, by = 0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
-calculate_M_minus(seq(from = 0, to = -10, by = -0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
+# calculate_M_plus(seq(from = 0, to = 10, by = 0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
+# calculate_M_minus(seq(from = 0, to = -10, by = -0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
 
-calculate_delta_bounded(seq(from = 0, to = -10, by = -0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
+# calculate_delta_bounded(seq(from = 0, to = -10, by = -0.1), sqrt(1 + 0.2), 0.2, c(-3, 3))
 
 
 
