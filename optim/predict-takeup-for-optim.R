@@ -19,15 +19,19 @@ script_options = docopt::docopt(
         --rep-cutoff=<rep-cutoff>  Don't let reputational returns increase past this point. [default: 2500]
         --num-post-draws=<num-post-draws>  Number of posterior draws to use [default: 1600]
         --num-cores=<num-cores>  Number of cores to use [default: 8]
+        --type-lb=<type-lb>  Lower bound of type distribution [default: -Inf]
+        --type-ub=<type-ub>  Upper bound of type distribution [default: Inf]
     "),
     args = if (interactive()) "
-                            66 
+                            71
                             --output-name=rep
                             --from-csv
                             --num-post-draws=80
-                            --rep-cutoff=2500
-                            --dist-cutoff=5000
+                            --rep-cutoff=Inf
+                            --dist-cutoff=Inf
                             --num-cores=12
+                            --type-lb=-3
+                            --type-ub=3
                             bracelet
                             control
                               " 
@@ -59,13 +63,18 @@ source(file.path( "dist_structural_util.R"))
 
 
 source(file.path("multilvlr", "multilvlr_util.R"))
+source(file.path("stan_models", "stan_owen_t.R"))
 
 script_options = script_options %>%
     modify_at(c("dist_cutoff", 
                 "rep_cutoff",
                 "num_post_draws", 
-                "num_cores"), as.numeric)
+                "num_cores",
+                "type_lb",
+                "type_ub"), as.numeric)
 fit_version = script_options$fit_version
+
+script_options$bounds = c(script_options$type_lb, script_options$type_ub)
 
 models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS"
@@ -267,7 +276,7 @@ calculate_mu_rep = function(dist,
 #'  Given net benefit b, visibility \mu, total error sd and u_sd  we calculate
 #' the cutoff type.
 #' 
-find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
+find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
     dim_distance = length(distance)
     n_iters = 5
 
@@ -287,7 +296,11 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
         byrow = TRUE )
     # Take median from nleqslv with 10 different starting points
     v_star = apply(soln_matrix, 2, median)
-    delta_v_star = calculate_delta(v_star, total_error_sd, u_sd)
+    if (any(!is.finite(bounds))) {
+        delta_v_star = analytical_delta_bounded(v_star, u_sd, bounds)
+    } else {
+        delta_v_star = analytical_delta(v_star, u_sd)
+    }
     return(lst(
         v_star,
         delta_v_star
@@ -308,6 +321,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
 #'  distance for our prediction exercise.
 #' @param mu_beta_z_control The coefficient on mu_beta in the control arm - needed to 
 #'  renormalise \mu(z,d) given \mu_0 exp(.) setup.
+#' @param bounds Bounds on type distribution of v
 .find_pred_takeup = function(beta_b_z, 
                              beta_b_d,
                              mu_beta_z, 
@@ -317,7 +331,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
                              u_sd, 
                              dist_sd, 
                              mu_beta_z_control,
-                             rep_cutoff = Inf) {
+                             rep_cutoff = Inf,
+                             bounds) {
     function(distance){
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
@@ -344,7 +359,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd){
             b = b,
             mu_rep = mu_rep,
             total_error_sd = total_error_sd,
-            u_sd = u_sd
+            u_sd = u_sd,
+            bounds = bounds
         )
         delta_v_star = v_star_soln$delta_v_star
         v_star = v_star_soln$v_star
@@ -366,7 +382,8 @@ find_pred_takeup = function(params) {
         u_sd = params$u_sd,
         dist_sd = params$dist_sd,
         mu_beta_z_control = params$mu_beta_z_control,
-        rep_cutoff = params$rep_cutoff
+        rep_cutoff = params$rep_cutoff,
+        bounds = params$bounds
     )
 }
 
@@ -377,7 +394,8 @@ extract_params = function(param_draws,
                           j_id, 
                           dist_sd,
                           dist_cutoff = Inf,
-                          rep_cutoff = Inf) {
+                          rep_cutoff = Inf, 
+                          bounds = c(-Inf, Inf)) {
 
     treatments = c(
         "control",
@@ -403,7 +421,8 @@ extract_params = function(param_draws,
         "mu_beta_z_control" = mu_beta_z_control, 
         "dist_sd" = dist_sd,
         "dist_cutoff" = dist_cutoff,
-        "rep_cutoff" = rep_cutoff
+        "rep_cutoff" = rep_cutoff,
+        "bounds" = bounds
         ) %>%
         as.list()
 
