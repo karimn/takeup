@@ -3,17 +3,48 @@ source("dist_structural_util.R")
 library(microbenchmark)
 library(truncnorm)
 library(testthat)
+library(rstan)
 
-analytical_delta(3, 0.1) 
-analytical_delta_bounded(3, 0.1, bounds = c(-1000, 1000))
-analytical_delta_bounded(3, 0.1, bounds = c(-Inf, Inf))
+
+stan_owen_t_code <-
+  '
+  functions {
+    vector stan_owen_t(vector x, vector y) {
+      return owens_t(x, y);
+   }
+  }
+'
+expose_stan_functions(stanc(model_code = stan_owen_t_code))
+
+
+test_that("Delta Equal at limits", {
+  ad = analytical_delta(3, 0.1)
+  ad_below = analytical_delta_bounded(3, 0.1, bounds = c(-3, 3))
+  ad_b = analytical_delta_bounded(3, 0.1, bounds = c(-10000, 10000))
+
+  ad_b_inf = analytical_delta_bounded(3, 0.1, bounds = c(-Inf, Inf))
+
+
+  expect_equal(
+    ad, ad_b
+  )
+
+  expect_equal(
+    ad,
+    ad_b_inf
+  )
+
+  expect_lte(ad_below, 3)
+
+})
+
 
 
 ub = 3
 lb = -3
-bandwidth = 1
+bandwidth = 5
 df = expand.grid(
-  w = seq(from = lb - bandwidth, to = ub + bandwidth, 0.1 ),
+  w = seq(from = lb - bandwidth, to = ub + bandwidth, length.out = 500 ),
   u_sd = seq(from = 0.1, to = 2,  by = 0.05)
 ) %>%
   as_tibble() %>%
@@ -22,15 +53,19 @@ df = expand.grid(
     delta = calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
     analytical_delta = analytical_delta(w, u_sd), 
     delta_deriv = calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd),
-    analytical_delta_deriv = analytical_delta_deriv(w, u_sd),
+    analytical_delta_deriv = analytical_delta_deriv(w, u_sd, delta_w = analytical_delta),
     delta_bounded = calculate_delta_bounded(w, sqrt(1 + u_sd^2), u_sd, bounds = c(lb, ub)),
-    analytical_delta_bounded = analytical_delta_bounded(w, u_sd, bounds = c(lb, ub))
+    analytical_delta_bounded = analytical_delta_bounded(w, u_sd, bounds = c(lb, ub)),
+    analytical_delta_deriv_bounded = analytical_delta_deriv_bounded(w, u_sd, bounds = c(lb, ub), delta_w = analytical_delta_bounded),
+    analytical_conv_Fw = analytical_conv_Fw(w, u_sd, bounds = c(lb, ub))
   )
+
+
 
 
 comp_df = df %>%
   pivot_longer(
-    delta:analytical_delta_bounded
+    delta:analytical_delta_deriv_bounded
   ) %>%
   mutate(
     type = if_else(str_detect(name, "analytical_"), "analytical", "numerical"), 
@@ -38,9 +73,10 @@ comp_df = df %>%
   ) %>%
   spread(type, value)
 
-make_plot = FALSE
+make_plot = TRUE
 if (make_plot == TRUE) {
   p_comp_plot = comp_df %>%
+    filter(name != "delta_deriv_bounded") %>%
     ggplot(aes(
       x = numerical, 
       y = analytical, 
@@ -61,10 +97,35 @@ if (make_plot == TRUE) {
     height = 6,
     dpi = 500
   )
+
+  comp_df %>%
+    gather(variable, value, analytical, numerical ) %>%
+    filter(name == "delta_deriv_bounded") %>%
+    ggplot(aes(
+      x = w, 
+      y = pmin(value, 3), 
+      colour = variable, 
+      group = u_sd
+    )) +
+    facet_wrap(~variable) + 
+    geom_line() 
+  comp_df %>%
+    gather(variable, value, analytical, numerical ) %>%
+    filter(name == "delta_bounded") %>%
+    ggplot(aes(
+      x = w, 
+      y = pmin(value, 3), 
+      colour = variable, 
+      group = u_sd
+    )) +
+    facet_wrap(~variable) + 
+    geom_line() 
+
 }
 
 
 summ_comp_df = comp_df %>%
+  filter(name != "delta_deriv_bounded") %>%
   mutate(
     diff = analytical - numerical
   ) %>%
@@ -98,10 +159,13 @@ if (benchmark == TRUE) {
     "numerical_delta" = calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2), 
     "analytical_delta_deriv" = analytical_delta_deriv(seq(from = -3, to = 3, by = 0.1), 0.2), 
     "numerical_delta_deriv" = calculate_delta(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2),
-    "analytical_delta_bounded_vec" = 
+    "analytical_delta_bounded" = 
         analytical_delta_bounded(seq(from = -3, to = 3, by = 0.1),
           0.2, c(-3, 3)),
-    "numerical_delta_bounded" = calculate_delta_bounded(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2, c(-3, 3))
+    "numerical_delta_bounded" = calculate_delta_bounded(seq(from = -3, to = 3, by = 0.1), sqrt(1 + 0.2^2), 0.2, c(-3, 3)),
+    "analytical_delta_deriv_bounded" = 
+        analytical_delta_deriv_bounded(seq(from = -3, to = 3, by = 0.1),
+          0.2, c(-3, 3))
   )
 
   benchmark_results

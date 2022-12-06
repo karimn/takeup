@@ -711,15 +711,19 @@ calculate_delta <- function(w, total_error_sd, u_sd) {
 analytical_delta = function(w, u_sd) {
   r = (-1/u_sd) * exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * sqrt((u_sd^2)/(1 + u_sd^2))
   F_w = pnorm(w, sd = sqrt(u_sd^2 + 1))
+  val = -r / (F_w * (1 - F_w))
   return (-r / (F_w*(1-F_w)))
 }
-analytical_delta_deriv = function(w, u_sd) {
+analytical_delta_deriv = function(w, u_sd, delta_w = NULL) {
   w_sd = sqrt(1 + u_sd^2)
   Sigma = sqrt((u_sd^2)/(1 + u_sd^2))
   mu = w/(u_sd^2 + 1)
   H = (1/u_sd) * (1/sqrt(2*pi)) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma
+  if (is.null(delta_w)) {
+    delta_w = analytical_delta(w, u_sd)
+  } 
   r = H*mu +
-    dnorm(w, sd = w_sd)*(1 - 2*pnorm(w, sd = w_sd))*analytical_delta(w, u_sd)
+    dnorm(w, sd = w_sd)*(1 - 2*pnorm(w, sd = w_sd))*delta_w
   F_w = pnorm(w, sd = w_sd)
   return( -r / (F_w * (1 - F_w)))
 }
@@ -734,9 +738,10 @@ analytical_delta_bounded = function(w, u_sd, bounds) {
   F_bound_diff = pnorm(ub) - pnorm(lb)
 
   # vec_M_minus_integrator = Vectorize(M_minus_integrator, vectorize.args = c("w", "u_sd"))
-  vec_F_w = Vectorize(analytical_conv_Fw, vectorize.args = c("z", "u_sd"))
-  # F_w = analytical_conv_Fw(w, u_sd, bounds)
-  F_w = vec_F_w(w, u_sd, bounds)
+  # vec_F_w = Vectorize(analytical_conv_Fw, vectorize.args = c("z", "u_sd"))
+  F_w = analytical_conv_Fw(w, u_sd, bounds)
+  
+  # F_w = anal(w, u_sd, bounds)
 
   integration_normalisation = (1/u_sd) * exp(-0.5 * (w^2) / (1 + u_sd^2))*(1/sqrt(2*pi)) * Sigma
 
@@ -745,9 +750,53 @@ analytical_delta_bounded = function(w, u_sd, bounds) {
   phi_diff_2 = pnorm(ub - (w/(u_sd^2 + 1)), sd = Sigma) - pnorm(lb - (w/(u_sd^2 + 1)), sd = Sigma)
 
   val = (-1/(F_w * (1 - F_w))) *(1/F_bound_diff) * ( phi_diff_1 - integration_normalisation *  phi_diff_2 )
+
+  # if we're dividing by something smaller than machine precision we must be in 
+  # the tails so just set to max delta possible
+  val[F_w*(1-F_w) < .Machine$double.eps] = ub
   return(val)
 }
 
+
+analytical_delta_deriv_bounded = function(w, u_sd, bounds, delta_w = NULL) {
+
+  w_sd = sqrt(1 + u_sd^2)
+  lb = bounds[1]
+  ub = bounds[2]
+  Sigma = u_sd/w_sd
+  F_bound_diff = pnorm(ub) - pnorm(lb)
+
+  mu = w/(u_sd^2 + 1)
+  H = (1/u_sd) * (1/sqrt(2*pi)) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma
+
+  y_ub = (ub - mu)/Sigma
+  y_lb = (lb - mu)/Sigma
+
+  first_bit = (1/F_bound_diff) * H * ( Sigma * (-dnorm(y_ub) + dnorm(y_lb)) + mu * (pnorm(y_ub) - pnorm(y_lb)) )
+
+  F_w = analytical_conv_Fw(w, u_sd, bounds)
+
+  alpha = (u_sd^2 * w)/(u_sd^2 + 1)
+  beta = Sigma
+
+  c = -ub
+  d = -lb
+
+  gamma = sqrt(2*pi)*beta / (2*pi*u_sd*(pnorm(d) - pnorm(c)))
+
+  f_w = gamma * exp(-0.5 * (w^2)/(u_sd^2 + 1)) * (pnorm((w - lb - alpha)/beta) - pnorm((w - ub - alpha)/beta))
+
+  if (is.null(delta_w)) {
+    delta_w = analytical_delta_bounded(w, u_sd, bounds)
+  }
+
+  val = (first_bit + f_w * (1 - 2*F_w)*delta_w) / (F_w * (1 - F_w))
+
+  val[F_w*(1-F_w) < .Machine$double.eps] = 0
+
+  return(-val)
+
+}
 
 
 #https://math.stackexchange.com/questions/433204/definite-integral-of-a-product-of-normal-pdf-and-cdf 
@@ -760,33 +809,30 @@ analytical_conv_Fw_part = function(mu, sigma, h, l){
   mu_by_z_h = mu/z_h
   mu_by_z_l = mu/z_l
 
-  if (is.finite(z_h)) {
-    T_z_h = -1 * PowerTOST::OwensT(z_h, h/z_h) 
-  } else {
-    T_z_h = 0
-    mu_by_z_h = sign(mu)*sign(z_h)
-  }
 
+  
+  T_z_h = -1 * stan_owen_t(z_h, h/z_h) 
+  T_z_l = stan_owen_t(z_l, l/z_l) 
+  
+  infinite_z_h = !is.finite(z_h)
+  infinite_z_l = !is.finite(z_l)
+  mu_is_0 = (mu == 0)
 
-  if (is.finite(z_l)) {
-    T_z_l = PowerTOST::OwensT(z_l, l/z_l) 
-  } else {
-    T_z_l = 0
-    mu_by_z_l = sign(mu)*sign(z_l)
-  }
+  mu_by_z_h[infinite_z_h] = sign(mu[infinite_z_h])*sign(z_h[infinite_z_h])
+  mu_by_z_l[infinite_z_l] = sign(mu[infinite_z_l])*sign(z_l[infinite_z_l])
+  mu_by_z_h[mu_is_0] = sign(z_h[mu_is_0])
+  mu_by_z_l[mu_is_0] = sign(z_l[mu_is_0])
 
-  if (mu == 0) {
-    mu_by_z_h = sign(z_h)
-    mu_by_z_l = sign(z_l)
-  }
+  T_z_h[infinite_z_h & !is.finite(h)] =  0
+  T_z_l[infinite_z_l & !is.finite(l)] =  0
 
   val = 0.5 * (pnorm(z_h) - pnorm(z_l)) +
     -0.5*(mu_by_z_h < 0) +
     0.5*(mu_by_z_l < 0) +
     T_z_h +
     T_z_l +
-    -1 * PowerTOST::OwensT(mu/rho, (mu*sigma + z_h*rho^2)/mu) +
-    PowerTOST::OwensT(mu/rho, (mu*sigma + z_l*rho^2)/mu) 
+    -1 * stan_owen_t(mu/rho, (mu*sigma + z_h*rho^2)/mu) +
+    stan_owen_t(mu/rho, (mu*sigma + z_l*rho^2)/mu) 
   return(val)
 }
 
