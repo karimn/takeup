@@ -2,8 +2,10 @@
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \begin{document}
-    
-\section*{$\Delta^*(b,c)$ Derivation}
+
+\section*{Unbounded Type}
+
+\subsection*{$\Delta^*(b,c)$ Derivation}
 We want to find:
 
 \begin{align*}
@@ -203,7 +205,7 @@ Plus the original fraction we ignored:
                     }  \\
 \end{align*}
 
-\section*{$\Delta'^*(b,c)$ Derivation}
+\subsection*{$\Delta'^*(b,c)$ Derivation}
 
 
 \begin{align*}
@@ -285,5 +287,83 @@ Plugging this back into the formula:
    } \\
 \end{align*}
 
+\section*{Bounded Type}
+
+Now we go back and bound types between $\underline{v}, \overline{v}$. There are 
+three things we need to do here: keep any terms that dropped out due to integration 
+limits being infinite before, replace the normal pdf with the truncated normal pdf
+for $V$, and calculate the convolution of $W\sim V + U$ when $V$ is truncated normal.
+
+
+\subsection*{$\Delta^*(w)$ Derivation}
+
+\begin{align*}
+    \Delta^*(w) &= \frac{-1}{F_w(w)(1 - F_w(w))} \frac{1}{\Phi(\overline{v}) - \Phi(\underline{v})} \times \left(
+        \left[ -\phi(v)\Phi\left(\frac{w - v}{\sigma}\right)\right]^{\overline{v}}_{\underline{v}} 
+        - \Gamma \left[
+            \Phi\left(
+                \frac{v - \frac{w}{\sigma^2 + 1}}{\frac{\sigma}{\sqrt{ \sigma^2 + 1}}}
+            \right)
+        \right]^{\overline{v}}_{\underline{v}}
+    \right)
+\end{align*}
+
+Where:
+\begin{align*}
+    \Gamma &= \frac{1}{\sigma}\exp\left(
+        -\frac{1}{2} \frac{w^2}{1 + \sigma^2}
+    \right) \times \sqrt{\frac{\sigma^2}{\sigma^2 + 1}}
+\end{align*}
+
+and:
+\begin{align*}
+    F_w(w) = \int^{\overline{v}}_{\underline{v}} \Phi \left(
+        \frac{w - t}{\sigma}
+    \right) \frac{\phi(t)}{\Phi(\overline{v}) - \Phi(\underline{v})} dt  \\
+    (\Phi(\overline{v}) - \Phi(\underline{v}))F_w(w) = \int^{\overline{v}}_{\underline{v}} \Phi \left(
+        \frac{w - t}{\sigma}
+    \right) \phi(t) dt 
+\end{align*}
+
+That is, the convolution of two independent r.v.s. After a lot of math it can be shown that the RHS:
+
+
+\textbf{Note: We swap notation here because Ed is an idiot and came back to the 
+bounded case after the unbounded case.}
+Now: $U \sim N(0, \gamma), \mu = \gamma^{-1}z, \sigma = -\gamma^{-1}, \rho = \sqrt{1 + \sigma^2}, z_l = \frac{l - \mu}{\sigma}, z_h = \frac{h-\mu}{\sigma}, 
+h = \frac{z - \overline{v}}{\gamma}, l = \frac{z - \underline{v}}{\gamma}$
+
+\begin{align*}
+    RHS &= \frac{1}{2} \left(
+        \Phi(z_h) - \Phi(z_l)
+    \right)  \\
+    &- \frac{1}{2} \left[
+        \frac{\mu}{z_h} < 0
+    \right] \\
+    &+ \frac{1}{2} \left[
+        \frac{\mu}{z_l} < 0
+    \right] \\
+    &- T\left(z_h, \frac{h}{z_h}\right) \\
+    &+ T\left(z_l, \frac{l}{z_l}\right) \\
+    &- T\left(\frac{\mu}{\rho}, \frac{
+        \mu\sigma + z_h \rho^2
+    }{
+        \mu
+    }\right) \\
+    &+ T\left(\frac{\mu}{\rho}, \frac{
+        \mu\sigma + z_l \rho^2
+    }{
+        \mu
+    }\right) \\
+\end{align*}
+
+We do the above because we need to perform change of variables so that we have:
+
+\begin{align*}
+    \int^h_l \Phi(x)\frac{1}{\sigma} \phi(\frac{x - \mu}{\sigma})dx
+\end{align*}
+
+So everything looks weird to transform the $\Phi(...)$ term into $\Phi(x)$ and we 
+can use the known result above. $T$ stands for Owen's T.
 
 \end{document}
