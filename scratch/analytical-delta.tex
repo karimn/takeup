@@ -231,7 +231,58 @@ Plus the original fraction we ignored:
 Focusing on the integral and recognising we've derived this above:
 
 \begin{align*}
-    \int^\infty_{-\infty} v \frac{1}{\sigma}\phi\left(\frac{w - v}{\sigma}\right) \phi(v) dv 
+    \int^\infty_{-\infty} v \frac{1}{\sigma}\phi\left(\frac{w - v}{\sigma}\right) \phi(v) dv \\ &=
+    \frac{1}{\sigma} \frac{\exp\left(-\frac{1}{2}\frac{w^2}{\sigma^2 + 1}\right)}{
+        \sqrt{2\pi}
+    }
+    \Sigma \times 
+    \frac{1}{\sqrt{2\pi}}\frac{1}{\Sigma} \int^\infty_{-\infty}
+    v \exp\left(
+        -\frac{1}{2}
+        \left(\frac{v - \mu}{\Sigma}\right)^2
+    \right) dv
+\end{align*}
+
+Where $\mu = \frac{w}{\sigma^2 + 1}, \Sigma = \sqrt{\frac{\sigma^2}{\sigma^2 + 1}}$.
+
+Define:
+\begin{align*}
+    H = \frac{1}{\sigma} \frac{
+        \exp\left( 
+            -\frac{1}{2}\frac{w^2}{\sigma^2 + 1}
+        \right)\Sigma
+    }{\sqrt{2\pi}}
+\end{align*}
+Now perform change of variables:
+\begin{align*}
+    \frac{v - \mu}{\Sigma} &= y \\
+    dy = dv \frac{1}{\Sigma}
+\end{align*}
+
+Giving:
+\begin{align*}
+    H \frac{1}{\sqrt{2\pi}} \frac{\Sigma}{\Sigma} \int^\infty_{-\infty} \left(
+        \Sigma y + \mu
+    \right)\exp\left(-\frac{1}{2}y^2\right) dy &= 
+H\Sigma \left[
+    -\phi(y)
+\right]^\infty_{-\infty} + H\mu \\
+&= H\mu
+\end{align*}
+
+
+Plugging this back into the formula:
+
+\begin{align*}
+   \Delta'[w] &= 
+   \frac{
+    H\mu
+    + \frac{1}{\sqrt{1 + \sigma^2}}\phi\left(\frac{w}{\sqrt{1 + \sigma^2}}\right) \left[
+        1 - 2 \Phi(\frac{w}{\sqrt{1 + \sigma^2}})
+    \right] \Delta[w]
+   }{
+    \Phi\left(\frac{w}{\sqrt{1 + \sigma^2}}\right)\left(1 - \Phi\left(\frac{1}{\sqrt{1 + \sigma^2}}\right)\right)
+   } \\
 \end{align*}
 
 
