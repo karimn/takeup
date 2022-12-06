@@ -726,26 +726,84 @@ analytical_delta_deriv = function(w, u_sd) {
 
 
 analytical_delta_bounded = function(w, u_sd, bounds) {
-  total_error_sd = sqrt(1 + u_sd^2)
-  ub = bounds[2]
+  w_sd = sqrt(1 + u_sd^2)
   lb = bounds[1]
+  ub = bounds[2]
+  Sigma = u_sd/w_sd
 
   F_bound_diff = pnorm(ub) - pnorm(lb)
-  F_w = pnorm(w, sd = total_error_sd)
-  Sigma = sqrt((u_sd^2)/(u_sd^2 + 1))
 
+  # vec_M_minus_integrator = Vectorize(M_minus_integrator, vectorize.args = c("w", "u_sd"))
+  vec_F_w = Vectorize(analytical_conv_Fw, vectorize.args = c("z", "u_sd"))
+  # F_w = analytical_conv_Fw(w, u_sd, bounds)
+  F_w = vec_F_w(w, u_sd, bounds)
 
-  integration_normalisation = (1/u_sd) * exp(-0.5 * (w^2) / (1 + u_sd^2))*(1/sqrt(2*pi)) 
-  
-  phi_diff_1 = (-dnorm(ub)*pnorm((w - ub)/u_sd)) - (-dnorm(lb)*pnorm(w - lb)/u_sd)
+  integration_normalisation = (1/u_sd) * exp(-0.5 * (w^2) / (1 + u_sd^2))*(1/sqrt(2*pi)) * Sigma
+
+  phi_diff_1 = (-dnorm(ub)*pnorm((w - ub)/u_sd)) - (-dnorm(lb)*pnorm((w - lb)/u_sd))
 
   phi_diff_2 = pnorm(ub - (w/(u_sd^2 + 1)), sd = Sigma) - pnorm(lb - (w/(u_sd^2 + 1)), sd = Sigma)
 
-  val = (-1/(F_w * (1 - F_w))) *(1/F_bound_diff) * ( phi_diff_1 - integration_normalisation *  phi_diff_2  )
+  val = (-1/(F_w * (1 - F_w))) *(1/F_bound_diff) * ( phi_diff_1 - integration_normalisation *  phi_diff_2 )
   return(val)
 }
 
 
+
+#https://math.stackexchange.com/questions/433204/definite-integral-of-a-product-of-normal-pdf-and-cdf 
+analytical_conv_Fw_part = function(mu, sigma, h, l){
+  z_h = (h - mu)/sigma
+  z_l = (l - mu)/sigma
+  rho = sqrt(1 + sigma^2)
+  
+  # because 1/(-Inf) returns 0 we need to track sign
+  mu_by_z_h = mu/z_h
+  mu_by_z_l = mu/z_l
+
+  if (is.finite(z_h)) {
+    T_z_h = -1 * PowerTOST::OwensT(z_h, h/z_h) 
+  } else {
+    T_z_h = 0
+    mu_by_z_h = sign(mu)*sign(z_h)
+  }
+
+
+  if (is.finite(z_l)) {
+    T_z_l = PowerTOST::OwensT(z_l, l/z_l) 
+  } else {
+    T_z_l = 0
+    mu_by_z_l = sign(mu)*sign(z_l)
+  }
+
+  if (mu == 0) {
+    mu_by_z_h = sign(z_h)
+    mu_by_z_l = sign(z_l)
+  }
+
+  val = 0.5 * (pnorm(z_h) - pnorm(z_l)) +
+    -0.5*(mu_by_z_h < 0) +
+    0.5*(mu_by_z_l < 0) +
+    T_z_h +
+    T_z_l +
+    -1 * PowerTOST::OwensT(mu/rho, (mu*sigma + z_h*rho^2)/mu) +
+    PowerTOST::OwensT(mu/rho, (mu*sigma + z_l*rho^2)/mu) 
+  return(val)
+}
+
+analytical_conv_Fw = function(z, u_sd, bounds) {
+  lb = bounds[1]
+  ub = bounds[2]
+  gamma = u_sd
+  mu = z/gamma
+  sigma = (-1)/gamma
+
+  x_h = (z - ub)/gamma
+  x_l = (z - lb)/gamma
+  F_w_part = analytical_conv_Fw_part(mu = mu, sigma = sigma, h = x_h, l = x_l)
+
+  val = F_w_part/(pnorm(ub) - pnorm(lb))
+  return(val)
+}
 
 
 calculate_M_minus = function(w, total_error_sd, u_sd, bounds) {
