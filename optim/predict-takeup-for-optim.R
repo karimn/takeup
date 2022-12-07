@@ -34,7 +34,7 @@ script_options = docopt::docopt(
                             --num-cores=12
                             --type-lb=-3
                             --type-ub=3
-                            --model=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP
+                            --model=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP
                             --pred-distance
                             bracelet
                             control
@@ -79,6 +79,14 @@ script_options = script_options %>%
 fit_version = script_options$fit_version
 
 script_options$bounds = c(script_options$type_lb, script_options$type_ub)
+
+mu_rep_type = switch(
+    script_options$model,
+    STRUCTURAL_LINEAR_U_SHOCKS = 0,
+    STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = 1,
+    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = 2
+)
+
 
 models_we_want = c(
     script_options$model
@@ -291,13 +299,16 @@ calculate_mu_rep = function(dist,
                             beta, 
                             dist_beta, 
                             beta_control,
-                            use_log = FALSE) {
+                            mu_rep_type = 0) {
     beliefs_latent = calculate_belief_latent_predictor(beta = beta, dist_beta = dist_beta, dist = dist)
-    if (use_log == TRUE) {
+    if (mu_rep_type == 1) { # log
         beliefs_latent = pmax(min(beliefs_latent[beliefs_latent > 0]), beliefs_latent)
         return(log(beliefs_latent))
+    } else if (mu_rep_type == 2) { # linear
+        return(beliefs_latent)
+    } else {
+        mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
     }
-    mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
     return(mu_rep)
 }
 
@@ -382,7 +393,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              mu_beta_z_control,
                              rep_cutoff = Inf,
                              bounds,
-                             use_log) {
+                             mu_rep_type) {
     function(distance){
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
@@ -394,7 +405,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             beta = mu_beta_z,
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control,
-            use_log = use_log)
+            mu_rep_type = mu_rep_type)
         # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
         cutoff_mu_rep = calculate_mu_rep(
             dist = rep_cutoff/dist_sd,
@@ -403,7 +414,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             beta = mu_beta_z,
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control,
-            use_log = use_log)
+            mu_rep_type = mu_rep_type)
         mu_rep[which(over_cutoff)] = cutoff_mu_rep
         v_star_soln = find_v_star(
             distance = distance,
@@ -435,7 +446,7 @@ find_pred_takeup = function(params) {
         mu_beta_z_control = params$mu_beta_z_control,
         rep_cutoff = params$rep_cutoff,
         bounds = params$bounds,
-        params$use_log
+        params$mu_rep_type
     )
 }
 
@@ -448,7 +459,7 @@ extract_params = function(param_draws,
                           dist_cutoff = Inf,
                           rep_cutoff = Inf, 
                           bounds = c(-Inf, Inf),
-                          use_log = FALSE) {
+                          mu_rep_type = 0) {
 
     treatments = c(
         "control",
@@ -476,7 +487,7 @@ extract_params = function(param_draws,
         "dist_cutoff" = dist_cutoff,
         "rep_cutoff" = rep_cutoff,
         "bounds" = list(bounds),
-        "use_log" = use_log
+        "mu_rep_type" = mu_rep_type
         ) %>%
         as.list()
 
@@ -490,7 +501,6 @@ draw_treat_grid = expand.grid(
     treatment = script_options$treatment
 )
 
-use_log = script_options$model == "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
 
 run_estimation = FALSE
 if (run_estimation == TRUE){
@@ -508,7 +518,7 @@ pred_functions = map2(
         rep_cutoff = script_options$rep_cutoff,
         dist_cutoff = script_options$dist_cutoff, 
         bounds = script_options$bounds,
-        use_log = use_log
+        mu_rep_type = mu_rep_type
     ) %>% find_pred_takeup()
 )
 ## Now extract distance data
@@ -754,7 +764,7 @@ low_bound = 2
 
 n_posts = 10
 
-agg_data = function(high_bound, low_bound, n_posts, treatment, use_log){
+agg_data = function(high_bound, low_bound, n_posts, treatment, mu_rep_type){
 
 high_bound_pred_fs = map(
     1:n_posts,
@@ -767,7 +777,7 @@ high_bound_pred_fs = map(
         rep_cutoff = script_options$rep_cutoff,
         dist_cutoff = script_options$dist_cutoff, 
         bounds = c(-high_bound, high_bound) ,
-        use_log = use_log
+        mu_rep_type = mu_rep_type
     ) %>% find_pred_takeup()
 )
 
@@ -782,7 +792,7 @@ low_bound_pred_fs = map(
             rep_cutoff = script_options$rep_cutoff,
             dist_cutoff = script_options$dist_cutoff, 
             bounds = c(-low_bound, low_bound),
-            use_log = use_log
+            mu_rep_type = mu_rep_type
         ) %>% find_pred_takeup()
 )
 
@@ -832,7 +842,7 @@ wide_comp_bracelet_dfs = agg_data(
     low_bound = 2,
     n_posts = 20,
     treatment = "bracelet",
-    use_log = use_log
+    mu_rep_type = mu_rep_type
 )
 
 
@@ -841,7 +851,7 @@ wide_comp_control_dfs = agg_data(
     low_bound = 2,
     n_posts = 20,
     treatment = "control",
-    use_log = use_log
+    mu_rep_type = mu_rep_type
 )
 
 wide_comp_control_dfs
