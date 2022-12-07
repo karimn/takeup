@@ -38,7 +38,7 @@ Options:
     takeup fit \
     --cmdstanr \
     --outputname=dist_fit71 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS  \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -158,7 +158,7 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
-    mu_rep_log = FALSE,
+    mu_rep_type = 0,
     use_homoskedastic_shocks = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
@@ -218,7 +218,7 @@ models <- lst(
     generate_sim = FALSE,
     iter = 4000,
     thin = 1,
-    mu_rep_log = FALSE,
+    mu_rep_type = 0,
 
     # Priors
     mu_rep_sd = 1,
@@ -310,7 +310,11 @@ models <- lst(
       ),
     STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
-        mu_rep_log = TRUE
+        mu_rep_type = 1
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 2
       )
   )
 
@@ -574,7 +578,11 @@ if (script_options$takeup) {
 
     } else {
       dist_fit <- models %>% 
-        stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+        stan_list(
+          stan_data, 
+          script_options, 
+          use_cmdstanr = script_options$cmdstanr, 
+          include_paths = script_options$include_paths)
       
       if (script_options$cmdstanr) {
         dist_fit_obj <- dist_fit

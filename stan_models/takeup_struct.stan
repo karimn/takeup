@@ -1,15 +1,15 @@
 functions {
-#include util.stan
-#include beliefs_functions.stan
-#include takeup_functions.stan
+  #include beliefs_functions.stan
+  #include util.stan
+  #include takeup_functions.stan
 }
 
 data {
-#include base_data_sec.stan
-#include takeup_data_sec.stan
-#include wtp_data.stan
-#include beliefs_data_sec.stan
-#include dist_data_sec.stan
+  #include base_data_sec.stan
+  #include takeup_data_sec.stan
+  #include wtp_data.stan
+  #include beliefs_data_sec.stan
+  #include dist_data_sec.stan
 
   int MIN_COST_MODEL_TYPE_VALUE;
   int MAX_COST_MODEL_TYPE_VALUE;
@@ -27,7 +27,7 @@ data {
   int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
   int<lower = 0, upper = 1> use_param_dist_county_effects;
 
-  int<lower = 0, upper = 1> mu_rep_log; // Whether to use exponential or log functional form for mu_rep
+  int<lower = 0, upper = 2> mu_rep_type; // 0 => exponential, 1 => log, 2 => linear
   
   // Rate of Change
   
@@ -159,7 +159,7 @@ transformed parameters {
     obs_cluster_mu_rep = calculate_mu_rep(
       cluster_incentive_treatment_id, cluster_standard_dist, 
       base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
-      mu_rep_log);
+      mu_rep_type);
   }
 
   linear_dist_cost = rep_vector(dist_beta_v[1], num_dist_group_treatments);
@@ -360,7 +360,7 @@ generated quantities {
         vector[num_clusters] curr_cluster_mu_rep = calculate_mu_rep(
           { mu_treatment_index }, all_cluster_standard_dist[, curr_assigned_dist_group], 
           base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
-          mu_rep_log);
+          mu_rep_type);
         
         if (multithreaded) {
           cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
