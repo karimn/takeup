@@ -26,9 +26,9 @@ script_options = docopt::docopt(
                             71
                             --output-name=rep
                             --from-csv
-                            --num-post-draws=80
+                            --num-post-draws=10
                             --rep-cutoff=Inf
-                            --dist-cutoff=Inf
+                            --dist-cutoff=10000
                             --num-cores=12
                             --type-lb=-3
                             --type-ub=3
@@ -173,7 +173,7 @@ if (script_options$to_csv) {
     options(mc.cores = script_options$num_cores)
     rf_model_fit = brm(
         data = brms_rf_analysis_data,
-        dewormed ~ (1 | cluster.id) + sd_dist*assigned.treatment, 
+        dewormed ~ sd_dist*assigned.treatment, 
         bernoulli(link = "probit")
     )
 
@@ -182,8 +182,6 @@ if (script_options$to_csv) {
             file.path(
                 script_options$input_path, 
                 str_interp("param_posterior_draws_dist_fit${fit_version}_REDUCED_FORM_NO_RESTRICT.rds") ))
-    rm(rf_model_fit)
-    gc() # not as big but get rid of it anyway
 
 } 
 
@@ -278,29 +276,36 @@ calculate_mu_rep = function(dist,
 #' 
 find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
     dim_distance = length(distance)
-    n_iters = 5
+    n_iters = 1
+    if (all(!is.finite(bounds))) {
+        v_bounds = NULL
+    } else {
+        v_bounds = bounds
+    }
+    v_fs = map2(b, mu_rep, 
+        ~generate_v_cutoff_fixedpoint(
+            b = .x,
+            mu = .y,
+            total_error_sd = total_error_sd,
+            u_sd = u_sd,
+            bounds = v_bounds
+    ))
 
-    v_f = generate_v_cutoff_fixedpoint(
-        b = b,
-        mu = mu_rep,
-        total_error_sd = total_error_sd,
-        u_sd = u_sd
-    )
-    starting_points = map(1:n_iters, ~rnorm(dim_distance))
-    solns = map(starting_points, ~nleqslv(x = 0 + .x, fn = v_f))
-    soln_matrix = matrix(
-        map(solns, "x") %>% 
-            unlist(), 
-        nrow = n_iters, 
-        ncol = dim_distance,
-        byrow = TRUE )
-    # Take median from nleqslv with 10 different starting points
-    v_star = apply(soln_matrix, 2, median)
-    if (any(!is.finite(bounds))) {
+    fn_fixed_point_fits = map(v_fs, ~nleqslv(x = 0, fn = .x))
+
+    v_star = map_dbl(fn_fixed_point_fits, "x")
+    solv_term_code = map_dbl(fn_fixed_point_fits, "termcd")
+    if (!all(!is.finite(bounds))) {
+        v_star = pmin(v_star, bounds[2])
+        v_star = pmax(v_star, bounds[1])
         delta_v_star = analytical_delta_bounded(v_star, u_sd, bounds)
+        delta_v_star = pmin(delta_v_star, bounds[2])
+
     } else {
         delta_v_star = analytical_delta(v_star, u_sd)
     }
+    v_star[solv_term_code > 2] = NA
+    delta_v_star[solv_term_code > 2] = NA
     return(lst(
         v_star,
         delta_v_star
@@ -353,7 +358,6 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control)
         mu_rep[which(over_cutoff)] = cutoff_mu_rep
-
         v_star_soln = find_v_star(
             distance = distance,
             b = b,
@@ -422,7 +426,7 @@ extract_params = function(param_draws,
         "dist_sd" = dist_sd,
         "dist_cutoff" = dist_cutoff,
         "rep_cutoff" = rep_cutoff,
-        "bounds" = bounds
+        "bounds" = list(bounds)
         ) %>%
         as.list()
 
@@ -436,7 +440,6 @@ draw_treat_grid = expand.grid(
     treatment = script_options$treatment
 )
 
-
 pred_functions = map2(
     draw_treat_grid$draw,
     draw_treat_grid$treatment,
@@ -446,8 +449,9 @@ pred_functions = map2(
         draw_id = .x,
         dist_sd = dist_sd,
         j_id = 1,
-        rep_cutoff = 2500,
-        dist_cutoff = Inf
+        rep_cutoff = script_options$rep_cutoff,
+        dist_cutoff = script_options$dist_cutoff, 
+        bounds = script_options$bounds
     ) %>% find_pred_takeup()
 )
 ## Now extract distance data
@@ -532,6 +536,7 @@ rf_pred_df = map_dfr(
     )  %>%
     ungroup() 
 
+
 tictoc::tic()
 plan(multisession, workers = script_options$num_cores)
 pred_df = future_imap_dfr(
@@ -559,8 +564,9 @@ pred_df = future_imap_dfr(
             "calculate_belief_latent_predictor",
             "find_v_star",
             "generate_v_cutoff_fixedpoint",
-            "calculate_delta",
-            "integrate_delta_part"),
+            "analytical_delta",
+            "analytical_delta_bounded",
+            "analytical_conv_Fw"),
         packages = c("dplyr", "nleqslv", "purrr"),
         seed = TRUE
     ),
@@ -684,31 +690,387 @@ if (script_options$pred_distance) {
     library(furrr)
     plan(multisession, workers = 12)
 
-    pred_df = future_imap_dfr(pred_functions,
+
+high_bound = Inf
+low_bound = 3
+
+
+high_bound_pred_fs = map(
+    1:10,
+    ~extract_params(
+        param_draws = struct_param_draws,
+        treatment = "bracelet",
+        draw_id = .x,
+        dist_sd = dist_sd,
+        j_id = 1,
+        rep_cutoff = script_options$rep_cutoff,
+        dist_cutoff = script_options$dist_cutoff, 
+        bounds = c(-high_bound, high_bound) 
+    ) %>% find_pred_takeup()
+)
+
+low_bound_pred_fs = map(
+    1:10,
+    ~extract_params(
+            param_draws = struct_param_draws,
+            treatment = "bracelet",
+            draw_id = .x,
+            dist_sd = dist_sd,
+            j_id = 1,
+            rep_cutoff = script_options$rep_cutoff,
+            dist_cutoff = script_options$dist_cutoff, 
+            bounds = c(-low_bound, low_bound) 
+        ) %>% find_pred_takeup()
+)
+
+from_d = 0
+to_d = 10000
+len_out = 100
+
+dist_df = tibble(
+    distance = seq(from_d, to_d, length.out = len_out)
+)
+
+high_dfs = imap_dfr(
+    high_bound_pred_fs,
+    ~ {
+        dist_df %>%
+            mutate(as_tibble(.x(distance))) %>%
+            mutate(draw = .y) 
+    }
+) %>%
+    mutate(bound = high_bound)
+low_dfs = imap_dfr(
+    low_bound_pred_fs,
+    ~ {
+        dist_df %>%
+            mutate(as_tibble(.x(distance))) %>%
+            mutate(draw = .y) 
+    }
+) %>%
+    mutate(bound = low_bound)
+
+
+wide_comp_dfs = bind_rows(
+    high_dfs,
+    low_dfs
+) %>%
+mutate(bound = factor(bound))
+
+
+long_comp_df = wide_comp_dfs %>%
+    gather(
+        variable, value, 
+        -distance, -bound, -draw
+    )
+
+long_comp_df %>%
+    ggplot(aes(
+        x = distance, 
+        y = value, 
+        colour = bound, 
+        group = interaction(bound, draw)
+    )) +
+    geom_point(alpha = 0.1) +
+    geom_line() +
+    facet_wrap(~variable, scales = 'free') 
+
+long_comp_df %>%
+    filter(fct_match(bound, high_bound)) %>%
+    filter(distance < 5000) %>%
+    ggplot(aes(
+        x = distance, 
+        y = value, 
+        colour = bound, 
+        group = interaction(bound, draw)
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~variable, scales = 'free') +
+    theme_bw()
+
+wide_comp_dfs %>%
+    filter(fct_match(bound, low_bound)) %>%
+    ggplot(aes(
+        x = v_star, 
+        y = delta_v_star, 
+        group = draw, 
+        colour = distance
+    )) +
+    geom_line() +
+    geom_point()
+
+test_df_1 = tibble(
+    x = seq(from = from_d, to = to_d, length.out = len_out),
+) %>%
+mutate(as_tibble(high_bound_pred_f(x))) %>%
+gather(variable, value, -x) %>%
+mutate(bound = high_bound)
+
+
+    test_df_2 = tibble(
+        x = seq(from = from_d, to = to_d, length.out = len_out),
+    ) %>%
+    mutate(as_tibble(low_bound_pred_f(x))) %>%
+    gather(variable, value, -x) %>%
+    mutate(bound = low_bound)
+
+    comp_test_df = bind_rows(
+        test_df_1,
+        test_df_2
+    ) %>%
+    mutate(bound = factor(bound))
+
+
+
+    comp_test_df %>%
+        filter(x < 4000) %>%
+        ggplot(aes(
+            x = x, 
+            y = value, 
+            colour = bound
+        )) +
+        geom_line() +
+        geom_point() +
+        facet_wrap(~variable, scales = "free")  
+
+    comp_test_df %>%
+        filter(fct_match(bound, low_bound)) %>%
+        ggplot(aes(
+            x = x, 
+            y = value, 
+            colour = bound
+        )) +
+        geom_line() +
+        facet_wrap(~variable, scales = "free")  
+comp_test_df %>%
+   spread(variable, value)  %>%
+   ggplot(aes(
+    x = x, 
+    y = v_star, 
+    colour = bound
+   )) +
+   geom_line() +
+   geom_point() +
+   theme_bw() +
+   facet_wrap(~bound) 
+
+
+inf_x = comp_test_df %>%
+   spread(variable, value)  %>%
+   filter(!is.finite(delta_v_star)) %>%
+   pull(x)
+
+
+dist_x = seq(from = from_d, to = to_d, length.out = len_out)
+pred_manual = map_dfr(dist_x, ~low_bound_pred_f(.x) %>% as_tibble())
+
+manual_df = tibble(
+    x = dist_x,
+    as_tibble(pred_manual)
+)
+
+manual_df %>%
+    ggplot(aes(
+        x = x, 
+        y = delta_v_star
+    )) +
+    geom_point()
+
+
+manual_df %>%
+    filter(abs(v_star) < low_bound) %>%
+    gather(variable, value, -x) %>%
+    ggplot(aes(
+        x = x, 
+        y = value
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~variable, scales = "free")
+
+
+manual_df %>%
+    filter(abs(v_star) < low_bound) %>%
+    ggplot(aes(
+        x = v_star,
+        y = delta_v_star, 
+        colour = x
+    )) +
+    geom_point()
+
+manual_df %>%
+    filter(!is.finite(delta_v_star))
+
+
+
+
+low_bound_pred_f(inf_x)
+
+
+
+low_bound_pred_f(inf_x)
+
+
+
+comp_test_df %>%
+   spread(variable, value)  %>%
+   ggplot(aes(
+    x = x, 
+    y = delta_v_star, 
+    colour = bound
+   )) +
+   geom_line() +
+   geom_point() +
+   theme_bw() +
+   facet_wrap(~bound) 
+
+
+
+comp_test_df %>%
+   spread(variable, value)  %>%
+   ggplot(aes(
+    x = v_star, 
+    y = delta_v_star, 
+    colour = bound
+   )) +
+   geom_line() +
+   geom_point() +
+   theme_bw() +
+   facet_wrap(~bound) +
+   xlim(-10, 10)
+
+
+
+pred_df %>%
+    filter(treatment == "bracelet") %>%
+    ggplot(aes(
+        x = v_star,
+        y = delta_v_star, 
+        group = draw
+    )) +
+    geom_line()
+
+pred_df %>%
+    ggplot(aes(
+        x = distance, 
+        y = pred_takeup, 
+        group = interaction(draw, treatment), 
+        colour = treatment
+    )) +
+    geom_line()
+
+pred_df %>%
+    gather(variable, value, -distance, -treatment, -draw) %>%
+    ggplot(aes(
+        x = distance, 
+        y = value, 
+        colour = treatment, 
+        group = interaction(draw, treatment)
+    )) +
+    geom_line() +
+    facet_wrap(~variable, scales = "free") 
+
+    ggplot(aes(
+        x = distance
+    ))
+
+    pred_functions[[1]](500)
+
+    pred_functions[[1]](c(500, 10000))
+
+    struct_param_draws
+    test_params = extract_params(struct_param_draws,
+            treatment = "bracelet",
+            draw_id = 1,
+            dist_sd = dist_sd,
+            j_id = 1,
+            rep_cutoff = script_options$rep_cutoff,
+            dist_cutoff = script_options$dist_cutoff, 
+            bounds = c(-Inf, Inf) )
+
+    test_func = find_pred_takeup(test_params)
+    test_params
+
+    test_func(500)
+
+    test_func(10)
+
+
+    test_func(c(500, 10))
+
+    comp_test_df %>%
+        filter(x < 2000) %>%
+        ggplot(aes(
+            x = x, 
+            y = value, 
+            colour = type
+        )) +
+        geom_line() +
+        facet_wrap(~variable, scales = "free") 
+
+    unbound_pred_df = future_imap_dfr(unbound_pred_functions,
         ~tibble(
-            distance = seq(from = 0, to = 5000, length.out = 40)) %>% 
+            distance = seq(from = 0, to = 10000, length.out = 100)) %>% 
                 mutate(
                     as_tibble(.x(distance)), 
                     treatment = draw_treat_grid[.y, "treatment"],
                     draw = draw_treat_grid[.y, "draw"]),
         .options = furrr_options(
             globals = c(
-                "draw_treat_grid",
-                "extract_params", 
-                "struct_param_draws", 
-                "dist_sd", 
-                "find_pred_takeup",
-                ".find_pred_takeup",
-                "calculate_mu_rep",
-                "calculate_belief_latent_predictor",
-                "find_v_star",
-                "generate_v_cutoff_fixedpoint",
-                "calculate_delta",
-                "integrate_delta_part"),
+            "draw_treat_grid",
+            "script_options",
+            "long_distance_mat",
+            "extract_params", 
+            "struct_param_draws", 
+            "dist_sd", 
+            "find_pred_takeup",
+            ".find_pred_takeup",
+            "calculate_mu_rep",
+            "calculate_belief_latent_predictor",
+            "find_v_star",
+            "generate_v_cutoff_fixedpoint",
+            "analytical_delta",
+            "analytical_delta_bounded",
+            "analytical_conv_Fw",
+            "analytical_conv_Fw_part",
+            "stan_owen_t"
+            ),
             packages = c("dplyr", "nleqslv")
         ),
         .progress = TRUE
     )  
+
+    pred_df = future_imap_dfr(pred_functions,
+        ~tibble(
+            distance = seq(from = 0, to = 10000, length.out = 100)) %>% 
+                mutate(
+                    as_tibble(.x(distance)), 
+                    treatment = draw_treat_grid[.y, "treatment"],
+                    draw = draw_treat_grid[.y, "draw"]),
+        .options = furrr_options(
+            globals = c(
+            "draw_treat_grid",
+            "script_options",
+            "long_distance_mat",
+            "extract_params", 
+            "struct_param_draws", 
+            "dist_sd", 
+            "find_pred_takeup",
+            ".find_pred_takeup",
+            "calculate_mu_rep",
+            "calculate_belief_latent_predictor",
+            "find_v_star",
+            "generate_v_cutoff_fixedpoint",
+            "analytical_delta",
+            "analytical_delta_bounded",
+            "analytical_conv_Fw"),
+            packages = c("dplyr", "nleqslv")
+        ),
+        .progress = TRUE
+    )  
+
+
 
     treat_levels = c(
         "bracelet",
@@ -875,7 +1237,14 @@ if (script_options$pred_distance) {
     )
         
         
-        
+       pred_df  %>%
+        ggplot(aes(
+            x = distance, 
+            colour = treatment, 
+            y = delta_v_star, 
+            group = interaction(draw, treatment)
+        )) +
+        geom_line()
         
     pred_df    
         
