@@ -27,7 +27,7 @@ script_options = docopt::docopt(
     args = if (interactive()) "
                             71
                             --output-name=rep
-                            --from-csv
+                            --to-csv
                             --num-post-draws=10
                             --rep-cutoff=Inf
                             --dist-cutoff=10000
