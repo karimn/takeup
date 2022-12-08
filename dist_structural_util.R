@@ -915,9 +915,13 @@ calculate_delta_bounded = function(w, total_error_sd, u_sd, bounds) {
   return(new_val)
 }
 
-generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0) {
+generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0, bounds = NULL) {
   function(v_cutoff) {
-    v_cutoff + b + mu * calculate_delta(v_cutoff, total_error_sd, u_sd)
+    if (is.null(bounds)){
+      v_cutoff + b + mu * analytical_delta(v_cutoff, u_sd)
+    } else {
+      v_cutoff + b + mu * analytical_delta_bounded(v_cutoff, u_sd, bounds)
+    }
   }
 }
 
