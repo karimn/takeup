@@ -42,9 +42,9 @@ test_that("Delta Equal at limits", {
 
 ub = 3
 lb = -3
-bandwidth = 5
+bandwidth = 3
 df = expand.grid(
-  w = seq(from = lb - bandwidth, to = ub + bandwidth, length.out = 500 ),
+  w = seq(from = lb - bandwidth, to = ub + bandwidth, length.out = 100 ),
   u_sd = seq(from = 0.1, to = 2,  by = 0.05)
 ) %>%
   as_tibble() %>%
@@ -65,7 +65,7 @@ df = expand.grid(
 
 comp_df = df %>%
   pivot_longer(
-    delta:analytical_delta_deriv_bounded
+    delta:analytical_conv_Fw
   ) %>%
   mutate(
     type = if_else(str_detect(name, "analytical_"), "analytical", "numerical"), 
@@ -76,20 +76,22 @@ comp_df = df %>%
 make_plot = TRUE
 if (make_plot == TRUE) {
   p_comp_plot = comp_df %>%
-    filter(name != "delta_deriv_bounded") %>%
+    filter(!(name %in% c("delta_deriv_bounded", "conv_Fw"))) %>%
     ggplot(aes(
-      x = numerical, 
-      y = analytical, 
+      x = analytical, 
+      y = numerical, 
       colour = name
     )) +
     geom_point() +
-    facet_wrap(~name, ncol = 1) +
+    facet_wrap(~name, scales = "free", ncol = 1) +
     theme_bw() +
     guides(colour = "none") +
-    geom_abline() +
+    geom_abline(linetype = "longdash") +
     labs(
-      title = "Numerical vs Analytical Delta Calculations"
+      title = "Numerical vs Analytical Delta Calculations", 
+      subtitle = str_glue("Delta bounded by {lb}, {ub}")
     )
+  p_comp_plot
   ggsave(
     plot = p_comp_plot,
     "temp-plots/numerical-comp-plot.png",
@@ -100,6 +102,7 @@ if (make_plot == TRUE) {
 
   comp_df %>%
     gather(variable, value, analytical, numerical ) %>%
+    filter(variable == "analytical") %>%
     filter(name == "delta_deriv_bounded") %>%
     ggplot(aes(
       x = w, 
@@ -108,7 +111,15 @@ if (make_plot == TRUE) {
       group = u_sd
     )) +
     facet_wrap(~variable) + 
-    geom_line() 
+    geom_line()  +
+    geom_vline(xintercept = c(lb, ub), linetype = "longdash") +
+    guides(colour = "none") +
+    theme_bw() +
+    labs(
+      title = "Derivative of Delta, Bounded"
+    )
+  ggsave("temp-plots/delta-deriv-bounded.png", width = 8,  height = 6, dpi = 500)
+
   comp_df %>%
     gather(variable, value, analytical, numerical ) %>%
     filter(name == "delta_bounded") %>%
@@ -119,7 +130,16 @@ if (make_plot == TRUE) {
       group = u_sd
     )) +
     facet_wrap(~variable) + 
-    geom_line() 
+    geom_line()  +
+    theme_bw() +
+    guides(colour = "none") +
+    geom_vline(xintercept = c(lb, ub), linetype = "longdash") +
+    labs(title = "Comparing Delta, Bounded")
+
+ggsave("temp-plots/delta-bounded-numerical-comp.png",
+  width = 8,
+  height = 6,
+  dpi = 500)
 
 }
 
