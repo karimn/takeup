@@ -38,7 +38,7 @@ Options:
     takeup fit \
     --cmdstanr \
     --outputname=dist_fit71 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP  \
+    --models=REDUCED_FORM_NO_RESTRICT  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -110,18 +110,20 @@ monitored_nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-# monitored_sms_data <- analysis.data %>% 
-#   filter(mon_status == "monitored") %>% 
-#   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-#             by = "cluster.id") %>% 
-#   mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-#   group_by(cluster.id) %>% 
-#   mutate(cluster_id = cur_group_id()) %>% 
-#   ungroup()
+monitored_sms_data <- analysis.data %>% 
+  filter(mon_status == "monitored") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+monitored_sms_data
 
 # add interaction for phone owner if we do all together
-# monitored_data %>% 
-#   select(phone_owner)
+monitored_sms_data %>% 
+  select(phone_owner)
 
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
@@ -132,20 +134,36 @@ nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-# analysis_sms_data <- monitored_sms_data %>% 
-#   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+analysis_sms_data <- monitored_sms_data %>% 
+  mutate(
+  assigned_treatment = assigned.treatment, 
+  assigned_dist_group = dist.pot.group, 
+  sms_treatment = sms.treatment.2, 
+  phone_owner = if_else(phone_owner == TRUE, "phone", "nophone"), 
+  sms_treatment = str_replace_all(sms_treatment, "\\.", "")) %>%
+  # reminder.only only present in control condition
+  filter(
+    sms_treatment != "reminder.only"
+  )  %>%
+  mutate(
+    exploded_treatment = paste(
+      assigned_treatment,
+      sms_treatment, 
+      phone_owner,
+      sep = "_"
+    )
+  )
 
-# reminder.only just in control
-# analysis_sms_data %>% 
-#   select(assigned_treatment, sms.treatment.2) %>%
-#   unique()
+
 
 analysis_data <- monitored_nosms_data %>% 
-  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+  mutate(
+    assigned_treatment = assigned.treatment, 
+    assigned_dist_group = dist.pot.group)
 
 # Models ------------------------------------------------------------------
 
-num_treatments <- n_distinct(analysis_data$assigned.treatment)
+num_treatments <- n_distinct(analysis_data$assigned_treatment)
 num_clusters <- n_distinct(analysis_data$cluster_id)
 num_counties <- n_distinct(analysis_data$county)
 
