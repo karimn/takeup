@@ -49,8 +49,6 @@ Options:
 
 library(magrittr)
 library(tidyverse)
-library(parallel)
-library(pbmcapply)
 library(furrr)
 library(HRW)
 library(loo)
@@ -100,6 +98,8 @@ load(file.path("data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
+# stick to monitored sms.treatment group
+# remove sms.treatment.2
 
 monitored_nosms_data <- analysis.data %>% 
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
@@ -110,6 +110,19 @@ monitored_nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
+# monitored_sms_data <- analysis.data %>% 
+#   filter(mon_status == "monitored") %>% 
+#   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+#             by = "cluster.id") %>% 
+#   mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+#   group_by(cluster.id) %>% 
+#   mutate(cluster_id = cur_group_id()) %>% 
+#   ungroup()
+
+# add interaction for phone owner if we do all together
+# monitored_data %>% 
+#   select(phone_owner)
+
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
@@ -118,6 +131,14 @@ nosms_data <- analysis.data %>%
   group_by(cluster.id) %>% 
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
+
+# analysis_sms_data <- monitored_sms_data %>% 
+#   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+# reminder.only just in control
+# analysis_sms_data %>% 
+#   select(assigned_treatment, sms.treatment.2) %>%
+#   unique()
 
 analysis_data <- monitored_nosms_data %>% 
   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
@@ -598,7 +619,6 @@ if (script_options$takeup) {
             .x$cmdstan_diagnose()
           })
       }
-      
       if (script_options$update_output) {
         new_dist_fit <- dist_fit
       
