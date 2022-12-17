@@ -25,7 +25,8 @@ if (multithreaded) {
     
     matrix[num_clusters, 2] curr_cluster_mu_rep_control = calculate_mu_rep_deriv(
       roc_compare_treatment_id_right, roc_cluster_dist,
-      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
+      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
+      mu_rep_type);
     
     for (treatment_index in 1:num_treatments) {
       matrix[num_clusters, 2] curr_cluster_mu_rep; 
@@ -33,7 +34,8 @@ if (multithreaded) {
       if (treatment_index > 1) {
         curr_cluster_mu_rep = calculate_mu_rep_deriv(
           treatment_index, roc_cluster_dist,
-          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord);
+          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
+          mu_rep_type);
       } else {
         curr_cluster_mu_rep = curr_cluster_mu_rep_control;
       }

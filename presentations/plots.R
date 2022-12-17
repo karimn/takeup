@@ -1,4 +1,3 @@
-
 library(magrittr)
 library(tidyverse)
 library(broom)
@@ -15,6 +14,7 @@ library(car)
 library(rstan)
 library(latex2exp)
 library(ggthemes)
+library(ggforce)
 
 library(econometr)
 source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
@@ -24,7 +24,7 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 66
+fit_version <- 71
 default_top_levels = c("Bracelet", "Combined")
 
 # 66 ed fit
@@ -442,11 +442,15 @@ treatments = c(
     "calendar",
     "ink"
 )
-
-
+roc_df
 single_roc_plots = map(treatments, ~ roc_df %>%
-    roc_plot(treatment = .x)
+    filter(
+      roc_distance <= 2.5
+    ) %>%
+    roc_plot(treatment = .x) 
 )
+
+
 iwalk(
     single_roc_plots,
     ~ggsave(plot = .x, 
@@ -470,6 +474,9 @@ diff_roc_df = dist_fit_data %>%
       ) 
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
+    filter(
+      roc_distance <= 2.5
+    ) %>%
   filter(fct_match(assigned_treatment, c("ink", "bracelet", "calendar"))) 
 
 plot_roc_diff = function(data, treatment) {
@@ -512,6 +519,7 @@ single_roc_diff_plots = map(treatments, ~ diff_roc_df %>%
 )
 
 
+
 iwalk(
     single_roc_diff_plots,
     ~ggsave(plot = .x, 
@@ -537,6 +545,9 @@ dist_fit_data %>%
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
   filter(fct_match(assigned_treatment, c("ink", "bracelet"))) %>% 
+    filter(
+      roc_distance <= 2.5
+    ) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = model_name)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.25) +
@@ -567,6 +578,9 @@ dist_fit_data %>%
     roc_distance = roc_distance / 1000,
     across(starts_with("per_"), divide_by, 1000)
   ) %>% 
+  filter(
+    roc_distance <= 2.5
+  ) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = model_name)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
@@ -588,6 +602,9 @@ dist_fit_data %>%
     roc_distance = roc_distance / 1000,
     across(starts_with("per_"), divide_by, 1000)
   ) %>% 
+    filter(
+      roc_distance <= 2.5
+    ) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = assigned_treatment)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
@@ -610,6 +627,9 @@ dist_fit_data %>%
     roc_distance = roc_distance / 1000,
     across(starts_with("per_"), divide_by, 1000)
   ) %>% 
+    filter(
+      roc_distance <= 2.5
+    ) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = assigned_treatment)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
@@ -640,6 +660,9 @@ plot_rep_returns_one_by_one = function(data, treatment) {
         roc_distance = roc_distance / 1000,
         across(starts_with("per_"), divide_by, 1000)
         ) %>% 
+        filter(
+          roc_distance <= 2.5
+        ) %>%
         ggplot(aes(roc_distance)) +
         geom_line(aes(y = per_0.5)) +
         geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +

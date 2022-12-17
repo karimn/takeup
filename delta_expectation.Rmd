@@ -8,15 +8,15 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: "66" 
-  reduced_form_takeup_version: 53
+  structural_takeup_version: "71" 
+  reduced_form_takeup_version: 71
 ---
 
 ```{r setup, include=FALSE}
 if (interactive()) {
   params = list(
-    structural_takeup_version = 62,
-    reduced_form_takeup_version = 53
+    structural_takeup_version = 71,
+    reduced_form_takeup_version = 71
   )
 }
 library(magrittr)
@@ -228,7 +228,7 @@ dist_fit_data <- str_split(params$structural_takeup_version, ",") %>%
     load(file.path("temp-data", str_glue("processed_dist_fit{.x}.RData")), envir = temp_env)
     
     temp_env$dist_fit_data %>% 
-      filter(fct_match(model_type, "structural")) %>% 
+      # filter(fct_match(model_type, "structural")) %>% 
       mutate(version = .x)
   }) %>% 
   group_by(model, fit_type, model_type) %>% 
@@ -247,9 +247,14 @@ if (params$structural_takeup_version != params$reduced_form_takeup_version) {
     )
 }
 
+
 dist_fit_data %<>% 
   mutate(
-    model = fct_expand(model, c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", "REDUCED_FORM_NO_RESTRICT_PRIOR")),
+    model = fct_expand(
+      model, 
+      c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
+        "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", 
+        "REDUCED_FORM_NO_RESTRICT_PRIOR")),
     model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor(str_c(model, "_PRIOR"), levels = levels(model)), model),
     model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
     model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
@@ -265,6 +270,13 @@ dist_fit_data %<>%
     ),
   by = c("model", "model_type", "fit_type"))
 
+dist_fit_data = dist_fit_data %>%
+  mutate(model_name = case_when(
+    str_detect(model, "LOG_MU") ~ str_c(model_name, " Log Mu Rep"),
+    str_detect(model, "LINEAR_MU") ~ str_c(model_name, " Linear Mu Rep"),
+    TRUE ~ model_name
+  ))
+
 rf_analysis_data <- dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),
@@ -278,10 +290,19 @@ rf_analysis_data <- dist_fit_data %>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r incentive-te, fig.width=8, fig.height=16}
+models_we_want = c(
+  "STRUCTURAL_LINEAR_U_SHOCKS", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR",
+  "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",
+  "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP"
+  )
+
+
 dist_fit_data %>%
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
-                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR"))) | 
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want)) | 
       (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
   ) %>% 
   mutate(
@@ -334,8 +355,7 @@ dist_fit_data %>%
 ```{r signaling-te, fig.width=8, fig.height=13}
 dist_fit_data %>% 
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
-                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
   ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
@@ -384,8 +404,7 @@ dist_fit_data %>%
 ```{r private-incentive-te, fig.width=8, fig.height=15}
 dist_fit_data %>% 
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
-                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
   ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
@@ -432,7 +451,7 @@ dist_fit_data %>%
 
 ```{r take-up-prob, fig.width=9}
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
@@ -480,7 +499,7 @@ where
 
 ```{r rate-of-change}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   transmute(
     model_name,
     cluster_roc = map2(cluster_roc, stan_data, ~ { 
@@ -494,6 +513,7 @@ dist_fit_data %>%
   ) %>%
   unnest(cluster_roc) %>% 
   filter(fct_match(assigned_treatment, c("control", "ink", "bracelet"))) %>% 
+  filter(roc_distance < 2.5) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = model_name)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
@@ -520,7 +540,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", "STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   transmute(
     model, model_name,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
@@ -533,6 +553,7 @@ dist_fit_data %>%
   })) %>%
   unnest(y_rate_of_change_diff) %>% 
   filter(fct_match(assigned_treatment, c("ink", "bracelet"))) %>% 
+  filter(roc_distance < 2.5) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = model_name)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.25) +
@@ -551,7 +572,7 @@ dist_fit_data %>%
 
 ```{r, fig.height=2, fig.width=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, cluster_roc_diff_diffdist) %>% 
   unnest(cluster_roc_diff_diffdist) %>% 
   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
@@ -568,10 +589,11 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   transmute(model_name, cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
   unnest(cluster_w_cutoff) %>% 
   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
+  filter(roc_distance < 2.5) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = model_name)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
@@ -588,25 +610,40 @@ dist_fit_data %>%
 ```
 
 ```{r, eval=FALSE}
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(cluster_social_multiplier = map(cluster_social_multiplier, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
-  unnest(cluster_social_multiplier) %>% 
-  filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
-  ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
-  # geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.3) +
-  # geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.3) +
-  labs(
-    x = "Distance to Treatment", y = ""
-  ) +
-  # coord_cartesian(ylim = c(0, 0.1))
-  NULL
+# dist_fit_data %>% 
+#   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+#   transmute(cluster_social_multiplier = map(cluster_social_multiplier, ~ mutate(.x, roc_distance = roc_distance / 1000))) %>% 
+#   unnest(cluster_social_multiplier) %>% 
+#   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
+#   ggplot(aes(roc_distance)) +
+#   geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+#   # geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.3) +
+#   # geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = treatment), alpha = 0.3) +
+#   labs(
+#     x = "Distance to Treatment", y = ""
+#   ) +
+#   # coord_cartesian(ylim = c(0, 0.1))
+#   NULL
 ```
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  filter(fct_match(model, models_we_want)) %>% 
+  select(model_name, fit_type, sim_delta) %>% 
+  unnest(sim_delta) %>% 
+  ggplot(aes(w, fill = fit_type, group = fit_type)) +
+  geom_line(aes(y = per_0.5)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.3) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.3) +
+  labs(
+    x = "w", y = ""
+  ) +
+  # coord_cartesian(ylim = c(0, 0.1))
+  facet_wrap(vars(model_name)) +
+  NULL
+
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, sim_delta) %>% 
   unnest(sim_delta) %>% 
   ggplot(aes(w)) +
@@ -622,20 +659,20 @@ dist_fit_data %>%
 ```
 
 ```{r, eval=FALSE}
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  pluck("y_rate_of_change_diff", 1) %>% 
-  mutate(
-    roc_distance = roc_distance / 1000,
-    across(starts_with("per_"), multiply_by, 1000)
-  ) %>% 
-  ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
-  labs(
-    x = "Distance to Treatment", y = ""
-  ) 
+# dist_fit_data %>% 
+#   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+#   pluck("y_rate_of_change_diff", 1) %>% 
+#   mutate(
+#     roc_distance = roc_distance / 1000,
+#     across(starts_with("per_"), multiply_by, 1000)
+#   ) %>% 
+#   ggplot(aes(roc_distance)) +
+#   geom_line(aes(y = per_0.5)) +
+#   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
+#   geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.25) +
+#   labs(
+#     x = "Distance to Treatment", y = ""
+#   ) 
 ```
 
 ### Valuation of Reputational Returns in Distance
@@ -649,13 +686,14 @@ r^*(z,d) &= \frac{\mu(z,d) \Delta[w^*(z,d)]}{\delta} \\
 
 ```{r, fig.width=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   select(model_name, cluster_rep_return_dist) %>%
   unnest(cluster_rep_return_dist) %>% 
   mutate(
     roc_distance = roc_distance / 1000,
     across(starts_with("per_"), divide_by, 1000)
   ) %>% 
+  filter(roc_distance < 2.5) %>%
   ggplot(aes(roc_distance)) +
   geom_line(aes(y = per_0.5, color = model_name)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
@@ -675,8 +713,7 @@ dist_fit_data %>%
 ```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
-                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR"))) | 
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want)) | 
       (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
   ) %>% 
   select(model, model_type, model_name, est_takeup_level, fit_type, model_color) %>% 
@@ -721,8 +758,7 @@ dist_fit_data %>%
 ```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
-                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
   ) %>% 
   select(model, model_name, model_type, est_takeup_level, fit_type, model_color) %>% 
   mutate(
@@ -771,8 +807,7 @@ dist_fit_data %>%
 ```{r, fig.width=8, fig.height=19}
 dist_fit_data %>% 
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
-                                                              "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR")))  
+    (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
   ) %>% 
   select(model, model_name, est_takeup_level, fit_type, model_color) %>% 
   mutate(
@@ -899,7 +934,7 @@ all_fit %>%
 
 ```{r, fig.width=7.5, fig.height=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "bracelet"))) %>% 
@@ -916,7 +951,7 @@ dist_fit_data %>%
 
 ```{r, fig.width=8, fig.height=8}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS", "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST"))) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_type, model_name, cluster_cf_cutoff) %>% 
   unnest(cluster_cf_cutoff) %>% 
   filter(!is.na(obs_prop_takeup), fct_match(assigned_treatment, c("control", "ink", "bracelet"))) %>% 
@@ -945,10 +980,12 @@ joint_wtp_results <- dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
   pull(wtp_results) %>%
   first()
+if (!is.null(joint_wtp_results)) {
 
 joint_wtp_results %>% 
   mutate(fit_type = "joint") %>% 
   plot_wtp_results()
+}
 ```
 
 ```{r wtp-prior}
@@ -990,12 +1027,12 @@ dist_fit_data %>%
 # beliefs_results %>%
   plot_beliefs_est("Posterior Estimation")
 
-dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
-  pull(beliefs_results) %>%
-  first() %>%
-# beliefs_results %>%
-  plot_beliefs_est("Posterior Estimation")
+# dist_fit_data %>%
+#   filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
+#   pull(beliefs_results) %>%
+#   first() %>%
+# # beliefs_results %>%
+#   plot_beliefs_est("Posterior Estimation")
 ```
 
 ```{r beliefs-line-plot-prior, fig.width=8, fig.height=8}
@@ -1097,12 +1134,12 @@ dist_fit_data %>%
 # beliefs_prior_results %>% 
   plot_beliefs_hist("Posterior Estimation", binwidth = 0.01)
 
-dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
-  pull(beliefs_results) %>%
-  first() %>%
-# beliefs_prior_results %>% 
-  plot_beliefs_hist("Posterior Estimation", binwidth = 0.01)
+# dist_fit_data %>%
+#   filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST")) %>%
+#   pull(beliefs_results) %>%
+#   first() %>%
+# # beliefs_prior_results %>% 
+#   plot_beliefs_hist("Posterior Estimation", binwidth = 0.01)
 ```
 
 ```{r beliefs-hist-prior, fig.width=8, fig.height=8}
@@ -1202,7 +1239,7 @@ alone_dist_fit_data %>%
   plot_dist_model(subsample_size = NULL)
 ```
 
-```{r dist-post, fig.width=10, cache=TRUE}
+```{r dist-post, fig.width=10, cache=TRUE, eval=FALSE}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
   plot_dist_model(subsample_size = NULL)
@@ -1212,7 +1249,7 @@ dist_fit_data %>%
   plot_dist_model(subsample_size = NULL)
 ```
 
-```{r dist-prior, fig.width=10, cache=TRUE}
+```{r dist-prior, fig.width=10, cache=TRUE}, eval=FALSE
 dist_fit_data %>% 
   filter(fct_match(fit_type, "prior-predict"), fct_match(model_type, "structural")) %>% 
   plot_dist_model(plot_obs_dist = FALSE, subsample_size = NULL) + coord_cartesian(xlim = NULL, ylim = c(0, 0.0025))
@@ -1357,7 +1394,7 @@ rf_analysis_data %>%
   labs(title = "Age Group Sizes", x = "Age Group", y = "Size")
 ```
 
-```{r, fig.width=10}
+```{r, fig.width=10, eval=FALSE}
 obs_takeup_by_age <- dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),
@@ -1380,7 +1417,7 @@ obs_takeup_by_age %>%
 ```
 
 
-```{r, fig.width=10, fig.height=8}
+```{r, fig.width=10, fig.height=8, eval=FALSE}
 age_group_te_iter_data <- dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),
@@ -1414,7 +1451,7 @@ age_group_te_iter_data %>%
   theme(legend.position = "top")
 ```
 
-```{r, fig.width=10, fig.height=8}
+```{r, fig.width=10, fig.height=8, eval=FALSE}
 dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),

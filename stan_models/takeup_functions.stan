@@ -69,23 +69,58 @@ matrix param_dist_cost(real dist, matrix linear_dist_cost, matrix quadratic_dist
   return dist * linear_dist_cost + square(dist) * quadratic_dist_cost;
 }
 
+
+// vector calculate_mu_rep_log(array[] int treatment_ids, vector dist,
+//                         matrix design_matrix,
+//                         matrix beta, matrix dist_beta) {
+// }
+
+// matrix calculate_mu_rep_log_deriv(int treatment_id, vector dist,
+//                               matrix design_matrix,
+//                               matrix beta, matrix dist_beta) {
+//   matrix[rows(beta), 2] mu_rep;
+  
+//   mu_rep[, 1] = calculate_mu_rep_log({ treatment_id }, dist, design_matrix, beta, dist_beta);
+
+//   if (rows(design_matrix) == 1) {
+//     mu_rep_lin_pred = (beta * design_matrix[1]') + ((dist_beta * design_matrix[1]') .* dist);
+//   } else {
+//     mu_rep_lin_pred = rows_dot_product(design_matrix, beta) + (rows_dot_product(design_matrix, dist_beta) .* dist);
+//   }
+//   mu_rep[, 2] = rows_dot_product(design_matrix, dist_beta) / mu_rep_lin_pred;
+//   return mu_rep;
+// }
+
 vector calculate_mu_rep(array[] int treatment_ids, vector dist,
                         real base_mu_rep, real mu_beliefs_effect,
                         matrix design_matrix,
-                        matrix beta, matrix dist_beta) {
-  vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[treatment_ids], beta, dist_beta, dist);
-  
-  return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
+                        matrix beta, matrix dist_beta, int mu_rep_type) {
+    vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[treatment_ids], beta, dist_beta, dist);
+    if (mu_rep_type == 1) { // log
+      return log(beliefs_latent) ;
+    } else if (mu_rep_type == 2) { // linear
+      return beliefs_latent;
+    } else { // exp
+      return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
+    }
 }
 
 matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
                               real base_mu_rep, real mu_beliefs_effect,
                               matrix design_matrix,
-                              matrix beta, matrix dist_beta) {
-  matrix[rows(beta), 2] mu_rep;
+                              matrix beta, matrix dist_beta, int mu_rep_type) {
   
-  mu_rep[, 1] = calculate_mu_rep({ treatment_id }, dist, base_mu_rep, mu_beliefs_effect, design_matrix, beta, dist_beta);
-  mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
+  matrix[rows(beta), 2] mu_rep;
+  mu_rep[, 1] = calculate_mu_rep({ treatment_id }, dist, base_mu_rep, mu_beliefs_effect, design_matrix, beta, dist_beta, mu_rep_type);
+
+  if (mu_rep_type == 1) { // log
+    mu_rep[, 2] = (dist_beta * design_matrix[treatment_id]')  ./ exp(mu_rep[, 1]);
+    return mu_rep;
+  } else if (mu_rep_type == 2) { // linear
+    mu_rep[, 2] = dist_beta * design_matrix[treatment_id]';
+  } else { // exp
+    mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
+  } 
   
   return mu_rep;
 }
@@ -103,10 +138,13 @@ real expected_delta_part(real v, real xc, array[] real theta, data array[] real 
 
 real expected_delta(real w, real total_error_sd, real u_sd, data array[] real x_r, data array[] int x_i) {
   real F_w = Phi_approx(w / total_error_sd); 
+  real r;
+
+  r = (-1/u_sd) * exp(-0.5 * (w^2)/(1 + u_sd^2)) * (1/sqrt(2*pi())) * sqrt((u_sd^2)/(1 + u_sd^2));
  
-  real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
-  
-  return - delta_part / (F_w * (1 - F_w));
+  // real delta_part = integrate_1d(expected_delta_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+
+  return - r / (F_w * (1 - F_w));
 }
 
 real expected_delta_deriv_part(real v, real xc, array[] real theta, data array[] real x_r, data array[] int x_i) {
@@ -123,9 +161,12 @@ vector expected_delta_deriv(real w, real total_error_sd, real u_sd, data array[]
   real F_w = Phi_approx(w / total_error_sd); 
  
   real delta = expected_delta(w, total_error_sd, u_sd, x_r, x_i);
-  real delta_deriv_part = integrate_1d(expected_delta_deriv_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
-  
-  return [delta, - (delta_deriv_part + delta * (1 - 2 * F_w)) / (F_w * (1 - F_w)) ]';
+  // real delta_deriv_part = integrate_1d(expected_delta_deriv_part, negative_infinity(), positive_infinity(), { w, u_sd }, x_r, x_i, 0.00001);
+  real Sigma = sqrt((u_sd^2)/(1 + u_sd^2));
+  real mu = w/(u_sd^2 + 1);
+  real H = (1/u_sd) * (1/sqrt(2*pi())) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma;
+   
+  return [delta, - (H*mu + exp(normal_lpdf(w | 0, total_error_sd)) * delta * (1 - 2 * F_w)) / (F_w * (1 - F_w)) ]';
 }
 
 vector v_fixedpoint_solution_normal(vector model_param, vector theta, data array[] real x_r, data array[] int x_i) {

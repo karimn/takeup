@@ -20,7 +20,7 @@ Options:
   # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=1 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true)
-  args = if (interactive()) "66  --cores=2 --load-from-csv " else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "71  --cores=1 --models=STRUCTURAL_LINEAR_U_SHOCKS  --load-from-csv " else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -120,6 +120,12 @@ model_info <- tribble(
   # "STRUCTURAL_LINEAR_NO_SHOCKS",    "Structural Linear Cost (No Shocks)",        "structural",
   # "STRUCTURAL_QUADRATIC_SALIENCE",  "Structural Quadratic Cost With Salience",   "structural",
   # "STRUCTURAL_LINEAR_SALIENCE",     "Structural With Salience",                 "structural",
+
+
+  "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP",          "Structural",                                         "structural",
+
+
   
   "STACKED",                                          "Stacked Model",                                       "combined", # Includes both reduced form and structural models
   "STRUCTURAL_STACKED",                               "Structural Stacked Model",                            "structural", 

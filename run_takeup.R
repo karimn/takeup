@@ -34,15 +34,21 @@ Options:
   # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
-  args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST --output-path=data/stan_analysis_data --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "
+    takeup fit \
+    --cmdstanr \
+    --outputname=dist_fit71 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP  \
+    --output-path=data/stan_analysis_data \
+    --threads=3 \
+    --iter 800 \
+    --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
 
 library(magrittr)
 library(tidyverse)
-library(parallel)
-library(pbmcapply)
 library(furrr)
 library(HRW)
 library(loo)
@@ -92,6 +98,8 @@ load(file.path("data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
+# stick to monitored sms.treatment group
+# remove sms.treatment.2
 
 monitored_nosms_data <- analysis.data %>% 
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
@@ -102,6 +110,19 @@ monitored_nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
+# monitored_sms_data <- analysis.data %>% 
+#   filter(mon_status == "monitored") %>% 
+#   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+#             by = "cluster.id") %>% 
+#   mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+#   group_by(cluster.id) %>% 
+#   mutate(cluster_id = cur_group_id()) %>% 
+#   ungroup()
+
+# add interaction for phone owner if we do all together
+# monitored_data %>% 
+#   select(phone_owner)
+
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
@@ -110,6 +131,14 @@ nosms_data <- analysis.data %>%
   group_by(cluster.id) %>% 
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
+
+# analysis_sms_data <- monitored_sms_data %>% 
+#   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+# reminder.only just in control
+# analysis_sms_data %>% 
+#   select(assigned_treatment, sms.treatment.2) %>%
+#   unique()
 
 analysis_data <- monitored_nosms_data %>% 
   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
@@ -150,6 +179,7 @@ models <- lst(
     use_restricted_mu = TRUE,
     use_u_in_delta = TRUE,
     use_wtp_model = TRUE,
+    mu_rep_type = 0,
     use_homoskedastic_shocks = TRUE,
     use_strata_levels = use_county_effects, # WTP
     suppress_reputation = FALSE,
@@ -159,6 +189,7 @@ models <- lst(
     alg_sol_f_tol = 0.001,
     alg_sol_max_steps = 1e9L,
     alg_sol_rel_tol = 0.0000001,
+
 
     # Priors
     mu_rep_sd = 0.25,
@@ -208,6 +239,7 @@ models <- lst(
     generate_sim = FALSE,
     iter = 4000,
     thin = 1,
+    mu_rep_type = 0,
 
     # Priors
     mu_rep_sd = 1,
@@ -296,6 +328,14 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         beliefs_use_dist = FALSE,
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 1
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 2
       )
   )
 
@@ -559,7 +599,11 @@ if (script_options$takeup) {
 
     } else {
       dist_fit <- models %>% 
-        stan_list(stan_data, script_options, use_cmdstanr = script_options$cmdstanr, include_paths = script_options$include_paths)
+        stan_list(
+          stan_data, 
+          script_options, 
+          use_cmdstanr = script_options$cmdstanr, 
+          include_paths = script_options$include_paths)
       
       if (script_options$cmdstanr) {
         dist_fit_obj <- dist_fit
@@ -575,7 +619,6 @@ if (script_options$takeup) {
             .x$cmdstan_diagnose()
           })
       }
-      
       if (script_options$update_output) {
         new_dist_fit <- dist_fit
       

@@ -708,10 +708,220 @@ calculate_delta <- function(w, total_error_sd, u_sd) {
   return(- r / (F_w * (1 - F_w)))
 } 
 
+analytical_delta = function(w, u_sd) {
+  r = (-1/u_sd) * exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * sqrt((u_sd^2)/(1 + u_sd^2))
+  F_w = pnorm(w, sd = sqrt(u_sd^2 + 1))
+  val = -r / (F_w * (1 - F_w))
+  return (-r / (F_w*(1-F_w)))
+}
+analytical_delta_deriv = function(w, u_sd, delta_w = NULL) {
+  w_sd = sqrt(1 + u_sd^2)
+  Sigma = sqrt((u_sd^2)/(1 + u_sd^2))
+  mu = w/(u_sd^2 + 1)
+  H = (1/u_sd) * (1/sqrt(2*pi)) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma
+  if (is.null(delta_w)) {
+    delta_w = analytical_delta(w, u_sd)
+  } 
+  r = H*mu +
+    dnorm(w, sd = w_sd)*(1 - 2*pnorm(w, sd = w_sd))*delta_w
+  F_w = pnorm(w, sd = w_sd)
+  return( -r / (F_w * (1 - F_w)))
+}
 
-generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0) {
+
+analytical_delta_bounded = function(w, u_sd, bounds) {
+  w_sd = sqrt(1 + u_sd^2)
+  lb = bounds[1]
+  ub = bounds[2]
+  Sigma = u_sd/w_sd
+
+  F_bound_diff = pnorm(ub) - pnorm(lb)
+
+  # vec_M_minus_integrator = Vectorize(M_minus_integrator, vectorize.args = c("w", "u_sd"))
+  # vec_F_w = Vectorize(analytical_conv_Fw, vectorize.args = c("z", "u_sd"))
+  F_w = analytical_conv_Fw(w, u_sd, bounds)
+  
+  # F_w = anal(w, u_sd, bounds)
+
+  integration_normalisation = (1/u_sd) * exp(-0.5 * (w^2) / (1 + u_sd^2))*(1/sqrt(2*pi)) * Sigma
+
+  phi_diff_1 = (-dnorm(ub)*pnorm((w - ub)/u_sd)) - (-dnorm(lb)*pnorm((w - lb)/u_sd))
+
+  phi_diff_2 = pnorm(ub - (w/(u_sd^2 + 1)), sd = Sigma) - pnorm(lb - (w/(u_sd^2 + 1)), sd = Sigma)
+
+  val = (-1/(F_w * (1 - F_w))) *(1/F_bound_diff) * ( phi_diff_1 - integration_normalisation *  phi_diff_2 )
+
+  # if we're dividing by something smaller than machine precision we must be in 
+  # the tails so just set to max delta possible
+  val[F_w*(1-F_w) < .Machine$double.eps] = ub
+  return(val)
+}
+
+
+analytical_delta_deriv_bounded = function(w, u_sd, bounds, delta_w = NULL) {
+
+  w_sd = sqrt(1 + u_sd^2)
+  lb = bounds[1]
+  ub = bounds[2]
+  Sigma = u_sd/w_sd
+  F_bound_diff = pnorm(ub) - pnorm(lb)
+
+  mu = w/(u_sd^2 + 1)
+  H = (1/u_sd) * (1/sqrt(2*pi)) * exp(-0.5 *((w^2)/(u_sd^2 + 1))) * Sigma
+
+  y_ub = (ub - mu)/Sigma
+  y_lb = (lb - mu)/Sigma
+
+  first_bit = (1/F_bound_diff) * H * ( Sigma * (-dnorm(y_ub) + dnorm(y_lb)) + mu * (pnorm(y_ub) - pnorm(y_lb)) )
+
+  F_w = analytical_conv_Fw(w, u_sd, bounds)
+
+  alpha = (u_sd^2 * w)/(u_sd^2 + 1)
+  beta = Sigma
+
+  c = -ub
+  d = -lb
+
+  gamma = sqrt(2*pi)*beta / (2*pi*u_sd*(pnorm(d) - pnorm(c)))
+
+  f_w = gamma * exp(-0.5 * (w^2)/(u_sd^2 + 1)) * (pnorm((w - lb - alpha)/beta) - pnorm((w - ub - alpha)/beta))
+
+  if (is.null(delta_w)) {
+    delta_w = analytical_delta_bounded(w, u_sd, bounds)
+  }
+
+  val = (first_bit + f_w * (1 - 2*F_w)*delta_w) / (F_w * (1 - F_w))
+
+  val[F_w*(1-F_w) < .Machine$double.eps] = 0
+
+  return(-val)
+
+}
+
+
+#https://math.stackexchange.com/questions/433204/definite-integral-of-a-product-of-normal-pdf-and-cdf 
+analytical_conv_Fw_part = function(mu, sigma, h, l){
+  z_h = (h - mu)/sigma
+  z_l = (l - mu)/sigma
+  rho = sqrt(1 + sigma^2)
+  
+  # because 1/(-Inf) returns 0 we need to track sign
+  mu_by_z_h = mu/z_h
+  mu_by_z_l = mu/z_l
+
+
+  
+  T_z_h = -1 * stan_owen_t(z_h, h/z_h) 
+  T_z_l = stan_owen_t(z_l, l/z_l) 
+  
+  infinite_z_h = !is.finite(z_h)
+  infinite_z_l = !is.finite(z_l)
+  mu_is_0 = (mu == 0)
+
+  mu_by_z_h[infinite_z_h] = sign(mu[infinite_z_h])*sign(z_h[infinite_z_h])
+  mu_by_z_l[infinite_z_l] = sign(mu[infinite_z_l])*sign(z_l[infinite_z_l])
+  mu_by_z_h[mu_is_0] = sign(z_h[mu_is_0])
+  mu_by_z_l[mu_is_0] = sign(z_l[mu_is_0])
+
+  T_z_h[infinite_z_h & !is.finite(h)] =  0
+  T_z_l[infinite_z_l & !is.finite(l)] =  0
+
+  val = 0.5 * (pnorm(z_h) - pnorm(z_l)) +
+    -0.5*(mu_by_z_h < 0) +
+    0.5*(mu_by_z_l < 0) +
+    T_z_h +
+    T_z_l +
+    -1 * stan_owen_t(mu/rho, (mu*sigma + z_h*rho^2)/mu) +
+    stan_owen_t(mu/rho, (mu*sigma + z_l*rho^2)/mu) 
+  return(val)
+}
+
+analytical_conv_Fw = function(z, u_sd, bounds) {
+  lb = bounds[1]
+  ub = bounds[2]
+  gamma = u_sd
+  mu = z/gamma
+  sigma = (-1)/gamma
+
+  x_h = (z - ub)/gamma
+  x_l = (z - lb)/gamma
+  F_w_part = analytical_conv_Fw_part(mu = mu, sigma = sigma, h = x_h, l = x_l)
+
+  val = F_w_part/(pnorm(ub) - pnorm(lb))
+  return(val)
+}
+
+
+calculate_M_minus = function(w, total_error_sd, u_sd, bounds) {
+  denominator = calculate_Fw_bounded(w, total_error_sd, u_sd, bounds = bounds)
+  numerator = integrate_M_minus_bounded(w, u_sd, bounds[1], bounds[2])
+  # M_minus[numerator == 0] = bounds[2]
+  M_minus = -1*exp(log(-1*numerator) - log(denominator))
+  M_minus[denominator == 0] = bounds[1]
+  M_minus = pmax(M_minus, bounds[1])
+  return(M_minus)
+}
+
+integrate_M_minus_bounded = function(w, u_sd, lb, ub) {
+  M_minus = function(v, w, u_sd) v * pnorm(w - v, sd = u_sd) * dtruncnorm(v, a = lb, b = ub)
+  M_minus_integrator = function(w, u_sd) integrate(M_minus, w = w, u_sd = u_sd, lower = lb, upper = ub, rel.tol = .Machine$double.eps^0.8, stop.on.error = FALSE)$value
+  vec_M_minus_integrator = Vectorize(M_minus_integrator, vectorize.args = c("w", "u_sd"))
+  vec_M_minus_integrator(w, u_sd)
+}
+
+calculate_M_plus = function(w, total_error_sd, u_sd, bounds) {
+  denominator = (1 - calculate_Fw_bounded(w, total_error_sd, u_sd, bounds = bounds))
+  numerator = integrate_M_plus_bounded(w, u_sd, bounds[1], bounds[2])
+  M_plus = exp(log(numerator) - log(denominator))
+  M_plus[numerator == 0] = bounds[2]
+  M_plus[denominator == 0] = bounds[2]
+  M_plus = pmin(M_plus, bounds[2]) 
+  return(M_plus)
+}
+
+calculate_Fw_bounded = function(w, total_error_sd, u_sd, bounds) {
+  lb = bounds[1]
+  ub = bounds[2]
+  conv_part = function(w, t, u_sd) ptruncnorm(w - t, a = lb, b = ub) * dnorm(t, sd = u_sd)
+  conv_part_integrator = function(w, u_sd, k) integrate(conv_part, w = w, u_sd = u_sd, -Inf, Inf, rel.tol = .Machine$double.eps^0.8, stop.on.error = FALSE)$value
+  vec_conv_part_integrator = Vectorize(conv_part_integrator, vectorize.args = c("w", "u_sd"))
+  vec_conv_part_integrator(w, u_sd)
+}
+
+
+integrate_M_plus_bounded = function(w, u_sd, lb, ub) {
+  M_plus = function(v, w, u_sd) v*(1 - pnorm(w - v, sd = u_sd))*dtruncnorm(v, a = lb, b = ub)
+  M_plus_integrator = function(w, u_sd) integrate(M_plus, w = w, u_sd = u_sd, lower = lb, upper = ub, rel.tol = .Machine$double.eps^0.8, stop.on.error = FALSE)$value
+  vec_M_plus_integrator = Vectorize(M_plus_integrator, vectorize.args = c("w", "u_sd"))
+  vec_M_plus_integrator(w, u_sd)
+}
+
+integrate_delta_part_bounded = function(w, u_sd, lb, ub) {
+  delta_part = function(v, w, u_sd) v*pnorm(w - v, sd = u_sd) * dtruncnorm(v, a = lb, b = ub)
+  delta_part_integrator = function(w, u_sd) integrate(delta_part, w = w, u_sd = u_sd, lower = lb,upper =  ub, rel.tol = .Machine$double.eps^0.8)$value
+  vec_delta_part_integrator = Vectorize(delta_part_integrator, vectorize.args = c("w", "u_sd"))
+  vec_delta_part_integrator(w, u_sd)
+}
+
+calculate_delta_bounded = function(w, total_error_sd, u_sd, bounds) {
+  F_w = calculate_Fw_bounded(w, total_error_sd, u_sd, bounds)
+  r = integrate_delta_part_bounded(w, u_sd, bounds[1], bounds[2])
+  bottom = F_w * (1 - F_w)
+  val = -r / bottom
+  new_val = val 
+  new_val[bottom < .Machine$double.eps^0.9] = bounds[2]
+  new_val = pmin(new_val, bounds[2])
+  new_val = pmax(new_val, bounds[1])
+  return(new_val)
+}
+
+generate_v_cutoff_fixedpoint <- function(b, mu, total_error_sd = 1, u_sd = 0, bounds = NULL) {
   function(v_cutoff) {
-    v_cutoff + b + mu * calculate_delta(v_cutoff, total_error_sd, u_sd)
+    if (is.null(bounds)){
+      v_cutoff + b + mu * analytical_delta(v_cutoff, u_sd)
+    } else {
+      v_cutoff + b + mu * analytical_delta_bounded(v_cutoff, u_sd, bounds)
+    }
   }
 }
 
