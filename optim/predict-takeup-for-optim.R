@@ -26,7 +26,7 @@ script_options = docopt::docopt(
     "),
     args = if (interactive()) "
                             71
-                            --output-name=no-rep
+                            --output-name=no_rep
                             --from-csv
                             --num-post-draws=10
                             --rep-cutoff=Inf
@@ -35,7 +35,6 @@ script_options = docopt::docopt(
                             --type-lb=-3
                             --type-ub=3
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP
-                            --pred-distance
                             --suppress-reputation
                             bracelet
                             control
@@ -514,7 +513,7 @@ draw_treat_grid = expand.grid(
 )
 
 
-run_estimation = FALSE
+run_estimation = TRUE
 if (run_estimation == TRUE){
 
 
@@ -530,7 +529,8 @@ pred_functions = map2(
         rep_cutoff = script_options$rep_cutoff,
         dist_cutoff = script_options$dist_cutoff, 
         bounds = script_options$bounds,
-        mu_rep_type = mu_rep_type
+        mu_rep_type = mu_rep_type,
+        suppress_rep = script_options$suppress_reputation
     ) %>% find_pred_takeup()
 )
 ## Now extract distance data
@@ -616,13 +616,17 @@ rf_pred_df = map_dfr(
     ungroup() 
 
 
+
+
+subset_long_distance_mat = long_distance_mat %>%
+    filter(dist < script_options$dist_cutoff)
+
 tictoc::tic()
-plan(multisession, workers = script_options$num_cores)
+plan(multicore, workers = script_options$num_cores)
 pred_df = future_imap_dfr(
     pred_functions,
     ~{
-        long_distance_mat %>%
-        filter(dist < script_options$dist_cutoff) %>%
+        subset_long_distance_mat %>%
             mutate( 
                 as_tibble(.x(dist)),
                 treatment = draw_treat_grid[.y, "treatment"], 
@@ -630,29 +634,11 @@ pred_df = future_imap_dfr(
             )
     },
     .options = furrr_options(
-        globals = c(
-            "draw_treat_grid",
-            "script_options",
-            "long_distance_mat",
-            "extract_params", 
-            "struct_param_draws", 
-            "dist_sd", 
-            "find_pred_takeup",
-            ".find_pred_takeup",
-            "calculate_mu_rep",
-            "calculate_belief_latent_predictor",
-            "find_v_star",
-            "generate_v_cutoff_fixedpoint",
-            "analytical_delta",
-            "analytical_delta_bounded",
-            "analytical_conv_Fw"),
-        packages = c("dplyr", "nleqslv", "purrr"),
         seed = TRUE
     ),
     .progress = TRUE
 )
 tictoc::toc()
-
 
 cutoff_pred_df = future_map2_dfr(
     draw_treat_grid$draw,
@@ -697,7 +683,7 @@ structural_demand_df = long_distance_mat %>%
   mutate(closest_pot = dist == min(dist)) %>%
   ungroup() %>%
   mutate( 
-    model = "STRUCTURAL_LINEAR_U_SHOCK"
+    model = script_options$model 
   )
 
 
