@@ -24,13 +24,14 @@ script_options <- docopt::docopt(
                              --min-cost 
                              --target-constraint=0.33
                              --input-path=optim/data
-                             --optim-input-a-filename=structural-post-draws-optimal-allocation.rds
+                             --optim-input-a-filename=structural-no-rep-median-optimal-allocation.rds
                              --village-input-filename=village-df.csv
                              --pot-input-filename=pot-df.csv
-                             --demand-input-a-filename=pred_demand_dist_fit66_STRUCTURAL_LINEAR_U_SHOCKS.csv
+                             --demand-input-a-filename=pred_demand_dist_fit71_no_rep.csv
                              --output-path=optim
-                             --output-basename=structural-post-draws-test
+                             --output-basename=structural-median-no-rep-test
                              --map-plot
+                             --posterior-median
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 

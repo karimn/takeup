@@ -26,11 +26,11 @@ script_options <- docopt::docopt(
                              --min-cost 
                              --target-constraint=0.32
                              --output-path=optim/data
-                             --output-filename=structural
+                             --output-filename=structural-no-rep
                              --input-path=optim/data 
                              --village-input-filename=village-df.csv
                              --pot-input-filename=pot-df.csv
-                             --demand-input-filename=pred_demand_dist_fit66.csv
+                             --demand-input-filename=pred_demand_dist_fit71_no_rep.csv
                              " else commandArgs(trailingOnly = TRUE)
 ) 
                             #  --dry-run 

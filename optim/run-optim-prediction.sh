@@ -1,8 +1,10 @@
 #!/bin/bash
 PREDDISTANCE="" # --pred-distance
-SUPPRESSREP="--suppress-rep"
-OUTPUTNAME="no_rep"
-NUMPOSTDRAWS=20
+SUPPRESSREP="" # "--suppress-rep"
+OUTPUTNAME="rep"
+MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
+NUMPOSTDRAWS=200
+
 
 
 set -e

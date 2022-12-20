@@ -708,7 +708,7 @@ rf_demand_df = rf_pred_df %>%
 
 
 append_output = if (!is.null(script_options$output_name)) {
-    paste0("_", script_options$output_name)
+    paste0("-", script_options$output_name)
 } else {
     ""
 }
@@ -720,7 +720,7 @@ bind_rows(
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred_demand_dist_fit${fit_version}${append_output}.csv")
+            str_interp("pred-demand-dist-fit${fit_version}${append_output}.csv")
         )
     )
         
