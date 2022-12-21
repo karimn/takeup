@@ -147,7 +147,12 @@ define_and_solve_model = function(baseline_model,
   )
   status = solver_status(fit_model)
   if (status == "success"){
-    tidy_output = clean_output(fit_model, data, demand_data) 
+    match_df = fit_model %>%
+        get_solution(x[i,j]) %>%
+        filter(value > .9) %>%  
+        select(i, j) %>%
+        as_tibble()
+    tidy_output = clean_output(match_df, data, demand_data) 
     return(tidy_output)
   } else {
     return(tibble(fail = TRUE, solver_status = status))
@@ -156,13 +161,8 @@ define_and_solve_model = function(baseline_model,
 
 safe_define_and_solve_model = possibly(define_and_solve_model, otherwise = tibble(fail = TRUE))
 
-clean_output = function(model_fit, data, demand_data){
-    matching = model_fit %>%
-        get_solution(x[i,j]) %>%
-        filter(value > .9) %>%  
-        select(i, j) %>%
-        as_tibble()
-    tidy_output = matching %>%
+clean_output = function(match_df, data, demand_data){
+    tidy_output = match_df %>%
         inner_join(data$village_locations %>% 
                         rename(village_lon = lon, village_lat = lat), by = c("i" = "id")) %>% 
         inner_join(data$pot_locations %>%
@@ -302,6 +302,15 @@ if (script_options$dry_run) {
   demand_data = read_csv(demand_input_path) %>%
     as.data.table() 
 
+  n_max = Inf
+  m_max = Inf
+  demand_data = demand_data[village_i <= n_max & pot_j <= m_max]
+  pot_data = pot_data %>%
+    filter(id <= m_max)
+  village_data = village_data %>%
+    filter(id <= n_max)
+
+
   if (script_options$posterior_median) {
     demand_data = demand_data[
       , 
@@ -329,6 +338,366 @@ baseline_model = define_baseline_MIPModel(data)
 
 demand_data = demand_data %>%
   nest(demand_data = -any_of(c("draw", "treatment", "model")))
+
+
+test_demand_data = demand_data$demand_data[[3]]
+full_model = baseline_model %>%
+  add_MIPModel_objective(
+    data = data,
+    demand_data = test_demand_data,
+    optim_type = optim_type,
+    target_constraint = script_options$target_constraint 
+  )
+
+
+##
+get_model_stuff = function(model) {
+  modelConstraints = extract_constraints(model)
+  variables = variable_types(model)
+  variables = as.character(variables)
+  variables[grepl("binary",variables)]="B"
+  variables[grepl("continuous",variables)]="C"
+  variables[grepl("integer",variables)]="I"
+  modelConstraints$direction[grepl("==",modelConstraints$direction)]="="
+  gurobiModel = list()
+  gurobiModel$A = modelConstraints$matrix
+  gurobiModel$obj = objective_function(model)$vector
+  gurobiModel$sense = modelConstraints$direction
+  gurobiModel$rhs = modelConstraints$rhs
+  gurobiModel$vtype = variables
+  gurobiModel$modelsense = "min"
+
+  # solved = gurobi(gurobiModel)
+
+  varNames = variable_keys(model)
+  return(gurobiModel)
+  # names(solved$x) = varNames
+  # result = new_solution(model, solved$objval, tolower(solved$status), solved$x)
+}
+# ##
+
+
+
+# gm$rhs
+
+# str(objective_function(full_model))
+
+
+# roi_model = as_ROI_model(full_model)
+
+# str(roi_model)
+
+
+# test_demand_data
+
+# str(roi_model)
+
+# roi_model$constraints$L
+
+library(ROI)
+library(Matrix)
+
+create_availability_constraint = function(j, n, m) {
+  y_matrix = sparseMatrix(
+    i = 1:n, 
+    j = rep(j, n), 
+    x = -1, 
+    dims = c(n, m))
+
+
+  x_index = m*(1:n) - (m - j)
+
+
+  x_matrix = sparseMatrix(
+    i = 1:n,
+    j = x_index,
+    x = rep(1, n), 
+    dims = c(n, m*n)
+  )
+
+  return(lst(y_matrix, x_matrix))
+}
+
+
+
+create_sum_constraint = function(i, n, m) {
+  x_start_index = m*i  - (m - 1)
+  x_end_index = m*i
+
+  x_matrix = sparseMatrix(
+    i = rep(1, m),
+    j = x_start_index:x_end_index,
+    x = rep(1, m),
+    dims = c(1, m*n)
+  )
+
+  y_matrix = as(
+    matrix(rep(0, m), nrow = 1),
+    "sparseMatrix"
+  )
+  return(lst(
+    y_matrix,
+    x_matrix
+  ))
+}
+
+
+
+create_takeup_constraint = function(takeup, n, m) {
+  x_matrix = matrix(
+    takeup,
+    nrow = 1
+  )
+  y_matrix = as(
+    matrix(rep(0, m), nrow = 1),
+    "sparseMatrix"
+  )
+  return(lst(
+    y_matrix,
+    x_matrix
+  ))
+}
+
+
+create_constraints = function(takeup, takeup_target, n, m) {
+  availability_constraints = map(
+    1:m,
+    ~create_availability_constraint(
+      j = .x,
+      n = n,
+      m = m
+    )
+  )
+  sum_constraints = map(
+    1:n,
+    ~create_sum_constraint(
+      i = .x,
+      n = n,
+      m = m
+    )
+  )
+
+  takeup_constraint = create_takeup_constraint(
+    takeup,
+    n = n,
+    m = m
+  )
+
+
+  x_constraint_matrix = rbind(
+    do.call(rbind, map(sum_constraints, "x_matrix")),
+    do.call(rbind, map(availability_constraints, "x_matrix")),
+    takeup_constraint$x_matrix
+  )
+
+
+
+  y_constraint_matrix = rbind(
+    do.call(rbind, map(sum_constraints, "y_matrix")),
+    do.call(rbind, map(availability_constraints, "y_matrix")),
+    takeup_constraint$y_matrix
+  )
+
+  constraint_matrix = cbind(
+    y_constraint_matrix,
+    x_constraint_matrix
+  ) %>%
+    as.matrix()
+
+
+  dir = c(
+    rep("==", n), 
+    rep("<=", m*n),
+    ">="
+  ) 
+
+  rhs = c(
+    rep(1, n),
+    rep(0, m*n),
+    takeup_target*n
+  )
+
+  i_index = rep(1:n, each = m)
+  j_index = rep(1:m, n)
+
+  variable_names = c(
+    paste0("y_", 1:m),
+    paste0("x_", i_index, "_", j_index)
+  )
+
+  return(lst(
+    constraint_matrix,
+    dir,
+    rhs,
+    variable_names
+    ))
+}
+
+create_objective = function(n, m){
+  objective_matrix = c(rep(1, m), rep(0, n*m))
+  i_index = rep(1:n, each = m)
+  j_index = rep(1:m, n)
+
+  variable_names = c(
+    paste0("y_", 1:m),
+    paste0("x_", i_index, "_", j_index)
+  )
+  return(lst(
+    objective_matrix,
+    variable_names
+  ))
+}
+
+
+
+sorted_takeup = test_demand_data %>%
+  arrange(pot_j, village_i) %>%
+  pull(demand)
+
+problem_constraints = create_constraints(
+  takeup = sorted_takeup,
+  takeup_target = script_options$target_constraint,
+  n = data$n,
+  m = data$m
+)
+
+
+
+
+problem_objective = create_objective(data$n, data$m)
+
+gm = get_model_stuff(full_model) 
+
+
+
+
+
+
+ed_lp = OP(
+  objective = L_objective(
+    problem_objective$objective_matrix,
+    names = problem_objective$variable_names
+  ), 
+  constraints = L_constraint(
+    L = problem_constraints$constraint_matrix,
+    rhs = problem_constraints$rhs,
+    dir = problem_constraints$dir,
+    names = problem_constraints$variable_names
+  ),
+  types = rep(
+    "B",
+    length(problem_objective$objective_matrix)
+  ),
+  maximum = FALSE
+)
+
+
+ed_solution <- ROI_solve(
+  ed_lp, 
+  solver = "glpk",
+  verbose = TRUE
+)
+
+
+
+
+full_soln = solve_model(
+  full_model,
+  with_ROI(
+    solver = "glpk", 
+    verbose = TRUE, 
+    # control = list(tm_limit = script_options$time_limit)
+    )
+    )
+
+
+tidy_full_soln = full_soln %>%
+  get_solution(x[i,j]) %>%
+  filter(value > .9) %>%  
+  select(i, j) %>%
+  as_tibble() %>%
+  clean_output(
+    match_df = .,
+    data = data,
+    demand_data = test_demand_data
+  ) %>%
+  mutate(type = "auto soln")
+
+clean_ed_soln = ed_solution$solution %>%
+  enframe() %>%
+  mutate(
+    variable = if_else(str_detect(name, "x"), "x", "y") 
+  ) %>%
+  mutate( 
+    index_i = if_else(
+      variable == "y", 
+      NA_integer_, 
+      str_extract(name, "(?<=_)\\d+(?=_)") %>% as.integer
+    ),
+    index_j = if_else(
+      variable == "y", 
+      str_extract(name, "\\d+") %>% as.integer,
+      str_extract(name, "\\d+$") %>% as.integer
+    )
+  )
+
+
+tidy_ed_soln = clean_ed_soln %>%
+  filter(variable == "x") %>%
+  filter(value == 1) %>%
+  select( 
+    i = index_i, 
+    j = index_j
+  ) %>%
+  clean_output(
+    match_df = ., 
+    data = data, 
+    demand_data = test_demand_data
+  ) %>%
+  mutate(
+    type = "ed soln"
+  )
+
+
+tidy_comp_soln = bind_rows(
+  tidy_ed_soln,
+  tidy_full_soln
+)
+
+
+
+library(scales)
+#extract hex color codes for a plot with three elements in ggplot2 
+hex <- hue_pal()(2)
+
+
+data$village_locations %>%
+    ggplot() +
+    geom_sf() +
+    geom_sf(
+        data = data$pot_locations,
+        shape = 17,
+        size = 4, 
+        alpha = 0.7
+        # colour = hex[1]
+        ) +
+    theme_bw() +
+    geom_segment(
+        data = tidy_comp_soln, 
+        aes(x = village_lon, 
+            y = village_lat, 
+            xend = pot_lon, 
+            yend = pot_lat,
+            colour = type
+            ))  +
+    theme_bw()  +
+    facet_wrap(~type)
+ggsave("temp-plots/ed-manual.png", width = 8, height = 6, dpi = 500)
+
+
+
+
+
 
 tictoc::tic()
 tidy_output = demand_data %>%
