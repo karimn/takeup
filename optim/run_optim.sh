@@ -65,7 +65,7 @@ do
                                 --village-input-filename=village-df.csv \
                                 --pot-input-filename=pot-df.csv \
                                 --demand-input-a-filename=pred-demand-dist-fit${VERSION}-no-cutoff-${VARIABLE}.csv \
-                                --output-path=optim \
+                                --output-path=optim/plots \
                                 --output-basename=no-cutoff-${VARIABLE}-median \
                                 --map-plot
 
@@ -110,7 +110,7 @@ do
                                 --village-input-filename=village-df.csv \
                                 --pot-input-filename=pot-df.csv \
                                 --demand-input-a-filename=pred-demand-dist-fit${VERSION}-cutoff-${VARIABLE}.csv \
-                                --output-path=optim \
+                                --output-path=optim/plots \
                                 --output-basename=cutoff-${VARIABLE}-median \
                                 --map-plot
 done
