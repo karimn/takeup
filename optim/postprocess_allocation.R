@@ -19,7 +19,7 @@ script_options <- docopt::docopt(
           --cutoff-type=<cutoff-type>  Which cutoff type to use if using full posterior draws [default: no-cutoff]
 "),
   args = if (interactive()) "
-                            --cutoff-type=no-cutoff
+                            --cutoff-type=cutoff
                             --output-path=optim/plots
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -274,10 +274,8 @@ if (stat_type == "post-draws") {
 
     plot_post_estimates = function(data, treatment_arm, cutoff_type) {
         
-        plot_title = str_wrap(
-            str_glue("Posterior Histogram of Number of PoTs required - Visibility vs No Visibility"),
-            140
-        )
+        plot_title = 
+            str_glue("Posterior Histogram of Number of PoTs required - Visibility vs No Visibility")
 
         plot_subtitle = str_glue(
                 "Using {treatment_arm} private incentive/visibility."
@@ -328,7 +326,7 @@ if (stat_type == "post-draws") {
                 y = "N Posterior Draws", 
                 title = plot_title, 
                 subtitle = plot_subtitle,
-                caption = str_wrap("Histogram shows 200 posterior draws. Decision maker targets takeup of 33% (equivalent to takeup in control arm).", width = 140)
+                caption = "Histogram shows 200 posterior draws. Decision maker targets takeup of 33% (equivalent to takeup in control arm)."
                 ) +
             scale_fill_canva(
                 palette = canva_palette_vibrant
