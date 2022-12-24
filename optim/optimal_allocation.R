@@ -21,16 +21,15 @@ script_options <- docopt::docopt(
           --posterior-median  Use median demand rather than solve across all draws
 "),
   args = if (interactive()) "
-                             --posterior-median
                              --num-cores=12
                              --min-cost 
                              --target-constraint=0.32
                              --output-path=optim/data
-                             --output-filename=structural-no-rep
+                             --output-filename=structural-rep
                              --input-path=optim/data 
                              --village-input-filename=village-df.csv
                              --pot-input-filename=pot-df.csv
-                             --demand-input-filename=pred_demand_dist_fit71_no_rep.csv
+                             --demand-input-filename=pred-demand_dist_fit71_rep.csv
                              " else commandArgs(trailingOnly = TRUE)
 ) 
                             #  --dry-run 
@@ -612,7 +611,6 @@ baseline_constraints = create_base_constraints(
 )
 
 
-
 tictoc::tic()
 tidy_output = demand_data %>%
   mutate(
@@ -628,7 +626,8 @@ tidy_output = demand_data %>%
         ROI_solve(
           .,
           solver = "glpk",
-          verbose = FALSE
+          verbose = FALSE,
+          control = list(tm_limit = script_options$time_limit)
         ) %>%
         clean_solution(., data = data, takeup = .x)
       
@@ -649,7 +648,6 @@ if (script_options$dry_run) {
     script_options$output_path, 
     str_glue("{script_options$output_filename}-{stat_type}-optimal-allocation.rds"))
 }
-
 
 
 saveRDS(
