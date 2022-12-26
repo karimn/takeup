@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age ]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sms --sbc --num-sbc-sims=<num-sbc-sims>]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -25,6 +25,7 @@ Options:
   --include-paths=<paths>  Includes path for cmdstanr [default: stan_models]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
   --num-mix-groups=<num>  Number of finite mixtures in distance model [default: 2]
+  --sms
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
@@ -37,12 +38,14 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit71 \
-    --models=REDUCED_FORM_NO_RESTRICT_SMS  \
+    --outputname=dist_fit72 \
+    --models=REDUCED_FORM_NO_RESTRICT  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
-    --sequential" else commandArgs(trailingOnly = TRUE)
+    --sequential \
+    --sms
+    " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -104,7 +107,6 @@ standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
 # stick to monitored sms.treatment group
 # remove sms.treatment.2
-
 monitored_nosms_data <- analysis.data %>% 
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
@@ -124,6 +126,18 @@ monitored_sms_data <- analysis.data %>%
   ungroup()
 
 
+monitored_sms_data 
+
+monitored_nosms_data %>%
+  group_by(
+    cluster_id
+  ) %>%
+  summarise(
+    n_treat = n_distinct(assigned.treatment)
+  ) %>%
+  filter(n_treat != 1)
+
+
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
@@ -133,7 +147,9 @@ nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-if (script_options$model == "REDUCED_FORM_NO_RESTRICT_SMS") {
+
+
+if (script_options$sms) {
   analysis_data <- monitored_sms_data %>% 
     mutate(
     assigned_treatment = assigned.treatment, 
@@ -143,23 +159,20 @@ if (script_options$model == "REDUCED_FORM_NO_RESTRICT_SMS") {
     sms_treatment = str_replace_all(sms_treatment, "\\.", "")) %>%
     # reminder.only only present in control condition
     filter(
-      sms_treatment != "reminder.only"
+      sms_treatment != "reminderonly"
     )  %>%
     filter(phone_owner == "phone") %>%
-    mutate(
-      assigned_treatment = paste(
-        assigned_treatment,
-        sms_treatment, 
-        phone_owner,
-        sep = "_"
-      ) %>% as.factor()
-    )
+    mutate(sms_treatment = factor(sms_treatment))
+
 } else {
   analysis_data <- monitored_nosms_data %>% 
     mutate(
       assigned_treatment = assigned.treatment, 
-      assigned_dist_group = dist.pot.group)
+      assigned_dist_group = dist.pot.group,
+      sms_treatment = factor(sms.treatment.2))
 }
+
+
 # Models ------------------------------------------------------------------
 
 num_treatments <- n_distinct(analysis_data$assigned_treatment)
@@ -494,6 +507,9 @@ stan_data <- lst(
   num_age_groups = if (script_options$age) nlevels(analysis_data$age.census_group) else 1,
   obs_age_group = if (script_options$age) analysis_data$age.census_group else rep(factor("all"), num_obs),
   
+  num_phone_groups = if (script_options$sms) nlevels(analysis_data$sms_treatment) else 1,
+  obs_phone_group = if (script_options$sms) analysis_data$sms_treatment else rep(factor("all"), num_obs),
+  
   cluster_standard_dist = distinct(analysis_data, cluster_id, standard_cluster.dist.to.pot) %>% 
     arrange(cluster_id) %>% 
     pull(standard_cluster.dist.to.pot),
@@ -607,12 +623,18 @@ stan_data <- lst(
   age_group_alpha_sd = c(0.5, rep(0.25, num_treatments * num_discrete_dist - 1)),
   age_group_rho_sd = rep(1, num_treatments * num_discrete_dist),
   
+
+  phone_group_alpha_sd = c(0.5, rep(0.25, num_treatments * num_discrete_dist - 1)),
+
   analysis_data,
   # SBC
   sbc = script_options$sbc
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
   list_modify(!!!wtp_stan_data) 
+
+
+
 if (script_options$sbc & !script_options$takeup) {
   stop("Not yet implemented")
 }
