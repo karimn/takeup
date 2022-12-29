@@ -7,11 +7,13 @@ script_options = docopt::docopt(
         --save-fit
         --fit-path=<fit-path>
         --fit-file=<fit-file>
+        --include-reminder
     "),
     args = if (interactive()) "
-        --load-fit
+        --save-fit
         --fit-path=data/stan_analysis_data
-        --fit-file=SMS_BRMS_fit.rds
+        --fit-file=SMS_BRMS_reminder_fit.rds
+        --include-reminder
     " else commandArgs(trailingOnly = TRUE)
     # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
@@ -72,19 +74,20 @@ nosms_data <- analysis.data %>%
 
 
 analysis_data <- monitored_sms_data %>% 
-mutate(
-assigned_treatment = assigned.treatment, 
-assigned_dist_group = dist.pot.group, 
-sms_treatment = sms.treatment.2, 
-phone_owner = if_else(phone_owner == TRUE, "phone", "nophone"), 
-sms_treatment = str_replace_all(sms_treatment, "\\.", "")) %>%
-# reminder.only only present in control condition
-filter(
-    sms_treatment != "reminderonly"
-)  %>%
-filter(phone_owner == "phone") %>%
-mutate(sms_treatment = factor(sms_treatment))
+    mutate(
+    assigned_treatment = assigned.treatment, 
+    assigned_dist_group = dist.pot.group, 
+    sms_treatment = sms.treatment.2, 
+    phone_owner = if_else(phone_owner == TRUE, "phone", "nophone"), 
+    sms_treatment = str_replace_all(sms_treatment, "\\.", "")) %>%
+    # reminder.only only present in control condition
+    filter(phone_owner == "phone") %>%
+    mutate(sms_treatment = factor(sms_treatment))
 
+if (!script_options$include_reminder) {
+    analysis_data = analysis_data %>%
+        filter(sms_treatment != "reminderonly")
+}
 
 
 if (script_options$load_fit) {
@@ -447,7 +450,7 @@ p_comp_levels = pred_df %>%
     mutate(sms_treatment = if_else(
         sms_treatment == "socialinfo", 
         "Social Info", 
-        "Reminder Only"
+        "SMS Control"
     )) %>%
     plot_brm_estimands(
         color_var = sms_treatment
