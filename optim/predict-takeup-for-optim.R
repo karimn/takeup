@@ -340,7 +340,6 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
     
     if (any(is.nan(map_dbl(v_fs, ~.x(0))))) {
         browser()
-
         map_dbl(v_fs, ~.x(0))
         v_fs[[100]](10)
         b[[100]]
@@ -394,6 +393,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              u_sd, 
                              dist_sd, 
                              mu_beta_z_control,
+                             mu_beta_d_control,
+                             base_mu_rep_control,
                              rep_cutoff = Inf,
                              bounds,
                              mu_rep_type,
@@ -422,7 +423,25 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                 mu_rep_type = mu_rep_type)
             mu_rep[which(over_cutoff)] = cutoff_mu_rep
         } else {
-            mu_rep = 0
+            # Use control level of mu_rep
+            mu_rep = calculate_mu_rep(
+                dist = distance,
+                base_mu_rep = base_mu_rep_control,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z_control,
+                dist_beta = mu_beta_d_control,
+                beta_control = mu_beta_z_control,
+                mu_rep_type = mu_rep_type)
+            # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+            cutoff_mu_rep = calculate_mu_rep(
+                dist = rep_cutoff/dist_sd,
+                base_mu_rep = base_mu_rep_control,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z_control,
+                dist_beta = mu_beta_d_control,
+                beta_control = mu_beta_z_control,
+                mu_rep_type = mu_rep_type)
+            mu_rep[which(over_cutoff)] = cutoff_mu_rep
         }
         v_star_soln = find_v_star(
             distance = distance,
@@ -452,6 +471,8 @@ find_pred_takeup = function(params) {
         u_sd = params$u_sd,
         dist_sd = params$dist_sd,
         mu_beta_z_control = params$mu_beta_z_control,
+        mu_beta_d_control = params$mu_beta_d_control,
+        base_mu_rep_control = params$base_mu_rep_control,
         rep_cutoff = params$rep_cutoff,
         bounds = params$bounds,
         mu_rep_type = params$mu_rep_type,
@@ -488,11 +509,24 @@ extract_params = function(param_draws,
     mu_beta_z_control = draw_df %>%
         filter(.variable == "centered_cluster_beta_1ord" & k == 1 & (j == j_id | is.na(j)) ) %>%
         pull(.value)
-    
+
+    mu_beta_d_control = draw_df %>%
+        filter(
+            .variable == "centered_cluster_dist_beta_1ord" & k == 1 & (j == j_id | is.na(j))
+        ) %>%
+        pull(.value)
+
+    base_mu_rep_control = draw_df %>%
+        filter(
+            .variable == "base_mu_rep"  & (j == j_id | is.na(j))
+        ) %>%
+        pull(.value)
 
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 
+        "base_mu_rep_control" = base_mu_rep_control,
+        "mu_beta_d_control" = mu_beta_d_control,
         "dist_sd" = dist_sd,
         "dist_cutoff" = dist_cutoff,
         "rep_cutoff" = rep_cutoff,
@@ -516,7 +550,6 @@ draw_treat_grid = expand.grid(
 run_estimation = TRUE
 if (run_estimation == TRUE){
 
-
 pred_functions = map2(
     draw_treat_grid$draw,
     draw_treat_grid$treatment,
@@ -533,6 +566,21 @@ pred_functions = map2(
         suppress_rep = script_options$suppress_reputation
     ) %>% find_pred_takeup()
 )
+
+extract_params(
+    struct_param_draws,
+    treatment = "bracelet",
+    draw_id = 1,
+    dist_sd = dist_sd,
+    j_id = 1,
+        rep_cutoff = script_options$rep_cutoff,
+        dist_cutoff = script_options$dist_cutoff, 
+        bounds = script_options$bounds,
+        mu_rep_type = mu_rep_type,
+        suppress_rep = script_options$suppress_reputation
+
+)
+
 ## Now extract distance data
 ## Grabbing Data
 cluster_ids_actually_used = analysis_data %>%

@@ -2,15 +2,14 @@
 
 # Setting arguments
 PREDDISTANCE="" # --pred-distance
-TAKEUPOUTPUTNAME="rep"
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
 NUMPOSTDRAWS=200
 SUBSIDY=0.25
 TARGETCONSTRAINT=0.32
 DRYRUN="" # "--sub-sample", "--fake-data"
 VERSION=71
-POSTERIORMEDIAN="" # --posterior-median
-SKIPPREDICTION=1
+POSTERIORMEDIAN="--posterior-median" # --posterior-median
+SKIPPREDICTION=0 # 1
 
 
 set -e
@@ -47,6 +46,7 @@ do
                                     ${PREDDISTANCE} \
                                     ${REPVAR} \
                                     bracelet \
+                                    calendar \
                                     control
     fi
 
@@ -77,7 +77,7 @@ do
                                 --output-path=optim/plots \
                                 --output-basename=no-cutoff-${VARIABLE}-${POSTVAR} \
                                 --map-plot \
-                                cutoff-type=no-cutoff
+                                --cutoff-type=no-cutoff
 
     ## now cutoff
     if [ $SKIPPREDICTION != 1 ]
@@ -96,6 +96,7 @@ do
                                     ${PREDDISTANCE} \
                                     ${REPVAR} \
                                     bracelet \
+                                    calendar \
                                     control
     fi
 
@@ -126,7 +127,7 @@ do
                                 --output-path=optim/plots \
                                 --output-basename=cutoff-${VARIABLE}-${POSTVAR} \
                                 --map-plot \
-                                cutoff-type=cutoff
+                                --cutoff-type=cutoff
 done
 
 
