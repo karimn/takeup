@@ -1,5 +1,4 @@
 #!/usr/bin/Rscript
-
 script_options = docopt::docopt(
     stringr::str_glue("Usage:
     predict-takeup-for-optim.R <fit-version> [options] [ --from-csv | --to-csv ] [<treatment>...]
@@ -23,10 +22,11 @@ script_options = docopt::docopt(
         --model=<model>  Which model to use [default: STRUCTURAL_LINEAR_U_SHOCKS]
         --fit-rf  Estimate a simple brms reduced form model with distance entering continuously 
         --suppress-reputation  Set reputational returns/visibility to 0.
+        --run-estimation  Whether th run estimation stuff
     "),
     args = if (interactive()) "
                             71
-                            --output-name=no_rep
+                            --output-name=rep
                             --from-csv
                             --num-post-draws=10
                             --rep-cutoff=Inf
@@ -35,7 +35,7 @@ script_options = docopt::docopt(
                             --type-lb=-3
                             --type-ub=3
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP
-                            --suppress-reputation
+                            --run-estimation
                             bracelet
                             control
                               " 
@@ -50,6 +50,7 @@ if (length(script_options$treatment) == 0) {
     )
 }
 
+run_estimation = script_options$run_estimation
 
 library(posterior)
 library(tidyverse)
@@ -547,7 +548,6 @@ draw_treat_grid = expand.grid(
 )
 
 
-run_estimation = TRUE
 if (run_estimation == TRUE){
 
 pred_functions = map2(
@@ -796,13 +796,12 @@ village_df %>%
         ))
 
 }
-
-
+stop()
 if (script_options$pred_distance) {
 
 
     library(furrr)
-    plan(multisession, workers = 12)
+    plan(multicore, workers = script_options$num_cores)
 
 
 high_bound = Inf
@@ -848,7 +847,6 @@ agg_data = function(
                 suppress_rep = suppress_rep
             ) %>% find_pred_takeup()
     )
-
     from_d = 10
     to_d = 10000
     len_out = 100
@@ -856,7 +854,6 @@ agg_data = function(
     dist_df = tibble(
         distance = seq(from_d, to_d, length.out = len_out)
     )
-
 
 
 
@@ -1062,6 +1059,65 @@ ggsave(
     height = 6,
     dpi = 500
 )
+
+
+long_comp_df %>%
+    filter(fct_match(bound, high_bound)) %>%
+    filter(variable == "pred_takeup") %>%
+    filter(distance <= 2500) %>%
+    ggplot(aes(
+        x = distance, 
+        y = value, 
+        colour = interaction(treatment, suppress_rep), 
+        group = interaction(treatment, suppress_rep, draw)
+    )) +
+    geom_line() +
+    # facet_wrap(
+    #     ~suppress_rep, 
+    #     scales = 'free', 
+    #     ncol = 1
+    #     ) +
+    labs(
+        title = str_glue("Comparison Posterior Draws Over Distance"), 
+        subtitle = str_glue("{script_options$model}, Unbounded")
+    ) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    labs(colour = "Treatment:")
+
+long_comp_df %>%
+    filter(fct_match(bound, high_bound)) %>%
+    filter(variable == "pred_takeup") %>%
+    filter(distance <= 2500) %>%
+    ggplot(aes(
+        x = distance, 
+        y = value, 
+        colour = treatment, 
+        group = interaction(treatment, draw)
+    )) +
+    geom_line() +
+    facet_wrap(
+        ~suppress_rep, 
+        # scales = 'free', 
+        ncol = 2
+        ) +
+    labs(
+        title = str_glue("Comparison Posterior Draws Over Distance"), 
+        subtitle = str_glue("{script_options$model}, 2.5km cutoff - Suppress Reputation FALSE/TRUE")
+    ) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    labs(colour = "Treatment:")
+
+ggsave(
+    str_glue(
+        "temp-plots/close-comp-model-bounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
+    ),
+    width = 8,
+    height = 6,
+    dpi = 500
+)
+
 
 long_comp_df %>%
     filter(fct_match(bound, low_bound)) %>%

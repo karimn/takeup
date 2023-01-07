@@ -10,6 +10,7 @@ DRYRUN="" # "--sub-sample", "--fake-data"
 VERSION=71
 POSTERIORMEDIAN="--posterior-median" # --posterior-median
 SKIPPREDICTION=0 # 1
+RUNESTIMATION="--run-estimation"
 
 
 set -e
@@ -45,6 +46,7 @@ do
                                     --model=${MODEL} \
                                     ${PREDDISTANCE} \
                                     ${REPVAR} \
+                                    ${RUNESTIMATION} \
                                     bracelet \
                                     calendar \
                                     control
@@ -95,6 +97,7 @@ do
                                     --model="STRUCTURAL_LINEAR_U_SHOCKS" \
                                     ${PREDDISTANCE} \
                                     ${REPVAR} \
+                                    ${RUNESTIMATION} \
                                     bracelet \
                                     calendar \
                                     control
