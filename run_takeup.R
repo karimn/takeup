@@ -38,7 +38,7 @@ Options:
     takeup fit \
     --cmdstanr \
     --outputname=dist_fit71 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP_QUAD  \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -217,12 +217,12 @@ models <- lst(
       suppress_reputation = suppress_reputation)) %>%
     list_modify(!!!enum2stan_data(cost_model_types)),
 
-    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP_QUAD = lst(
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = lst(
       model_file = "takeup_struct.stan",
       pars = struct_model_stan_pars,
       control = lst(max_treedepth = 12, adapt_delta = 0.99),
       use_binomial = FALSE,
-      use_cost_model = cost_model_types["param_quadratic"],
+      use_cost_model = cost_model_types["param_linear"],
       use_private_incentive_restrictions = FALSE,
       use_cluster_effects = FALSE,
       use_county_effects = script_options$multilevel,
