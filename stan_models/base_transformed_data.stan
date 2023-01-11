@@ -1,5 +1,4 @@
 int<lower = 0, upper = 1> use_age_groups = num_age_groups > 1;
-int<lower = 0, upper = 1> use_phone_groups = num_phone_groups > 1;
 
 int num_dist_group_treatments = num_treatments * num_discrete_dist; 
 // array[num_clusters] int<lower = 1> cluster_size = count(num_clusters, obs_cluster_id);

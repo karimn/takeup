@@ -19,7 +19,6 @@ data {
   
   vector<lower = 0>[num_treatments * num_discrete_dist] age_group_alpha_sd;
   vector<lower = 0>[num_treatments * num_discrete_dist] age_group_rho_sd;
-  vector<lower = 0>[num_treatments * num_discrete_dist] phone_group_alpha_sd;
   int<lower = 0, upper = 1> sbc;
 }
 
@@ -38,7 +37,6 @@ parameters {
   vector[num_discrete_dist] beta_ink_effect;
   vector[num_discrete_dist] beta_calendar_effect;
   vector[num_discrete_dist] beta_bracelet_effect;
-
   
   vector[use_cluster_effects ? num_clusters : 0] reduced_beta_cluster_raw;
   real<lower = 0> reduced_beta_cluster_sd;
@@ -47,9 +45,7 @@ parameters {
   row_vector<lower = 0>[use_county_effects ? num_dist_group_treatments : 0] reduced_beta_county_sd;
   
   matrix[use_age_groups ? num_age_groups : 0, num_dist_group_treatments] reduced_beta_age_group_raw;
-  matrix[use_phone_groups ? num_phone_groups : 0, num_dist_group_treatments] reduced_beta_phone_group_raw;
   row_vector<lower = 0>[use_age_groups ? num_dist_group_treatments : 0] reduced_beta_age_group_alpha;
-  row_vector<lower = 0>[use_phone_groups ? num_dist_group_treatments : 0] reduced_beta_phone_group_alpha;
   row_vector<lower = 0>[use_age_groups && use_age_group_gp ? num_dist_group_treatments : 0] reduced_beta_age_group_rho;
 
 }
@@ -61,9 +57,8 @@ transformed parameters {
   vector[num_clusters] reduced_beta_cluster = rep_vector(0, num_clusters);
   matrix[num_counties, num_dist_group_treatments] reduced_beta_county = rep_matrix(0, num_counties, num_dist_group_treatments);
   matrix[num_age_groups, num_dist_group_treatments] reduced_beta_age_group = rep_matrix(0, num_age_groups, num_dist_group_treatments);
-  matrix[num_phone_groups, num_dist_group_treatments] reduced_beta_phone_group = rep_matrix(0, num_phone_groups, num_dist_group_treatments);
   
-  matrix<lower = 0, upper = 1>[num_clusters, (num_age_groups*num_phone_groups)] reduced_cluster_takeup_prob;
+  matrix<lower = 0, upper = 1>[num_clusters, num_age_groups] reduced_cluster_takeup_prob;
   
   for (dist_index in 1:num_discrete_dist) {
     beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
@@ -97,18 +92,10 @@ transformed parameters {
       reduced_beta_age_group = reduced_beta_age_group_raw .* rep_matrix(reduced_beta_age_group_alpha, num_age_groups);
     }
   }
-  if (use_phone_groups) {
-    reduced_beta_phone_group = reduced_beta_phone_group_raw .* rep_matrix(reduced_beta_phone_group_alpha, num_phone_groups);
+  
+  for (age_group_index in 1:num_age_groups) {
+    reduced_cluster_takeup_prob[, age_group_index] = Phi_approx(reduced_cluster_benefit_cost + cluster_treatment_design_matrix * reduced_beta_age_group[age_group_index]');
   }
-  for (phone_group_index in 1:num_phone_groups) {
-    for (age_group_index in 1:num_age_groups) {
-      reduced_cluster_takeup_prob[, ((phone_group_index - 1)*num_age_groups + age_group_index)] = Phi_approx(
-        reduced_cluster_benefit_cost + 
-        cluster_treatment_design_matrix * reduced_beta_age_group[age_group_index]' +
-        cluster_treatment_design_matrix * reduced_beta_phone_group[phone_group_index]'
-        );
-    }
-  } 
 }
 
 model {
@@ -136,10 +123,6 @@ model {
       reduced_beta_age_group_rho ~ normal(0, age_group_rho_sd);
     }
   }
-  if (use_phone_groups) {
-    to_vector(reduced_beta_phone_group_raw) ~ std_normal();
-    reduced_beta_phone_group_alpha ~ normal(0, phone_group_alpha_sd);
-  }
   profile("model fitting") {
     if (fit_model_to_data) {
       // Take-up Likelihood 
@@ -148,16 +131,11 @@ model {
         if (sbc == 1) {
           // not yet implemented
         } else {
-  for (phone_group_index in 1:num_phone_groups) {
           for (age_group_index in 1:num_age_groups) {
             cluster_takeup_count[included_clusters, age_group_index] ~ binomial(
               cluster_size[included_clusters, age_group_index], 
               // reduced_cluster_takeup_prob[included_clusters]
-              // Not implemented for phone !!!
-              Phi_approx(
-                reduced_cluster_benefit_cost[included_clusters] + 
-                cluster_treatment_design_matrix[included_clusters] * reduced_beta_age_group[age_group_index]'
-                )
+              Phi_approx(reduced_cluster_benefit_cost[included_clusters] + cluster_treatment_design_matrix[included_clusters] * reduced_beta_age_group[age_group_index]')
             );
           }
         }
@@ -171,16 +149,7 @@ model {
         } else {
           takeup[included_monitored_obs] ~ bernoulli(
             Phi_approx(
-              reduced_cluster_benefit_cost[obs_cluster_id[included_monitored_obs]] + 
-              rows_dot_product(
-                cluster_treatment_design_matrix[obs_cluster_id[included_monitored_obs]], 
-                reduced_beta_age_group[obs_age_group[included_monitored_obs]]
-              ) +
-              rows_dot_product(
-                cluster_treatment_design_matrix[obs_cluster_id[included_monitored_obs]],
-                reduced_beta_phone_group[obs_phone_group[included_monitored_obs]]
-              )
-              // put phone effect here
+              reduced_cluster_benefit_cost[obs_cluster_id[included_monitored_obs]] + rows_dot_product(cluster_treatment_design_matrix[obs_cluster_id[included_monitored_obs]], reduced_beta_age_group[obs_age_group[included_monitored_obs]])
             )
           );
 

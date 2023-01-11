@@ -8,11 +8,13 @@ script_options = docopt::docopt(
         --fit-path=<fit-path>
         --fit-file=<fit-file>
         --include-reminder
+        --output-path=<output-path>  Output path [default: temp-data]
     "),
     args = if (interactive()) "
-        --save-fit
+        --load-fit
         --fit-path=data/stan_analysis_data
         --fit-file=SMS_BRMS_reminder_fit.rds
+        --output-path=temp-data/sms-reminder
         --include-reminder
     " else commandArgs(trailingOnly = TRUE)
     # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
@@ -155,12 +157,14 @@ create_comp_dfs = function(fit, interval) {
 
 }
 
+
 comp_df = comparisons(
         rf_fit,
-        variable = "sms_treatment",
+        variable = list(sms_treatment = "all"),
         newdata = datagrid(
             assigned_dist_group = unique(analysis_data$assigned_dist_group),
-            assigned_treatment = unique(analysis_data$assigned_treatment)), 
+            assigned_treatment = unique(analysis_data$assigned_treatment)
+            ), 
         conf.level = 0.95
     ) 
 
@@ -242,6 +246,15 @@ plot_single_sms_est = function(sms_df,
 } 
 
 comp_summ_df %>%
+    mutate(
+        contrast_left = str_extract(contrast, "^\\w+"),
+        contrast_right = str_extract(contrast, "\\w+$")
+    ) %>%
+    filter(
+        contrast_right == "smscontrol",
+        contrast_left != "smscontrol",
+        (contrast_left != "reminderonly" | assigned_treatment == "control")
+    ) %>%
     mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
     mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
     plot_single_sms_est(
@@ -249,10 +262,14 @@ comp_summ_df %>%
         ) +
     labs(
         title = "SMS Treatment Effect By Incentive and Distance Condition"
-    )
+    ) +
+    facet_wrap(~contrast)
 
 ggsave(
-    "temp-data/sms-TE-by-dist-incentive.png", 
+    file.path(
+        script_options$output_path,
+        "sms-TE-by-dist-incentive.png"
+    ),
     width = 7.5,
     height = 5,
     dpi = 500
@@ -414,7 +431,10 @@ p_social_info_levels = pred_df %>%
                     aesthetics = c("color", "fill"))  
 ggsave(
     plot = p_social_info_levels,
-    "temp-data/sms-socialinfo-levels.png", 
+    file.path(
+        script_options$output_path,
+        "sms-socialinfo-levels.png" 
+    ),
   width = 7.5,
   height = 5,
   dpi = 500
@@ -438,7 +458,10 @@ p_reminder_levels = pred_df %>%
 
 ggsave(
     plot = p_reminder_levels,
-    filename = "temp-data/sms-control-levels.png",
+    filename = file.path(
+        script_options$output_path,
+        "sms-control-levels.png"
+        ),
     width = 7.5,
     height = 5,
     dpi = 500
@@ -447,10 +470,13 @@ ggsave(
 
 p_comp_levels = pred_df %>%
     filter(fct_match(fit_type, "fit")) %>%
-    mutate(sms_treatment = if_else(
-        sms_treatment == "socialinfo", 
-        "Social Info", 
-        "SMS Control"
+    filter(
+        sms_treatment != "reminderonly" | (sms_treatment == "reminderonly" & assigned_treatment == "Control")
+    ) %>%
+    mutate(sms_treatment = case_when(
+        sms_treatment == "socialinfo" ~ "Social Info",
+        sms_treatment == "smscontrol" ~ "SMS Control", 
+        sms_treatment == "reminderonly" ~ "Reminder Only"
     )) %>%
     plot_brm_estimands(
         color_var = sms_treatment
@@ -460,19 +486,17 @@ p_comp_levels = pred_df %>%
                     scales = "free_y") +
     scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
     theme(legend.position =  "bottom") 
-p_comp_levels
 ggsave(
     plot = p_comp_levels,
-    filename = "temp-data/sms-comp-levels.png",
+    filename = file.path(
+        script_options$output_path,
+        "sms-comp-levels.png"),
     width = 7.5,
     height = 5,
     dpi = 500
 )
 
 
-pred_df %>%
-    filter(assigned_dist_group == "Close") %>%
-    filter(sms_treatment == "socialinfo") %>%
-    filter(interval == 0.9) %>%
-    filter(fit_type == "fit")
 
+
+# ------------------------
