@@ -103,7 +103,8 @@ if (script_options$load_fit) {
     rf_fit = brm(
         data = analysis_data,
         dewormed ~ (assigned_treatment*assigned_dist_group | sms_treatment), 
-        family = bernoulli(link = "probit") 
+        family = bernoulli(link = "probit"),
+	control = list(adapt_delta = 0.99)
     )
 }
 
