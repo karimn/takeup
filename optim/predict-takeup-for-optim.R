@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 script_options = docopt::docopt(
     stringr::str_glue("Usage:
-    predict-takeup-for-optim.R <fit-version> [options] [ --from-csv | --to-csv ] [<treatment>...]
+    predict-takeup-for-optim.R <fit-version> <private-benefit-z> <visibility-z> [options] [ --from-csv | --to-csv ]
 
     Takes posterior fits and calculates estimated takeup for a given distance.
 
@@ -21,12 +21,13 @@ script_options = docopt::docopt(
         --type-ub=<type-ub>  Upper bound of type distribution [default: Inf]
         --model=<model>  Which model to use [default: STRUCTURAL_LINEAR_U_SHOCKS]
         --fit-rf  Estimate a simple brms reduced form model with distance entering continuously 
-        --suppress-reputation  Set reputational returns/visibility to 0.
         --run-estimation  Whether th run estimation stuff
     "),
     args = if (interactive()) "
                             71
-                            --output-name=rep
+                            control
+                            control
+                            --output-name=b-control-mu-control
                             --from-csv
                             --num-post-draws=10
                             --rep-cutoff=Inf
@@ -36,19 +37,10 @@ script_options = docopt::docopt(
                             --type-ub=3
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP
                             --run-estimation
-                            bracelet
-                            control
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
-if (length(script_options$treatment) == 0) {
-    script_options$treatments = c(
-        "control",
-        "ink", 
-        "calendar", 
-        "bracelet"
-    )
-}
+
 
 run_estimation = script_options$run_estimation
 
@@ -384,7 +376,6 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
 #' @param mu_beta_z_control The coefficient on mu_beta in the control arm - needed to 
 #'  renormalise \mu(z,d) given \mu_0 exp(.) setup.
 #' @param bounds Bounds on type distribution of v
-#' @param suppress_rep Suppress reputation returns/visibility
 .find_pred_takeup = function(beta_b_z, 
                              beta_b_d,
                              mu_beta_z, 
@@ -398,52 +389,31 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              base_mu_rep_control,
                              rep_cutoff = Inf,
                              bounds,
-                             mu_rep_type,
-                             suppress_rep) {
+                             mu_rep_type) {
     function(distance){
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
         b = beta_b_z - beta_b_d*distance
-        if (!suppress_rep) {
-            mu_rep = calculate_mu_rep(
-                dist = distance,
-                base_mu_rep = base_mu_rep,
-                mu_beliefs_effect = 1,
-                beta = mu_beta_z,
-                dist_beta = mu_beta_d,
-                beta_control = mu_beta_z_control,
-                mu_rep_type = mu_rep_type)
-            # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
-            cutoff_mu_rep = calculate_mu_rep(
-                dist = rep_cutoff/dist_sd,
-                base_mu_rep = base_mu_rep,
-                mu_beliefs_effect = 1,
-                beta = mu_beta_z,
-                dist_beta = mu_beta_d,
-                beta_control = mu_beta_z_control,
-                mu_rep_type = mu_rep_type)
-            mu_rep[which(over_cutoff)] = cutoff_mu_rep
-        } else {
-            # Use control level of mu_rep
-            mu_rep = calculate_mu_rep(
-                dist = distance,
-                base_mu_rep = base_mu_rep_control,
-                mu_beliefs_effect = 1,
-                beta = mu_beta_z_control,
-                dist_beta = mu_beta_d_control,
-                beta_control = mu_beta_z_control,
-                mu_rep_type = mu_rep_type)
-            # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
-            cutoff_mu_rep = calculate_mu_rep(
-                dist = rep_cutoff/dist_sd,
-                base_mu_rep = base_mu_rep_control,
-                mu_beliefs_effect = 1,
-                beta = mu_beta_z_control,
-                dist_beta = mu_beta_d_control,
-                beta_control = mu_beta_z_control,
-                mu_rep_type = mu_rep_type)
-            mu_rep[which(over_cutoff)] = cutoff_mu_rep
-        }
+
+        mu_rep = calculate_mu_rep(
+            dist = distance,
+            base_mu_rep = base_mu_rep,
+            mu_beliefs_effect = 1,
+            beta = mu_beta_z,
+            dist_beta = mu_beta_d,
+            beta_control = mu_beta_z_control,
+            mu_rep_type = mu_rep_type)
+        # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+        cutoff_mu_rep = calculate_mu_rep(
+            dist = rep_cutoff/dist_sd,
+            base_mu_rep = base_mu_rep,
+            mu_beliefs_effect = 1,
+            beta = mu_beta_z,
+            dist_beta = mu_beta_d,
+            beta_control = mu_beta_z_control,
+            mu_rep_type = mu_rep_type)
+        mu_rep[which(over_cutoff)] = cutoff_mu_rep
+
         v_star_soln = find_v_star(
             distance = distance,
             b = b,
@@ -476,37 +446,48 @@ find_pred_takeup = function(params) {
         base_mu_rep_control = params$base_mu_rep_control,
         rep_cutoff = params$rep_cutoff,
         bounds = params$bounds,
-        mu_rep_type = params$mu_rep_type,
-        suppress_rep = params$suppress_rep
+        mu_rep_type = params$mu_rep_type
     )
 }
 
 
 extract_params = function(param_draws, 
-                          treatment, 
+                          private_benefit_treatment,
+                          visibility_treatment,
                           draw_id, 
                           j_id, 
                           dist_sd,
                           dist_cutoff = Inf,
                           rep_cutoff = Inf, 
                           bounds = c(-Inf, Inf),
-                          mu_rep_type = 0,
-                          suppress_rep = FALSE) {
-
+                          mu_rep_type = 0) {
     treatments = c(
         "control",
         "ink",
         "calendar",
         "bracelet"
     )
-    treatment_id  = which(treatments == treatment)
+    private_benefit_id = which(treatments == private_benefit_treatment)
+    visibility_id = which(treatments == visibility_treatment)
     draw_df = param_draws %>%
         filter(.draw == draw_id) 
 
-    params = draw_df %>%
-        filter((k == treatment_id | is.na(k)) & (j == j_id | is.na(j)) ) %>%
+    private_params = draw_df %>%
+        filter(!(.variable %in% c("centered_cluster_beta_1ord", "centered_cluster_dist_beta_1ord"))) %>%
+        filter((k == private_benefit_id | is.na(k)) & (j == j_id | is.na(j)) ) %>%
         pull(.value, name = .variable)
-    
+
+    mu_params = draw_df %>%
+        filter(.variable %in% c("centered_cluster_beta_1ord", "centered_cluster_dist_beta_1ord")) %>%
+        filter((k == visibility_id | is.na(k)) & (j == j_id | is.na(j)) ) %>%
+        pull(.value, name = .variable)
+
+    params = c(
+        private_params,
+        mu_params
+    )
+
+    # Need these if we want to set a cutoff level of visibility past a certain point
     mu_beta_z_control = draw_df %>%
         filter(.variable == "centered_cluster_beta_1ord" & k == 1 & (j == j_id | is.na(j)) ) %>%
         pull(.value)
@@ -533,7 +514,6 @@ extract_params = function(param_draws,
         "rep_cutoff" = rep_cutoff,
         "bounds" = list(bounds),
         "mu_rep_type" = mu_rep_type,
-        "suppress_rep" = suppress_rep
         ) %>%
         as.list()
 
@@ -543,8 +523,8 @@ extract_params = function(param_draws,
 ## Create estimated demand functions
 max_draw = max(struct_param_draws$.draw)
 draw_treat_grid = expand.grid(
-    draw = 1:min(max_draw, script_options$num_post_draws),
-    treatment = script_options$treatment
+    draw = 1:min(max_draw, script_options$num_post_draws)
+    # treatment = script_options$treatment
 )
 
 
@@ -555,31 +535,32 @@ pred_functions = map2(
     draw_treat_grid$treatment,
     ~extract_params(
         param_draws = struct_param_draws,
-        treatment = .y,
+        private_benefit_treatment = script_options$private_benefit_z,
+        visibility_treatment = script_options$visibility_z,
         draw_id = .x,
         dist_sd = dist_sd,
         j_id = 1,
         rep_cutoff = script_options$rep_cutoff,
         dist_cutoff = script_options$dist_cutoff, 
         bounds = script_options$bounds,
-        mu_rep_type = mu_rep_type,
-        suppress_rep = script_options$suppress_reputation
+        mu_rep_type = mu_rep_type
     ) %>% find_pred_takeup()
 )
 
-extract_params(
-    struct_param_draws,
-    treatment = "bracelet",
-    draw_id = 1,
-    dist_sd = dist_sd,
-    j_id = 1,
-        rep_cutoff = script_options$rep_cutoff,
-        dist_cutoff = script_options$dist_cutoff, 
-        bounds = script_options$bounds,
-        mu_rep_type = mu_rep_type,
-        suppress_rep = script_options$suppress_reputation
+# extract_params(
+#     struct_param_draws,
+#     private_benefit_treatment = script_options$private_benefit_z,
+#     visibility_treatment = script_options$visibility_z,
+#     draw_id = 1,
+#     dist_sd = dist_sd,
+#     j_id = 1,
+#         rep_cutoff = script_options$rep_cutoff,
+#         dist_cutoff = script_options$dist_cutoff, 
+#         bounds = script_options$bounds,
+#         mu_rep_type = mu_rep_type,
+#         suppress_rep = script_options$suppress_reputation
 
-)
+# )
 
 ## Now extract distance data
 ## Grabbing Data
@@ -647,7 +628,7 @@ brms_long_distance_mat = long_distance_mat %>%
 
 
 rf_pred_df = map_dfr(
-    script_options$treatment,
+    script_options$private_benefit_z,
     ~{
         add_epred_draws(
             brms_long_distance_mat %>% mutate(assigned.treatment = .x),
@@ -665,7 +646,6 @@ rf_pred_df = map_dfr(
 
 
 
-
 subset_long_distance_mat = long_distance_mat %>%
     filter(dist < script_options$dist_cutoff)
 
@@ -677,7 +657,6 @@ pred_df = future_imap_dfr(
         subset_long_distance_mat %>%
             mutate( 
                 as_tibble(.x(dist)),
-                treatment = draw_treat_grid[.y, "treatment"], 
                 draw = draw_treat_grid[.y, "draw"]
             )
     },
@@ -688,9 +667,8 @@ pred_df = future_imap_dfr(
 )
 tictoc::toc()
 
-cutoff_pred_df = future_map2_dfr(
+cutoff_pred_df = future_map_dfr(
     draw_treat_grid$draw,
-    draw_treat_grid$treatment,
     ~{
         long_distance_mat %>%
             filter(dist >= script_options$dist_cutoff) %>%
@@ -701,7 +679,6 @@ cutoff_pred_df = future_map2_dfr(
                 mu_rep = NA, 
                 delta_v_star = NA, 
                 v_star = NA, 
-                treatment = .y, 
                 draw = .x
             )
     }
@@ -796,7 +773,7 @@ village_df %>%
         ))
 
 }
-stop()
+
 if (script_options$pred_distance) {
 
 
@@ -814,8 +791,7 @@ agg_data = function(
     low_bound, 
     n_posts, 
     treatment, 
-    mu_rep_type,
-    suppress_rep){
+    mu_rep_type){
     high_bound_pred_fs = map(
         1:n_posts,
         ~extract_params(
@@ -827,8 +803,7 @@ agg_data = function(
             rep_cutoff = script_options$rep_cutoff,
             dist_cutoff = script_options$dist_cutoff, 
             bounds = c(-high_bound, high_bound) ,
-            mu_rep_type = mu_rep_type,
-            suppress_rep = suppress_rep
+            mu_rep_type = mu_rep_type
         ) %>% find_pred_takeup()
     )
 
@@ -843,8 +818,7 @@ agg_data = function(
                 rep_cutoff = script_options$rep_cutoff,
                 dist_cutoff = script_options$dist_cutoff, 
                 bounds = c(-low_bound, low_bound),
-                mu_rep_type = mu_rep_type,
-                suppress_rep = suppress_rep
+                mu_rep_type = mu_rep_type
             ) %>% find_pred_takeup()
     )
     from_d = 10
@@ -893,23 +867,15 @@ wide_comp_bracelet_rep_dfs = agg_data(
     n_posts = 20,
     treatment = "bracelet",
     mu_rep_type = mu_rep_type,
-    suppress_rep = FALSE
-) %>%
-    mutate(
-        suppress_rep = FALSE
-    )
+) 
 
 wide_comp_bracelet_no_rep_dfs = agg_data(
     high_bound = Inf,
     low_bound = 2,
     n_posts = 20,
     treatment = "bracelet",
-    mu_rep_type = mu_rep_type,
-    suppress_rep = TRUE
-) %>%
-    mutate(
-        suppress_rep = TRUE
-    )
+    mu_rep_type = mu_rep_type
+)  
 
 
 wide_comp_bracelet_dfs = bind_rows(
@@ -925,23 +891,15 @@ wide_comp_control_no_rep_dfs = agg_data(
     n_posts = 20,
     treatment = "control",
     mu_rep_type = mu_rep_type,
-    suppress_rep = TRUE
-) %>%
-    mutate(
-        suppress_rep = TRUE
-    )
+)  
 
 wide_comp_control_rep_dfs = agg_data(
     high_bound = Inf,
     low_bound = 2,
     n_posts = 20,
     treatment = "control",
-    mu_rep_type = mu_rep_type,
-    suppress_rep = FALSE
-) %>%
-    mutate(
-        suppress_rep = FALSE
-    )
+    mu_rep_type = mu_rep_type
+)  
 
 wide_comp_control_dfs = bind_rows(
     wide_comp_control_no_rep_dfs,
@@ -954,8 +912,7 @@ long_comp_bracelet_df = wide_comp_bracelet_dfs %>%
         -distance, 
         -bound, 
         -draw, 
-        -treatment,
-        -suppress_rep
+        -treatment
     )
 
 long_comp_control_df = wide_comp_control_dfs %>%
@@ -964,8 +921,7 @@ long_comp_control_df = wide_comp_control_dfs %>%
         -distance, 
         -bound, 
         -draw, 
-        -treatment,
-        -suppress_rep
+        -treatment
     )
 
 long_comp_df = bind_rows(
@@ -977,7 +933,6 @@ long_comp_df
 
 long_comp_df %>%
     filter(treatment == "bracelet") %>%
-    filter(suppress_rep == FALSE) %>%
     ggplot(aes(
         x = distance, 
         y = value, 
@@ -1005,7 +960,6 @@ ggsave(
 
 long_comp_df %>%
     filter(treatment == "control") %>%
-    filter(suppress_rep == FALSE) %>%
     ggplot(aes(
         x = distance, 
         y = value, 
@@ -1033,7 +987,6 @@ ggsave(
 
 long_comp_df %>%
     filter(fct_match(bound, high_bound)) %>%
-    filter(suppress_rep == FALSE) %>%
     ggplot(aes(
         x = distance, 
         y = value, 
