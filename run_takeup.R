@@ -35,14 +35,17 @@ Options:
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "
-    takeup fit \
+    takeup prior \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP
     --cmdstanr \
-    --outputname=dist_fit71 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP  \
+    --include-paths=stan_models \
     --output-path=data/stan_analysis_data \
-    --threads=3 \
-    --iter 800 \
-    --sequential 
+    --iter=800
+    --threads=1
+    --update
+    --outputname=dist_prior73
+    --num-mix-groups=1
+    --sequential
     " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
@@ -692,8 +695,6 @@ if (script_options$takeup) {
           script_options, 
           use_cmdstanr = script_options$cmdstanr, 
           include_paths = script_options$include_paths)
-  dist_fit$STRUCTURAL_LINEAR_U_SHOCKS_NO_REP_QUAD
-    ed = read_cmdstan_csv()
 
       if (script_options$cmdstanr) {
         dist_fit_obj <- dist_fit
