@@ -2,7 +2,7 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age ]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
   run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
@@ -35,19 +35,16 @@ Options:
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "
-    takeup prior \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP
+    takeup fit \
     --cmdstanr \
-    --include-paths=stan_models \
+    --outputname=dist_fit71 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP  \
     --output-path=data/stan_analysis_data \
-    --iter=800
-    --threads=1
-    --update
-    --outputname=dist_prior73
-    --num-mix-groups=1
-    --sequential
-    " else commandArgs(trailingOnly = TRUE)
+    --threads=3 \
+    --iter 800 \
+    --sequential" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
+
 ) 
 
 library(magrittr)
@@ -57,19 +54,14 @@ library(HRW)
 library(loo)
 
 script_options %<>% 
-  modify_at(c(
-    "chains", 
-    "iter", 
-    "threads", 
-    "num_mix_groups", 
-    "num_sbc_sims", 
-    "parallel_folds"), as.integer) %>% 
+  modify_at(c("chains", "iter", "threads", "num_mix_groups", "num_sbc_sims", "parallel_folds"), as.integer) %>% 
   modify_at(c("models"), ~ c(str_split(script_options$models, ",", simplify = TRUE)))
 
 if (script_options$cmdstanr || script_options$beliefs || script_options$dist || script_options$wtp) {
   library(cmdstanr)
 } else {
   library(rstan)
+  
   rstan_options(auto_write = TRUE)
 }
 
@@ -106,6 +98,8 @@ load(file.path("data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
+# stick to monitored sms.treatment group
+# remove sms.treatment.2
 
 monitored_nosms_data <- analysis.data %>% 
   filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
@@ -116,15 +110,18 @@ monitored_nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-monitored_sms_data <- analysis.data %>% 
-  filter(mon_status == "monitored") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
+# monitored_sms_data <- analysis.data %>% 
+#   filter(mon_status == "monitored") %>% 
+#   left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+#             by = "cluster.id") %>% 
+#   mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+#   group_by(cluster.id) %>% 
+#   mutate(cluster_id = cur_group_id()) %>% 
+#   ungroup()
 
+# add interaction for phone owner if we do all together
+# monitored_data %>% 
+#   select(phone_owner)
 
 nosms_data <- analysis.data %>% 
   filter(sms.treatment.2 == "sms.control") %>% 
@@ -135,13 +132,20 @@ nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
+# analysis_sms_data <- monitored_sms_data %>% 
+#   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+# reminder.only just in control
+# analysis_sms_data %>% 
+#   select(assigned_treatment, sms.treatment.2) %>%
+#   unique()
+
 analysis_data <- monitored_nosms_data %>% 
-  mutate(
-    assigned_treatment = assigned.treatment, 
-    assigned_dist_group = dist.pot.group)
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
 # Models ------------------------------------------------------------------
 
-num_treatments <- n_distinct(analysis_data$assigned_treatment)
+num_treatments <- n_distinct(analysis_data$assigned.treatment)
 num_clusters <- n_distinct(analysis_data$cluster_id)
 num_counties <- n_distinct(analysis_data$county)
 
@@ -220,64 +224,6 @@ models <- lst(
       suppress_reputation = suppress_reputation)) %>%
     list_modify(!!!enum2stan_data(cost_model_types)),
 
-    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = lst(
-      model_file = "takeup_struct.stan",
-      pars = struct_model_stan_pars,
-      control = lst(max_treedepth = 12, adapt_delta = 0.99),
-      use_binomial = FALSE,
-      use_cost_model = cost_model_types["param_linear"],
-      use_private_incentive_restrictions = FALSE,
-      use_cluster_effects = FALSE,
-      use_county_effects = script_options$multilevel,
-      use_param_dist_cluster_effects = FALSE,
-      use_param_dist_county_effects = FALSE,
-      use_restricted_mu = TRUE,
-      use_u_in_delta = TRUE,
-      use_wtp_model = TRUE,
-      mu_rep_type = 0,
-      use_homoskedastic_shocks = TRUE,
-      use_strata_levels = use_county_effects, # WTP
-      suppress_reputation = TRUE,
-      generate_sim = FALSE,
-      iter = script_options$iter,
-      thin = 1,
-      alg_sol_f_tol = 0.001,
-      alg_sol_max_steps = 1e9L,
-      alg_sol_rel_tol = 0.0000001,
-
-
-      # Priors
-      mu_rep_sd = 0.25,
-      # mu_beliefs_effects_sd = 1.5,
-      mu_beliefs_effects_lambda = 1,
-    
-      beta_intercept_sd = 1,
-      beta_ink_effect_sd = 0.25,
-      beta_calendar_effect_sd = 0.25,
-      beta_bracelet_effect_sd = 0.25,
-      
-      structural_beta_county_sd_sd = 0.05,
-      structural_beta_cluster_sd_sd = 0.25,
-      
-      wtp_value_utility_sd = 0.0001,
-
-      raw_u_sd_alpha = 3.3, 
-      raw_u_sd_beta = 1.1,
-
-      init = generate_initializer(
-        num_treatments = num_treatments,
-        num_clusters = num_clusters,
-        num_counties = num_counties,
-        structural_type = 1,
-        num_dist_mix = script_options$num_mix_groups,
-        use_cluster_effects = use_cluster_effects,
-        use_county_effects = use_county_effects,
-        use_param_dist_cluster_effects = use_param_dist_cluster_effects,
-        restricted_private_incentive = use_private_incentive_restrictions,
-        cost_model_type = use_cost_model,
-        name_matched = FALSE,
-        suppress_reputation = suppress_reputation)) %>%
-      list_modify(!!!enum2stan_data(cost_model_types)),
   STRUCTURAL_LINEAR = lst(
     model_file = "takeup_struct.stan",
     pars = struct_model_stan_pars,
@@ -409,6 +355,7 @@ wtp_stan_data <- analysis.data %>%
     tau_sigma_wtp_diff = 50,
     sigma_wtp_df_student_t = 2.5
   )
+
 # Treatment Details -------------------------------------------------------
 
 treatment_formula <- ~ assigned_treatment * assigned_dist_group 
@@ -418,6 +365,7 @@ cluster_treatment_map = distinct(analysis_data, assigned_treatment, assigned_dis
 
 treatment_map_design_matrix <- cluster_treatment_map %>%
   modelr::model_matrix(treatment_formula)
+
 # Beliefs Data ------------------------------------------------------------
 
 beliefs_treatment_formula <- ~ assigned_treatment 
@@ -445,43 +393,33 @@ analysis_data %<>%
       )
     }
   ))
-if (str_detect(script_options$model, "REDUCED")) {
-  beliefs_ate_pairs = tibble(
-    a = 1,
-    b = 2
-  ) # this should fail if actually used anywhere
-} else {
 
-  beliefs_ate_pairs <- cluster_treatment_map %>% 
-    #   if (script_options$no_dist) {
-    #     distinct(., assigned_treatment)
-    #   } else .
-    # } %>%  
-    # filter(fct_match(assigned_dist_group, "close")) %>% 
-    mutate(treatment_id = seq(n())) %>% {
-      # if (script_options$no_dist) {
-      #   mutate(., treatment_id_control = 1) %>% 
-      #     filter(treatment_id != treatment_id_control) %>% 
-      #     select(treatment_id, treatment_id_control)
-      # } else {
-        bind_rows(
-          left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
-            filter(assigned_treatment != assigned_treatment_control) %>% 
-            select(treatment_id, treatment_id_control),
-          
-          left_join(., filter(., fct_match(assigned_dist_group, "close")), by = c("assigned_treatment"), suffix = c("", "_control")) %>% 
-            filter(assigned_dist_group != assigned_dist_group_control) %>% 
-            select(treatment_id, treatment_id_control),
-        )
-      # }
-  } %>%
-    arrange(treatment_id, treatment_id_control) 
-}
+beliefs_ate_pairs <- cluster_treatment_map %>% 
+  #   if (script_options$no_dist) {
+  #     distinct(., assigned_treatment)
+  #   } else .
+  # } %>%  
+  # filter(fct_match(assigned_dist_group, "close")) %>% 
+  mutate(treatment_id = seq(n())) %>% {
+    # if (script_options$no_dist) {
+    #   mutate(., treatment_id_control = 1) %>% 
+    #     filter(treatment_id != treatment_id_control) %>% 
+    #     select(treatment_id, treatment_id_control)
+    # } else {
+      bind_rows(
+        left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
+          filter(assigned_treatment != assigned_treatment_control) %>% 
+          select(treatment_id, treatment_id_control),
+        
+        left_join(., filter(., fct_match(assigned_dist_group, "close")), by = c("assigned_treatment"), suffix = c("", "_control")) %>% 
+          filter(assigned_dist_group != assigned_dist_group_control) %>% 
+          select(treatment_id, treatment_id_control),
+      )
+    # }
+} %>%
+  arrange(treatment_id, treatment_id_control) 
 
 # Stan Data ---------------------------------------------------------------
-
-
-
 
 stan_data <- lst(
   # Distance Model
@@ -522,9 +460,9 @@ stan_data <- lst(
     arrange(cluster_id) %>% 
     pull(county) %>% 
     as.integer(),
-  cluster_assigned_treatment = distinct(analysis_data, cluster_id, assigned_treatment) %>% 
+  cluster_assigned_treatment = distinct(analysis_data, cluster_id, assigned.treatment) %>% 
     arrange(cluster_id) %>% 
-    pull(assigned_treatment),
+    pull(assigned.treatment),
   takeup = analysis_data$dewormed,
   
   num_age_groups = if (script_options$age) nlevels(analysis_data$age.census_group) else 1,
@@ -537,24 +475,16 @@ stan_data <- lst(
   cluster_treatment_map,
   
   # Rate of change
-  roc_compare_treatment_id_left = if (!str_detect(script_options$models, "REDUCED")) {
-    cluster_treatment_map %>% 
-      filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "bracelet")) %>% 
-      slice(1) %>% 
-      pull(assigned_treatment) %>% 
-      as.integer()
-  } else {
-    1
-  },
-  roc_compare_treatment_id_right = if (!str_detect(script_options$models, "REDUCED")) {
-    cluster_treatment_map %>% 
+  roc_compare_treatment_id_left = cluster_treatment_map %>% 
+    filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "bracelet")) %>% 
+    slice(1) %>% 
+    pull(assigned_treatment) %>% 
+    as.integer(),
+  roc_compare_treatment_id_right = cluster_treatment_map %>% 
     filter(fct_match(assigned_dist_group, "close"), fct_match(assigned_treatment, "control")) %>% 
     slice(1) %>% 
     pull(assigned_treatment) %>% 
-    as.integer()
-  } else {
-    1
-  },
+    as.integer(),
   
   roc_distances = seq(0, 5000, 100) / sd(analysis_data$cluster.dist.to.pot),
   num_roc_distances = length(roc_distances),
@@ -566,24 +496,14 @@ stan_data <- lst(
     arrange(cluster_id) %>% 
     pull(dist.pot.group),
   
-  cluster_assigned_dist_group_treatment = distinct(
-      analysis_data, 
-      cluster_id, 
-      assigned_treatment, 
-      assigned_dist_group = dist.pot.group) %>% 
-    left_join(
-      cluster_treatment_map %>% 
-        mutate(
-          treatment_id = seq(n())
-          ), 
-      by = c("assigned_treatment", "assigned_dist_group")) %>% 
+  cluster_assigned_dist_group_treatment = distinct(analysis_data, cluster_id, assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>% 
+    left_join(cluster_treatment_map %>% mutate(treatment_id = seq(n())), by = c("assigned_treatment", "assigned_dist_group")) %>% 
     arrange(cluster_id) %>% 
     pull(treatment_id),
-
+  
   num_dist_group_treatments = n_distinct(cluster_assigned_dist_group_treatment),
   
   num_discrete_dist = 2,
-  num_cluster_treat_pairs = length(cluster_assigned_dist_group_treatment),
   
   num_dist_group_mix = script_options$num_mix_groups,
   
@@ -612,19 +532,8 @@ stan_data <- lst(
   alg_sol_rel_tol = 1e-5, 
   alg_sol_max_steps = 1e6L,
   
-  CALENDAR_TREATMENT_INDEX = if (!str_detect(script_options$models, "REDUCED")) {
-    which(str_detect(fct_unique(cluster_assigned_treatment), "calendar"))
-    } else {
-      1
-    },
-
-  BRACELET_TREATMENT_INDEX = if (!str_detect(script_options$models, "REDUCED")) {
-   which(str_detect(fct_unique(cluster_assigned_treatment), "bracelet"))
-  } else {
-    1
-  },
- 
-  
+  CALENDAR_TREATMENT_INDEX = which(fct_match(fct_unique(cluster_assigned_treatment), "calendar")),
+  BRACELET_TREATMENT_INDEX = which(fct_match(fct_unique(cluster_assigned_treatment), "bracelet")),
   
   # Priors
   
@@ -695,7 +604,7 @@ if (script_options$takeup) {
           script_options, 
           use_cmdstanr = script_options$cmdstanr, 
           include_paths = script_options$include_paths)
-
+      
       if (script_options$cmdstanr) {
         dist_fit_obj <- dist_fit
         
