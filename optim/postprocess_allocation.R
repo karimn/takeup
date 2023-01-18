@@ -19,8 +19,20 @@ script_options <- docopt::docopt(
           --cutoff-type=<cutoff-type>  Which cutoff type to use if using full posterior draws [default: no-cutoff]
 "),
   args = if (interactive()) "
+
+                            --target-constraint=0.33
+                            --min-cost \
+                            --posterior-median \
+                            --input-path=optim/data \
+                            --optim-input-a-filename=cutoff-b-control-mu-control-median-optimal-allocation.rds \
+                            --village-input-filename=village-df.csv \
+                            --pot-input-filename=pot-df.csv \
+                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control.csv \
+                            --output-path=optim/plots \
+                            --output-basename=cutoff-b-control-mu-control-median \
+                            --map-plot \
                             --cutoff-type=cutoff
-                            --output-path=optim/plots
+
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -138,7 +150,6 @@ if (script_options$map_plot){
 
 if (stat_type == "median") {
 
-
     plot_optimal_allocation = function(village_data,
                                     pot_data,
                                     optimal_data){
@@ -179,13 +190,13 @@ if (stat_type == "median") {
         return(optimal_pot_plot)
     }
 
-    plot_optimal_allocation(
-        village_data = data$village_locations,
-        pot_data = data$pot_locations,
-        optimal_data = optimal_df %>%
-            filter(treatment == "bracelet" & str_detect(model, "RED")) %>%
-            unnest(model_output)
-    )
+    # plot_optimal_allocation(
+    #     village_data = data$village_locations,
+    #     pot_data = data$pot_locations,
+    #     optimal_data = optimal_df %>%
+    #         filter(treatment == "bracelet" & str_detect(model, "RED")) %>%
+    #         unnest(model_output)
+    # )
 
 
     allocation_plots = map(
@@ -204,7 +215,7 @@ if (stat_type == "median") {
             filename = file.path(
                 script_options$output_path,
                 str_glue(
-                    "{script_options$output_basename}-{optimal_df[.y, 'treatment']}-{optimal_df[.y, 'model']}-optimal-allocation-plot.png"
+                    "{script_options$output_basename}-{optimal_df[.y, 'model']}-optimal-allocation-plot.png"
                 )
             ),
         width = 10,
@@ -212,7 +223,6 @@ if (stat_type == "median") {
         dpi = 500
         )
     )
-
 }
 
 if (stat_type == "post-draws") {

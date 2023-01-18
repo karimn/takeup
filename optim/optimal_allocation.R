@@ -21,15 +21,19 @@ script_options <- docopt::docopt(
           --posterior-median  Use median demand rather than solve across all draws
 "),
   args = if (interactive()) "
-                             --num-cores=12
-                             --min-cost 
-                             --target-constraint=0.32
-                             --output-path=optim/data
-                             --output-filename=structural-rep
-                             --input-path=optim/data 
-                             --village-input-filename=village-df.csv
-                             --pot-input-filename=pot-df.csv
-                             --demand-input-filename=pred-demand_dist_fit71_rep.csv
+                                --posterior-median \
+                                --num-cores=12 \
+                                --min-cost  \
+                                --target-constraint=0.32 \
+                                --output-path=optim/data \
+                                --output-filename=cutoff-b-control-mu-control \
+                                --input-path=optim/data  \
+                                --village-input-filename=village-df.csv \
+                                --pot-input-filename=pot-df.csv \
+                                --time-limit=10000 \
+                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control.csv
+
+
                              " else commandArgs(trailingOnly = TRUE)
 ) 
                             #  --dry-run 
@@ -580,7 +584,8 @@ if (script_options$dry_run) {
       .(demand = median(demand), dist = unique(dist)), 
       .(village_i,
         pot_j, 
-        treatment, 
+        private_benefit_z, 
+        visibility_z,
         model)]
   }
   n = nrow(village_data)
@@ -593,14 +598,13 @@ if (script_options$dry_run) {
     village_locations = village_data
   ) 
 }
-
 library(furrr)
 plan(multicore, workers = script_options$num_cores)
 baseline_model = define_baseline_MIPModel(data)
 
 
 demand_data = demand_data %>%
-  nest(demand_data = -any_of(c("draw", "treatment", "model")))
+  nest(demand_data = -any_of(c("draw", "private_benefit_z", "visibility_z", "model")))
 
 
 
@@ -637,6 +641,8 @@ tidy_output = demand_data %>%
      )
   )
 tictoc::toc()
+
+
 
 
 if (script_options$dry_run) {

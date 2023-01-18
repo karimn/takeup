@@ -35,7 +35,7 @@ script_options = docopt::docopt(
                             --num-cores=12
                             --type-lb=-3
                             --type-ub=3
-                            --model=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP
+                            --model=STRUCTURAL_LINEAR_U_SHOCKS
                             --run-estimation
                               " 
            else commandArgs(trailingOnly = TRUE)
@@ -503,7 +503,6 @@ extract_params = function(param_draws,
             .variable == "base_mu_rep"  & (j == j_id | is.na(j))
         ) %>%
         pull(.value)
-
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 
@@ -513,7 +512,7 @@ extract_params = function(param_draws,
         "dist_cutoff" = dist_cutoff,
         "rep_cutoff" = rep_cutoff,
         "bounds" = list(bounds),
-        "mu_rep_type" = mu_rep_type,
+        "mu_rep_type" = mu_rep_type
         ) %>%
         as.list()
 
@@ -530,9 +529,8 @@ draw_treat_grid = expand.grid(
 
 if (run_estimation == TRUE){
 
-pred_functions = map2(
+pred_functions = map(
     draw_treat_grid$draw,
-    draw_treat_grid$treatment,
     ~extract_params(
         param_draws = struct_param_draws,
         private_benefit_treatment = script_options$private_benefit_z,
@@ -737,6 +735,15 @@ append_output = if (!is.null(script_options$output_name)) {
 } else {
     ""
 }
+
+
+structural_demand_df$private_benefit_z = script_options$private_benefit_z
+structural_demand_df$visibility_z = script_options$visibility_z
+
+rf_demand_df$private_benefit_z = script_options$private_benefit_z
+rf_demand_df$visibility_z = script_options$visibility_z
+
+
 
 bind_rows(
     structural_demand_df,

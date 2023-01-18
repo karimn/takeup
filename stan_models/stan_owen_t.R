@@ -1,6 +1,6 @@
 library(cmdstanr)
 
-if (!file.exists("stan_models/stan_owen_t.rds")) {
+if (TRUE) {
 
 
   stan_owen_t_code = '

@@ -2,12 +2,12 @@
 
 # Setting arguments
 PREDDISTANCE="" # --pred-distance
-MODEL="STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
+MODEL="STRUCTURAL_LINEAR_U_SHOCKS_NO_REP"
 NUMPOSTDRAWS=200
 SUBSIDY=0.25
 TARGETCONSTRAINT=0.32
 DRYRUN="" # "--sub-sample", "--fake-data"
-VERSION=71
+VERSION=74
 POSTERIORMEDIAN="--posterior-median" # --posterior-median
 SKIPPREDICTION=0 # 1
 RUNESTIMATION="--run-estimation"
@@ -30,7 +30,7 @@ run_no_cutoff_optim () {
                                     $1 \
                                     $2 \
                                     --output-name=no-cutoff-b-$1-mu-$2 \
-                                    --from-csv \
+                                    --to-csv \
                                     --num-post-draws=${NUMPOSTDRAWS} \
                                     --rep-cutoff=Inf \
                                     --dist-cutoff=10000 \
@@ -80,7 +80,7 @@ run_cutoff_optim () {
                                     $1 \
                                     $2 \
                                     --output-name=cutoff-b-$1-mu-$2 \
-                                    --from-csv \
+                                    --to-csv \
                                     --num-post-draws=${NUMPOSTDRAWS} \
                                     --rep-cutoff=Inf \
                                     --dist-cutoff=2500 \
@@ -130,3 +130,14 @@ run_cutoff_optim "bracelet" "bracelet"
 run_no_cutoff_optim "control" "control"
 run_no_cutoff_optim "control" "bracelet"
 run_no_cutoff_optim "bracelet" "bracelet"
+
+
+run_cutoff_optim "control" "control"
+run_cutoff_optim "control" "calendar"
+run_cutoff_optim "calendar" "calendar"
+
+run_cutoff_optim "calendar" "calendar"
+run_cutoff_optim "calendar" "bracelet"
+
+run_no_cutoff_optim "calendar" "calendar"
+run_no_cutoff_optim "calendar" "bracelet"
