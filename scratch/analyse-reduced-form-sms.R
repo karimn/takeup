@@ -233,6 +233,7 @@ plot_single_sms_est = function(sms_df,
         labs(
           subtitle = "",
           x = "", y = "") +
+        theme_minimal() +
         theme(
           legend.position = "bottom"
         ) + 
@@ -256,6 +257,9 @@ comp_summ_df %>%
         contrast_left != "smscontrol",
         (contrast_left != "reminderonly" | assigned_treatment == "control")
     ) %>%
+    mutate(
+        sms_treatment = if_else(str_detect(contrast, "reminder"), "Reminder Only", "Social Info")
+    ) %>%
     mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
     mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
     plot_single_sms_est(
@@ -264,7 +268,7 @@ comp_summ_df %>%
     labs(
         title = "SMS Treatment Effect By Incentive and Distance Condition"
     ) +
-    facet_wrap(~contrast)
+    facet_wrap(~sms_treatment) 
 
 ggsave(
     file.path(
@@ -486,12 +490,15 @@ p_comp_levels = pred_df %>%
                     space = "free",
                     scales = "free_y") +
     scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
-    theme(legend.position =  "bottom") 
+    theme(legend.position =  "bottom")  +
+    geom_vline(xintercept = 0, linetype = "longdash") +
+    scale_x_continuous("", breaks = seq(-1, 1, 0.1), limits = c(0, 0.9))  
+p_comp_levels
 ggsave(
     plot = p_comp_levels,
     filename = file.path(
         script_options$output_path,
-        "sms-comp-levels.png"),
+        "sms-comp-levels-axis.png"),
     width = 7.5,
     height = 5,
     dpi = 500
