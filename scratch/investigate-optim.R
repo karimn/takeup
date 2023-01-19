@@ -1,0 +1,462 @@
+library(tidyverse)
+library(sf)
+library(broom)
+
+
+                                # --optim-input-a-filename=no-cutoff-${VARIABLE}-${POSTVAR}-optimal-allocation.rds \
+                                # --village-input-filename=village-df.csv \
+                                # --pot-input-filename=pot-df.csv \
+                                # --demand-input-a-filename=pred-demand-dist-fit${VERSION}-no-cutoff-${VARIABLE}.csv \
+                                # --output-path=optim/plots \
+                                # --output-basename=no-cutoff-${VARIABLE}-${POSTVAR} \
+                                # --map-plot \
+                                # --cutoff-type=no-cutoff
+theme_set(theme_minimal())
+
+
+optim_files = fs::dir_ls(
+    "optim/data/",
+    regexp = "*optimal-allocation.rds"
+)
+
+demand_files = fs::dir_ls(
+    "optim/data",
+    regexp = "pred"
+)
+
+demand_files = demand_files[!str_detect(demand_files, "no-cutoff")]
+
+demand_df = tibble(
+    demand_file = demand_files
+) %>%
+    mutate(demand_df = map(demand_file, read_csv))
+
+
+
+demand_df = demand_df  %>%
+    mutate(
+        cutoff_type = if_else(
+            str_detect(demand_file, "no-cutoff"),
+            "no_cutoff", 
+            "cutoff"
+        ),
+        b_type = str_extract(demand_file, "(?<=b-)(.*?)(?=-)"), 
+        mu_type = str_extract(demand_file, "(?<=mu-)(.*?)(?=-)"), 
+        model_type = str_extract(demand_file, str_glue("(?<=mu-{mu_type}-)(.*?)(?=\\.csv)"))
+    )   
+
+# test_demand_df = demand_df %>%
+#     filter(cutoff_type == "cutoff") %>%
+#     filter(cutoff_type == "cutoff") %>%
+#     filter(mu_type == "bracelet") %>%
+#     filter(b_type == "control")   %>%
+#     unnest(demand_df) %>%
+#     filter(dist < 5000)
+
+# test_demand_df = test_demand_df %>%
+    # mutate(ed_d = 1 - pnorm(v_star/total_error_sd))
+
+
+# test_df = demand_df %>%
+#     filter(b_type == "control", mu_type == "bracelet") %>%
+#     unnest(demand_df) %>%
+#     filter(dist <= 5000)
+
+
+
+subset_demand_df = demand_df %>%
+    select(-demand_file) %>%
+    mutate(
+        subset_df = map(
+            demand_df, 
+            ~{
+                filter(.x, dist <= 5000) %>%
+                filter(model != "REDUCED_FORM_NO_RESTRICT") %>%
+                    group_by(village_i, pot_j) %>%
+                    summarise(across(where(is.numeric), median, na.rm = TRUE))
+            }
+        )
+    )  %>%
+    select(-demand_df)
+
+rm(demand_df)
+
+long_subset_demand_df = subset_demand_df %>%
+    unnest(subset_df)
+
+
+
+plot_demand_panels = function(long_data, cutoff, model){
+
+    cutoff_distance = if_else(cutoff == "cutoff", 2.5, 10)
+    p = long_data %>%
+        filter(cutoff_type == cutoff) %>%
+        filter(model_type == model) %>%
+        filter(b_type == "control")  %>%
+        filter(dist <= cutoff_distance*1000) %>%
+        gather(variable, value, demand:v_star) %>%
+        mutate(variable = factor(variable,
+                                levels = c("b", "v_star", "delta_v_star", "mu_rep", "linear_pred", "demand"))) %>%
+        ggplot(aes(
+            x = dist, 
+            y = value, 
+            colour = mu_type
+        )) +
+        facet_wrap(~variable, scales = "free") +
+        geom_point(alpha = 0.1) +
+        geom_line() +
+        theme_bw() +
+        theme(legend.position = "bottom") +
+        labs(
+            colour = "Visibility Type", 
+            x = "Distance (m)", 
+            y = "Value", 
+            title = "Fixing Private Incentive at Control, Varying Visibility", 
+            subtitle = str_glue("model: {model}, Cutoff at {cutoff_distance}km")
+        )
+
+    return(p)
+}
+
+p_panels_normal = plot_demand_panels(long_subset_demand_df, "cutoff", "STRUCTURAL_LINEAR_U_SHOCKS")
+p_panels_log = plot_demand_panels(long_subset_demand_df, "cutoff", "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP")
+
+p_panels_normal
+stop()
+
+long_subset_demand_df %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(b_type == mu_type) %>%
+    filter(dist < 2500) %>%
+    mutate(mu_type = factor(mu_type, levels = c("control", "ink", "calendar", "bracelet"))) %>%
+    ggplot(aes(
+        x = dist, 
+        y = mu_rep, 
+        colour = mu_type
+    )) +
+    geom_point() +
+    geom_hline(yintercept = 0.1) +
+    scale_y_continuous(breaks = seq(from = 0, to = 0.6, by = 0.1))
+
+ggsave("temp-plots/tmp.png", width = 8, height = 6, dpi = 500)
+stop()
+
+long_subset_demand_df %>%
+    filter(
+        cutoff_type == "cutoff", 
+        b_type == "control", 
+        model_type == "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
+    ) %>%
+    filter(dist <= 2500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = mu_rep, 
+        colour = mu_type
+    )) +
+    geom_point()
+
+stop()
+
+p_panels_normal %>%
+    ggsave(
+        plot = .,
+        filename = "temp-plots/panel-plot-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.png", 
+        width = 8,
+        height = 6, 
+        dpi = 500)
+
+
+optim_df = tibble(
+    optim_file = optim_files
+) %>%
+    mutate(
+        optim_df = map(optim_files, read_rds)
+    )
+
+
+optim_df = optim_df %>%
+    mutate(
+        cutoff_type = if_else(
+            str_detect(optim_file, "\\/cutoff"),
+            "cutoff", 
+            "no_cutoff"
+        )
+        # b_type = str_extract(optim_file, "(?<=b-)(.*?)(?=-)"), 
+        # mu_type = str_extract(optim_file, "(?<=mu-)(.*?)(?=-)"), 
+        # model_type = str_extract(optim_file, str_glue("(?<=mu-{mu_type}-)(.*?)(?=-median)"))
+    )   %>%
+    select(-optim_file)
+
+
+
+# optim_no_rep_data = read_rds("optim/data/archive/cutoff-no-rep-median-optimal-allocation.rds") %>%
+#     as_tibble()
+# optim_rep_data = read_rds("optim/data/archive/cutoff-rep-median-optimal-allocation.rds") %>%
+#     as_tibble()
+village_data = read_csv("optim/data/village-df.csv")
+pot_data = read_csv("optim/data/pot-df.csv")
+
+## Analysis data
+load(file.path("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+# stick to monitored sms.treatment group
+# remove sms.treatment.2
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+analysis_data <- monitored_nosms_data %>% 
+mutate(
+    assigned_treatment = assigned.treatment, 
+    assigned_dist_group = dist.pot.group,
+    sms_treatment = factor(sms.treatment.2))
+
+##
+p_panels
+
+
+
+optim_data = optim_df %>%
+    unnest(optim_df) %>%
+    rename(
+        b_type = private_benefit_z, 
+        mu_type = visibility_z, 
+        model_type = model)
+
+optim_data %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(
+        b_type == "control" , cutoff_type == "cutoff"
+    ) %>%
+    unnest(model_output) %>%
+    select( 
+        i, j, 
+        b_type, 
+        mu_type, 
+        demand, 
+        dist
+    ) %>%
+    spread(mu_type, demand)   %>%
+    summarise(
+        mean_diff = 100*mean(bracelet - control, na.rm = TRUE)
+    )
+
+optim_data %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(
+        b_type == "control" , cutoff_type == "cutoff"
+    ) %>%
+    unnest(model_output) %>%
+    filter(demand != 0) %>%
+    select( 
+        i, j, 
+        b_type, 
+        mu_type, 
+        demand, 
+        dist
+    ) %>%
+    spread(mu_type, demand)  %>%
+    ggplot(aes(
+        x = control, 
+        y = bracelet
+    )) +
+    geom_point() +
+    geom_abline(linetype = "longdash")
+
+comp_df = bind_rows(
+    subset_demand_df %>%
+        filter(
+            model_type == "STRUCTURAL_LINEAR_U_SHOCKS"
+        ) %>%
+        filter(b_type == "control") %>%
+        filter(cutoff_type == "cutoff") %>%
+        unnest(subset_df) %>%
+        filter(dist < 2500) %>%
+        mutate(df_type = "demand"), 
+    optim_data %>%
+        filter(
+            model_type == "STRUCTURAL_LINEAR_U_SHOCKS"
+        ) %>%
+        filter(b_type == "control") %>%
+        filter(cutoff_type == "cutoff") %>%
+        unnest(demand_data) %>%
+        filter(dist < 2500) %>%
+        mutate(df_type = "optim") 
+)
+
+comp_df %>%
+    ggplot(aes(
+        x = dist, 
+        y = demand, 
+        colour = mu_type
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~df_type) +
+    labs(
+        title = "Control Private Incentive, Varying Visibility", 
+        y = "Takeup",
+        x = "Distance, Meters"
+    ) +
+    theme(legend.position = "bottom")
+
+subset_demand_df %>%
+    filter(
+        model_type == "STRUCTURAL_LINEAR_U_SHOCKS"
+    ) %>%
+    filter(b_type == "control") %>%
+    filter(cutoff_type == "cutoff") %>%
+    unnest(subset_df) %>%
+    filter(dist < 2500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = demand, 
+        colour = mu_type
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~cutoff_type) +
+    labs(
+        title = "Control Private Incentive, Varying Visibility", 
+        y = "Takeup",
+        x = "Distance, Meters"
+    ) +
+    theme(legend.position = "bottom")
+
+optim_data %>%
+    filter(
+        model_type == "STRUCTURAL_LINEAR_U_SHOCKS"
+    ) %>%
+    filter(b_type == "control") %>%
+    filter(cutoff_type == "cutoff") %>%
+    unnest(demand_data) %>%
+    filter(dist < 2500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = demand, 
+        colour = mu_type
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~cutoff_type) +
+    labs(
+        title = "Control Private Incentive, Varying Visibility", 
+        y = "Takeup",
+        x = "Distance, Meters"
+    ) +
+    theme(legend.position = "bottom")
+
+
+optim_data %>%
+    head(1) %>%
+    select(model_output) %>%
+    unnest() %>%
+    colnames()
+
+
+
+
+optim_data %>%
+    filter( 
+        model == "STRUCTURAL_LINEAR_U_SHOCKS"
+    ) %>%
+    filter(
+        treatment %in% c("bracelet", "control")
+    ) %>%
+    unnest(demand_data) %>%
+    filter(dist < 2500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = demand,
+        color = treatment
+    )) +
+    geom_point() +
+    facet_wrap(~rep) +
+    geom_hline(
+        yintercept = 0.33, 
+        linetype = "longdash"
+    ) +
+    theme_bw()
+
+
+
+
+summ_analysis_data = analysis_data %>%
+    group_by(cluster.id) %>%
+    summarise(
+        demand = mean(dewormed), 
+        dist = unique(cluster.dist.to.pot), 
+        treatment = unique(assigned_treatment)
+    )   
+summ_analysis_fit = lm(
+    data = analysis_data %>% rename(dist = cluster.dist.to.pot, treatment = assigned_treatment),
+    formula = dewormed ~ dist + treatment
+)
+
+optim_data %>%
+    filter( 
+        model == "STRUCTURAL_LINEAR_U_SHOCKS"
+    ) %>%
+    filter(
+        treatment %in% c("bracelet", "control")
+    ) %>%
+    unnest(demand_data) %>%
+    filter(dist < 2500) %>%
+    modelr::add_predictions(summ_analysis_fit) %>%
+    ggplot(aes(
+        x = dist, 
+        y = demand,
+        color = treatment
+    )) +
+    geom_point() +
+    facet_wrap(~rep) +
+    geom_hline(
+        yintercept = 0.33, 
+        linetype = "longdash"
+    ) +
+    theme_bw() +
+    geom_line(aes(y = pred)) +
+    labs(
+        title = "Median Demand vs Distance", 
+        subtitle = "Bracelet vs Control, Fixing Rep at Control vs Treatment Rep", 
+        caption = str_wrap(
+            "Points show output from structural model. Line shows frequentist OLS on 'raw' data", 
+            width = 140
+        )    
+    ) +
+    theme(legend.position = "bottom")
+
+ggsave(
+    "temp-plots/control-treat-vis-with-ols-too.png",
+    width = 8,
+    height = 6
+)
+summ_analysis_fit %>%
+    tidy()
+
+
+0.460 + 0.0821
+
+optim_data %>%
+    filter( 
+        model == "STRUCTURAL_LINEAR_U_SHOCKS"
+    ) %>%
+    filter(
+        treatment %in% c("bracelet", "control")
+    ) %>%
+    unnest(demand_data) %>%
+    filter(dist < 2500)  %>%
+    filter(demand > 0.30 & demand < 0.36) %>%
+    group_by(
+        rep, treatment
+    ) %>%
+    summarise(
+        mean_dist = mean(dist)
+    )
