@@ -215,7 +215,7 @@ if (stat_type == "median") {
             filename = file.path(
                 script_options$output_path,
                 str_glue(
-                    "{script_options$output_basename}-{optimal_df[.y, 'model']}-optimal-allocation-plot.png"
+                    "{script_options$output_basename}-optimal-allocation-plot.png"
                 )
             ),
         width = 10,
