@@ -24,7 +24,7 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 71
+fit_version <- 74
 default_top_levels = c("Bracelet", "Combined")
 
 # 66 ed fit
@@ -87,6 +87,7 @@ analysis_data <- monitored_nosms_data
 ## Fit Loading
 
 load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+
 
 dist_fit_data %<>%
   left_join(tribble(
@@ -1251,7 +1252,6 @@ p_ate_diffs = map(
     models_we_want = "REDUCED_FORM_NO_RESTRICT"
   )
 )
-
 iwalk(
     p_ate_diffs,
     ~ggsave(plot = .x, 
