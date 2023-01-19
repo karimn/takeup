@@ -26,13 +26,12 @@ script_options <- docopt::docopt(
                                 --min-cost  \
                                 --target-constraint=0.32 \
                                 --output-path=optim/data \
-                                --output-filename=cutoff-b-control-mu-control \
+                                --output-filename=cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS \
                                 --input-path=optim/data  \
                                 --village-input-filename=village-df.csv \
                                 --pot-input-filename=pot-df.csv \
                                 --time-limit=10000 \
-                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control.csv
-
+                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv
 
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -551,7 +550,6 @@ if (script_options$dry_run) {
                              script_options$pot_input_filename)
   demand_input_path = file.path(script_options$input_path, 
                                 script_options$demand_input_filename)
-              
   village_data = read_csv(village_input_path) %>%
     st_as_sf(
       coords = c("lon", "lat"), 
@@ -587,6 +585,8 @@ if (script_options$dry_run) {
         private_benefit_z, 
         visibility_z,
         model)]
+  
+
   }
   n = nrow(village_data)
   m = nrow(pot_data)
@@ -604,7 +604,11 @@ baseline_model = define_baseline_MIPModel(data)
 
 
 demand_data = demand_data %>%
-  nest(demand_data = -any_of(c("draw", "private_benefit_z", "visibility_z", "model")))
+  nest(demand_data = -any_of(c("draw", 
+                               "private_benefit_z", 
+                               "visibility_z", 
+                               "model")))
+
 
 
 
@@ -641,7 +645,6 @@ tidy_output = demand_data %>%
      )
   )
 tictoc::toc()
-
 
 
 
