@@ -25,13 +25,13 @@ script_options = docopt::docopt(
     "),
     args = if (interactive()) "
                             71
-                            bracelet
-                            bracelet
-                            --output-name=b-bracelet-mu-bracelet
+                            control
+                            control
+                            --output-name=cutoff-b-control-mu-control
                             --from-csv
                             --num-post-draws=10
                             --rep-cutoff=Inf
-                            --dist-cutoff=10000
+                            --dist-cutoff=2500
                             --num-cores=12
                             --type-lb=-3
                             --type-ub=3
@@ -143,6 +143,49 @@ stan_data = (dist_fit_data %>%
 rf_analysis_data = stan_data$analysis_data
 
 sd_of_dist = sd(rf_analysis_data$cluster.dist.to.pot)
+
+# stop()
+
+
+# stan_data$beliefs_treatment_map_design_matrix
+
+# struct_model_files = fs::dir_ls(
+#     script_options$input_path, 
+#     regex = str_glue("dist_fit{fit_version}_{script_options$model}-.*csv"))
+
+# struct_model_fit = as_cmdstan_fit(struct_model_files)
+
+# post_draws = struct_model_fit %>%
+#     gather_rvars(
+#             beta[k],
+#             dist_beta_v[j],
+#             centered_cluster_beta_1ord[j, k],
+#             centered_cluster_dist_beta_1ord[j, k],
+#             base_mu_rep, 
+#             total_error_sd[k],
+#             u_sd[k]
+#     )
+
+# mu_draws = post_draws %>%
+#     filter(
+#         .variable == "centered_cluster_beta_1ord" |
+#         .variable == "centered_cluster_dist_beta_1ord" 
+#         ) 
+    
+
+# mu_draws 
+
+
+# summ_post_draws = post_draws %>%
+#     mutate(
+#         .value = median(.value)
+#     )
+
+# summ_post_draws %>%
+#     filter(.variable == "base_mu_rep")
+
+
+
 
 if (script_options$to_csv) {
     struct_model_files = fs::dir_ls(
@@ -259,8 +302,14 @@ calculate_belief_latent_predictor = function(beta,
                                              dist_beta, 
                                              dist, 
                                              control_beta, 
-                                             control_dist_beta) {
-    val =  beta + dist*dist_beta + control_beta + control_dist_beta*dist
+                                             control_dist_beta, 
+                                             control) {
+    # Don't want to double count control and add it twice
+    if (control == FALSE) {
+        val = beta + dist*dist_beta + control_beta + control_dist_beta*dist
+    } else {
+        val = beta + dist*dist_beta 
+    }
     return(val)
 }
 
@@ -277,13 +326,16 @@ calculate_mu_rep = function(dist,
                             dist_beta, 
                             beta_control,
                             dist_beta_control,
-                            mu_rep_type = 0) {
+                            mu_rep_type = 0,  
+                            control) {
     beliefs_latent = calculate_belief_latent_predictor(
         beta = beta, 
         dist_beta = dist_beta, 
         dist = dist, 
         control_beta = beta_control, 
-        control_dist_beta = dist_beta_control)
+        control_dist_beta = dist_beta_control, 
+        control = control
+        )
     if (mu_rep_type == 1) { # log
         beliefs_latent = pmax(min(beliefs_latent[beliefs_latent > 0]), beliefs_latent)
         return(log(beliefs_latent))
@@ -379,7 +431,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              base_mu_rep_control,
                              rep_cutoff = Inf,
                              bounds,
-                             mu_rep_type) {
+                             mu_rep_type, 
+                             control) {
     function(distance){
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
@@ -393,7 +446,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control,
             dist_beta_control = mu_beta_d_control,
-            mu_rep_type = mu_rep_type)
+            mu_rep_type = mu_rep_type, 
+            control = control)
         # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
         cutoff_mu_rep = calculate_mu_rep(
             dist = rep_cutoff/dist_sd,
@@ -403,7 +457,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control,
             dist_beta_control = mu_beta_d_control,
-            mu_rep_type = mu_rep_type)
+            mu_rep_type = mu_rep_type, 
+            control = control)
         mu_rep[which(over_cutoff)] = cutoff_mu_rep
 
         v_star_soln = find_v_star(
@@ -438,7 +493,8 @@ find_pred_takeup = function(params) {
         base_mu_rep_control = params$base_mu_rep_control,
         rep_cutoff = params$rep_cutoff,
         bounds = params$bounds,
-        mu_rep_type = params$mu_rep_type
+        mu_rep_type = params$mu_rep_type, 
+        control = params$control
     )
 }
 
@@ -495,6 +551,7 @@ extract_params = function(param_draws,
             .variable == "base_mu_rep"  & (j == j_id | is.na(j))
         ) %>%
         pull(.value)
+    control = if_else(visibility_treatment == "control", TRUE, FALSE)
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 
@@ -504,7 +561,8 @@ extract_params = function(param_draws,
         "dist_cutoff" = dist_cutoff,
         "rep_cutoff" = rep_cutoff,
         "bounds" = list(bounds),
-        "mu_rep_type" = mu_rep_type
+        "mu_rep_type" = mu_rep_type, 
+        control = control
         ) %>%
         as.list()
 
