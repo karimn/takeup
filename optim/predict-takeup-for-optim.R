@@ -25,9 +25,9 @@ script_options = docopt::docopt(
     "),
     args = if (interactive()) "
                             71
-                            control
-                            control
-                            --output-name=b-control-mu-control
+                            bracelet
+                            bracelet
+                            --output-name=b-bracelet-mu-bracelet
                             --from-csv
                             --num-post-draws=10
                             --rep-cutoff=Inf
@@ -79,7 +79,8 @@ mu_rep_type = switch(
     script_options$model,
     STRUCTURAL_LINEAR_U_SHOCKS = 0,
     STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = 1,
-    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = 2
+    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = 2,
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = 3
 )
 
 
@@ -247,38 +248,19 @@ if (script_options$from_csv) {
 
 
 
-
 ## Calculating \mu(z,d)
-# centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord
-
-# beta_1ord and dist_beta_1ord go into calculate mu rep
-
-# vector calculate_mu_rep(array[] int treatment_ids, vector dist,
-#                         real base_mu_rep, real mu_beliefs_effect,
-#                         matrix design_matrix,
-#                         matrix beta, matrix dist_beta) {
-#   vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[treatment_ids], beta, dist_beta, dist);
-  
-#   return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
-# }
-
-# vector calculate_beliefs_latent_predictor(matrix design_matrix, matrix beta, matrix dist_beta, vector dist) {
-#   if (rows(design_matrix) == 1) {
-#     return (beta * design_matrix[1]') + ((dist_beta * design_matrix[1]') .* dist);
-#   } else {
-#     return rows_dot_product(design_matrix, beta) + (rows_dot_product(design_matrix, dist_beta) .* dist);
-#   }
-# }
-
-
 
 
 #' Calculate latent predictor for beliefs model
 #'
 #' Typically takes as input the distance, the coef on beliefs for each treatment 
 #' and the coef on beliefs for each distance x treatment
-calculate_belief_latent_predictor = function(beta, dist_beta, dist) {
-    val =  beta + dist*dist_beta 
+calculate_belief_latent_predictor = function(beta, 
+                                             dist_beta, 
+                                             dist, 
+                                             control_beta, 
+                                             control_dist_beta) {
+    val =  beta + dist*dist_beta + control_beta + control_dist_beta*dist
     return(val)
 }
 
@@ -294,13 +276,21 @@ calculate_mu_rep = function(dist,
                             beta, 
                             dist_beta, 
                             beta_control,
+                            dist_beta_control,
                             mu_rep_type = 0) {
-    beliefs_latent = calculate_belief_latent_predictor(beta = beta, dist_beta = dist_beta, dist = dist)
+    beliefs_latent = calculate_belief_latent_predictor(
+        beta = beta, 
+        dist_beta = dist_beta, 
+        dist = dist, 
+        control_beta = beta_control, 
+        control_dist_beta = dist_beta_control)
     if (mu_rep_type == 1) { # log
         beliefs_latent = pmax(min(beliefs_latent[beliefs_latent > 0]), beliefs_latent)
         return(log(beliefs_latent))
     } else if (mu_rep_type == 2) { # linear
         return(beliefs_latent)
+    } else if (mu_rep_type == 3) {
+        return(0)
     } else {
         mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
     }
@@ -402,6 +392,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             beta = mu_beta_z,
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control,
+            dist_beta_control = mu_beta_d_control,
             mu_rep_type = mu_rep_type)
         # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
         cutoff_mu_rep = calculate_mu_rep(
@@ -411,6 +402,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             beta = mu_beta_z,
             dist_beta = mu_beta_d,
             beta_control = mu_beta_z_control,
+            dist_beta_control = mu_beta_d_control,
             mu_rep_type = mu_rep_type)
         mu_rep[which(over_cutoff)] = cutoff_mu_rep
 
@@ -427,7 +419,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
         
         linear_pred = b + mu_rep*delta_v_star
         pred_takeup = 1 - pnorm(v_star/(total_error_sd))
-        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star))
+        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star, total_error_sd))
     }
 }
 
@@ -525,7 +517,6 @@ draw_treat_grid = expand.grid(
     draw = 1:min(max_draw, script_options$num_post_draws)
     # treatment = script_options$treatment
 )
-
 
 if (run_estimation == TRUE){
 
