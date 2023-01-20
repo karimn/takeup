@@ -240,17 +240,7 @@ if (script_options$to_csv) {
                     script_options$input_path, 
                     str_interp("param_posterior_draws_dist_fit${fit_version}_REDUCED_FORM_NO_RESTRICT.rds") ))
 
-    } else {
-
-        rf_model_fit = read_rds(
-            file.path(
-                script_options$input_path, 
-                str_interp(
-                    "param_posterior_draws_dist_fit71_REDUCED_FORM_NO_RESTRICT.rds"
-                )
-            )
-        )
-    }
+    } 
 } 
 
 if (script_options$from_csv) {
@@ -262,22 +252,16 @@ if (script_options$from_csv) {
             )
         )
     )
-    rf_model_fit = read_rds(
-        file.path(
-            script_options$input_path, 
-            str_interp(
-                "param_posterior_draws_dist_fit${fit_version}_REDUCED_FORM_NO_RESTRICT.rds"
+    if (script_options$fit_rf) {
+        rf_model_fit = read_rds(
+            file.path(
+                script_options$input_path, 
+                str_interp(
+                    "param_posterior_draws_dist_fit${fit_version}_REDUCED_FORM_NO_RESTRICT.rds"
+                )
             )
         )
-    )
-    # rf_model_fit = read_rds(
-    #     file.path(
-    #         script_options$input_path, 
-    #         str_interp(
-    #             "param_posterior_draws_dist_fit71_REDUCED_FORM_NO_RESTRICT.rds"
-    #         )
-    #     )
-    # )
+    }
 }
 
 
@@ -673,24 +657,26 @@ brms_long_distance_mat = long_distance_mat %>%
         assigned.treatment = "bracelet"
     ) 
 
+if (script_options$fit_rf) {
 
-rf_pred_df = map_dfr(
-    script_options$private_benefit_z,
-    ~{
-        add_epred_draws(
-            brms_long_distance_mat %>% mutate(assigned.treatment = .x),
-            rf_model_fit,
-            ndraws = script_options$num_post_draws
-        )
-    }
-) %>%
-    rename(
-        treatment = assigned.treatment, 
-        draw = .draw, 
-        demand = .epred
-    )  %>%
-    ungroup() 
+    rf_pred_df = map_dfr(
+        script_options$private_benefit_z,
+        ~{
+            add_epred_draws(
+                brms_long_distance_mat %>% mutate(assigned.treatment = .x),
+                rf_model_fit,
+                ndraws = script_options$num_post_draws
+            )
+        }
+    ) %>%
+        rename(
+            treatment = assigned.treatment, 
+            draw = .draw, 
+            demand = .epred
+        )  %>%
+        ungroup() 
 
+}
 
 
 subset_long_distance_mat = long_distance_mat %>%
@@ -758,25 +744,29 @@ structural_demand_df = long_distance_mat %>%
     model = script_options$model 
   )
 
+if (script_options$fit_rf) {
 
-rf_demand_df = rf_pred_df %>%
-    rename(
-        village_i = index_i, 
-        pot_j = index_j, 
-    ) %>%
-    group_by(village_i, closest_pot = dist == min(dist)) %>%
-    ungroup() %>%
-    mutate(
-        model = "REDUCED_FORM_NO_RESTRICT"
-    ) %>%
-    mutate(
-        demand = if_else(
-            dist > script_options$dist_cutoff,
-            0,
-            demand
-        )
-    ) %>%
-    select(-`.row`, -`.chain`, -`.iteration`)
+    rf_demand_df = rf_pred_df %>%
+        rename(
+            village_i = index_i, 
+            pot_j = index_j, 
+        ) %>%
+        group_by(village_i, closest_pot = dist == min(dist)) %>%
+        ungroup() %>%
+        mutate(
+            model = "REDUCED_FORM_NO_RESTRICT"
+        ) %>%
+        mutate(
+            demand = if_else(
+                dist > script_options$dist_cutoff,
+                0,
+                demand
+            )
+        ) %>%
+        select(-`.row`, -`.chain`, -`.iteration`)
+    rf_demand_df$private_benefit_z = script_options$private_benefit_z
+    rf_demand_df$visibility_z = script_options$visibility_z
+}
 
 
 append_output = if (!is.null(script_options$output_name)) {
@@ -789,21 +779,30 @@ append_output = if (!is.null(script_options$output_name)) {
 structural_demand_df$private_benefit_z = script_options$private_benefit_z
 structural_demand_df$visibility_z = script_options$visibility_z
 
-rf_demand_df$private_benefit_z = script_options$private_benefit_z
-rf_demand_df$visibility_z = script_options$visibility_z
 
 
 
-bind_rows(
-    structural_demand_df,
-    rf_demand_df
-) %>%
+
+
+structural_demand_df %>%
     write_csv(
         file.path(
             script_options$output_path, 
             str_interp("pred-demand-dist-fit${fit_version}${append_output}.csv")
         )
     )
+
+if (script_options$fit_rf) {
+
+    rf_demand_df %>%
+        write_csv(
+            file.path(
+                script_options$output_path, 
+                str_interp("pred-demand-dist-fit${fit_version}-REDUCED_FORM_NO_RESTRICT.csv")
+            )
+        )
+}
+
         
 
 pot_df %>%

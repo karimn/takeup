@@ -24,13 +24,12 @@ script_options <- docopt::docopt(
                             --min-cost \
                             --posterior-median \
                             --input-path=optim/data \
-                            --optim-input-a-filename=cutoff-b-control-mu-control-median-optimal-allocation.rds \
+                            --optim-input-a-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
                             --village-input-filename=village-df.csv \
                             --pot-input-filename=pot-df.csv \
-                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control.csv \
+                            --demand-input-a-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                             --output-path=optim/plots \
-                            --output-basename=cutoff-b-control-mu-control-median \
-                            --map-plot \
+                            --output-basename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
 
                              
@@ -64,7 +63,6 @@ script_options = script_options %>%
 optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
-if (script_options$map_plot){
 
     ## Input Paths
     optim_input_a_filepath = file.path(script_options$input_path, 
@@ -120,6 +118,7 @@ if (script_options$map_plot){
     hex <- hue_pal()(2)
 
 
+if (script_options$map_plot){
     data$village_locations %>%
         ggplot() +
         geom_sf() +
@@ -207,7 +206,6 @@ if (stat_type == "median") {
             optimal_data = .x
         )
     )
-
     iwalk(
         allocation_plots,
         ~ggsave(
