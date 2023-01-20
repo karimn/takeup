@@ -24,7 +24,7 @@ demand_files = fs::dir_ls(
     regexp = "pred"
 )
 
-demand_files = demand_files[!str_detect(demand_files, "no-cutoff")]
+# demand_files = demand_files[!str_detect(demand_files, "no-cutoff")]
 
 demand_df = tibble(
     demand_file = demand_files
@@ -70,7 +70,7 @@ subset_demand_df = demand_df %>%
         subset_df = map(
             demand_df, 
             ~{
-                filter(.x, dist <= 5000) %>%
+                filter(.x, dist <= 10000) %>%
                 filter(model != "REDUCED_FORM_NO_RESTRICT") %>%
                     group_by(village_i, pot_j) %>%
                     summarise(across(where(is.numeric), median, na.rm = TRUE))
@@ -93,7 +93,7 @@ plot_demand_panels = function(long_data, cutoff, model){
         filter(cutoff_type == cutoff) %>%
         filter(model_type == model) %>%
         filter(b_type == "control")  %>%
-        filter(dist <= cutoff_distance*1000) %>%
+        filter(dist <= 5000) %>%
         gather(variable, value, demand:v_star) %>%
         mutate(variable = factor(variable,
                                 levels = c("b", "v_star", "delta_v_star", "mu_rep", "linear_pred", "demand"))) %>%
@@ -117,12 +117,24 @@ plot_demand_panels = function(long_data, cutoff, model){
 
     return(p)
 }
+p_panels_normal = plot_demand_panels(long_subset_demand_df, "no_cutoff", "STRUCTURAL_LINEAR_U_SHOCKS")
+p_panels_log = plot_demand_panels(long_subset_demand_df, "no_cutoff", "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP")
 
-p_panels_normal = plot_demand_panels(long_subset_demand_df, "cutoff", "STRUCTURAL_LINEAR_U_SHOCKS")
-p_panels_log = plot_demand_panels(long_subset_demand_df, "cutoff", "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP")
+p_panels_log %>%
+    ggsave(
+        plot = .,
+        filename = "temp-plots/panel-plot-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.png", 
+        width = 8,
+        height = 6, 
+        dpi = 500)
 
-p_panels_normal
-stop()
+p_panels_normal %>%
+    ggsave(
+        plot = .,
+        filename = "temp-plots/panel-plot-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.png", 
+        width = 8,
+        height = 6, 
+        dpi = 500)
 
 long_subset_demand_df %>%
     filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
@@ -139,7 +151,6 @@ long_subset_demand_df %>%
     scale_y_continuous(breaks = seq(from = 0, to = 0.6, by = 0.1))
 
 ggsave("temp-plots/tmp.png", width = 8, height = 6, dpi = 500)
-stop()
 
 long_subset_demand_df %>%
     filter(
@@ -157,13 +168,6 @@ long_subset_demand_df %>%
 
 stop()
 
-p_panels_normal %>%
-    ggsave(
-        plot = .,
-        filename = "temp-plots/panel-plot-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.png", 
-        width = 8,
-        height = 6, 
-        dpi = 500)
 
 
 optim_df = tibble(
@@ -219,7 +223,6 @@ mutate(
     sms_treatment = factor(sms.treatment.2))
 
 ##
-p_panels
 
 
 
@@ -269,6 +272,33 @@ optim_data %>%
     )) +
     geom_point() +
     geom_abline(linetype = "longdash")
+
+
+
+optim_data = optim_data %>%
+    mutate(
+        n_pot = map_dbl(
+            model_output, 
+            ~{
+                n_distinct(.x$j)
+
+            }
+        )
+    )
+
+
+optim_df
+
+optim_data
+
+optim_data %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    select( 
+        b_type, 
+        mu_type, 
+        model_type, 
+        n_pot
+    )
 
 comp_df = bind_rows(
     subset_demand_df %>%
@@ -365,25 +395,27 @@ optim_data %>%
 
 optim_data %>%
     filter( 
-        model == "STRUCTURAL_LINEAR_U_SHOCKS"
+        model_type == "STRUCTURAL_LINEAR_U_SHOCKS"
     ) %>%
-    filter(
-        treatment %in% c("bracelet", "control")
-    ) %>%
+    # filter(
+    #     treatment %in% c("bracelet", "control")
+    # ) %>%
     unnest(demand_data) %>%
     filter(dist < 2500) %>%
     ggplot(aes(
         x = dist, 
         y = demand,
-        color = treatment
+        color = mu_type
     )) +
     geom_point() +
-    facet_wrap(~rep) +
+    facet_wrap(~b_type) +
     geom_hline(
         yintercept = 0.33, 
         linetype = "longdash"
     ) +
     theme_bw()
+
+
 
 
 
