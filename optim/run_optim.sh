@@ -17,6 +17,7 @@ CONSTRAINT_TYPE="agg"
 OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}"
 PLOT_OUTPUT_PATH="optim/plots/agg-log"
 RUN_TARGET_CREATION=1
+NUM_CORES=6
 
 
 set -e
@@ -42,7 +43,7 @@ run_no_cutoff_optim () {
                                     --num-post-draws=${NUMPOSTDRAWS} \
                                     --rep-cutoff=Inf \
                                     --dist-cutoff=10000 \
-                                    --num-cores=12 \
+									--num-cores=${NUM_CORES} \
                                     --type-lb=-Inf \
                                     --type-ub=Inf \
                                     --model=${MODEL} \
@@ -111,7 +112,7 @@ run_cutoff_optim () {
                                     --num-post-draws=${NUMPOSTDRAWS} \
                                     --rep-cutoff=Inf \
                                     --dist-cutoff=2500 \
-                                    --num-cores=12 \
+									--num-cores=${NUM_CORES} \
                                     --type-lb=-Inf \
                                     --type-ub=Inf \
                                     --model=${MODEL} \
