@@ -3,6 +3,300 @@
 # Functions ####################################################################
 ################################################################################
 
+
+
+################################################################################
+# Prediction of Takeup #########################################################
+################################################################################
+
+## Calculating \mu(z,d)
+
+
+#' Calculate latent predictor for beliefs model
+#'
+#' Typically takes as input the distance, the coef on beliefs for each treatment 
+#' and the coef on beliefs for each distance x treatment
+calculate_belief_latent_predictor = function(beta, 
+                                             dist_beta, 
+                                             dist, 
+                                             control_beta, 
+                                             control_dist_beta, 
+                                             control) {
+    # Don't want to double count control and add it twice
+    if (control == FALSE) {
+        val = beta + dist*dist_beta + control_beta + control_dist_beta*dist
+    } else {
+        val = beta + dist*dist_beta 
+    }
+    return(val)
+}
+
+#' Calculate Visibility \mu(z,d)
+#' 
+#' Takes in distance, base_mu_rep which act as control, mu_beliefs_effect (=1),
+#' betas from beliefs model, dist_beta from beliefs model and the control coef
+#' from the beliefs model.
+#' (The exponential model defines \mu_0 exp(\beta_dist d)) as the control effect
+calculate_mu_rep = function(dist, 
+                            base_mu_rep, 
+                            mu_beliefs_effect, 
+                            beta, 
+                            dist_beta, 
+                            beta_control,
+                            dist_beta_control,
+                            mu_rep_type = 0,  
+                            control) {
+    beliefs_latent = calculate_belief_latent_predictor(
+        beta = beta, 
+        dist_beta = dist_beta, 
+        dist = dist, 
+        control_beta = beta_control, 
+        control_dist_beta = dist_beta_control, 
+        control = control
+        )
+    if (mu_rep_type == 1) { # log
+        beliefs_latent = pmax(min(beliefs_latent[beliefs_latent > 0]), beliefs_latent)
+        return(log(beliefs_latent))
+    } else if (mu_rep_type == 2) { # linear
+        return(beliefs_latent)
+    } else if (mu_rep_type == 3) {
+        return(0)
+    } else {
+        mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
+    }
+    return(mu_rep)
+}
+
+
+
+#' Find Cutoff Type
+#' 
+#'  Given net benefit b, visibility \mu, total error sd and u_sd  we calculate
+#' the cutoff type.
+#' 
+find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
+    dim_distance = length(distance)
+    n_iters = 1
+    if (all(!is.finite(bounds))) {
+        v_bounds = NULL
+    } else {
+        v_bounds = bounds
+    }
+    v_fs = map2(b, mu_rep, 
+        ~generate_v_cutoff_fixedpoint(
+            b = .x,
+            mu = .y,
+            total_error_sd = total_error_sd,
+            u_sd = u_sd,
+            bounds = v_bounds
+    ))
+    
+    if (any(is.nan(map_dbl(v_fs, ~.x(0))))) {
+        browser()
+        map_dbl(v_fs, ~.x(0))
+        v_fs[[100]](10)
+        b[[100]]
+        mu_rep[[100]]
+    }
+
+
+    fn_fixed_point_fits = map2(v_fs, b, ~nleqslv(x = -.y, fn = .x))
+
+    v_star = map_dbl(fn_fixed_point_fits, "x")
+    solv_term_code = map_dbl(fn_fixed_point_fits, "termcd")
+    if (!all(!is.finite(bounds))) {
+        v_star = pmin(v_star, bounds[2])
+        v_star = pmax(v_star, bounds[1])
+        delta_v_star = analytical_delta_bounded(v_star, u_sd, bounds)
+        delta_v_star = pmin(delta_v_star, bounds[2])
+
+    } else {
+        delta_v_star = analytical_delta(v_star, u_sd)
+    }
+    v_star[solv_term_code > 2] = NA
+    delta_v_star[solv_term_code > 2] = NA
+    return(lst(
+        v_star,
+        delta_v_star
+    ))
+}
+
+
+#' Find Predicted Takeup
+#'
+#' @param beta_b_z The coefficients on private benefit - treatment effect. 
+#' @param beta_b_d The coefficients on private benefit - distance effect.
+#' @param mu_beta_z The coefficients on beliefs that feed into \mu(z,d) model - treatment effect
+#' @param mu_beta_d The coefficients on beliefs that feed into \mu(z,d) model - distance effect
+#' @param total_error_sd Total sd of W
+#' @param u_sd Variance of idiosyncratic shock.
+#' @param dist_sd standard deviation of distance in the study. Stan uses 
+#'  standardised distance to estimate models so we need to give it standardised 
+#'  distance for our prediction exercise.
+#' @param mu_beta_z_control The coefficient on mu_beta in the control arm - needed to 
+#'  renormalise \mu(z,d) given \mu_0 exp(.) setup.
+#' @param bounds Bounds on type distribution of v
+.find_pred_takeup = function(beta_b_z, 
+                             beta_b_d,
+                             mu_beta_z, 
+                             mu_beta_d, 
+                             base_mu_rep, 
+                             total_error_sd, 
+                             u_sd, 
+                             dist_sd, 
+                             mu_beta_z_control,
+                             mu_beta_d_control,
+                             base_mu_rep_control,
+                             rep_cutoff = Inf,
+                             bounds,
+                             mu_rep_type, 
+                             control) {
+    function(distance){
+        over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
+        distance = distance/dist_sd
+        b = beta_b_z - beta_b_d*distance
+
+        mu_rep = calculate_mu_rep(
+            dist = distance,
+            base_mu_rep = base_mu_rep,
+            mu_beliefs_effect = 1,
+            beta = mu_beta_z,
+            dist_beta = mu_beta_d,
+            beta_control = mu_beta_z_control,
+            dist_beta_control = mu_beta_d_control,
+            mu_rep_type = mu_rep_type, 
+            control = control)
+        # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+        cutoff_mu_rep = calculate_mu_rep(
+            dist = rep_cutoff/dist_sd,
+            base_mu_rep = base_mu_rep,
+            mu_beliefs_effect = 1,
+            beta = mu_beta_z,
+            dist_beta = mu_beta_d,
+            beta_control = mu_beta_z_control,
+            dist_beta_control = mu_beta_d_control,
+            mu_rep_type = mu_rep_type, 
+            control = control)
+        mu_rep[which(over_cutoff)] = cutoff_mu_rep
+
+        v_star_soln = find_v_star(
+            distance = distance,
+            b = b,
+            mu_rep = mu_rep,
+            total_error_sd = total_error_sd,
+            u_sd = u_sd,
+            bounds = bounds
+        )
+        delta_v_star = v_star_soln$delta_v_star
+        v_star = v_star_soln$v_star
+        
+        linear_pred = b + mu_rep*delta_v_star
+        pred_takeup = 1 - pnorm(v_star/(total_error_sd))
+        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star, total_error_sd))
+    }
+}
+
+find_pred_takeup = function(params) {
+    .find_pred_takeup(
+        beta_b_z = params$beta,
+        beta_b_d = params$dist_beta_v,
+        mu_beta_z = params$centered_cluster_beta_1ord,
+        mu_beta_d = params$centered_cluster_dist_beta_1ord,
+        base_mu_rep = params$base_mu_rep,
+        total_error_sd = params$total_error_sd,
+        u_sd = params$u_sd,
+        dist_sd = params$dist_sd,
+        mu_beta_z_control = params$mu_beta_z_control,
+        mu_beta_d_control = params$mu_beta_d_control,
+        base_mu_rep_control = params$base_mu_rep_control,
+        rep_cutoff = params$rep_cutoff,
+        bounds = params$bounds,
+        mu_rep_type = params$mu_rep_type, 
+        control = params$control
+    )
+}
+
+
+extract_params = function(param_draws, 
+                          private_benefit_treatment,
+                          visibility_treatment,
+                          draw_id, 
+                          j_id, 
+                          dist_sd,
+                          dist_cutoff = Inf,
+                          rep_cutoff = Inf, 
+                          bounds = c(-Inf, Inf),
+                          mu_rep_type = 0) {
+    treatments = c(
+        "control",
+        "ink",
+        "calendar",
+        "bracelet"
+    )
+    private_benefit_id = which(treatments == private_benefit_treatment)
+    visibility_id = which(treatments == visibility_treatment)
+    draw_df = param_draws %>%
+        filter(.draw == draw_id) 
+
+    private_params = draw_df %>%
+        filter(!(.variable %in% c("centered_cluster_beta_1ord", "centered_cluster_dist_beta_1ord"))) %>%
+        filter((k == private_benefit_id | is.na(k)) & (j == j_id | is.na(j)) ) %>%
+        pull(.value, name = .variable)
+
+    mu_params = draw_df %>%
+        filter(.variable %in% c("centered_cluster_beta_1ord", "centered_cluster_dist_beta_1ord")) %>%
+        filter((k == visibility_id | is.na(k)) & (j == j_id | is.na(j)) ) %>%
+        pull(.value, name = .variable)
+
+    params = c(
+        private_params,
+        mu_params
+    )
+
+    # Need these if we want to set a cutoff level of visibility past a certain point
+    mu_beta_z_control = draw_df %>%
+        filter(.variable == "centered_cluster_beta_1ord" & k == 1 & (j == j_id | is.na(j)) ) %>%
+        pull(.value)
+
+    mu_beta_d_control = draw_df %>%
+        filter(
+            .variable == "centered_cluster_dist_beta_1ord" & k == 1 & (j == j_id | is.na(j))
+        ) %>%
+        pull(.value)
+
+    base_mu_rep_control = draw_df %>%
+        filter(
+            .variable == "base_mu_rep"  & (j == j_id | is.na(j))
+        ) %>%
+        pull(.value)
+    control = if_else(visibility_treatment == "control", TRUE, FALSE)
+    params = c(
+        params, 
+        "mu_beta_z_control" = mu_beta_z_control, 
+        "base_mu_rep_control" = base_mu_rep_control,
+        "mu_beta_d_control" = mu_beta_d_control,
+        "dist_sd" = dist_sd,
+        "dist_cutoff" = dist_cutoff,
+        "rep_cutoff" = rep_cutoff,
+        "bounds" = list(bounds),
+        "mu_rep_type" = mu_rep_type, 
+        control = control
+        ) %>%
+        as.list()
+
+    return(params)
+}
+
+
+
+
+
+
+################################################################################
+# Optimal Allocation ###########################################################
+################################################################################
+
+
 #' Create a MIP Model
 #' 
 #' @param data list with n and m (n villages and PoTs). Also village_locations
