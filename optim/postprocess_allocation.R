@@ -10,8 +10,6 @@ script_options <- docopt::docopt(
           --demand-input-path=<demand-input-path>  Path where input data is stored.
           --optim-input-a-filename=<optim-input-a-filename>  Optim input a filename.
           --demand-input-a-filename=<demand-input-a-filename>  Estimated demand a for every village i, PoT j pair.  
-          --village-input-filename=<village-input-filename>  Index and location of each village - a csv path.
-          --pot-input-filename=<pot-input-filename>  Index and location of each PoT - a csv path. 
           --output-path=<output-path>  Path where output should be saved.
           --output-basename=<output-basename>  Output basename.
           --map-plot  Plot map without adding lines for closest villages and active PoTs 
@@ -19,6 +17,8 @@ script_options <- docopt::docopt(
           --cutoff-type=<cutoff-type>  Which cutoff type to use if using full posterior draws [default: no-cutoff]
           --constraint-type=<constraint-type>  Aggregate or individual village welfare
           --welfare-function=<welfare-function>  Log or identity utility
+          --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
+          --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
 "),
   args = if (interactive()) "
                             --constraint-type=agg \
@@ -28,12 +28,11 @@ script_options <- docopt::docopt(
                             --optim-input-path=optim/data/agg-log \
                             --demand-input-path=optim/data \
                             --optim-input-a-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            --village-input-filename=village-df.csv \
-                            --pot-input-filename=pot-df.csv \
                             --demand-input-a-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                             --output-path=optim/plots \
                             --output-basename=agg-log-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
+                            --data-input-name=full-experiment-4-extra-pots.rds
 
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -65,58 +64,62 @@ optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
 
-    ## Input Paths
-    optim_input_a_filepath = file.path(script_options$optim_input_path, 
-                                    script_options$optim_input_a_filename)
-    demand_input_a_path = file.path(script_options$demand_input_path, 
-                                script_options$demand_input_a_filename)
+## Input Paths
+optim_input_a_filepath = file.path(script_options$optim_input_path, 
+                                script_options$optim_input_a_filename)
+demand_input_a_path = file.path(script_options$demand_input_path, 
+                            script_options$demand_input_a_filename)
 
-    village_input_path = file.path(script_options$demand_input_path, 
-                                    script_options$village_input_filename)
-    pot_input_path = file.path(script_options$demand_input_path, 
-                                script_options$pot_input_filename)
-    ## Input Data
-    optimal_df = read_rds(optim_input_a_filepath)
-    demand_a_data = read_csv(demand_input_a_path) %>%
-        as.data.table()
+## Input Data
+optimal_df = read_rds(optim_input_a_filepath)
+demand_a_data = read_csv(demand_input_a_path) %>%
+    as.data.table()
 
-    village_data = read_csv(village_input_path)
-    pot_data = read_csv(pot_input_path)
+dist_data = read_rds(
+  file.path(
+    script_options$data_input_path,
+    script_options$data_input_name
+  )
+)
 
-    n = nrow(village_data)
-    m = nrow(pot_data)
+village_data = dist_data$village_data
+pot_data = dist_data$pot_data
 
-    ## Output Filepaths
-    map_plot_path = file.path(
-        script_options$output_path,
-        paste0(
-            script_options$output_basename,
-            "-map-plot.png"
-        )
+
+n = nrow(village_data)
+m = nrow(pot_data)
+
+## Output Filepaths
+map_plot_path = file.path(
+    script_options$output_path,
+    paste0(
+        script_options$output_basename,
+        "-map-plot.png"
     )
+)
 
 
-    optimal_allocation_demand_comp_plot_path = file.path(
-        script_options$output_path,
-        str_glue(
-            "{script_options$output_basename}-optimal-allocation-demand-comp-plot.png"
-        )
+optimal_allocation_demand_comp_plot_path = file.path(
+    script_options$output_path,
+    str_glue(
+        "{script_options$output_basename}-optimal-allocation-demand-comp-plot.png"
     )
+)
 
-    wgs.84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-    ## Loading Data
-    data = list(
-        n = n,
-        m = m,
-        pot_locations = st_as_sf(pot_data, coords = c("lon", "lat"), crs = wgs.84),
-        village_locations = st_as_sf(village_data, coords = c("lon", "lat"), crs = wgs.84)
-    ) 
+wgs.84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+## Loading Data
+data = list(
+    n = n,
+    m = m,
+    pot_locations = st_as_sf(pot_data, coords = c("lon", "lat"), crs = wgs.84),
+    village_locations = st_as_sf(village_data, coords = c("lon", "lat"), crs = wgs.84)
+) 
 
 
 
-    library(scales)
-    #extract hex color codes for a plot with three elements in ggplot2 
-    hex <- hue_pal()(2)
+library(scales)
+#extract hex color codes for a plot with three elements in ggplot2 
+hex <- hue_pal()(2)
 
 
 if (script_options$map_plot){

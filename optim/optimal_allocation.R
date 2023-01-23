@@ -1,5 +1,4 @@
 #!/usr/bin/Rscript
-
 script_options <- docopt::docopt(
     stringr::str_glue("Usage:
         optimal_allocation.R  [options] [--min-cost | --max-takeup]
@@ -20,6 +19,8 @@ script_options <- docopt::docopt(
           --time-limit=<time-limit>  GLPK solver time limit [default: 1000]
           --posterior-median  Use median demand rather than solve across all draws
           --welfare-function=<welfare-function>  Welfare function to use for takeup [default: identity]
+          --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
+          --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
 "),
   args = if (interactive()) "
                                 --posterior-median \
@@ -29,8 +30,7 @@ script_options <- docopt::docopt(
                                 --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                                 --output-path=optim/data \
                                 --input-path=optim/data  \
-                                --village-input-filename=village-df.csv \
-                                --pot-input-filename=pot-df.csv \
+                                --data-input-name=full-experiment-4-extra-pots.rds
                                 --time-limit=10000 \
                                 --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
                                 --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
@@ -90,30 +90,18 @@ stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 ################################################################################
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+dist_data = read_rds(
+  file.path(
+    script_options$data_input_path,
+    script_options$data_input_name
+  )
+)
 
+village_data = dist_data$village_df
+pot_data = dist_data$pot_df
 
-
-village_input_path = file.path(script_options$input_path, 
-                                script_options$village_input_filename)
-pot_input_path = file.path(script_options$input_path, 
-                            script_options$pot_input_filename)
 demand_input_path = file.path(script_options$input_path, 
                               script_options$demand_input_filename)
-village_data = read_csv(village_input_path) %>%
-  st_as_sf(
-    coords = c("lon", "lat"), 
-    crs = wgs.84) %>%
-  mutate(
-      lon = sf::st_coordinates(.)[, 1],
-      lat = sf::st_coordinates(.)[, 2])
-pot_data = read_csv(pot_input_path) %>%
-  st_as_sf(
-    coords = c("lon", "lat"), 
-    crs = wgs.84) %>%
-  mutate(
-      lon = sf::st_coordinates(.)[, 1],
-      lat = sf::st_coordinates(.)[, 2])
-
 
 initial_demand_data = read_csv(demand_input_path) %>%
   as.data.table() 

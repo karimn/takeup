@@ -18,9 +18,15 @@ OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}"
 PLOT_OUTPUT_PATH="optim/plots/agg-log"
 RUN_TARGET_CREATION=1
 NUM_CORES=6
+DATA_INPUT_NAME="full-experiment-4-extra-pots.rds"
 
 
 set -e
+
+
+Rscript ./optim/create-distance-data.R \
+    --output-name=full-experiment-4-extra-pots.rds \
+    --num-extra-pots=4
 
 if [ ${POSTERIORMEDIAN} == "--posterior-median" ] 
 then 
@@ -46,6 +52,7 @@ run_no_cutoff_optim () {
 									--num-cores=${NUM_CORES} \
                                     --type-lb=-Inf \
                                     --type-ub=Inf \
+                                    --data-input-name=$DATA_INPUT_NAME \
                                     --model=${MODEL} \
                                     ${PREDDISTANCE} \
                                     ${RUNESTIMATION} 
@@ -72,6 +79,7 @@ run_no_cutoff_optim () {
                                     --output-path=${OUTPUT_PATH} \
                                     --output-filename=no-cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=optim/data  \
+                                    --data-input-name=$DATA_INPUT_NAME \
                                     --village-input-filename=village-df.csv \
                                     --pot-input-filename=pot-df.csv \
                                     --time-limit=1000 \
@@ -89,6 +97,7 @@ run_no_cutoff_optim () {
                                     --optim-input-path=${OUTPUT_PATH} \
                                     --demand-input-path="optim/data" \
                                     --optim-input-a-filename=no-cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --data-input-name=$DATA_INPUT_NAME \
                                     --village-input-filename=village-df.csv \
                                     --pot-input-filename=pot-df.csv \
                                     --demand-input-a-filename=pred-demand-dist-fit${VERSION}-no-cutoff-b-$1-mu-$2-${MODEL}.csv \
@@ -115,6 +124,7 @@ run_cutoff_optim () {
 									--num-cores=${NUM_CORES} \
                                     --type-lb=-Inf \
                                     --type-ub=Inf \
+                                    --data-input-name=$DATA_INPUT_NAME \
                                     --model=${MODEL} \
                                     ${PREDDISTANCE} \
                                     ${RUNESTIMATION} 
@@ -139,6 +149,7 @@ run_cutoff_optim () {
                                     --output-path=${OUTPUT_PATH} \
                                     --output-filename=cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=optim/data  \
+                                    --data-input-name=$DATA_INPUT_NAME \
                                     --village-input-filename=village-df.csv \
                                     --pot-input-filename=pot-df.csv \
                                     --time-limit=1000 \
@@ -158,6 +169,7 @@ run_cutoff_optim () {
                                 --optim-input-a-filename=cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                 --village-input-filename=village-df.csv \
                                 --pot-input-filename=pot-df.csv \
+                                --data-input-name=$DATA_INPUT_NAME \
                                 --demand-input-a-filename=pred-demand-dist-fit${VERSION}-cutoff-b-$1-mu-$2-${MODEL}.csv \
                                 --output-path=${PLOT_OUTPUT_PATH} \
                                 --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
@@ -177,17 +189,17 @@ run_cutoff_optim () {
 
 ## Cutoff
 run_cutoff_optim "control" "control"
-run_cutoff_optim "control" "bracelet"
+# run_cutoff_optim "control" "bracelet"
 
-run_cutoff_optim "control" "calendar"
+# run_cutoff_optim "control" "calendar"
 
 # run_cutoff_optim "bracelet" "bracelet"
 
 
 # ## No Cutoff
-run_no_cutoff_optim "control" "control"
-run_no_cutoff_optim "control" "bracelet"
+# run_no_cutoff_optim "control" "control"
+# run_no_cutoff_optim "control" "bracelet"
 
-run_no_cutoff_optim "control" "calendar"
+# run_no_cutoff_optim "control" "calendar"
 
 # run_no_cutoff_optim "bracelet" "bracelet"
