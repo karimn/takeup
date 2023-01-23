@@ -22,20 +22,22 @@ script_options = docopt::docopt(
         --model=<model>  Which model to use [default: STRUCTURAL_LINEAR_U_SHOCKS]
         --fit-rf  Estimate a simple brms reduced form model with distance entering continuously 
         --run-estimation  Whether th run estimation stuff
+        --num-extra-pots=<num-extra-pots>  How many extra PoTs to sample per village above experiment [default: 2]
     "),
     args = if (interactive()) "
                             71
                             control
                             control
-                            --output-name=cutoff-b-control-mu-control
+                            --output-name=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS
                             --from-csv
-                            --num-post-draws=10
+                            --num-post-draws=200
                             --rep-cutoff=Inf
                             --dist-cutoff=2500
+                            --type-lb=-Inf
+                            --type-ub=Inf
                             --num-cores=12
-                            --type-lb=-3
-                            --type-ub=3
                             --model=STRUCTURAL_LINEAR_U_SHOCKS
+                            --num-extra-pots=4
                             --run-estimation
                               " 
            else commandArgs(trailingOnly = TRUE)
@@ -43,6 +45,7 @@ script_options = docopt::docopt(
 
 
 run_estimation = script_options$run_estimation
+set.seed(19484)
 
 library(posterior)
 library(tidyverse)
@@ -69,6 +72,7 @@ script_options = script_options %>%
                 "rep_cutoff",
                 "num_post_draws", 
                 "num_cores",
+                "num_extra_pots",
                 "type_lb",
                 "type_ub"), as.numeric)
 fit_version = script_options$fit_version
@@ -143,47 +147,6 @@ stan_data = (dist_fit_data %>%
 rf_analysis_data = stan_data$analysis_data
 
 sd_of_dist = sd(rf_analysis_data$cluster.dist.to.pot)
-
-# stop()
-
-
-# stan_data$beliefs_treatment_map_design_matrix
-
-# struct_model_files = fs::dir_ls(
-#     script_options$input_path, 
-#     regex = str_glue("dist_fit{fit_version}_{script_options$model}-.*csv"))
-
-# struct_model_fit = as_cmdstan_fit(struct_model_files)
-
-# post_draws = struct_model_fit %>%
-#     gather_rvars(
-#             beta[k],
-#             dist_beta_v[j],
-#             centered_cluster_beta_1ord[j, k],
-#             centered_cluster_dist_beta_1ord[j, k],
-#             base_mu_rep, 
-#             total_error_sd[k],
-#             u_sd[k]
-#     )
-
-# mu_draws = post_draws %>%
-#     filter(
-#         .variable == "centered_cluster_beta_1ord" |
-#         .variable == "centered_cluster_dist_beta_1ord" 
-#         ) 
-    
-
-# mu_draws 
-
-
-# summ_post_draws = post_draws %>%
-#     mutate(
-#         .value = median(.value)
-#     )
-
-# summ_post_draws %>%
-#     filter(.variable == "base_mu_rep")
-
 
 
 
@@ -616,18 +579,58 @@ unselected_pots = setdiff(
   rct_pot_cluster_ids)
 
 # additional_pots = sample(unselected_pots, round(n_orig_pots*1.1), replace = FALSE)
-additional_pots = NULL
+# additional_pots = NULL
+# additional_pots = unselected_pots # all of them, let's see what happens
+# additional_pots = sample(unselected_pots, round(n_orig_pots*1), replace = FALSE)
+
+# Adding PoTs not used in experiment but we know exist
+# due to computational constraints we choose a random sample within 2.5km of 
+# a village
+add_pot_df = rct_school_df %>%
+    filter(cluster.id %in% unselected_pots) 
 
 
+rct_pot_df = rct_school_df %>%
+    filter(cluster.id %in% rct_pot_cluster_ids)
 
-pot_df = rct_school_df %>%
-  filter(cluster.id %in% c(additional_pots, rct_pot_cluster_ids)) %>%
-  mutate(id = 1:n())
 
 
 village_df = village.centers %>%
   st_as_sf(coords = c("lon", "lat"), crs = wgs.84) %>%
-  mutate(id = 1:n())
+  mutate(id = 1:n()) %>%
+  filter(!(id %in% c(40, 45, 116))) %>% # Basically impossible to serve these
+  mutate(id = 1:n()) 
+
+
+add_distance_matrix = st_distance(
+    village_df, 
+    add_pot_df
+)
+
+long_add_distance_mat = add_distance_matrix %>%
+    as_tibble() %>%
+    mutate(index_i = 1:n()) %>%
+    gather(variable, dist, -index_i) %>%
+    mutate(index_j = str_extract(variable, "\\d+") %>% as.numeric())  %>%
+    select(index_i, index_j, dist) %>%
+    mutate(
+        dist = as.numeric(dist),
+        dist_km = as.numeric(dist/1000))
+
+
+extra_pot_ids = long_add_distance_mat %>%
+    mutate(close = dist <= 2500) %>%
+    group_by(index_i) %>%
+    filter(close == TRUE) %>%
+    sample_n(script_options$num_extra_pots, replace = TRUE) %>%
+    pull(index_j) %>%
+    unique()
+
+
+pot_df = rct_school_df %>%
+    filter(cluster.id %in% c(rct_pot_cluster_ids, extra_pot_ids)) %>%
+    mutate(id = 1:n())
+
 
 
 
@@ -635,6 +638,7 @@ distance_matrix = st_distance(
   village_df,
   pot_df
 )
+
 
 long_distance_mat = distance_matrix %>%
     as_tibble() %>%

@@ -6,8 +6,8 @@ script_options <- docopt::docopt(
         Options:
           --min-cost  Flag to minimise programme cost for a given takeup level.
           --max-takeup  Flag to maximise vaccine takeup for a given cost level.
-          --target-constraint=<target-constraint>  Amount of takeup/budget constraint depending on [--min-cost|--max-takeup]  [default: 0.5]
-          --input-path=<input-path>  Path where input data is stored.
+          --optim-input-path=<optim-input-path>  Path where input data is stored.
+          --demand-input-path=<demand-input-path>  Path where input data is stored.
           --optim-input-a-filename=<optim-input-a-filename>  Optim input a filename.
           --demand-input-a-filename=<demand-input-a-filename>  Estimated demand a for every village i, PoT j pair.  
           --village-input-filename=<village-input-filename>  Index and location of each village - a csv path.
@@ -17,25 +17,29 @@ script_options <- docopt::docopt(
           --map-plot  Plot map without adding lines for closest villages and active PoTs 
           --posterior-median  If posterior median over takeup demand is used.
           --cutoff-type=<cutoff-type>  Which cutoff type to use if using full posterior draws [default: no-cutoff]
+          --constraint-type=<constraint-type>  Aggregate or individual village welfare
+          --welfare-function=<welfare-function>  Log or identity utility
 "),
   args = if (interactive()) "
-
-                            --target-constraint=0.33
+                            --constraint-type=agg \
+                            --welfare-function=log \
                             --min-cost \
                             --posterior-median \
-                            --input-path=optim/data \
+                            --optim-input-path=optim/data/agg-log \
+                            --demand-input-path=optim/data \
                             --optim-input-a-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
                             --village-input-filename=village-df.csv \
                             --pot-input-filename=pot-df.csv \
                             --demand-input-a-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                             --output-path=optim/plots \
-                            --output-basename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
+                            --output-basename=agg-log-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
 
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
+                            # --target-constraint=0.33
                             #  --min-cost 
                             #  --target-constraint=0.33
                             #  --input-path=optim/data
@@ -52,27 +56,24 @@ library(tidyverse)
 library(sf)
 library(data.table)
 
-numeric_options = c(
-  "target_constraint"
-)
 
 
-script_options = script_options %>%
-  modify_at(numeric_options, as.numeric)
+# script_options = script_options %>%
+#   modify_at(numeric_options, as.numeric)
 
 optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
 
     ## Input Paths
-    optim_input_a_filepath = file.path(script_options$input_path, 
+    optim_input_a_filepath = file.path(script_options$optim_input_path, 
                                     script_options$optim_input_a_filename)
-    demand_input_a_path = file.path(script_options$input_path, 
+    demand_input_a_path = file.path(script_options$demand_input_path, 
                                 script_options$demand_input_a_filename)
 
-    village_input_path = file.path(script_options$input_path, 
+    village_input_path = file.path(script_options$demand_input_path, 
                                     script_options$village_input_filename)
-    pot_input_path = file.path(script_options$input_path, 
+    pot_input_path = file.path(script_options$demand_input_path, 
                                 script_options$pot_input_filename)
     ## Input Data
     optimal_df = read_rds(optim_input_a_filepath)
@@ -157,6 +158,21 @@ if (stat_type == "median") {
         n_pots_used =  length(assigned_pots)
         pot_data$assigned_pot = pot_data$id %in% assigned_pots
 
+
+        if (script_options$constraint_type == "agg") {
+            sub_str = str_glue("Takeup target: Aggregate Welfare Under Control. Assigned PoTs: {n_pots_used}")
+        }
+
+        if (script_options$constraint_type == "indiv") {
+            sub_str = str_glue("Takeup target: Pareto Improving Allocation, Village Takeup Fixed at Control. Assigned PoTs: {n_pots_used}")
+        }
+
+        caption_str = ifelse(
+            script_options$welfare_function == "log", 
+            "Log utility used in social welfare function",
+            "Identity utility function used, i.e. takeup enters SWF directly."
+            )
+
         optimal_pot_plot = village_data %>%
             ggplot() +
             geom_sf(alpha = 1) +
@@ -180,8 +196,7 @@ if (stat_type == "median") {
                     xend = pot_lon, 
                     yend = pot_lat
                     ))  +
-            labs(x = "", y = "", subtitle = str_glue("
-            Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
+            labs(x = "", y = "", subtitle = sub_str, caption = caption_str) +
             scale_color_manual(
                 values = hex,
                 labels = c("PoT Used", "PoT Unused")

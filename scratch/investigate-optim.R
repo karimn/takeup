@@ -86,13 +86,13 @@ long_subset_demand_df = subset_demand_df %>%
 
 
 
-plot_demand_panels = function(long_data, cutoff, model){
+plot_demand_panels = function(long_data, cutoff, model, b = "control"){
 
     cutoff_distance = if_else(cutoff == "cutoff", 2.5, 10)
     p = long_data %>%
         filter(cutoff_type == cutoff) %>%
         filter(model_type == model) %>%
-        filter(b_type == "control")  %>%
+        filter(b_type == b)  %>%
         filter(dist <= 5000) %>%
         gather(variable, value, demand:v_star) %>%
         mutate(variable = factor(variable,
@@ -111,12 +111,64 @@ plot_demand_panels = function(long_data, cutoff, model){
             colour = "Visibility Type", 
             x = "Distance (m)", 
             y = "Value", 
-            title = "Fixing Private Incentive at Control, Varying Visibility", 
+            title = str_glue("Fixing Private Incentive at {b}, Varying Visibility"), 
             subtitle = str_glue("model: {model}, Cutoff at {cutoff_distance}km")
         )
 
     return(p)
 }
+stop()
+
+
+long_subset_demand_df %>%
+    # filter(b_type == "calendar") %>%
+    filter(mu_type == "calendar") %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(cutoff_type == "cutoff") %>%
+    ggplot(aes(
+        x = dist, 
+        y = demand, 
+        colour = b_type
+    )) +
+    geom_point() +
+    scale_y_continuous(breaks = seq(from = 0, to = 0.5, by = 0.1)) +
+    labs(title = "mu type = calendar")
+ggsave("temp-plots/tmp.png", width = 8, height = 8, dpi = 500)
+
+
+long_subset_demand_df %>%
+    filter(mu_type == b_type, b_type == "calendar") %>%
+    filter(cutoff_type == "cutoff") %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(demand > 0) %>%
+    summarise(
+        n_pots = n_distinct(pot_j), 
+        demand = mean(demand)
+    )
+
+long_subset_demand_df %>%
+    filter(mu_type == b_type, b_type == "calendar") %>%
+    filter(cutoff_type == "cutoff") %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(demand > 0) %>%
+    summarise(
+        n_pots = n_distinct(pot_j), 
+        demand = mean(demand)
+    )
+
+
+
+
+    ggplot(aes(
+        x = dist, 
+        y = demand
+    )) +
+    geom_point()
+
+p_panels_normal = plot_demand_panels(long_subset_demand_df, "cutoff", "STRUCTURAL_LINEAR_U_SHOCKS", b = "calendar")
+
+p_panels_normal
+
 p_panels_normal = plot_demand_panels(long_subset_demand_df, "no_cutoff", "STRUCTURAL_LINEAR_U_SHOCKS")
 p_panels_log = plot_demand_panels(long_subset_demand_df, "no_cutoff", "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP")
 
@@ -232,6 +284,19 @@ optim_data = optim_df %>%
         b_type = private_benefit_z, 
         mu_type = visibility_z, 
         model_type = model)
+
+
+
+
+optim_data %>%
+    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(b_type == "calendar", mu_type == "calendar") %>%
+    filter(cutoff_type == "cutoff") %>%
+    unnest(model_output) %>%
+    summarise(
+        n_pot = n_distinct(j), 
+        takeup = mean(demand)
+    )
 
 optim_data %>%
     filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
