@@ -29,20 +29,6 @@ else
 fi
 
 
-if [ ${RUN_TARGET_CREATION} == 1 ]
-then
-    Rscript ./optim/create-village-target.R \
-        pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv \
-        --input-path=optim/data \
-        --output-path=optim/data \
-        --output-basename=target-cutoff-b-control-mu-control-${MODEL} 
-
-    Rscript ./optim/create-village-target.R \
-        pred-demand-dist-fit${VERSION}-no-cutoff-b-control-mu-control-${MODEL}.csv \
-        --input-path=optim/data \
-        --output-path=optim/data \
-        --output-basename=target-no-cutoff-b-control-mu-control-${MODEL} 
-fi
 
 run_no_cutoff_optim () {
     if [ $SKIPPREDICTION != 1 ]
@@ -62,6 +48,16 @@ run_no_cutoff_optim () {
                                     --model=${MODEL} \
                                     ${PREDDISTANCE} \
                                     ${RUNESTIMATION} 
+    fi
+
+    if [ ${RUN_TARGET_CREATION} == 1 ]
+    then
+
+        Rscript ./optim/create-village-target.R \
+            pred-demand-dist-fit${VERSION}-no-cutoff-b-control-mu-control-${MODEL}.csv \
+            --input-path=optim/data \
+            --output-path=optim/data \
+            --output-basename=target-no-cutoff-b-control-mu-control-${MODEL} 
     fi
 
     if [ $SKIP_OA != 1 ]
@@ -123,6 +119,14 @@ run_cutoff_optim () {
                                     ${RUNESTIMATION} 
     fi
 
+    if [ ${RUN_TARGET_CREATION} == 1 ]
+    then
+        Rscript ./optim/create-village-target.R \
+            pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv \
+            --input-path=optim/data \
+            --output-path=optim/data \
+            --output-basename=target-cutoff-b-control-mu-control-${MODEL} 
+    fi
     if [ $SKIP_OA != 1 ]
     then
         Rscript ./optim/optimal_allocation.R  \
