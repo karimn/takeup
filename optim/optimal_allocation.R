@@ -49,7 +49,6 @@ library(tidyverse)
 library(data.table)
 library(ompr)
 library(ompr.roi)
-library(ROI.plugin.glpk)
 library(sf)
 library(ROI)
 library(Matrix)
@@ -58,7 +57,10 @@ library(slam)
 if (script_options$solver == "gurobi") {
     library(gurobi)
     library(ROI.plugin.gurobi)
+} else {
+    library(ROI.plugin.glpk)
 }
+
 source("optim/optim-functions.R")
 
 
