@@ -27,19 +27,19 @@ script_options <- docopt::docopt(
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                                --output-path=optim/data \
-                                --input-path=optim/data  \
-                                --data-input-name=full-experiment-4-extra-pots.rds
+                                --target-constraint=target-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv \
+                                --output-path=optim/data/agg-log-siaya \
+                                --input-path=optim/data/agg-log-siaya  \
+                                --data-input-name=SIAYA-experiment.rds
                                 --time-limit=10000 \
-                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
-                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
+                                --output-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP \
+                                --demand-input-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv
 
                                 --welfare-function=log
 
                              " else commandArgs(trailingOnly = TRUE)
 ) 
-
+print(script_options)
                                 # --target-constraint=0.31 \
                             #  --dry-run 
                             #  --dry-run-subsidy=0.2

@@ -9,10 +9,10 @@ script_options <- docopt::docopt(
           --output-basename=<output-basename>  Output basename.
 "),
   args = if (interactive()) "
-                            pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                            --input-path=optim/data \
-                            --output-path=optim/data \
-                            --output-basename=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
+                            pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv \
+                            --input-path=optim/data/agg-log-siaya \
+                            --output-path=optim/data/agg-log-siaya \
+                            --output-basename=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP \
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 

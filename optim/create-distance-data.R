@@ -11,10 +11,12 @@ script_options = docopt::docopt(
         --output-path=<path>  Path to find results [default: {file.path('optim', 'data')}]
         --output-name=<output-name>  Prepended to output file
         --num-extra-pots=<num-extra-pots>  How many extra PoTs to sample per village above experiment [default: 2]
+        --county-subset=<county-subset>  Which county to subset OA to
     "),
     args = if (interactive()) "
-                            --output-name=full-experiment-4-extra-pots.rds
+                            --output-name=SIAYA-experiment.rds
                             --num-extra-pots=4
+                            --county-subset=SIAYA
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -30,6 +32,8 @@ source(file.path( "dist_structural_util.R"))
 
 
 source(file.path("multilvlr", "multilvlr_util.R"))
+
+full_experiment = ifelse(is.null(script_options$county_subset), TRUE, FALSE)
 
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
@@ -92,66 +96,89 @@ n_orig_pots = length(rct_pot_cluster_ids)
 
 rct_school_df = st_as_sf(rct.schools.data)
 
-unselected_pots = setdiff(
-  rct_school_df$cluster.id,
-  rct_pot_cluster_ids)
+# If subsettting to a county, use PoTs on both sides of market 
+if (!full_experiment) {
+
+    subset_rct_school_df = rct_school_df %>%
+        filter(County == script_options$county_subset)
+
+    # pot and village same here
+    village_df = subset_rct_school_df %>%
+        mutate(id = 1:n())  
+    pot_df = subset_rct_school_df %>%
+        mutate(id = 1:n())  
+
+    distance_matrix = st_distance(
+        subset_rct_school_df
+    )
+
+}
+
+if (full_experiment) {
 
 
-# Adding PoTs not used in experiment but we know exist
-# due to computational constraints we choose a random sample within 2.5km of 
-# a village
-add_pot_df = rct_school_df %>%
-    filter(cluster.id %in% unselected_pots) 
+    unselected_pots = setdiff(
+    rct_school_df$cluster.id,
+    rct_pot_cluster_ids)
 
 
-rct_pot_df = rct_school_df %>%
-    filter(cluster.id %in% rct_pot_cluster_ids)
+    # Adding PoTs not used in experiment but we know exist
+    # due to computational constraints we choose a random sample within 2.5km of 
+    # a village
+    add_pot_df = rct_school_df %>%
+        filter(cluster.id %in% unselected_pots) 
 
 
-
-village_df = village.centers %>%
-  st_as_sf(coords = c("lon", "lat"), crs = wgs.84) %>%
-  mutate(id = 1:n()) %>%
-  filter(!(id %in% c(40, 45, 116))) %>% # Basically impossible to serve these
-  mutate(id = 1:n()) 
-
-
-add_distance_matrix = st_distance(
-    village_df, 
-    add_pot_df
-)
-
-long_add_distance_mat = add_distance_matrix %>%
-    as_tibble() %>%
-    mutate(index_i = 1:n()) %>%
-    gather(variable, dist, -index_i) %>%
-    mutate(index_j = str_extract(variable, "\\d+") %>% as.numeric())  %>%
-    select(index_i, index_j, dist) %>%
-    mutate(
-        dist = as.numeric(dist),
-        dist_km = as.numeric(dist/1000))
-
-
-extra_pot_ids = long_add_distance_mat %>%
-    mutate(close = dist <= 2500) %>%
-    group_by(index_i) %>%
-    filter(close == TRUE) %>%
-    sample_n(script_options$num_extra_pots, replace = TRUE) %>%
-    pull(index_j) %>%
-    unique()
-
-
-pot_df = rct_school_df %>%
-    filter(cluster.id %in% c(rct_pot_cluster_ids, extra_pot_ids)) %>%
-    mutate(id = 1:n())
+    rct_pot_df = rct_school_df %>%
+        filter(cluster.id %in% rct_pot_cluster_ids)
 
 
 
+    village_df = village.centers %>%
+    st_as_sf(coords = c("lon", "lat"), crs = wgs.84) %>%
+    mutate(id = 1:n()) %>%
+    filter(!(id %in% c(40, 45, 116))) %>% # Basically impossible to serve these
+    mutate(id = 1:n()) 
 
-distance_matrix = st_distance(
-  village_df,
-  pot_df
-)
+
+    add_distance_matrix = st_distance(
+        village_df, 
+        add_pot_df
+    )
+
+    long_add_distance_mat = add_distance_matrix %>%
+        as_tibble() %>%
+        mutate(index_i = 1:n()) %>%
+        gather(variable, dist, -index_i) %>%
+        mutate(index_j = str_extract(variable, "\\d+") %>% as.numeric())  %>%
+        select(index_i, index_j, dist) %>%
+        mutate(
+            dist = as.numeric(dist),
+            dist_km = as.numeric(dist/1000))
+
+
+    extra_pot_ids = long_add_distance_mat %>%
+        mutate(close = dist <= 2500) %>%
+        group_by(index_i) %>%
+        filter(close == TRUE) %>%
+        sample_n(script_options$num_extra_pots, replace = TRUE) %>%
+        pull(index_j) %>%
+        unique()
+
+
+    pot_df = rct_school_df %>%
+        filter(cluster.id %in% c(rct_pot_cluster_ids, extra_pot_ids)) %>%
+        mutate(id = 1:n())
+
+
+
+
+    distance_matrix = st_distance(
+    village_df,
+    pot_df
+    )
+
+}
 
 
 long_distance_mat = distance_matrix %>%
