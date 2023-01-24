@@ -8,10 +8,10 @@ NUMPOSTDRAWS=50
 DRYRUN="" # "--sub-sample", "--fake-data"
 VERSION=71
 POSTERIORMEDIAN="--posterior-median" # --posterior-median
-SKIPPREDICTION=0 # 1
+SKIPPREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
-RUN_TARGET_CREATION=1
+RUN_TARGET_CREATION=0
 RUNESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
@@ -20,7 +20,7 @@ PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-kakamega"
 NUM_CORES=6
 DATA_INPUT_NAME="KAKAMEGA-experiment.rds"
 CUTOFF="no-" # either no- or empty string
-
+SOLVER="gurobi"
 
 mkdir -p ${OUTPUT_PATH}
 mkdir -p ${PLOT_OUTPUT_PATH}
@@ -28,10 +28,10 @@ mkdir -p ${PLOT_OUTPUT_PATH}
 set -e
 
 
-Rscript ./optim/create-distance-data.R \
-    --output-name=${DATA_INPUT_NAME} \
-    --num-extra-pots=4 \
-    --county=KAKAMEGA
+# Rscript ./optim/create-distance-data.R \
+#     --output-name=${DATA_INPUT_NAME} \
+#     --num-extra-pots=4 \
+#     --county=KAKAMEGA
 
 if [ ${POSTERIORMEDIAN} == "--posterior-median" ] 
 then 
@@ -49,6 +49,16 @@ run_optim () {
     else
         CUTOFF_DIST=2500
     fi
+
+    # Gurobi doesn't play nice with renv atm
+    if [ ${SOLVER} == "gurobi" ]
+    then
+        VANILLA="--vanilla" 
+    else
+        VANILLA=""
+    fi
+    echo $VANILLA
+    echo $SOLVER
 
     if [ $SKIPPREDICTION != 1 ]
     then
@@ -83,7 +93,7 @@ run_optim () {
 
     if [ $SKIP_OA != 1 ]
     then
-        Rscript ./optim/optimal_allocation.R  \
+        Rscript ${VANILL} ./optim/optimal_allocation.R  \
                                     ${POSTERIORMEDIAN} \
                                     --num-cores=12 \
                                     --min-cost  \
@@ -96,7 +106,8 @@ run_optim () {
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --time-limit=1000 \
                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
-                                    --welfare-function=${WELFARE_FUNCTION}
+                                    --welfare-function=${WELFARE_FUNCTION} \
+                                    --solver=${SOLVER}
     fi
 
     if [ $SKIP_PP != 1 ]
