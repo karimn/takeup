@@ -1,24 +1,50 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+#SBATCH --partition=broadwl
+#SBATCH --job-name=optim        # create a short name for your job
+#SBATCH --nodes=1                # node count
+#SBATCH --ntasks=1               # total number of tasks across all nodes
+#SBATCH --cpus-per-task=24       # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=6G         # memory per cpu-core (4G is default)
+#SBATCH --time=0-06:00:00        # maximum time needed (HH:MM:SS)
+#SBATCH --mail-type=begin        # send email when job begins
+#SBATCH --mail-type=end          # send email when job ends
+#SBATCH --mail-user=edjee96@gmail.com
+#SBATCH --output=temp/log/takeup-%j.log
+#SBATCH --error=temp/log/takeup-%j.log
+#SBATCH --export=IN_SLURM=1
+
+LATEST_VERSION=71
+VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
+
+if [[ -v IN_SLURM ]]; then
+  echo "Running in SLURM..."
+
+  module load midway2 gdal/2.4.1 udunits cmake R/4.2.0 gurobi/952
+
+  NUM_CORES=$SLURM_CPUS_PER_TASK
+
+  echo "Running with ${CORES} cores."
+else
+  NUM_CORES=16
+fi
 
 # Setting arguments
-PREDDISTANCE="" # --pred-distance
+PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
-NUMPOSTDRAWS=50
-#TARGET_CONSTRAINT="target-cutoff-b-control-mu-control-${MODEL}.csv"
-DRYRUN="" # "--sub-sample", "--fake-data"
-VERSION=71
-POSTERIORMEDIAN="--posterior-median" # --posterior-median
-SKIPPREDICTION=1 # 1
+NUM_POST_DRAWS=200
+POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
+SKIP_PREDICTION=0 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=0
-RUNESTIMATION="--run-estimation"
+RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
-OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-siaya"
-PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-siaya"
-NUM_CORES=16
-DATA_INPUT_NAME="SIAYA-experiment.rds"
+COUNTY="siaya"
+OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
+PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
+DATA_INPUT_NAME="${COUNTY}-experiment.rds"
 CUTOFF="no-" # either no- or empty string
 SOLVER="gurobi"
 
@@ -27,13 +53,20 @@ mkdir -p ${PLOT_OUTPUT_PATH}
 
 set -e
 
+if [ ${COUNTY} == "full" ]
+then
+    COUNTY_VAR=""
+else 
+    COUNTY_VAR=${COUNTY}
+fi
+
 
 Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
     --num-extra-pots=4 \
-    --county=SIAYA
+    --county=${COUNTY_VAR}
 
-if [ ${POSTERIORMEDIAN} == "--posterior-median" ] 
+if [ ${POSTERIOR_MEDIAN} == "--posterior-median" ] 
 then 
     POSTVAR="median"
 else
@@ -51,16 +84,8 @@ run_optim () {
     fi
 
     # Gurobi doesn't play nice with renv atm
-    if [ ${SOLVER} == "gurobi" ]
-    then
-        VANILLA="--vanilla" 
-    else
-        VANILLA=""
-    fi
-    echo $VANILLA
-    echo $SOLVER
 
-    if [ $SKIPPREDICTION != 1 ]
+    if [ $SKIP_PREDICTION != 1 ]
     then
         Rscript ./optim/predict-takeup-for-optim.R \
                                     ${VERSION} \
@@ -68,7 +93,7 @@ run_optim () {
                                     $2 \
                                     --output-name=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --from-csv \
-                                    --num-post-draws=${NUMPOSTDRAWS} \
+                                    --num-post-draws=${NUM_POST_DRAWS} \
                                     --rep-cutoff=Inf \
                                     --dist-cutoff=${CUTOFF_DIST} \
 									--num-cores=${NUM_CORES} \
@@ -77,8 +102,8 @@ run_optim () {
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${OUTPUT_PATH} \
                                     --model=${MODEL} \
-                                    ${PREDDISTANCE} \
-                                    ${RUNESTIMATION} 
+                                    ${PRED_DISTANCE} \
+                                    ${RUN_ESTIMATION} 
     fi
 
     if [ ${RUN_TARGET_CREATION} == 1 ]
@@ -93,8 +118,8 @@ run_optim () {
 
     if [ $SKIP_OA != 1 ]
     then
-        Rscript ${VANILL} ./optim/optimal_allocation.R  \
-                                    ${POSTERIORMEDIAN} \
+        Rscript ./optim/optimal_allocation.R  \
+                                    ${POSTERIOR_MEDIAN} \
                                     --num-cores=12 \
                                     --min-cost  \
                                     --constraint-type=${CONSTRAINT_TYPE} \
@@ -104,7 +129,7 @@ run_optim () {
                                     --input-path=${OUTPUT_PATH}  \
                                     --data-input-path=optim/data \
                                     --data-input-name=$DATA_INPUT_NAME \
-                                    --time-limit=1000 \
+                                    --time-limit=10000 \
                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --solver=${SOLVER}
@@ -114,7 +139,7 @@ run_optim () {
     then
         Rscript ./optim/postprocess_allocation.R  \
                                     --min-cost \
-                                    ${POSTERIORMEDIAN} \
+                                    ${POSTERIOR_MEDIAN} \
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
@@ -127,100 +152,6 @@ run_optim () {
     fi
 
 }
-
-
-# run_cutoff_optim () {
-#     if [ $SKIPPREDICTION != 1 ]
-#     then
-
-#         Rscript ./optim/predict-takeup-for-optim.R \
-#                                     ${VERSION} \
-#                                     $1 \
-#                                     $2 \
-#                                     --output-name=cutoff-b-$1-mu-$2-${MODEL} \
-#                                     --from-csv \
-#                                     --num-post-draws=${NUMPOSTDRAWS} \
-#                                     --rep-cutoff=Inf \
-#                                     --dist-cutoff=10000 \
-# 									--num-cores=${NUM_CORES} \
-#                                     --type-lb=-Inf \
-#                                     --type-ub=Inf \
-#                                     --data-input-name=$DATA_INPUT_NAME \
-#                                     --output-path=${OUTPUT_PATH} \
-#                                     --model=${MODEL} \
-#                                     ${PREDDISTANCE} \
-#                                     ${RUNESTIMATION} 
-#         Rscript ./optim/predict-takeup-for-optim.R \
-#                                     ${VERSION} \
-#                                     $1 \
-#                                     $2 \
-#                                     --output-name=cutoff-b-$1-mu-$2-${MODEL} \
-#                                     --from-csv \
-#                                     --num-post-draws=${NUMPOSTDRAWS} \
-#                                     --rep-cutoff=Inf \
-#                                     --dist-cutoff=2500 \
-# 									--num-cores=${NUM_CORES} \
-#                                     --type-lb=-Inf \
-#                                     --type-ub=Inf \
-#                                     --data-input-name=$DATA_INPUT_NAME \
-#                                     --model=${MODEL} \
-#                                     --output-path=${OUTPUT_PATH} \
-#                                     ${PREDDISTANCE} \
-#                                     ${RUNESTIMATION} 
-#     fi
-
-#     if [ ${RUN_TARGET_CREATION} == 1 ]
-#     then
-#         Rscript ./optim/create-village-target.R \
-#             pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv \
-#             --input-path=optim/data \
-#             --output-path=optim/data \
-#             --output-basename=target-cutoff-b-control-mu-control-${MODEL} 
-#     fi
-#     if [ $SKIP_OA != 1 ]
-#     then
-#         Rscript ./optim/optimal_allocation.R  \
-#                                     ${POSTERIORMEDIAN} \
-#                                     --num-cores=12 \
-#                                     --min-cost  \
-#                                     --constraint-type=${CONSTRAINT_TYPE} \
-#                                     --target-constraint=target-cutoff-b-control-mu-control-${MODEL} \
-#                                     --output-path=${OUTPUT_PATH} \
-#                                     --output-filename=cutoff-b-$1-mu-$2-${MODEL} \
-#                                     --input-path=optim/data  \
-#                                     --data-input-name=$DATA_INPUT_NAME \
-#                                     --time-limit=1000 \
-#                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-$1-mu-$2-${MODEL}.csv \
-#                                     --welfare-function=${WELFARE_FUNCTION}
-#     fi
-
-#     if [ $SKIP_PP != 1 ]
-#     then
-#     Rscript ./optim/postprocess_allocation.R  \
-#                                 --min-cost \
-#                                 ${POSTERIORMEDIAN} \
-#                                 --constraint-type=${CONSTRAINT_TYPE} \
-#                                 --welfare-function=${WELFARE_FUNCTION} \
-#                                 --optim-input-path=${OUTPUT_PATH} \
-#                                 --demand-input-path="optim/data" \
-#                                 --optim-input-a-filename=cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
-#                                 --data-input-name=$DATA_INPUT_NAME \
-#                                 --demand-input-a-filename=pred-demand-dist-fit${VERSION}-cutoff-b-$1-mu-$2-${MODEL}.csv \
-#                                 --output-path=${PLOT_OUTPUT_PATH} \
-#                                 --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
-#                                 --cutoff-type=cutoff
-#     fi
-
-# }
-
-
-#export -f run_cutoff_optim
-#export -f run_no_cutoff_optim
-#
-#parallel --link run_cutoff_optim \
-#    {1} {2} \
-#    ::: control control bracelet \
-#    ::: control bracelet bracelet
 
 
 CUTOFF=""

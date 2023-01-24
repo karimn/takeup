@@ -41,6 +41,7 @@ script_options = docopt::docopt(
                             --model=STRUCTURAL_LINEAR_U_SHOCKS
                             --num-extra-pots=4
                             --run-estimation
+                            --data-input-name=KAKAMEGA-experiment.rds
                               " 
            else commandArgs(trailingOnly = TRUE)
 )

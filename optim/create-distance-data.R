@@ -100,6 +100,7 @@ rct_school_df = st_as_sf(rct.schools.data)
 if (!full_experiment) {
 
     subset_rct_school_df = rct_school_df %>%
+        mutate(County = str_to_lower(County)) %>%
         filter(County == script_options$county_subset)
 
     # pot and village same here
