@@ -2,7 +2,7 @@
 
 # Setting arguments
 PREDDISTANCE="" # --pred-distance
-MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
+MODEL="STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
 NUMPOSTDRAWS=50
 #TARGET_CONSTRAINT="target-cutoff-b-control-mu-control-${MODEL}.csv"
 DRYRUN="" # "--sub-sample", "--fake-data"
@@ -15,10 +15,10 @@ RUN_TARGET_CREATION=1
 RUNESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
-OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-kakamega"
-PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-kakamega"
-NUM_CORES=6
-DATA_INPUT_NAME="KAKAMEGA-experiment.rds"
+OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-siaya"
+PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-siaya"
+NUM_CORES=16
+DATA_INPUT_NAME="SIAYA-experiment.rds"
 CUTOFF="no-" # either no- or empty string
 
 
@@ -31,7 +31,7 @@ set -e
 Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
     --num-extra-pots=4 \
-    --county=KAKAMEGA
+    --county=SIAYA
 
 if [ ${POSTERIORMEDIAN} == "--posterior-median" ] 
 then 
@@ -224,9 +224,9 @@ run_optim "control" "calendar"
 
 CUTOFF="no-"
 # ## No Cutoff
-# run_optim "control" "control"
-# run_optim "control" "bracelet"
+run_optim "control" "control"
+run_optim "control" "bracelet"
 
-# run_optim "control" "calendar"
+run_optim "control" "calendar"
 
 # run_optim "bracelet" "bracelet"
