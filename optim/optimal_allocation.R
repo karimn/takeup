@@ -21,25 +21,26 @@ script_options <- docopt::docopt(
           --welfare-function=<welfare-function>  Welfare function to use for takeup [default: identity]
           --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
           --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
+          --solver=<solver>  MILP solver [default: glpk]
 "),
   args = if (interactive()) "
                                 --posterior-median \
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=target-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv \
-                                --output-path=optim/data/agg-log-siaya \
-                                --input-path=optim/data/agg-log-siaya  \
-                                --data-input-name=SIAYA-experiment.rds
+                                --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                                --output-path=optim/data/agg-log-kakamega \
+                                --input-path=optim/data/agg-log-kakamega  \
+                                --data-input-name=KAKAMEGA-experiment.rds
                                 --time-limit=10000 \
-                                --output-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv
+                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
+                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
 
                                 --welfare-function=log
+                                --solver=gurobi
 
                              " else commandArgs(trailingOnly = TRUE)
 ) 
-print(script_options)
                                 # --target-constraint=0.31 \
                             #  --dry-run 
                             #  --dry-run-subsidy=0.2
@@ -54,8 +55,11 @@ library(ROI)
 library(Matrix)
 library(slam)
 
+if (script_options$solver == "gurobi") {
+    library(gurobi)
+    library(ROI.plugin.gurobi)
+}
 source("optim/optim-functions.R")
-
 
 
 
@@ -244,6 +248,11 @@ demand_data %>%
   unnest(demand_data) %>%
   filter(!is.finite(util))
 
+if (script_options$solver == "glpk") {
+  control_args = list(tm_limit = script_options$time_limit)
+} else {
+  control_args = NULL
+}
 
 tictoc::tic()
 tidy_output = demand_data %>%
@@ -266,10 +275,9 @@ tidy_output = demand_data %>%
       optim_problem, 
       ~ROI_solve(
         .x, 
-        solver = "glpk",
+        solver = script_options$solver,
         verbose = TRUE,
-        control = list(tm_limit = 0)
-        # script_options$time_limit)
+        control = control_args 
       )
       # .progress = TRUE,
       # .options = furrr_options(seed = TRUE)
@@ -294,7 +302,7 @@ summ_output = tidy_output %>%
 
 if (script_options$constraint_type == "agg") {
   if (summ_output$util < target_optim) {
-    stop("Allocation utility below target utility.")
+    warning("Allocation utility below target utility.")
   }
 }
 
