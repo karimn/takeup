@@ -25,14 +25,14 @@ script_options <- docopt::docopt(
                             --welfare-function=log \
                             --min-cost \
                             --posterior-median \
-                            --optim-input-path=optim/data/agg-log-siaya \
-                            --demand-input-path=optim/data/agg-log-siaya \
+                            --optim-input-path=optim/data/agg-log-busia \
+                            --demand-input-path=optim/data/agg-log-busia \
                             --optim-input-a-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation.rds \
                             --demand-input-a-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv \
-                            --output-path=optim/plots/agg-log-siaya \
+                            --output-path=optim/plots/agg-log-busia \
                             --output-basename=agg-log-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median \
                             --cutoff-type=cutoff
-                            --data-input-name=SIAYA-experiment.rds
+                            --data-input-name=BUSIA-experiment.rds
 
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -105,6 +105,141 @@ optimal_allocation_demand_comp_plot_path = file.path(
         "{script_options$output_basename}-optimal-allocation-demand-comp-plot.png"
     )
 )
+
+# oa_files = fs::dir_ls(
+#     "optim/data/agg-log-busia",
+#     regexp = "rds"
+#     )
+
+# subset_oa_files = oa_files[str_detect(oa_files, "\\/no-cutoff") & str_detect(oa_files, "LOG")]
+
+# oa_df = subset_oa_files %>%
+#     map_dfr(read_rds)
+
+# long_oa_df = oa_df %>%
+#     unnest(model_output) 
+
+# long_oa_df %>%
+#     select(model) %>%
+#     unique() %>%
+#     pull()
+
+# stop()
+
+
+# long_oa_df %>%
+#     unnest(demand) %>%
+#     ggplot(aes(
+#         x = dist,
+#         y = demand, 
+#         colour = visibility_z
+#     )) +
+#     geom_point() +
+#     geom_vline(xintercept =  3500)
+
+
+# long_oa_df %>%
+#     unnest(demand_data) %>%
+#     colnames()
+
+# long_oa_df %>%
+#     unnest(demand) %>%
+#     ggplot(aes(
+#         x = dist,
+#         y = mu, 
+#         colour = visibility_z
+#     )) +
+#     geom_point()
+
+
+
+
+# walk_df = long_oa_df %>%
+#     filter(visibility_z != "calendar") %>%
+#     group_by(
+#         i
+#     ) %>%
+#     mutate(
+#         n_dists = n_distinct(dist) 
+#     ) %>%
+#     filter(n_dists > 1)  %>%
+#     select(i, visibility_z, dist) %>%
+#     spread(
+#         visibility_z, dist
+#     ) %>%
+#     mutate( 
+#         walk_increase = bracelet - control
+#     )
+
+# walk_df %>%
+#     ungroup() %>%
+#     summarise(
+#         mean_increase = mean(walk_increase)
+#     )
+
+# long_oa_df
+
+
+
+# long_oa_df %>%
+#     ungroup() %>%
+#     group_by(visibility_z) %>%
+#     summarise(
+#         pct_close = mean(dist < 1250),
+#         pct_far = mean(dist > 1250)
+#     )
+
+# walk_df
+
+
+# walk_df %>%
+#     ungroup() %>%
+#     summarise(
+#         pct_close = mean(control < 1250), 
+#         pct_far = mean(control > 1250), 
+#     )
+
+
+# walk_df     %>%
+#     ggplot(aes(
+#         x = walk_increase
+#     )) +
+#     geom_histogram() +
+#     geom_vline(xintercept = 0, linetype = "longdash")
+
+
+# long_oa_df %>%
+#     group_by(visibility_z) %>%
+#     summarise(
+#         dist = mean(dist)
+#     )
+
+# long_oa_df %>%
+#     filter(dist > 0) %>%
+#     ggplot(aes(
+#         x = dist,
+#         fill = visibility_z
+#     )) +
+#     geom_histogram()
+
+
+# long_oa_df %>%
+#     ggplot(aes(
+#         x = dist,
+#         fill = visibility_z
+#     )) +
+#     geom_histogram() +
+#     facet_wrap(~visibility_z, ncol = 1)
+
+
+
+# optimal_allocation_demand_comp_plot_path = file.path(
+#     script_options$output_path,
+#     str_glue(
+#         "{script_options$output_basename}-optimal-allocation-demand-comp-plot.png"
+#     )
+# )
+
 
 wgs.84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 ## Loading Data

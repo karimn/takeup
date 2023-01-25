@@ -29,9 +29,9 @@ script_options <- docopt::docopt(
                                 --min-cost  \
                                 --constraint-type=agg \
                                 --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                                --output-path=optim/data/agg-log-kakamega \
-                                --input-path=optim/data/agg-log-kakamega  \
-                                --data-input-name=KAKAMEGA-experiment.rds
+                                --output-path=optim/data/agg-log-full \
+                                --input-path=optim/data/agg-log-full  \
+                                --data-input-name=full-experiment.rds
                                 --time-limit=10000 \
                                 --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
                                 --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
@@ -153,16 +153,58 @@ target_df = read_csv(
 )  %>% 
   rename(target_demand = demand)
 
-target_optim = target_df %>% 
-  arrange(village_i) %>%
-  mutate(target_util = swf(target_demand)) %>%
-  pull(target_util)
+library(furrr)
+plan(multicore, workers = script_options$num_cores)
 
-
-if (script_options$constraint_type == "agg") {
-  target_optim = sum(target_optim)
+if (script_options$constraint_type == "indiv") {
+  target_optim = target_df %>% 
+    arrange(village_i) %>%
+    mutate(target_util = swf(target_demand)) %>%
+    group_by(village_i) %>%
+    summarise(target_util = mean(target_util)) %>%
+    pull(target_util)
 }
 
+
+
+if (script_options$constraint_type == "agg" & script_options$welfare_function != "log") {
+
+summ_target_df = target_df  %>%
+    group_by(village_i, draw) %>%
+    sample_n(20, replace = TRUE)  %>%
+    mutate(random_village_draw = 1:n()) %>%
+    group_by(draw, random_village_draw) %>%
+    group_nest() %>%
+    mutate(
+      social_welfare = future_map(
+        data, 
+        ~{
+          mutate(
+            .x,
+          util = swf(target_demand)
+        ) %>%
+        summarise(social_welfare = sum(util), mean_takeup = mean(target_demand)) 
+        }
+      )
+    ) %>%
+    unnest(social_welfare)
+
+  target_optim = mean(summ_target_df$social_welfare)
+
+}
+
+# Have precomputed SWF in this case so just load that csv
+if (script_options$constraint_type == "agg" & script_options$welfare_function == "log") {
+  summ_target_df = read_csv(
+    file.path(
+      script_options$input_path,
+      paste0("summ-agg-log-", script_options$target_constraint)
+    )
+  )
+
+  target_optim = mean(summ_target_df$social_welfare)
+
+}
 
 
 if (script_options$constraint_type == "indiv") {
@@ -190,8 +232,6 @@ if (n_infeasible > 0) {
 
 
 
-library(furrr)
-plan(multicore, workers = script_options$num_cores)
 
 demand_data = initial_demand_data %>%
   nest(demand_data = -any_of(c("draw", 
