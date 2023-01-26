@@ -7,8 +7,8 @@ output:
 
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(warning = TRUE, message = FALSE) 
-
+knitr::opts_chunk$set(warning = TRUE, message = FALSE, echo = FALSE) 
+library(knitr)
 library(tidyverse)
 library(ggplot2)
 library(ompr)
@@ -16,463 +16,181 @@ library(ompr.roi)
 library(ROI.plugin.glpk)
 ```
 
-# Maximisation Problem
+# Problem Setup 
 
 Suppose there are $n$ villages, indexed by $i$, and $m$ points of treatment (PoT) which we index 
-by $j$:
+by $j$. The social planner's goal is to minimise the number of PoTs required subject to hitting 
+$\overline{W}^C = E\left[\sum^n_{i = 1}U(\textit{takeup}^C_{i})\right]$ - the expected social welfare the planner would have achieved by assigning 
+every village in the experiment to the control condition. We can reformulate this 
+as an integer programme:
+
 $$
-\begin{aligned}
-\max \sum_{i = 1}^n \sum_{j = 1}^m &U\left(takeup_{ij} x_{ij}\right) \\
+\begin{align}
+\min \sum_{j = 1}^m  &y_j \\
 s.t. \ \ 
-\sum_{j = 1}^m y_j &\leq \overline{M} = 10 \\
-    \sum_{j=1}^{m} x_{ij} &\leq 1, \forall i \\
+\sum_{i = 1}^n U\left(\textit{takeup}_{ij}x_{ij}\right) &\geq \underbrace{E\left[\sum_{i = 1}^n U\left(\textit{takeup}^C_{i}\right)\right]}_{\overline{W}^C} \\
+    \sum_{j=1}^{m} x_{ij} &= 1, \forall i \\
     x_{ij} &\leq y_j, \forall i, j  \\
  x_{ij} &\in \{0,1\}, y_j \in\{0,1\}
-\end{aligned}
+\end{align}
 $$
 
 
-In words, $x_{ij}$ is an indicator switched on if village $i$ 'uses' point of 
-treatment $j$. $y_{j}$ is an indicator switched on if PoT $j$ is open/available/funded/whatever.
+$x_{ij}$ is an indicator corresponding to village $i$ using point of 
+treatment $j$. $y_{j}$ is an indicator corresponding to if PoT $j$ is funded (i.e. 
+available for use by villages) by the social planner.  The remaining constraints 
+ensure every village is assigned to a funded PoT. 
 
-
-Line 1 just says we maximise takeup across all individuals and clinic. Notice that 
-$x_{ij}$ must be switched on for us to count the clinic-village pair's takeup in 
-our maximisation problem.
-
-
-Line 2 says there can be no more than $\overline{M}$ funded/chosen PoTs.
-
-Line 3 says that each village can only use one point of treatment. That is, 
-there's no return to situating another PoT just $\epsilon$ units away from the 
-closest PoT - all the villagers will still use the closest PoT and demand is 
-unchanged.
-
-
-Line 4 just says a village cannot use an unfunded/unavailable PoT.
-
-For now I'm setting $U(\cdot)$ as either $\log$ or just the identity (i.e. just 
-sum of takeup). 
-
-```{r}
-generate_data = function(..., seed, n_villages = 50, m_warehouses = 30){
-    set.seed(seed)
-    grid_size <- 10000
-    n <- n_villages
-    customer_locations <- data.frame(
-    id = 1:n,
-    x = round(runif(n) * grid_size),
-    y = round(runif(n) * grid_size)
-    )
-
-    m <- m_warehouses
-    warehouse_locations <- data.frame(
-    id = 1:m,
-    x = round(runif(m) * grid_size),
-    y = round(runif(m) * grid_size)
-    )
-    fixedcost <- abs(round(rnorm(m, mean = grid_size/20, sd = grid_size)))
-    return(
-        lst(
-            grid_size,
-            n,
-            customer_locations,
-            m,
-            warehouse_locations,
-            fixedcost
-        )
-    )
-}
-
-
-sim_data = generate_data(n_villages = 100, m_warehouses = 25, seed = 5)
-
-
-logit = function(x){
-    y = exp(x)/(1 + exp(x))
-    return(y)
-}
-
-demand_function = function(i, 
-                           j, 
-                           customer_locations, 
-                           warehouse_locations, 
-                           subsidy = 0){
-    customer <- customer_locations[i, ]
-    warehouse <- warehouse_locations[j, ]
-    distance_away = sqrt((customer$x - warehouse$x)^2 + (customer$y - warehouse$y)^2)
-    distance_away = distance_away*(1 - subsidy)
-    max_distance = sqrt(2)*10000 # gridsize hardcoded booo
-    unit_interval_distance = distance_away/max_distance - 0.5
-    demand = 1 - logit(5*unit_interval_distance)
-    return(demand)
-}
+We set $U(\cdot) = log(\cdot)$ for two reasons: Firstly, to introduce a dislike for 
+inequality to the social planner's problem - there's decreasing marginal 
+utility to increasing takeup within a village. Secondly, log-utility completely
+ dissuades the 
+social planner from implementing a ruthless utilitarian allocation that sets takeup to 
+0 in sparsely populated locations.
 
 
 
+The results presented below introduce a cutoff at 3.5km beyond which we set 
+takeup to 0 - i.e. no villager is prepared to walk more than 3.5km to a point of 
+treatment. Results 
+in the appendix relax this assumption, although in reality past 5km 
+the model places virtually no posterior density on positive takeup. We chose 3.5km 
+as a compromise between limiting extrapolation and constraints imposed by our 
+experimental design - by construction there are no treatment points within 2.5km of 
+multiple villages in our data.
 
 
-transportcost <- function(i, j, customer_locations, warehouse_locations, subsidy = 0) {
-  customer <- customer_locations[i, ]
-  warehouse <- warehouse_locations[j, ]
-  cost = round(sqrt((customer$x - warehouse$x)^2 + (customer$y - warehouse$y)^2))
-  cost = pmax(cost*(1-subsidy), 0)
-  return(cost)
-}
 
+### Counterfactual Simulations 
+
+Our structural model decomposes $takeup_{ij}$, the demand for deworming from pairing 
+village $i$ with PoT $j$, into a private utility component and reputational return 
+from signalling deworming status. Therefore, we fix private utility at the control 
+level and explore the effect of counterfactually varying visibility, $\mu_{z}$ ,
+on the number of required PoTs.
+$$
+takeup_{ij} = \underbrace{B(z, d_{ij})}_{\text{private benefit}} + \underbrace{\mu_{z} \Delta\left[ w^*(z, d_{i,j})\right]}_{\text{reputational return}}
+$$
+
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{control}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
 ```
 
 
-```{r}
-
-p_customer = sim_data$customer_locations %>%
-    ggplot(aes(
-        x = x,
-        y = y
-    )) +
-    geom_point() +
-    geom_point(
-        data = sim_data$warehouse_locations, 
-        color = "red", 
-        shape = 17,
-        size = 4) +
-    theme_bw() +
-    labs(
-        title = "Facility Location Problem",
-        subtitle = "Black dots indicate villages. Red triangles indicate potential clinic locations."
-    )
-
-p_customer
-
-
-demands = map_dbl(1:25, 
-    ~demand_function(i = 1, 
-                     j = .x, 
-                     sim_data$customer_locations,
-                     sim_data$warehouse_locations)) 
-
-demand_df = tibble(
-    i = 1,
-    demand = demands,
-    c_x = sim_data$customer_locations[1, "x"],
-    c_y = sim_data$customer_locations[1, "y"],
-    w_x = sim_data$warehouse_locations$x,
-    w_y = sim_data$warehouse_locations$y
-) %>%
-    mutate(distance = sqrt((c_x - w_x)^2 + (c_y - w_y)^2)) 
-
-demand_df %>%
-    ggplot(aes(
-        x = distance, 
-        y = demand
-    )) +
-    geom_point() +
-    geom_line(alpha = 0.5) +
-    theme_bw() +
-    labs(
-        x = "Distance",
-        y = "Demand", 
-        title = "Simulated Demand-Distance Curve"
-    ) 
-
-demand_df %>%
-    ggplot(aes(
-        x = w_x, 
-        y = w_y
-    )) +
-    geom_point(shape = 17, color = "red", size = 4) +
-    geom_point(data = demand_df[1, ], aes(x = c_x, y = c_y), size = 4) +
-    geom_segment(aes(
-        x = c_x, 
-        xend = w_x, 
-        y = c_y, 
-        yend = w_y, 
-        alpha = demand
-    )) +
-    theme_bw() + 
-    labs(
-        x = "x", 
-        y = "y", 
-        title = "Demand For Each PoT for village 1"
-    )
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{bracelet}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
 ```
 
 
 
-```{r}
-define_MIPModel = function(sim_data, subsidy = 0, utility_function = identity, max_m = 5) {
-    n = sim_data$n 
-    m = sim_data$m 
-    customer_locations = sim_data$customer_locations
-    warehouse_locations = sim_data$warehouse_locations
-    fixedcost = sim_data$fixedcost
-
-    model = MIPModel() %>%
-        # 1 iff i gets assigned to warehouse j
-        add_variable(x[i, j], i = 1:n, j = 1:m, type = "binary") %>%
-        # 1 iff warehouse j is built
-        add_variable(y[j], j = 1:m, type = "binary") %>%
-        # maximize the preferences
-        set_objective(
-                sum_over(
-                    x[i,j] * utility_function(demand_function(
-                        i,
-                        j,
-                        customer_locations = customer_locations,
-                        warehouse_locations = warehouse_locations,
-                        subsidy = subsidy
-                    )), i = 1:n, j = 1:m), "max") %>%
-        # every customer needs to be assigned to a warehouse
-        add_constraint(sum_over(x[i, j], j = 1:m) == 1, i = 1:n) %>% 
-        # if a customer is assigned to a warehouse, then this warehouse must be built
-        add_constraint(x[i,j] <= y[j], i = 1:n, j = 1:m) %>%
-        # there can be no more than 10 warehouses
-        add_constraint(sum_over(y[j], j = 1:m) <= max_m)
-    return(model)
-}
+### Structural Policymaker
 
 
+
+
+# Results
+
+## Cutoff at 2.5km - Conventional Structural Model - By County
+
+### Busia 
+We see a 4.41% fall in number of PoTs needed.
+
+#### B: Control Mu: Control
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
 ```
 
-```{r}
-
-model = define_MIPModel(sim_data, subsidy = 0, max_m = 15)
-sm_model = define_MIPModel(sim_data, subsidy = 0.5, max_m = 15)
-log_model = define_MIPModel(sim_data, subsidy = 0, utility_function = log, max_m = 15)
-log_sm_model = define_MIPModel(sim_data, subsidy = 0.5, utility_function = log, max_m = 15)
-
-models = lst(
-    model,
-    sm_model,
-    log_model,
-    log_sm_model
-)
-
-model_results = map(
-    models,
-    ~solve_model(.x, with_ROI(solver = "glpk", verbose = TRUE))
-)
-
-
-# result = solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
-# sm_result = solve_model(sm_model, with_ROI(solver = "glpk", verbose = TRUE))
-
+#### B: Control Mu: Bracelet
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+ )
 ```
 
-```{r}
 
+### Siaya 
+We see a 1.67% fall in number of PoTs needed.
 
-clean_output = function(model_fit, data){
-    matching = model_fit %>%
-        get_solution(x[i,j]) %>%
-        filter(value > .9) %>%  
-        select(i, j) %>%
-        as_tibble()
-    tidy_output = matching %>%
-        inner_join(data$customer_locations %>% 
-                        rename(customer_x = x, customer_y = y), by = c("i" = "id")) %>% 
-        inner_join(data$warehouse_locations %>%
-                        rename(warehouse_x = x, warehouse_y = y), by = c("j" = "id")) %>%
-        mutate( 
-            fixed_cost = data$fixedcost[j]
-        )
-    return(tidy_output)
-}
+#### B: Control Mu: Control
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-siaya/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+ )
+```
 
-
-tidy_output = map(
-    model_results,
-    clean_output,
-    data = sim_data
-)
-
-
-comp_output = bind_rows(
-    tidy_output,
-    .id = "type" 
-) %>%
-    mutate(
-        subsidy = str_detect(type, "sm"), 
-        utility = case_when(
-            str_detect(type, "log") ~ "log",
-            TRUE ~ "identity"
-        )
-        )
-
-
-
-calculate_pot_change = function(tidy_output_1, tidy_output_2){
-    diff_1_2 = setdiff(tidy_output_1$j, tidy_output_2$j)
-    diff_2_1 = setdiff(tidy_output_2$j, tidy_output_1$j)
-    return(
-        lst(
-            diff_1_2,
-            diff_2_1
-        )
-    )
-}
-
-diff_pot_df = calculate_pot_change(
-    tidy_output_1 = tidy_output[[1]],
-    tidy_output_2 = tidy_output[[2]]
-)
-
-
-
-sim_data$customer_locations %>%
-    ggplot(aes(
-        x = x,
-        y = y
-    )) +
-    geom_point(alpha = 0.2) +
-    geom_point(
-        data = sim_data$warehouse_locations %>%
-                mutate(
-                    clinic_type = case_when(
-                        id %in% diff_pot_df$diff_1_2 ~ "Removed w/ Sub",
-                        id %in% diff_pot_df$diff_2_1 ~ "Added w/ Sub",
-                        TRUE ~ "Unchanged"
-                    )
-                    ),
-        aes(color = clinic_type),
-        shape = 17,
-        size = 4, 
-        alpha = 1) +
-    theme_bw() +
-    labs(
-        title = "Facility Location Problem",
-        subtitle = "Black dots indicate villages. Red triangles indicate potential clinic locations."
-    ) +
-  geom_segment(
-    data = comp_output %>% filter(utility == "identity"), 
-    aes(x = customer_x, 
-        y = customer_y, 
-        xend = warehouse_x, 
-        yend = warehouse_y),
-    alpha = 0.2) +
-  facet_wrap(~subsidy, ncol = 1)
-
-diff_pot_df = calculate_pot_change(
-    tidy_output_1 = tidy_output[[3]],
-    tidy_output_2 = tidy_output[[4]]
-)
-
-
-
-sim_data$customer_locations %>%
-    ggplot(aes(
-        x = x,
-        y = y
-    )) +
-    geom_point(alpha = 0.2) +
-    geom_point(
-        data = sim_data$warehouse_locations %>%
-                mutate(
-                    clinic_type = case_when(
-                        id %in% diff_pot_df$diff_1_2 ~ "Removed w/ Sub",
-                        id %in% diff_pot_df$diff_2_1 ~ "Added w/ Sub",
-                        TRUE ~ "Unchanged"
-                    )
-                    ),
-        aes(color = clinic_type),
-        shape = 17,
-        size = 4, 
-        alpha = 1) +
-    theme_bw() +
-    labs(
-        title = "Facility Location Problem - LOG Utility",
-        subtitle = "Black dots indicate villages. Red triangles indicate potential clinic locations."
-    ) +
-  geom_segment(
-    data = comp_output %>% filter(utility == "log"), 
-    aes(x = customer_x, 
-        y = customer_y, 
-        xend = warehouse_x, 
-        yend = warehouse_y),
-    alpha = 0.2) +
-  facet_wrap(utility~subsidy, ncol = 1)
+#### B: Control Mu: Bracelet
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-siaya/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png", 
+  rel_path = FALSE
+  )
 ```
 
 
 
-```{r}
+### Kakamega
 
-sim_function = function(seed, n_villages, m_warehouses, max_m = 5){
-    sim_data = generate_data(seed = seed, n_villages = n_villages, m_warehouses = m_warehouses)
+We see a 1.5% reduction in number of PoTs needed.
 
-    model = define_MIPModel(sim_data, subsidy = 0, max_m = max_m)
-    sm_model = define_MIPModel(sim_data, subsidy = 0.5, max_m = max_m)
-    log_model = define_MIPModel(sim_data, subsidy = 0, utility_function = log, max_m = max_m)
-    log_sm_model = define_MIPModel(sim_data, subsidy = 0.5, utility_function = log, max_m = max_m)
+#### B: Control Mu: Control
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-kakamega/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+  )
+```
 
-    models = lst(
-        model,
-        sm_model,
-        log_model,
-        log_sm_model
-    )
-
-    model_results = map(
-        models,
-        ~solve_model(.x, with_ROI(solver = "glpk", verbose = TRUE))
-    )
-
-    tidy_output = map(
-        model_results,
-        clean_output,
-        data = sim_data
-    )
-
-
-    comp_output = bind_rows(
-        tidy_output,
-        .id = "type" 
-    ) %>%
-        mutate(
-            subsidy = str_detect(type, "sm"), 
-            utility = case_when(
-                str_detect(type, "log") ~ "log",
-                TRUE ~ "identity"
-            )
-        )
-    comp_output$seed = seed
-    return(comp_output)
-}
+#### B: Control Mu: Bracelet
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-kakamega/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png", 
+  rel_path = FALSE)
+```
 
 
 
-# plan(sequential)
-# sim_fits = map_dfr(
-#     1:20,
-#     ~sim_function(
-#         seed = .x,
-#         n_villages = 100,
-#         m_warehouses = 25,
-#         max_m = 15
-#     )
-# )
-# 
-# sim_fits %>%
-#     write_csv("optim/simple-sim-fits.csv")
+## Cutoff at 2.5km - Log Mu Rep - Full Experiment + 4 PoTs
 
+#### B: Control Mu: Control
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+  )
+```
 
-sim_fits = read_csv("simple-sim-fits.csv")
+#### B: Control Mu: Bracelet
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png", 
+  rel_path = FALSE)
+```
 
-sim_fits %>%
-    group_by(seed, j) %>%
-    summarise(model = unique(type)) %>%
-    group_by(seed, j) %>%
-    summarise(n_models_use_j = n_distinct(model)) %>%
-    group_by(seed) %>%
-    summarise(all_4 = all(n_models_use_j == 4)) %>%
-    summarise(pr_no_switch = mean(all_4))
+## Cutoff at 10km - Log Mu Rep - Full Experiment + 4 PoTs
 
-sim_fits %>%
-    group_by(seed, j) %>%
-    summarise(model = unique(type)) %>%
-    group_by(seed, j) %>%
-    summarise(n_models_use_j = n_distinct(model)) %>%
-    group_by(seed) %>%
-    summarise(all_4 = all(n_models_use_j == 4)) 
+#### B: Control Mu: Control
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+  )
+```
 
+#### B: Control Mu: Bracelet
+```{r, echo=FALSE, fig.align="center"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-no-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png", 
+  rel_path = FALSE)
 ```

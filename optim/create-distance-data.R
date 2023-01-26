@@ -33,7 +33,7 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-full_experiment = ifelse(is.null(script_options$county_subset), TRUE, FALSE)
+full_experiment = ifelse(is.null(script_options$county_subset) | script_options$county_subset == "full", TRUE, FALSE)
 
 
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
@@ -100,6 +100,7 @@ rct_school_df = st_as_sf(rct.schools.data)
 if (!full_experiment) {
 
     subset_rct_school_df = rct_school_df %>%
+        mutate(County = str_to_lower(County)) %>%
         filter(County == script_options$county_subset)
 
     # pot and village same here
@@ -177,6 +178,7 @@ if (full_experiment) {
     village_df,
     pot_df
     )
+
 
 }
 

@@ -40,7 +40,8 @@ script_options = docopt::docopt(
                             --num-cores=12
                             --model=STRUCTURAL_LINEAR_U_SHOCKS
                             --num-extra-pots=4
-                            --run-estimation
+                            --pred-distance
+                            --data-input-name=full-experiment.rds
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -391,1108 +392,1427 @@ if (script_options$fit_rf) {
 
 if (script_options$pred_distance) {
 
+    max_draw = max(struct_param_draws$.draw)
+    draw_treat_grid = expand.grid(
+        draw = sample(1:max_draw, size = 100),
+        treatment = c("control", "calendar", "bracelet", "ink") 
+    )
 
-    library(furrr)
-    plan(multicore, workers = script_options$num_cores)
 
+    dist_data = read_rds(
+        file.path(
+            script_options$data_input_path,
+            script_options$data_input_name
+        )
+    )
 
-high_bound = Inf
-low_bound = 2
+    sd_of_dist = dist_data$sd_of_dist
 
-n_posts = 10
-
-agg_data = function(
-    high_bound, 
-    low_bound, 
-    n_posts, 
-    treatment, 
-    mu_rep_type){
-    high_bound_pred_fs = map(
-        1:n_posts,
+    source("optim/optim-functions.R")
+    pred_functions = map2(
+        draw_treat_grid$draw,
+        draw_treat_grid$treatment,
         ~extract_params(
             param_draws = struct_param_draws,
-            treatment = treatment,
+            private_benefit_treatment = .y,
+            visibility_treatment = .y,
             draw_id = .x,
-            dist_sd = dist_sd,
+            dist_sd = sd_of_dist,
             j_id = 1,
-            rep_cutoff = script_options$rep_cutoff,
-            dist_cutoff = script_options$dist_cutoff, 
-            bounds = c(-high_bound, high_bound) ,
+            rep_cutoff = Inf,
+            dist_cutoff = Inf, 
+            bounds = script_options$bounds,
             mu_rep_type = mu_rep_type
         ) %>% find_pred_takeup()
     )
 
-    low_bound_pred_fs = map(
-        1:n_posts,
-        ~extract_params(
-                param_draws = struct_param_draws,
-                treatment = treatment,
-                draw_id = .x,
-                dist_sd = dist_sd,
-                j_id = 1,
-                rep_cutoff = script_options$rep_cutoff,
-                dist_cutoff = script_options$dist_cutoff, 
-                bounds = c(-low_bound, low_bound),
-                mu_rep_type = mu_rep_type
-            ) %>% find_pred_takeup()
-    )
-    from_d = 10
-    to_d = 10000
-    len_out = 100
 
+    library(furrr)
+    plan(multicore, workers = script_options$num_cores)
     dist_df = tibble(
-        distance = seq(from_d, to_d, length.out = len_out)
+        dist = seq(from = 0, to = 5000, by = 100)
+    )
+    pred_dist_df = future_imap_dfr(
+        pred_functions,
+        ~{
+            dist_df %>%
+                mutate( 
+                    as_tibble(.x(dist)),
+                    draw = draw_treat_grid[.y, "draw"],
+                    treatment = draw_treat_grid[.y, "treatment"]
+                )
+        },
+        .options = furrr_options(
+            seed = TRUE
+        ),
+        .progress = TRUE
     )
 
 
 
-    high_dfs = imap_dfr(
-        high_bound_pred_fs,
-        ~ {
-            dist_df %>%
-                mutate(as_tibble(.x(distance))) %>%
-                mutate(draw = .y) 
-        }
-    ) %>%
-        mutate(bound = high_bound)
-    low_dfs = imap_dfr(
-        low_bound_pred_fs,
-        ~ {
-            dist_df %>%
-                mutate(as_tibble(.x(distance))) %>%
-                mutate(draw = .y) 
-        }
-    ) %>%
-        mutate(bound = low_bound)
 
 
-    wide_comp_dfs = bind_rows(
-        high_dfs,
-        low_dfs
-    ) %>%
-    mutate(bound = factor(bound)) %>%
-    mutate(treatment = treatment)
-    return(wide_comp_dfs)
+
+
+
+
+
+extract_and_harmonise_variables = function(stan_df){
+    v_star_df = stan_df %>%
+        select(cluster_w_cutoff) %>%
+        unnest(cols = c(cluster_w_cutoff))  %>%
+        select(roc_distance, assigned_treatment, mean_est, per_0.5) %>%
+        rename(
+            dist = roc_distance,
+            treatment = assigned_treatment, 
+            mean_est = mean_est, 
+            median_est = per_0.5
+        ) %>%
+        mutate(variable = "v_star")
+
+    pred_takeup_df = stan_df %>%
+        select(obs_cluster_takeup_level) %>%
+        unnest(cols = c(obs_cluster_takeup_level)) %>%
+        select(
+            dist = assigned_dist_obs, 
+            treatment = assigned_treatment_obs, 
+            median_est = per_0.5
+        ) %>% 
+        mutate(variable = "actual_takeup")
+
+
+    rep_return_df = stan_df %>%
+        select(cluster_rep_return) %>%
+        unnest(cols = c(cluster_rep_return)) %>%
+        select( 
+            dist = roc_distance, 
+            mean_est = mean_est, 
+            median_est = per_0.5, 
+            treatment = assigned_treatment
+        ) %>% 
+        mutate(variable = "rep_return")
+
+    prop_df = stan_df %>%
+        select(cluster_takeup_prop) %>%
+        unnest(c(cluster_takeup_prop)) %>%
+        select(
+            dist = roc_distance, 
+            mean_est = mean_est, 
+            median_est = per_0.5, 
+            treatment = assigned_treatment
+        ) %>%
+        mutate(variable = "pred_takeup")
+
+    df = bind_rows(
+        v_star_df, 
+        pred_takeup_df, 
+        rep_return_df, 
+        prop_df
+    )
+    return(df)
+
 }
 
 
-wide_comp_bracelet_rep_dfs = agg_data(
-    high_bound = Inf,
-    low_bound = 2,
-    n_posts = 20,
-    treatment = "bracelet",
-    mu_rep_type = mu_rep_type,
-) 
+params = list(structural_takeup_version = 71)
+dist_fit_data <- str_split(params$structural_takeup_version, ",") %>% 
+  pluck(1) %>% 
+  as.integer() %>% 
+  map_dfr(~ {
+    temp_env <- new.env()
+    load(file.path("temp-data", str_glue("processed_dist_fit{.x}.RData")), envir = temp_env)
+    
+    temp_env$dist_fit_data %>% 
+      filter(fct_match(model_type, "structural")) %>% 
+      mutate(version = .x)
+  }) %>% 
+  group_by(model, fit_type, model_type) %>% 
+  filter(min_rank(version) == n()) %>% 
+  ungroup()
 
-wide_comp_bracelet_no_rep_dfs = agg_data(
-    high_bound = Inf,
-    low_bound = 2,
-    n_posts = 20,
-    treatment = "bracelet",
-    mu_rep_type = mu_rep_type
-)  
 
 
-wide_comp_bracelet_dfs = bind_rows(
-    wide_comp_bracelet_rep_dfs,
-    wide_comp_bracelet_no_rep_dfs
+# fit_version = 71
+# load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+
+stan_fit_df = dist_fit_data %>%
+    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(fct_match(fit_type, "fit"))
+
+stan_clean_df = extract_and_harmonise_variables(
+    stan_fit_df
 )
 
 
+load(file.path("data", "analysis.RData"))
 
-wide_comp_control_no_rep_dfs = agg_data(
-    high_bound = Inf,
-    low_bound = 2,
-    n_posts = 20,
-    treatment = "control",
-    mu_rep_type = mu_rep_type,
-)  
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+# stick to monitored sms.treatment group
+# remove sms.treatment.2
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
 
-wide_comp_control_rep_dfs = agg_data(
-    high_bound = Inf,
-    low_bound = 2,
-    n_posts = 20,
-    treatment = "control",
-    mu_rep_type = mu_rep_type
-)  
+analysis_data <- monitored_nosms_data %>% 
+mutate(
+    assigned_treatment = assigned.treatment, 
+    assigned_dist_group = dist.pot.group,
+    sms_treatment = factor(sms.treatment.2))
 
-wide_comp_control_dfs = bind_rows(
-    wide_comp_control_no_rep_dfs,
-    wide_comp_control_rep_dfs
-)
+stan_mu_df = dist_fit_data %>% 
+  filter(fct_match(model_type, "structural"))  %>%
+  filter(fit_type == "fit") %>%
+  filter(model == 'STRUCTURAL_LINEAR_U_SHOCKS') %>%
+  select(fit_type, model, obs_cluster_mu_rep)   %>%
+  unnest(obs_cluster_mu_rep) %>%
+  unnest(iter_data)  %>%
+  group_by(variable, model) %>%
+  summarise(
+    median = median(iter_est), 
+    mean = mean(iter_est), 
+    conf.low = quantile(iter_est, 0.25), 
+    conf.high = quantile(iter_est, 0.75)) %>%
+  mutate(cluster_id = str_extract(variable, "\\d+") %>% as.numeric) %>%
+  arrange(cluster_id) %>%
+  left_join(
+    analysis_data %>%
+        select(cluster_id,assigned_dist_group, assigned.treatment, cluster.dist.to.pot), 
+        by = "cluster_id"
+  ) 
 
-long_comp_bracelet_df = wide_comp_bracelet_dfs %>%
-    gather(
-        variable, value, 
-        -distance, 
-        -bound, 
-        -draw, 
-        -treatment
-    )
-
-long_comp_control_df = wide_comp_control_dfs %>%
-    gather(
-        variable, value, 
-        -distance, 
-        -bound, 
-        -draw, 
-        -treatment
-    )
-
-long_comp_df = bind_rows(
-    long_comp_bracelet_df,
-    long_comp_control_df
-)
-
-long_comp_df
-
-long_comp_df %>%
-    filter(treatment == "bracelet") %>%
-    ggplot(aes(
-        x = distance, 
-        y = value, 
-        colour = bound, 
-        group = interaction(bound, draw)
-    )) +
-    geom_line() +
-    facet_wrap(~variable, scales = 'free') +
-    labs(
-        title = str_glue("Bracelet Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "V Bound:")
-
-ggsave(
-    str_glue(
-        "temp-plots/bracelet-model-predictions-dist-fit{fit_version}-{script_options$model}.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
-)
-
-long_comp_df %>%
-    filter(treatment == "control") %>%
-    ggplot(aes(
-        x = distance, 
-        y = value, 
-        colour = bound, 
-        group = interaction(bound, draw)
-    )) +
-    geom_line() +
-    facet_wrap(~variable, scales = 'free') +
-    labs(
-        title = str_glue("Control Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "V Bound:")
-ggsave(
-    str_glue(
-        "temp-plots/control-model-predictions-dist-fit{fit_version}-{script_options$model}.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
-)
-
-
-long_comp_df %>%
-    filter(fct_match(bound, high_bound)) %>%
-    ggplot(aes(
-        x = distance, 
-        y = value, 
-        colour = treatment, 
-        group = interaction(treatment, draw)
-    )) +
-    geom_line() +
-    facet_wrap(~variable, scales = 'free') +
-    labs(
-        title = str_glue("Comparison Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}, Unbounded")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "Treatment:")
-
-
-ggsave(
-    str_glue(
-        "temp-plots/comp-model-unbounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
-)
-
-
-long_comp_df %>%
-    filter(fct_match(bound, high_bound)) %>%
-    filter(variable == "pred_takeup") %>%
-    filter(distance <= 2500) %>%
-    ggplot(aes(
-        x = distance, 
-        y = value, 
-        colour = interaction(treatment, suppress_rep), 
-        group = interaction(treatment, suppress_rep, draw)
-    )) +
-    geom_line() +
-    # facet_wrap(
-    #     ~suppress_rep, 
-    #     scales = 'free', 
-    #     ncol = 1
-    #     ) +
-    labs(
-        title = str_glue("Comparison Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}, Unbounded")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "Treatment:")
-
-long_comp_df %>%
-    filter(fct_match(bound, high_bound)) %>%
-    filter(variable == "pred_takeup") %>%
-    filter(distance <= 2500) %>%
-    ggplot(aes(
-        x = distance, 
-        y = value, 
-        colour = treatment, 
-        group = interaction(treatment, draw)
-    )) +
-    geom_line() +
-    facet_wrap(
-        ~suppress_rep, 
-        # scales = 'free', 
-        ncol = 2
-        ) +
-    labs(
-        title = str_glue("Comparison Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}, 2.5km cutoff - Suppress Reputation FALSE/TRUE")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "Treatment:")
-
-ggsave(
-    str_glue(
-        "temp-plots/close-comp-model-bounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
-)
-
-
-long_comp_df %>%
-    filter(fct_match(bound, low_bound)) %>%
-    filter(suppress_rep == FALSE) %>%
-    ggplot(aes(
-        x = distance, 
-        y = value, 
-        colour = treatment, 
-        group = interaction(treatment, draw)
-    )) +
-    geom_line() +
-    facet_wrap(~variable, scales = 'free') +
-    labs(
-        title = str_glue("Comparison Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}, Bounded")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "Treatment:")
-
-
-ggsave(
-    str_glue(
-        "temp-plots/comp-model-bounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
-)
-
-
-long_comp_df %>%
-    filter(
-        treatment == "bracelet"
+summ_stan_mu_df = stan_mu_df %>%
+    ungroup() %>%
+    select(
+        dist = cluster.dist.to.pot, 
+        treatment = assigned.treatment, 
+        median_est = median, 
+        mean_est = mean
     ) %>%
-    filter(fct_match(bound, high_bound)) %>%
+    unique() 
+
+
+
+  stan_mu_df %>%
     ggplot(aes(
-        x = distance,
-        y = value, 
-        colour = suppress_rep, 
-        group = interaction(suppress_rep, draw)
+        x = cluster.dist.to.pot, 
+        y = median, 
+        colour = assigned.treatment
     )) +
-    geom_line() +
-    facet_wrap(~variable, scales = 'free') +
-    labs(
-        title = str_glue("Comparison Posterior Draws Over Distance"), 
-        subtitle = str_glue("{script_options$model}, Unbounded - Comparing Rep vs No Rep")
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom") +
-    labs(colour = "Suppress Reputational Returns:")
-ggsave(
-    str_glue(
-        "temp-plots/comp-model-unbounded-rep-comp-predictions-dist-fit{fit_version}-{script_options$model}.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
+    geom_point() +
+    geom_line()
+
+
+    summ_df = pred_dist_df %>%
+        gather(variable, value, pred_takeup:total_error_sd) %>%
+        group_by(
+            dist, 
+            treatment, 
+            variable
+        ) %>%
+        summarise(
+            mean_est = mean(value), 
+            median_est = median(value)
+        ) %>%
+        ungroup() 
+
+
+    comp_df = bind_rows(
+        summ_df %>% mutate(type = "ed"), 
+        stan_clean_df %>% mutate(type = 'stan') %>%
+            filter(variable != "mu_rep"),
+        summ_stan_mu_df %>% 
+            mutate(type = "stan") %>% 
+            mutate(variable = "mu_rep")
 )
+
+stan_clean_df %>%
+    filter(variable == "pred_takeup")
+
+comp_df %>%
+    filter(variable == "pred_takeup") %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = type
+    )) +
+    geom_point() +
+    facet_wrap(~treatment)
+
+
+comp_df %>% 
+    filter(variable == "v_star") %>%
+    filter(dist < 3500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = type
+    )) +
+    geom_point(size = 2) +
+    facet_wrap(~treatment, scales = "free")
+
+comp_df %>%
+    filter(variable == "mu_rep") %>%
+    filter(dist < 3500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = median_est, 
+        colour = type
+    )) +
+    geom_point(size = 2) +
+    facet_wrap(~treatment, scales = "free")
+
+    summ_df %>%
+        filter(
+            variable == "mu_rep"
+        ) %>%
+        filter(dist < 2500) %>%
+        ggplot(aes(
+            x = dist, 
+            y = median_est, 
+            colour = treatment
+        ))  +
+        geom_point() +
+        geom_line() +
+        geom_hline(
+            yintercept = 0.1
+        )
+
+
+
+
+comp_df %>%
+    filter(variable == "pred_takeup") 
+
+
+    pred_dist_df %>%
+        write_csv(
+            file.path(
+                script_options$output_path, 
+                str_interp("all-treat-demand-dist-fit${fit_version}-${script_options$model}.csv")
+            )
+        )
+
+
+
+comp_df %>%
+    filter(
+        variable %in% c(
+            "pred_takeup", 
+            "v_star"
+        )
+    ) %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = type
+    )) +
+    geom_point() +
+    facet_grid(treatment~variable)
+
+
+# high_bound = Inf
+# low_bound = 2
+
+# n_posts = 10
+
+# agg_data = function(
+#     high_bound, 
+#     low_bound, 
+#     n_posts, 
+#     treatment, 
+#     mu_rep_type){
+#     high_bound_pred_fs = map(
+#         1:n_posts,
+#         ~extract_params(
+#             param_draws = struct_param_draws,
+#             treatment = treatment,
+#             draw_id = .x,
+#             dist_sd = dist_sd,
+#             j_id = 1,
+#             rep_cutoff = script_options$rep_cutoff,
+#             dist_cutoff = script_options$dist_cutoff, 
+#             bounds = c(-high_bound, high_bound) ,
+#             mu_rep_type = mu_rep_type
+#         ) %>% find_pred_takeup()
+#     )
+
+#     low_bound_pred_fs = map(
+#         1:n_posts,
+#         ~extract_params(
+#                 param_draws = struct_param_draws,
+#                 treatment = treatment,
+#                 draw_id = .x,
+#                 dist_sd = dist_sd,
+#                 j_id = 1,
+#                 rep_cutoff = script_options$rep_cutoff,
+#                 dist_cutoff = script_options$dist_cutoff, 
+#                 bounds = c(-low_bound, low_bound),
+#                 mu_rep_type = mu_rep_type
+#             ) %>% find_pred_takeup()
+#     )
+#     from_d = 10
+#     to_d = 10000
+#     len_out = 100
+
+#     dist_df = tibble(
+#         distance = seq(from_d, to_d, length.out = len_out)
+#     )
+
+
+
+#     high_dfs = imap_dfr(
+#         high_bound_pred_fs,
+#         ~ {
+#             dist_df %>%
+#                 mutate(as_tibble(.x(distance))) %>%
+#                 mutate(draw = .y) 
+#         }
+#     ) %>%
+#         mutate(bound = high_bound)
+#     low_dfs = imap_dfr(
+#         low_bound_pred_fs,
+#         ~ {
+#             dist_df %>%
+#                 mutate(as_tibble(.x(distance))) %>%
+#                 mutate(draw = .y) 
+#         }
+#     ) %>%
+#         mutate(bound = low_bound)
+
+
+#     wide_comp_dfs = bind_rows(
+#         high_dfs,
+#         low_dfs
+#     ) %>%
+#     mutate(bound = factor(bound)) %>%
+#     mutate(treatment = treatment)
+#     return(wide_comp_dfs)
+# }
+
+
+# wide_comp_bracelet_rep_dfs = agg_data(
+#     high_bound = Inf,
+#     low_bound = 2,
+#     n_posts = 20,
+#     treatment = "bracelet",
+#     mu_rep_type = mu_rep_type,
+# ) 
+
+# wide_comp_bracelet_no_rep_dfs = agg_data(
+#     high_bound = Inf,
+#     low_bound = 2,
+#     n_posts = 20,
+#     treatment = "bracelet",
+#     mu_rep_type = mu_rep_type
+# )  
+
+
+# wide_comp_bracelet_dfs = bind_rows(
+#     wide_comp_bracelet_rep_dfs,
+#     wide_comp_bracelet_no_rep_dfs
+# )
+
+
+
+# wide_comp_control_no_rep_dfs = agg_data(
+#     high_bound = Inf,
+#     low_bound = 2,
+#     n_posts = 20,
+#     treatment = "control",
+#     mu_rep_type = mu_rep_type,
+# )  
+
+# wide_comp_control_rep_dfs = agg_data(
+#     high_bound = Inf,
+#     low_bound = 2,
+#     n_posts = 20,
+#     treatment = "control",
+#     mu_rep_type = mu_rep_type
+# )  
+
+# wide_comp_control_dfs = bind_rows(
+#     wide_comp_control_no_rep_dfs,
+#     wide_comp_control_rep_dfs
+# )
+
+# long_comp_bracelet_df = wide_comp_bracelet_dfs %>%
+#     gather(
+#         variable, value, 
+#         -distance, 
+#         -bound, 
+#         -draw, 
+#         -treatment
+#     )
+
+# long_comp_control_df = wide_comp_control_dfs %>%
+#     gather(
+#         variable, value, 
+#         -distance, 
+#         -bound, 
+#         -draw, 
+#         -treatment
+#     )
+
+# long_comp_df = bind_rows(
+#     long_comp_bracelet_df,
+#     long_comp_control_df
+# )
+
+# long_comp_df
+
 # long_comp_df %>%
-#     filter(fct_match(bound, high_bound)) %>%
-#     filter(distance < 5000) %>%
+#     filter(treatment == "bracelet") %>%
 #     ggplot(aes(
 #         x = distance, 
 #         y = value, 
 #         colour = bound, 
 #         group = interaction(bound, draw)
 #     )) +
-#     geom_point() +
 #     geom_line() +
 #     facet_wrap(~variable, scales = 'free') +
-#     theme_bw()
+#     labs(
+#         title = str_glue("Bracelet Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "V Bound:")
 
-# wide_comp_dfs %>%
-#     filter(fct_match(bound, low_bound)) %>%
-#     ggplot(aes(
-#         x = v_star, 
-#         y = delta_v_star, 
-#         group = draw, 
-#         colour = distance
-#     )) +
-#     geom_line() +
-#     geom_point()
-
-# test_df_1 = tibble(
-#     x = seq(from = from_d, to = to_d, length.out = len_out),
-# ) %>%
-# mutate(as_tibble(high_bound_pred_f(x))) %>%
-# gather(variable, value, -x) %>%
-# mutate(bound = high_bound)
-
-
-#     test_df_2 = tibble(
-#         x = seq(from = from_d, to = to_d, length.out = len_out),
-#     ) %>%
-#     mutate(as_tibble(low_bound_pred_f(x))) %>%
-#     gather(variable, value, -x) %>%
-#     mutate(bound = low_bound)
-
-#     comp_test_df = bind_rows(
-#         test_df_1,
-#         test_df_2
-#     ) %>%
-#     mutate(bound = factor(bound))
-
-
-
-#     comp_test_df %>%
-#         filter(x < 4000) %>%
-#         ggplot(aes(
-#             x = x, 
-#             y = value, 
-#             colour = bound
-#         )) +
-#         geom_line() +
-#         geom_point() +
-#         facet_wrap(~variable, scales = "free")  
-
-#     comp_test_df %>%
-#         filter(fct_match(bound, low_bound)) %>%
-#         ggplot(aes(
-#             x = x, 
-#             y = value, 
-#             colour = bound
-#         )) +
-#         geom_line() +
-#         facet_wrap(~variable, scales = "free")  
-# comp_test_df %>%
-#    spread(variable, value)  %>%
-#    ggplot(aes(
-#     x = x, 
-#     y = v_star, 
-#     colour = bound
-#    )) +
-#    geom_line() +
-#    geom_point() +
-#    theme_bw() +
-#    facet_wrap(~bound) 
-
-
-# inf_x = comp_test_df %>%
-#    spread(variable, value)  %>%
-#    filter(!is.finite(delta_v_star)) %>%
-#    pull(x)
-
-
-# dist_x = seq(from = from_d, to = to_d, length.out = len_out)
-# pred_manual = map_dfr(dist_x, ~low_bound_pred_f(.x) %>% as_tibble())
-
-# manual_df = tibble(
-#     x = dist_x,
-#     as_tibble(pred_manual)
+# ggsave(
+#     str_glue(
+#         "temp-plots/bracelet-model-predictions-dist-fit{fit_version}-{script_options$model}.png"
+#     ),
+#     width = 8,
+#     height = 6,
+#     dpi = 500
 # )
 
-# manual_df %>%
-#     ggplot(aes(
-#         x = x, 
-#         y = delta_v_star
-#     )) +
-#     geom_point()
-
-
-# manual_df %>%
-#     filter(abs(v_star) < low_bound) %>%
-#     gather(variable, value, -x) %>%
-#     ggplot(aes(
-#         x = x, 
-#         y = value
-#     )) +
-#     geom_point() +
-#     geom_line() +
-#     facet_wrap(~variable, scales = "free")
-
-
-# manual_df %>%
-#     filter(abs(v_star) < low_bound) %>%
-#     ggplot(aes(
-#         x = v_star,
-#         y = delta_v_star, 
-#         colour = x
-#     )) +
-#     geom_point()
-
-# manual_df %>%
-#     filter(!is.finite(delta_v_star))
-
-
-
-
-# low_bound_pred_f(inf_x)
-
-
-
-# low_bound_pred_f(inf_x)
-
-
-
-# comp_test_df %>%
-#    spread(variable, value)  %>%
-#    ggplot(aes(
-#     x = x, 
-#     y = delta_v_star, 
-#     colour = bound
-#    )) +
-#    geom_line() +
-#    geom_point() +
-#    theme_bw() +
-#    facet_wrap(~bound) 
-
-
-
-# comp_test_df %>%
-#    spread(variable, value)  %>%
-#    ggplot(aes(
-#     x = v_star, 
-#     y = delta_v_star, 
-#     colour = bound
-#    )) +
-#    geom_line() +
-#    geom_point() +
-#    theme_bw() +
-#    facet_wrap(~bound) +
-#    xlim(-10, 10)
-
-
-
-# pred_df %>%
-#     filter(treatment == "bracelet") %>%
-#     ggplot(aes(
-#         x = v_star,
-#         y = delta_v_star, 
-#         group = draw
-#     )) +
-#     geom_line()
-
-# pred_df %>%
+# long_comp_df %>%
+#     filter(treatment == "control") %>%
 #     ggplot(aes(
 #         x = distance, 
-#         y = pred_takeup, 
-#         group = interaction(draw, treatment), 
-#         colour = treatment
+#         y = value, 
+#         colour = bound, 
+#         group = interaction(bound, draw)
 #     )) +
-#     geom_line()
+#     geom_line() +
+#     facet_wrap(~variable, scales = 'free') +
+#     labs(
+#         title = str_glue("Control Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "V Bound:")
+# ggsave(
+#     str_glue(
+#         "temp-plots/control-model-predictions-dist-fit{fit_version}-{script_options$model}.png"
+#     ),
+#     width = 8,
+#     height = 6,
+#     dpi = 500
+# )
 
-# pred_df %>%
-#     gather(variable, value, -distance, -treatment, -draw) %>%
+
+# long_comp_df %>%
+#     filter(fct_match(bound, high_bound)) %>%
 #     ggplot(aes(
 #         x = distance, 
 #         y = value, 
 #         colour = treatment, 
-#         group = interaction(draw, treatment)
+#         group = interaction(treatment, draw)
 #     )) +
 #     geom_line() +
-#     facet_wrap(~variable, scales = "free") 
+#     facet_wrap(~variable, scales = 'free') +
+#     labs(
+#         title = str_glue("Comparison Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}, Unbounded")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "Treatment:")
 
+
+# ggsave(
+#     str_glue(
+#         "temp-plots/comp-model-unbounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
+#     ),
+#     width = 8,
+#     height = 6,
+#     dpi = 500
+# )
+
+
+# long_comp_df %>%
+#     filter(fct_match(bound, high_bound)) %>%
+#     filter(variable == "pred_takeup") %>%
+#     filter(distance <= 2500) %>%
 #     ggplot(aes(
-#         x = distance
-#     ))
+#         x = distance, 
+#         y = value, 
+#         colour = interaction(treatment, suppress_rep), 
+#         group = interaction(treatment, suppress_rep, draw)
+#     )) +
+#     geom_line() +
+#     # facet_wrap(
+#     #     ~suppress_rep, 
+#     #     scales = 'free', 
+#     #     ncol = 1
+#     #     ) +
+#     labs(
+#         title = str_glue("Comparison Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}, Unbounded")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "Treatment:")
 
-#     pred_functions[[1]](500)
-
-#     pred_functions[[1]](c(500, 10000))
-
-#     struct_param_draws
-#     test_params = extract_params(struct_param_draws,
-#             treatment = "bracelet",
-#             draw_id = 1,
-#             dist_sd = dist_sd,
-#             j_id = 1,
-#             rep_cutoff = script_options$rep_cutoff,
-#             dist_cutoff = script_options$dist_cutoff, 
-#             bounds = c(-Inf, Inf) )
-
-#     test_func = find_pred_takeup(test_params)
-#     test_params
-
-#     test_func(500)
-
-#     test_func(10)
-
-
-#     test_func(c(500, 10))
-
-#     comp_test_df %>%
-#         filter(x < 2000) %>%
-#         ggplot(aes(
-#             x = x, 
-#             y = value, 
-#             colour = type
-#         )) +
-#         geom_line() +
-#         facet_wrap(~variable, scales = "free") 
-
-#     unbound_pred_df = future_imap_dfr(unbound_pred_functions,
-#         ~tibble(
-#             distance = seq(from = 0, to = 10000, length.out = 100)) %>% 
-#                 mutate(
-#                     as_tibble(.x(distance)), 
-#                     treatment = draw_treat_grid[.y, "treatment"],
-#                     draw = draw_treat_grid[.y, "draw"]),
-#         .options = furrr_options(
-#             globals = c(
-#             "draw_treat_grid",
-#             "script_options",
-#             "long_distance_mat",
-#             "extract_params", 
-#             "struct_param_draws", 
-#             "dist_sd", 
-#             "find_pred_takeup",
-#             ".find_pred_takeup",
-#             "calculate_mu_rep",
-#             "calculate_belief_latent_predictor",
-#             "find_v_star",
-#             "generate_v_cutoff_fixedpoint",
-#             "analytical_delta",
-#             "analytical_delta_bounded",
-#             "analytical_conv_Fw",
-#             "analytical_conv_Fw_part",
-#             "stan_owen_t"
-#             ),
-#             packages = c("dplyr", "nleqslv")
-#         ),
-#         .progress = TRUE
-#     )  
-
-#     pred_df = future_imap_dfr(pred_functions,
-#         ~tibble(
-#             distance = seq(from = 0, to = 10000, length.out = 100)) %>% 
-#                 mutate(
-#                     as_tibble(.x(distance)), 
-#                     treatment = draw_treat_grid[.y, "treatment"],
-#                     draw = draw_treat_grid[.y, "draw"]),
-#         .options = furrr_options(
-#             globals = c(
-#             "draw_treat_grid",
-#             "script_options",
-#             "long_distance_mat",
-#             "extract_params", 
-#             "struct_param_draws", 
-#             "dist_sd", 
-#             "find_pred_takeup",
-#             ".find_pred_takeup",
-#             "calculate_mu_rep",
-#             "calculate_belief_latent_predictor",
-#             "find_v_star",
-#             "generate_v_cutoff_fixedpoint",
-#             "analytical_delta",
-#             "analytical_delta_bounded",
-#             "analytical_conv_Fw"),
-#             packages = c("dplyr", "nleqslv")
-#         ),
-#         .progress = TRUE
-#     )  
-
-
-
-#     treat_levels = c(
-#         "bracelet",
-#         "ink",
-#         "calendar",
-#         "control"
-#     )
-#     pred_df = pred_df %>%
-#         mutate(treatment = factor(treatment, levels = treat_levels))
-
-#     pred_df %>%
-#         write_csv(
-#             file.path(
-#                 script_options$output_path, 
-#                 str_interp("pred_posterior_draws_dist_fit${fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.csv")
-#             )
-#         )
-
-#     summ_pred_df = pred_df %>%
-#         group_by(distance, treatment) %>%
-#         summarise_all(median) %>%
-#         mutate(treatment = factor(treatment, levels = treat_levels))
-
-#     pred_df %>%
-#         ggplot(aes(
-#             x = distance, 
-#             y = pred_takeup, 
-#             group = interaction(draw, treatment), 
-#             colour = treatment
-#         )) +
-#         geom_line(
-#             alpha = 0.1
-#         )   +
-#         geom_line(
-#             data = summ_pred_df, 
-#             inherit.aes = FALSE,
-#             aes(
-#                 x = distance, 
-#                 y = pred_takeup, 
-#                 group = interaction(treatment), 
-#                 colour = treatment), 
-#             size = 1
+# long_comp_df %>%
+#     filter(fct_match(bound, high_bound)) %>%
+#     filter(variable == "pred_takeup") %>%
+#     filter(distance <= 2500) %>%
+#     ggplot(aes(
+#         x = distance, 
+#         y = value, 
+#         colour = treatment, 
+#         group = interaction(treatment, draw)
+#     )) +
+#     geom_line() +
+#     facet_wrap(
+#         ~suppress_rep, 
+#         # scales = 'free', 
+#         ncol = 2
 #         ) +
-#         theme_minimal() +
-#         theme(legend.position = "bottom") +
-#         labs(
-#             title = "Predicted Takeup", 
-#             y = "Pred Takeup", 
-#             x = "Distance (m)"
-#         )
+#     labs(
+#         title = str_glue("Comparison Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}, 2.5km cutoff - Suppress Reputation FALSE/TRUE")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "Treatment:")
 
-#     ggsave(
-#         "temp-plots/pred-takeup.png", 
-#         width = 10,
-#         height = 10,
-#         dpi = 500
-#         )
-
-#     pred_df %>%
-#         ggplot(aes(
-#             x = distance, 
-#             y = pred_takeup, 
-#             group = interaction(draw, treatment),
-#             colour = treatment
-#         )) +
-#         geom_line(
-#             alpha = 0.3
-#         )  +
-#         geom_line(
-#             data = summ_pred_df, 
-#             inherit.aes = FALSE,
-#             aes(
-#                 x = distance, 
-#                 y = pred_takeup, 
-#                 group = interaction(treatment)), 
-#             colour = "black",
-#             size = 1
-#         ) +
-#         facet_wrap(~treatment) +
-#         theme_bw() +
-#         guides(color = "none") +
-#         labs(
-#             title = "Pred Takeup", 
-#             y = "Takeup", 
-#             x = "Distance (m)"
-#         )
-        
-#     ggsave(
-#         "temp-plots/pred-takeup-facet.png", 
-#         width = 10,
-#         height = 10,
-#         dpi = 500
-#         )
-
-        
+# ggsave(
+#     str_glue(
+#         "temp-plots/close-comp-model-bounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
+#     ),
+#     width = 8,
+#     height = 6,
+#     dpi = 500
+# )
 
 
+# long_comp_df %>%
+#     filter(fct_match(bound, low_bound)) %>%
+#     filter(suppress_rep == FALSE) %>%
+#     ggplot(aes(
+#         x = distance, 
+#         y = value, 
+#         colour = treatment, 
+#         group = interaction(treatment, draw)
+#     )) +
+#     geom_line() +
+#     facet_wrap(~variable, scales = 'free') +
+#     labs(
+#         title = str_glue("Comparison Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}, Bounded")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "Treatment:")
 
 
-
-#     filter_structural_fit = function(data){
-#         data %>%
-#             filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) 
-#     }
-
-#     treat_levels = c(
-#         "bracelet",
-#         "ink",
-#         "calendar", 
-#         "control"
-#     )
-
-#     dist_fit_data %>%
-#         filter_structural_fit() %>%
-#         select(cluster_takeup_prop) %>%
-#         unnest() %>%
-#         mutate(
-#             treatment = factor(assigned_treatment, levels = treat_levels), 
-#             type = "stan", 
-#             pred_takeup = mean_est, 
-#             distance = roc_distance
-#         ) 
-
-#     dist_fit_data %>%
-#         filter_structural_fit() %>%
-#         select(cluster_takeup_prop) %>%
-#         unnest() %>%
-#         mutate(
-#             treatment = factor(assigned_treatment, levels = treat_levels), 
-#             type = "stan", 
-#             pred_takeup = per_0.5, 
-#             distance = roc_distance
-#         ) %>%
-#         bind_rows(
-#             summ_pred_df %>%
-#                 filter(distance < 2500) %>%
-#                 mutate(type = "extracted")
-#         ) %>%
-#         select( 
-#             treatment,
-#             distance, 
-#             pred_takeup, 
-#             type
-#         ) %>%
-#         ggplot(aes(
-#             x = distance, 
-#             y = pred_takeup, 
-#             colour = type 
-#         )) + 
-#         geom_point() +
-#         geom_line() +
-#         facet_wrap(~treatment) +
-#         theme_bw() +
-#         theme(legend.position = "bottom") +
-#         labs(
-#             title = "Comparing Stan vs R Posterior Medians"
-#         )
-
-#     ggsave(
-#         "temp-plots/temp-p-comp.png",
-#         width = 10,
-#         height = 10,
-#         dpi = 500
-#     )
-        
-        
-#        pred_df  %>%
-#         ggplot(aes(
-#             x = distance, 
-#             colour = treatment, 
-#             y = delta_v_star, 
-#             group = interaction(draw, treatment)
-#         )) +
-#         geom_line()
-        
-#     pred_df    
-        
-#     summ_pred_df  %>%
-#         mutate(
-#             r_by_d = mu_rep*delta_v_star
-#         ) %>%
-#         ggplot(aes(
-#             x = distance, 
-#             colour = treatment, 
-#             y = pred_takeup
-#         )) +
-#         geom_line() +
-#         geom_point()
-
-#     cowplot::plot_grid(
-#         dist_fit_data %>%
-#             filter_structural_fit() %>%
-#             select(cluster_takeup_prop) %>%
-#             unnest() %>%
-#             mutate(
-#                 assigned_treatment = factor(assigned_treatment, levels = treat_levels)
-#             ) %>%
-#             ggplot(aes(
-#                 x = roc_distance, 
-#                 y = per_0.5, 
-#                 colour = assigned_treatment
-#             )) +
-#             geom_point() +
-#             geom_line(),
-
-#         summ_pred_df  %>%
-#             filter(distance <= 2500) %>%
-#             mutate(
-#                 r_by_d = mu_rep*delta_v_star
-#             ) %>%
-#             ggplot(aes(
-#                 x = distance, 
-#                 colour = treatment, 
-#                 y = pred_takeup
-#             )) +
-#             geom_line() +
-#             geom_point() 
-#     ) 
-
-#     # cowplot::plot_grid(
-#     #     dist_fit_data %>%
-#     #         filter_structural_fit() %>%
-#     #         select(cluster_rep_return) %>%
-#     #         unnest() %>%
-#     #         mutate(
-#     #             assigned_treatment = factor(assigned_treatment, levels = treat_levels)
-#     #         ) %>%
-#     #         ggplot(aes(
-#     #             x = roc_distance, 
-#     #             y = per_0.5, 
-#     #             colour = assigned_treatment
-#     #         )) +
-#     #         geom_point() +
-#     #         geom_line(),
-#     #     summ_pred_df  %>%
-#     #         filter(distance <= 2500) %>%
-#     #         mutate(
-#     #             r_by_d = mu_rep*delta_v_star
-#     #         ) %>%
-#     #         ggplot(aes(
-#     #             x = distance, 
-#     #             colour = treatment, 
-#     #             y = r_by_d
-#     #         )) +
-#     #         geom_line() +
-#     #         geom_point()
-#     # )
-
-#     pred_df  %>%
-#         # filter(v_star > -5) %>%
-#         ggplot(aes(
-#             x = v_star, 
-#             group = interaction(draw, treatment),
-#             colour = treatment, 
-#             y = delta_v_star
-#         )) +
-#         geom_line(alpha = 0.2) +
-#         geom_point(alpha = 0.2) +
-#         theme_minimal() +
-#         theme(legend.position = "bottom") +
-#         labs(
-#             title = "Delta(v^*) vs v^*"
-#         )
-
-#     ggsave(
-#         "temp-plots/all-delta-v-vs-v.png",
-#         width = 10,
-#         height = 10,
-#         dpi = 500
-#     )
+# ggsave(
+#     str_glue(
+#         "temp-plots/comp-model-bounded-predictions-dist-fit{fit_version}-{script_options$model}.png"
+#     ),
+#     width = 8,
+#     height = 6,
+#     dpi = 500
+# )
 
 
-
-#     pred_df  %>%
-#         filter(abs(v_star) < 2) %>%
-#         # filter(v_star > -5) %>%
-#         ggplot(aes(
-#             x = v_star, 
-#             group = interaction(draw, treatment),
-#             colour = treatment, 
-#             y = delta_v_star
-#         )) +
-#         geom_line(alpha = 0.2) +
-#         geom_point(alpha = 0.2) +
-#         theme_minimal() +
-#         theme(legend.position = "bottom") +
-#         labs(
-#             title = "Delta(v^*) vs v^*"
-#         )
-
-#     ggsave(
-#         "temp-plots/subset-delta-v-vs-v.png",
-#         width = 10,
-#         height = 10,
-#         dpi = 500
-#     )
-
-#     summ_pred_df  %>%
-#         # filter(v_star > -5) %>%
-#         ggplot(aes(
-#             x = v_star, 
-#             colour = treatment, 
-#             y = delta_v_star
-#         )) +
-#         geom_line() +
-#         geom_point() +
-#         theme_minimal() +
-#         theme(legend.position = "bottom") +
-#         labs(
-#             title = "Delta(v^*) vs v^*"
-#         )
-
-
-#     ggsave(
-#         "temp-plots/delta-v-vs-v.png",
-#         width = 10,
-#         height = 10,
-#         dpi = 500
-#     )
-
-
-#     summ_pred_df  %>%
-#         ggplot(aes(
-#             x = distance, 
-#             colour = treatment, 
-#             y = v_star
-#         )) +
-#         geom_line() +
-#         geom_point()
-
-
-#     dist_fit_data %>%
-#         filter_structural_fit()  %>%
-#         colnames()
-
-#     dist_fit_data %>%
-#         filter_structural_fit()  %>%
-#         select(cluster_w_cutoff) %>%
-#         unnest() %>%
-#         ggplot(aes(
-#             x = roc_distance, 
-#             y = mean_est, 
-#             colour = assigned_treatment
-#         )) +
-#         geom_point() +
-#         geom_line()
-
-
-#     pred_df  %>%
-#         filter(v_star > -5) %>%
-#         ggplot(aes(
-#             x = distance, 
-#             colour = treatment, 
-#             y = delta_v_star
-#         )) +
-#         geom_line() +
-#         geom_point()
-
-
-#     pred_df  %>%
-#         filter(v_star > -5) %>%
-#         filter(distance <= 2.5) %>%
-#         # filter(treatment %in% c("bracelet", "control")) %>%
-#         ggplot(aes(
-#             x = distance, 
-#             colour = treatment, 
-#             y = pred_takeup
-#         )) +
-#         geom_line() +
-#         # geom_point() +
-#         geom_hline( 
-#             yintercept = c(0.5, 0.2), 
-#             linetype = "longdash"
-#         ) 
-
-
-#     dist_prob_plot <- dist_fit_data %>% 
-#         filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural"))  %>%
-#         select(cluster_takeup_prop) %>%
-#         unnest() %>%
-#         ggplot(aes(
-#             x = roc_distance, 
-#             y = mean_est, 
-#             colour = assigned_treatment
-#         )) +
-#         geom_line()
-
-
-#     dist_prob_plot  
-
-
-
-#     pred_df  %>%
-#         filter(v_star > -5) %>%
-#         ggplot(aes(
-#             x = distance, 
-#             colour = treatment, 
-#             y = v_star
-#         )) +
-#         geom_line() +
-#         geom_point()
-
-#     pred_df %>%
-#         filter(distance == max(distance))
-
-
-
-#     pred_df %>%
-#         ggplot(aes(
-#             x = distance,
-#             y = y_hat,
-#             colour = treatment
-#         )) +
-#         geom_line()
-
-
-#     analysis_data %>%
-#         select(standard_cluster.dist.to.pot) %>%
-#         summary()
-
-
-
-#     ed = find_pred_takeup(
-#         distance = 0.5, 
-#         beta = betas[[1]], 
-#         mu_beta = mu_betas[[1]], 
-#         base_mu_rep = 0.121, 
-#         total_error_sd = 1.2,
-#         u_sd =0)
-
-#     pred_df = tibble(
-#         dist = seq(from = -2, to = 2, length.out = 100)
+# long_comp_df %>%
+#     filter(
+#         treatment == "bracelet"
 #     ) %>%
-#         mutate(y_hat = ed(dist))
+#     filter(fct_match(bound, high_bound)) %>%
+#     ggplot(aes(
+#         x = distance,
+#         y = value, 
+#         colour = suppress_rep, 
+#         group = interaction(suppress_rep, draw)
+#     )) +
+#     geom_line() +
+#     facet_wrap(~variable, scales = 'free') +
+#     labs(
+#         title = str_glue("Comparison Posterior Draws Over Distance"), 
+#         subtitle = str_glue("{script_options$model}, Unbounded - Comparing Rep vs No Rep")
+#     ) +
+#     theme_bw() +
+#     theme(legend.position = "bottom") +
+#     labs(colour = "Suppress Reputational Returns:")
+# ggsave(
+#     str_glue(
+#         "temp-plots/comp-model-unbounded-rep-comp-predictions-dist-fit{fit_version}-{script_options$model}.png"
+#     ),
+#     width = 8,
+#     height = 6,
+#     dpi = 500
+# )
+# # long_comp_df %>%
+# #     filter(fct_match(bound, high_bound)) %>%
+# #     filter(distance < 5000) %>%
+# #     ggplot(aes(
+# #         x = distance, 
+# #         y = value, 
+# #         colour = bound, 
+# #         group = interaction(bound, draw)
+# #     )) +
+# #     geom_point() +
+# #     geom_line() +
+# #     facet_wrap(~variable, scales = 'free') +
+# #     theme_bw()
+
+# # wide_comp_dfs %>%
+# #     filter(fct_match(bound, low_bound)) %>%
+# #     ggplot(aes(
+# #         x = v_star, 
+# #         y = delta_v_star, 
+# #         group = draw, 
+# #         colour = distance
+# #     )) +
+# #     geom_line() +
+# #     geom_point()
+
+# # test_df_1 = tibble(
+# #     x = seq(from = from_d, to = to_d, length.out = len_out),
+# # ) %>%
+# # mutate(as_tibble(high_bound_pred_f(x))) %>%
+# # gather(variable, value, -x) %>%
+# # mutate(bound = high_bound)
 
 
-#     pred_df %>%
-#         ggplot(aes(
-#             x = dist,
-#             y = y_hat
-#         )) +
-#         geom_point()
+# #     test_df_2 = tibble(
+# #         x = seq(from = from_d, to = to_d, length.out = len_out),
+# #     ) %>%
+# #     mutate(as_tibble(low_bound_pred_f(x))) %>%
+# #     gather(variable, value, -x) %>%
+# #     mutate(bound = low_bound)
+
+# #     comp_test_df = bind_rows(
+# #         test_df_1,
+# #         test_df_2
+# #     ) %>%
+# #     mutate(bound = factor(bound))
 
 
 
-#     find_v_star(
-#         distance = 0.5, 
-#         beta = betas[[1]], 
-#         mu_beta = mu_betas[[1]], 
-#         base_mu_rep = 0.121, 
-#         total_error_sd = 1.2,
-#         u_sd =0)
+# #     comp_test_df %>%
+# #         filter(x < 4000) %>%
+# #         ggplot(aes(
+# #             x = x, 
+# #             y = value, 
+# #             colour = bound
+# #         )) +
+# #         geom_line() +
+# #         geom_point() +
+# #         facet_wrap(~variable, scales = "free")  
+
+# #     comp_test_df %>%
+# #         filter(fct_match(bound, low_bound)) %>%
+# #         ggplot(aes(
+# #             x = x, 
+# #             y = value, 
+# #             colour = bound
+# #         )) +
+# #         geom_line() +
+# #         facet_wrap(~variable, scales = "free")  
+# # comp_test_df %>%
+# #    spread(variable, value)  %>%
+# #    ggplot(aes(
+# #     x = x, 
+# #     y = v_star, 
+# #     colour = bound
+# #    )) +
+# #    geom_line() +
+# #    geom_point() +
+# #    theme_bw() +
+# #    facet_wrap(~bound) 
+
+
+# # inf_x = comp_test_df %>%
+# #    spread(variable, value)  %>%
+# #    filter(!is.finite(delta_v_star)) %>%
+# #    pull(x)
+
+
+# # dist_x = seq(from = from_d, to = to_d, length.out = len_out)
+# # pred_manual = map_dfr(dist_x, ~low_bound_pred_f(.x) %>% as_tibble())
+
+# # manual_df = tibble(
+# #     x = dist_x,
+# #     as_tibble(pred_manual)
+# # )
+
+# # manual_df %>%
+# #     ggplot(aes(
+# #         x = x, 
+# #         y = delta_v_star
+# #     )) +
+# #     geom_point()
+
+
+# # manual_df %>%
+# #     filter(abs(v_star) < low_bound) %>%
+# #     gather(variable, value, -x) %>%
+# #     ggplot(aes(
+# #         x = x, 
+# #         y = value
+# #     )) +
+# #     geom_point() +
+# #     geom_line() +
+# #     facet_wrap(~variable, scales = "free")
+
+
+# # manual_df %>%
+# #     filter(abs(v_star) < low_bound) %>%
+# #     ggplot(aes(
+# #         x = v_star,
+# #         y = delta_v_star, 
+# #         colour = x
+# #     )) +
+# #     geom_point()
+
+# # manual_df %>%
+# #     filter(!is.finite(delta_v_star))
+
+
+
+
+# # low_bound_pred_f(inf_x)
+
+
+
+# # low_bound_pred_f(inf_x)
+
+
+
+# # comp_test_df %>%
+# #    spread(variable, value)  %>%
+# #    ggplot(aes(
+# #     x = x, 
+# #     y = delta_v_star, 
+# #     colour = bound
+# #    )) +
+# #    geom_line() +
+# #    geom_point() +
+# #    theme_bw() +
+# #    facet_wrap(~bound) 
+
+
+
+# # comp_test_df %>%
+# #    spread(variable, value)  %>%
+# #    ggplot(aes(
+# #     x = v_star, 
+# #     y = delta_v_star, 
+# #     colour = bound
+# #    )) +
+# #    geom_line() +
+# #    geom_point() +
+# #    theme_bw() +
+# #    facet_wrap(~bound) +
+# #    xlim(-10, 10)
+
+
+
+# # pred_df %>%
+# #     filter(treatment == "bracelet") %>%
+# #     ggplot(aes(
+# #         x = v_star,
+# #         y = delta_v_star, 
+# #         group = draw
+# #     )) +
+# #     geom_line()
+
+# # pred_df %>%
+# #     ggplot(aes(
+# #         x = distance, 
+# #         y = pred_takeup, 
+# #         group = interaction(draw, treatment), 
+# #         colour = treatment
+# #     )) +
+# #     geom_line()
+
+# # pred_df %>%
+# #     gather(variable, value, -distance, -treatment, -draw) %>%
+# #     ggplot(aes(
+# #         x = distance, 
+# #         y = value, 
+# #         colour = treatment, 
+# #         group = interaction(draw, treatment)
+# #     )) +
+# #     geom_line() +
+# #     facet_wrap(~variable, scales = "free") 
+
+# #     ggplot(aes(
+# #         x = distance
+# #     ))
+
+# #     pred_functions[[1]](500)
+
+# #     pred_functions[[1]](c(500, 10000))
+
+# #     struct_param_draws
+# #     test_params = extract_params(struct_param_draws,
+# #             treatment = "bracelet",
+# #             draw_id = 1,
+# #             dist_sd = dist_sd,
+# #             j_id = 1,
+# #             rep_cutoff = script_options$rep_cutoff,
+# #             dist_cutoff = script_options$dist_cutoff, 
+# #             bounds = c(-Inf, Inf) )
+
+# #     test_func = find_pred_takeup(test_params)
+# #     test_params
+
+# #     test_func(500)
+
+# #     test_func(10)
+
+
+# #     test_func(c(500, 10))
+
+# #     comp_test_df %>%
+# #         filter(x < 2000) %>%
+# #         ggplot(aes(
+# #             x = x, 
+# #             y = value, 
+# #             colour = type
+# #         )) +
+# #         geom_line() +
+# #         facet_wrap(~variable, scales = "free") 
+
+# #     unbound_pred_df = future_imap_dfr(unbound_pred_functions,
+# #         ~tibble(
+# #             distance = seq(from = 0, to = 10000, length.out = 100)) %>% 
+# #                 mutate(
+# #                     as_tibble(.x(distance)), 
+# #                     treatment = draw_treat_grid[.y, "treatment"],
+# #                     draw = draw_treat_grid[.y, "draw"]),
+# #         .options = furrr_options(
+# #             globals = c(
+# #             "draw_treat_grid",
+# #             "script_options",
+# #             "long_distance_mat",
+# #             "extract_params", 
+# #             "struct_param_draws", 
+# #             "dist_sd", 
+# #             "find_pred_takeup",
+# #             ".find_pred_takeup",
+# #             "calculate_mu_rep",
+# #             "calculate_belief_latent_predictor",
+# #             "find_v_star",
+# #             "generate_v_cutoff_fixedpoint",
+# #             "analytical_delta",
+# #             "analytical_delta_bounded",
+# #             "analytical_conv_Fw",
+# #             "analytical_conv_Fw_part",
+# #             "stan_owen_t"
+# #             ),
+# #             packages = c("dplyr", "nleqslv")
+# #         ),
+# #         .progress = TRUE
+# #     )  
+
+# #     pred_df = future_imap_dfr(pred_functions,
+# #         ~tibble(
+# #             distance = seq(from = 0, to = 10000, length.out = 100)) %>% 
+# #                 mutate(
+# #                     as_tibble(.x(distance)), 
+# #                     treatment = draw_treat_grid[.y, "treatment"],
+# #                     draw = draw_treat_grid[.y, "draw"]),
+# #         .options = furrr_options(
+# #             globals = c(
+# #             "draw_treat_grid",
+# #             "script_options",
+# #             "long_distance_mat",
+# #             "extract_params", 
+# #             "struct_param_draws", 
+# #             "dist_sd", 
+# #             "find_pred_takeup",
+# #             ".find_pred_takeup",
+# #             "calculate_mu_rep",
+# #             "calculate_belief_latent_predictor",
+# #             "find_v_star",
+# #             "generate_v_cutoff_fixedpoint",
+# #             "analytical_delta",
+# #             "analytical_delta_bounded",
+# #             "analytical_conv_Fw"),
+# #             packages = c("dplyr", "nleqslv")
+# #         ),
+# #         .progress = TRUE
+# #     )  
+
+
+
+# #     treat_levels = c(
+# #         "bracelet",
+# #         "ink",
+# #         "calendar",
+# #         "control"
+# #     )
+# #     pred_df = pred_df %>%
+# #         mutate(treatment = factor(treatment, levels = treat_levels))
+
+# #     pred_df %>%
+# #         write_csv(
+# #             file.path(
+# #                 script_options$output_path, 
+# #                 str_interp("pred_posterior_draws_dist_fit${fit_version}_STRUCTURAL_LINEAR_U_SHOCKS.csv")
+# #             )
+# #         )
+
+# #     summ_pred_df = pred_df %>%
+# #         group_by(distance, treatment) %>%
+# #         summarise_all(median) %>%
+# #         mutate(treatment = factor(treatment, levels = treat_levels))
+
+# #     pred_df %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             y = pred_takeup, 
+# #             group = interaction(draw, treatment), 
+# #             colour = treatment
+# #         )) +
+# #         geom_line(
+# #             alpha = 0.1
+# #         )   +
+# #         geom_line(
+# #             data = summ_pred_df, 
+# #             inherit.aes = FALSE,
+# #             aes(
+# #                 x = distance, 
+# #                 y = pred_takeup, 
+# #                 group = interaction(treatment), 
+# #                 colour = treatment), 
+# #             size = 1
+# #         ) +
+# #         theme_minimal() +
+# #         theme(legend.position = "bottom") +
+# #         labs(
+# #             title = "Predicted Takeup", 
+# #             y = "Pred Takeup", 
+# #             x = "Distance (m)"
+# #         )
+
+# #     ggsave(
+# #         "temp-plots/pred-takeup.png", 
+# #         width = 10,
+# #         height = 10,
+# #         dpi = 500
+# #         )
+
+# #     pred_df %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             y = pred_takeup, 
+# #             group = interaction(draw, treatment),
+# #             colour = treatment
+# #         )) +
+# #         geom_line(
+# #             alpha = 0.3
+# #         )  +
+# #         geom_line(
+# #             data = summ_pred_df, 
+# #             inherit.aes = FALSE,
+# #             aes(
+# #                 x = distance, 
+# #                 y = pred_takeup, 
+# #                 group = interaction(treatment)), 
+# #             colour = "black",
+# #             size = 1
+# #         ) +
+# #         facet_wrap(~treatment) +
+# #         theme_bw() +
+# #         guides(color = "none") +
+# #         labs(
+# #             title = "Pred Takeup", 
+# #             y = "Takeup", 
+# #             x = "Distance (m)"
+# #         )
+        
+# #     ggsave(
+# #         "temp-plots/pred-takeup-facet.png", 
+# #         width = 10,
+# #         height = 10,
+# #         dpi = 500
+# #         )
+
+        
+
+
+
+
+
+# #     filter_structural_fit = function(data){
+# #         data %>%
+# #             filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) 
+# #     }
+
+# #     treat_levels = c(
+# #         "bracelet",
+# #         "ink",
+# #         "calendar", 
+# #         "control"
+# #     )
+
+# #     dist_fit_data %>%
+# #         filter_structural_fit() %>%
+# #         select(cluster_takeup_prop) %>%
+# #         unnest() %>%
+# #         mutate(
+# #             treatment = factor(assigned_treatment, levels = treat_levels), 
+# #             type = "stan", 
+# #             pred_takeup = mean_est, 
+# #             distance = roc_distance
+# #         ) 
+
+# #     dist_fit_data %>%
+# #         filter_structural_fit() %>%
+# #         select(cluster_takeup_prop) %>%
+# #         unnest() %>%
+# #         mutate(
+# #             treatment = factor(assigned_treatment, levels = treat_levels), 
+# #             type = "stan", 
+# #             pred_takeup = per_0.5, 
+# #             distance = roc_distance
+# #         ) %>%
+# #         bind_rows(
+# #             summ_pred_df %>%
+# #                 filter(distance < 2500) %>%
+# #                 mutate(type = "extracted")
+# #         ) %>%
+# #         select( 
+# #             treatment,
+# #             distance, 
+# #             pred_takeup, 
+# #             type
+# #         ) %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             y = pred_takeup, 
+# #             colour = type 
+# #         )) + 
+# #         geom_point() +
+# #         geom_line() +
+# #         facet_wrap(~treatment) +
+# #         theme_bw() +
+# #         theme(legend.position = "bottom") +
+# #         labs(
+# #             title = "Comparing Stan vs R Posterior Medians"
+# #         )
+
+# #     ggsave(
+# #         "temp-plots/temp-p-comp.png",
+# #         width = 10,
+# #         height = 10,
+# #         dpi = 500
+# #     )
+        
+        
+# #        pred_df  %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             colour = treatment, 
+# #             y = delta_v_star, 
+# #             group = interaction(draw, treatment)
+# #         )) +
+# #         geom_line()
+        
+# #     pred_df    
+        
+# #     summ_pred_df  %>%
+# #         mutate(
+# #             r_by_d = mu_rep*delta_v_star
+# #         ) %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             colour = treatment, 
+# #             y = pred_takeup
+# #         )) +
+# #         geom_line() +
+# #         geom_point()
+
+# #     cowplot::plot_grid(
+# #         dist_fit_data %>%
+# #             filter_structural_fit() %>%
+# #             select(cluster_takeup_prop) %>%
+# #             unnest() %>%
+# #             mutate(
+# #                 assigned_treatment = factor(assigned_treatment, levels = treat_levels)
+# #             ) %>%
+# #             ggplot(aes(
+# #                 x = roc_distance, 
+# #                 y = per_0.5, 
+# #                 colour = assigned_treatment
+# #             )) +
+# #             geom_point() +
+# #             geom_line(),
+
+# #         summ_pred_df  %>%
+# #             filter(distance <= 2500) %>%
+# #             mutate(
+# #                 r_by_d = mu_rep*delta_v_star
+# #             ) %>%
+# #             ggplot(aes(
+# #                 x = distance, 
+# #                 colour = treatment, 
+# #                 y = pred_takeup
+# #             )) +
+# #             geom_line() +
+# #             geom_point() 
+# #     ) 
+
+# #     # cowplot::plot_grid(
+# #     #     dist_fit_data %>%
+# #     #         filter_structural_fit() %>%
+# #     #         select(cluster_rep_return) %>%
+# #     #         unnest() %>%
+# #     #         mutate(
+# #     #             assigned_treatment = factor(assigned_treatment, levels = treat_levels)
+# #     #         ) %>%
+# #     #         ggplot(aes(
+# #     #             x = roc_distance, 
+# #     #             y = per_0.5, 
+# #     #             colour = assigned_treatment
+# #     #         )) +
+# #     #         geom_point() +
+# #     #         geom_line(),
+# #     #     summ_pred_df  %>%
+# #     #         filter(distance <= 2500) %>%
+# #     #         mutate(
+# #     #             r_by_d = mu_rep*delta_v_star
+# #     #         ) %>%
+# #     #         ggplot(aes(
+# #     #             x = distance, 
+# #     #             colour = treatment, 
+# #     #             y = r_by_d
+# #     #         )) +
+# #     #         geom_line() +
+# #     #         geom_point()
+# #     # )
+
+# #     pred_df  %>%
+# #         # filter(v_star > -5) %>%
+# #         ggplot(aes(
+# #             x = v_star, 
+# #             group = interaction(draw, treatment),
+# #             colour = treatment, 
+# #             y = delta_v_star
+# #         )) +
+# #         geom_line(alpha = 0.2) +
+# #         geom_point(alpha = 0.2) +
+# #         theme_minimal() +
+# #         theme(legend.position = "bottom") +
+# #         labs(
+# #             title = "Delta(v^*) vs v^*"
+# #         )
+
+# #     ggsave(
+# #         "temp-plots/all-delta-v-vs-v.png",
+# #         width = 10,
+# #         height = 10,
+# #         dpi = 500
+# #     )
+
+
+
+# #     pred_df  %>%
+# #         filter(abs(v_star) < 2) %>%
+# #         # filter(v_star > -5) %>%
+# #         ggplot(aes(
+# #             x = v_star, 
+# #             group = interaction(draw, treatment),
+# #             colour = treatment, 
+# #             y = delta_v_star
+# #         )) +
+# #         geom_line(alpha = 0.2) +
+# #         geom_point(alpha = 0.2) +
+# #         theme_minimal() +
+# #         theme(legend.position = "bottom") +
+# #         labs(
+# #             title = "Delta(v^*) vs v^*"
+# #         )
+
+# #     ggsave(
+# #         "temp-plots/subset-delta-v-vs-v.png",
+# #         width = 10,
+# #         height = 10,
+# #         dpi = 500
+# #     )
+
+# #     summ_pred_df  %>%
+# #         # filter(v_star > -5) %>%
+# #         ggplot(aes(
+# #             x = v_star, 
+# #             colour = treatment, 
+# #             y = delta_v_star
+# #         )) +
+# #         geom_line() +
+# #         geom_point() +
+# #         theme_minimal() +
+# #         theme(legend.position = "bottom") +
+# #         labs(
+# #             title = "Delta(v^*) vs v^*"
+# #         )
+
+
+# #     ggsave(
+# #         "temp-plots/delta-v-vs-v.png",
+# #         width = 10,
+# #         height = 10,
+# #         dpi = 500
+# #     )
+
+
+# #     summ_pred_df  %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             colour = treatment, 
+# #             y = v_star
+# #         )) +
+# #         geom_line() +
+# #         geom_point()
+
+
+# #     dist_fit_data %>%
+# #         filter_structural_fit()  %>%
+# #         colnames()
+
+# #     dist_fit_data %>%
+# #         filter_structural_fit()  %>%
+# #         select(cluster_w_cutoff) %>%
+# #         unnest() %>%
+# #         ggplot(aes(
+# #             x = roc_distance, 
+# #             y = mean_est, 
+# #             colour = assigned_treatment
+# #         )) +
+# #         geom_point() +
+# #         geom_line()
+
+
+# #     pred_df  %>%
+# #         filter(v_star > -5) %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             colour = treatment, 
+# #             y = delta_v_star
+# #         )) +
+# #         geom_line() +
+# #         geom_point()
+
+
+# #     pred_df  %>%
+# #         filter(v_star > -5) %>%
+# #         filter(distance <= 2.5) %>%
+# #         # filter(treatment %in% c("bracelet", "control")) %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             colour = treatment, 
+# #             y = pred_takeup
+# #         )) +
+# #         geom_line() +
+# #         # geom_point() +
+# #         geom_hline( 
+# #             yintercept = c(0.5, 0.2), 
+# #             linetype = "longdash"
+# #         ) 
+
+
+# #     dist_prob_plot <- dist_fit_data %>% 
+# #         filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural"))  %>%
+# #         select(cluster_takeup_prop) %>%
+# #         unnest() %>%
+# #         ggplot(aes(
+# #             x = roc_distance, 
+# #             y = mean_est, 
+# #             colour = assigned_treatment
+# #         )) +
+# #         geom_line()
+
+
+# #     dist_prob_plot  
+
+
+
+# #     pred_df  %>%
+# #         filter(v_star > -5) %>%
+# #         ggplot(aes(
+# #             x = distance, 
+# #             colour = treatment, 
+# #             y = v_star
+# #         )) +
+# #         geom_line() +
+# #         geom_point()
+
+# #     pred_df %>%
+# #         filter(distance == max(distance))
+
+
+
+# #     pred_df %>%
+# #         ggplot(aes(
+# #             x = distance,
+# #             y = y_hat,
+# #             colour = treatment
+# #         )) +
+# #         geom_line()
+
+
+# #     analysis_data %>%
+# #         select(standard_cluster.dist.to.pot) %>%
+# #         summary()
+
+
+
+# #     ed = find_pred_takeup(
+# #         distance = 0.5, 
+# #         beta = betas[[1]], 
+# #         mu_beta = mu_betas[[1]], 
+# #         base_mu_rep = 0.121, 
+# #         total_error_sd = 1.2,
+# #         u_sd =0)
+
+# #     pred_df = tibble(
+# #         dist = seq(from = -2, to = 2, length.out = 100)
+# #     ) %>%
+# #         mutate(y_hat = ed(dist))
+
+
+# #     pred_df %>%
+# #         ggplot(aes(
+# #             x = dist,
+# #             y = y_hat
+# #         )) +
+# #         geom_point()
+
+
+
+# #     find_v_star(
+# #         distance = 0.5, 
+# #         beta = betas[[1]], 
+# #         mu_beta = mu_betas[[1]], 
+# #         base_mu_rep = 0.121, 
+# #         total_error_sd = 1.2,
+# #         u_sd =0)
 
 
 
@@ -1501,58 +1821,58 @@ ggsave(
 
 
 
-#     param_summary %>%
-#         head(11)
+# #     param_summary %>%
+# #         head(11)
 
 
 
-#     variables = fitted_draw_df %>%
-#         colnames()
+# #     variables = fitted_draw_df %>%
+# #         colnames()
 
-#     variables[!str_detect(variables, "cf")]
+# #     variables[!str_detect(variables, "cf")]
 
-#     model_fit$summary("beta_dist_v")
+# #     model_fit$summary("beta_dist_v")
 
-#     variables(model_fit)
-#     model_fit$variables()
-
-
-#     model_fit$metadata() %>% head(20)
-
-#     str(model_fit)
+# #     variables(model_fit)
+# #     model_fit$variables()
 
 
-#     dist_df = imap_dfr(
-#         mu_betas,
-#         ~expand.grid(
-#             dist = seq(from = 0, to = 4, length.out = 100)
-#         ) %>%
-#         tibble() %>%
-#         mutate(
-#             mu_rep = calculate_mu_rep(dist = dist, 
-#                                     base_mu_rep = clean_param_summary %>%  
-#                                         filter(variable == "base_mu_rep") %>%
-#                                         pull(mean), 
-#                                     mu_beliefs_effect = 1, 
-#                                     beta = .x[1], 
-#                                     dist_beta = .x[2], 
-#                                     beta_control = mu_betas[[1]][1]),
-#             treatment = treatments[.y]
-#         )
-#     ) %>%
-#         mutate(orig_dist = dist*dist_sd)
+# #     model_fit$metadata() %>% head(20)
+
+# #     str(model_fit)
 
 
-#     dist_df %>%
-#         # filter(treatment %in% c("bracelet", "control")) %>%
-#         ggplot(aes(
-#             x = orig_dist, 
-#             y = mu_rep, 
-#             colour = treatment
-#         )) +
-#         geom_point() +
-#         labs(title = "Mu(z, d) from model") +
-#         theme_bw()
+# #     dist_df = imap_dfr(
+# #         mu_betas,
+# #         ~expand.grid(
+# #             dist = seq(from = 0, to = 4, length.out = 100)
+# #         ) %>%
+# #         tibble() %>%
+# #         mutate(
+# #             mu_rep = calculate_mu_rep(dist = dist, 
+# #                                     base_mu_rep = clean_param_summary %>%  
+# #                                         filter(variable == "base_mu_rep") %>%
+# #                                         pull(mean), 
+# #                                     mu_beliefs_effect = 1, 
+# #                                     beta = .x[1], 
+# #                                     dist_beta = .x[2], 
+# #                                     beta_control = mu_betas[[1]][1]),
+# #             treatment = treatments[.y]
+# #         )
+# #     ) %>%
+# #         mutate(orig_dist = dist*dist_sd)
 
 
-}
+# #     dist_df %>%
+# #         # filter(treatment %in% c("bracelet", "control")) %>%
+# #         ggplot(aes(
+# #             x = orig_dist, 
+# #             y = mu_rep, 
+# #             colour = treatment
+# #         )) +
+# #         geom_point() +
+# #         labs(title = "Mu(z, d) from model") +
+# #         theme_bw()
+
+
+ }

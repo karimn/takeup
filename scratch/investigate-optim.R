@@ -19,12 +19,148 @@ optim_files = fs::dir_ls(
     regexp = "*optimal-allocation.rds"
 )
 
+
+pred_demand_df = read_csv(
+    "optim/data/all-treat-demand-dist-fit71-STRUCTURAL_LINEAR_U_SHOCKS.csv"
+)
+
 demand_files = fs::dir_ls(
-    "optim/data",
+    "optim/data/agg-log-full",
     regexp = "pred"
 )
 
-# demand_files = demand_files[!str_detect(demand_files, "no-cutoff")]
+extract_and_harmonise_variables = function(stan_df){
+    v_star_df = stan_df %>%
+        select(cluster_w_cutoff) %>%
+        unnest(cols = c(cluster_w_cutoff))  %>%
+        select(roc_distance, assigned_treatment, mean_est, per_0.5) %>%
+        rename(
+            dist = roc_distance,
+            treatment = assigned_treatment, 
+            mean_est = mean_est, 
+            median_est = per_0.5
+        ) %>%
+        mutate(variable = "v_star")
+
+    pred_takeup_df = stan_df %>%
+        select(obs_cluster_takeup_level) %>%
+        unnest(cols = c(obs_cluster_takeup_level)) %>%
+        select(
+            dist = assigned_dist_obs, 
+            treatment = assigned_treatment_obs, 
+            median_est = per_0.5
+        ) %>% 
+        mutate(variable = "actual_takeup")
+
+    rep_return_df = stan_df %>%
+        select(cluster_rep_return) %>%
+        unnest(cols = c(cluster_rep_return)) %>%
+        select( 
+            dist = roc_distance, 
+            mean_est = mean_est, 
+            median_est = per_0.5, 
+            treatment = assigned_treatment
+        ) %>% 
+        mutate(variable = "rep_return")
+
+    prop_df = stan_df %>%
+        select(cluster_takeup_prop) %>%
+        unnest(c(cluster_takeup_prop)) %>%
+        select(
+            dist = roc_distance, 
+            mean_est = mean_est, 
+            median_est = per_0.5, 
+            treatment = assigned_treatment
+        ) %>%
+        mutate(variable = "pred_takeup")
+
+    df = bind_rows(
+        v_star_df, 
+        pred_takeup_df, 
+        rep_return_df, 
+        prop_df
+    )
+    return(df)
+
+}
+
+
+
+
+fit_version = 71
+load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+
+stan_fit_df = dist_fit_data %>%
+    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(fct_match(fit_type, "fit"))
+
+stan_clean_df = extract_and_harmonise_variables(
+    stan_fit_df
+)
+
+
+pred_demand_df
+
+summ_df = pred_demand_df %>%
+    gather(variable, value, pred_takeup:total_error_sd) %>%
+    group_by(
+        dist, 
+        treatment, 
+        variable
+    ) %>%
+    summarise(
+        mean_est = mean(value), 
+        median_est = median(value)
+    ) %>%
+    ungroup()
+
+summ_df %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = treatment
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~variable, scales = "free")
+stop()
+
+
+summ_df %>%
+    filter(variable == "pred_takeup") %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = treatment
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~variable, scales = "free")
+
+
+comp_df = bind_rows(
+    summ_df %>% mutate(type = "ed"), 
+    stan_clean_df %>% mutate(type = 'stan')
+)
+
+stan_clean_df %>%
+    filter(variable == "pred_takeup")
+
+comp_df %>%
+    filter(variable == "pred_takeup") %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = type
+    )) +
+    geom_point() +
+    facet_wrap(~treatment)
+
+
+
+if (use_map_demand) {
+
+demand_files = demand_files[!str_detect(demand_files, "no-cutoff") & str_detect(demand_files, "STRUCTURAL_LINEAR_U_SHOCKS.csv")]
 
 demand_df = tibble(
     demand_file = demand_files
@@ -45,24 +181,6 @@ demand_df = demand_df  %>%
         model_type = str_extract(demand_file, str_glue("(?<=mu-{mu_type}-)(.*?)(?=\\.csv)"))
     )   
 
-# test_demand_df = demand_df %>%
-#     filter(cutoff_type == "cutoff") %>%
-#     filter(cutoff_type == "cutoff") %>%
-#     filter(mu_type == "bracelet") %>%
-#     filter(b_type == "control")   %>%
-#     unnest(demand_df) %>%
-#     filter(dist < 5000)
-
-# test_demand_df = test_demand_df %>%
-    # mutate(ed_d = 1 - pnorm(v_star/total_error_sd))
-
-
-# test_df = demand_df %>%
-#     filter(b_type == "control", mu_type == "bracelet") %>%
-#     unnest(demand_df) %>%
-#     filter(dist <= 5000)
-
-
 
 subset_demand_df = demand_df %>%
     select(-demand_file) %>%
@@ -73,22 +191,56 @@ subset_demand_df = demand_df %>%
                 filter(.x, dist <= 10000) %>%
                 filter(model != "REDUCED_FORM_NO_RESTRICT") %>%
                     group_by(village_i, pot_j) %>%
-                    summarise(across(where(is.numeric), median, na.rm = TRUE))
+                    summarise(across(where(is.numeric), mean, na.rm = TRUE))
             }
         )
     )  %>%
     select(-demand_df)
 
+
+
 rm(demand_df)
 
 long_subset_demand_df = subset_demand_df %>%
     unnest(subset_df)
+}
+
+
+long_subset_demand_df %>%
+    filter(b_type == mu_type) %>%
+    filter(cutoff_type == "cutoff") %>%
+    filter(dist < 2500) %>%
+
+    ggplot(aes(
+        x = dist, 
+        y = demand, 
+        colour = b_type
+    )) +
+    geom_point()
+
+long_subset_demand_df %>%
+    filter(b_type == mu_type) %>%
+    filter(cutoff_type == "cutoff") %>%
+    filter(dist < 2500) %>%
+    mutate(close = dist < 1250)  %>%
+    select( 
+        b_type, 
+        mu_type, 
+        dist, 
+        demand, 
+        close
+    )  %>%
+    group_by(
+        b_type, 
+        close
+    ) %>%
+    summarise(
+        mean_demand = mean(demand)
+    )
 
 
 
 plot_demand_panels = function(long_data, cutoff, model, b = "control"){
-
-    cutoff_distance = if_else(cutoff == "cutoff", 2.5, 10)
     p = long_data %>%
         filter(cutoff_type == cutoff) %>%
         filter(model_type == model) %>%
@@ -117,53 +269,189 @@ plot_demand_panels = function(long_data, cutoff, model, b = "control"){
 
     return(p)
 }
-stop()
 
 
 long_subset_demand_df %>%
-    # filter(b_type == "calendar") %>%
-    filter(mu_type == "calendar") %>%
-    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
-    filter(cutoff_type == "cutoff") %>%
+        filter(cutoff_type == "cutoff") %>%
+        filter(b_type == mu_type)  %>%
+        filter(dist <= 3500) %>%
+        gather(variable, value, demand:v_star) %>%
+        mutate(variable = factor(variable,
+                                levels = c("b", "v_star", "delta_v_star", "mu_rep", "linear_pred", "demand"))) %>%
+        ggplot(aes(
+            x = dist, 
+            y = value, 
+            colour = mu_type
+        )) +
+        facet_wrap(~variable, scales = "free") +
+        geom_point(alpha = 0.1) +
+        geom_line() +
+        theme_bw() +
+        theme(legend.position = "bottom")
+
+
+
+stan_fit_df %>%
+    select(cluster_w_cutoff) %>%
+    unnest()  %>%
+    filter(assigned_treatment == "bracelet") %>%
     ggplot(aes(
-        x = dist, 
-        y = demand, 
-        colour = b_type
-    )) +
+        x = roc_distance, 
+        y =  mean_est, 
+        colour = assigned_treatment
+    ))  +
     geom_point() +
-    scale_y_continuous(breaks = seq(from = 0, to = 0.5, by = 0.1)) +
-    labs(title = "mu type = calendar")
-ggsave("temp-plots/tmp.png", width = 8, height = 8, dpi = 500)
+    geom_line()
+
+
+
+
+stan_clean_df %>%
+    filter(
+        variable == "takeup_prop"
+    )  
 
 
 long_subset_demand_df %>%
-    filter(mu_type == b_type, b_type == "calendar") %>%
-    filter(cutoff_type == "cutoff") %>%
-    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
-    filter(demand > 0) %>%
-    summarise(
-        n_pots = n_distinct(pot_j), 
-        demand = mean(demand)
-    )
-
-long_subset_demand_df %>%
-    filter(mu_type == b_type, b_type == "calendar") %>%
-    filter(cutoff_type == "cutoff") %>%
-    filter(model_type == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
-    filter(demand > 0) %>%
-    summarise(
-        n_pots = n_distinct(pot_j), 
-        demand = mean(demand)
-    )
+        filter(cutoff_type == "cutoff") %>%
+        filter(b_type == mu_type)  %>%
+        filter(dist <= 3500)  %>%
+        select(dist, demand, b_type) %>%
+        filter(dist < 100)
 
 
 
 
+stan_clean_df %>%
     ggplot(aes(
         x = dist, 
-        y = demand
+        y = median_est, 
+        colour = treatment
     )) +
-    geom_point()
+    facet_wrap(~variable, scales = "free") +
+    geom_point() +
+    geom_line()
+
+
+stan_clean_df %>%
+    filter(variable == "pred_takeup")
+
+long_subset_demand_df %>%
+        filter(cutoff_type == "cutoff") %>%
+        filter(b_type == mu_type)  %>%
+        filter(dist <= 3500) %>%
+        gather(variable, value, demand:v_star) %>%
+        filter(variable == "v_star") %>%
+        filter(b_type == "bracelet") %>%
+        mutate(variable = factor(variable,
+                                levels = c("b", "v_star", "delta_v_star", "mu_rep", "linear_pred", "demand"))) %>%
+        ggplot(aes(
+            x = dist, 
+            y = value, 
+            colour = mu_type
+        )) +
+        geom_point(alpha = 0.1) +
+        geom_line() +
+        theme_bw() +
+        theme(legend.position = "bottom")
+
+stan_fit_df %>%
+    select(obs_cluster_takeup_level) %>%
+    unnest() %>%
+    filter(assigned_dist_obs < 200) %>%
+    filter(assigned_treatment == "bracelet") %>%
+    select(assigned_dist_obs, contains("per"))
+
+
+
+long_subset_demand_df %>%
+        filter(cutoff_type == "cutoff") %>%
+        filter(b_type == "control")  %>%
+        filter(dist <= 3500) %>%
+        gather(variable, value, demand:v_star) %>%
+        mutate(variable = factor(variable,
+                                levels = c("b", "v_star", "delta_v_star", "mu_rep", "linear_pred", "demand"))) %>%
+        ggplot(aes(
+            x = dist, 
+            y = value, 
+            colour = mu_type
+        )) +
+        facet_wrap(~variable, scales = "free") +
+        geom_point(alpha = 0.1) +
+        geom_line() +
+        theme_bw() +
+        theme(legend.position = "bottom")
+ggsave(
+    "temp-plots/b-control-mu-vary.png",
+    width = 10,
+    height = 10
+)
+
+long_subset_demand_df %>%
+        filter(cutoff_type == "cutoff") %>%
+        filter(mu_type == "control")  %>%
+        filter(dist <= 3500) %>%
+        gather(variable, value, demand:v_star) %>%
+        mutate(variable = factor(variable,
+                                levels = c("b", "v_star", "delta_v_star", "mu_rep", "linear_pred", "demand"))) %>%
+        ggplot(aes(
+            x = dist, 
+            y = value, 
+            colour = b_type
+        )) +
+        facet_wrap(~variable, scales = "free") +
+        geom_point(alpha = 0.1) +
+        geom_line() +
+        theme_bw() +
+        theme(legend.position = "bottom")
+
+ggsave(
+    "temp-plots/b-vary-mu-control.png",
+    width = 10,
+    height = 10
+)
+
+long_subset_demand_df %>%
+        filter(cutoff_type == "cutoff") %>%
+        filter(b_type == mu_type) %>%
+        filter(dist <= 2500) %>%
+        ggplot(aes(
+            x = dist, 
+            y = demand, 
+            colour = b_type
+        )) +
+        geom_point() +
+        geom_vline(
+            xintercept = 2500
+        )
+
+long_subset_demand_df %>%
+        filter(cutoff_type == "cutoff") %>%
+        filter(b_type == mu_type) %>%
+        filter(dist <= 3500) %>%
+        gather(variable, value, demand:v_star) %>%
+        mutate(
+            variable = factor(variable,
+                                levels = c(
+                                    "b", 
+                                    "v_star", 
+                                    "delta_v_star", 
+                                    "mu_rep", 
+                                    "linear_pred", 
+                                    "demand"))
+        )  %>%
+        ggplot(aes(
+            x = dist, 
+            y = value, 
+            colour = mu_type
+        )) +
+        facet_wrap(~variable, scales = "free") +
+        geom_point(alpha = 0.1) +
+        geom_line() +
+        theme_bw() +
+        theme(legend.position = "bottom")
+
+
 
 p_panels_normal = plot_demand_panels(long_subset_demand_df, "cutoff", "STRUCTURAL_LINEAR_U_SHOCKS", b = "calendar")
 
