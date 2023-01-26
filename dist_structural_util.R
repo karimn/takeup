@@ -709,11 +709,15 @@ calculate_delta <- function(w, total_error_sd, u_sd) {
 } 
 
 analytical_delta = function(w, u_sd) {
-  r = (-1/u_sd) * exp(-0.5*(w^2/(u_sd^2 + 1)))*(1/sqrt(2*pi)) * sqrt((u_sd^2)/(1 + u_sd^2))
-  F_w = pnorm(w, sd = sqrt(u_sd^2 + 1))
+  total_error_sd = sqrt(u_sd^2 + 1)
+  F_w = pnorm(w, sd = total_error_sd)
+
+  r = (-1/u_sd) * exp(-0.5 *(w^2)/(u_sd^2 + 1)) * (1/sqrt(2*pi)) * sqrt((u_sd^2)/(1 + u_sd^2))
+
   val = -r / (F_w * (1 - F_w))
   return (-r / (F_w*(1-F_w)))
 }
+
 analytical_delta_deriv = function(w, u_sd, delta_w = NULL) {
   w_sd = sqrt(1 + u_sd^2)
   Sigma = sqrt((u_sd^2)/(1 + u_sd^2))
