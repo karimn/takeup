@@ -31,17 +31,17 @@ fi
 
 # Setting arguments
 PRED_DISTANCE="" # --pred-distance
-MODEL="STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP"
+MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
 SKIP_PREDICTION=0 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
-RUN_TARGET_CREATION=0
+RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
-COUNTY="siaya"
+COUNTY="full"
 OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
 PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
 DATA_INPUT_NAME="${COUNTY}-experiment.rds"
@@ -53,18 +53,12 @@ mkdir -p ${PLOT_OUTPUT_PATH}
 
 set -e
 
-if [ ${COUNTY} == "full" ]
-then
-    COUNTY_VAR=""
-else 
-    COUNTY_VAR=${COUNTY}
-fi
 
 
 Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
     --num-extra-pots=4 \
-    --county=${COUNTY_VAR}
+    --county-subset=${COUNTY}
 
 if [ ${POSTERIOR_MEDIAN} == "--posterior-median" ] 
 then 
@@ -80,7 +74,7 @@ run_optim () {
     then
         CUTOFF_DIST=10000
     else
-        CUTOFF_DIST=2500
+        CUTOFF_DIST=3500
     fi
 
     # Gurobi doesn't play nice with renv atm
@@ -113,6 +107,7 @@ run_optim () {
             pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
             --input-path=${OUTPUT_PATH} \
             --output-path=${OUTPUT_PATH} \
+            --num-cores=${NUM_CORES} \
             --output-basename=target-${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
     fi
 
@@ -156,19 +151,24 @@ run_optim () {
 
 CUTOFF=""
 ## Cutoff
-run_optim "control" "control"
-run_optim "control" "bracelet"
-
-run_optim "control" "calendar"
+# run_optim "control" "control"
+# run_optim "control" "bracelet"
+# run_optim "control" "calendar"
+# run_optim "control" "ink"
 
 # run_optim "bracelet" "bracelet"
 
+# run_optim "bracelet" "control"
+
+run_optim "ink" "control"
+
 
 CUTOFF="no-"
+# run_optim "control" "ink"
+
 # ## No Cutoff
-run_optim "control" "control"
-run_optim "control" "bracelet"
-
-run_optim "control" "calendar"
-
+# run_optim "control" "control"
+# run_optim "control" "bracelet"
+# run_optim "control" "calendar"
+# run_optim "control" "ink"
 # run_optim "bracelet" "bracelet"
