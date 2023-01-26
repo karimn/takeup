@@ -2,9 +2,6 @@ library(tidyverse)
 library(cmdstanr)
 
 params = list(structural_takeup_version = 71)
-
-
-
 dist_fit_data <- str_split(params$structural_takeup_version, ",") %>% 
   pluck(1) %>% 
   as.integer() %>% 
@@ -114,6 +111,7 @@ dist_fit_data %>%
 
 
 ggsave("temp-data/mu-by-d.png", width = 10, height = 10, dpi = 500)
+
 dist_fit_data %>% 
   filter(fct_match(model_type, "structural"))  %>%
   filter(fit_type == "fit") %>%

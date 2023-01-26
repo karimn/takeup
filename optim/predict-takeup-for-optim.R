@@ -391,210 +391,81 @@ if (script_options$fit_rf) {
 }
 
 if (script_options$pred_distance) {
+df = expand.grid(
+    w = seq(from = -2, to = 2, length.out = 100), 
+    u_sd = c(0.1, 0.5, 1)
+) %>% 
+    as_tibble()
 
-    max_draw = max(struct_param_draws$.draw)
-    draw_treat_grid = expand.grid(
-        draw = sample(1:max_draw, size = 100),
-        treatment = c("control", "calendar", "bracelet", "ink") 
+df = df %>% 
+    mutate(
+        ed = analytical_delta(w, u_sd), 
+        stan = map2_dbl(
+            w, 
+            u_sd, 
+            ~exposed_funcs$expected_delta(
+        w = .x,
+        u_sd = .y, 
+        total_error_sd = sqrt(1 + .y^2),
+        x_r = 1,
+        x_i = 1
     )
-
-
-    dist_data = read_rds(
-        file.path(
-            script_options$data_input_path,
-            script_options$data_input_name
         )
     )
 
-    sd_of_dist = dist_data$sd_of_dist
 
-    source("optim/optim-functions.R")
-    pred_functions = map2(
-        draw_treat_grid$draw,
-        draw_treat_grid$treatment,
-        ~extract_params(
-            param_draws = struct_param_draws,
-            private_benefit_treatment = .y,
-            visibility_treatment = .y,
-            draw_id = .x,
-            dist_sd = sd_of_dist,
-            j_id = 1,
-            rep_cutoff = Inf,
-            dist_cutoff = Inf, 
-            bounds = script_options$bounds,
-            mu_rep_type = mu_rep_type
-        ) %>% find_pred_takeup()
+df %>%
+    gather(variable, 
+    value, ed:stan) %>%
+    ggplot(aes(
+        x = w, 
+        y = value, 
+        colour = variable
+    )) +
+    geom_point()
+
+
+w = 0.2
+u_sd = 0.3
+b = 0.2
+mu = 0.4
+total_error_sd = sqrt(u_sd^2 + 1)
+    analytical_delta(
+        w = w,
+        u_sd = u_sd 
     )
 
+    exposed_funcs$expected_delta(
+        w = w,
+        u_sd = u_sd, 
+        total_error_sd = sqrt(1 + u_sd^2),
+        x_r = 1,
+        x_i = 1
 
-    library(furrr)
-    plan(multicore, workers = script_options$num_cores)
-    dist_df = tibble(
-        dist = seq(from = 0, to = 5000, by = 100)
-    )
-    pred_dist_df = future_imap_dfr(
-        pred_functions,
-        ~{
-            dist_df %>%
-                mutate( 
-                    as_tibble(.x(dist)),
-                    draw = draw_treat_grid[.y, "draw"],
-                    treatment = draw_treat_grid[.y, "treatment"]
-                )
-        },
-        .options = furrr_options(
-            seed = TRUE
-        ),
-        .progress = TRUE
     )
 
+   g_f = generate_v_cutoff_fixedpoint(
+    b = b, 
+    mu = mu,
+    total_error_sd = total_error_sd, 
+    u_sd = u_sd
+   ) 
 
+    stan_soln
+    nleqslv(fn = g_f,x =  -b)
 
+    stan_soln = exposed_funcs$find_fixedpoint_solution(
+        benefit_cost = b,
+        mu_rep = mu,
+        total_error_sd = total_error_sd,
+        u_sd = u_sd,
 
-
-
-
-
-
-
-extract_and_harmonise_variables = function(stan_df){
-    v_star_df = stan_df %>%
-        select(cluster_w_cutoff) %>%
-        unnest(cols = c(cluster_w_cutoff))  %>%
-        select(roc_distance, assigned_treatment, mean_est, per_0.5) %>%
-        rename(
-            dist = roc_distance,
-            treatment = assigned_treatment, 
-            mean_est = mean_est, 
-            median_est = per_0.5
-        ) %>%
-        mutate(variable = "v_star")
-
-    pred_takeup_df = stan_df %>%
-        select(obs_cluster_takeup_level) %>%
-        unnest(cols = c(obs_cluster_takeup_level)) %>%
-        select(
-            dist = assigned_dist_obs, 
-            treatment = assigned_treatment_obs, 
-            median_est = per_0.5
-        ) %>% 
-        mutate(variable = "actual_takeup")
-
-
-    rep_return_df = stan_df %>%
-        select(cluster_rep_return) %>%
-        unnest(cols = c(cluster_rep_return)) %>%
-        select( 
-            dist = roc_distance, 
-            mean_est = mean_est, 
-            median_est = per_0.5, 
-            treatment = assigned_treatment
-        ) %>% 
-        mutate(variable = "rep_return")
-
-    prop_df = stan_df %>%
-        select(cluster_takeup_prop) %>%
-        unnest(c(cluster_takeup_prop)) %>%
-        select(
-            dist = roc_distance, 
-            mean_est = mean_est, 
-            median_est = per_0.5, 
-            treatment = assigned_treatment
-        ) %>%
-        mutate(variable = "pred_takeup")
-
-    df = bind_rows(
-        v_star_df, 
-        pred_takeup_df, 
-        rep_return_df, 
-        prop_df
+        use_u_in_delta = 1,
+        alg_sol_f_tol = 0.001,
+        alg_sol_max_steps = 1e9L,
+        alg_sol_rel_tol = 0.0000001
     )
-    return(df)
 
-}
-
-
-params = list(structural_takeup_version = 71)
-dist_fit_data <- str_split(params$structural_takeup_version, ",") %>% 
-  pluck(1) %>% 
-  as.integer() %>% 
-  map_dfr(~ {
-    temp_env <- new.env()
-    load(file.path("temp-data", str_glue("processed_dist_fit{.x}.RData")), envir = temp_env)
-    
-    temp_env$dist_fit_data %>% 
-      filter(fct_match(model_type, "structural")) %>% 
-      mutate(version = .x)
-  }) %>% 
-  group_by(model, fit_type, model_type) %>% 
-  filter(min_rank(version) == n()) %>% 
-  ungroup()
-
-
-
-# fit_version = 71
-# load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-
-stan_fit_df = dist_fit_data %>%
-    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
-    filter(fct_match(fit_type, "fit"))
-
-stan_clean_df = extract_and_harmonise_variables(
-    stan_fit_df
-)
-
-
-load(file.path("data", "analysis.RData"))
-
-standardize <- as_mapper(~ (.) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original)
-# stick to monitored sms.treatment group
-# remove sms.treatment.2
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-
-analysis_data <- monitored_nosms_data %>% 
-mutate(
-    assigned_treatment = assigned.treatment, 
-    assigned_dist_group = dist.pot.group,
-    sms_treatment = factor(sms.treatment.2))
-
-stan_mu_df = dist_fit_data %>% 
-  filter(fct_match(model_type, "structural"))  %>%
-  filter(fit_type == "fit") %>%
-  filter(model == 'STRUCTURAL_LINEAR_U_SHOCKS') %>%
-  select(fit_type, model, obs_cluster_mu_rep)   %>%
-  unnest(obs_cluster_mu_rep) %>%
-  unnest(iter_data)  %>%
-  group_by(variable, model) %>%
-  summarise(
-    median = median(iter_est), 
-    mean = mean(iter_est), 
-    conf.low = quantile(iter_est, 0.25), 
-    conf.high = quantile(iter_est, 0.75)) %>%
-  mutate(cluster_id = str_extract(variable, "\\d+") %>% as.numeric) %>%
-  arrange(cluster_id) %>%
-  left_join(
-    analysis_data %>%
-        select(cluster_id,assigned_dist_group, assigned.treatment, cluster.dist.to.pot), 
-        by = "cluster_id"
-  ) 
-
-summ_stan_mu_df = stan_mu_df %>%
-    ungroup() %>%
-    select(
-        dist = cluster.dist.to.pot, 
-        treatment = assigned.treatment, 
-        median_est = median, 
-        mean_est = mean
-    ) %>%
-    unique() 
 
 
 
@@ -608,31 +479,6 @@ summ_stan_mu_df = stan_mu_df %>%
     geom_line()
 
 
-    summ_df = pred_dist_df %>%
-        gather(variable, value, pred_takeup:total_error_sd) %>%
-        group_by(
-            dist, 
-            treatment, 
-            variable
-        ) %>%
-        summarise(
-            mean_est = mean(value), 
-            median_est = median(value)
-        ) %>%
-        ungroup() 
-
-
-    comp_df = bind_rows(
-        summ_df %>% mutate(type = "ed"), 
-        stan_clean_df %>% mutate(type = 'stan') %>%
-            filter(variable != "mu_rep"),
-        summ_stan_mu_df %>% 
-            mutate(type = "stan") %>% 
-            mutate(variable = "mu_rep")
-)
-
-stan_clean_df %>%
-    filter(variable == "pred_takeup")
 
 comp_df %>%
     filter(variable == "pred_takeup") %>%

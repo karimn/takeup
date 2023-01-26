@@ -150,11 +150,25 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              rep_cutoff = Inf,
                              bounds,
                              mu_rep_type, 
-                             control) {
+                             private_benefit_treatment, 
+                             visibility_treatment,
+                             beta_b_control) {
     function(distance){
+      
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
-        b = beta_b_z - beta_b_d*distance
+        if (private_benefit_treatment == "control") {
+          b = beta_b_z - beta_b_d*distance
+        } else {
+          # Stan uses X\beta where X a design matrix with control always on
+          b = beta_b_z - beta_b_d*distance + beta_b_control 
+        }
+
+        if (visibility_treatment == "control") {
+          mu_rep_control_param = TRUE
+        } else {
+          mu_rep_control_param = FALSE
+        }
 
         mu_rep = calculate_mu_rep(
             dist = distance,
@@ -165,7 +179,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             beta_control = mu_beta_z_control,
             dist_beta_control = mu_beta_d_control,
             mu_rep_type = mu_rep_type, 
-            control = control)
+            control = mu_rep_control_param)
         # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
         cutoff_mu_rep = calculate_mu_rep(
             dist = rep_cutoff/dist_sd,
@@ -176,7 +190,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
             beta_control = mu_beta_z_control,
             dist_beta_control = mu_beta_d_control,
             mu_rep_type = mu_rep_type, 
-            control = control)
+            control = mu_rep_control_param)
         mu_rep[which(over_cutoff)] = cutoff_mu_rep
 
         v_star_soln = find_v_star(
@@ -212,7 +226,10 @@ find_pred_takeup = function(params) {
         rep_cutoff = params$rep_cutoff,
         bounds = params$bounds,
         mu_rep_type = params$mu_rep_type, 
-        control = params$control
+        beta_b_control = params$beta_b_control, 
+        private_benefit_treatment = params$private_benefit_treatment, 
+        visibility_treatment = params$visibility_treatment
+
     )
 }
 
@@ -269,7 +286,13 @@ extract_params = function(param_draws,
             .variable == "base_mu_rep"  & (j == j_id | is.na(j))
         ) %>%
         pull(.value)
-    control = if_else(visibility_treatment == "control", TRUE, FALSE)
+    
+    beta_b_control = draw_df %>%
+      filter(
+        .variable == "beta" & (j == j_id | is.na(j)) & k == 1
+      )  %>%
+      pull(.value)
+
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 
@@ -280,7 +303,9 @@ extract_params = function(param_draws,
         "rep_cutoff" = rep_cutoff,
         "bounds" = list(bounds),
         "mu_rep_type" = mu_rep_type, 
-        control = control
+        "private_benefit_treatment" = as.character(private_benefit_treatment), 
+        "visibility_treatment" = as.character(visibility_treatment), 
+        "beta_b_control" = beta_b_control
         ) %>%
         as.list()
 

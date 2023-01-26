@@ -1,17 +1,4 @@
-library(tidyverse)
-library(sf)
-library(broom)
 
-
-                                # --optim-input-a-filename=no-cutoff-${VARIABLE}-${POSTVAR}-optimal-allocation.rds \
-                                # --village-input-filename=village-df.csv \
-                                # --pot-input-filename=pot-df.csv \
-                                # --demand-input-a-filename=pred-demand-dist-fit${VERSION}-no-cutoff-${VARIABLE}.csv \
-                                # --output-path=optim/plots \
-                                # --output-basename=no-cutoff-${VARIABLE}-${POSTVAR} \
-                                # --map-plot \
-                                # --cutoff-type=no-cutoff
-theme_set(theme_minimal())
 
 
 optim_files = fs::dir_ls(
@@ -88,10 +75,10 @@ extract_and_harmonise_variables = function(stan_df){
 
 
 fit_version = 71
-load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.rdata")))
 
 stan_fit_df = dist_fit_data %>%
-    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+    filter(model == "structural_linear_u_shocks") %>%
     filter(fct_match(fit_type, "fit"))
 
 stan_clean_df = extract_and_harmonise_variables(
@@ -101,18 +88,6 @@ stan_clean_df = extract_and_harmonise_variables(
 
 pred_demand_df
 
-summ_df = pred_demand_df %>%
-    gather(variable, value, pred_takeup:total_error_sd) %>%
-    group_by(
-        dist, 
-        treatment, 
-        variable
-    ) %>%
-    summarise(
-        mean_est = mean(value), 
-        median_est = median(value)
-    ) %>%
-    ungroup()
 
 summ_df %>%
     ggplot(aes(
@@ -155,6 +130,8 @@ comp_df %>%
     )) +
     geom_point() +
     facet_wrap(~treatment)
+
+    ggsave("temp-plots/uh-oh.png", width = 8, height = 6, dpi = 500)
 
 
 
