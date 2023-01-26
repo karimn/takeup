@@ -25,14 +25,14 @@ script_options <- docopt::docopt(
                             --welfare-function=log \
                             --min-cost \
                             --posterior-median \
-                            --optim-input-path=optim/data/agg-log-siaya \
-                            --demand-input-path=optim/data/agg-log-siaya \
-                            --optim-input-a-filename=no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation.rds \
-                            --demand-input-a-filename=pred-demand-dist-fit71-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP.csv \
-                            --output-path=optim/plots/agg-log-siaya \
-                            --output-basename=agg-log-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median \
+                            --optim-input-path=optim/data/agg-log-kakamega \
+                            --demand-input-path=optim/data/agg-log-kakamega \
+                            --optim-input-a-filename=cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
+                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                            --output-path=optim/plots/agg-log-kakamega \
+                            --output-basename=agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
-                            --data-input-name=SIAYA-experiment.rds
+                            --data-input-name=KAKAMEGA-experiment.rds
 
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -84,7 +84,6 @@ dist_data = read_rds(
 
 village_data = dist_data$village_df
 pot_data = dist_data$pot_df
-
 
 n = nrow(village_data)
 m = nrow(pot_data)

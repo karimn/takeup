@@ -236,7 +236,7 @@ demand_data = demand_data %>%
     demand_data = map(
       demand_data,
       ~{
-        mutate(.x, util = ifelse(!is.finite(util), v_neg_value*100, util))
+        mutate(.x, util = ifelse(!is.finite(util), v_neg_value*300, util))
       }
       )
   )
