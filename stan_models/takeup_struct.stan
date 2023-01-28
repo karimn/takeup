@@ -41,6 +41,7 @@ data {
   int<lower=0> num_mu_treatments;
   int<lower=0> num_optim_distances;
   vector[num_optim_distances] optim_distances; // These should be standardized already too
+  int<lower = 0, upper = 1> USE_MAP_IN_OPTIM;
 
 
   // Sim Delta
