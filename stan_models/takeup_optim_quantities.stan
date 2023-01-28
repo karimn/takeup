@@ -25,18 +25,33 @@ for (B_treatment_index in 1:num_B_treatments) {
             rep_matrix(centered_cluster_dist_beta_1ord[1, :], num_optim_distances),
             mu_rep_type
         );
+        if (USE_MAP_IN_OPTIM) {
+            optim_w[B_treatment_index, mu_treatment_index, :] = map_find_fixedpoint_solution(
+                net_private_benefit,
+                visibility,
+                rep_vector(total_error_sd[B_treatment_index], num_optim_distances),
+                rep_vector(u_sd[B_treatment_index], num_optim_distances),
 
-        optim_w[B_treatment_index, mu_treatment_index, :] = map_find_fixedpoint_solution(
-            net_private_benefit,
-            visibility,
-            rep_vector(total_error_sd[B_treatment_index], num_optim_distances),
-            rep_vector(u_sd[B_treatment_index], num_optim_distances),
+                use_u_in_delta,
+                alg_sol_rel_tol,
+                alg_sol_f_tol,
+                alg_sol_max_steps
+            );
+        } else {
+            for (dist_index in 1:num_optim_distances)
+            optim_w[B_treatment_index, mu_treatment_index, dist_index] = find_fixedpoint_solution(
+                net_private_benefit[dist_index],
+                visibility[dist_index],
+                total_error_sd[B_treatment_index],
+                u_sd[B_treatment_index],
 
-            use_u_in_delta,
-            alg_sol_rel_tol,
-            alg_sol_f_tol,
-            alg_sol_max_steps
-        );
+                use_u_in_delta,
+                alg_sol_rel_tol,
+                alg_sol_f_tol,
+                alg_sol_max_steps
+            );
+
+        }
     }
 }
 

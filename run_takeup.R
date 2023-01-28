@@ -563,6 +563,7 @@ stan_data <- lst(
   num_optim_distances = length(optim_distances),
   num_B_treatments = 4,
   num_mu_treatments = 4,
+  USE_MAP_IN_OPTIM = 0,
   
   sim_delta_w = seq(-2, 2, 0.2),
   num_sim_delta_w = length(sim_delta_w),
