@@ -40,7 +40,7 @@ data {
   int<lower=0> num_B_treatments;
   int<lower=0> num_mu_treatments;
   int<lower=0> num_optim_distances;
-  vector[num_optim_distances] optim_distances; // These should be standardized already too
+  vector<lower=-1>[num_optim_distances] optim_distances; // These should be standardized already too
 
 
   // Sim Delta
@@ -342,10 +342,10 @@ generated quantities {
   real wtp_travel_dist = dist_beta_v[1] / wtp_value_utility;
   real calendar_preference_in_dist = hyper_wtp_mu / wtp_travel_dist;
   
+#include takeup_optim_quantities.stan
 #include wtp_generated_quantities.stan
 #include takeup_struct_cv.stan
 #include takeup_struct_quantities.stan
-#include takeup_optim_quantities.stan
 
   {
     int treatment_cluster_pos = 1;

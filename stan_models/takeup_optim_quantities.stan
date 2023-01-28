@@ -16,15 +16,16 @@ for (B_treatment_index in 1:num_B_treatments) {
 
 
         visibility = calculate_mu_rep(
-            {mu_treatment_index}, // treatment ids
+            { mu_treatment_index }, // treatment ids
             optim_distances, // distance
             base_mu_rep, // baseline mu rep
             1, // baseline thing
             beliefs_treatment_map_design_matrix, // 
-            centered_cluster_beta_1ord,
-            centered_cluster_dist_beta_1ord,
+            rep_matrix(centered_cluster_beta_1ord[1, :], num_optim_distances),
+            rep_matrix(centered_cluster_dist_beta_1ord[1, :], num_optim_distances),
             mu_rep_type
         );
+
         optim_w[B_treatment_index, mu_treatment_index, :] = map_find_fixedpoint_solution(
             net_private_benefit,
             visibility,

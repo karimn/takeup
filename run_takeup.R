@@ -51,6 +51,7 @@ library(magrittr)
 library(tidyverse)
 library(furrr)
 library(HRW)
+library(sf)
 library(loo)
 
 script_options %<>% 
@@ -477,6 +478,16 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
 } %>%
   arrange(treatment_id, treatment_id_control) 
 
+
+# Optim Distance Data -----------------------------------------------------
+
+distance_data = read_rds(
+  "optim/data/full-experiment.rds"
+)
+
+optim_distance_df = distance_data$long_distance_mat %>%
+  filter(dist < 10000) %>%
+  mutate(standardised_dist = dist/ sd(analysis_data$cluster.dist.to.pot))
 # Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
@@ -548,7 +559,7 @@ stan_data <- lst(
   num_roc_distances = length(roc_distances),
 
 
-  optim_distances = seq(0, 3500, length.out = 2) / sd(analysis_data$cluster.dist.to.pot),
+  optim_distances = optim_distance_df$standardised_dist,
   num_optim_distances = length(optim_distances),
   num_B_treatments = 4,
   num_mu_treatments = 4,
