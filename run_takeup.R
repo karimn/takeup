@@ -37,8 +37,8 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit71 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP  \
+    --outputname=dist_fit75 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -546,6 +546,12 @@ stan_data <- lst(
   
   roc_distances = seq(0, 5000, 100) / sd(analysis_data$cluster.dist.to.pot),
   num_roc_distances = length(roc_distances),
+
+
+  optim_distances = seq(0, 3500, length.out = 2) / sd(analysis_data$cluster.dist.to.pot),
+  num_optim_distances = length(optim_distances),
+  num_B_treatments = 4,
+  num_mu_treatments = 4,
   
   sim_delta_w = seq(-2, 2, 0.2),
   num_sim_delta_w = length(sim_delta_w),

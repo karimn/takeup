@@ -36,6 +36,13 @@ data {
   int<lower = 0> num_roc_distances;
   vector<lower = 0>[num_roc_distances] roc_distances; // These should be standardized already
  
+  // Optim Prediction
+  int<lower=0> num_B_treatments;
+  int<lower=0> num_mu_treatments;
+  int<lower=0> num_optim_distances;
+  vector[num_optim_distances] optim_distances; // These should be standardized already too
+
+
   // Sim Delta
   
   int<lower = 0> num_sim_delta_w;
@@ -338,6 +345,7 @@ generated quantities {
 #include wtp_generated_quantities.stan
 #include takeup_struct_cv.stan
 #include takeup_struct_quantities.stan
+#include takeup_optim_quantities.stan
 
   {
     int treatment_cluster_pos = 1;
