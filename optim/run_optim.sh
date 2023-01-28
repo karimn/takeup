@@ -151,24 +151,23 @@ run_optim () {
 
 CUTOFF=""
 ## Cutoff
-# run_optim "control" "control"
-# run_optim "control" "bracelet"
-# run_optim "control" "calendar"
-# run_optim "control" "ink"
+run_optim "control" "control"
+run_optim "control" "bracelet"
+run_optim "control" "calendar"
+run_optim "control" "ink"
 
-# run_optim "bracelet" "bracelet"
+run_optim "bracelet" "bracelet"
 
-# run_optim "bracelet" "control"
+run_optim "bracelet" "control"
 
 run_optim "ink" "control"
 
 
 CUTOFF="no-"
-# run_optim "control" "ink"
 
 # ## No Cutoff
-# run_optim "control" "control"
-# run_optim "control" "bracelet"
-# run_optim "control" "calendar"
-# run_optim "control" "ink"
-# run_optim "bracelet" "bracelet"
+run_optim "control" "control"
+run_optim "control" "bracelet"
+run_optim "control" "calendar"
+run_optim "control" "ink"
+run_optim "bracelet" "bracelet"
