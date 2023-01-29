@@ -42,6 +42,7 @@ data {
   int<lower=0> num_optim_distances;
   vector[num_optim_distances] optim_distances; // These should be standardized already too
   int<lower = 0, upper = 1> USE_MAP_IN_OPTIM;
+  int<lower = 0, upper = 1> GEN_OPTIM;
 
 
   // Sim Delta
@@ -343,7 +344,6 @@ generated quantities {
   real wtp_travel_dist = dist_beta_v[1] / wtp_value_utility;
   real calendar_preference_in_dist = hyper_wtp_mu / wtp_travel_dist;
   
-#include takeup_optim_quantities.stan
 #include wtp_generated_quantities.stan
 #include takeup_struct_cv.stan
 #include takeup_struct_quantities.stan
@@ -454,5 +454,9 @@ generated quantities {
   
   for (sim_delta_index in 1:num_sim_delta_w) {
     sim_delta[sim_delta_index] = expected_delta(sim_delta_w[sim_delta_index], total_error_sd[1], u_sd[1], dummy_xr, dummy_xi);
+  }
+
+  if (GEN_OPTIM) {
+    #include takeup_optim_quantities.stan
   }
 }

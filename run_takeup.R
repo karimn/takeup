@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -464,7 +464,7 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
     #   mutate(., treatment_id_control = 1) %>% 
     #     filter(treatment_id != treatment_id_control) %>% 
     #     select(treatment_id, treatment_id_control)
-    # } else {
+    # } else { 
       bind_rows(
         left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
           filter(assigned_treatment != assigned_treatment_control) %>% 
@@ -480,14 +480,15 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
 
 
 # Optim Distance Data -----------------------------------------------------
+if (script_options$gen_optim) {
+  distance_data = read_rds(
+    "optim/data/full-experiment.rds"
+  )
 
-distance_data = read_rds(
-  "optim/data/full-experiment.rds"
-)
-
-optim_distance_df = distance_data$long_distance_mat %>%
-  filter(dist < 10000) %>%
-  mutate(standardised_dist = dist/ sd(analysis_data$cluster.dist.to.pot))
+  optim_distance_df = distance_data$long_distance_mat %>%
+    filter(dist < 10000) %>%
+    mutate(standardised_dist = dist / sd(analysis_data$cluster.dist.to.pot)) 
+}
 # Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
@@ -559,11 +560,12 @@ stan_data <- lst(
   num_roc_distances = length(roc_distances),
 
 
-  optim_distances = optim_distance_df$standardised_dist,
+  optim_distances = ifelse(script_options$gen_optim, optim_distance_df$standardised_dist, analysis_data$standard_cluster.dist.to.pot),
   num_optim_distances = length(optim_distances),
   num_B_treatments = 4,
   num_mu_treatments = 4,
   USE_MAP_IN_OPTIM = 0,
+  GEN_OPTIM = script_options$gen_optim,
   
   sim_delta_w = seq(-2, 2, 0.2),
   num_sim_delta_w = length(sim_delta_w),
