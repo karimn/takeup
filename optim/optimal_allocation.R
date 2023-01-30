@@ -327,11 +327,11 @@ tidy_output = demand_data %>%
     model_output = map2( 
       optim_fit, 
       demand_data,
-      ~clean_solution(.x, data = data, takeup = .y )
+      ~clean_solution(.x, data = data, takeup = .y ) %>%
+        mutate(target_optim = target_optim)
     )
   )
 tictoc::toc()
-
 
 summ_output = tidy_output %>% 
   head(1) %>%

@@ -25,14 +25,14 @@ script_options <- docopt::docopt(
                             --welfare-function=log \
                             --min-cost \
                             --posterior-median \
-                            --optim-input-path=optim/data/agg-log-kakamega \
-                            --demand-input-path=optim/data/agg-log-kakamega \
-                            --optim-input-a-filename=cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                            --output-path=optim/plots/agg-log-kakamega \
-                            --output-basename=agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median \
+                            --optim-input-path=optim/data/agg-log-full \
+                            --demand-input-path=optim/data/agg-log-full \
+                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
+                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                            --output-path=optim/plots/agg-log-full \
+                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
-                            --data-input-name=KAKAMEGA-experiment.rds
+                            --data-input-name=full-experiment.rds
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -293,7 +293,28 @@ if (stat_type == "median") {
         assigned_pots = unique(optimal_data$j)
         n_pots_used =  length(assigned_pots)
         pot_data$assigned_pot = pot_data$id %in% assigned_pots
+        summ_optimal_data = optimal_data %>%
+            mutate(target_optim = target_optim) %>%
+            summarise(
+                util = sum(log(demand)),
+                mean_demand = mean(demand), 
+                min_demand = min(demand), 
+                n_pot = n_distinct(j), 
+                mean_dist = mean(dist),
+                target_optim = mean(target_optim)
+            ) %>%
+            mutate(
+                target_optim = target_optim
+            ) %>%
+            mutate(
+                overshoot = 100*(util/target_optim - 1)
+            ) 
 
+        takeup_hit = round(summ_optimal_data$mean_demand*100,1 )
+        util_hit = round(summ_optimal_data$util)
+        util_target = round(summ_optimal_data$target_optim)
+        overshoot = round(abs(summ_optimal_data$overshoot), 3)
+        mean_dist = round(summ_optimal_data$mean_dist,1)
 
         if (script_options$constraint_type == "agg") {
             sub_str = str_glue("Takeup target: Aggregate Welfare Under Control. Assigned PoTs: {n_pots_used}")
@@ -305,7 +326,7 @@ if (stat_type == "median") {
 
         caption_str = ifelse(
             script_options$welfare_function == "log", 
-            "Log utility used in social welfare function",
+            str_glue("Log utility used in social welfare function. Utility target: {util_target}, utility achieved: {util_hit}, percentage over constraint: {overshoot}%, takeup achieved: {takeup_hit}%. Mean walking distance: {mean_dist}m"),
             "Identity utility function used, i.e. takeup enters SWF directly."
             )
 
@@ -339,6 +360,7 @@ if (stat_type == "median") {
             ) 
         return(optimal_pot_plot)
     }
+
 
     # plot_optimal_allocation(
     #     village_data = data$village_locations,
