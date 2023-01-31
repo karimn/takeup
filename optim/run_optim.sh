@@ -41,7 +41,7 @@ RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
-COUNTY="full"
+COUNTY="busia"
 OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
 PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
 DATA_INPUT_NAME="${COUNTY}-experiment.rds"
@@ -118,7 +118,7 @@ run_optim () {
                                     --num-cores=12 \
                                     --min-cost  \
                                     --constraint-type=${CONSTRAINT_TYPE} \
-                                    --target-constraint=target-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+                                    --target-constraint=target-${CUTOFF}cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                                     --output-path=${OUTPUT_PATH} \
                                     --output-filename=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
@@ -151,23 +151,32 @@ run_optim () {
 
 CUTOFF=""
 ## Cutoff
-run_optim "control" "control"
-run_optim "control" "bracelet"
-run_optim "control" "calendar"
-run_optim "control" "ink"
+# run_optim "control" "control"
+# run_optim "control" "bracelet"
+# run_optim "control" "calendar"
+# run_optim "control" "ink"
+#
+# run_optim "bracelet" "bracelet"
+# run_optim "ink" "ink"
+run_optim "calendar" "calendar"
+#run_optim "bracelet" "control"
+#
+#run_optim "ink" "control"
+#
 
-run_optim "bracelet" "bracelet"
-
-run_optim "bracelet" "control"
-
-run_optim "ink" "control"
-
+# run_optim "calendar" "control"
+#
 
 CUTOFF="no-"
 
 # ## No Cutoff
-run_optim "control" "control"
-run_optim "control" "bracelet"
-run_optim "control" "calendar"
-run_optim "control" "ink"
-run_optim "bracelet" "bracelet"
+# run_optim "control" "control"
+# #run_optim "control" "bracelet"
+#Jrun_optim "control" "calendar"
+#run_optim "control" "ink"
+# run_optim "bracelet" "bracelet"
+#
+
+#run_optim "bracelet" "control"
+# run_optim "ink" "ink"
+# run_optim "calendar" "calendar"

@@ -2,7 +2,7 @@
 title: Optim
 output: 
   pdf_document:
-    extra_dependencies: ["amsmath", "threeparttable"]
+    extra_dependencies: ["amsmath", "threeparttable", "placeins"]
 ---
 
 
@@ -25,14 +25,14 @@ every village in the experiment to the control condition. We can reformulate thi
 as an integer programme:
 
 $$
-\begin{align}
+\begin{aligned}
 \min \sum_{j = 1}^m  &y_j \\
 s.t. \ \ 
 \sum_{i = 1}^n U\left(\textit{takeup}_{ij}x_{ij}\right) &\geq \underbrace{E\left[\sum_{i = 1}^n U\left(\textit{takeup}^C_{i}\right)\right]}_{\overline{W}^C} \\
     \sum_{j=1}^{m} x_{ij} &= 1, \forall i \\
     x_{ij} &\leq y_j, \forall i, j  \\
  x_{ij} &\in \{0,1\}, y_j \in\{0,1\}
-\end{align}
+\end{aligned}
 $$
 
 
@@ -73,6 +73,8 @@ takeup_{ij} = \underbrace{B(z, d_{ij})}_{\text{private benefit}} + \underbrace{\
 $$
 
 
+### Holding Private Benefit at Control
+
 ```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{control}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
   "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
@@ -90,107 +92,124 @@ include_graphics(
 
 
 
-### Structural Policymaker
 
-
-
-
-# Results
-
-## Cutoff at 2.5km - Conventional Structural Model - By County
-
-### Busia 
-We see a 4.41% fall in number of PoTs needed.
-
-#### B: Control Mu: Control
-```{r, echo=FALSE, fig.align="center"}
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{ink}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-ink-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
   rel_path = FALSE
 )  
 ```
 
-#### B: Control Mu: Bracelet
-```{r, echo=FALSE, fig.align="center"}
+
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{calendar}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
   rel_path = FALSE
- )
+)  
 ```
+\FloatBarrier
+### Holding Visibility at Control 
 
-
-### Siaya 
-We see a 1.67% fall in number of PoTs needed.
-
-#### B: Control Mu: Control
-```{r, echo=FALSE, fig.align="center"}
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $B_{z=\\text{control}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-siaya/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
   rel_path = FALSE
- )
+)  
 ```
 
-#### B: Control Mu: Bracelet
-```{r, echo=FALSE, fig.align="center"}
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $B_{z=\\text{bracelet}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-siaya/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png", 
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-bracelet-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
   rel_path = FALSE
-  )
+)  
 ```
 
 
 
-### Kakamega
 
-We see a 1.5% reduction in number of PoTs needed.
-
-#### B: Control Mu: Control
-```{r, echo=FALSE, fig.align="center"}
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $B_{z=\\text{ink}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-kakamega/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-ink-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
   rel_path = FALSE
-  )
-```
-
-#### B: Control Mu: Bracelet
-```{r, echo=FALSE, fig.align="center"}
-include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-kakamega/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png", 
-  rel_path = FALSE)
+)  
 ```
 
 
 
-## Cutoff at 2.5km - Log Mu Rep - Full Experiment + 4 PoTs
 
-#### B: Control Mu: Control
-```{r, echo=FALSE, fig.align="center"}
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $B_{z=\\text{calendar}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png",
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-calendar-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
   rel_path = FALSE
-  )
+)  
 ```
 
-#### B: Control Mu: Bracelet
-```{r, echo=FALSE, fig.align="center"}
-include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png", 
-  rel_path = FALSE)
-```
 
-## Cutoff at 10km - Log Mu Rep - Full Experiment + 4 PoTs
+\FloatBarrier
+### Summary Table and Histogram
 
-#### B: Control Mu: Control
-```{r, echo=FALSE, fig.align="center"}
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Distribution of walking distance, holding private benefit at control."}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-full/agg-log-no-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png",
+  "~/projects/takeup/optim/plots/optim-walk-density-b-control.png",
   rel_path = FALSE
-  )
+)  
 ```
 
-#### B: Control Mu: Bracelet
-```{r, echo=FALSE, fig.align="center"}
+
+
+```{r, echo=FALSE}
+
+read_csv("~/projects/takeup/temp-data/full-summ-optim.csv") %>%
+  knitr::kable(digits = 3) %>%
+  kableExtra::kable_styling()
+
+```
+
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Demand - Private Benefit Fixed at Control"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-full/agg-log-no-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP-median-optimal-allocation-plot.png", 
-  rel_path = FALSE)
+  "~/projects/takeup/temp-plots/optim-demand-df.png",
+  rel_path = FALSE
+)  
+```
+
+
+\FloatBarrier
+## Naive vs Sophisticated
+
+
+## Calendar - Experiment Set-Up
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
+```
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS_NO_REP-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
+```
+
+\FloatBarrier
+## Calendar - Busia All The Schools In The Data
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
+```
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS_NO_REP-median-optimal-allocation-plot.png",
+  rel_path = FALSE
+)  
 ```
