@@ -12,6 +12,7 @@ script_options = docopt::docopt(
         --output-name=<output-name>  Prepended to output file
         --num-extra-pots=<num-extra-pots>  How many extra PoTs to sample per village above experiment [default: 2]
         --county-subset=<county-subset>  Which county to subset OA to
+        --distance-cutoff=<distance-cutoff>  How close PoTs have to be to sample extra. [default: 3500]
     "),
     args = if (interactive()) "
                             --output-name=SIAYA-experiment.rds
@@ -30,6 +31,8 @@ source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source(file.path("analysis_util.R"))
 source(file.path( "dist_structural_util.R"))
 
+
+script_options$distance_cutoff = as.numeric(script_options$distance_cutoff)
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
@@ -159,7 +162,7 @@ if (full_experiment) {
 
 
     extra_pot_ids = long_add_distance_mat %>%
-        mutate(close = dist <= 2500) %>%
+        mutate(close = dist <= script_options$distance_cutoff) %>%
         group_by(index_i) %>%
         filter(close == TRUE) %>%
         sample_n(script_options$num_extra_pots, replace = TRUE) %>%
