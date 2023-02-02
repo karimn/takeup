@@ -34,19 +34,21 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=0 # 1
-SKIP_OA=0 # 1 or 0
-SKIP_PP=0 # 1 or 0
-RUN_TARGET_CREATION=1
+SKIP_PREDICTION=1 # 1
+SKIP_OA=1 # 1 or 0
+SKIP_PP=1 # 1 or 0
+RUN_TARGET_CREATION=0
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
-COUNTY="busia"
-OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
-PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}"
+COUNTY="full"
+OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}" # /many-pots
+PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}" #/many-pots
 DATA_INPUT_NAME="${COUNTY}-experiment.rds"
 CUTOFF="no-" # either no- or empty string
 SOLVER="gurobi"
+MANY_POTS="" #"--many-pots"
+
 
 mkdir -p ${OUTPUT_PATH}
 mkdir -p ${PLOT_OUTPUT_PATH}
@@ -58,7 +60,8 @@ set -e
 Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
     --num-extra-pots=4 \
-    --county-subset=${COUNTY}
+    --county-subset=${COUNTY} \
+    --distance-cutoff=3500
 
 if [ ${POSTERIOR_MEDIAN} == "--posterior-median" ] 
 then 
@@ -151,20 +154,21 @@ run_optim () {
 
 CUTOFF=""
 ## Cutoff
-# run_optim "control" "control"
-# run_optim "control" "bracelet"
-# run_optim "control" "calendar"
-# run_optim "control" "ink"
+run_optim "control" "control"
+run_optim "control" "bracelet"
+run_optim "control" "calendar"
+run_optim "control" "ink"
 #
-# run_optim "bracelet" "bracelet"
-# run_optim "ink" "ink"
+#
+run_optim "bracelet" "bracelet"
+run_optim "ink" "ink"
 run_optim "calendar" "calendar"
-#run_optim "bracelet" "control"
 #
-#run_optim "ink" "control"
+run_optim "bracelet" "control"
+run_optim "ink" "control"
 #
 
-# run_optim "calendar" "control"
+ run_optim "calendar" "control"
 #
 
 CUTOFF="no-"
@@ -180,3 +184,7 @@ CUTOFF="no-"
 #run_optim "bracelet" "control"
 # run_optim "ink" "ink"
 # run_optim "calendar" "calendar"
+
+
+
+Rscript ./optim/compare-optim.R --input-path=$OUTPUT_PATH --output-path=$PLOT_OUTPUT_PATH $MANY_POTS
