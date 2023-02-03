@@ -152,7 +152,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              mu_rep_type, 
                              private_benefit_treatment, 
                              visibility_treatment,
-                             beta_b_control) {
+                             beta_b_control,
+                             suppress_reputation) {
     function(distance){
       
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
@@ -163,50 +164,56 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           # Stan uses X\beta where X a design matrix with control always on
           b = beta_b_z - beta_b_d*distance + beta_b_control 
         }
+        if (suppress_reputation) {
+          v_star = - b
+          linear_pred = b 
+          mu_rep = 0
+          delta_v_star = 0
+        }  else {
+          if (visibility_treatment == "control") {
+            mu_rep_control_param = TRUE
+          } else {
+            mu_rep_control_param = FALSE
+          }
 
-        if (visibility_treatment == "control") {
-          mu_rep_control_param = TRUE
-        } else {
-          mu_rep_control_param = FALSE
+          mu_rep = calculate_mu_rep(
+              dist = distance,
+              base_mu_rep = base_mu_rep,
+              mu_beliefs_effect = 1,
+              beta = mu_beta_z,
+              dist_beta = mu_beta_d,
+              beta_control = mu_beta_z_control,
+              dist_beta_control = mu_beta_d_control,
+              mu_rep_type = mu_rep_type, 
+              control = mu_rep_control_param)
+          # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+          cutoff_mu_rep = calculate_mu_rep(
+              dist = rep_cutoff/dist_sd,
+              base_mu_rep = base_mu_rep,
+              mu_beliefs_effect = 1,
+              beta = mu_beta_z,
+              dist_beta = mu_beta_d,
+              beta_control = mu_beta_z_control,
+              dist_beta_control = mu_beta_d_control,
+              mu_rep_type = mu_rep_type, 
+              control = mu_rep_control_param)
+          mu_rep[which(over_cutoff)] = cutoff_mu_rep
+
+          v_star_soln = find_v_star(
+              distance = distance,
+              b = b,
+              mu_rep = mu_rep,
+              total_error_sd = total_error_sd,
+              u_sd = u_sd,
+              bounds = bounds
+          )
+          delta_v_star = v_star_soln$delta_v_star
+          v_star = v_star_soln$v_star
+          linear_pred = b + mu_rep*delta_v_star
         }
-
-        mu_rep = calculate_mu_rep(
-            dist = distance,
-            base_mu_rep = base_mu_rep,
-            mu_beliefs_effect = 1,
-            beta = mu_beta_z,
-            dist_beta = mu_beta_d,
-            beta_control = mu_beta_z_control,
-            dist_beta_control = mu_beta_d_control,
-            mu_rep_type = mu_rep_type, 
-            control = mu_rep_control_param)
-        # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
-        cutoff_mu_rep = calculate_mu_rep(
-            dist = rep_cutoff/dist_sd,
-            base_mu_rep = base_mu_rep,
-            mu_beliefs_effect = 1,
-            beta = mu_beta_z,
-            dist_beta = mu_beta_d,
-            beta_control = mu_beta_z_control,
-            dist_beta_control = mu_beta_d_control,
-            mu_rep_type = mu_rep_type, 
-            control = mu_rep_control_param)
-        mu_rep[which(over_cutoff)] = cutoff_mu_rep
-
-        v_star_soln = find_v_star(
-            distance = distance,
-            b = b,
-            mu_rep = mu_rep,
-            total_error_sd = total_error_sd,
-            u_sd = u_sd,
-            bounds = bounds
-        )
-        delta_v_star = v_star_soln$delta_v_star
-        v_star = v_star_soln$v_star
         
-        linear_pred = b + mu_rep*delta_v_star
         pred_takeup = 1 - pnorm(v_star/(total_error_sd))
-        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star = v_star_soln$v_star, total_error_sd))
+        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star, total_error_sd))
     }
 }
 
@@ -228,8 +235,8 @@ find_pred_takeup = function(params) {
         mu_rep_type = params$mu_rep_type, 
         beta_b_control = params$beta_b_control, 
         private_benefit_treatment = params$private_benefit_treatment, 
-        visibility_treatment = params$visibility_treatment
-
+        visibility_treatment = params$visibility_treatment,
+        suppress_reputation = params$suppress_reputation
     )
 }
 
@@ -243,7 +250,8 @@ extract_params = function(param_draws,
                           dist_cutoff = Inf,
                           rep_cutoff = Inf, 
                           bounds = c(-Inf, Inf),
-                          mu_rep_type = 0) {
+                          mu_rep_type = 0,
+                          suppress_reputation) {
     treatments = c(
         "control",
         "ink",
@@ -305,7 +313,8 @@ extract_params = function(param_draws,
         "mu_rep_type" = mu_rep_type, 
         "private_benefit_treatment" = as.character(private_benefit_treatment), 
         "visibility_treatment" = as.character(visibility_treatment), 
-        "beta_b_control" = beta_b_control
+        "beta_b_control" = beta_b_control, 
+        "suppress_reputation" = suppress_reputation
         ) %>%
         as.list()
 

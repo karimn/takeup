@@ -34,10 +34,10 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=1 # 1
-SKIP_OA=1 # 1 or 0
-SKIP_PP=1 # 1 or 0
-RUN_TARGET_CREATION=0
+SKIP_PREDICTION=0 # 1
+SKIP_OA=0 # 1 or 0
+SKIP_PP=0 # 1 or 0
+RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
@@ -48,6 +48,7 @@ DATA_INPUT_NAME="${COUNTY}-experiment.rds"
 CUTOFF="no-" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="" #"--many-pots"
+SUPPRESS_REP="suppress-rep-" #suppress-rep-
 
 
 mkdir -p ${OUTPUT_PATH}
@@ -80,6 +81,13 @@ run_optim () {
         CUTOFF_DIST=3500
     fi
 
+    if [ ${SUPPRESS_REP} != "" ]
+    then
+        SUP_REP_VAR="--suppress-reputation"
+    else
+        SUP_REP_VAR=""
+    fi
+
     # Gurobi doesn't play nice with renv atm
 
     if [ $SKIP_PREDICTION != 1 ]
@@ -88,30 +96,31 @@ run_optim () {
                                     ${VERSION} \
                                     $1 \
                                     $2 \
-                                    --output-name=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
+                                    --output-name=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --from-csv \
                                     --num-post-draws=${NUM_POST_DRAWS} \
                                     --rep-cutoff=Inf \
                                     --dist-cutoff=${CUTOFF_DIST} \
-									--num-cores=${NUM_CORES} \
+                                    --num-cores=${NUM_CORES} \
                                     --type-lb=-Inf \
                                     --type-ub=Inf \
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${OUTPUT_PATH} \
                                     --model=${MODEL} \
                                     ${PRED_DISTANCE} \
-                                    ${RUN_ESTIMATION} 
+                                    ${RUN_ESTIMATION} \
+                                    ${SUP_REP_VAR}
     fi
 
     if [ ${RUN_TARGET_CREATION} == 1 ]
     then
 
         Rscript ./optim/create-village-target.R \
-            pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+            pred-demand-dist-fit${VERSION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
             --input-path=${OUTPUT_PATH} \
             --output-path=${OUTPUT_PATH} \
             --num-cores=${NUM_CORES} \
-            --output-basename=target-${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
+            --output-basename=target-${SUPPRESS_REP}${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
     fi
 
     if [ $SKIP_OA != 1 ]
@@ -121,14 +130,14 @@ run_optim () {
                                     --num-cores=12 \
                                     --min-cost  \
                                     --constraint-type=${CONSTRAINT_TYPE} \
-                                    --target-constraint=target-${CUTOFF}cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                                    --target-constraint=target-${SUPPRESS_REP}${CUTOFF}cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                                     --output-path=${OUTPUT_PATH} \
-                                    --output-filename=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
+                                    --output-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
                                     --data-input-path=optim/data \
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --time-limit=10000 \
-                                    --demand-input-filename=pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
+                                    --demand-input-filename=pred-demand-dist-fit${VERSION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --solver=${SOLVER}
     fi
@@ -142,10 +151,10 @@ run_optim () {
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
                                     --demand-input-path=${OUTPUT_PATH} \
-                                    --optim-input-a-filename=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --optim-input-a-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${PLOT_OUTPUT_PATH} \
-                                    --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
+                                    --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff
     fi
 

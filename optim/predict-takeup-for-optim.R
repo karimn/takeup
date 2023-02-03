@@ -25,6 +25,7 @@ script_options = docopt::docopt(
         --num-extra-pots=<num-extra-pots>  How many extra PoTs to sample per village above experiment [default: 2]
         --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
         --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
+        --suppress-reputation  Suppress reputational returns
     "),
     args = if (interactive()) "
                             71
@@ -34,7 +35,7 @@ script_options = docopt::docopt(
                             --from-csv
                             --num-post-draws=200
                             --rep-cutoff=Inf
-                            --dist-cutoff=2500
+                            --dist-cutoff=3500
                             --type-lb=-Inf
                             --type-ub=Inf
                             --num-cores=12
@@ -42,6 +43,7 @@ script_options = docopt::docopt(
                             --num-extra-pots=4
                             --pred-distance
                             --data-input-name=full-experiment.rds
+                            --suppress-reputation
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -234,7 +236,8 @@ pred_functions = map(
         rep_cutoff = script_options$rep_cutoff,
         dist_cutoff = script_options$dist_cutoff, 
         bounds = script_options$bounds,
-        mu_rep_type = mu_rep_type
+        mu_rep_type = mu_rep_type,
+        suppress_reputation = script_options$suppress_reputation
     ) %>% find_pred_takeup()
 )
 
