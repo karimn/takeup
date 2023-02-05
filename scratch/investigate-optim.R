@@ -1,4 +1,63 @@
+library(tidyverse)
+library(tidybayes)
+library(posterior)
+library(cmdstanr)
 
+fit_file = "data/stan_analysis_data/dist_fit71_STRUCTURAL_LINEAR_U_SHOCKS-1.csv"
+
+fit = as_cmdstan_fit(fit_file)
+
+
+# To find fixed point need:
+# benefit_cost
+# mu_rep
+# total_error_sd
+# u_sd
+
+
+
+bc_draws = fit$draws(
+  variables = c(
+    "structural_cluster_benefit_cost", 
+    "cluster_dist_cost", 
+    "obs_cluster_mu_rep",
+    "total_error_sd[1]", 
+    "u_sd[1]", 
+    "beta", 
+    "dist_beta_v")
+)
+
+rm(fit)
+gc()
+
+control_mu = 114
+bracelet_mu = 93
+calendar_mu = 110
+
+bracelet_b = 106
+ink_mu = 94
+ink_b = 138
+
+pct_change = function(x, y){100*(x/y - 1)}
+
+
+pct_change(bracelet_mu, control_mu)
+pct_change(calendar_mu, control_mu)
+pct_change(bracelet_b, control_mu)
+pct_change(ink_mu, control_mu)
+pct_change(ink_b, control_mu)
+
+
+
+
+
+betas = spread_rvars(
+    bc_draws, 
+    beta[k], 
+    dist_beta_v[k]
+    )
+
+betas
 
 
 optim_files = fs::dir_ls(
