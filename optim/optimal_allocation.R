@@ -29,12 +29,13 @@ script_options <- docopt::docopt(
                                 --min-cost  \
                                 --constraint-type=agg \
                                 --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                                --output-path=optim/data/agg-log-full \
-                                --input-path=optim/data/agg-log-full  \
+                                --output-path=optim/data/agg-log-full/many-pots \
+                                --input-path=optim/data/agg-log-full/many-pots  \
                                 --data-input-name=full-experiment.rds
+                                --data-input-path=optim/data
                                 --time-limit=10000 \
-                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
-                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
+                                --output-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
+                                --demand-input-filename=pred-demand-dist-fit71-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
 
                                 --welfare-function=log
                                 --solver=gurobi
@@ -391,151 +392,11 @@ tidy_output %>%
 
 
 
-# fit_ompr_demand_df  = fit_ompr_model  %>%
-#   select(i, j) %>%
-#   left_join(
-#     demand_data %>%
-#       unnest(demand_data),
-#     by = c("i" = "village_i", "j" = "pot_j")
-#   )
-
-
-# fit_ompr_demand_df %>%
-#   group_by(j) %>%
-#   summarise(
-#     n_serves = n_distinct(i)
-#   ) %>%
-#   arrange(-n_serves)
-
-# fit_ompr_model %>%
-#   ggplot(aes(
-#     x = demand
-#   )) +
-#   geom_histogram()
-
-  
-
-# demand_data %>%
-#  unnest(demand_data) %>%
-# filter(dist < 1250) %>%
-#  summarise(
-#   d = mean(demand), 
-#   n = n())
-
-
-# fit_ompr_demand_df %>%
-#   summarise(
-#     mean_demand = mean(demand), 
-#     n_pot = n_distinct(j)
-#   )
-
-
-# demand_data %>%
-#   unnest(demand_data) %>%
-#   group_by(
-#     village_i
-#   ) %>%
-#   mutate(
-#     max_takeup = max(demand), 
-#   ) %>%
-#   filter(demand == max_takeup) %>%
-#   summarise(
-#     pot_j = first(pot_j), 
-#     max_takeup = unique(max_takeup)
-#   ) %>%
-#   arrange(-max_takeup) %>%
-#   mutate(
-#     cum_takeup = cumsum(max_takeup)/144
-#   ) %>%
-#   mutate( 
-#     extraneous = cum_takeup > 0.321
-#   ) %>%
-#   ungroup() %>%
-#   summarise(sum(extraneous))
-
-
-# 144 - 42
-
-
-# fit_ompr_model %>%
-#   ggplot() +
-#   geom_point(aes(
-#     x = pot.lon,
-#     y = pot.lat
-#   ), shape = 17, size = 3) +
-#   geom_point(aes(
-#     x = village_lon,
-#     y = village_lat
-#   )) +
-#   geom_segment(aes(
-#     x = village_lon,
-#     y = village_lat,
-#     xend = pot_lon, 
-#     yend = pot_lat
-#   ))
-
-# tidy_output %>%
-#   unnest(model_output)  
-
-# tidy_output %>%
-#   unnest(model_output)   %>%
-#   summarise(
-#     n_village = n_distinct(i)
-#   )
-
-# tidy_output %>%
-#   unnest(model_output)  %>%
-#   ggplot() +
-#   geom_point(aes(
-#     x = pot.lon,
-#     y = pot.lat
-#   ), shape = 17, size = 3) +
-#   geom_point(aes(
-#     x = village_lon,
-#     y = village_lat
-#   )) +
-#   geom_segment(aes(
-#     x = village_lon,
-#     y = village_lat,
-#     xend = pot_lon, 
-#     yend = pot_lat
-#   ))
-
-
-
-
-# tidy_output %>%
-#   unnest(model_output) %>%
-#   summarise(
-#     n_pot = n_distinct(j), 
-#     takeup = mean(demand)
-#   )
-
-# tidy_output %>%
-#   select(model_output) %>%
-#   unnest() %>%
-#   ggplot(aes(
-#     x = pot.lon, 
-#     y = pot.lat
-#   )) +
-#   geom_point()
-
-
-# ##############################
-# tidy_output %>%
-#   head(1) %>%
-#   pull(optim_fit)
-
-
-
-# tidy_output
-
-# tidy_output
-
 
 output_path = file.path(
   script_options$output_path, 
   str_glue("{script_options$output_filename}-{stat_type}-optimal-allocation.rds"))
+
 
 
 saveRDS(

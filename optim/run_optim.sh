@@ -33,22 +33,22 @@ fi
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=0 # 1
+POSTERIOR_MEDIAN="" # --posterior-median
+SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
-SKIP_PP=0 # 1 or 0
+SKIP_PP=1 # 1 or 0
 RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
 COUNTY="full"
-OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}" # /many-pots
-PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}" #/many-pots
-DATA_INPUT_NAME="${COUNTY}-experiment.rds"
+OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}-many-pots" # /many-pots
+PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}-many-pots" #/many-pots
+DATA_INPUT_NAME="${COUNTY}-many-pots-experiment.rds"
 CUTOFF="no-" # either no- or empty string
 SOLVER="gurobi"
-MANY_POTS="" #"--many-pots"
-SUPPRESS_REP="suppress-rep-" #suppress-rep-
+MANY_POTS="--many-pots" #"--many-pots"
+SUPPRESS_REP="" #suppress-rep-
 
 
 mkdir -p ${OUTPUT_PATH}
@@ -60,7 +60,7 @@ set -e
 
 Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
-    --num-extra-pots=4 \
+    --num-extra-pots=100 \
     --county-subset=${COUNTY} \
     --distance-cutoff=3500
 
@@ -116,11 +116,11 @@ run_optim () {
     then
 
         Rscript ./optim/create-village-target.R \
-            pred-demand-dist-fit${VERSION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+            pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
             --input-path=${OUTPUT_PATH} \
             --output-path=${OUTPUT_PATH} \
             --num-cores=${NUM_CORES} \
-            --output-basename=target-${SUPPRESS_REP}${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
+            --output-basename=target-${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
     fi
 
     if [ $SKIP_OA != 1 ]
@@ -130,7 +130,7 @@ run_optim () {
                                     --num-cores=12 \
                                     --min-cost  \
                                     --constraint-type=${CONSTRAINT_TYPE} \
-                                    --target-constraint=target-${SUPPRESS_REP}${CUTOFF}cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                                    --target-constraint=target-${CUTOFF}cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                                     --output-path=${OUTPUT_PATH} \
                                     --output-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
@@ -164,20 +164,20 @@ run_optim () {
 CUTOFF=""
 ## Cutoff
 run_optim "control" "control"
-run_optim "control" "bracelet"
-run_optim "control" "calendar"
-run_optim "control" "ink"
+# run_optim "control" "bracelet"
+# run_optim "control" "calendar"
+# run_optim "control" "ink"
 #
 #
-run_optim "bracelet" "bracelet"
-run_optim "ink" "ink"
-run_optim "calendar" "calendar"
+# run_optim "bracelet" "bracelet"
+# run_optim "ink" "ink"
+#run_optim "calendar" "calendar"
 #
-run_optim "bracelet" "control"
-run_optim "ink" "control"
-#
+# run_optim "bracelet" "control"
+# run_optim "ink" "control"
+# #
 
- run_optim "calendar" "control"
+#  run_optim "calendar" "control"
 #
 
 CUTOFF="no-"
@@ -196,4 +196,4 @@ CUTOFF="no-"
 
 
 
-Rscript ./optim/compare-optim.R --input-path=$OUTPUT_PATH --output-path=$PLOT_OUTPUT_PATH $MANY_POTS
+#Rscript ./optim/compare-optim.R --input-path=$OUTPUT_PATH --output-path=$PLOT_OUTPUT_PATH $MANY_POTS

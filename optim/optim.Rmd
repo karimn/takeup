@@ -4,10 +4,10 @@ output:
   pdf_document:
     extra_dependencies: ["amsmath", "threeparttable", "placeins"]
 params: 
-  plot_input_path: "~/projects/takeup/optim/plots/agg-log-full"
-  misc_input_path: "~/projects/takeup/optim/plots/agg-log-full"
-  data_input_path: "~/projects/takeup/optim/data/agg-log/full"
-  many_pots: FALSE
+  plot_input_path: "~/projects/takeup/optim/plots/agg-log-full/many-pots"
+  misc_input_path: "~/projects/takeup/optim/plots/agg-log-full/many-pots"
+  data_input_path: "~/projects/takeup/optim/data/agg-log-full/many-pots"
+  many_pots: TRUE
 ---
 
 
@@ -194,34 +194,60 @@ include_graphics(
 ```{r, echo=FALSE, fig.align="center", fig.cap="Distribution of walking distance, holding private benefit at control."}
 include_graphics(
   file.path(
-    params$misc_input_path,
+    params$plot_input_path,
     "optim-walk-density-b-control.png"
   ),
   rel_path = FALSE
 )  
 ```
 
+```{r, echo=FALSE, fig.align="center", fig.cap="Demand - Private Benefit Fixed at Control"}
+include_graphics(
+  file.path(
+    params$plot_input_path,
+    "optim-demand-df.png"
+  ),
+  rel_path = FALSE
+)  
+```
 
 
 ```{r, echo=FALSE}
 
 read_csv(
   file.path(
-    params$misc_input_path,
-    "full-summ-optim.csv"
+    params$data_input_path,
+    "rep-summ-optim.csv"
   )
   ) %>%
-  knitr::kable(digits = 3) %>%
+  knitr::kable(
+    digits = 3, 
+    caption = "PM Aware of Signalling"
+    ) %>%
+  kableExtra::kable_styling()
+
+read_csv(
+  file.path(
+    params$data_input_path,
+    "suppress-rep-summ-optim.csv"
+  )
+  ) %>%
+  filter(B_z == mu_z) %>%
+  knitr::kable(
+    digits = 3, 
+    caption = "PM Unaware of Signalling"
+    ) %>%
   kableExtra::kable_styling()
 
 ```
 
 
-```{r, echo=FALSE, fig.align="center", fig.cap="Demand - Private Benefit Fixed at Control"}
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Perceived Demand Curves, by PM Type"}
 include_graphics(
   file.path(
-    params$misc_input_path,
-    "optim-demand-df.png"
+    params$data_input_path,
+    "struct-naive-optim-demand-df.png"
   ),
   rel_path = FALSE
 )  
@@ -232,35 +258,97 @@ include_graphics(
 ## Naive vs Sophisticated
 
 
-## Calendar - Experiment Set-Up
+## Control - Experiment Set-Up
 
-```{r, eval = FALSE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using control treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  file.path(
+    params$plot_input_path,
+    "agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
   rel_path = FALSE
 )  
 ```
 
-```{r, eval = FALSE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using control treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-full/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS_NO_REP-median-optimal-allocation-plot.png",
+  file.path(
+    params$plot_input_path, 
+    "agg-log-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
+  rel_path = FALSE
+)  
+```
+
+
+
+\FloatBarrier
+
+## Bracelet - Experiment Set-Up
+
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using bracelet treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  file.path(
+    params$plot_input_path,
+    "agg-log-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
+  rel_path = FALSE
+)  
+```
+
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using bracelet treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  file.path(
+      params$plot_input_path,
+    "agg-log-suppress-rep-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
+  rel_path = FALSE
+)  
+```
+
+
+\FloatBarrier
+## Calendar - Experiment Set-Up
+
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  file.path(
+    params$plot_input_path,
+    "agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
+  rel_path = FALSE
+)  
+```
+
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+include_graphics(
+  file.path(
+    params$plot_input_path,
+    "agg-log-suppress-rep-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
   rel_path = FALSE
 )  
 ```
 
 \FloatBarrier
-## Calendar - Busia All The Schools In The Data
+## Ink - Experiment Set-Up
 
-```{r, eval=FALSE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using ink treatment. Policymaker aware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png",
+  file.path(
+    params$plot_input_path,
+  "agg-log-cutoff-b-ink-mu-ink-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
   rel_path = FALSE
 )  
 ```
 
-```{r, eval=FALSE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using calendar treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+```{r, eval = TRUE, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, using ink treatment. Policymaker unaware of signalling. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
 include_graphics(
-  "~/projects/takeup/optim/plots/agg-log-busia/agg-log-cutoff-b-calendar-mu-calendar-STRUCTURAL_LINEAR_U_SHOCKS_NO_REP-median-optimal-allocation-plot.png",
+  file.path(
+    params$plot_input_path,
+  "agg-log-suppress-rep-cutoff-b-ink-mu-ink-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation-plot.png"
+  ),
   rel_path = FALSE
 )  
 ```

@@ -46,7 +46,7 @@ struct_param_draws = read_csv(
 
 max_draw = max(struct_param_draws$.draw)
 draw_treat_grid = expand.grid(
-    draw = sample(1:max_draw, size = 100),
+    draw = 1:100,
     treatment = c("control", "calendar", "bracelet", "ink") 
 )
 
@@ -112,7 +112,7 @@ saveRDS(
     data_to_save,
     "temp-data/r-predicted-data.rds"
 )
-
+stop()
 extract_and_harmonise_variables = function(stan_df){
     v_star_df = stan_df %>%
         select(cluster_w_cutoff) %>%
@@ -281,14 +281,66 @@ comp_df %>%
     filter(variable %in% c("pred_takeup", "v_star", "mu_rep")) %>%
     ggplot(aes(
         x = dist, 
-        y = median_est, 
+        y = mean_est, 
         colour = type
     )) +
     geom_point(size = 2) +
     facet_grid(
         variable~treatment, 
         scales = "free") +
-    theme_bw()
+    theme_bw() +
+    labs(
+        title = "Posterior Draws Directly From Stan vs R Fit on Posterior Params", 
+        subtitle = "N.B. Stan Gen Quantities"
+    )
 
 
 ggsave("temp-plots/compare-stan-R-panel.png", width = 10, height = 10, dpi = 500)
+
+
+
+
+
+
+comp_df %>% 
+    filter(dist < 3500) %>%
+    filter(variable %in% "v_star") %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = type
+    )) +
+    geom_point(size = 2) +
+    facet_wrap(
+        ~treatment, 
+        scales = "free") +
+    theme_bw() +
+    labs(
+        title = "Posterior Draws Directly From Stan vs R Fit on Posterior Params", 
+        subtitle = "N.B. Stan Gen Quantities"
+    )
+
+
+ggsave("temp-plots/just-vstar-compare-stan-R-panel.png", width = 10, height = 10, dpi = 500)
+
+comp_df %>% 
+    filter(dist < 3500) %>%
+    filter(variable %in% "v_star") %>%
+    filter(treatment == "bracelet") %>%
+    ggplot(aes(
+        x = dist, 
+        y = mean_est, 
+        colour = type
+    )) +
+    geom_point(size = 2) +
+    facet_wrap(
+        ~treatment, 
+        scales = "free") +
+    theme_bw() +
+    labs(
+        title = "Posterior Draws Directly From Stan vs R Fit on Posterior Params", 
+        subtitle = "N.B. Stan Gen Quantities"
+    )
+
+
+ggsave("temp-plots/just-bracelet-vstar-compare-stan-R-panel.png", width = 10, height = 10, dpi = 500)

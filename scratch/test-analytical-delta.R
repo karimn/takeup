@@ -363,11 +363,11 @@ draw_bc_rvar_df = draw_bc_rvar_df %>%
           alg_sol_max_steps = 1e9L,
           alg_sol_rel_tol = 0.0000001
 
-      )
-
+      ),
+      .options = furrr_options(seed = TRUE), 
+      .progress = TRUE
     )
   )
-
 draw_bc_rvar_df = draw_bc_rvar_df %>%
   unnest_wider(R_v_star)
 
@@ -411,7 +411,19 @@ draw_bc_rvar_df %>%
   )) +
   geom_point() +
   geom_line() +
-  facet_wrap(~assigned_treatment)
+  facet_wrap(~assigned_treatment)  +
+  labs(
+    title = "Using Parameter Posterior Draws", 
+    subtitle = "Fit using exposed Stan funcs and R"
+  )
+
+
+ggsave(
+  "temp-plots/post-draws-comp.png",
+  width = 8, 
+  height = 6, 
+  dpi = 500
+)
 
 
 clust_bs_df = bc_draw_df %>%
@@ -466,15 +478,9 @@ b_comp_df = bind_rows(
   r_pred_df  %>%
     select(dist, b, treatment, draw) %>%
     group_by(dist, treatment) %>%
-    left_join(
-  r_data$param_grid %>%
-    filter(.variable == "beta") %>%
-      filter(k == 1) %>%
-      select(draw = .draw, beta_control = .value), 
-      by = "draw"
-    ) %>%
     summarise(
-      mean_est = mean(b)
+      mean_est = mean(b), 
+      median_est = median(b)
     ) %>%
     mutate(type = "ed"), 
     b_stan_df %>% 
@@ -482,7 +488,25 @@ b_comp_df = bind_rows(
       mutate(type = "stan")
 )
 
-b_comp_df
+
+
+
+
+r_data$param_grid %>%
+  select(k) %>%
+  unique()
+
+r_data$param_grid %>%
+  filter(.variable == "beta") %>%
+  group_by(k) %>%
+  summarise(
+    median_draw = median(.value)
+  )
+
+  r_data$param_grid %>%
+    filter(.variable == "beta") %>%
+      filter(k == 2) %>%
+      select(draw = .draw, beta_control = .value)
 
 b_comp_df %>%
   ggplot(aes(
@@ -492,7 +516,10 @@ b_comp_df %>%
   )) +
   facet_wrap(~treatment) +
   geom_point() +
-  geom_line()
+  geom_line() +
+  labs(
+    title = "Net Private Benefit Stan Posterior Draws vs R function of Post draws"
+  )
 
 ggsave(
   "temp-plots/temp.png", 
