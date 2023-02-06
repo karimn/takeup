@@ -299,7 +299,7 @@ if (script_options$solver == "glpk") {
 tictoc::tic()
 tidy_output = demand_data %>%
   mutate(
-    optim_problem = map(
+    optim_problem = future_map(
       demand_data,
     ~{
         define_model(
@@ -313,16 +313,16 @@ tidy_output = demand_data %>%
       .progress = TRUE,
       .options = furrr_options(seed = TRUE)
     ), 
-    optim_fit = map(
+    optim_fit = future_map(
       optim_problem, 
       ~ROI_solve(
         .x, 
         solver = script_options$solver,
         verbose = TRUE,
         control = control_args 
-      )
-      # .progress = TRUE,
-      # .options = furrr_options(seed = TRUE)
+      ),
+      .progress = TRUE,
+      .options = furrr_options(seed = TRUE)
     ), 
     model_output = map2( 
       optim_fit, 
