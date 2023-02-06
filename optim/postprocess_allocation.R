@@ -24,15 +24,14 @@ script_options <- docopt::docopt(
                             --constraint-type=agg \
                             --welfare-function=log \
                             --min-cost \
-                            --posterior-median \
-                            --optim-input-path=optim/data/agg-log-full \
-                            --demand-input-path=optim/data/agg-log-full \
-                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
+                            --optim-input-path=optim/data/agg-log-full-many-pots \
+                            --demand-input-path=optim/data/agg-log-full-many-pots \
+                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-post-draws-optimal-allocation.rds \
                             --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                            --output-path=optim/plots/agg-log-full \
-                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
+                            --output-path=optim/plots/agg-log-full-many-pots \
+                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-post-draws \
                             --cutoff-type=cutoff
-                            --data-input-name=full-experiment.rds
+                            --data-input-name=full-many-pots-experiment.rds
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -104,139 +103,6 @@ optimal_allocation_demand_comp_plot_path = file.path(
     )
 )
 
-# oa_files = fs::dir_ls(
-#     "optim/data/agg-log-busia",
-#     regexp = "rds"
-#     )
-
-# subset_oa_files = oa_files[str_detect(oa_files, "\\/no-cutoff") & str_detect(oa_files, "LOG")]
-
-# oa_df = subset_oa_files %>%
-#     map_dfr(read_rds)
-
-# long_oa_df = oa_df %>%
-#     unnest(model_output) 
-
-# long_oa_df %>%
-#     select(model) %>%
-#     unique() %>%
-#     pull()
-
-# stop()
-
-
-# long_oa_df %>%
-#     unnest(demand) %>%
-#     ggplot(aes(
-#         x = dist,
-#         y = demand, 
-#         colour = visibility_z
-#     )) +
-#     geom_point() +
-#     geom_vline(xintercept =  3500)
-
-
-# long_oa_df %>%
-#     unnest(demand_data) %>%
-#     colnames()
-
-# long_oa_df %>%
-#     unnest(demand) %>%
-#     ggplot(aes(
-#         x = dist,
-#         y = mu, 
-#         colour = visibility_z
-#     )) +
-#     geom_point()
-
-
-
-
-# walk_df = long_oa_df %>%
-#     filter(visibility_z != "calendar") %>%
-#     group_by(
-#         i
-#     ) %>%
-#     mutate(
-#         n_dists = n_distinct(dist) 
-#     ) %>%
-#     filter(n_dists > 1)  %>%
-#     select(i, visibility_z, dist) %>%
-#     spread(
-#         visibility_z, dist
-#     ) %>%
-#     mutate( 
-#         walk_increase = bracelet - control
-#     )
-
-# walk_df %>%
-#     ungroup() %>%
-#     summarise(
-#         mean_increase = mean(walk_increase)
-#     )
-
-# long_oa_df
-
-
-
-# long_oa_df %>%
-#     ungroup() %>%
-#     group_by(visibility_z) %>%
-#     summarise(
-#         pct_close = mean(dist < 1250),
-#         pct_far = mean(dist > 1250)
-#     )
-
-# walk_df
-
-
-# walk_df %>%
-#     ungroup() %>%
-#     summarise(
-#         pct_close = mean(control < 1250), 
-#         pct_far = mean(control > 1250), 
-#     )
-
-
-# walk_df     %>%
-#     ggplot(aes(
-#         x = walk_increase
-#     )) +
-#     geom_histogram() +
-#     geom_vline(xintercept = 0, linetype = "longdash")
-
-
-# long_oa_df %>%
-#     group_by(visibility_z) %>%
-#     summarise(
-#         dist = mean(dist)
-#     )
-
-# long_oa_df %>%
-#     filter(dist > 0) %>%
-#     ggplot(aes(
-#         x = dist,
-#         fill = visibility_z
-#     )) +
-#     geom_histogram()
-
-
-# long_oa_df %>%
-#     ggplot(aes(
-#         x = dist,
-#         fill = visibility_z
-#     )) +
-#     geom_histogram() +
-#     facet_wrap(~visibility_z, ncol = 1)
-
-
-
-# optimal_allocation_demand_comp_plot_path = file.path(
-#     script_options$output_path,
-#     str_glue(
-#         "{script_options$output_basename}-optimal-allocation-demand-comp-plot.png"
-#     )
-# )
 
 
 wgs.84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
@@ -397,154 +263,25 @@ if (stat_type == "median") {
 }
 
 if (stat_type == "post-draws") {
-    library(tidyverse)
-    library(sf)
 
-    cutoff_type = script_options$cutoff_type 
+    long_optimal_df = optimal_df %>%
+        select(
+            draw,
+            model,
+            private_benefit_z,
+            visibility_z, 
+            model_output
+            )  %>%
+        unnest(model_output)
 
-    draw_files = fs::dir_ls("optim/data/", regexp = "cutoff.*post-draws.*\\.rds$")
+    long_optimal_df = long_optimal_df %>%
+        select(-c(`Level of Education`:cluster.id.y))
 
-
-    if (cutoff_type == "cutoff") {
-        draw_files = draw_files[str_detect(draw_files, "data\\/cutoff")]
-    } else {
-        draw_files = draw_files[str_detect(draw_files, "data\\/no-cutoff")]
-    }
-
-
-
-    draw_data = map(
-        draw_files,
-        read_rds
-    ) %>%
-        map(as_tibble) %>%
-        imap(
-
-            ~mutate(., file = draw_files[.y])
-        ) 
-
-
-
-    draw_data = map_dfr(
-        draw_data,
-        ~mutate(
-            .x,
-            cutoff_type = cutoff_type,
-            rep_type = if_else(str_detect(file, "no-rep"), "no-rep", "rep")
-        )
-    ) %>%
-    select(-file)
-
-    draw_data = draw_data %>%
-        filter(!str_detect(model, "REDUCED"))
-
-    draw_data = draw_data %>%
-        mutate(
-            n_pots = map_dbl(
-                model_output,
-                ~n_distinct(.x$j)
+    long_optimal_df %>%
+        saveRDS(
+            file.path(
+                script_options$optim_input_path, 
+                str_replace(script_options$optim_input_a_filename, "\\.rds", "-subset-long-data.rds")
             )
         )
-
-    library(ggthemes)
-
-
-    canva_palette_vibrant <- "Primary colors with a vibrant twist"
-
-
-
-    plot_post_estimates = function(data, treatment_arm, cutoff_type) {
-        
-        plot_title = 
-            str_glue("Posterior Histogram of Number of PoTs required - Visibility vs No Visibility")
-
-        plot_subtitle = str_glue(
-                "Using {treatment_arm} private incentive/visibility."
-            )
-
-        if (cutoff_type == "no-cutoff") {
-            plot_subtitle = paste0(
-                plot_subtitle,
-                " Extrapolating past observed support."
-            )
-        } else {
-            plot_subtitle = paste0(
-                plot_subtitle,
-                " Only assigning PoTs within observed support."
-
-            )
-        }
-
-        plot_df = data %>%
-            filter(n_pots != 0) %>%
-            filter(treatment == treatment_arm) %>%
-            mutate(rep_type = if_else(
-                rep_type == "no-rep",
-                "No Visibility", 
-                "Visibility"
-            ), 
-            rep_type = factor(rep_type, levels = c("Visibility", "No Visibility"))
-            )
-            
-            
-            
-        p = plot_df %>%
-            ggplot(aes(
-                x = n_pots, 
-                fill = rep_type
-            )) +
-            geom_histogram(
-                bins = 60,
-                colour = "black"
-            ) +
-            theme_minimal() +
-            theme(
-                legend.position = "bottom"
-            ) +
-            labs(
-                fill = element_blank(),
-                x = "Number of PoTs", 
-                y = "N Posterior Draws", 
-                title = plot_title, 
-                subtitle = plot_subtitle,
-                caption = "Histogram shows 200 posterior draws. Decision maker targets takeup of 33% (equivalent to takeup in control arm)."
-                ) +
-            scale_fill_canva(
-                palette = canva_palette_vibrant
-            )
-        return(p)
-    }
-
-    p = plot_post_estimates(
-        draw_data,
-        "bracelet",
-        cutoff_type
-    )
-    p
-
-    treatment_arms = c("bracelet", "control")
-
-    p = map(
-        treatment_arms,
-        ~plot_post_estimates(
-            data = draw_data,
-            treatment_arm = .x,
-            cutoff_type = cutoff_type
-        )
-    )
-    iwalk(
-        p,
-        ~ggsave(
-            plot = .x,
-            filename = file.path(
-                script_options$output_path,
-                str_glue(
-                    "posterior-pots-{cutoff_type}-{treatment_arms[.y]}.png"
-                )
-            ),
-            width = 8,
-            height = 6,
-            dpi = 500
-        )
-    )
 }

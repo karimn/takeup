@@ -6,11 +6,13 @@ script_options <- docopt::docopt(
         Options:
         --input-path=<input-path>  The input path [default: {file.path('optim', 'data', 'agg-log-full')}]
         --output-path=<output-path>  The output path [default: {file.path('temp-data')}]
+        --posterior-median  Whether to compare posterior medians or entire posterior draws
         --many-pots
 "),
   args = if (interactive()) "
-        --input-path=~/projects/takeup/optim/data/agg-log-full
-        --output-path=~/projects/takeup/optim/data/agg-log-full
+        --input-path=~/projects/takeup/optim/data/agg-log-full-many-pots
+        --output-path=~/projects/takeup/optim/data/agg-log-full-many-pots
+        --posterior-median
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -23,10 +25,18 @@ output_path = script_options$output_path
 dir.create(output_path)
 many_pots = script_options$many_pots
 
-oa_files = fs::dir_ls(
-    input_path,
-    regexp = "rds"
-)
+
+if (script_options$posterior_median) {
+    oa_files = fs::dir_ls(
+        input_path,
+        regexp = "median-optimal-allocation\\.rds"
+    )
+} else {
+    oa_files = fs::dir_ls(
+        input_path,
+        regexp = "optimal-allocation-subset-long-data\\.rds"
+    )
+}
 
 models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS"
 
@@ -64,6 +74,85 @@ subset_oa_df = oa_df %>%
     filter(
         cutoff_type  == "cutoff"
     ) 
+
+
+if (!script_options$posterior_median) { # if all draws
+    summ_optim_df = subset_oa_df %>%
+        group_by(
+            draw,
+            private_benefit_z,
+            visibility_z, 
+            model, 
+            rep_type,
+            cutoff_type
+        ) %>%
+        summarise(
+            util = sum(log(demand)),
+            mean_demand = mean(demand), 
+            min_demand = min(demand), 
+            n_pot = n_distinct(j),
+            target_optim = mean(target_optim)
+        )  %>%
+        mutate(
+            overshoot = 100*(util/target_optim - 1)
+        )
+
+    post_summ_optim_df = summ_optim_df %>%
+        group_by(
+            private_benefit_z,
+            visibility_z, 
+            model, 
+            rep_type,
+            cutoff_type
+        ) %>%
+        select(-draw) %>%
+        filter(
+            model %in% models_we_want
+        ) %>%
+        filter(
+            cutoff_type  == "cutoff"
+        ) %>%
+        summarise(
+            across(
+                everything(),
+                list(
+                    estimate = mean,
+                    CI = ~paste0("(", signif(quantile(.x, 0.025), 3), ", ", signif(quantile(.x, 0.975), 3), ")")
+                )
+            )
+        )   %>%
+        ungroup() %>%
+        select(-model, -cutoff_type) %>%
+        arrange(
+            private_benefit_z,
+            visibility_z,
+            rep_type
+        ) %>%
+    rename(
+        B_z = private_benefit_z, 
+        mu_z = visibility_z
+    )
+
+post_summ_optim_df %>% 
+    filter(rep_type == "rep") %>%
+    select(-rep_type) %>%
+    write_csv(
+        file.path(
+            output_path,
+            "posterior-rep-summ-optim.csv"
+        ))
+
+post_summ_optim_df %>% 
+    filter(rep_type == "suppress_rep") %>%
+    select(-rep_type) %>%
+    write_csv(
+        file.path(
+            output_path,
+            "posterior-suppress-rep-summ-optim.csv"
+        ))
+}
+
+if (script_options$posterior_median) {
 
 
 model_df = subset_oa_df %>%
@@ -131,66 +220,6 @@ table_summ_optim_df %>%
             "suppress-rep-summ-optim.csv"
         ))
 
-
-
-demand_df = subset_oa_df %>%
-    unnest(demand_data)
-
-demand_df %>%
-    filter(dist < 3500) %>%
-    filter(private_benefit_z == "control") %>%
-    filter(rep_type == "rep") %>%
-    ggplot(aes(
-        x =  dist,
-        y = demand, 
-        colour = visibility_z
-    )) +
-    geom_line()  +
-    geom_point()  +
-    theme_minimal() +
-    theme(legend.position = "bottom") 
-
-ggsave(
-    file.path(
-        output_path,
-        "optim-demand-df.png"
-    ),
-    width = 8,
-    height = 6,
-    dpi = 500
-)
-
-
-demand_df %>%
-    filter(
-        visibility_z == "control"
-    ) %>%
-    filter(dist < 3500) %>%
-    ggplot(aes(
-         x = dist, 
-         y = demand, 
-         colour = private_benefit_z
-    )) +
-    geom_point() +
-    geom_hline(yintercept =  0.33) +
-    geom_vline(
-        xintercept = 1000
-    )
-
-
-library(ggridges)
-subset_oa_df %>%
-    filter(private_benefit_z == "control") %>%
-    unnest(model_output) %>%
-    ggplot(aes(
-        x = dist, 
-        fill = visibility_z, 
-        y = visibility_z
-    )) +
-    geom_density_ridges(alpha = 0.3) +
-    theme_ridges() +
-    theme(legend.position = "bottom")
-
 subset_oa_df %>%
     filter(private_benefit_z == "control") %>%
     mutate(visibility_z = fct_relabel(visibility_z, str_to_title)) %>%
@@ -221,7 +250,32 @@ ggsave(
 )
 
 
+demand_df = subset_oa_df %>%
+    unnest(demand_data)
 
+demand_df %>%
+    filter(dist < 3500) %>%
+    filter(private_benefit_z == "control") %>%
+    filter(rep_type == "rep") %>%
+    ggplot(aes(
+        x =  dist,
+        y = demand, 
+        colour = visibility_z
+    )) +
+    geom_line()  +
+    geom_point()  +
+    theme_minimal() +
+    theme(legend.position = "bottom") 
+
+ggsave(
+    file.path(
+        output_path,
+        "optim-demand-df.png"
+    ),
+    width = 8,
+    height = 6,
+    dpi = 500
+)
 
 demand_df %>%
     filter(dist < 3500) %>%
@@ -253,3 +307,8 @@ ggsave(
     height = 6,
     dpi = 500
 )
+}
+
+
+
+

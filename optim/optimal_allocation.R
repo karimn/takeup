@@ -24,18 +24,17 @@ script_options <- docopt::docopt(
           --solver=<solver>  MILP solver [default: glpk]
 "),
   args = if (interactive()) "
-                                --posterior-median \
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
                                 --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                                --output-path=optim/data/agg-log-full/many-pots \
-                                --input-path=optim/data/agg-log-full/many-pots  \
-                                --data-input-name=full-experiment.rds
+                                --output-path=optim/data/agg-log-full-many-pots \
+                                --input-path=optim/data/agg-log-full-many-pots  \
+                                --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
-                                --output-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
-                                --demand-input-filename=pred-demand-dist-fit71-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
+                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
+                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
 
                                 --welfare-function=log
                                 --solver=gurobi
@@ -145,7 +144,6 @@ data = list(
   village_locations = village_data
 ) 
 
-
 target_df = read_csv(
   file.path(
     script_options$input_path,
@@ -250,12 +248,6 @@ baseline_constraints = create_base_constraints(
 
 
 demand_data %>%
-  unnest(demand_data) %>%
-  filter(!is.finite(util))
-demand_data %>%
-  unnest(demand_data) %>%
-  summarise(n_distinct(pot_j))
-demand_data %>%
   head(1) %>%
   unnest(demand_data) %>%
   filter(demand > 0) %>%
@@ -287,16 +279,12 @@ demand_data = demand_data %>%
 
 
 
-demand_data %>%
-  unnest(demand_data) %>%
-  filter(!is.finite(util))
 
 if (script_options$solver == "glpk") {
   control_args = list(tm_limit = script_options$time_limit)
 } else {
   control_args = NULL
 }
-
 tictoc::tic()
 tidy_output = demand_data %>%
   mutate(
@@ -313,23 +301,30 @@ tidy_output = demand_data %>%
     },
       .progress = TRUE,
       .options = furrr_options(seed = TRUE)
-    ), 
-    optim_fit = future_map(
-      optim_problem, 
+    ))
+tidy_output = tidy_output %>%
+  mutate(
+    optim_fit = map(
+      optim_problem,
       ~ROI_solve(
         .x, 
         solver = script_options$solver,
         verbose = TRUE,
-        control = control_args 
+        control = control_args
       ),
       .progress = TRUE,
       .options = furrr_options(seed = TRUE)
-    ), 
-    model_output = map2( 
+    )
+  )   
+
+tidy_output = tidy_output %>%
+  mutate(
+    model_output = future_map2( 
       optim_fit, 
       demand_data,
       ~clean_solution(.x, data = data, takeup = .y ) %>%
-        mutate(target_optim = target_optim)
+        mutate(target_optim = target_optim), 
+        .progress = TRUE
     )
   )
 tictoc::toc()

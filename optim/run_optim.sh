@@ -26,7 +26,7 @@ if [[ -v IN_SLURM ]]; then
 
   echo "Running with ${CORES} cores."
 else
-  NUM_CORES=16
+  NUM_CORES=8
 fi
 
 # Setting arguments
@@ -36,8 +36,8 @@ NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="" # --posterior-median
 SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
-SKIP_PP=1 # 1 or 0
-RUN_TARGET_CREATION=1
+SKIP_PP=0 # 1 or 0
+RUN_TARGET_CREATION=0
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
@@ -164,17 +164,17 @@ run_optim () {
 CUTOFF=""
 ## Cutoff
 run_optim "control" "control"
-# run_optim "control" "bracelet"
-# run_optim "control" "calendar"
-# run_optim "control" "ink"
+run_optim "control" "bracelet"
+run_optim "control" "calendar"
+run_optim "control" "ink"
 #
 #
-# run_optim "bracelet" "bracelet"
-# run_optim "ink" "ink"
-#run_optim "calendar" "calendar"
+run_optim "bracelet" "bracelet"
+run_optim "ink" "ink"
+run_optim "calendar" "calendar"
 #
-# run_optim "bracelet" "control"
-# run_optim "ink" "control"
+run_optim "bracelet" "control"
+run_optim "ink" "control"
 # #
 
 #  run_optim "calendar" "control"
@@ -196,4 +196,8 @@ CUTOFF="no-"
 
 
 
-#Rscript ./optim/compare-optim.R --input-path=$OUTPUT_PATH --output-path=$PLOT_OUTPUT_PATH $MANY_POTS
+Rscript ./optim/compare-optim.R \ 
+    --input-path=${OUTPUT_PATH} \
+    --output-path=${PLOT_OUTPUT_PATH} \
+    ${MANY_POTS} \
+    ${POSTERIOR_MEDIAN}
