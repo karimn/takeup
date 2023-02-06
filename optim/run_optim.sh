@@ -33,22 +33,22 @@ fi
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=0 # 1
+POSTERIOR_MEDIAN="" # --posterior-median
+SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
-SKIP_PP=0 # 1 or 0
+SKIP_PP=1 # 1 or 0
 RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="log"
 CONSTRAINT_TYPE="agg"
 COUNTY="full"
-OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}/many-pots" # /many-pots
-PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}/many-pots" #/many-pots
-DATA_INPUT_NAME="${COUNTY}-experiment.rds"
+OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}-many-pots" # /many-pots
+PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}-many-pots" #/many-pots
+DATA_INPUT_NAME="${COUNTY}-many-pots-experiment.rds"
 CUTOFF="no-" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
-SUPPRESS_REP="suppress-rep-" #suppress-rep-
+SUPPRESS_REP="" #suppress-rep-
 
 
 mkdir -p ${OUTPUT_PATH}
@@ -169,9 +169,9 @@ run_optim "control" "control"
 # run_optim "control" "ink"
 #
 #
-run_optim "bracelet" "bracelet"
-run_optim "ink" "ink"
-run_optim "calendar" "calendar"
+# run_optim "bracelet" "bracelet"
+# run_optim "ink" "ink"
+#run_optim "calendar" "calendar"
 #
 # run_optim "bracelet" "control"
 # run_optim "ink" "control"
@@ -196,4 +196,4 @@ CUTOFF="no-"
 
 
 
-Rscript ./optim/compare-optim.R --input-path=$OUTPUT_PATH --output-path=$PLOT_OUTPUT_PATH $MANY_POTS
+#Rscript ./optim/compare-optim.R --input-path=$OUTPUT_PATH --output-path=$PLOT_OUTPUT_PATH $MANY_POTS
