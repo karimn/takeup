@@ -12,7 +12,7 @@ script_options <- docopt::docopt(
   args = if (interactive()) "
         --input-path=~/projects/takeup/optim/data/agg-log-full-many-pots
         --output-path=~/projects/takeup/optim/data/agg-log-full-many-pots
-        --posterior-median
+        --many-pots
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -42,15 +42,14 @@ models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS"
 
 oa_df = map_dfr(
     oa_files, 
-    read_rds
-) %>% as_tibble() %>%
-    mutate(
-        file = oa_files
-    ) %>%
+    read_rds,
+    .id = "file"
+) %>% as_tibble()  %>%
     mutate(
         cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
         rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep")
     ) 
+
 treatments = c(
     "bracelet",
     "calendar",
@@ -68,9 +67,6 @@ oa_df = oa_df %>%
 
 subset_oa_df = oa_df %>%
     filter(model == "STRUCTURAL_LINEAR_U_SHOCKS")  %>%
-    filter(
-        model %in% models_we_want
-    ) %>%
     filter(
         cutoff_type  == "cutoff"
     ) 
