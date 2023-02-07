@@ -4,9 +4,9 @@ output:
   pdf_document:
     extra_dependencies: ["amsmath", "threeparttable", "placeins"]
 params: 
-  plot_input_path: "~/projects/takeup/optim/plots/agg-log-full/many-pots"
-  misc_input_path: "~/projects/takeup/optim/plots/agg-log-full/many-pots"
-  data_input_path: "~/projects/takeup/optim/data/agg-log-full/many-pots"
+  plot_input_path: "~/projects/takeup/optim/plots/agg-log-full-many-pots"
+  misc_input_path: "~/projects/takeup/optim/plots/agg-log-full-many-pots"
+  data_input_path: "~/projects/takeup/optim/data/agg-log-full-many-pots"
   many_pots: TRUE
 ---
 
@@ -33,14 +33,15 @@ library(ROI.plugin.glpk)
 Suppose there are $n$ villages, indexed by $i$, and $m$ points of treatment (PoT) which we index 
 by $j$. The social planner's goal is to minimise the number of PoTs required subject to hitting 
 $\overline{W}^C = E\left[\sum^n_{i = 1}U(\textit{takeup}^C_{i})\right]$ - the expected social welfare the planner would have achieved by assigning 
-every village in the experiment to the control condition. We can reformulate this 
+every village in the experiment to the control condition\^[This expectation is taken over both posterior parameter uncertainty and 
+different realisations of village-PoT pairs under random assignment.]. We can reformulate this 
 as an integer programme:
 
 $$
 \begin{aligned}
 \min \sum_{j = 1}^m  &y_j \\
 s.t. \ \ 
-\sum_{i = 1}^n U\left(\textit{takeup}_{ij}x_{ij}\right) &\geq \underbrace{E\left[\sum_{i = 1}^n U\left(\textit{takeup}^C_{i}\right)\right]}_{\overline{W}^C} \\
+\sum_{i = 1}^n U\left(\widehat{\textit{takeup}}_{ij}x_{ij}\right) &\geq \underbrace{E\left[\sum_{i = 1}^n U\left(\textit{takeup}^C_{i}\right)\right]}_{\overline{W}^C} \\
     \sum_{j=1}^{m} x_{ij} &= 1, \forall i \\
     x_{ij} &\leq y_j, \forall i, j  \\
  x_{ij} &\in \{0,1\}, y_j \in\{0,1\}
@@ -58,7 +59,9 @@ inequality to the social planner's problem - there's decreasing marginal
 utility to increasing takeup within a village. Secondly, log-utility completely
  dissuades the 
 social planner from implementing a ruthless utilitarian allocation that sets takeup to 
-0 in sparsely populated locations.
+0 in sparsely populated locations. $\widehat{\textit{takeup}}_{ij}$ corresponds to 
+the social planner's posterior median estimate of demand for deworming when village 
+$i$ is assigned to point of treatment $j$.
 
 
 
@@ -214,30 +217,44 @@ include_graphics(
 
 ```{r, echo=FALSE}
 
-read_csv(
+summ_df_rep = read_csv(
   file.path(
     params$data_input_path,
-    "rep-summ-optim.csv"
+    "posterior-rep-summ-optim.csv"
   )
-  ) %>%
+  ) 
+
+colnames(summ_df_rep) = str_remove(colnames(summ_df_rep), "_estimate")
+ summ_df_rep %>% 
   knitr::kable(
     digits = 3, 
-    caption = "PM Aware of Signalling"
+    caption = "PM Aware of Signalling",
+    booktabs = TRUE
     ) %>%
-  kableExtra::kable_styling()
+  kableExtra::kable_styling(
+    font_size = 7,
+    latex_options =  "scale_down"
+  )
 
-read_csv(
+summ_df_sup_rep = read_csv(
   file.path(
     params$data_input_path,
-    "suppress-rep-summ-optim.csv"
+    "posterior-suppress-rep-summ-optim.csv"
   )
-  ) %>%
+  ) 
+
+colnames(summ_df_sup_rep) = str_remove(colnames(summ_df_sup_rep), "_estimate")
+ summ_df_sup_rep %>% 
   filter(B_z == mu_z) %>%
   knitr::kable(
     digits = 3, 
-    caption = "PM Unaware of Signalling"
+    caption = "PM Unaware of Signalling",
+    booktabs = TRUE
     ) %>%
-  kableExtra::kable_styling()
+  kableExtra::kable_styling(
+    font_size = 7,
+    latex_options =  "scale_down"
+  )
 
 ```
 
