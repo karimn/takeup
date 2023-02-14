@@ -25,7 +25,7 @@ library(knitr)
 library(kableExtra)
 library(ggthemes)
 library(fixest)
-library(margins)
+# library(margins)
 
 source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source(file.path("analysis_util.R"))
@@ -215,6 +215,7 @@ if ("balance_indiv" %in% script_options$tables) {
     digits = 3
   ) 
 
+  # TODO: add tests for imbalance
   wide_indiv_bal_df %>% 
     knitr::kable(
       format = "latex",
@@ -227,10 +228,6 @@ if ("balance_indiv" %in% script_options$tables) {
 
 
 
-  library(gt)
-  wide_df %>%
-    gt() %>%
-    as_kable_extra()
 
 }
 
@@ -384,16 +381,75 @@ private_te = dist_fit_data %>%
       per_0.95
     )
 
+## Differences Between Bracelet and Calendar
+incentive_bracelet_calendar_diff_df = dist_fit_data %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    # fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")
+    ) %>%
+    select(fit_type, model_type, est_takeup_te_diff) %>%
+    unnest(est_takeup_te_diff) %>%
+    filter(
+      (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+      model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_left == assigned_treatment_left)), # same mu and B
+      model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_right == assigned_treatment_right)), # same mu and B
+      fct_match(assigned_treatment_right, "calendar"), 
+      fct_match(assigned_treatment_left, "bracelet")
+    )  %>%
+    mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      ) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      mean_est, 
+      per_0.05, 
+      per_0.95
+    ) %>%
+    mutate(
+      assigned_treatment = "\\textit{Bracelet - Calendar}"
+    )
+
+signal_bracelet_calendar_diff_df = dist_fit_data %>%
+  select(model_type, fit_type, est_takeup_te) %>%
+  filter(model_type == "structural") %>%
+  unnest(est_takeup_te)  %>%
+  filter(
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+    (assigned_treatment_left == assigned_treatment_right), # same B on LHS and RHS
+    (mu_assigned_treatment_left == "bracelet" & mu_assigned_treatment_right == "calendar"), 
+    assigned_treatment_left == "control" 
+) %>%
+    mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      ) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      mean_est, 
+      per_0.05, 
+      per_0.95
+    ) %>%
+    mutate(
+      assigned_treatment = "\\textit{Bracelet - Calendar}"
+    )
 
 
 te_df = bind_rows(
   incentive_te %>% mutate(estimand = "incentive"),
+  incentive_bracelet_calendar_diff_df %>% mutate(estimand = "incentive"),
   private_te %>% mutate(estimand = "private"),
-  signalling_te %>% mutate(estimand = "signal")
+  signalling_te %>% mutate(estimand = "signal"),
+  signal_bracelet_calendar_diff_df %>% mutate(estimand = "signal"),
 )
-library(kableExtra)
-te_df %>%
-  kbl()
 
 rf_te_input_df = te_df %>%
   filter(model_type == "reduced form") %>%
@@ -510,8 +566,8 @@ te_kbl_df = te_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Incentive" = 3, 
-      "Signalling" = 3, 
+      "Incentive" = 4, 
+      "Signalling" = 4, 
       "Private" = 3
     ), 
     # latex_gap_space = latex_group_gap_space, 
@@ -519,10 +575,11 @@ te_kbl_df = te_input_df %>%
     # hline_before = TRUE,
     bold = TRUE
   ) %>%
+  add_indent(c(4, 8)) %>%
   footnote(
     general = "The footnote goes here."
   )
-
+te_kbl_df
 te_kbl_df %>%
   save_kable(
     file.path(
@@ -531,3 +588,71 @@ te_kbl_df %>%
     )
   )
 
+
+
+dist_fit_data %>%
+  select(fit_type, model_type, est_takeup_te_diff) %>%
+  unnest(est_takeup_te_diff) %>%
+  treatment_component_filter(., "incentive") %>%
+  filter(
+      fct_match(assigned_treatment_right, "calendar"), 
+      fct_match(assigned_treatment_left, "bracelet")
+  )
+
+
+dist_fit_data %>%
+  filter(model_type == "reduced form") %>%
+  select(est_takeup_te_diff) %>%
+  unnest( 
+    est_takeup_te_diff
+  ) %>%
+  filter(
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+    mu_assigned_treatment_left == assigned_treatment_left, # same mu and B
+    # mu_assigned_treatment_right == assigned_treatment_right, # same mu and B
+    # fct_match(assigned_treatment_right, "calendar"), 
+    # fct_match(assigned_treatment_left, "bracelet")
+  )    %>%
+  select(
+    mu_assigned_treatment_left, mu_assigned_treatment_right, assigned_treatment_right)
+
+
+
+
+
+treatment_component_filter = function(data, component){
+  if (component == "incentive") {
+    data = data %>%
+      filter(
+        model_type != "structural" | ((mu_assigned_treatment_left == assigned_treatment_left) & (mu_assigned_treatment_right == assigned_treatment_right))) %>%
+      filter(
+            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+            assigned_treatment_left != assigned_treatment_right,
+            fct_match(assigned_treatment_right, c("control")),
+            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))
+  }
+
+  if (component == "signalling") {
+    data = data %>%
+      filter(
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+        across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+        !is.na(mu_assigned_treatment_left),
+        fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+        fct_match(mu_assigned_treatment_right, "control"),
+      )
+  }
+
+  if (component == "private") {
+    data = data %>%
+      filter(
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+        !is.na(mu_assigned_treatment_left),
+        !is.na(mu_assigned_treatment_right),
+        across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
+        fct_match(assigned_treatment_right, "control"),
+      )
+  }
+  return(data)
+}
