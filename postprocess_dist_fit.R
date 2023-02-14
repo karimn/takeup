@@ -124,6 +124,7 @@ model_info <- tribble(
 
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_NO_REP",                 "Structural",                                         "structural",
 
 
   

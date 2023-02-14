@@ -6,78 +6,82 @@ script_options <- docopt::docopt(
         Options:
           --min-cost  Flag to minimise programme cost for a given takeup level.
           --max-takeup  Flag to maximise vaccine takeup for a given cost level.
-          --target-constraint=<target-constraint>  Amount of takeup/budget constraint depending on [--min-cost|--max-takeup]  [default: 0.5]
-          --input-path=<input-path>  Path where input data is stored.
+          --optim-input-path=<optim-input-path>  Path where input data is stored.
+          --demand-input-path=<demand-input-path>  Path where input data is stored.
           --optim-input-a-filename=<optim-input-a-filename>  Optim input a filename.
-          --optim-input-b-filename=<optim-input-b-filename>   Optim input b filename
           --demand-input-a-filename=<demand-input-a-filename>  Estimated demand a for every village i, PoT j pair.  
-          --demand-input-b-filename=<demand-input-b-filename>  Estimated demand b for every village i, PoT j pair.  
-          --village-input-filename=<village-input-filename>  Index and location of each village - a csv path.
-          --pot-input-filename=<pot-input-filename>  Index and location of each PoT - a csv path. 
           --output-path=<output-path>  Path where output should be saved.
           --output-basename=<output-basename>  Output basename.
-          --comp-demand  Whether to compare demand under signaling vs naive
           --map-plot  Plot map without adding lines for closest villages and active PoTs 
           --posterior-median  If posterior median over takeup demand is used.
+          --cutoff-type=<cutoff-type>  Which cutoff type to use if using full posterior draws [default: no-cutoff]
+          --constraint-type=<constraint-type>  Aggregate or individual village welfare
+          --welfare-function=<welfare-function>  Log or identity utility
+          --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
+          --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
 "),
   args = if (interactive()) "
-                             --min-cost 
-                             --target-constraint=0.33
-                             --input-path=optim/data
-                             --optim-input-a-filename=structural-post-draws-optimal-allocation.rds
-                             --village-input-filename=village-df.csv
-                             --pot-input-filename=pot-df.csv
-                             --demand-input-a-filename=pred_demand_dist_fit66_STRUCTURAL_LINEAR_U_SHOCKS.csv
-                             --output-path=optim
-                             --output-basename=structural-post-draws-test
-                             --map-plot
+                            --constraint-type=agg \
+                            --welfare-function=log \
+                            --min-cost \
+                            --optim-input-path=optim/data/agg-log-full-many-pots \
+                            --demand-input-path=optim/data/agg-log-full-many-pots \
+                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-post-draws-optimal-allocation.rds \
+                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                            --output-path=optim/plots/agg-log-full-many-pots \
+                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-post-draws \
+                            --cutoff-type=cutoff
+                            --data-input-name=full-many-pots-experiment.rds
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
+                            # --target-constraint=0.33
+                            #  --min-cost 
+                            #  --target-constraint=0.33
+                            #  --input-path=optim/data
+                            #  --optim-input-a-filename=-no-rep-median-optimal-allocation.rds
+                            #  --village-input-filename=village-df.csv
+                            #  --pot-input-filename=pot-df.csv
+                            #  --demand-input-a-filename=pred_demand_dist_fit71_no_rep.csv
+                            #  --output-path=optim
+                            #  --output-basename=structural-median-no-rep-test
+                            #  --map-plot
+                            #  --posterior-median
 
-                            #  --optim-input-b-filename=dry-run-subsidy-0-optimal-allocation.csv
-                            #  --demand-input-b-filename=dry-run-subsidy-0.2-demand-data.csv
-                            #  --comp-demand
 library(tidyverse)
 library(sf)
 library(data.table)
 
-numeric_options = c(
-  "target_constraint"
-)
 
 
-script_options = script_options %>%
-  modify_at(numeric_options, as.numeric)
+# script_options = script_options %>%
+#   modify_at(numeric_options, as.numeric)
 
 optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
-## Input Paths
-optim_input_a_filepath = file.path(script_options$input_path, 
-                                 script_options$optim_input_a_filename)
-optim_input_b_filepath = file.path(script_options$input_path, 
-                                 script_options$optim_input_b_filename)
-demand_input_a_path = file.path(script_options$input_path, 
-                            script_options$demand_input_a_filename)
-demand_input_b_path = file.path(script_options$input_path, 
-                            script_options$demand_input_b_filename)
 
-village_input_path = file.path(script_options$input_path, 
-                                script_options$village_input_filename)
-pot_input_path = file.path(script_options$input_path, 
-                            script_options$pot_input_filename)
+## Input Paths
+optim_input_a_filepath = file.path(script_options$optim_input_path, 
+                                script_options$optim_input_a_filename)
+demand_input_a_path = file.path(script_options$demand_input_path, 
+                            script_options$demand_input_a_filename)
+
 ## Input Data
 optimal_df = read_rds(optim_input_a_filepath)
-# optim_b_data = read_csv(optim_input_b_filepath)
 demand_a_data = read_csv(demand_input_a_path) %>%
     as.data.table()
-# demand_b_data = read_csv(demand_input_b_path) %>%
-#     as.data.table()
 
-village_data = read_csv(village_input_path)
-pot_data = read_csv(pot_input_path)
+dist_data = read_rds(
+  file.path(
+    script_options$data_input_path,
+    script_options$data_input_name
+  )
+)
+
+village_data = dist_data$village_df
+pot_data = dist_data$pot_df
 
 n = nrow(village_data)
 m = nrow(pot_data)
@@ -99,6 +103,8 @@ optimal_allocation_demand_comp_plot_path = file.path(
     )
 )
 
+
+
 wgs.84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 ## Loading Data
 data = list(
@@ -116,7 +122,6 @@ hex <- hue_pal()(2)
 
 
 if (script_options$map_plot){
-
     data$village_locations %>%
         ggplot() +
         geom_sf() +
@@ -144,12 +149,8 @@ if (script_options$map_plot){
     ggsave(map_plot_path, width = 8, height = 6, dpi = 500)
 }
 
-optimal_df = optimal_df %>%
-    mutate(allocation_infeasible = map(model_output, ~any(str_detect(colnames(.x), "fail")))) %>%
-    filter(allocation_infeasible == FALSE)
 
 if (stat_type == "median") {
-
 
     plot_optimal_allocation = function(village_data,
                                     pot_data,
@@ -158,6 +159,42 @@ if (stat_type == "median") {
         assigned_pots = unique(optimal_data$j)
         n_pots_used =  length(assigned_pots)
         pot_data$assigned_pot = pot_data$id %in% assigned_pots
+        summ_optimal_data = optimal_data %>%
+            mutate(target_optim = target_optim) %>%
+            summarise(
+                util = sum(log(demand)),
+                mean_demand = mean(demand), 
+                min_demand = min(demand), 
+                n_pot = n_distinct(j), 
+                mean_dist = mean(dist),
+                target_optim = mean(target_optim)
+            ) %>%
+            mutate(
+                target_optim = target_optim
+            ) %>%
+            mutate(
+                overshoot = 100*(util/target_optim - 1)
+            ) 
+
+        takeup_hit = round(summ_optimal_data$mean_demand*100,1 )
+        util_hit = round(summ_optimal_data$util)
+        util_target = round(summ_optimal_data$target_optim)
+        overshoot = round(abs(summ_optimal_data$overshoot), 3)
+        mean_dist = round(summ_optimal_data$mean_dist,1)
+
+        if (script_options$constraint_type == "agg") {
+            sub_str = str_glue("Takeup target: Aggregate Welfare Under Control. Assigned PoTs: {n_pots_used}")
+        }
+
+        if (script_options$constraint_type == "indiv") {
+            sub_str = str_glue("Takeup target: Pareto Improving Allocation, Village Takeup Fixed at Control. Assigned PoTs: {n_pots_used}")
+        }
+
+        caption_str = ifelse(
+            script_options$welfare_function == "log", 
+            str_glue("Log utility used in social welfare function. Utility target: {util_target}, utility achieved: {util_hit}, percentage over constraint: {overshoot}%, takeup achieved: {takeup_hit}%. Mean walking distance: {mean_dist}m"),
+            "Identity utility function used, i.e. takeup enters SWF directly."
+            )
 
         optimal_pot_plot = village_data %>%
             ggplot() +
@@ -182,8 +219,7 @@ if (stat_type == "median") {
                     xend = pot_lon, 
                     yend = pot_lat
                     ))  +
-            labs(x = "", y = "", subtitle = str_glue("
-            Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
+            labs(x = "", y = "", subtitle = sub_str, caption = caption_str) +
             scale_color_manual(
                 values = hex,
                 labels = c("PoT Used", "PoT Unused")
@@ -191,13 +227,14 @@ if (stat_type == "median") {
         return(optimal_pot_plot)
     }
 
-    plot_optimal_allocation(
-        village_data = data$village_locations,
-        pot_data = data$pot_locations,
-        optimal_data = optimal_df %>%
-            filter(treatment == "bracelet" & str_detect(model, "RED")) %>%
-            unnest(model_output)
-    )
+
+    # plot_optimal_allocation(
+    #     village_data = data$village_locations,
+    #     pot_data = data$pot_locations,
+    #     optimal_data = optimal_df %>%
+    #         filter(treatment == "bracelet" & str_detect(model, "RED")) %>%
+    #         unnest(model_output)
+    # )
 
 
     allocation_plots = map(
@@ -208,7 +245,6 @@ if (stat_type == "median") {
             optimal_data = .x
         )
     )
-
     iwalk(
         allocation_plots,
         ~ggsave(
@@ -216,7 +252,7 @@ if (stat_type == "median") {
             filename = file.path(
                 script_options$output_path,
                 str_glue(
-                    "{script_options$output_basename}-{optimal_df[.y, 'treatment']}-{optimal_df[.y, 'model']}-optimal-allocation-plot.png"
+                    "{script_options$output_basename}-optimal-allocation-plot.png"
                 )
             ),
         width = 10,
@@ -224,298 +260,28 @@ if (stat_type == "median") {
         dpi = 500
         )
     )
-
 }
 
 if (stat_type == "post-draws") {
-    hist_pots = optimal_df %>%
-        mutate(n_pot_used = map_dbl(model_output, ~n_distinct(.x$j)))  %>%
-        as_tibble() %>%
-        ggplot(aes(
-            x = n_pot_used, 
-            fill = treatment
-        )) +
-        geom_histogram() +
-        facet_wrap(~model) +
-        theme_minimal()
 
-    ggsave(
-        file.path(
-            script_options$output_path,
-            str_glue(
-                "{script_options$output_basename}-posterior-PoTs-used.png"
+    long_optimal_df = optimal_df %>%
+        select(
+            draw,
+            model,
+            private_benefit_z,
+            visibility_z, 
+            model_output
+            )  %>%
+        unnest(model_output)
+
+    long_optimal_df = long_optimal_df %>%
+        select(-c(`Level of Education`:cluster.id.y))
+
+    long_optimal_df %>%
+        saveRDS(
+            file.path(
+                script_options$optim_input_path, 
+                str_replace(script_options$optim_input_a_filename, "\\.rds", "-subset-long-data.rds")
             )
-        ),
-        width = 10,
-        height = 10,
-        dpi = 500
-    )
+        )
 }
-    
-
-
-
-# summ_optimal_df = optimal_df %>%
-#     group_by(
-#         i,
-#         j,
-#         treatment
-#     ) %>%
-#     summarise( 
-#         n_links = n(),
-#         village_lon = unique(village_lon), 
-#         village_lat = unique(village_lat), 
-#         pot_lon = unique(pot_lon), 
-#         pot_lat = unique(pot_lat)
-#     ) %>%
-#     mutate(
-#         pct_links = n_links / 50
-#         )
-
-# pot_summ_optimal_df = optimal_df %>%
-#     select(j, draw, treatment) %>%
-#     unique() %>%
-#     group_by(j, treatment) %>%
-#     summarise(
-#         n_used = n(),
-#         across(contains("_lon"), unique), 
-#         across(contains("_lat"), unique)
-#         ) %>%
-#     mutate(pct_used = n_used / 50)
-
-# optimal_df %>%
-#     select(solver_status)
-
-# optimal_df  %>%
-#     filter(is.na(solver_status)) %>%
-#     group_by(draw, treatment) %>%
-#     summarise(
-#         n_pots = n_distinct(j)
-#     ) %>%
-#     ggplot(aes( 
-#         x = n_pots, 
-#         fill = treatment
-#     )) + 
-#     geom_histogram()
-
-
-
-# data$pot_locations %>%
-#     left_join(
-#         pot_summ_optimal_df, 
-#         by = c("id" = "j")
-#     ) %>%
-#     filter(!is.na(treatment)) %>%
-#     ggplot() +
-#     geom_sf(
-#         aes(color = pct_used)
-#     ) +
-#     facet_wrap(~treatment)
-
-#  data$pot_locations %>%
-#     ggplot() +
-#     geom_sf(
-#         aes(color = pct_used)
-#         shape = 17,
-#         size = 4, 
-#         alpha = 0.2) 
-
-#  data$village_locations %>%
-#     ggplot() +
-#     geom_sf(alpha = 1) +
-#     geom_sf(
-#         data = data$pot_locations %>% filter(assigned_pot == FALSE),
-#         color = hex[1],
-#         shape = 17,
-#         size = 4, 
-#         alpha = 0.2) +
-#     geom_sf(
-#         data = data$pot_locations %>% filter(assigned_pot == TRUE),
-#         color = hex[2],
-#         shape = 17,
-#         size = 4, 
-#         alpha = 1) +
-#     theme_bw() +
-#     geom_segment(
-#         data = summ_optimal_df, 
-#         aes(x = village_lon, 
-#             y = village_lat, 
-#             xend = pot_lon, 
-#             yend = pot_lat, 
-#             alpha = pct_links))  +
-#     labs(x = "", y = "", subtitle = str_glue("
-#     Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
-#     scale_color_manual(
-#         values = hex,
-#         labels = c("PoT Used", "PoT Unused")
-#     ) 
-
-# optimal_pot_plot = data$village_locations %>%
-#     ggplot() +
-#     geom_sf(alpha = 1) +
-#     geom_sf(
-#         data = data$pot_locations %>% filter(assigned_pot == FALSE),
-#         color = hex[1],
-#         shape = 17,
-#         size = 4, 
-#         alpha = 0.2) +
-#     geom_sf(
-#         data = data$pot_locations %>% filter(assigned_pot == TRUE),
-#         color = hex[2],
-#         shape = 17,
-#         size = 4, 
-#         alpha = 1) +
-#     theme_bw() +
-#     geom_segment(
-#         data = summ_optimal_df, 
-#         aes(x = village_lon, 
-#             y = village_lat, 
-#             xend = pot_lon, 
-#             yend = pot_lat, 
-#             alpha = pct_links))  +
-#     labs(x = "", y = "", subtitle = str_glue("
-#     Takeup target: {round(100*script_options$target_constraint)}%. Assigned PoTs: {n_pots_used}"))  +
-#     scale_color_manual(
-#         values = hex,
-#         labels = c("PoT Used", "PoT Unused")
-#     ) 
-
-# optimal_pot_plot
-
-# ## If we provide comparison data
-
-#     ms_pots = optim_b_data$j
-#     dropped_pots = setdiff(ms_pots, assigned_pots)
-
-#     optimal_pot_plot = optimal_pot_plot +
-#         geom_point(
-#             data = data$pot_locations %>% filter(id %in% dropped_pots),
-#             color = "red",
-#             shape = 17,
-#             size = 4, 
-#             alpha = 1)  +
-#     labs(
-#         title = str_glue("Optimal PoT Allocation Problem"),
-#         caption = "Black dots indicate villages. Triangles indicate potential clinic locations. 
-# Extraneous PoTs in red"
-#     )  
-
-# ggsave(
-#     plot = optimal_pot_plot,
-#     filename = optimal_allocation_plot_path,
-#     width = 8,
-#     height = 6,
-#     dpi = 500
-# )
-
-
-
-# if (script_options$comp_demand) {
-
-#     comp_demand_data = inner_join(
-#         demand_a_data %>% rename(demand_a = demand),
-#         demand_b_data %>% rename(demand_b = demand),
-#         by = c("village_i", "pot_j")
-#     )
-
-
-#     comp_demand_plot = comp_demand_data %>%
-#         ggplot(aes(
-#             y = demand_b, 
-#             x = demand_a
-#         )) +
-#         geom_point(alpha = 0.2) +
-#         geom_abline(linetype = "longdash") +
-#         theme_bw() +
-#         labs(
-#             y = "Takeup Probability Including Signal Benefit", 
-#             x = "Takeup Probability Naive Social Planner"
-#         )
-
-
-#     total_overshoot = optim_a_data %>%
-#         left_join(
-#             demand_b_data %>% rename(demand_b = demand),
-#             by = c("j" = "pot_j", "i" = "village_i")) %>%
-#         mutate(
-#             diff = abs(demand - demand_b)
-#         ) %>%
-#         summarise(total_overshoot = sum(diff)) %>%
-#         pull()
-
-
-#     print(str_glue("Total overshoot: {total_overshoot}"))
-
-#     both_demand_df = data$optim_data %>%
-#                 left_join(
-#                     demand_b_data %>% rename(demand_b = demand),
-#                     by = c("j" = "pot_j", "i" = "village_i"))  %>%
-#                 mutate(
-#                     diff = demand_b - demand, 
-#                     pct_diff = 100*diff/demand
-#                 )
-
-
-#     data$village_locations %>%
-#         ggplot(aes(
-#             x = x,
-#             y = y
-#         )) +
-#         geom_point(alpha = 0.5) +
-#         geom_point(
-#             data = data$pot_locations %>% filter(assigned_pot == FALSE),
-#             color = hex[1],
-#             shape = 17,
-#             size = 4, 
-#             alpha = 0.3) +
-#         geom_point(
-#             data = data$pot_locations %>% filter(assigned_pot == TRUE),
-#             color = hex[2],
-#             shape = 17,
-#             size = 4, 
-#             alpha = 1) +
-#         theme_bw() +
-#         labs(
-#             title = "Optimal PoT Allocation Problem",
-#             subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
-#         )  +
-#         geom_segment(
-#             data = both_demand_df,
-#             aes(x = village_x, 
-#                 y = village_y, 
-#                 xend = pot_x, 
-#                 yend = pot_y, 
-#                 colour = pct_diff),
-#             alpha = 0.5) +
-#             scale_colour_viridis_c(option = "magma", direction = -1) +
-#         geom_point(
-#             data = both_demand_df,
-#             aes(
-#                 x = village_x, 
-#                 y = village_y, 
-#                 colour = pct_diff)
-#         ) +
-#         theme(legend.position = "bottom") +
-#         labs(x = "", y = "") + 
-#         theme(
-#         axis.title.x=element_blank(),
-#         axis.text.x=element_blank(),
-#         axis.ticks.x=element_blank(),
-#         axis.title.y=element_blank(),
-#         axis.text.y=element_blank(),
-#         axis.ticks.y=element_blank()) +
-#         labs(
-#             colour = "Percentage Takeup Underestimated",
-#             caption = str_glue(
-#                 "Ignoring reputational concerns leads to overshooting target takeup by {round(total_overshoot, 2)} percentage points"
-#             )
-#         )
-
-#     ggsave(optimal_allocation_demand_comp_plot_path,
-#     width = 8,
-#     height = 6,
-#     dpi = 500)
-
-
-# }
-

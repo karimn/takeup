@@ -36,6 +36,15 @@ data {
   int<lower = 0> num_roc_distances;
   vector<lower = 0>[num_roc_distances] roc_distances; // These should be standardized already
  
+  // Optim Prediction
+  int<lower=0> num_B_treatments;
+  int<lower=0> num_mu_treatments;
+  int<lower=0> num_optim_distances;
+  vector[num_optim_distances] optim_distances; // These should be standardized already too
+  int<lower = 0, upper = 1> USE_MAP_IN_OPTIM;
+  int<lower = 0, upper = 1> GEN_OPTIM;
+
+
   // Sim Delta
   
   int<lower = 0> num_sim_delta_w;
@@ -445,5 +454,9 @@ generated quantities {
   
   for (sim_delta_index in 1:num_sim_delta_w) {
     sim_delta[sim_delta_index] = expected_delta(sim_delta_w[sim_delta_index], total_error_sd[1], u_sd[1], dummy_xr, dummy_xi);
+  }
+
+  if (GEN_OPTIM) {
+    #include takeup_optim_quantities.stan
   }
 }

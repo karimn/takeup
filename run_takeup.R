@@ -3,7 +3,7 @@
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
   run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims>]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -37,8 +37,8 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit71 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP  \
+    --outputname=dist_fit75 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -51,6 +51,7 @@ library(magrittr)
 library(tidyverse)
 library(furrr)
 library(HRW)
+library(sf)
 library(loo)
 
 script_options %<>% 
@@ -223,6 +224,64 @@ models <- lst(
       name_matched = FALSE,
       suppress_reputation = suppress_reputation)) %>%
     list_modify(!!!enum2stan_data(cost_model_types)),
+  STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = lst(
+      model_file = "takeup_struct.stan",
+      pars = struct_model_stan_pars,
+      control = lst(max_treedepth = 12, adapt_delta = 0.99),
+      use_binomial = FALSE,
+      use_cost_model = cost_model_types["param_linear"],
+      use_private_incentive_restrictions = FALSE,
+      use_cluster_effects = FALSE,
+      use_county_effects = script_options$multilevel,
+      use_param_dist_cluster_effects = FALSE,
+      use_param_dist_county_effects = FALSE,
+      use_restricted_mu = TRUE,
+      use_u_in_delta = TRUE,
+      use_wtp_model = TRUE,
+      mu_rep_type = 0,
+      use_homoskedastic_shocks = TRUE,
+      use_strata_levels = use_county_effects, # WTP
+      suppress_reputation = TRUE,
+      generate_sim = FALSE,
+      iter = script_options$iter,
+      thin = 1,
+      alg_sol_f_tol = 0.001,
+      alg_sol_max_steps = 1e9L,
+      alg_sol_rel_tol = 0.0000001,
+
+
+      # Priors
+      mu_rep_sd = 0.25,
+      # mu_beliefs_effects_sd = 1.5,
+      mu_beliefs_effects_lambda = 1,
+    
+      beta_intercept_sd = 1,
+      beta_ink_effect_sd = 0.25,
+      beta_calendar_effect_sd = 0.25,
+      beta_bracelet_effect_sd = 0.25,
+      
+      structural_beta_county_sd_sd = 0.05,
+      structural_beta_cluster_sd_sd = 0.25,
+      
+      wtp_value_utility_sd = 0.0001,
+
+      raw_u_sd_alpha = 3.3, 
+      raw_u_sd_beta = 1.1,
+
+      init = generate_initializer(
+        num_treatments = num_treatments,
+        num_clusters = num_clusters,
+        num_counties = num_counties,
+        structural_type = 1,
+        num_dist_mix = script_options$num_mix_groups,
+        use_cluster_effects = use_cluster_effects,
+        use_county_effects = use_county_effects,
+        use_param_dist_cluster_effects = use_param_dist_cluster_effects,
+        restricted_private_incentive = use_private_incentive_restrictions,
+        cost_model_type = use_cost_model,
+        name_matched = FALSE,
+        suppress_reputation = suppress_reputation)) %>%
+      list_modify(!!!enum2stan_data(cost_model_types)),
 
   STRUCTURAL_LINEAR = lst(
     model_file = "takeup_struct.stan",
@@ -405,7 +464,7 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
     #   mutate(., treatment_id_control = 1) %>% 
     #     filter(treatment_id != treatment_id_control) %>% 
     #     select(treatment_id, treatment_id_control)
-    # } else {
+    # } else { 
       bind_rows(
         left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
           filter(assigned_treatment != assigned_treatment_control) %>% 
@@ -419,6 +478,17 @@ beliefs_ate_pairs <- cluster_treatment_map %>%
 } %>%
   arrange(treatment_id, treatment_id_control) 
 
+
+# Optim Distance Data -----------------------------------------------------
+if (script_options$gen_optim) {
+  distance_data = read_rds(
+    "optim/data/full-experiment.rds"
+  )
+
+  optim_distance_df = distance_data$long_distance_mat %>%
+    filter(dist < 10000) %>%
+    mutate(standardised_dist = dist / sd(analysis_data$cluster.dist.to.pot)) 
+}
 # Stan Data ---------------------------------------------------------------
 
 stan_data <- lst(
@@ -488,6 +558,14 @@ stan_data <- lst(
   
   roc_distances = seq(0, 5000, 100) / sd(analysis_data$cluster.dist.to.pot),
   num_roc_distances = length(roc_distances),
+
+
+  optim_distances = ifelse(script_options$gen_optim, optim_distance_df$standardised_dist, analysis_data$standard_cluster.dist.to.pot),
+  num_optim_distances = length(optim_distances),
+  num_B_treatments = 4,
+  num_mu_treatments = 4,
+  USE_MAP_IN_OPTIM = 0,
+  GEN_OPTIM = script_options$gen_optim,
   
   sim_delta_w = seq(-2, 2, 0.2),
   num_sim_delta_w = length(sim_delta_w),
