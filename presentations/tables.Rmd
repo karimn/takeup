@@ -652,12 +652,7 @@ te_kbl_df = te_input_df %>%
       # "Estimand", 
       # "Treatment", 
       "",
-      "Close", 
-      "Far", 
-      "Combined", 
-      "Close", 
-      "Far",
-      "Combined"
+      paste0("(", 1:6, ")")
     ), 
     format = "latex", 
     booktabs = TRUE, 
@@ -667,6 +662,16 @@ te_kbl_df = te_input_df %>%
   ) %>%
   kable_styling(
     latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Close", 
+      "Far", 
+      "Combined", 
+      "Close", 
+      "Far",
+      "Combined"), 
+    line = FALSE
   ) %>%
   add_header_above(
     c(
@@ -715,6 +720,7 @@ te_kbl_df %>%
 
 
 ```{r, results="asis"}
-te_kbl_df
+x = 2 + 5
+te_kbl_df 
 
 ```
