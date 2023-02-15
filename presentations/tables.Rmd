@@ -324,48 +324,16 @@ cols_we_want = c(
 ```{r, sample_table}
 
 
-analysis_meta_df = analysis_data %>%
-    summarise(
-        n_indiv = n_distinct(KEY.individ), 
-        n_pots = n_distinct(cluster.id)
-    )
+stan_data = (dist_fit_data %>%
+  filter(fct_match(model_type, "structural")) %>%
+  select(stan_data) %>%
+  pull())[[1]]
 
-wtp_stan_data <- analysis.data %>% 
-  mutate(stratum = county) %>% 
-  prepare_bayes_wtp_data(
-    wtp.data,
-    
-    preference_value_diff = seq(-100, 100, 10), 
-    num_preference_value_diff = length(preference_value_diff), 
-    
-    wtp_utility_df = 3,
-    tau_mu_wtp_diff = 100,
-    mu_wtp_df_student_t = 7,
-    tau_sigma_wtp_diff = 50,
-    sigma_wtp_df_student_t = 2.5
-  )
 
-wtp_meta_df = tibble(
-    n_indiv = wtp_stan_data$num_wtp_obs, 
-    n_pots = n_distinct(wtp.data$cluster.id)
+sample_meta_df = tibble(
+  sample = c("Takeup", "WTP", "Beliefs"),
+  n_indiv = c(stan_data$num_obs, stan_data$num_wtp_obs, stan_data$num_beliefs_obs)
 )
-
-belief_stan_data = 
-    endline.know.table.data %>% 
-      filter(fct_match(know.table.type, "table.A")) 
-
-belief_meta_df = belief_stan_data %>%
-    summarise(
-        n_indiv = n_distinct(KEY.individ), 
-        n_pots = n_distinct(cluster.id)
-    )
-
-sample_meta_df = bind_rows(
-    analysis_meta_df %>% mutate(sample = "Takeup"),
-    wtp_meta_df %>% mutate(sample = "WTP"),
-    belief_meta_df %>% mutate(sample = "Beliefs")
-) %>%
-    select(sample, everything())
 
 sample_meta_tbl = sample_meta_df %>%
     kbl(
@@ -373,7 +341,7 @@ sample_meta_tbl = sample_meta_df %>%
         format = "latex", 
         caption = "Sample Size Across Experiments", 
         align = "lcc",
-        col.names = c("Experiment", "N Individuals", "N PoTs")
+        col.names = c("Experiment", "N Individuals")
     )  %>%
     kable_styling()
 
@@ -697,12 +665,12 @@ te_kbl_df = te_input_df %>%
     threeparttable = TRUE,
     general = 
         str_glue(
-            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parantheses.
+            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
             'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
             isolate the effect of reputational returns and the private utility derived from each treatment. 
             \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-            Structural estimates use all three samples: 9,805 individuals' deworming status; 998 individual's elicited first-order beliefs; and 
-            data from 1,627 individual's Willingness-To-Pay choices.
+            Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices.
             "
         ) 
   )
@@ -724,3 +692,4 @@ x = 2 + 5
 te_kbl_df 
 
 ```
+
