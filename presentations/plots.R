@@ -1,3 +1,23 @@
+#!/usr/bin/Rscript
+script_options <- docopt::docopt(
+  stringr::str_glue(
+"Usage:
+  plots.R <fit-version> [options] [<plots>...]
+  
+Options:
+  --cores=<num-cores>  Number of cores to use [default: 12]
+  --input-path=<input-path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+  --output-path=<output-path>  Path to find results [default: temp-data]
+  --models=<models>
+  "), 
+  args = if (interactive()) "
+    75  \
+    --cores=1 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS
+    balance_indiv
+    " else commandArgs(trailingOnly = TRUE)
+)
+
 library(magrittr)
 library(tidyverse)
 library(broom)
@@ -24,7 +44,7 @@ source(file.path( "dist_structural_util.R"))
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 74
+fit_version <- script_options$fit_version
 default_top_levels = c("Bracelet", "Combined")
 
 # 66 ed fit
@@ -36,14 +56,14 @@ model_fit_by = if_else(fit_version %in% c(60, 62), "Karim", "Ed")
 
 
 models_we_want = c(
-  "STRUCTURAL_LINEAR_U_SHOCKS"
+  script_options$models
 )
 
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
 output_basepath = str_glue("temp-data/output_dist_fit{fit_version}")
-
+dir.create(output_basepath, showWarnings = FALSE)
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
 theme_set(theme_minimal() +
@@ -96,6 +116,7 @@ dist_fit_data %<>%
       "prior-predict", "darkgrey",
   ), by = "fit_type")
 
+
 rf_analysis_data <- dist_fit_data %>% 
   filter(
     fct_match(model_type, "reduced form"),
@@ -104,6 +125,9 @@ rf_analysis_data <- dist_fit_data %>%
   stan_data[[1]]$analysis_data 
 delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
+
+#### Beliefs Plots ####
+if ("beliefs" %in% script_options$plots) {
 belief_data = dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
@@ -389,6 +413,9 @@ ggsave(file.path(
   width = 7.5,
   height = 5.0,
   dpi = 500)
+
+}
+
 
 #### Rate of Change
 roc_df = dist_fit_data %>% 
