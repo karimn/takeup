@@ -1,23 +1,18 @@
-#!/usr/bin/Rscript
-script_options <- docopt::docopt(
-  stringr::str_glue(
-"Usage:
-  plots.R <fit-version> [options] [<plots>...]
-  
-Options:
-  --cores=<num-cores>  Number of cores to use [default: 12]
-  --input-path=<input-path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
-  --output-path=<output-path>  Path to find results [default: temp-data]
-  --models=<models>
-  "), 
-  args = if (interactive()) "
-    75  \
-    --cores=1 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS
-    balance_indiv
-    " else commandArgs(trailingOnly = TRUE)
-)
+---
+title: "Social Signaling and Prosocial Behavior"
+subtitle: "Experimental Evidence in Community Deworming in Kenya"
+author: "Anne Karing (Princeton) and Karim Naguib"
+date: "12/10/2020"
+output: 
+  pdf_document
+params:
+  fit_version: 71
+  input_path: data/stan_analysis_data
+  output_path: temp-data
+  models: STRUCTURAL_LINEAR_U_SHOCKS
+---
 
+```{r takeup-present-setup, include=FALSE}
 library(magrittr)
 library(tidyverse)
 library(broom)
@@ -26,25 +21,52 @@ library(ggmap)
 library(ggstance)
 library(gridExtra)
 library(cowplot)
-library(rgeos)
-library(sp)
+library(sf)
 library(knitr)
 library(modelr)
 library(car)
 library(rstan)
 library(latex2exp)
 library(ggthemes)
-library(ggforce)
 
 library(econometr)
+
+
+if (interactive()) {
+  params = lst(
+    fit_version = 71,
+    input_path = "data/stan_analysis_data",
+    output_path = "temp-data", 
+    models = "STRUCTURAL_LINEAR_U_SHOCKS"
+  )
+}
+
 source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source(file.path("analysis_util.R"))
-source(file.path( "dist_structural_util.R"))
-
-
+source(file.path("dist_structural_util.R"))
 source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- script_options$fit_version
+knitr::read_chunk(file.path("analysis_util.R"), labels = "analysis-util")
+
+# knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage[table,dvipsnames]{xcolor}', x, fixed = TRUE)})
+
+# read_chunk(purl(file.path("..", "takeup_analysis2.Rmd")))
+
+# read_chunk(purl(file.path("..", "takeup_bayesian_analysis.Rmd")))
+
+options(dplyr.show_progress = FALSE, digits = 4, knitr.kable.NA = '')
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "takeup-figure-cache/", fig.path = "takeup-fig/", fig.align = "center")
+
+fit_version <- params$fit_version
+```
+
+
+
+
+```{r, plot_setup_stuff}
+
+
 default_top_levels = c("Bracelet", "Combined")
 
 # 66 ed fit
@@ -56,11 +78,12 @@ model_fit_by = if_else(fit_version %in% c(60, 62), "Karim", "Ed")
 
 
 models_we_want = c(
-  script_options$models
+  params$models
 )
 
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
+
 
 output_basepath = str_glue("temp-data/output_dist_fit{fit_version}")
 dir.create(output_basepath, showWarnings = FALSE)
@@ -103,9 +126,13 @@ monitored_nosms_data <- analysis.data %>%
 
 analysis_data <- monitored_nosms_data
 
+```
+
+
+
 
 ## Fit Loading
-
+```{r, fit_loading}
 load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
 
@@ -125,9 +152,95 @@ rf_analysis_data <- dist_fit_data %>%
   stan_data[[1]]$analysis_data 
 delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
+```
+
+
+
+#### Delta Expectation ####
+
+```{r, delta_expectation, fig.cap="This is a plot caption"}
+sim_int <- expand.grid(
+  w = seq(-2, 2, 0.1),
+  u_sd = seq(0.0, 2.0, 0.05),
+  mu = seq(0.1, 1, 0.05)
+) %>% 
+  filter(u_sd == 0 | mu == 1) %>% 
+  rowwise() %>% 
+  mutate(
+    mu_delta = mu * calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
+    mu_delta_deriv = mu * calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd)
+  ) %>% 
+  ungroup() %>% 
+  pivot_longer(c(mu_delta, mu_delta_deriv), names_to = "delta_type")
+
+
+sim_ints_u_we_want = unique(sim_int$u_sd)[seq(from = 3, to = length(unique(sim_int$u_sd)) - 3, length.out = 3)]
+
+text_df = tibble(
+  w = c(-1.5, 0, 1.5), 
+  text = c("Respectable Acts", "Modal Acts", "Admirable Acts")
+) %>% 
+  mutate(
+    value = calculate_delta(w, sqrt(1 + sim_ints_u_we_want[2]^2), sim_ints_u_we_want[2])
+  )
+
+sigma_text_df = sim_int %>%
+      filter(w == -2) %>%
+      filter(u_sd %in% c(0.5, 1, 1.5)) %>%
+      filter(
+        delta_type == "mu_delta"
+      )
+
+
+sim_int %>% 
+  filter(delta_type == "mu_delta") %>%
+  filter(mu == 1)  %>%
+  mutate(
+    alpha = case_when(
+      u_sd  == 1 ~ 1, 
+      u_sd %in% sigma_text_df$u_sd ~ 0.3, 
+      TRUE ~ 0 
+      )
+  )  %>%
+  ggplot(aes(w, value, alpha = alpha)) +
+  geom_line(
+    aes(group = u_sd)
+  ) +
+  geom_text(
+    inherit.aes = FALSE,
+    data = text_df, 
+    aes(
+      x = w, 
+      y = value*1.1, 
+      label = text)
+  ) +
+  annotate(
+    "text", 
+    x = c(2, 2, 2), 
+    y = sigma_text_df$value*0.95, 
+    label = c(
+      TeX("$\\sigma_u = 0.5$"),
+      TeX("$\\sigma_u = 1$"),
+      TeX("$\\sigma_u = 1.5$")
+    ),
+    alpha = 0.6,
+  hjust=0.5, size = 4, parse = TRUE,
+  vjust = 1
+  ) +
+  labs(
+    x = latex2exp::TeX("$w^*$"),
+    y = latex2exp::TeX(r"{$\mu\Delta\[w^*\]$}"),
+    caption = latex2exp::TeX(r"{Black lines move down and flatten as $\sigma_u$ increases}")
+  ) +
+  guides(alpha = "none") +
+  theme_minimal() +
+  NULL
+
+```
+
 
 #### Beliefs Plots ####
-if ("beliefs" %in% script_options$plots) {
+```{r, beliefs}
 belief_data = dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
@@ -414,10 +527,12 @@ ggsave(file.path(
   height = 5.0,
   dpi = 500)
 
-}
+
+```
 
 
 #### Rate of Change
+```{r}
 roc_df = dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
@@ -594,10 +709,11 @@ dist_fit_data %>%
   NULL 
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-diff-roc-facet-treat.png")), width = 7.5, height = 5.0, dpi = 500)
 
+```
 
 #### Difference Rep Returns by Dist ####
 
-
+```{r, rep_returns}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   select(model_name, cluster_rep_return_dist) %>%
@@ -732,6 +848,7 @@ iwalk(
 )
 
 ## Rep returns vs control
+model_fit_by = FALSE # for now
 if (model_fit_by == "Ed") {
 
   rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) 
@@ -785,9 +902,12 @@ if (model_fit_by == "Ed") {
   )
 }
 
+```
+
+
 
 #### Different Distributions and Delta ####
-
+```{r, dists_and_delta}
 find_truncated_normal_mean = function(mu, sigma, a, b){
     alpha = (a - mu)/sigma
     beta = (b - mu)/sigma
@@ -901,10 +1021,11 @@ ggsave(
     height = 5.0,
     dpi = 500
 )
-
+```
 
 
 ## ATEs
+```{r}
 grab_incentive_ate = function(data, model_type_to_plot, nested_data = est_takeup_te) {
 
   subset_data = data %>%
@@ -1285,10 +1406,10 @@ iwalk(
     filename = file.path(output_basepath, str_glue("reduced-form-incentive-ate-diffs-{treatments[.y]}.png")),
     width = 7.5, height = 5.0, dpi = 500 )
 )
+```
 
 
-
-## Social Multiplier ##
+<!-- ## Social Multiplier ##
 
 
 # dist_fit_data %>%
@@ -1461,7 +1582,7 @@ iwalk(
 #     #   data = rf_analysis_data %>%
 #     #     mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
 #     #     distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-#     scale_color_discrete(aesthetics = c("color", "fill"))  +
+#     scale_color_discrete(aesthetics = c("color", "fill"))  + -->
 
 
 
