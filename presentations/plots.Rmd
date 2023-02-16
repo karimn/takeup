@@ -620,6 +620,7 @@ ggsave(
 
 
 ```{r}
+#| load-wtp
 
 
 wtp_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model_fit_results.rds")) 
