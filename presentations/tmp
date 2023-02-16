@@ -1,5 +1,6 @@
 
 
+
 #### Beliefs Plots ####
 ```{r, beliefs}
 belief_data = dist_fit_data %>%
