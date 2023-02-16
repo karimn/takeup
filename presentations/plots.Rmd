@@ -56,7 +56,7 @@ knitr::read_chunk(file.path("analysis_util.R"), labels = "analysis-util")
 
 options(dplyr.show_progress = FALSE, digits = 4, knitr.kable.NA = '')
 
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warnings = FALSE, cache = TRUE, cache.path = "takeup-figure-cache/", fig.path = "takeup-fig/", fig.align = "center")
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warnings = FALSE, warning = FALSE, cache = TRUE, cache.path = "takeup-figure-cache/", fig.path = "takeup-fig/", fig.align = "center")
 
 fit_version <- params$fit_version
 
@@ -183,8 +183,14 @@ theme_set(theme_minimal() +
 
 #### Delta Expectation ####
 
-```{r, delta_expectation, fig.cap="This is a plot caption", fig.note="Ededed"}
-2+1
+```{r}
+#| delta-expectation,
+#| fig.cap="Net reputational return, $\\mu\\Delta[w^*]$, as a function of cutoff type, $w^*$",
+#| fig.note="This plot shows how expected reputational return, $\\mu\\Delta[w^*]$ 
+#|  varies as cutoff type, $w^*$, changes. As $\\sigma_u$ increases, the 
+#|  reputational return falls as it becomes harder to infer someone's type based 
+#|  off actions." 
+
 sim_int <- expand.grid(
   w = seq(-2, 2, 0.1),
   u_sd = seq(0.0, 2.0, 0.05),
@@ -266,7 +272,19 @@ sim_int %>%
 
 
 #### Distance Randomisation ####
-```{r, dist-plot, fig.cap = "Distance to Treatment Location (meters)", fig.note = "Cluster centers calculated as the centroid location of all households in cluster. Density estimates use all 9,805 individuals observed in takeup sample."}
+```{r}
+#| dist-plot,
+#| fig.cap="Distance to Treatment Location (meters)",
+#| fig.note="This graph shows a density plot of distance to the assigned point of
+#|  treatment from each cluster centroid and household location. Clusters assigned to 
+#|  the close condition have greater density <1.25km whilst those assigned to the 
+#|  far condition place greater density >1.25km. Finally, the distribution of 
+#|  household distances closely resembles that of the cluster centroid suggesting 
+#|  the randomisation succeeded in varying distance cost for each household for the respective condition.
+#|  Density estimates use all 9,805 surveyed individuals in the takeup sample."
+
+
+
 analysis_data %>%  
   mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
   ggplot(aes(dist.to.pot)) +
@@ -364,9 +382,16 @@ reduced_incentive_level_plot_df = dist_fit_data %>%
 ```{r}
 #| incentive-levels,
 #| fig.cap="Incentive Takeup Levels, Reduced Form Model",
-#| fig.note="Line range: 90\\% credible interval. 
+#| fig.note="This plot shows the level of takeup in each treatment condition by 
+#|  distance, estimated using a Bayesian probit ('reduced form') model. The prior 
+#|  predictive distribution is overlaid at the top of the plot, which shows the 
+#|  predicted treatment effects before conditioning on the data. The prior is 
+#|  centered at 50\\% takeup and the 90\\% credible interval covers almost the entire
+#|  unit interval. The plot shows that deworming takeup is higher in the close condition
+#|  and that the bracelet has the highest level amongst the offered treatments.
+#|  Line range: 90\\% credible interval. 
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval. 
-#|  Point: mean. Reduced form model estimated using Bayesian probit model with 9,805 observations."
+#|  Point: mean. 9,805 observations from the individual takeup sample used for estimates."
 
 
 reduced_incentive_level_plot = reduced_incentive_level_plot_df %>%
@@ -454,11 +479,103 @@ ggsave(
 ```{r}
 #| signalling-ate,
 #| fig.cap="Signalling Average Treatment Effect, Structural Model",
-#| fig.note = "Line range: 90\\% credible interval.
+#| fig.note = "This plot shows the average signalling treatment effect estimated
+#|  using the structural model. The prior predictive distribution is overlaid at 
+#|  the top of the plot, which shows the 
+#|  predicted signalling treatment effects before conditioning on the data. The prior is 
+#|  centered at a treatment effect of approximately 0. The plot shows that the signalling effect 
+#|  is greatest for the ink and bracelet treatments and largest in the far condition.
+#|  Line range: 90\\% credible interval.
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
 #|  Thick vertical line: median. Point: mean. Signalling effect calculated using
 #|  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
 
+
+grab_signalling_ate = function(data, model_type_to_plot, models_we_want) {
+  data = data %>% 
+    filter(
+      (fct_match(model_type, model_type_to_plot) & fct_match(model, models_we_want) )  
+    ) %>% 
+    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
+    mutate(
+      est_takeup_te = map(
+        est_takeup_te,
+        filter,
+        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+        across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+        !is.na(mu_assigned_treatment_left),
+        fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+        fct_match(mu_assigned_treatment_right, "control"),
+      ) %>% 
+        map(
+          mutate,
+          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+            fct_relabel(str_to_title) %>% 
+            fct_relevel("Combined"),
+          mu_assigned_treatment_left = fct_rev(factor(str_to_title(mu_assigned_treatment_left))),
+        )
+    ) 
+  return(data)
+
+}
+
+default_ate_limits = c(-0.15, 0.15)
+
+structural_signalling_ate_plot = dist_fit_data %>%
+  grab_signalling_ate(., "structural", models_we_want) %>%
+      plot_estimands(., 
+                     est_takeup_te, 
+                     mu_assigned_treatment_left, 
+                     results_group = fit_type,
+                     single_prior_predict = TRUE, 
+                     top_levels = default_top_levels) +
+        scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
+          limits = default_ate_limits
+        ) +
+        scale_y_discrete("") +
+        labs(
+          # title = "Signaling Average Treatment Effect",
+          # subtitle = str_glue("Holding private incentive at the control level.")
+          ) +
+        ggforce::facet_col(vars(assigned_dist_group_left), 
+                   space = "free",
+                   scales = "free_y") +
+        guides(colour = "none") +
+        NULL
+structural_signalling_ate_plot +
+  theme_minimal() +
+  labs(caption = "")
+ggsave(
+  plot = structural_signalling_ate_plot,
+  filename = file.path(
+    output_basepath,
+    "structural-signaling-ate-plot.png"
+  ),
+  width = 7.5,
+  height = 5.0,
+  dpi = 500
+)
+
+
+
+```
+
+
+```{r}
+#| incentive-ate,
+#| fig.cap="Incentive Average Treatment Effect, Structural Model",
+#| fig.note = "This plot shows the average treatment effect estimated
+#|  using the structural model. The prior predictive distribution is overlaid at 
+#|  the top of the plot, which shows the 
+#|  predicted treatment effects before conditioning on the data. The prior is 
+#|  centered at a treatment effect of 0 and the 90\\% credible interval covers the 
+#|  interval $[-0.125,0.125]$. The plot shows that the treatment effect is greatest
+#|  for the bracelet treatment and estimated treatment effects are larger for the 
+#|  bracelet at close than far.
+#|  Line range: 90\\% credible interval.
+#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#|  Thick vertical line: median. Point: mean. Treatment effect calculated using
+#|  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
 default_ate_limits = c(-0.15, 0.15)
 
 structural_incentive_ate_plot = dist_fit_data %>%
@@ -498,8 +615,8 @@ ggsave(
   height = 5.0,
   dpi = 500
 )
-```
 
+```
 
 
 ```{r}
