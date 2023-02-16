@@ -693,8 +693,6 @@ te_kbl_df
 
 ```
 
-<<<<<<< HEAD
-
 
 
 ```{r}
@@ -765,5 +763,3 @@ consumer_durable_data = with_env(clean_micro, microcredit_env)()
 
 
 ```
-=======
->>>>>>> 6ed54bd1f925b528950662da3a1fac88aa9156ed
