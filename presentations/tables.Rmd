@@ -35,6 +35,7 @@ library(knitr)
 library(kableExtra)
 library(ggthemes)
 library(fixest)
+library(magrittr)
 
 if (interactive()) {
     params = lst(
@@ -65,6 +66,8 @@ options(
 knitr::opts_chunk$set(
     echo = FALSE, 
     cache = TRUE, 
+    warnings = FALSE,
+    warning = FALSE,
     cache.path = "takeup-cache/", fig.path = "takeup-fig-cache/", fig.align = "center")
 ```
 
@@ -693,3 +696,334 @@ te_kbl_df
 
 ```
 
+
+
+```{r, eval = FALSE}
+
+load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
+
+colnames(dist_fit_data)
+dist_fit_data %>%
+  select(fit_type, model_type, est_takeup_te_diff) %>%
+  unnest() %>%
+  colnames()
+
+dist_fit_data %>%
+  filter(model_type == "structural") %>%
+  mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), ~ NULL))
+
+
+
+# we hate RData
+dist_fit_full = new.env()
+load(file.path("temp-date", str_interp("processed_dist_fit${fit_version}.RData")), envir = dist_fit_full)
+    
+
+with_env = function(f, e = parent.frame()) {
+    stopifnot(is.function(f))
+    environment(f) = e
+    f
+}
+
+clean_micro = function(){
+    site <- c(attanasio_indicator, augsberg_indicator,banerjee_indicator, crepon_indicator)-1
+    consumerdurables <- c(attanasio_consumerdurables, augsberg_consumerdurables,banerjee_consumerdurables, crepon_consumerdurables)
+    treatment <- c(attanasio_treatment, augsberg_treatment,banerjee_treatment, crepon_treatment)
+    priorbiz <- c(attanasio_existingbusiness, augsberg_existingbusiness, banerjee_existingbusiness, crepon_existingbusiness)
+    # Now we have to standardise any variables which are in local currency units to USD PPP per fortnight in 2009 dollars
+
+
+    expanded_standardiser_USD_PPP_per_fortnight <- c(
+                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[1],length(attanasio_indicator)),
+                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[2],length(augsberg_indicator)),
+                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[3],length(banerjee_indicator)),
+                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[4],length(crepon_indicator)))
+
+    consumerdurables <- consumerdurables*expanded_standardiser_USD_PPP_per_fortnight
+
+    # bind everything into a data frame
+    data <- data.frame(site, consumerdurables, treatment, priorbiz)
+
+    site_df = 
+        tibble(
+            site_id = map_dbl(
+                list(attanasio_indicator, 
+                    augsberg_indicator,
+                    banerjee_indicator, 
+                    crepon_indicator), 
+                ~unique(.x - 1)), 
+            study_name = c("attanasio", "augsberg", "banerjee", "crepon")
+        )
+    # We gotta remove the NA values
+    data <- data[complete.cases(data),] %>%
+        as_tibble() %>%
+        left_join(., site_df, by = c("site" = "site_id"))
+    return(data)
+}
+
+
+consumer_durable_data = with_env(clean_micro, microcredit_env)()
+
+
+```
+
+
+
+```{r}
+#| beliefs
+
+
+belief_data = dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+  pull(beliefs_results) %>%
+  first() 
+
+belief_close_far_input_df = belief_data$ate_knows %>%
+  filter(assigned_treatment_left != "control") %>%
+  filter(assigned_treatment_right == "control") %>%
+  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left))  %>%
+  filter(assigned_dist_group_right == assigned_dist_group_left) %>%
+  mutate(treatment = fct_relabel(assigned_treatment_left, str_to_title))  %>%
+  select(
+    treatment, 
+    distance = assigned_dist_group_right, 
+    estimate = per_0.5, 
+    conf.low = per_0.05, 
+    conf.high = per_0.95, 
+    order = ord
+  )
+
+
+#### Belief ATEs combined ####
+belief_data_control = belief_data$prob_knows %>%
+    filter(assigned_treatment == "control")  %>%
+    select(assigned_treatment, assigned_dist_group, iter_data, ord) %>%
+    unnest(iter_data)
+
+combined_belief_ate = belief_data$prob_knows %>%
+    filter(assigned_treatment != "control") %>%
+    select(assigned_treatment, iter_data, ord) %>%
+    unnest(iter_data) %>%
+    rename(assigned_treatment_left = assigned_treatment) %>%
+    left_join(
+        belief_data_control %>% 
+            rename(assigned_treatment_right = assigned_treatment) %>%
+            select(iter_est_right = iter_est, iter_id, ord, assigned_treatment_right),
+        by = c("iter_id", "ord")
+    ) %>%
+    mutate(
+        iter_est_te = iter_est - iter_est_right
+    )  %>%
+    select(-.chain, -.iteration, -.draw) %>%
+    nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+    mutate(
+        mean_est = map_dbl(iter_data, ~mean(.x$iter_est_te)), 
+        quants = map(iter_data, quantilize_est, iter_est_te, quant_probs = quant_probs, na.rm = TRUE)
+    )  %>%
+    unnest(quants) %>%
+    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
+    mutate(
+        assigned_treatment_left = fct_drop(assigned_treatment_left), 
+        assigned_treatment_right = fct_drop(assigned_treatment_right)
+    )  %>%
+    mutate(treatment = fct_relabel(assigned_treatment_left, str_to_title))  %>%
+    select( 
+      treatment = treatment, 
+      distance = assigned_dist_group_right, 
+      estimate = per_0.5, 
+      conf.low = per_0.05,
+      conf.high = per_0.95,
+      order = ord
+    )
+
+
+belief_input_df = bind_rows(
+  belief_close_far_input_df,
+  combined_belief_ate
+) %>% 
+  mutate(distance = str_to_title(distance))
+
+wide_belief_input_df = belief_input_df %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = linebreak(
+      paste0(estimate, "\n", "(", conf.low, ", ", conf.high, ")"), 
+      align = "c"
+      )
+  ) %>%
+  select(treatment, distance, order, estim_value) %>%
+  pivot_wider(
+    names_from = c(distance, order), 
+    values_from = estim_value
+  )
+
+wide_belief_input_df %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "",
+      paste0("(", 1:6, ")")
+    ), 
+    format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Close", 
+      "Far", 
+      "Combined", 
+      "Close", 
+      "Far", 
+      "Combined"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "First-Order Beliefs" = 3, 
+      "Second-Order Beliefs" = 3
+      )
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+    general = 
+        str_glue(
+            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+            {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
+            "
+        ) 
+  )
+
+
+#### Disaggregated FOBs ####
+
+# cv = function(alpha){
+#   qnorm(1 - (alpha/2))
+# }
+
+# comp_belief_data = analysis_data %>%
+#   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>%
+#   nest_join(
+#     endline.know.table.data %>% 
+#       filter(fct_match(know.table.type, "table.A")),
+#     by = "KEY.individ", 
+#     name = "knowledge_data"
+#   ) %>% 
+#   mutate(
+#     map_dfr(knowledge_data, ~ {
+#       tibble(
+#         obs_know_person = sum(.x$num.recognized),
+#         obs_know_person_prop = mean(.x$num.recognized),
+#         knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
+#         knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
+#         knows_other_dewormed_no = sum(fct_match(.x$dewormed, "no"), na.rm = TRUE),
+#         thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
+#         thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
+#         thinks_other_knows_no = sum(fct_match(.x$second.order, "no"), na.rm = TRUE),
+#       )
+#     }
+#   )) %>%
+#     filter(obs_know_person > 0)  %>%
+#     select(KEY.individ, contains("know"), assigned.treatment, dist.pot.group, assigned_dist_group) %>%
+#     mutate(
+#         doesnt_know_other_dewormed = obs_know_person - knows_other_dewormed, 
+#         doesnt_think_other_knows = obs_know_person - thinks_other_knows
+#     ) %>% 
+#     select(KEY.individ, 
+#            assigned.treatment,
+#            assigned_dist_group,
+#            obs_know_person,
+#            knows_other_dewormed_yes,
+#            knows_other_dewormed_no,
+#            doesnt_know_other_dewormed, 
+#            thinks_other_knows_yes, 
+#            thinks_other_knows_no, 
+#            doesnt_think_other_knows
+#            ) %>%
+#     gather(variable, value, 
+#         knows_other_dewormed_yes:doesnt_think_other_knows)   %>%
+#     mutate(knowledge_type = case_when(
+#         str_detect(variable, "_yes") ~ "yes",
+#         str_detect(variable, "_no") ~ "no",
+#         str_detect(variable, "doesnt") ~ "doesn't know"
+#     )) %>%
+#     mutate(belief_type = if_else(str_detect(variable, "think"), "2ord", "1ord")) %>%
+#     mutate(prop = value/obs_know_person) %>%
+#     group_by(assigned.treatment, assigned_dist_group, knowledge_type, belief_type) %>% 
+#     summarise(
+#         mean_est = mean(prop), 
+#         std.error = sd(prop)/sqrt(n()),
+#         per_0.5 = mean(prop), 
+#         per_0.05 = per_0.5 - cv(0.05)*std.error, 
+#         per_0.95 = per_0.5 + cv(0.05)*std.error,
+#         per_0.1 =  per_0.5 - cv(0.1)*std.error,
+#         per_0.9 =  per_0.5 + cv(0.1)*std.error,
+#         per_0.25 =  per_0.5 - cv(0.5)*std.error,
+#         per_0.75 =  per_0.5 + cv(0.5)*std.error
+#     ) %>%
+#     mutate(
+#       knowledge_type = factor(knowledge_type, levels = c("yes", "no", "doesn't know")), 
+#       knowledge_type = fct_relabel(knowledge_type, str_to_title) %>% fct_rev
+#     ) %>%
+#     mutate(
+#       assigned.treatment = factor(assigned.treatment, 
+#                                   levels = c("bracelet",
+#                                              "calendar", 
+#                                              "ink",
+#                                              "control")) %>%
+#                           fct_relabel(str_to_title) %>%
+#                           fct_rev
+#     )
+
+
+
+# comp_belief_data %>%
+#   filter(belief_type == "1ord") %>%
+#   filter(assigned_dist_group == "close") %>%
+#   plot_belief_breakdown() +
+#   labs(
+#     title = "Disaggregated First Order Beliefs - Close", 
+#     subtitle = "Proportion"
+#   )
+
+# ggsave(file.path(
+#   output_basepath,
+#   "disagg-fob-close.png"
+#   ),
+#   width = 7.5,
+#   height = 5.0,
+#   dpi = 500)
+
+
+
+# comp_belief_data %>%
+#   filter(belief_type == "1ord") %>%
+#   filter(assigned_dist_group == "far") %>%
+#   plot_belief_breakdown() +
+#   labs(
+#     title = "Disaggregated First Order Beliefs - Far",
+#     subtitle = "Proportion"
+#   )
+  
+
+# ggsave(file.path(
+#   output_basepath,
+#   "disagg-fob-far.png"
+#   ),
+#   width = 7.5,
+#   height = 5.0,
+#   dpi = 500)
+
+
+
+
+```
