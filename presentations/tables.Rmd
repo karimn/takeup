@@ -143,6 +143,55 @@ analysis_data <- monitored_nosms_data
 ```
 
 
+```{r}
+
+## Fit Loading
+if (interactive()) {
+    load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+} else {
+    load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+    # load(file.path("..", "temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+}
+
+dist_fit_data %<>%
+  left_join(tribble(
+    ~ fit_type,        ~ model_color,
+      "fit",           "black", 
+      "prior-predict", "darkgrey",
+  ), by = "fit_type") %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "REDUCED_FORM_NO_RESTRICT")))
+
+delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+
+belief_data = dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  pull(beliefs_results) %>%
+  first() 
+
+
+cols_we_want = c(
+    "est_takeup_level",
+    "beliefs_results",
+    "wtp_results",
+    "est_takeup_te",
+    "est_takeup_dist_te"
+)
+```
+
+
+## Sample Info
+```{r, sample_table}
+
+
+stan_data = (dist_fit_data %>%
+  filter(fct_match(model_type, "structural")) %>%
+  select(stan_data) %>%
+  pull())[[1]]
+
+
+
+```
+
 
 
 
@@ -191,6 +240,8 @@ mutate(
 mutate(
   female = fct_match(gender, "female")
 )
+
+
 
 indiv_balance_fit = analysis_school_data %>%
 feols(
@@ -312,7 +363,48 @@ bal_input_df = tidy_df %>%
 return(bal_input_df)
 }
 
-N_by_treat_dist_df = analysis_school_data %>%
+
+N_beliefs_obs_df = analysis_school_data[stan_data$beliefs_obs_index, ] %>%
+  group_by(
+    treat_dist
+  ) %>%
+  summarise(
+    N_indiv = n_distinct(KEY.individ),
+    N_pot = n_distinct(cluster.id)
+  )  
+
+
+
+
+stratum_map = analysis.data %>% 
+  mutate(stratum = county) %>%
+  mutate(stratum_id = as.integer(stratum)) %>% 
+  distinct(stratum_id, stratum)
+
+incentive_choice_data <- analysis.data %>%
+  filter(!is.na(gift_choice) & gift_choice != "neither",
+          assigned.treatment == "control",
+          sms.treatment.2 == "sms.control") %>%
+  # select(county, cluster.id, gift_choice, phone_owner) %>%
+  mutate(offer = 0,
+          response = "keep")
+
+incentive_choice_data <- wtp.data %>%
+  semi_join(analysis.data, "cluster.id") %>% # Make sure we have the same clusters
+  filter(!is.na(first_choice)) %>%
+  transmute(county, cluster.id,
+            gift_choice = first_choice,
+            offer = price,
+            response = second_choice) %>%
+  bind_rows(incentive_choice_data) %>%
+  left_join(stratum_map, c("county" = "stratum")) %>%
+  mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
+          response = 2 * (response == "switch") - 1) 
+
+
+N_wtp_obs_df = analysis_school_data %>%
+  filter(KEY.individ %in% incentive_choice_data$KEY.individ) %>%
+  filter(!is.na(KEY.individ)) %>%
   group_by(
     treat_dist
   ) %>%
@@ -320,6 +412,24 @@ N_by_treat_dist_df = analysis_school_data %>%
     N_indiv = n_distinct(KEY.individ),
     N_pot = n_distinct(cluster.id)
   )  %>%
+  mutate(type = "WTP")
+
+
+
+
+N_by_treat_dist_df = analysis_school_data %>%
+  group_by(
+    treat_dist
+  ) %>%
+  summarise(
+    N_indiv = n_distinct(KEY.individ),
+    N_pot = n_distinct(cluster.id)
+  )  %>% 
+  mutate(type = "takeup") %>%
+  bind_rows(
+    N_beliefs_obs_df %>% mutate(type = "beliefs"), 
+    N_wtp_obs_df
+  ) %>%
   mutate(
     treatment = str_extract(treat_dist, "(?<=treat: ).*(?=\\,)"), 
     distance = str_extract(treat_dist, "(?<=dist: ).*$")
@@ -331,7 +441,13 @@ N_by_treat_dist_df = analysis_school_data %>%
   pivot_wider(
     names_from = c(treatment, distance),
     values_from = value
-  )
+  ) 
+
+
+
+
+
+
 
 wide_indiv_bal_df = create_balance_input(
     balance_tidy_df, 
@@ -346,14 +462,32 @@ wide_indiv_bal_df = create_balance_input(
   select(all_of(col_order))  %>%
   bind_rows(
     N_by_treat_dist_df %>%
-      mutate_all(.funs = function(x){"1"})
+      mutate(
+        lhs = str_replace_all(lhs, "_", " ") %>% 
+          str_to_title()
+      ) %>%
+      mutate(across(where(is.numeric), as.character)) %>%
+      mutate(across(where(is.numeric), replace_na, "-")) 
+  ) %>%
+  select(-type) %>%
+  mutate(across(where(is.character), ~if_else(.x == "", "-", .x))) %>%
+  mutate(across(where(is.character), replace_na, "-")) %>%
+  mutate(
+    lhs = case_when(
+      lhs == "N Indiv" ~ "N Individuals", 
+      lhs == "N Pot" ~ "N Points of Treatment",
+      lhs == "Cluster Dist To Pot" ~ "Cluster Distance to PoT",
+      TRUE ~ lhs
+    )
   )
 
 
 
 
-
 ```
+
+
+
 
 
 ## Balance
@@ -381,8 +515,10 @@ footnote(general = "Insert footnote here.") %>%
   pack_rows(
     index = c(
       "Individual-level Covariates" = 3, 
-      "Point of Treatment Covariates" = 9, 
-      "N" = 2
+      "Point of Treatment Covariates" = 10, 
+      "Takeup Sample" = 2,
+      "Belief Sample" = 2,
+      "WTP Sample" = 2
     ), 
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
@@ -393,56 +529,32 @@ footnote(general = "Insert footnote here.") %>%
 ```
 
 
-```{r}
+WTP obs in "stan_data" is 998 but when I count indivs I get 458. Think it's a 
+coding error.
 
-## Fit Loading
-if (interactive()) {
-    load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-} else {
-    load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-    # load(file.path("..", "temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-}
+```{r, sample_n, results="asis"}
 
-dist_fit_data %<>%
-  left_join(tribble(
-    ~ fit_type,        ~ model_color,
-      "fit",           "black", 
-      "prior-predict", "darkgrey",
-  ), by = "fit_type") %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "REDUCED_FORM_NO_RESTRICT")))
-
-delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
-
-belief_data = dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
-  pull(beliefs_results) %>%
-  first() 
-
-
-cols_we_want = c(
-    "est_takeup_level",
-    "beliefs_results",
-    "wtp_results",
-    "est_takeup_te",
-    "est_takeup_dist_te"
-)
-```
+sample_meta_df = N_by_treat_dist_df %>%
+  gather(variable, value, -type, -lhs) %>%
+  group_by(
+    type, lhs
+  ) %>%
+  summarise(
+    n = sum(value, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  spread(lhs, n) %>%
+  mutate(
+    sample = case_when(
+      type == "beliefs" ~ "Beliefs", 
+      type == "takeup" ~ "Takeup", 
+      type == "WTP" ~ "WTP"
+    )
+  ) %>%
+  select(-type) %>%
+  select(sample, everything())
 
 
-## Sample Info
-```{r, sample_table}
-
-
-stan_data = (dist_fit_data %>%
-  filter(fct_match(model_type, "structural")) %>%
-  select(stan_data) %>%
-  pull())[[1]]
-
-
-sample_meta_df = tibble(
-  sample = c("Takeup", "WTP", "Beliefs"),
-  n_indiv = c(stan_data$num_obs, stan_data$num_wtp_obs, stan_data$num_beliefs_obs)
-)
 
 sample_meta_tbl = sample_meta_df %>%
     kbl(
@@ -450,15 +562,9 @@ sample_meta_tbl = sample_meta_df %>%
         format = "latex", 
         caption = "Sample Size Across Experiments", 
         align = "lcc",
-        col.names = c("Experiment", "N Individuals")
+        col.names = c("Experiment", "N Individuals", "N PoTs")
     )  %>%
     kable_styling()
-
-```
-
-
-```{r, sample_n, results="asis"}
-
 sample_meta_tbl
 
 ```
