@@ -574,6 +574,96 @@ sample_meta_tbl
 ```
 
 
+```{r}
+
+full_data_env = new.env()
+
+with_env = function(f, e = parent.frame()) {
+    stopifnot(is.function(f))
+    environment(f) = e
+    f
+}
+
+load_full_data_function = function(){
+    load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
+    return(dist_fit_data)
+}
+
+
+full_dist_fit_data = with_env(load_full_data_function, full_data_env)() %>%
+  filter(model %in% c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))
+
+
+pr_comparison_te_df = full_dist_fit_data %>%
+  filter(fit_type == "fit") %>%
+  select(model_type, fit_type, est_takeup_te) %>%
+  unnest(est_takeup_te)  %>%
+  unnest(iter_data)   %>%
+  group_by(
+    model_type, 
+    fit_type, 
+    assigned_treatment_left,
+    assigned_treatment_right,
+    mu_assigned_treatment_left, 
+    mu_assigned_treatment_right, 
+    assigned_dist_group_left, 
+    assigned_dist_group_right
+  ) %>%
+  summarise(
+    pr_greater = mean(iter_takeup_te > 0, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+b_c_draws = full_dist_fit_data %>%
+  filter(fit_type == "fit") %>%
+  select(model_type, fit_type, est_takeup_te) %>%
+  unnest(est_takeup_te)  %>%
+  unnest(iter_data)   %>%
+  filter(
+    assigned_treatment_left == mu_assigned_treatment_left,
+    assigned_treatment_right == mu_assigned_treatment_right,
+    assigned_dist_group_left == assigned_dist_group_right, 
+    assigned_treatment_right == "control"
+  )
+
+b_c_draws %>%
+  select(-mean_est, -contains("per")) %>% 
+  select(
+    assigned_treatment_left, assigned_treatment_right, assigned_dist_group_left, iter_id, iter_takeup_te
+  )  %>%
+  pivot_wider(
+    names_from = assigned_treatment_left, 
+    values_from = iter_takeup_te
+  ) %>%
+  ggplot(aes(
+    x = bracelet, 
+    y = calendar, 
+    colour = assigned_dist_group_left
+  )) +
+  geom_point() +
+  geom_smooth(
+    method = lm, 
+    se = FALSE
+  ) +
+  geom_abline(
+    linetype = "longdash"
+  ) +
+  labs(
+    title = "Plotting Overall ATE Posterior Draws - Very Correlated Estimates", 
+    subtitle = "Bracelet vs Calendar"
+  )
+  ggsave(
+    "temp-plots/correlated-beta.png", 
+    width = 8, 
+    height = 6,
+    dpi = 500
+  )
+
+
+
+```
+
+
 
 ```{r}
 #| setup-res-table
@@ -702,13 +792,7 @@ private_te = dist_fit_data %>%
     )
 
 ## Differences Between Bracelet and Calendar
-incentive_bracelet_calendar_diff_df = dist_fit_data %>%
-  filter(
-    fct_match(fit_type, "fit"), 
-    # fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")
-    ) %>%
-    select(fit_type, model_type, est_takeup_te_diff) %>%
-    unnest(est_takeup_te_diff) %>%
+incentive_bracelet_calendar_diff_df = pr_comparison_te_df %>%
     filter(
       (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
       model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_left == assigned_treatment_left)), # same mu and B
@@ -726,19 +810,15 @@ incentive_bracelet_calendar_diff_df = dist_fit_data %>%
       assigned_treatment = assigned_treatment_left,
       assigned_dist = assigned_dist_group_left, 
       model_type,
-      mean_est, 
-      per_0.05, 
-      per_0.95
+      pr_greater
     ) %>%
     mutate(
-      assigned_treatment = "\\textit{Bracelet - Calendar}"
+      assigned_treatment = "Pr(Bracelet > Calendar)"
     )
 
 
-signal_bracelet_calendar_diff_df = dist_fit_data %>%
-  select(model_type, fit_type, est_takeup_te) %>%
-  filter(model_type == "structural") %>%
-  unnest(est_takeup_te)  %>%
+
+signal_bracelet_calendar_diff_df = pr_comparison_te_df %>%
   filter(
     (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
     (assigned_treatment_left == assigned_treatment_right), # same B on LHS and RHS
@@ -755,38 +835,49 @@ signal_bracelet_calendar_diff_df = dist_fit_data %>%
       assigned_treatment = assigned_treatment_left,
       assigned_dist = assigned_dist_group_left, 
       model_type,
-      mean_est, 
-      per_0.05, 
-      per_0.95
+      pr_greater
     ) %>%
     mutate(
-      assigned_treatment = "\\textit{Bracelet - Calendar}"
+      assigned_treatment = "Pr(Bracelet > Calendar)"
     )
+
+
 
 
 te_df = bind_rows(
   incentive_te %>% mutate(estimand = "incentive"),
-  incentive_bracelet_calendar_diff_df %>% mutate(estimand = "incentive"),
+  incentive_bracelet_calendar_diff_df %>% mutate(estimand = "incentive", is_diff = TRUE),
   private_te %>% mutate(estimand = "private"),
   signalling_te %>% mutate(estimand = "signal"),
-  signal_bracelet_calendar_diff_df %>% mutate(estimand = "signal"),
+  signal_bracelet_calendar_diff_df %>% mutate(estimand = "signal", is_diff = TRUE),
   incentive_control_mean %>% mutate(estimand = "control mean")
 ) %>%
   mutate(
+    assigned_treatment = if_else(
+      assigned_treatment == "Pr(Bracelet > Calendar)", 
+      "$Pr(\\textit{Bracelet} > \\textit{Calendar})$", 
+      assigned_treatment
+      ),
     assigned_treatment = factor(
       assigned_treatment, 
-      levels = c("Bracelet", "Calendar", "Ink", "Control", "\\textit{Bracelet - Calendar}"))
+      levels = c("Bracelet", "Calendar", "Ink", "Control", "$Pr(\\textit{Bracelet} > \\textit{Calendar})$"))
   )
+
+
 
 
 rf_te_input_df = te_df %>%
   filter(model_type == "reduced form") %>%
   mutate(across(where(is.numeric), round, 3)) %>%
   mutate(
-    estim_value = linebreak(
-      paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
-      align = "c"
-      )
+    estim_value = if_else(
+      is_diff == FALSE | is.na(is_diff),
+      linebreak(
+        paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+        align = "c"
+        ), 
+      as.character(round(pr_greater, 3))
+    )
   ) %>%
   select(
     model_type, 
@@ -809,10 +900,14 @@ structural_te_input_df = te_df %>%
   filter(model_type == "structural") %>%
   mutate(across(where(is.numeric), round, 3)) %>%
   mutate(
-    estim_value = linebreak(
-      paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
-      align = "c"
-      )
+    estim_value = if_else(
+      is_diff == FALSE | is.na(is_diff),
+      linebreak(
+        paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+        align = "c"
+        ), 
+      as.character(round(pr_greater, 3))
+    )
   ) %>%
   select(
     model_type, 
@@ -866,14 +961,13 @@ te_input_df = right_join(
 
 
 
-
 latex_group_gap_space = "2em"
 
 ```
 
 
 ```{r, results="asis"}
-
+1+1
 te_kbl_df = te_input_df %>%
   arrange(Estimand, Treatment) %>%
   mutate(
@@ -947,6 +1041,9 @@ te_kbl_df = te_input_df %>%
 
             Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
             in the interest of brevity.
+
+            Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+            correlated and therefore the probability that bracelet exceeds calendar is very low.
             "
         ) 
   )
@@ -965,6 +1062,179 @@ te_kbl_df
 
 ```
 
+
+#### Split Table ####
+```{r}
+#| overall-table-only
+
+overall_te_kbl_df = te_input_df %>%
+  filter(Estimand == "incentive" | Treatment == "Control") %>%
+  arrange(Estimand, Treatment) %>%
+  mutate(
+    Estimand = if_else(
+      Treatment == "Ink", 
+      Estimand, 
+      factor("")
+    )
+  ) %>%
+  select(-Estimand) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "\\textit{Dependent Variable: takeup}",
+      paste0("(", 1:6, ")")
+    ), 
+    format = "latex", 
+    linesep = "\\addlinespace \\addlinespace \\addlinespace",
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Results"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far",
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  ) %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Reduced Form" = 3, 
+      "Structural" = 3
+      )
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: \\textit{Overall}" = 4, 
+      "Control Mean" = 1
+    ), 
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    # hline_before = TRUE,
+    bold = TRUE
+  ) %>%
+  add_indent(4) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+    general = 
+        str_glue(
+            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+            'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
+            isolate the effect of reputational returns and the private utility derived from each treatment. 
+            \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
+            Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+
+            Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+            in the interest of brevity.
+
+            Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+            correlated and therefore the probability that bracelet exceeds calendar is very low.
+            "
+        ) 
+  )
+
+
+overall_te_kbl_df
+
+```
+
+
+```{r}
+
+decomposed_te_kbl_df = te_input_df %>%
+  select(-contains("rf_")) %>%
+  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control") %>%
+  arrange(Estimand, Treatment) %>%
+  mutate(
+    Estimand = if_else(
+      Treatment == "Ink", 
+      Estimand, 
+      factor("")
+    )
+  ) %>%
+  select(-Estimand) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "\\textit{Dependent Variable: takeup}",
+      paste0("(", 1:3, ")")
+    ), 
+    format = "latex", 
+    linesep = "\\addlinespace \\addlinespace \\addlinespace",
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lccc", 
+    caption = "Results"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  ) %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Structural" = 3
+      )
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: \\textit{Signal}" = 4, 
+      "Panel B: \\textit{Private}" = 3, 
+      "Control Mean" = 1
+    ), 
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    # hline_before = TRUE,
+    bold = TRUE
+  ) %>%
+  add_indent(4) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+    general = 
+        str_glue(
+            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+            'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
+            isolate the effect of reputational returns and the private utility derived from each treatment. 
+            \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
+            Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+
+            Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+            in the interest of brevity.
+
+            Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+            correlated and therefore the probability that bracelet exceeds calendar is very low.
+            "
+        ) 
+  )
+
+decomposed_te_kbl_df
+
+
+```
 
 
 ```{r}
