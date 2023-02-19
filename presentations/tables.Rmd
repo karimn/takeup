@@ -81,6 +81,7 @@ fit_version = params$fit_version
 treat_levels_c = c("control", "ink", "calendar", "bracelet")
 treat_levels = c("ink", "calendar", "bracelet")
 dist_levels = c("close", "far")
+model_level_order = c("reduced form", "structural")
 
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
@@ -160,6 +161,9 @@ dist_fit_data %<>%
       "prior-predict", "darkgrey",
   ), by = "fit_type") %>%
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS", "REDUCED_FORM_NO_RESTRICT")))
+
+dist_fit_data = dist_fit_data %>%
+  filter(model %in% c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))
 
 delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
@@ -571,9 +575,8 @@ sample_meta_tbl
 
 
 
-```{r, res_table}
-
-
+```{r}
+#| setup-res-table
 
 incentive_te = dist_fit_data %>%
   mutate(
@@ -608,6 +611,29 @@ incentive_te = dist_fit_data %>%
     )
 
 
+incentive_control_mean = dist_fit_data %>%
+  select(model_type, fit_type, model, est_takeup_level) %>%
+  unnest(
+    est_takeup_level
+  ) %>%
+  filter(
+    mu_assigned_treatment == assigned_treatment # PB = mu
+    ) %>%
+  filter(assigned_treatment == "control") %>%
+  select( 
+    model_type,
+    assigned_treatment = assigned_treatment, 
+    assigned_dist = assigned_dist_group,
+    mean_est, 
+    per_0.05, 
+    per_0.95
+  ) %>%
+  mutate(
+    assigned_treatment = str_to_title(assigned_treatment), 
+    assigned_dist = fct_explicit_na(assigned_dist, "Combined") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relevel("Combined")
+  )
 
 signalling_te = dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
@@ -708,6 +734,7 @@ incentive_bracelet_calendar_diff_df = dist_fit_data %>%
       assigned_treatment = "\\textit{Bracelet - Calendar}"
     )
 
+
 signal_bracelet_calendar_diff_df = dist_fit_data %>%
   select(model_type, fit_type, est_takeup_te) %>%
   filter(model_type == "structural") %>%
@@ -743,7 +770,14 @@ te_df = bind_rows(
   private_te %>% mutate(estimand = "private"),
   signalling_te %>% mutate(estimand = "signal"),
   signal_bracelet_calendar_diff_df %>% mutate(estimand = "signal"),
-)
+  incentive_control_mean %>% mutate(estimand = "control mean")
+) %>%
+  mutate(
+    assigned_treatment = factor(
+      assigned_treatment, 
+      levels = c("Bracelet", "Calendar", "Ink", "Control", "\\textit{Bracelet - Calendar}"))
+  )
+
 
 rf_te_input_df = te_df %>%
   filter(model_type == "reduced form") %>%
@@ -802,9 +836,9 @@ structural_te_input_df = te_df %>%
   ))
 
 
-te_input_df = left_join(
-  structural_te_input_df,
+te_input_df = right_join(
   rf_te_input_df,
+  structural_te_input_df,
   by = c("estimand", "assigned_treatment")
 )  %>%
   select(-model_type) %>%
@@ -815,13 +849,33 @@ te_input_df = left_join(
   ) %>%
   mutate(across(c(contains("rf_"), Close, Far), replace_na, "-")) %>%
   mutate(Estimand = factor(Estimand, levels = c("incentive", "signal", "private", ""))) %>%
-  arrange(Estimand)
+  arrange(Estimand) %>%
+  select(
+    Estimand, 
+    Treatment, 
+    rf_Combined, 
+    rf_Close,
+    rf_Far,
+    Combined,
+    Close,
+    Far
+  )
+
+
+
+
 
 
 
 latex_group_gap_space = "2em"
 
+```
+
+
+```{r, results="asis"}
+
 te_kbl_df = te_input_df %>%
+  arrange(Estimand, Treatment) %>%
   mutate(
     Estimand = if_else(
       Treatment == "Ink", 
@@ -834,10 +888,11 @@ te_kbl_df = te_input_df %>%
     col.names = c(
       # "Estimand", 
       # "Treatment", 
-      "",
+      "\\textit{Dependent Variable: takeup}",
       paste0("(", 1:6, ")")
     ), 
     format = "latex", 
+    linesep = "\\addlinespace \\addlinespace \\addlinespace",
     booktabs = TRUE, 
     escape = FALSE, 
     align = "lcccccc", 
@@ -848,27 +903,30 @@ te_kbl_df = te_input_df %>%
   ) %>%
   add_header_above(
     c(" ", 
-      "Close", 
-      "Far", 
       "Combined", 
       "Close", 
-      "Far",
-      "Combined"), 
+      "Far", 
+      "Combined",
+      "Close", 
+      "Far"
+      ), 
     line = FALSE
   ) %>%
   add_header_above(
     c(
       " " = 1,
-      "Structural" = 3, 
-      "Reduced Form" = 3
+      "Reduced Form" = 3, 
+      "Structural" = 3
       )
   ) %>%
   pack_rows(
     index = c(
-      "Overall" = 4, 
-      "Signalling" = 4, 
-      "Private" = 3
+      "Panel A: \\textit{Overall}" = 4, 
+      "Panel B: \\textit{Signalling}" = 4, 
+      "Panel C: \\textit{Private}" = 3, 
+      "Control Mean" = 1
     ), 
+    escape = FALSE,
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
     # hline_before = TRUE,
@@ -885,7 +943,10 @@ te_kbl_df = te_input_df %>%
             isolate the effect of reputational returns and the private utility derived from each treatment. 
             \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
             Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices.
+            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+
+            Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+            in the interest of brevity.
             "
         ) 
   )
@@ -899,83 +960,8 @@ te_kbl_df %>%
     )
   )
 
-```
-
-
-```{r, results="asis"}
-x = 2 + 5
+x = 1 + 5
 te_kbl_df 
-
-```
-
-
-
-```{r, eval = FALSE}
-
-load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
-
-colnames(dist_fit_data)
-dist_fit_data %>%
-  select(fit_type, model_type, est_takeup_te_diff) %>%
-  unnest() %>%
-  colnames()
-
-dist_fit_data %>%
-  filter(model_type == "structural") %>%
-  mutate(across(where(is_list), map_if, ~ is_tibble(.x) && has_name(.x, "iter_data"), ~ NULL))
-
-
-
-# we hate RData
-dist_fit_full = new.env()
-load(file.path("temp-date", str_interp("processed_dist_fit${fit_version}.RData")), envir = dist_fit_full)
-    
-
-with_env = function(f, e = parent.frame()) {
-    stopifnot(is.function(f))
-    environment(f) = e
-    f
-}
-
-clean_micro = function(){
-    site <- c(attanasio_indicator, augsberg_indicator,banerjee_indicator, crepon_indicator)-1
-    consumerdurables <- c(attanasio_consumerdurables, augsberg_consumerdurables,banerjee_consumerdurables, crepon_consumerdurables)
-    treatment <- c(attanasio_treatment, augsberg_treatment,banerjee_treatment, crepon_treatment)
-    priorbiz <- c(attanasio_existingbusiness, augsberg_existingbusiness, banerjee_existingbusiness, crepon_existingbusiness)
-    # Now we have to standardise any variables which are in local currency units to USD PPP per fortnight in 2009 dollars
-
-
-    expanded_standardiser_USD_PPP_per_fortnight <- c(
-                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[1],length(attanasio_indicator)),
-                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[2],length(augsberg_indicator)),
-                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[3],length(banerjee_indicator)),
-                                                    rep(the_consumerdurables_standardiser_USD_PPP_per_fortnight[4],length(crepon_indicator)))
-
-    consumerdurables <- consumerdurables*expanded_standardiser_USD_PPP_per_fortnight
-
-    # bind everything into a data frame
-    data <- data.frame(site, consumerdurables, treatment, priorbiz)
-
-    site_df = 
-        tibble(
-            site_id = map_dbl(
-                list(attanasio_indicator, 
-                    augsberg_indicator,
-                    banerjee_indicator, 
-                    crepon_indicator), 
-                ~unique(.x - 1)), 
-            study_name = c("attanasio", "augsberg", "banerjee", "crepon")
-        )
-    # We gotta remove the NA values
-    data <- data[complete.cases(data),] %>%
-        as_tibble() %>%
-        left_join(., site_df, by = c("site" = "site_id"))
-    return(data)
-}
-
-
-consumer_durable_data = with_env(clean_micro, microcredit_env)()
-
 
 ```
 
@@ -1053,7 +1039,13 @@ belief_input_df = bind_rows(
   belief_close_far_input_df,
   combined_belief_ate
 ) %>% 
-  mutate(distance = str_to_title(distance))
+  mutate(
+    distance = str_to_title(distance), 
+    treatment = fct_rev(treatment), 
+    distance = factor(distance, levels = c("Combined", "Close", "Far"))
+    )
+
+
 
 wide_belief_input_df = belief_input_df %>%
   mutate(across(where(is.numeric), round, 3)) %>%
@@ -1072,6 +1064,16 @@ wide_belief_input_df = belief_input_df %>%
     treatment, 
     contains("_1"), 
     contains("_2")
+  ) %>%
+  arrange(treatment)  %>%
+  select(
+    treatment, 
+    Combined_1, 
+    Close_1,
+    Far_1, 
+    Combined_2, 
+    Close_2, 
+    Far_2
   )
 
 
@@ -1094,12 +1096,12 @@ wide_belief_input_df %>%
   ) %>%
   add_header_above(
     c(" ", 
+      "Combined",
       "Close", 
       "Far", 
-      "Combined", 
+      "Combined",
       "Close", 
-      "Far", 
-      "Combined"
+      "Far"
       ), 
     line = FALSE
   )  %>%
@@ -1243,8 +1245,8 @@ combined_disagg_belief = disagg_base_belief_data  %>%
 
 
 comp_belief_data = bind_rows(
-  close_far_disagg_belief,
-  combined_disagg_belief
+  combined_disagg_belief,
+  close_far_disagg_belief
 )
 
 
@@ -1289,11 +1291,20 @@ wide_disagg_belief_input_df = comp_belief_data %>%
     treatment, knowledge_type, 
     contains("1ord"), 
     contains("2ord")
+  ) %>%
+  mutate(
+    treatment = fct_rev(treatment)
+  ) %>%
+  select(
+    treatment, knowledge_type, `1ord_Combined`, `1ord_close`, `1ord_far`, 
+    `2ord_Combined`, `2ord_close`, `2ord_far`
   )
 
 
 
+
 wide_disagg_belief_input_df %>%
+  arrange(treatment) %>%
   ungroup() %>%
   select(-treatment) %>%
   kbl(
@@ -1314,12 +1325,12 @@ wide_disagg_belief_input_df %>%
   ) %>%
   add_header_above(
     c(" ", 
-      "Close", 
-      "Far", 
       "Combined", 
       "Close", 
       "Far", 
-      "Combined"
+      "Combined",
+      "Close", 
+      "Far"
       ), 
     line = FALSE
   )  %>%
@@ -1332,10 +1343,10 @@ wide_disagg_belief_input_df %>%
   ) %>%
   group_rows(
     index = c(
-      "Control" = 3,
-      "Ink" = 3,
+      "Bracelet" = 3,
       "Calendar" = 3,
-      "Bracelet" = 3
+      "Ink" = 3,
+      "Control" = 3
     ), 
     hline_after = TRUE,
     hline_before = TRUE
