@@ -21,8 +21,10 @@ header-includes:
     - \usepackage{xcolor}
 params:
     fit_version: 71
+    rf_fit_version: 75
     input_path: data/stan_analysis_data
     output_path: temp-data 
+    table_output_path: presentations/tables
     models: STRUCTURAL_LINEAR_U_SHOCKS
 ---
 
@@ -40,8 +42,10 @@ library(magrittr)
 if (interactive()) {
     params = lst(
         fit_version = 71,
+        rf_fit_version = 75,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
+        table_output_path = "presentations/tables",
         models = "STRUCTURAL_LINEAR_U_SHOCKS"
     )
     source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
@@ -69,6 +73,9 @@ knitr::opts_chunk$set(
     warnings = FALSE,
     warning = FALSE,
     cache.path = "takeup-table-cache/", fig.path = "takeup-table-fig-cache/", fig.align = "center")
+
+
+
 ```
 
 
@@ -154,6 +161,36 @@ if (interactive()) {
     # load(file.path("..", "temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
 }
 
+
+if (params$fit_version != params$rf_fit_version) {
+  # Only load structural
+  dist_fit_data = dist_fit_data %>%
+    filter(model %in% c("STRUCTURAL_LINEAR_U_SHOCKS"))
+
+  rf_env = new.env()
+
+  with_env = function(f, e = parent.frame()) {
+      stopifnot(is.function(f))
+      environment(f) = e
+      f
+  }
+
+  load_rf_function = function(){
+      load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}_lite.RData")))
+      return(dist_fit_data)
+  }
+
+
+  rf_fit_data = with_env(load_rf_function, rf_env)() %>%
+    filter(model %in% c("REDUCED_FORM_NO_RESTRICT"))
+
+  dist_fit_data = bind_rows(
+    rf_fit_data, 
+    dist_fit_data
+  )
+
+}
+
 dist_fit_data %<>%
   left_join(tribble(
     ~ fit_type,        ~ model_color,
@@ -164,6 +201,8 @@ dist_fit_data %<>%
 
 dist_fit_data = dist_fit_data %>%
   filter(model %in% c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))
+
+
 
 delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
 
@@ -201,6 +240,36 @@ stan_data = (dist_fit_data %>%
 
 ```{r}
 #| balance-setup
+
+
+
+baseline_vars = c(
+  "age",
+  "religion",
+  "ethnicity",
+  "school",
+  "who_worms", 
+  "who_worms_other", 
+  "effect_worms", 
+  "effect_worms_other", 
+  "how_spread", 
+  "how_spread_other", 
+  "stop_worms", 
+  "stop_worms_other", 
+  "when_treat", 
+  "when_treat_other", 
+  "worms_affect",
+  "w_affect_how",
+  "neighbours_worms_affect",
+  "few_deworm", 
+  "treated", 
+  "treated_when", 
+  "family_treated",
+  "dworm_rate", 
+  "dworm_proportion"
+)
+
+
 
 # TODO: Do test within distance groups and overall
 balance_variables = c(
@@ -502,7 +571,7 @@ wide_indiv_bal_df = create_balance_input(
 
 # TODO: add tests for imbalance
 treat_colnames = str_to_title(treat_levels_c)
-wide_indiv_bal_df %>% 
+bal_table = wide_indiv_bal_df %>% 
 knitr::kable(
     format = "latex",
     escape = FALSE, 
@@ -529,6 +598,13 @@ footnote(general = "Insert footnote here.") %>%
     # hline_before = TRUE,
     bold = TRUE
   ) 
+
+bal_table %>%
+  save_kable(
+    file.path(params$table_output_path, "balance-table.tex")
+  )
+
+bal_table
 
 ```
 
@@ -855,12 +931,17 @@ te_df = bind_rows(
   mutate(
     assigned_treatment = if_else(
       assigned_treatment == "Pr(Bracelet > Calendar)", 
-      "$Pr(\\textit{Bracelet} > \\textit{Calendar})$", 
+      "$Pr(\\textrm{Bracelet} > \\textrm{Calendar})$", 
       assigned_treatment
       ),
+    assigned_treatment = if_else(
+      assigned_treatment == "Control", 
+      "Control Mean", 
+      assigned_treatment
+    ),
     assigned_treatment = factor(
       assigned_treatment, 
-      levels = c("Bracelet", "Calendar", "Ink", "Control", "$Pr(\\textit{Bracelet} > \\textit{Calendar})$"))
+      levels = c("Bracelet", "Calendar", "Ink", "Control Mean", "$Pr(\\textrm{Bracelet} > \\textrm{Calendar})$"))
   )
 
 
@@ -982,7 +1063,7 @@ te_kbl_df = te_input_df %>%
     col.names = c(
       # "Estimand", 
       # "Treatment", 
-      "\\textit{Dependent Variable: takeup}",
+      "Dependent variable: Take-up",
       paste0("(", 1:6, ")")
     ), 
     format = "latex", 
@@ -1015,44 +1096,46 @@ te_kbl_df = te_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: \\textit{Overall}" = 4, 
-      "Panel B: \\textit{Signalling}" = 4, 
-      "Panel C: \\textit{Private}" = 3, 
-      "Control Mean" = 1
+      "Panel A: Overall" = 4, 
+      "Panel B: Signalling" = 4, 
+      "Panel C: Private" = 3
     ), 
+    italic = TRUE,
     escape = FALSE,
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
     # hline_before = TRUE,
     bold = TRUE
   ) %>%
-  add_indent(c(4, 8)) %>%
+  # add_indent(c(4, 8)) %>%
+  row_spec(11, hline_after = TRUE) %>%
+  add_indent(12) %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
-    general = 
-        str_glue(
-            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-            'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-            isolate the effect of reputational returns and the private utility derived from each treatment. 
-            \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-            Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+    # general = 
+    #     str_glue(
+    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+    #         'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
+    #         isolate the effect of reputational returns and the private utility derived from each treatment. 
+    #         \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
+    #         Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+    #         data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
 
-            Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-            in the interest of brevity.
+    #         Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+    #         in the interest of brevity.
 
-            Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-            correlated and therefore the probability that bracelet exceeds calendar is very low.
-            "
-        ) 
+    #         Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+    #         correlated and therefore the probability that bracelet exceeds calendar is very low.
+    #         "
+    #     ) 
   )
 
 
 te_kbl_df %>%
   save_kable(
     file.path(
-      params$output_path,
+      params$table_output_path,
       "te-table.tex"
     )
   )
@@ -1068,7 +1151,7 @@ te_kbl_df
 #| overall-table-only
 
 overall_te_kbl_df = te_input_df %>%
-  filter(Estimand == "incentive" | Treatment == "Control") %>%
+  filter(Estimand == "incentive" | Treatment == "Control Mean") %>%
   arrange(Estimand, Treatment) %>%
   mutate(
     Estimand = if_else(
@@ -1082,7 +1165,7 @@ overall_te_kbl_df = te_input_df %>%
     col.names = c(
       # "Estimand", 
       # "Treatment", 
-      "\\textit{Dependent Variable: takeup}",
+      "Dependent variable: Take-up",
       paste0("(", 1:6, ")")
     ), 
     format = "latex", 
@@ -1115,37 +1198,47 @@ overall_te_kbl_df = te_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: \\textit{Overall}" = 4, 
-      "Control Mean" = 1
+      "Panel A: Overall" = 4
     ), 
+    italic = TRUE,
     escape = FALSE,
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
     # hline_before = TRUE,
     bold = TRUE
   ) %>%
-  add_indent(4) %>%
+  # add_indent(4) %>%
+  row_spec(4, hline_after = TRUE) %>%
+  add_indent(5) %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
-    general = 
-        str_glue(
-            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-            'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-            isolate the effect of reputational returns and the private utility derived from each treatment. 
-            \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-            Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+    # general = 
+    #     str_glue(
+    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+    #         'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
+    #         isolate the effect of reputational returns and the private utility derived from each treatment. 
+    #         \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
+    #         Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+    #         data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
 
-            Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-            in the interest of brevity.
+    #         Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+    #         in the interest of brevity.
 
-            Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-            correlated and therefore the probability that bracelet exceeds calendar is very low.
-            "
-        ) 
+    #         Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+    #         correlated and therefore the probability that bracelet exceeds calendar is very low.
+    #         "
+    #     ) 
   )
 
+
+overall_te_kbl_df %>%
+  save_kable(
+    file.path(
+      params$table_output_path,
+      "overall-te-table.tex"
+    )
+  )
 
 overall_te_kbl_df
 
@@ -1156,7 +1249,7 @@ overall_te_kbl_df
 
 decomposed_te_kbl_df = te_input_df %>%
   select(-contains("rf_")) %>%
-  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control") %>%
+  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control Mean") %>%
   arrange(Estimand, Treatment) %>%
   mutate(
     Estimand = if_else(
@@ -1170,7 +1263,7 @@ decomposed_te_kbl_df = te_input_df %>%
     col.names = c(
       # "Estimand", 
       # "Treatment", 
-      "\\textit{Dependent Variable: takeup}",
+      "Dependent variable: Take-up",
       paste0("(", 1:3, ")")
     ), 
     format = "latex", 
@@ -1181,7 +1274,7 @@ decomposed_te_kbl_df = te_input_df %>%
     caption = "Results"
   ) %>%
   kable_styling(
-    latex_options = c("scale_down")
+    # latex_options = c("scale_down")
   ) %>%
   add_header_above(
     c(" ", 
@@ -1199,36 +1292,45 @@ decomposed_te_kbl_df = te_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: \\textit{Signal}" = 4, 
-      "Panel B: \\textit{Private}" = 3, 
-      "Control Mean" = 1
+      "Panel A: Signal" = 4, 
+      "Panel B: Private" = 3
     ), 
+    italic = TRUE,
     escape = FALSE,
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
     # hline_before = TRUE,
     bold = TRUE
   ) %>%
-  add_indent(4) %>%
+  row_spec(7, hline_after = TRUE) %>%
+  add_indent(8) %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
-    general = 
-        str_glue(
-            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-            'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-            isolate the effect of reputational returns and the private utility derived from each treatment. 
-            \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-            Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-            data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+    # general = 
+    #     str_glue(
+    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+    #         'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
+    #         isolate the effect of reputational returns and the private utility derived from each treatment. 
+    #         \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
+    #         Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+    #         data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
 
-            Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-            in the interest of brevity.
+    #         Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+    #         in the interest of brevity.
 
-            Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-            correlated and therefore the probability that bracelet exceeds calendar is very low.
-            "
-        ) 
+    #         Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+    #         correlated and therefore the probability that bracelet exceeds calendar is very low.
+    #         "
+    #     ) 
+  )
+
+decomposed_te_kbl_df %>%
+  save_kable(
+    file.path(
+      params$table_output_path,
+      "private-signal-te-table.tex"
+    )
   )
 
 decomposed_te_kbl_df
@@ -1347,7 +1449,7 @@ wide_belief_input_df = belief_input_df %>%
   )
 
 
-wide_belief_input_df %>%
+wide_belief_tbl = wide_belief_input_df %>%
   kbl(
     col.names = c(
       # "Estimand", 
@@ -1385,15 +1487,22 @@ wide_belief_input_df %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
-    general = 
-        str_glue(
-            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-            {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
-            "
-        ) 
+    # general = 
+    #     str_glue(
+    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+    #         {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
+    #         "
+    #     ) 
   )
+wide_belief_tbl
 
-
+wide_belief_tbl %>%
+  save_kable(
+    file.path(
+      params$table_output_path, 
+      "beliefs-table.tex"
+    )
+  )
 ```
 
 
@@ -1573,7 +1682,7 @@ wide_disagg_belief_input_df = comp_belief_data %>%
 
 
 
-wide_disagg_belief_input_df %>%
+all_wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
   arrange(treatment) %>%
   ungroup() %>%
   select(-treatment) %>%
@@ -1624,16 +1733,96 @@ wide_disagg_belief_input_df %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
-    general = 
-        str_glue(
-            "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-            {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
-            "
-        ) 
+    # general = 
+    #     str_glue(
+    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+    #         {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
+    #         "
+    #     ) 
+  )
+
+all_wide_disagg_belief_tbl
+
+all_wide_disagg_belief_tbl %>%
+  save_kable(
+    file.path(
+      params$table_output_path, 
+      "all-disagg-beliefs-table.tex"
+    )
   )
 
 
+```
 
 
 
+```{r}
+
+wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
+  select(-contains("2")) %>%
+  arrange(treatment) %>%
+  ungroup() %>%
+  select(-treatment) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "Knowledge",
+      paste0("(", 1:3, ")")
+    ), 
+    # format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "First-Order Beliefs" = 3
+      )
+  ) %>%
+  group_rows(
+    index = c(
+      "Bracelet" = 3,
+      "Calendar" = 3,
+      "Ink" = 3,
+      "Control" = 3
+    ), 
+    hline_after = TRUE,
+    hline_before = TRUE
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+    # general = 
+    #     str_glue(
+    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+    #         {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
+    #         "
+    #     ) 
+  )
+
+wide_disagg_belief_input_df
+
+
+
+wide_disagg_belief_input_df %>%
+  save_kable(
+    file.path(
+      params$table_output_path, 
+      "fob-disagg-beliefs-table.tex"
+    )
+  )
 ```
