@@ -1428,3 +1428,102 @@ dist_prob_plot +
   NULL
 
 ```
+
+
+## Rep Return By Distance
+
+
+```{r}
+#| rep-return-dist-value,
+#| fig.cap="Value of Reputational Return Across Bracelet and Control",
+#| fig.note="Value priced in terms of walking distance. Estimates generated using 
+#|  decomposition from structural model." 
+
+dist_fit_data %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  select(model_name, cluster_rep_return_dist) %>%
+  unnest(cluster_rep_return_dist) %>% 
+  mutate(
+    roc_distance = roc_distance / 1000,
+    across(starts_with("per_"), divide_by, 1000)
+  ) %>% 
+    filter(
+      roc_distance <= 2.5
+    ) %>%
+  filter(assigned_treatment %in% c("control", "bracelet")) %>%
+  ggplot(aes(roc_distance)) +
+  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
+  geom_rug(
+    aes(dist, color = assigned_treatment),
+    alpha = 0.5,
+    data = rf_analysis_data %>%
+      distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
+      rename(assigned_treatment = assigned.treatment)  %>%
+      filter(assigned_treatment %in% c("control", "bracelet"))
+  ) +
+  scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
+  labs(
+    # title = "Valuation of Reputational Returns in Terms of Distance",
+    x = "Distance to Treatment [km]", y = "Distance Value [km]",
+  ) +
+#   facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title), nrow = 1) +
+  theme(legend.position = "bottom") +
+  NULL
+
+
+```
+
+```{r, eval=FALSE}
+
+
+plot_rep_returns_one_by_one = function(data, treatment) {
+    subtitle_str = str_to_title(treatment)
+    plot = data %>%
+        filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+        select(model_name, cluster_rep_return_dist) %>%
+        unnest(cluster_rep_return_dist) %>% 
+        filter(assigned_treatment == treatment) %>%
+        mutate(
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, 1000)
+        ) %>% 
+        filter(
+          roc_distance <= 2.5
+        ) %>%
+        ggplot(aes(roc_distance)) +
+        geom_line(aes(y = per_0.5)) +
+        geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
+        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+        geom_rug(
+          aes(dist, color = assigned_treatment),
+          alpha = 0.75,
+          data = rf_analysis_data %>%
+            filter(fct_match(assigned.treatment, c(treatment))) %>%
+            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+        scale_color_discrete("", aesthetics = c("color", "fill")) +
+        labs(
+        # title = "Valuation of Reputational Returns in Terms of Distance",
+        x = "Distance to Treatment [km]", y = "Distance Value [km]", 
+        subtitle = subtitle_str
+        ) +
+        theme(legend.position = "top") +
+        guides(colour = "none") +
+        NULL
+    return(plot)
+}
+
+
+treatments = c(
+    "bracelet",
+    "calendar",
+    "ink",
+    "control"
+)
+
+single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
+    plot_rep_returns_one_by_one(treatment = .x)  
+)
+single_rep_return_plots[[2]]
+```
