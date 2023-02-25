@@ -86,8 +86,43 @@ cmdstan_files = fs::dir_ls(
     regexp = string_to_match 
 )
 
+if (interactive()) {
+    cmdstan_files = cmdstan_files[1]
+}
 
 cmdstan_fit = as_cmdstan_fit(cmdstan_files)
+
+
+var_names = get_variables(cmdstan_fit) %>%
+    str_extract("\\D+") %>%
+    str_remove_all("\\[") %>%
+    unique()
+
+
+
+wtp_rvars = spread_rvars(cmdstan_fit, hyper_wtp_mu, wtp_sigma)
+
+rvar_pnorm = rfun(pnorm)
+
+wtp_rvars = wtp_rvars %>%
+    mutate(
+        mu_std = hyper_wtp_mu / wtp_sigma, 
+        phi_mu_std = rvar_pnorm(mu_std)
+        )
+
+wtp_rvars %>%
+    select(phi_mu_std) %>%
+    median_qi(.width = 0.9) %>%
+    to_broom_names() %>%
+    mutate(variable = "wtp_phi_mu_std") %>%
+    write_csv(
+        file.path(
+            script_options$output_path, 
+            str_glue(
+                "wtp_phi_summary_draws_dist_fit${fit_version}.csv"
+            )
+        )
+    )
 
 
 
@@ -96,7 +131,6 @@ draw_rvars = gather_rvars(cmdstan_fit, wtp_sigma)
 
 rm(cmdstan_fit)
 gc()
-
 
 
 draw_pis = draw_rvars %>%
@@ -150,3 +184,39 @@ clean_draw_output %>%
             str_interp("misc_processed_dist_fit${fit_version}.csv")
         )
     )
+
+# var_names
+
+# cluster_rep_return_rvar_df = gather_rvars(cmdstan_fit, cluster_rep_return_dist[i,j,k])
+
+#   cluster_rep_return_dist_control = dist_fit_data %>%
+#     select(cluster_rep_return_dist) %>%
+#     unnest(cols = c(cluster_rep_return_dist)) %>%
+#     filter(assigned_treatment == "control")
+
+#   cluster_rep_return_te_df = dist_fit_data %>%
+#       select(cluster_rep_return_dist) %>%
+#       unnest(cols = c(cluster_rep_return_dist))  %>%
+#       # filter(assigned_treatment != "control")  %>%
+#       unnest(iter_data) %>%
+#       left_join(
+#         cluster_rep_return_dist_control %>% 
+#           select(roc_distance_index, iter_data) %>%
+#           unnest(iter_data) %>%
+#           rename(iter_est_right = iter_est),
+#         by = c("roc_distance_index", "iter_id")
+#       ) %>%
+#       mutate( 
+#         iter_est_te = iter_est - iter_est_right
+#       ) %>%
+#       nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+#       select(-contains("per"), -mean_est) %>%
+#       mutate(
+#         mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
+#         takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs))
+#       ) %>% 
+#       unnest(takeup_quantiles)
+
+#   # cluster_rep_return_te_df %>%
+#   #   select(-iter_data) %>%
+#   #   write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
