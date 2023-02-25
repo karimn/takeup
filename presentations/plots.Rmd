@@ -514,12 +514,13 @@ plot_1ord_beliefs_est <- function(beliefs_results,
     scale_y_discrete("", labels = str_to_title) +
     labs(
       title = "",
-      subtitle = "Proportion",
+      subtitle = "Panel A: Levels",
       x = "") +
     labs(x = "Proportion (%)") +
     scale_x_continuous(
       labels = scales::label_percent(suffix = "")
     )  +
+    theme_bw() +
     theme(legend.position = "top") +
     NULL
   
@@ -549,14 +550,16 @@ plot_1ord_beliefs_est <- function(beliefs_results,
         scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
         labs(
           title = "",
-          subtitle = "Treatment Effect",
+          subtitle = "Panel B: Treatment Effects",
           x = "", y = "") +
     labs(x = "Percentage Points") +
     scale_x_continuous(
       labels = scales::label_percent(suffix = "")
     )  +
+    theme_bw() +
         theme(
           axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
           legend.position = "none"
         ) +
         NULL,
