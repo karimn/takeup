@@ -19,6 +19,7 @@ script_options <- docopt::docopt(
           --welfare-function=<welfare-function>  Log or identity utility
           --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
           --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
+          --pdf-output-path=<pdf-output-path>  Output path for PDF plots 
 "),
   args = if (interactive()) "
                             --constraint-type=agg \
@@ -26,13 +27,14 @@ script_options <- docopt::docopt(
                             --min-cost \
                             --optim-input-path=optim/data/agg-log-full-many-pots \
                             --demand-input-path=optim/data/agg-log-full-many-pots \
-                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-post-draws-optimal-allocation.rds \
+                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
                             --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
                             --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-post-draws \
+                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
-                            --data-input-name=full-many-pots-experiment.rds
-                             
+                            --data-input-name=full-many-pots-experiment.rds \
+                            --posterior-median \
+                            --pdf-output-path=presentations/takeup-fig/optim
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -129,7 +131,7 @@ if (script_options$map_plot){
             data = data$pot_locations,
             colour = hex[1],
             shape = 17,
-            size = 4, 
+            # size = 2, 
             alpha = 0.7) +
         theme_bw() +
         labs(
@@ -152,13 +154,10 @@ if (script_options$map_plot){
 
 if (stat_type == "median") {
 
-    plot_optimal_allocation = function(village_data,
-                                    pot_data,
-                                    optimal_data){
 
+    gen_oa_stats = function(village_data, pot_data, optimal_data) {
         assigned_pots = unique(optimal_data$j)
         n_pots_used =  length(assigned_pots)
-        pot_data$assigned_pot = pot_data$id %in% assigned_pots
         summ_optimal_data = optimal_data %>%
             mutate(target_optim = target_optim) %>%
             summarise(
@@ -181,6 +180,37 @@ if (stat_type == "median") {
         util_target = round(summ_optimal_data$target_optim)
         overshoot = round(abs(summ_optimal_data$overshoot), 3)
         mean_dist = round(summ_optimal_data$mean_dist,1)
+        return(lst(
+            assigned_pots,
+            n_pots_used,
+            takeup_hit, 
+            util_hit,
+            util_target,
+            overshoot, 
+            mean_dist
+        ))
+
+    }
+
+    plot_optimal_allocation = function(village_data,
+                                    pot_data,
+                                    optimal_data){
+
+        oa_stats = gen_oa_stats(
+            village_data,
+            pot_data,
+            optimal_data
+        )
+
+        assigned_pots = oa_stats$assigned_pot
+        n_pots_used = oa_stats$n_pots_used
+        takeup_hit = oa_stats$takeup_hit
+        util_hit = oa_stats$util_hit
+        util_target = oa_stats$util_target
+        overshoot = oa_stats$overshoot
+        mean_dist = oa_stats$mean_dist
+
+        pot_data$assigned_pot = pot_data$id %in% assigned_pots
 
         if (script_options$constraint_type == "agg") {
             sub_str = str_glue("Takeup target: Aggregate Welfare Under Control. Assigned PoTs: {n_pots_used}")
@@ -198,18 +228,21 @@ if (stat_type == "median") {
 
         optimal_pot_plot = village_data %>%
             ggplot() +
-            geom_sf(alpha = 1) +
+            geom_sf(alpha = 0.7, size = 0.8) +
             geom_sf(
                 data = pot_data %>% filter(assigned_pot == FALSE),
                 color = hex[1],
                 shape = 17,
-                size = 4, 
-                alpha = 0.2) +
+                alpha = 0.3
+                # size = 4, 
+                # alpha = 0.2
+                ) +
             geom_sf(
                 data = pot_data %>% filter(assigned_pot == TRUE),
                 color = hex[2],
                 shape = 17,
-                size = 4, 
+                # size = 4, 
+                size = 1.5,
                 alpha = 1) +
             theme_bw() +
             geom_segment(
@@ -245,6 +278,62 @@ if (stat_type == "median") {
             optimal_data = .x
         )
     )
+    
+    allocation_stats = map(
+        optimal_df$model_output,
+        ~gen_oa_stats(
+            village_data = data$village_locations,
+            pot_data = data$pot_locations,
+            optimal_data = .x
+        )
+    )
+
+    if (!is.null(script_options$pdf_output_path)) {
+        map(
+            allocation_plots,
+            ~ .x + labs(subtitle = NULL, caption = NULL)
+        ) %>%
+        iwalk(
+            ., 
+            ~ggsave(
+                plot = .x, 
+                filename = file.path(
+                    script_options$pdf_output_path, 
+                    str_glue(
+                        "{script_options$output_basename}-optimal-allocation-plot.pdf"
+                    )
+                ), 
+                width = 8, 
+                height = 6
+            )
+        )
+
+
+
+    }
+
+    allocation_stats[[1]] %>% 
+        enframe() %>%
+        spread(name, value) %>%
+        unnest(-assigned_pots) 
+
+
+    imap(
+        allocation_stats,
+        ~ .x %>%
+            enframe() %>%
+            spread(name, value) %>%
+            unnest(-assigned_pots) %>%
+            saveRDS(
+                file.path(
+                    script_options$output_path,
+                    str_glue(
+                        "{script_options$output_basename}-optimal-allocation-stats.rds"
+                    )
+                )
+            )
+    )
+
     iwalk(
         allocation_plots,
         ~ggsave(
