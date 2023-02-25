@@ -118,7 +118,7 @@ wtp_rvars %>%
     write_csv(
         file.path(
             script_options$output_path, 
-            str_glue(
+            str_interp(
                 "wtp_phi_summary_draws_dist_fit${fit_version}.csv"
             )
         )
