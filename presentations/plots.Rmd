@@ -551,7 +551,7 @@ plot_1ord_beliefs_est <- function(beliefs_results,
           title = "",
           subtitle = "Treatment Effect",
           x = "", y = "") +
-    labs(x = "Proportion (%)") +
+    labs(x = "Percentage Points") +
     scale_x_continuous(
       labels = scales::label_percent(suffix = "")
     )  +
