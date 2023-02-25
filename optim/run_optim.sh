@@ -33,9 +33,9 @@ fi
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="" # --posterior-median
+POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
 SKIP_PREDICTION=1 # 1
-SKIP_OA=0 # 1 or 0
+SKIP_OA=1 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=0
 RUN_ESTIMATION="--run-estimation"
@@ -45,7 +45,7 @@ COUNTY="full"
 OUTPUT_PATH="optim/data/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}-many-pots" # /many-pots
 PLOT_OUTPUT_PATH="optim/plots/${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${COUNTY}-many-pots" #/many-pots
 DATA_INPUT_NAME="${COUNTY}-many-pots-experiment.rds"
-CUTOFF="no-" # either no- or empty string
+CUTOFF="" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
 SUPPRESS_REP="" #suppress-rep-
@@ -155,7 +155,8 @@ run_optim () {
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${PLOT_OUTPUT_PATH} \
                                     --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
-                                    --cutoff-type=${CUTOFF}cutoff
+                                    --cutoff-type=${CUTOFF}cutoff \
+                                    --pdf-output-path=presentations/takeup-fig/optim
     fi
 
 }
@@ -184,20 +185,21 @@ CUTOFF="no-"
 
 # ## No Cutoff
 # run_optim "control" "control"
-# #run_optim "control" "bracelet"
-#Jrun_optim "control" "calendar"
-#run_optim "control" "ink"
-# run_optim "bracelet" "bracelet"
-#
+# # run_optim "control" "bracelet"
 
-#run_optim "bracelet" "control"
+# run_optim "control" "calendar"
+# run_optim "control" "ink"
+# run_optim "bracelet" "bracelet"
+
+
+# run_optim "bracelet" "control"
 # run_optim "ink" "ink"
 # run_optim "calendar" "calendar"
 
 
 
-Rscript ./optim/compare-optim.R \ 
-    --input-path=${OUTPUT_PATH} \
-    --output-path=${PLOT_OUTPUT_PATH} \
-    ${MANY_POTS} \
-    ${POSTERIOR_MEDIAN}
+# Rscript ./optim/compare-optim.R \ 
+#     --input-path=${OUTPUT_PATH} \
+#     --output-path=${PLOT_OUTPUT_PATH} \
+#     ${MANY_POTS} \
+#     ${POSTERIOR_MEDIAN}

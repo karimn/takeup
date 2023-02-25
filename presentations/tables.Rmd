@@ -74,7 +74,7 @@ knitr::opts_chunk$set(
     warning = FALSE,
     cache.path = "takeup-table-cache/", fig.path = "takeup-table-fig-cache/", fig.align = "center")
 
-
+dir.create("presentations/tables", showWarnings = FALSE)
 
 ```
 
@@ -268,6 +268,86 @@ baseline_vars = c(
   "dworm_rate", 
   "dworm_proportion"
 )
+
+# 9,935 adults of which 2,250 adults are surveyed at baseline, 
+# 3,750 adults surveyed at endline 
+# and 3,935 adults selected for text messaging intervention
+
+
+# KEY - surveyCTO key HH ID
+# KEY.individ individual's key
+# KEY.hh hh's key
+
+# rct-design-fieldwork/takeup_field_notebook.Rmd > the randomisation, 
+# cleaning of columns, baseline 
+
+# prepare_analysis_data.R <-- look in here
+# census file 
+
+
+# census 40,000
+# (had permission to use non-monitored)
+# had the census but needed to match names using strings
+# using census names was extremely messy
+#     didn't improve estimates, TEs don't change, 
+#     didn't want to add judgement calls on name merges so just stick to sample we 
+#     know.
+
+
+# random-subset for part of experiment
+# in that 144 villages we did run a sub-census
+# did this for logistics and so we could sample from them. 
+
+# had self-reported deworming for all of sub-census
+# some of subcensus are in endline but not in monitored sample
+# but use PoT data for takeup model.
+
+# is endline subsample of monitored sample or endline some new combined sample
+
+# analysis_data %>%
+#   select(individ.baseline.sample.pool, monitored) %>%
+#   group_by(individ.baseline.sample.pool, monitored) %>%
+#   summarise(
+#     n = n()
+#   )
+
+
+# analysis_data %>%
+#   select(sms.treatment.2) %>%
+#   unique()
+
+# analysis_data %>%
+#   group_by(baseline = individ.baseline.sample.pool, endline) %>%
+#   summarise(
+#     dewormed = mean(dewormed)
+#   )
+
+# analysis_data %>%
+#   group_by(baseline = individ.baseline.sample.pool, endline, monitored = true.monitored) %>%
+#   summarise(
+#    n = n() 
+#   )
+
+# analysis_data %>%
+#   group_by(endline) %>%
+#   summarise(
+#     n_indiv = n_distinct(KEY.individ)
+#   )
+
+# analysis_data %>%
+#   group_by(endline) %>%
+#   summarise(
+#    n = n() 
+#   )
+
+# analysis_data %>%
+#   summarise(
+#     n_analysis = n_distinct(KEY.individ)
+#   )
+
+# analysis_data %>%
+#   select(contains("KEY")) %>%
+#   colnames()
 
 
 
@@ -584,7 +664,7 @@ kable_styling(
     latex_options = c("scale_down")
 ) %>%
 add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
-footnote(general = "Insert footnote here.") %>%
+# footnote(general = "Insert footnote here.") %>%
   pack_rows(
     index = c(
       "Individual-level Covariates" = 3, 
@@ -599,12 +679,37 @@ footnote(general = "Insert footnote here.") %>%
     bold = TRUE
   ) 
 
-bal_table %>%
-  save_kable(
-    file.path(params$table_output_path, "balance-table.tex")
-  )
 
-bal_table
+
+custom_save_latex_table = function(table, table_name){
+  table_conn = file(
+    file.path(
+      params$table_output_path, paste0(table_name, ".tex")
+    )
+  )
+  table %>%
+    str_remove(
+      ., 
+      fixed("\\begin{table}")
+    ) %>%
+    str_remove(
+      .,
+      "\\\\caption\\{.*\\}"
+    ) %>%
+    str_remove(
+      ., 
+      "\\\\end\\{table\\}"
+    )  %>%
+    writeLines(
+      table_conn
+    )
+    close(table_conn)
+    return(NULL)
+}
+
+
+bal_table %>%
+  custom_save_latex_table("balance-table")
 
 ```
 
@@ -931,17 +1036,17 @@ te_df = bind_rows(
   mutate(
     assigned_treatment = if_else(
       assigned_treatment == "Pr(Bracelet > Calendar)", 
-      "$Pr(\\textrm{Bracelet} > \\textrm{Calendar})$", 
+      "Pr(Bracelet > Calendar)", 
       assigned_treatment
       ),
     assigned_treatment = if_else(
       assigned_treatment == "Control", 
-      "Control Mean", 
+      "Control mean", 
       assigned_treatment
     ),
     assigned_treatment = factor(
       assigned_treatment, 
-      levels = c("Bracelet", "Calendar", "Ink", "Control Mean", "$Pr(\\textrm{Bracelet} > \\textrm{Calendar})$"))
+      levels = c("Bracelet", "Calendar", "Ink", "Control mean", "Pr(Bracelet > Calendar)"))
   )
 
 
@@ -1104,7 +1209,7 @@ te_kbl_df = te_input_df %>%
     escape = FALSE,
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
-    # hline_before = TRUE,
+    hline_before = TRUE,
     bold = TRUE
   ) %>%
   # add_indent(c(4, 8)) %>%
@@ -1114,30 +1219,27 @@ te_kbl_df = te_input_df %>%
     escape = FALSE,
     threeparttable = TRUE,
     # general = 
-    #     str_glue(
-    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-    #         'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-    #         isolate the effect of reputational returns and the private utility derived from each treatment. 
-    #         \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-    #         Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-    #         data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
+        # str_glue(
+        #     "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
+        #     'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
+        #     isolate the effect of reputational returns and the private utility derived from each treatment. 
+        #     \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
+        #     Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
+        #     data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
 
-    #         Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-    #         in the interest of brevity.
+        #     Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
+        #     in the interest of brevity.
 
-    #         Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-    #         correlated and therefore the probability that bracelet exceeds calendar is very low.
-    #         "
-    #     ) 
+        #     Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
+        #     correlated and therefore the probability that bracelet exceeds calendar is very low.
+        #     "
+        # ) 
   )
 
 
 te_kbl_df %>%
-  save_kable(
-    file.path(
-      params$table_output_path,
-      "te-table.tex"
-    )
+  custom_save_latex_table(
+    "te-table"
   )
 
 x = 1 + 5
@@ -1151,7 +1253,7 @@ te_kbl_df
 #| overall-table-only
 
 overall_te_kbl_df = te_input_df %>%
-  filter(Estimand == "incentive" | Treatment == "Control Mean") %>%
+  filter(Estimand == "incentive" | Treatment == "Control mean") %>%
   arrange(Estimand, Treatment) %>%
   mutate(
     Estimand = if_else(
@@ -1196,20 +1298,9 @@ overall_te_kbl_df = te_input_df %>%
       "Structural" = 3
       )
   ) %>%
-  pack_rows(
-    index = c(
-      "Panel A: Overall" = 4
-    ), 
-    italic = TRUE,
-    escape = FALSE,
-    # latex_gap_space = latex_group_gap_space, 
-    hline_after = TRUE, 
-    # hline_before = TRUE,
-    bold = TRUE
-  ) %>%
   # add_indent(4) %>%
   row_spec(4, hline_after = TRUE) %>%
-  add_indent(5) %>%
+  add_indent(1:5) %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
@@ -1233,11 +1324,8 @@ overall_te_kbl_df = te_input_df %>%
 
 
 overall_te_kbl_df %>%
-  save_kable(
-    file.path(
-      params$table_output_path,
-      "overall-te-table.tex"
-    )
+  custom_save_latex_table(
+    "overall-te-table"
   )
 
 overall_te_kbl_df
@@ -1249,7 +1337,7 @@ overall_te_kbl_df
 
 decomposed_te_kbl_df = te_input_df %>%
   select(-contains("rf_")) %>%
-  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control Mean") %>%
+  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control mean") %>%
   arrange(Estimand, Treatment) %>%
   mutate(
     Estimand = if_else(
@@ -1299,11 +1387,11 @@ decomposed_te_kbl_df = te_input_df %>%
     escape = FALSE,
     # latex_gap_space = latex_group_gap_space, 
     hline_after = TRUE, 
-    # hline_before = TRUE,
+    hline_before = TRUE,
     bold = TRUE
   ) %>%
   row_spec(7, hline_after = TRUE) %>%
-  add_indent(8) %>%
+  add_indent(1:8) %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
@@ -1326,11 +1414,8 @@ decomposed_te_kbl_df = te_input_df %>%
   )
 
 decomposed_te_kbl_df %>%
-  save_kable(
-    file.path(
-      params$table_output_path,
-      "private-signal-te-table.tex"
-    )
+  custom_save_latex_table(
+    "private-signal-te-table"
   )
 
 decomposed_te_kbl_df
@@ -1464,7 +1549,7 @@ wide_belief_tbl = wide_belief_input_df %>%
     caption = "Beliefs Results"
   ) %>%
   kable_styling(
-    latex_options = c("scale_down")
+    # latex_options = c("scale_down")
   ) %>%
   add_header_above(
     c(" ", 
@@ -1497,11 +1582,8 @@ wide_belief_tbl = wide_belief_input_df %>%
 wide_belief_tbl
 
 wide_belief_tbl %>%
-  save_kable(
-    file.path(
-      params$table_output_path, 
-      "beliefs-table.tex"
-    )
+  custom_save_latex_table(
+    "beliefs-table"
   )
 ```
 
@@ -1511,9 +1593,6 @@ wide_belief_tbl %>%
 #| disagg-beliefs
 
 
-cv = function(alpha){
-  qnorm(1 - (alpha/2))
-}
 
 disagg_base_belief_data = analysis_data %>%
   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>%
@@ -1564,6 +1643,10 @@ disagg_base_belief_data = analysis_data %>%
     mutate(belief_type = if_else(str_detect(variable, "think"), "2ord", "1ord")) %>%
     mutate(prop = value/obs_know_person) 
 
+cv = function(alpha){
+  qnorm(1 - (alpha/2))
+}
+
 close_far_disagg_belief = disagg_base_belief_data  %>%
     group_by(assigned.treatment, assigned_dist_group, knowledge_type, belief_type)  %>%
     summarise(
@@ -1591,6 +1674,10 @@ close_far_disagg_belief = disagg_base_belief_data  %>%
                           fct_rev
     )
 
+
+cv = function(alpha){
+  qnorm(1 - (alpha/2))
+}
 
 combined_disagg_belief = disagg_base_belief_data  %>%
     group_by(assigned.treatment, knowledge_type, belief_type)  %>%
@@ -1693,14 +1780,14 @@ all_wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
       "Knowledge",
       paste0("(", 1:6, ")")
     ), 
-    # format = "latex", 
+    format = "latex", 
     booktabs = TRUE, 
     escape = FALSE, 
     align = "lcccccc", 
     caption = "Beliefs Results"
   ) %>%
   kable_styling(
-    latex_options = c("scale_down")
+    # latex_options = c("scale_down")
   ) %>%
   add_header_above(
     c(" ", 
@@ -1744,11 +1831,8 @@ all_wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
 all_wide_disagg_belief_tbl
 
 all_wide_disagg_belief_tbl %>%
-  save_kable(
-    file.path(
-      params$table_output_path, 
-      "all-disagg-beliefs-table.tex"
-    )
+  custom_save_latex_table(
+    "all-disagg-beliefs-table"
   )
 
 
@@ -1770,14 +1854,14 @@ wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
       "Knowledge",
       paste0("(", 1:3, ")")
     ), 
-    # format = "latex", 
+    format = "latex", 
     booktabs = TRUE, 
     escape = FALSE, 
     align = "lcccccc", 
     caption = "Beliefs Results"
   ) %>%
   kable_styling(
-    latex_options = c("scale_down")
+    # latex_options = c("scale_down")
   ) %>%
   add_header_above(
     c(" ", 
@@ -1818,11 +1902,139 @@ wide_disagg_belief_input_df
 
 
 
-wide_disagg_belief_input_df %>%
-  save_kable(
-    file.path(
-      params$table_output_path, 
-      "fob-disagg-beliefs-table.tex"
-    )
+wide_disagg_belief_tbl %>%
+  custom_save_latex_table(
+    "fob-disagg-beliefs-table"
   )
 ```
+
+
+
+#### WTP Table ####
+
+
+```{r}
+1+1
+wtp_summ_df = dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
+  pull(wtp_results) %>%
+  first()  %>%
+  group_by(variable)  %>%
+  filter(variable == "hyper_wtp_mu") %>%
+  select( 
+    per_0.5,
+    per_0.05, 
+    per_0.95
+  ) %>%
+  mutate(across(where(is.numeric), ~.x*100)) %>%
+  mutate(across(where(is.numeric), round, 3))
+
+
+
+pr_wtp_greater_df = read_csv(
+  file.path(
+    params$output_path, 
+    str_interp("wtp_phi_summary_draws_dist_fit${params$fit_version}.csv")
+  )
+)
+
+pr_wtp_greater_input_df = pr_wtp_greater_df %>%
+  mutate(
+    variable = "$\\textrm{Pr}(V_{\\textrm{calendar}} > V_{\\textrm{bracelet}} + 0\\textrm{Ksh})$"
+  ) %>%
+  select(
+    variable, 
+    per_0.5 = phi_mu_std, 
+    per_0.05 = conf.low, 
+    per_0.95 = conf.high) 
+
+misc_param_summaries = read_csv(
+  file.path(
+      params$output_path,
+      str_glue("misc_processed_dist_fit{params$fit_version}.csv")
+  )
+) %>%
+  mutate(across(where(is.numeric), ~.x*100)) %>%
+  mutate(across(where(is.numeric), round, 2))
+
+
+wtp_summ_input_df = bind_rows(
+  wtp_summ_df,
+  misc_param_summaries %>%
+    filter(variable == "wtp_sigma"),
+   pr_wtp_greater_input_df,
+  dist_fit_data %>% 
+    filter(fct_match(model_type, "structural")) %>% 
+    pull(wtp_results) %>%
+    first()  %>%
+    filter(variable == "prob_prefer_calendar") %>%
+    left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index")  %>%
+    filter(val_diff %in% c(50, 0, -50)) %>%
+    select(variable, val_diff, per_0.5, per_0.05, per_0.95) %>%
+    mutate(
+      variable = "Pr(prefer calendar)",
+      variable = paste0(
+        variable, ", offered: ", val_diff, "KSh"
+      )
+    ) %>%
+    select(-val_diff)
+) 
+
+
+
+wtp_summ_tbl = wtp_summ_input_df %>%
+  mutate(
+    variable = case_when(
+      variable == "hyper_wtp_mu" ~ "Valuation difference (Ksh) mean, $\\mu$", 
+      variable == "wtp_sigma" ~ "Valuation difference (Ksh) standard deviation, $\\sigma$", 
+      TRUE ~ variable
+      )
+  ) %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = 
+      linebreak(
+        paste0(per_0.5, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+        align = "c"
+        )
+  ) %>%
+  select( 
+    variable, estim_value
+  ) %>%
+  kbl(
+    col.names = c("Parameter", "Posterior estimates"), 
+    booktabs = TRUE, 
+    escape = FALSE,
+    format = "latex",
+    align = "lc"
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Model parameters" = 2, 
+      "Panel B: Estimated preferences" = 4
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  )  %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+  )
+
+
+
+wtp_summ_tbl
+
+wtp_summ_tbl %>%
+  custom_save_latex_table(
+    "wtp-summ-table"
+  )
+  
+  
+
+```
+
