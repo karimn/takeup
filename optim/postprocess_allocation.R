@@ -7,9 +7,9 @@ script_options <- docopt::docopt(
           --min-cost  Flag to minimise programme cost for a given takeup level.
           --max-takeup  Flag to maximise vaccine takeup for a given cost level.
           --optim-input-path=<optim-input-path>  Path where input data is stored.
-          --demand-input-path=<demand-input-path>  Path where input data is stored.
           --optim-input-a-filename=<optim-input-a-filename>  Optim input a filename.
-          --demand-input-a-filename=<demand-input-a-filename>  Estimated demand a for every village i, PoT j pair.  
+          --optim-input-b-filename=<optim-input-b-filename>  Optim input b filename.
+          --comp-output-basename=<comp-output-basename>  Comparison output basename
           --output-path=<output-path>  Path where output should be saved.
           --output-basename=<output-basename>  Output basename.
           --map-plot  Plot map without adding lines for closest villages and active PoTs 
@@ -26,11 +26,11 @@ script_options <- docopt::docopt(
                             --welfare-function=log \
                             --min-cost \
                             --optim-input-path=optim/data/agg-log-full-many-pots \
-                            --demand-input-path=optim/data/agg-log-full-many-pots \
-                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            --demand-input-a-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
+                            --optim-input-a-filename=suppress-rep-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
+                            --optim-input-b-filename=cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
+                            --comp-output-basename=agg-log-suppress-rep-cutoff-cf-b1-bracelet-b2-bracelet-mu1-bracelet-mu2-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
+                            --output-basename=agg-log-cutoff-b-bracelet-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
                             --posterior-median \
@@ -54,6 +54,7 @@ script_options <- docopt::docopt(
 library(tidyverse)
 library(sf)
 library(data.table)
+library(latex2exp)
 
 
 
@@ -67,13 +68,10 @@ stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 ## Input Paths
 optim_input_a_filepath = file.path(script_options$optim_input_path, 
                                 script_options$optim_input_a_filename)
-demand_input_a_path = file.path(script_options$demand_input_path, 
-                            script_options$demand_input_a_filename)
-
+optim_input_b_filepath = file.path(script_options$optim_input_path,
+                                script_options$optim_input_b_filename)
 ## Input Data
 optimal_df = read_rds(optim_input_a_filepath)
-demand_a_data = read_csv(demand_input_a_path) %>%
-    as.data.table()
 
 dist_data = read_rds(
   file.path(
@@ -123,7 +121,7 @@ library(scales)
 hex <- hue_pal()(2)
 
 
-if (script_options$map_plot){
+if (script_options$map_plot & is.null(script_options$optim_input_b_filename)){
     data$village_locations %>%
         ggplot() +
         geom_sf() +
@@ -152,7 +150,7 @@ if (script_options$map_plot){
 }
 
 
-if (stat_type == "median") {
+if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
 
 
     gen_oa_stats = function(village_data, pot_data, optimal_data) {
@@ -192,9 +190,10 @@ if (stat_type == "median") {
 
     }
 
+
     plot_optimal_allocation = function(village_data,
-                                    pot_data,
-                                    optimal_data){
+                                       pot_data,
+                                       optimal_data){
 
         oa_stats = gen_oa_stats(
             village_data,
@@ -213,37 +212,27 @@ if (stat_type == "median") {
         pot_data$assigned_pot = pot_data$id %in% assigned_pots
 
         if (script_options$constraint_type == "agg") {
-            sub_str = str_glue("Takeup target: Aggregate Welfare Under Control. Assigned PoTs: {n_pots_used}")
+            sub_str = str_glue("Assigned PoTs: {n_pots_used}")
         }
 
         if (script_options$constraint_type == "indiv") {
-            sub_str = str_glue("Takeup target: Pareto Improving Allocation, Village Takeup Fixed at Control. Assigned PoTs: {n_pots_used}")
+            sub_str = str_glue("Assigned PoTs: {n_pots_used}")
         }
 
-        caption_str = ifelse(
-            script_options$welfare_function == "log", 
-            str_glue("Log utility used in social welfare function. Utility target: {util_target}, utility achieved: {util_hit}, percentage over constraint: {overshoot}%, takeup achieved: {takeup_hit}%. Mean walking distance: {mean_dist}m"),
-            "Identity utility function used, i.e. takeup enters SWF directly."
-            )
+        plot_data = bind_rows(
+            village_data %>% mutate(type = "village") %>% select(-cluster.id), 
+            pot_data %>% mutate(type = paste0("pot_", assigned_pot)) %>% select(-cluster.id)
+        )
 
-        optimal_pot_plot = village_data %>%
+
+        optimal_pot_plot = plot_data %>%
             ggplot() +
-            geom_sf(alpha = 0.7, size = 0.8) +
-            geom_sf(
-                data = pot_data %>% filter(assigned_pot == FALSE),
-                color = hex[1],
-                shape = 17,
-                alpha = 0.3
-                # size = 4, 
-                # alpha = 0.2
-                ) +
-            geom_sf(
-                data = pot_data %>% filter(assigned_pot == TRUE),
-                color = hex[2],
-                shape = 17,
-                # size = 4, 
-                size = 1.5,
-                alpha = 1) +
+            geom_sf(aes(
+                color = type, 
+                shape = type, 
+                size = type, 
+                alpha = type
+            )) +
             theme_bw() +
             geom_segment(
                 data = optimal_data, 
@@ -252,22 +241,38 @@ if (stat_type == "median") {
                     xend = pot_lon, 
                     yend = pot_lat
                     ))  +
-            labs(x = "", y = "", subtitle = sub_str, caption = caption_str) +
+            annotate(
+                "text",
+                x = 34.9, 
+                y = 0.75,
+                label = sub_str
+            ) +
+            labs(x = "", y = "") +
+            scale_size_manual(
+                values = c("pot_TRUE" = 1.5, "pot_FALSE" = 1 , "village" = 1),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            scale_alpha_manual(
+                values = c("pot_TRUE" = 1, "pot_FALSE" = 0.3, "village" = 0.8),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
             scale_color_manual(
-                values = hex,
-                labels = c("PoT Used", "PoT Unused")
-            ) 
+                values = c("pot_TRUE" = hex[2], "pot_FALSE" = hex[1], "village" = "black"),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            scale_shape_manual(
+                values = c("pot_TRUE" = 17, "pot_FALSE" = 17, "village" = 16),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            theme(legend.title = element_blank()) +
+            theme(legend.position = "bottom") +
+            guides(alpha = guide_legend(override.aes = list(alpha = 1)))
         return(optimal_pot_plot)
     }
-
-
-    # plot_optimal_allocation(
-    #     village_data = data$village_locations,
-    #     pot_data = data$pot_locations,
-    #     optimal_data = optimal_df %>%
-    #         filter(treatment == "bracelet" & str_detect(model, "RED")) %>%
-    #         unnest(model_output)
-    # )
 
 
     allocation_plots = map(
@@ -278,7 +283,8 @@ if (stat_type == "median") {
             optimal_data = .x
         )
     )
-    
+
+
     allocation_stats = map(
         optimal_df$model_output,
         ~gen_oa_stats(
@@ -291,7 +297,7 @@ if (stat_type == "median") {
     if (!is.null(script_options$pdf_output_path)) {
         map(
             allocation_plots,
-            ~ .x + labs(subtitle = NULL, caption = NULL)
+            ~ .x + labs(caption = NULL)
         ) %>%
         iwalk(
             ., 
@@ -307,15 +313,7 @@ if (stat_type == "median") {
                 height = 6
             )
         )
-
-
-
     }
-
-    allocation_stats[[1]] %>% 
-        enframe() %>%
-        spread(name, value) %>%
-        unnest(-assigned_pots) 
 
 
     imap(
@@ -350,6 +348,180 @@ if (stat_type == "median") {
         )
     )
 }
+
+# if input b passed, create comp plot
+if (!is.null(script_options$optim_input_b_filename)) {
+    print(optim_input_b_filepath)
+    optimal_b_df = read_rds(optim_input_b_filepath)
+    comp_optimal_df = rbindlist(
+        list(
+            optimal_df, 
+            optimal_b_df
+        )
+    )
+
+    suppress_rep = c(
+        script_options$optim_input_a_filename,
+        script_options$optim_input_b_filename) %>%
+    str_detect(., "suppress")
+    comp_optimal_df$suppress_rep = suppress_rep
+
+    comp_optimal_df[, n_pots_used := lapply(model_output, function(x){length(unique(x$j))})]
+
+    comp_optimal_df[, demand_data := NULL]
+
+    comp_optimal_df[, pot_data := list(data$pot_locations)]
+    comp_optimal_df[suppress_rep == TRUE, visibility_z := "Unaware"]
+    plot_comp_function = function(meta_df){
+        meta_df[, pot_data := map2(
+            model_output, 
+            pot_data, 
+            ~mutate(
+                .y, 
+                assigned_pot = id %in% unique(.x$j)
+            )
+            )]
+
+        meta_df[, mu_z := factor(visibility_z, levels = c("Unaware", "control", "ink", "calendar", "bracelet"))]
+        meta_df[, B_z := factor(private_benefit_z, levels = c("control", "ink", "calendar", "bracelet"))]
+        
+        pot_lhs_data = meta_df[1, pot_data][[1]]
+        pot_rhs_data = meta_df[2, pot_data][[1]]
+
+
+        pot_comp_df = bind_rows(
+            pot_lhs_data %>% 
+                mutate(
+                    B_z = meta_df[1, private_benefit_z], 
+                    mu_z = meta_df[1, visibility_z]
+                ), 
+            pot_rhs_data %>% 
+                mutate(
+                    B_z = meta_df[2, private_benefit_z], 
+                    mu_z = meta_df[2, visibility_z] 
+                )
+        ) %>%
+        mutate(type = paste0("pot_", assigned_pot))
+
+        village_comp_df = bind_rows(
+            village_data %>% mutate(type = "village") %>% select(-cluster.id) %>%
+                mutate(
+                    B_z = meta_df[1, private_benefit_z], 
+                    mu_z = meta_df[1, visibility_z] 
+                ),
+            village_data %>% mutate(type = "village") %>% select(-cluster.id) %>%
+                mutate(
+                    B_z = meta_df[2, private_benefit_z], 
+                    mu_z = meta_df[2, visibility_z] 
+                )
+        ) 
+
+
+
+        optimal_comp_df = meta_df %>%
+            select(private_benefit_z, visibility_z, model_output) %>%
+            unnest(model_output)
+
+
+
+        optimal_comp_df = optimal_comp_df %>%
+            mutate(B_z = private_benefit_z, mu_z = visibility_z) %>%
+            mutate(
+                mu_z = factor(mu_z, levels = c("Unaware", "control", "ink", "calendar", "bracelet")),
+                cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d)"), 
+            ) 
+
+
+        vil_pot_comp_df = bind_rows(
+            pot_comp_df,
+            village_comp_df
+        ) %>%
+        mutate(
+            mu_z = factor(mu_z, levels = c("Unaware", "control", "ink", "calendar", "bracelet")),
+                cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d)"), 
+        ) 
+
+        meta_df = meta_df %>%
+            as_tibble() %>%
+            mutate(
+                cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d)"), 
+            ) 
+        ed_label = function(string){paste0("Visibility: ", str_to_title(string))}
+        vil_pot_comp_df %>%
+            ggplot() +
+            geom_sf(aes(
+                color = type, 
+                shape = type, 
+                size = type, 
+                alpha = type
+            )) +
+            geom_segment(
+                data = optimal_comp_df, 
+                aes(x = village_lon, 
+                    y = village_lat, 
+                    xend = pot_lon, 
+                    yend = pot_lat
+                    ))  +
+            theme_bw()  +
+            facet_wrap(~mu_z, labeller = as_labeller(ed_label)) +
+            geom_text(
+                 data = meta_df,
+                 x = 34.8, 
+                 y = 0.75,
+                aes(label = paste0("Assigned PoTs: ", n_pots_used))
+            ) +
+            # annotate(
+            #     "text",
+            #     x = 34.9, 
+            #     y = 0.75,
+            #     label = sub_str
+            # ) +
+            labs(x = "", y = "") +
+            scale_size_manual(
+                values = c("pot_TRUE" = 1.5, "pot_FALSE" = 1 , "village" = 1),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            scale_alpha_manual(
+                values = c("pot_TRUE" = 1, "pot_FALSE" = 0.3, "village" = 0.8),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            scale_color_manual(
+                values = c("pot_TRUE" = hex[2], "pot_FALSE" = hex[1], "village" = "black"),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            scale_shape_manual(
+                values = c("pot_TRUE" = 17, "pot_FALSE" = 17, "village" = 16),
+                breaks = c("pot_TRUE", "pot_FALSE", "village"),
+                labels = c("PoT Used", "PoT Unused", "Village")
+            ) +
+            theme(legend.title = element_blank()) +
+            theme(legend.position = "bottom") +
+            guides(alpha = guide_legend(override.aes = list(alpha = 1)))
+
+    }
+
+
+    plot_comp = plot_comp_function(
+            comp_optimal_df
+    )
+
+
+    ggsave(
+        plot = plot_comp,
+        filename = file.path(
+            script_options$pdf_output_path, 
+            str_glue(
+                "{script_options$comp_output_basename}-compare-optimal-allocation-plot.pdf"
+            )
+        ), 
+        width = 8, 
+        height = 6
+    )
+}
+
 
 if (stat_type == "post-draws") {
 
