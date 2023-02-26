@@ -24,6 +24,7 @@ params:
     rf_fit_version: 75
     input_path: data/stan_analysis_data
     output_path: temp-data 
+    optim_input_path: "optim/data/agg-log-full-many-pots"
     table_output_path: presentations/tables
     models: STRUCTURAL_LINEAR_U_SHOCKS
 ---
@@ -45,6 +46,7 @@ if (interactive()) {
         rf_fit_version = 75,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
+        optim_input_path = "optim/data/agg-log-full-many-pots",
         table_output_path = "presentations/tables",
         models = "STRUCTURAL_LINEAR_U_SHOCKS"
     )
@@ -2038,3 +2040,172 @@ wtp_summ_tbl %>%
 
 ```
 
+```{r}
+
+all_optim_df = read_csv(
+  file.path(
+    params$optim_input_path,
+    "posterior-clean-summ-optim.csv"
+  )
+) 
+
+
+all_optim_df %>%
+  filter(rep_type  == "rep") %>%
+  filter(
+    private_benefit_z == "control" & visibility_z == "bracelet"
+  ) %>%
+  summarise(
+    mean = mean(n_pot), 
+    conf.low = quantile(n_pot, 0.05), 
+    conf.high = quantile(n_pot, 0.95)
+  )
+
+
+
+summ_optim_df = all_optim_df %>%
+        group_by(
+            private_benefit_z,
+            visibility_z, 
+            model, 
+            rep_type,
+            cutoff_type
+        ) %>%
+        filter(
+            model %in% 'STRUCTURAL_LINEAR_U_SHOCKS'
+        ) %>%
+        filter(
+            cutoff_type  == "cutoff"
+        ) %>%
+        summarise(
+            across(
+                everything(),
+                list(
+                    estimate = mean,
+                    CI = ~paste0("(", round(quantile(.x, 0.025), 3), ", ", round(quantile(.x, 0.975), 3), ")")
+                )
+            )
+        )   %>%
+        ungroup() %>%
+        select(-model, -cutoff_type) %>%
+        arrange(
+            private_benefit_z,
+            visibility_z,
+            rep_type
+        ) %>%
+    rename(
+        B_z = private_benefit_z, 
+        mu_z = visibility_z
+    )
+
+
+wide_summ_df_rep = summ_optim_df %>%
+  filter(rep_type == "rep") %>%
+  gather(variable, value, -B_z, -mu_z)  %>%
+  mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
+  mutate(variable = str_remove(variable, "_CI")) %>%
+  mutate(variable = str_remove(variable, "_estimate")) %>%
+  pivot_wider(
+    id_cols = c(B_z, mu_z, variable), 
+    names_from = CI, 
+    values_from = value
+  )   %>%
+  mutate(estim = as.numeric(estim) %>% round(3))  %>%
+  mutate(
+    estim_value = 
+    linebreak(
+      paste0(
+        estim, "\n", 
+        ci
+      ), 
+      align = "c"
+    )
+  ) %>%
+  select(
+    -estim, -ci
+  )  %>%
+  spread(variable, estim_value)
+
+wide_summ_df_sup_rep = summ_optim_df %>%
+  filter(rep_type == "suppress_rep")  %>%
+  gather(variable, value, -B_z, -mu_z)  %>%
+  mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
+  mutate(variable = str_remove(variable, "_CI")) %>%
+  mutate(variable = str_remove(variable, "_estimate")) %>%
+  pivot_wider(
+    id_cols = c(B_z, mu_z, variable), 
+    names_from = CI, 
+    values_from = value
+  )   %>%
+  mutate(estim = as.numeric(estim) %>% round(3))  %>%
+  mutate(
+    estim_value = 
+    linebreak(
+      paste0(
+        estim, "\n", 
+        ci
+      ), 
+      align = "c"
+    )
+  ) %>%
+  select(
+    -estim, -ci
+  )  %>%
+  spread(variable, estim_value)
+
+
+
+
+optim_summ_input_df = bind_rows(
+  wide_summ_df_rep %>% 
+    mutate(rep_type = "rep") %>%
+    filter(B_z == "control"),
+  wide_summ_df_sup_rep %>% mutate(rep_type = "suppress_rep") %>% filter(B_z == mu_z)
+) %>%
+  mutate(
+    mu_z = if_else(rep_type == "suppress_rep", "No visibility", mu_z)
+  ) %>%
+  mutate(mu_z = factor(mu_z, c("bracelet", "calendar", "ink", "control", "No visibility")))  %>%
+  mutate(B_z = factor(B_z, c("bracelet", "calendar", "ink", "control")))  %>%
+  mutate(B_z = fct_relabel(B_z, str_to_title)) %>%
+  mutate(mu_z = fct_relabel(mu_z, str_to_title))
+
+optim_summ_tbl = optim_summ_input_df %>%
+  arrange(rep_type, mu_z) %>%
+  select(B_z, mu_z, n_pot, mean_demand, overshoot) %>%
+  knitr::kable(
+    col.names = c(
+      "Private Benefit", 
+      "Visibility",
+      "Assigned PoTs", 
+      "Mean Take-up", 
+      "Percent Overshoot"
+    ),
+    align = "llccc",
+    booktabs = TRUE,
+    format = "latex",
+    escape = FALSE
+    ) %>%
+  kableExtra::kable_styling(
+    # latex_options =  c("scale_down")
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Visibility" = 4, 
+      "Panel B: No visibility" = 4
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) 
+
+
+optim_summ_tbl %>%
+  custom_save_latex_table("optim-summ-table")
+
+optim_summ_tbl 
+
+```
