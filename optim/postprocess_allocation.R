@@ -243,7 +243,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
                     ))  +
             annotate(
                 "text",
-                x = 34.9, 
+                x = 34.8, 
                 y = 0.75,
                 label = sub_str
             ) +

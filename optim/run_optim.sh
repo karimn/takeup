@@ -48,7 +48,7 @@ DATA_INPUT_NAME="${COUNTY}-many-pots-experiment.rds"
 CUTOFF="" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
-SUPPRESS_REP="" #suppress-rep-
+SUPPRESS_REP="suppress-rep-" #suppress-rep-
 
 
 mkdir -p ${OUTPUT_PATH}
@@ -64,7 +64,7 @@ Rscript ./optim/create-distance-data.R \
     --county-subset=${COUNTY} \
     --distance-cutoff=3500
 
-if [ ${POSTERIOR_MEDIAN} == "--posterior-median" ] 
+if [[ ${POSTERIOR_MEDIAN} == "--posterior-median" ]]
 then 
     POSTVAR="median"
 else
@@ -74,7 +74,7 @@ fi
 
 run_optim () {
 
-    if [ ${CUTOFF} == "no-" ]
+    if [[ ${CUTOFF} == "no-" ]]
     then
         CUTOFF_DIST=10000
     else
