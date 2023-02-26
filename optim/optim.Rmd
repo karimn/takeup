@@ -49,6 +49,20 @@ library(ompr)
 library(ompr.roi)
 library(kableExtra)
 library(ROI.plugin.glpk)
+
+regular_plot <- knit_hooks$get("plot")
+
+# Custom knitr hook to add notes to the plot
+knit_hooks$set(plot = function(x, options) {
+  paste("\n\n\\begin{figure}\n",
+        "\\includegraphics[width=\\maxwidth]{",
+        opts_knit$get("base.url"), paste(x, collapse = "."),
+        "}\n",
+        "\\caption{", options$fig.cap, "}\n",
+        "\\textit{Note:} {\\footnotesize ", options$fig.note,"}",
+        "\n\\end{figure}\n\n",
+        sep = '')
+})
 ```
 
 # Problem Setup 
@@ -114,6 +128,13 @@ $$
 ### Holding Private Benefit at Control
 
 ```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{control}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+#| cf-b-control-mu-control,
+#|  fig.align="center",
+#|  fig.cap="Optimal allocation of points of treatment, $B_{z=\\textrm{control}}, \\mu_{z=\\textrm{control}}$.",
+#|  fig.note="
+#|   Blue triangles indicate funded PoTs; red triangles unused PoTs; black 
+#|   points denote villages; and line segments a PoT-village pair."
+
 include_graphics(
   file.path(
     params$plot_input_path,

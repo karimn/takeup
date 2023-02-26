@@ -182,7 +182,7 @@ compare_option () {
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
-                                    --optim-input-a-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --optim-input-a-filename=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --optim-input-b-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$3-mu-$4-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --comp-output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
                                     --data-input-name=$DATA_INPUT_NAME \

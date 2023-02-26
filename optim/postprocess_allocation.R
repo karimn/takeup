@@ -132,6 +132,7 @@ if (script_options$map_plot & is.null(script_options$optim_input_b_filename)){
             # size = 2, 
             alpha = 0.7) +
         theme_bw() +
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
         labs(
             title = "Optimal PoT Allocation Problem",
             subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
@@ -234,6 +235,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
                 alpha = type
             )) +
             theme_bw() +
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
             geom_segment(
                 data = optimal_data, 
                 aes(x = village_lon, 
@@ -270,6 +272,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
             ) +
             theme(legend.title = element_blank()) +
             theme(legend.position = "bottom") +
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
             guides(alpha = guide_legend(override.aes = list(alpha = 1)))
         return(optimal_pot_plot)
     }
@@ -371,7 +374,7 @@ if (!is.null(script_options$optim_input_b_filename)) {
     comp_optimal_df[, demand_data := NULL]
 
     comp_optimal_df[, pot_data := list(data$pot_locations)]
-    comp_optimal_df[suppress_rep == TRUE, visibility_z := "Unaware"]
+    comp_optimal_df[suppress_rep == TRUE, visibility_z := "No Visibility"]
     plot_comp_function = function(meta_df){
         meta_df[, pot_data := map2(
             model_output, 
@@ -382,7 +385,7 @@ if (!is.null(script_options$optim_input_b_filename)) {
             )
             )]
 
-        meta_df[, mu_z := factor(visibility_z, levels = c("Unaware", "control", "ink", "calendar", "bracelet"))]
+        meta_df[, mu_z := factor(visibility_z, levels = c("No Visibility", "control", "ink", "calendar", "bracelet"))]
         meta_df[, B_z := factor(private_benefit_z, levels = c("control", "ink", "calendar", "bracelet"))]
         
         pot_lhs_data = meta_df[1, pot_data][[1]]
@@ -427,7 +430,7 @@ if (!is.null(script_options$optim_input_b_filename)) {
         optimal_comp_df = optimal_comp_df %>%
             mutate(B_z = private_benefit_z, mu_z = visibility_z) %>%
             mutate(
-                mu_z = factor(mu_z, levels = c("Unaware", "control", "ink", "calendar", "bracelet")),
+                mu_z = factor(mu_z, levels = c("No Visibility", "control", "ink", "calendar", "bracelet")),
                 cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d)"), 
             ) 
 
@@ -437,7 +440,7 @@ if (!is.null(script_options$optim_input_b_filename)) {
             village_comp_df
         ) %>%
         mutate(
-            mu_z = factor(mu_z, levels = c("Unaware", "control", "ink", "calendar", "bracelet")),
+            mu_z = factor(mu_z, levels = c("No Visibility", "control", "ink", "calendar", "bracelet")),
                 cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d)"), 
         ) 
 
@@ -463,6 +466,7 @@ if (!is.null(script_options$optim_input_b_filename)) {
                     yend = pot_lat
                     ))  +
             theme_bw()  +
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
             facet_wrap(~mu_z, labeller = as_labeller(ed_label)) +
             geom_text(
                  data = meta_df,
@@ -498,6 +502,7 @@ if (!is.null(script_options$optim_input_b_filename)) {
                 labels = c("PoT Used", "PoT Unused", "Village")
             ) +
             theme(legend.title = element_blank()) +
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
             theme(legend.position = "bottom") +
             guides(alpha = guide_legend(override.aes = list(alpha = 1)))
 

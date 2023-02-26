@@ -129,13 +129,31 @@ if (!script_options$posterior_median) { # if all draws
         mu_z = visibility_z
     )
 
-post_summ_optim_df %>% 
+clean_summ_optim_df = summ_optim_df %>%
+    group_by(
+        private_benefit_z,
+        visibility_z, 
+        model, 
+        rep_type,
+        cutoff_type
+    ) %>%
+    select(-draw) %>%
+    filter(
+        model %in% models_we_want
+    ) %>%
+    filter(
+        cutoff_type  == "cutoff"
+    ) 
+
+
+
+clean_summ_optim_df %>% 
     filter(rep_type == "rep") %>%
     select(-rep_type) %>%
     write_csv(
         file.path(
             output_path,
-            "posterior-rep-summ-optim.csv"
+            "posterior-rep-clean-summ-optim.csv"
         ))
 
 post_summ_optim_df %>% 
