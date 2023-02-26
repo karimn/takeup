@@ -2171,7 +2171,7 @@ optim_summ_input_df = bind_rows(
   mutate(mu_z = fct_relabel(mu_z, str_to_title))
 
 optim_summ_tbl = optim_summ_input_df %>%
-  arrange(rep_type, mu_z) %>%
+  arrange(rep_type, mu_z, B_z) %>%
   select(B_z, mu_z, n_pot, mean_demand, overshoot) %>%
   knitr::kable(
     col.names = c(

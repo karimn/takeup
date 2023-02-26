@@ -1643,3 +1643,23 @@ dist_fit_data %>%
   theme(legend.position = "bottom") +
   NULL
 ```
+
+
+
+## SMS ##
+
+
+```{r}
+#| sms-tes,
+#| fig.cap="Average Treatment Effect, with and without SMS"
+
+include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-by-sms-incentive.pdf", rel_path = FALSE)
+```
+
+
+```{r}
+#| sms-te-diff,
+#| fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
+
+include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-diff-by-sms-incentive.pdf", rel_path = FALSE)
+```
