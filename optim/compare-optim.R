@@ -148,12 +148,10 @@ clean_summ_optim_df = summ_optim_df %>%
 
 
 clean_summ_optim_df %>% 
-    filter(rep_type == "rep") %>%
-    select(-rep_type) %>%
     write_csv(
         file.path(
             output_path,
-            "posterior-rep-clean-summ-optim.csv"
+            "posterior-clean-summ-optim.csv"
         ))
 
 post_summ_optim_df %>% 
