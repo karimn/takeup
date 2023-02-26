@@ -14,8 +14,7 @@ script_options = docopt::docopt(
         --load-fit
         --fit-path=data/stan_analysis_data
         --fit-file=SMS_BRMS_reminder_fit.rds
-        --output-path=temp-data/sms-reminder
-        --include-reminder
+        --output-path=temp-data/sms-noreminder
     " else commandArgs(trailingOnly = TRUE)
     # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
@@ -74,6 +73,21 @@ nosms_data <- analysis.data %>%
   ungroup()
 
 
+df = tibble(
+    t = rstudent_t(10000, 3, 0, 2.5),
+    n = rnorm(10000, 0, 5)
+)
+
+
+df %>%
+    gather(
+        variable, value
+    ) %>%
+    ggplot(aes(
+        x = value, 
+        fill = variable
+    )) +
+    geom_density()
 
 analysis_data <- monitored_sms_data %>% 
     mutate(
@@ -92,6 +106,26 @@ if (!script_options$include_reminder) {
 }
 
 
+
+default_priors = get_prior(
+    data = analysis_data,
+    dewormed ~ (assigned_treatment*assigned_dist_group | sms_treatment), 
+    family = bernoulli(link = "probit")
+)
+
+manual_priors = default_priors
+
+#TODO: gen this list of variable names
+# coefs = c(prior_summary(rf_fit) %>%
+#     as_tibble() %>%
+#     filter(coef != "" & coef != "Intercept") %>%
+#     select(coef) %>%
+#     pull(coef))
+
+# manual_priors[which(default_priors$coef %in% coefs), "prior"] = "normal(0, 0.25)"
+# manual_priors[which(default_priors$coef == "Intercept"), "prior"] = "normal(0, 1)"
+
+
 if (script_options$load_fit) {
     rf_fit = read_rds(
         file.path(
@@ -104,6 +138,7 @@ if (script_options$load_fit) {
         data = analysis_data,
         dewormed ~ (assigned_treatment*assigned_dist_group | sms_treatment), 
         family = bernoulli(link = "probit"),
+        prior = manual_priors,
 	control = list(adapt_delta = 0.99)
     )
 }
@@ -123,7 +158,8 @@ rf_priors = brm(
     data = analysis_data,
         dewormed ~ (assigned_treatment*assigned_dist_group | sms_treatment), 
         family = bernoulli(link = "probit"),
-        sample_prior = "only"
+        sample_prior = "only", 
+        prior = manual_priors
 )
 
 
@@ -169,6 +205,17 @@ comp_df = comparisons(
         conf.level = 0.95
     ) 
 
+
+sms_comp_df = comparisons(
+        rf_fit,
+        variable = list(assigned_treatment = "all"),
+        newdata = datagrid(
+            assigned_dist_group = unique(analysis_data$assigned_dist_group),
+            sms_treatment = c("smscontrol", "socialinfo")
+            ), 
+        conf.level = 0.95
+    ) 
+
 make_quantiles = function(y, data) {
     q_data = data %>%
         summarise(
@@ -186,8 +233,30 @@ make_quantiles = function(y, data) {
     return(q_data)
 }
 
+
+sms_comp_draws = posteriordraws(sms_comp_df) %>%
+    as_tibble()
+
 comp_draws = posteriordraws(comp_df) %>%
     as_tibble()
+
+
+sms_summ_close_far = sms_comp_draws %>%
+    group_by(
+        contrast, 
+        sms_treatment, 
+        assigned_dist_group
+    ) %>%
+    make_quantiles(y = draw)
+
+
+sms_summ_combined = sms_comp_draws %>%
+    group_by(
+        contrast, 
+        sms_treatment
+    ) %>%
+    make_quantiles(y = draw) %>%
+    mutate(assigned_dist_group = "combined")
 
 comp_summ_close_far = comp_draws %>%
     group_by( 
@@ -208,8 +277,65 @@ comp_summ_combined = comp_draws %>%
 comp_summ_df = bind_rows(
     comp_summ_close_far,
     comp_summ_combined
-) 
+)  %>%
+    mutate(
+        contrast_left = str_extract(contrast, "^\\w+"),
+        contrast_right = str_extract(contrast, "\\w+$")
+    ) %>%
+    ungroup() 
 
+sms_comp_summ_df = bind_rows(
+    sms_summ_close_far,
+    sms_summ_combined
+) %>%
+    mutate(
+        contrast_left = str_extract(contrast, "^\\w+"),
+        contrast_right = str_extract(contrast, "\\w+$")
+    )  %>%
+    ungroup() 
+
+
+
+ 
+clean_sms_comp_draws = sms_comp_draws %>%
+    bind_rows(sms_comp_draws %>% mutate(assigned_dist_group = "combined")) %>%
+    mutate(
+        contrast_left = str_extract(contrast, "^\\w+"),
+        contrast_right = str_extract(contrast, "\\w+$")
+    )  %>%
+    ungroup()  %>%
+    mutate(
+        assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far")), 
+        contrast_left = factor(contrast_left, levels = c("ink", "calendar", "bracelet"))
+    ) %>%
+    filter(
+        contrast_right == "control", 
+        contrast_left != "control"
+        ) %>%
+    mutate(assigned_treatment = contrast_left) %>%
+    mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+    mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" ))) 
+
+sms_comp_te_diff_df = clean_sms_comp_draws %>%
+    select(
+         draw,  
+        assigned_treatment, assigned_dist_group, sms_treatment
+    ) %>%
+    pivot_wider(
+        id_cols = c(assigned_treatment, assigned_dist_group),
+        names_from = sms_treatment, 
+        values_from = draw, 
+        values_fn = list
+    )  %>%
+    unnest(c(socialinfo, smscontrol)) %>%
+    mutate(
+        te_diff = (socialinfo - smscontrol)
+    )  %>%
+    group_by(
+        assigned_treatment, 
+        assigned_dist_group
+    ) %>%
+    make_quantiles(y = te_diff)
 
 plot_single_sms_est = function(sms_df, 
                                 color_var,
@@ -222,7 +348,7 @@ plot_single_sms_est = function(sms_df,
       sms_df %>% 
         ggplot(aes(
             y = assigned_treatment, 
-            group = assigned_dist_group)) +
+            group = interaction(assigned_dist_group, sms_treatment))) +
         geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = {{color_var}}), position = pos_dodge, size = 0.3) +
         geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = {{ color_var }}), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
         geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = {{ color_var }}), position = pos_dodge, alpha = 0.4, size = 2.25) +
@@ -246,6 +372,80 @@ plot_single_sms_est = function(sms_df,
         
   return(sms_plot)
 } 
+
+sms_comp_summ_df = sms_comp_summ_df %>%
+    mutate(
+        assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far")), 
+        contrast_left = factor(contrast_left, levels = c("ink", "calendar", "bracelet"))
+    )
+
+
+sms_comp_summ_df  %>%
+    filter(
+        contrast_right == "control", 
+        contrast_left != "control"
+        ) %>%
+    mutate(assigned_treatment = contrast_left) %>%
+    mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+    mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" ))) %>%
+    mutate(sms_treatment = case_when(
+        sms_treatment == "socialinfo" ~ "Social info", 
+        sms_treatment == "smscontrol" ~ "SMS control"
+    )) %>%
+    plot_single_sms_est(
+        color_var = sms_treatment
+        ) +
+    facet_wrap(~assigned_dist_group, ncol = 1, labeller = as_labeller(str_to_title)) 
+
+ggsave(
+    file.path(
+        script_options$output_path,
+        "TE-by-sms-incentive.pdf"
+    ),
+    width = 8,
+    height = 6,
+    dpi = 500
+)
+
+
+sms_comp_te_diff_df %>%
+    mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" ))) %>%
+    mutate(sms_treatment = NA) %>%
+    plot_single_sms_est(
+        color_var = NULL
+        ) +
+    facet_wrap(~assigned_dist_group, ncol = 1, labeller = as_labeller(str_to_title)) 
+
+ggsave(
+    file.path(
+        script_options$output_path,
+        "TE-diff-by-sms-incentive.pdf"
+    ),
+    width = 8,
+    height = 6,
+    dpi = 500
+)
+
+
+#### Old Stuff ####
+comp_summ_df %>%
+    filter(
+        contrast_right == "smscontrol",
+        contrast_left != "smscontrol",
+        (contrast_left != "reminderonly" | assigned_treatment == "control")
+    ) %>%
+    mutate(
+        sms_treatment = if_else(str_detect(contrast, "reminder"), "Reminder Only", "Social Info")
+    ) %>%
+    mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+    mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
+    plot_single_sms_est(
+        color_var = assigned_dist_group
+        ) +
+    labs(
+        title = "SMS Treatment Effect By Incentive and Distance Condition"
+    ) +
+    facet_wrap(~sms_treatment) 
 
 comp_summ_df %>%
     mutate(
@@ -324,7 +524,7 @@ fit_pred_df = map_dfr(
     mutate(fit_type = "fit")
 pred_df = bind_rows(
     fit_pred_df,
-    prior_df
+    # prior_df
 ) %>%
     mutate(fit_type = factor(fit_type, levels = c("prior-predict", "fit")))
 
@@ -346,7 +546,7 @@ plot_brm_estimands = function(fit_data,
     # plot_pos = ggstance::position_dodgev(height = 0.8)
     # spacing/height-width ratio remains the same for other plots
     fit_data = fit_data %>%
-        mutate(across(c(predicted, conf.low, conf.high),
+        mutate(across(c(estimate, conf.low, conf.high),
                       ~if_else(
                        fct_match(fit_type, "prior-predict") & !(fct_match(assigned_treatment, top_levels[1]) & fct_match(assigned_dist_group, top_levels[2])),
                         NA_real_,
@@ -363,7 +563,7 @@ plot_brm_estimands = function(fit_data,
 
     p = fit_data %>%
         ggplot(aes(
-            x = predicted, 
+            x = estimate, 
             xmin = conf.low, 
             xmax = conf.high, 
             y = assigned_treatment, 
@@ -413,6 +613,10 @@ plot_brm_estimands = function(fit_data,
         )  
     return(p)
 }
+
+
+
+
 
 
 
@@ -503,8 +707,6 @@ ggsave(
     height = 5,
     dpi = 500
 )
-
-
 
 
 # ------------------------
