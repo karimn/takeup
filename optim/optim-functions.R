@@ -67,6 +67,42 @@ calculate_mu_rep = function(dist,
     return(mu_rep)
 }
 
+calculate_mu_rep_deriv = function(dist, 
+                            base_mu_rep, 
+                            mu_beliefs_effect, 
+                            beta, 
+                            dist_beta, 
+                            beta_control,
+                            dist_beta_control,
+                            mu_rep_type = 0,  
+                            control) {
+    if (mu_rep_type == 1) { # log
+      return(NA)
+    } else if (mu_rep_type == 2) { # linear
+      return(NA)
+    } else if (mu_rep_type == 3) {
+      return(NA)
+    } else {
+
+      if (control == FALSE) {
+          dist_val =  dist_beta  + dist_beta_control
+      } else {
+          dist_val =  dist_beta 
+      }
+      mu_rep = calculate_mu_rep(
+          dist = dist,
+          base_mu_rep = base_mu_rep,
+          mu_beliefs_effect = mu_beliefs_effect,
+          beta = beta,
+          dist_beta = dist_beta,
+          beta_control = beta_control,
+          dist_beta_control = dist_beta_control,
+          mu_rep_type = mu_rep_type, 
+          control = control)
+        mu_rep_deriv = mu_rep * mu_beliefs_effect * dist_val 
+    }
+    return(mu_rep_deriv)
+}
 
 
 #' Find Cutoff Type
@@ -108,16 +144,20 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
         v_star = pmin(v_star, bounds[2])
         v_star = pmax(v_star, bounds[1])
         delta_v_star = analytical_delta_bounded(v_star, u_sd, bounds)
+        delta_v_star_deriv = analytical_delta_deriv_bounded(v_star, u_sd, bounds, delta_w = delta_v_star)
         delta_v_star = pmin(delta_v_star, bounds[2])
 
     } else {
         delta_v_star = analytical_delta(v_star, u_sd)
+        delta_v_star_deriv = analytical_delta_deriv(v_star, u_sd, delta_w = delta_v_star)
     }
     v_star[solv_term_code > 2] = NA
     delta_v_star[solv_term_code > 2] = NA
+    delta_v_star_deriv[solv_term_code > 2] = NA
     return(lst(
         v_star,
-        delta_v_star
+        delta_v_star,
+        delta_v_star_deriv
     ))
 }
 
@@ -186,6 +226,16 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
               dist_beta_control = mu_beta_d_control,
               mu_rep_type = mu_rep_type, 
               control = mu_rep_control_param)
+          mu_rep_deriv = calculate_mu_rep_deriv(
+              dist = distance,
+              base_mu_rep = base_mu_rep,
+              mu_beliefs_effect = 1,
+              beta = mu_beta_z,
+              dist_beta = mu_beta_d,
+              beta_control = mu_beta_z_control,
+              dist_beta_control = mu_beta_d_control,
+              mu_rep_type = mu_rep_type, 
+              control = mu_rep_control_param)
           # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
           cutoff_mu_rep = calculate_mu_rep(
               dist = rep_cutoff/dist_sd,
@@ -208,12 +258,13 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
               bounds = bounds
           )
           delta_v_star = v_star_soln$delta_v_star
+          delta_v_star_deriv = v_star_soln$delta_v_star_deriv
           v_star = v_star_soln$v_star
           linear_pred = b + mu_rep*delta_v_star
         }
         
         pred_takeup = 1 - pnorm(v_star/(total_error_sd))
-        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star, total_error_sd))
+        return(lst(pred_takeup, linear_pred, b, mu_rep, mu_rep_deriv, delta_v_star, delta = beta_b_d, delta_v_star_deriv, v_star, total_error_sd))
     }
 }
 
