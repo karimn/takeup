@@ -15,6 +15,7 @@ script_options = docopt::docopt(
         --fit-path=data/stan_analysis_data
         --fit-file=SMS_BRMS_reminder_fit.rds
         --output-path=temp-data/sms-noreminder
+        --include-reminder
     " else commandArgs(trailingOnly = TRUE)
     # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 ) 
@@ -72,22 +73,6 @@ nosms_data <- analysis.data %>%
   mutate(cluster_id = cur_group_id()) %>% 
   ungroup()
 
-
-df = tibble(
-    t = rstudent_t(10000, 3, 0, 2.5),
-    n = rnorm(10000, 0, 5)
-)
-
-
-df %>%
-    gather(
-        variable, value
-    ) %>%
-    ggplot(aes(
-        x = value, 
-        fill = variable
-    )) +
-    geom_density()
 
 analysis_data <- monitored_sms_data %>% 
     mutate(
@@ -161,6 +146,8 @@ rf_priors = brm(
         sample_prior = "only", 
         prior = manual_priors
 )
+
+
 
 
 
@@ -425,6 +412,105 @@ ggsave(
     height = 6,
     dpi = 500
 )
+
+
+#### LOO ####
+rf_no_sms = brm(
+    data = analysis_data,
+        dewormed ~ assigned_treatment*assigned_dist_group, 
+        family = bernoulli(link = "probit")
+)
+
+
+loo_fit = loo(rf_no_sms, rf_fit)
+
+
+
+#### Freq ####
+library(fixest)
+freq_no_sms = feglm(
+    data = analysis_data, 
+        dewormed ~ assigned_treatment*assigned_dist_group, 
+        family = binomial(link = "probit"), 
+        cluster = ~county
+)
+
+freq_sms = feglm(
+    data = analysis_data %>% filter(sms_treatment != "reminderonly") %>% mutate(sms_treatment = fct_drop(sms_treatment)), 
+        dewormed ~ 0 + assigned_treatment:assigned_dist_group:sms_treatment, 
+        family = binomial(link = "probit"), 
+        cluster = ~county
+)
+
+library(marginaleffects)
+
+freq_sms %>%
+    tidy()
+
+hypotheses(freq_sms)
+
+freq_sms_comp_df = comparisons(
+        freq_sms,
+        variable = list(assigned_treatment = "all"),
+        newdata = datagrid(
+            assigned_dist_group = unique(analysis_data$assigned_dist_group),
+            sms_treatment = c("smscontrol", "socialinfo")
+            ), 
+        conf.level = 0.95
+    ) 
+
+freq_sms_comp_df = comparisons(
+        freq_sms,
+        variable = list(assigned_treatment = "reference"),
+        newdata = datagrid(
+            assigned_dist_group = unique(analysis_data$assigned_dist_group),
+            sms_treatment = c("smscontrol", "socialinfo")
+            ), 
+        conf.level = 0.95
+    ) 
+
+
+sms_ll = logLik(freq_sms)
+no_sms_ll = logLik(freq_no_sms)
+
+sms_df = degrees_freedom(freq_sms, type = "k")
+no_sms_df = degrees_freedom(freq_no_sms, type = "k")
+
+df_diff = sms_df - no_sms_df 
+
+test_stat = -2 * (no_sms_ll  - sms_ll)
+
+crit_val = qchisq(0.95, df = df_diff)
+
+p_val = pchisq(test_stat, df = df_diff)
+
+
+hyp_vec = map(1:6, ~c(.x*2 - 1, (.x*2 ))) %>%
+    map(., ~paste0("b", .x[1], "=b", .x[2])) %>%
+    unlist()
+
+
+pairwise_hyp = hypotheses(freq_sms_comp_df, hypothesis = "sequential" )
+pairwise_hyp %>%
+    as_tibble() %>%
+    mutate(
+        rowid = 1:n() %% 2
+    )  %>%
+    filter(rowid == 1) %>%
+    mutate(
+        signif = p.value < 0.05
+    )
+1:10 %% 2
+
+hypotheses(freq_sms_comp_df, hypothesis = c(1, -1, rep(0, 10)))
+
+sms_slopes = avg_slopes(freq_sms)
+
+sms_slopes
+
+
+
+
 
 
 #### Old Stuff ####
