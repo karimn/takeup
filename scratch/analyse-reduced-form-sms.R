@@ -324,6 +324,23 @@ sms_comp_te_diff_df = clean_sms_comp_draws %>%
     ) %>%
     make_quantiles(y = te_diff)
 
+pooled_sms_comp_te_diff_df = clean_sms_comp_draws %>%
+    select(
+         draw,  
+        assigned_treatment, assigned_dist_group, sms_treatment
+    ) %>%
+    pivot_wider(
+        id_cols = c(assigned_treatment, assigned_dist_group),
+        names_from = sms_treatment, 
+        values_from = draw, 
+        values_fn = list
+    )  %>%
+    unnest(c(socialinfo, smscontrol)) %>%
+    mutate(
+        te_diff = (socialinfo - smscontrol)
+    )  %>%
+    make_quantiles(y = te_diff)
+
 plot_single_sms_est = function(sms_df, 
                                 color_var,
                                 top_title = NULL, 
@@ -363,7 +380,7 @@ plot_single_sms_est = function(sms_df,
 sms_comp_summ_df = sms_comp_summ_df %>%
     mutate(
         assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far")), 
-        contrast_left = factor(contrast_left, levels = c("ink", "calendar", "bracelet"))
+        contrast_left = factor(contrast_left, levels = c("ink", "calendar", "bracelet")), 
     )
 
 
@@ -403,6 +420,9 @@ sms_comp_te_diff_df %>%
         ) +
     facet_wrap(~assigned_dist_group, ncol = 1, labeller = as_labeller(str_to_title)) 
 
+
+
+
 ggsave(
     file.path(
         script_options$output_path,
@@ -415,26 +435,18 @@ ggsave(
 
 
 #### LOO ####
-rf_no_sms = brm(
-    data = analysis_data,
-        dewormed ~ assigned_treatment*assigned_dist_group, 
-        family = bernoulli(link = "probit")
-)
+# rf_no_sms = brm(
+#     data = analysis_data,
+#         dewormed ~ assigned_treatment*assigned_dist_group, 
+#         family = bernoulli(link = "probit")
+# )
 
-
-loo_fit = loo(rf_no_sms, rf_fit)
+# loo_fit = loo(rf_no_sms, rf_fit)
 
 
 
 #### Freq ####
 library(fixest)
-freq_no_sms = feglm(
-    data = analysis_data, 
-        dewormed ~ assigned_treatment*assigned_dist_group, 
-        family = binomial(link = "probit"), 
-        cluster = ~county
-)
-
 freq_sms = feglm(
     data = analysis_data %>% filter(sms_treatment != "reminderonly") %>% mutate(sms_treatment = fct_drop(sms_treatment)), 
         dewormed ~ 0 + assigned_treatment:assigned_dist_group:sms_treatment, 
@@ -442,263 +454,267 @@ freq_sms = feglm(
         cluster = ~county
 )
 
-library(marginaleffects)
+tidy_freq_sms = tidy(freq_sms)
 
-freq_sms %>%
-    tidy()
+create_hyp_matrix = function(tidy_fit, treat_z, treat_d) {
+    treat_df = tidy_fit %>%
+        select(term) %>%
+        mutate(
+            treatment = str_extract(term, "(?<=treatment).*(?=:assigned_dist)"), 
+            dist = str_extract(term, "(?<=assigned_dist_group).*(?=:sms_treatment)"), 
+            sms = str_extract(term, "(?<=sms_treatment).*$")
+        ) %>%
+        select(
+            -term
+        ) 
 
-hypotheses(freq_sms)
+    hyp_m = treat_df %>%
+        mutate(
+            hyp_m = 0
+        ) %>%
+        # control diff
+        mutate(
+            hyp_m = if_else(dist == treat_d & treatment == "control", -1, hyp_m)
+        ) %>%
+        mutate(
+            hyp_m = if_else(dist == treat_d & treatment == treat_z, 1, hyp_m)
+        ) %>%
+        pull(hyp_m)
+    return(hyp_m)
+}
 
-freq_sms_comp_df = comparisons(
-        freq_sms,
-        variable = list(assigned_treatment = "all"),
-        newdata = datagrid(
-            assigned_dist_group = unique(analysis_data$assigned_dist_group),
-            sms_treatment = c("smscontrol", "socialinfo")
-            ), 
-        conf.level = 0.95
-    ) 
+hyp_grid = expand_grid(
+    treat_z = c("ink", "calendar", "bracelet"), 
+    treat_d = c("close", "far")
+)
 
-freq_sms_comp_df = comparisons(
-        freq_sms,
-        variable = list(assigned_treatment = "reference"),
-        newdata = datagrid(
-            assigned_dist_group = unique(analysis_data$assigned_dist_group),
-            sms_treatment = c("smscontrol", "socialinfo")
-            ), 
-        conf.level = 0.95
-    ) 
-
-
-sms_ll = logLik(freq_sms)
-no_sms_ll = logLik(freq_no_sms)
-
-sms_df = degrees_freedom(freq_sms, type = "k")
-no_sms_df = degrees_freedom(freq_no_sms, type = "k")
-
-df_diff = sms_df - no_sms_df 
-
-test_stat = -2 * (no_sms_ll  - sms_ll)
-
-crit_val = qchisq(0.95, df = df_diff)
-
-p_val = pchisq(test_stat, df = df_diff)
+hyp_ms = map2(
+    hyp_grid$treat_z,
+    hyp_grid$treat_d,
+    ~create_hyp_matrix(tidy_freq_sms, .x, .y)
+) 
 
 
-hyp_vec = map(1:6, ~c(.x*2 - 1, (.x*2 ))) %>%
-    map(., ~paste0("b", .x[1], "=b", .x[2])) %>%
-    unlist()
+hyp_matrix = hyp_ms %>%
+    unlist() %>%
+    matrix(byrow = TRUE, ncol = 16)
 
+hyp_matrix
 
-pairwise_hyp = hypotheses(freq_sms_comp_df, hypothesis = "sequential" )
-pairwise_hyp %>%
-    as_tibble() %>%
+# computationally singular warning :(
+# freq_sms_diff_test = car::linearHypothesis(freq_sms, hyp_matrix)
+
+hyp_pvals = map(
+    hyp_ms, 
+    ~car::linearHypothesis(freq_sms, .x)
+    ) %>%
+    map("Pr(>Chisq)") %>%
+    map_dbl(~.x[2])  
+hyp_grid$p_value = hyp_pvals 
+
+hyp_grid = hyp_grid %>%
     mutate(
-        rowid = 1:n() %% 2
-    )  %>%
-    filter(rowid == 1) %>%
-    mutate(
-        signif = p.value < 0.05
+        p_adj = p.adjust(p_value),
+        signif_5pct = p_value < 0.05, 
+        signif_1pct = p_value < 0.01
     )
-1:10 %% 2
 
-hypotheses(freq_sms_comp_df, hypothesis = c(1, -1, rep(0, 10)))
-
-sms_slopes = avg_slopes(freq_sms)
-
-sms_slopes
-
-
-
+hyp_grid %>%
+    write_csv(
+    file.path(
+        script_options$output_path,
+        "freq-probit-sms-hypothesis-tests.csv"
+    )
+)
 
 
 
 #### Old Stuff ####
-comp_summ_df %>%
-    filter(
-        contrast_right == "smscontrol",
-        contrast_left != "smscontrol",
-        (contrast_left != "reminderonly" | assigned_treatment == "control")
-    ) %>%
-    mutate(
-        sms_treatment = if_else(str_detect(contrast, "reminder"), "Reminder Only", "Social Info")
-    ) %>%
-    mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
-    mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
-    plot_single_sms_est(
-        color_var = assigned_dist_group
-        ) +
-    labs(
-        title = "SMS Treatment Effect By Incentive and Distance Condition"
-    ) +
-    facet_wrap(~sms_treatment) 
+# comp_summ_df %>%
+#     filter(
+#         contrast_right == "smscontrol",
+#         contrast_left != "smscontrol",
+#         (contrast_left != "reminderonly" | assigned_treatment == "control")
+#     ) %>%
+#     mutate(
+#         sms_treatment = if_else(str_detect(contrast, "reminder"), "Reminder Only", "Social Info")
+#     ) %>%
+#     mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+#     mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
+#     plot_single_sms_est(
+#         color_var = assigned_dist_group
+#         ) +
+#     labs(
+#         title = "SMS Treatment Effect By Incentive and Distance Condition"
+#     ) +
+#     facet_wrap(~sms_treatment) 
 
-comp_summ_df %>%
-    mutate(
-        contrast_left = str_extract(contrast, "^\\w+"),
-        contrast_right = str_extract(contrast, "\\w+$")
-    ) %>%
-    filter(
-        contrast_right == "smscontrol",
-        contrast_left != "smscontrol",
-        (contrast_left != "reminderonly" | assigned_treatment == "control")
-    ) %>%
-    mutate(
-        sms_treatment = if_else(str_detect(contrast, "reminder"), "Reminder Only", "Social Info")
-    ) %>%
-    mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
-    mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
-    plot_single_sms_est(
-        color_var = assigned_dist_group
-        ) +
-    labs(
-        title = "SMS Treatment Effect By Incentive and Distance Condition"
-    ) +
-    facet_wrap(~sms_treatment) 
+# comp_summ_df %>%
+#     mutate(
+#         contrast_left = str_extract(contrast, "^\\w+"),
+#         contrast_right = str_extract(contrast, "\\w+$")
+#     ) %>%
+#     filter(
+#         contrast_right == "smscontrol",
+#         contrast_left != "smscontrol",
+#         (contrast_left != "reminderonly" | assigned_treatment == "control")
+#     ) %>%
+#     mutate(
+#         sms_treatment = if_else(str_detect(contrast, "reminder"), "Reminder Only", "Social Info")
+#     ) %>%
+#     mutate(assigned_treatment = fct_relabel(assigned_treatment, str_to_title)) %>%
+#     mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" )) %>% fct_rev) %>%
+#     plot_single_sms_est(
+#         color_var = assigned_dist_group
+#         ) +
+#     labs(
+#         title = "SMS Treatment Effect By Incentive and Distance Condition"
+#     ) +
+#     facet_wrap(~sms_treatment) 
 
-ggsave(
-    file.path(
-        script_options$output_path,
-        "sms-TE-by-dist-incentive.png"
-    ),
-    width = 7.5,
-    height = 5,
-    dpi = 500
-)
+# ggsave(
+#     file.path(
+#         script_options$output_path,
+#         "sms-TE-by-dist-incentive.png"
+#     ),
+#     width = 7.5,
+#     height = 5,
+#     dpi = 500
+# )
 
-create_pred_dfs = function(fit, interval){
-    combined_pred_df = predictions(
-        fit,
-        newdata = datagrid(
-            assigned_treatment = unique(analysis_data$assigned_treatment), 
-            assigned_dist_group = unique(analysis_data$assigned_dist_group),
-            sms_treatment = unique(analysis_data$sms_treatment)), 
-        by = c("assigned_treatment", "sms_treatment"), 
-        conf.level = interval
-    ) %>% 
-        mutate(assigned_dist_group = "combined")
-    close_far_pred_df = predictions(
-        fit,
-        newdata = datagrid(
-            assigned_treatment = unique(analysis_data$assigned_treatment), 
-            assigned_dist_group = unique(analysis_data$assigned_dist_group),
-            sms_treatment = unique(analysis_data$sms_treatment)), 
-        conf.level = interval
-    )
+# create_pred_dfs = function(fit, interval){
+#     combined_pred_df = predictions(
+#         fit,
+#         newdata = datagrid(
+#             assigned_treatment = unique(analysis_data$assigned_treatment), 
+#             assigned_dist_group = unique(analysis_data$assigned_dist_group),
+#             sms_treatment = unique(analysis_data$sms_treatment)), 
+#         by = c("assigned_treatment", "sms_treatment"), 
+#         conf.level = interval
+#     ) %>% 
+#         mutate(assigned_dist_group = "combined")
+#     close_far_pred_df = predictions(
+#         fit,
+#         newdata = datagrid(
+#             assigned_treatment = unique(analysis_data$assigned_treatment), 
+#             assigned_dist_group = unique(analysis_data$assigned_dist_group),
+#             sms_treatment = unique(analysis_data$sms_treatment)), 
+#         conf.level = interval
+#     )
 
-    new_low = paste0("conf.low_", (1 - interval)/2)
-    new_high = paste0("conf.high_", 1 - (1 - interval)/2)
-    pred_df = bind_rows(
-        combined_pred_df, 
-        close_far_pred_df
-    )  %>%
-    mutate(interval = interval) %>%
-    as_tibble()
-    return(pred_df)
-}
-
-
-prior_df = map_dfr(
-    c(0.9, 0.8, 0.5), 
-    create_pred_dfs, fit = rf_priors) %>%
-    mutate(fit_type = "prior-predict")
-fit_pred_df = map_dfr(
-    c(0.9,
-      0.8,
-      0.5), 
-    create_pred_dfs, fit =  rf_fit) %>%
-    mutate(fit_type = "fit")
-pred_df = bind_rows(
-    fit_pred_df,
-    # prior_df
-) %>%
-    mutate(fit_type = factor(fit_type, levels = c("prior-predict", "fit")))
+#     new_low = paste0("conf.low_", (1 - interval)/2)
+#     new_high = paste0("conf.high_", 1 - (1 - interval)/2)
+#     pred_df = bind_rows(
+#         combined_pred_df, 
+#         close_far_pred_df
+#     )  %>%
+#     mutate(interval = interval) %>%
+#     as_tibble()
+#     return(pred_df)
+# }
 
 
-pred_df = pred_df %>%
-    mutate(
-        assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far")), 
-        assigned_dist_group = fct_relabel(assigned_dist_group, str_to_title), 
-        assigned_treatment = fct_relabel(assigned_treatment, str_to_title)
-    )
+# prior_df = map_dfr(
+#     c(0.9, 0.8, 0.5), 
+#     create_pred_dfs, fit = rf_priors) %>%
+#     mutate(fit_type = "prior-predict")
+# fit_pred_df = map_dfr(
+#     c(0.9,
+#       0.8,
+#       0.5), 
+#     create_pred_dfs, fit =  rf_fit) %>%
+#     mutate(fit_type = "fit")
+# pred_df = bind_rows(
+#     fit_pred_df,
+#     # prior_df
+# ) %>%
+#     mutate(fit_type = factor(fit_type, levels = c("prior-predict", "fit")))
 
-plot_brm_estimands = function(fit_data, 
-                              pos_height = 0.8, 
-                              color_var,
-                              center_bar_size = 3, 
-                              top_levels = c("Bracelet", "Combined")) {
 
-    plot_pos <- position_dodge2(pos_height, reverse = FALSE)
-    # plot_pos = ggstance::position_dodgev(height = 0.8)
-    # spacing/height-width ratio remains the same for other plots
-    fit_data = fit_data %>%
-        mutate(across(c(estimate, conf.low, conf.high),
-                      ~if_else(
-                       fct_match(fit_type, "prior-predict") & !(fct_match(assigned_treatment, top_levels[1]) & fct_match(assigned_dist_group, top_levels[2])),
-                        NA_real_,
-                        .x
-                        ))) %>%
-        mutate( 
-            fit_alpha = if_else(
-                fct_match(fit_type, "prior-predict"), 
-                0.1,
-                1
-            )
-        ) %>%
-        mutate(model = "ed")
+# pred_df = pred_df %>%
+#     mutate(
+#         assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far")), 
+#         assigned_dist_group = fct_relabel(assigned_dist_group, str_to_title), 
+#         assigned_treatment = fct_relabel(assigned_treatment, str_to_title)
+#     )
 
-    p = fit_data %>%
-        ggplot(aes(
-            x = estimate, 
-            xmin = conf.low, 
-            xmax = conf.high, 
-            y = assigned_treatment, 
-            group = model)) +
-      NULL
+# plot_brm_estimands = function(fit_data, 
+#                               pos_height = 0.8, 
+#                               color_var,
+#                               center_bar_size = 3, 
+#                               top_levels = c("Bracelet", "Combined")) {
 
-    p = p  +
-        geom_linerange(
-            data = . %>% filter(interval == 0.5), 
-            aes(color = {{ color_var }}),
-            alpha = 0.4, 
-            size = center_bar_size,
-            position = plot_pos
-        ) +
-        geom_crossbar(
-            data = . %>% filter(interval == 0.8), 
-            aes(color = {{ color_var }}),
-            fatten = 0, 
-            size = 0.4, 
-            width = 0.8,
-            position = plot_pos
-        )  +
-        geom_linerange(
-            data = . %>% filter(interval == 0.9), 
-            aes(color = {{ color_var }}),
-            size = 0.4, 
-            position = plot_pos
-        ) +
-        geom_point(
-            data = . %>% filter(interval == 0.9),
-            aes(color = {{ color_var }}),
-            position = plot_pos
-        ) +
-        geom_point(
-            data = . %>% filter(interval == 0.9),
-            color = "white", size = 0.75, position = plot_pos) +
-        theme(legend.position = "top", legend.direction = "vertical") +
-        guides(color = guide_legend(ncol = 3)) +
-        scale_y_discrete("") +
-        labs(
-            x = "",
-        caption = #"Dotted line range: 98% credible interval. 
-                    "Line range: 90% credible interval. 
-                    Outer box: 80% credible interval. Inner box: 50% credible interval. 
-                    Thick vertical line: median. Point: mean."
+#     plot_pos <- position_dodge2(pos_height, reverse = FALSE)
+#     # plot_pos = ggstance::position_dodgev(height = 0.8)
+#     # spacing/height-width ratio remains the same for other plots
+#     fit_data = fit_data %>%
+#         mutate(across(c(estimate, conf.low, conf.high),
+#                       ~if_else(
+#                        fct_match(fit_type, "prior-predict") & !(fct_match(assigned_treatment, top_levels[1]) & fct_match(assigned_dist_group, top_levels[2])),
+#                         NA_real_,
+#                         .x
+#                         ))) %>%
+#         mutate( 
+#             fit_alpha = if_else(
+#                 fct_match(fit_type, "prior-predict"), 
+#                 0.1,
+#                 1
+#             )
+#         ) %>%
+#         mutate(model = "ed")
+
+#     p = fit_data %>%
+#         ggplot(aes(
+#             x = estimate, 
+#             xmin = conf.low, 
+#             xmax = conf.high, 
+#             y = assigned_treatment, 
+#             group = model)) +
+#       NULL
+
+#     p = p  +
+#         geom_linerange(
+#             data = . %>% filter(interval == 0.5), 
+#             aes(color = {{ color_var }}),
+#             alpha = 0.4, 
+#             size = center_bar_size,
+#             position = plot_pos
+#         ) +
+#         geom_crossbar(
+#             data = . %>% filter(interval == 0.8), 
+#             aes(color = {{ color_var }}),
+#             fatten = 0, 
+#             size = 0.4, 
+#             width = 0.8,
+#             position = plot_pos
+#         )  +
+#         geom_linerange(
+#             data = . %>% filter(interval == 0.9), 
+#             aes(color = {{ color_var }}),
+#             size = 0.4, 
+#             position = plot_pos
+#         ) +
+#         geom_point(
+#             data = . %>% filter(interval == 0.9),
+#             aes(color = {{ color_var }}),
+#             position = plot_pos
+#         ) +
+#         geom_point(
+#             data = . %>% filter(interval == 0.9),
+#             color = "white", size = 0.75, position = plot_pos) +
+#         theme(legend.position = "top", legend.direction = "vertical") +
+#         guides(color = guide_legend(ncol = 3)) +
+#         scale_y_discrete("") +
+#         labs(
+#             x = "",
+#         caption = #"Dotted line range: 98% credible interval. 
+#                     "Line range: 90% credible interval. 
+#                     Outer box: 80% credible interval. Inner box: 50% credible interval. 
+#                     Thick vertical line: median. Point: mean."
         
-        )  
-    return(p)
-}
+#         )  
+#     return(p)
+# }
 
 
 
@@ -708,91 +724,91 @@ plot_brm_estimands = function(fit_data,
 
 
 
-theme_set(theme_minimal() +
-            theme(legend.position = "bottom"))
+# theme_set(theme_minimal() +
+#             theme(legend.position = "bottom"))
 
-p_social_info_levels = pred_df %>%
-    filter(sms_treatment == "socialinfo") %>%
-    plot_brm_estimands(color_var = fit_type) +
-    geom_vline(
-        xintercept = 0, linetype = "dotted"
-    ) +
-    guides(colour = "none", alpha = "none")  +
-    ggforce::facet_col(vars(assigned_dist_group), 
-                    space = "free",
-                    scales = "free_y") +
-    scale_color_manual("", 
-                        values = c("darkgrey", "black"), 
-                    aesthetics = c("color", "fill"))  
-ggsave(
-    plot = p_social_info_levels,
-    file.path(
-        script_options$output_path,
-        "sms-socialinfo-levels.png" 
-    ),
-  width = 7.5,
-  height = 5,
-  dpi = 500
-)
-
-
-p_reminder_levels = pred_df %>%
-    filter(sms_treatment == "smscontrol") %>%
-    plot_brm_estimands(color_var = fit_type) +
-    geom_vline(
-        xintercept = 0, linetype = "dotted"
-    ) +
-    guides(colour = "none", alpha = "none")  +
-    ggforce::facet_col(vars(assigned_dist_group), 
-                    space = "free",
-                    scales = "free_y") +
-    scale_color_manual("", 
-                        values = c("darkgrey", "black"), 
-                    aesthetics = c("color", "fill"))  
+# p_social_info_levels = pred_df %>%
+#     filter(sms_treatment == "socialinfo") %>%
+#     plot_brm_estimands(color_var = fit_type) +
+#     geom_vline(
+#         xintercept = 0, linetype = "dotted"
+#     ) +
+#     guides(colour = "none", alpha = "none")  +
+#     ggforce::facet_col(vars(assigned_dist_group), 
+#                     space = "free",
+#                     scales = "free_y") +
+#     scale_color_manual("", 
+#                         values = c("darkgrey", "black"), 
+#                     aesthetics = c("color", "fill"))  
+# ggsave(
+#     plot = p_social_info_levels,
+#     file.path(
+#         script_options$output_path,
+#         "sms-socialinfo-levels.png" 
+#     ),
+#   width = 7.5,
+#   height = 5,
+#   dpi = 500
+# )
 
 
-ggsave(
-    plot = p_reminder_levels,
-    filename = file.path(
-        script_options$output_path,
-        "sms-control-levels.png"
-        ),
-    width = 7.5,
-    height = 5,
-    dpi = 500
-)
+# p_reminder_levels = pred_df %>%
+#     filter(sms_treatment == "smscontrol") %>%
+#     plot_brm_estimands(color_var = fit_type) +
+#     geom_vline(
+#         xintercept = 0, linetype = "dotted"
+#     ) +
+#     guides(colour = "none", alpha = "none")  +
+#     ggforce::facet_col(vars(assigned_dist_group), 
+#                     space = "free",
+#                     scales = "free_y") +
+#     scale_color_manual("", 
+#                         values = c("darkgrey", "black"), 
+#                     aesthetics = c("color", "fill"))  
 
 
-p_comp_levels = pred_df %>%
-    filter(fct_match(fit_type, "fit")) %>%
-    filter(
-        sms_treatment != "reminderonly" | (sms_treatment == "reminderonly" & assigned_treatment == "Control")
-    ) %>%
-    mutate(sms_treatment = case_when(
-        sms_treatment == "socialinfo" ~ "Social Info",
-        sms_treatment == "smscontrol" ~ "SMS Control", 
-        sms_treatment == "reminderonly" ~ "Reminder Only"
-    )) %>%
-    plot_brm_estimands(
-        color_var = sms_treatment
-    ) +
-    ggforce::facet_col(vars(assigned_dist_group), 
-                    space = "free",
-                    scales = "free_y") +
-    scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
-    theme(legend.position =  "bottom")  +
-    geom_vline(xintercept = 0, linetype = "longdash") +
-    scale_x_continuous("", breaks = seq(-1, 1, 0.1), limits = c(0, 0.9))  
-p_comp_levels
-ggsave(
-    plot = p_comp_levels,
-    filename = file.path(
-        script_options$output_path,
-        "sms-comp-levels-axis.png"),
-    width = 7.5,
-    height = 5,
-    dpi = 500
-)
+# ggsave(
+#     plot = p_reminder_levels,
+#     filename = file.path(
+#         script_options$output_path,
+#         "sms-control-levels.png"
+#         ),
+#     width = 7.5,
+#     height = 5,
+#     dpi = 500
+# )
 
 
-# ------------------------
+# p_comp_levels = pred_df %>%
+#     filter(fct_match(fit_type, "fit")) %>%
+#     filter(
+#         sms_treatment != "reminderonly" | (sms_treatment == "reminderonly" & assigned_treatment == "Control")
+#     ) %>%
+#     mutate(sms_treatment = case_when(
+#         sms_treatment == "socialinfo" ~ "Social Info",
+#         sms_treatment == "smscontrol" ~ "SMS Control", 
+#         sms_treatment == "reminderonly" ~ "Reminder Only"
+#     )) %>%
+#     plot_brm_estimands(
+#         color_var = sms_treatment
+#     ) +
+#     ggforce::facet_col(vars(assigned_dist_group), 
+#                     space = "free",
+#                     scales = "free_y") +
+#     scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
+#     theme(legend.position =  "bottom")  +
+#     geom_vline(xintercept = 0, linetype = "longdash") +
+#     scale_x_continuous("", breaks = seq(-1, 1, 0.1), limits = c(0, 0.9))  
+# p_comp_levels
+# ggsave(
+#     plot = p_comp_levels,
+#     filename = file.path(
+#         script_options$output_path,
+#         "sms-comp-levels-axis.png"),
+#     width = 7.5,
+#     height = 5,
+#     dpi = 500
+# )
+
+
+# # ------------------------
