@@ -421,6 +421,29 @@ sms_comp_te_diff_df %>%
     facet_wrap(~assigned_dist_group, ncol = 1, labeller = as_labeller(str_to_title)) 
 
 
+    cowplot::plot_grid(
+        sms_comp_te_diff_df %>%
+            mutate(assigned_dist_group = factor(assigned_dist_group, levels = c("combined", "close", "far" ))) %>%
+            mutate(sms_treatment = NA) %>%
+            plot_single_sms_est(
+                color_var = NULL
+                ) +
+            facet_wrap(~assigned_dist_group, ncol = 1, labeller = as_labeller(str_to_title)),
+      
+pooled_sms_comp_te_diff_df %>%
+    mutate(assigned_dist_group = "Combined") %>%
+    mutate(sms_treatment = NA) %>%
+    mutate(assigned_treatment = "Pooled") %>%
+    plot_single_sms_est(
+        color_var = assigned_treatment
+        ) +
+    scale_x_continuous(
+        breaks = seq(-0.05, 0.15, by = 0.05), 
+        limits = c(-0.05, 0.125)
+    ) +
+    guides(colour = "none"),
+      ncol = 1, rel_heights = c(1, 0.3), align = "v",axis = "l"
+    )
 
 
 ggsave(
