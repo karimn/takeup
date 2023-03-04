@@ -237,39 +237,7 @@ stan_data = (dist_fit_data %>%
 
 ```
 
-
-
-
 ```{r}
-#| balance-setup
-
-
-
-baseline_vars = c(
-  "age",
-  "religion",
-  "ethnicity",
-  "school",
-  "who_worms", 
-  "who_worms_other", 
-  "effect_worms", 
-  "effect_worms_other", 
-  "how_spread", 
-  "how_spread_other", 
-  "stop_worms", 
-  "stop_worms_other", 
-  "when_treat", 
-  "when_treat_other", 
-  "worms_affect",
-  "w_affect_how",
-  "neighbours_worms_affect",
-  "few_deworm", 
-  "treated", 
-  "treated_when", 
-  "family_treated",
-  "dworm_rate", 
-  "dworm_proportion"
-)
 
 # 9,935 adults of which 2,250 adults are surveyed at baseline, 
 # 3,750 adults surveyed at endline 
@@ -353,6 +321,101 @@ baseline_vars = c(
 
 
 
+```
+
+
+```{r}
+#| balance-setup
+
+
+
+baseline.data = baseline.data %>%
+  mutate(
+    baseline_neighbours_worm_knowledge = case_when(
+      neighbours_worms_affect == "yes" ~ TRUE, 
+      neighbours_worms_affect == "no" ~ FALSE
+    )
+  )
+
+baseline.data = baseline.data %>%
+  mutate(
+    schooling_years_plus = case_when(
+      str_detect(school, "Primary") ~ 0, 
+      str_detect(school, "Secondary") ~ 8, 
+      str_detect(school, "College") ~ 16, 
+      str_detect(school, "University") ~ 16
+    ), 
+    digits_schooling = str_extract(school, "\\d+") %>% as.numeric(), 
+    years_schooling = digits_schooling + schooling_years_plus, 
+    years_schooling = if_else(school == "Never gone to school", 0, years_schooling), 
+    years_schooling = if_else(str_detect(school, "College|University"), 16, years_schooling)
+  ) %>%
+  select(-digits_schooling, schooling_years_plus)
+
+baseline.data = baseline.data %>%
+  mutate(
+    treated_digit = str_extract(treated_when, "\\d+") %>% as.numeric, 
+    treated_months = case_when(
+      str_detect(treated_when, "year") ~ 12, 
+      str_detect(treated_when, "mon") ~ 1, 
+      TRUE ~ NA_real_
+    )
+    ) %>%
+    mutate(
+      months_since_treatment = treated_digit*treated_months
+    ) %>%
+    select(-treated_digit, -treated_months)
+
+baseline.data = baseline.data %>%
+  mutate(
+    have_phone_lgl = case_when(
+      have_phone == "Yes" ~ TRUE, 
+      have_phone == "No" ~ FALSE, 
+      TRUE ~ NA
+    ), 
+    treated_lgl = case_when(
+      treated == "yes" ~ TRUE, 
+      treated == "no" ~ FALSE, 
+      TRUE ~ NA
+    ), 
+  )
+
+
+cluster_treat_df = analysis_data %>%
+  mutate(
+      treat_dist = paste0(
+      "treat: ", 
+      assigned.treatment,
+      ", dist: ", dist.pot.group
+      ) %>% factor()
+  ) %>%
+  select(cluster.id, treat_dist) %>%
+  unique()
+
+baseline_balance_data = baseline.data %>%
+  inner_join(
+    cluster_treat_df, 
+    by = "cluster.id"
+  )
+
+baseline_vars = c(
+  "years_schooling", 
+  "treated_lgl", 
+  "months_since_treatment",
+  "baseline_neighbours_worm_knowledge"
+)
+
+
+
+baseline_balance_fit = baseline_balance_data %>%
+feols(
+    data = ., 
+    .[baseline_vars] ~ 0 + treat_dist, 
+    vcov = "HC"
+    ) 
+
+
+
 # TODO: Do test within distance groups and overall
 balance_variables = c(
 "Pupil.Teacher.Ratio",
@@ -401,7 +464,8 @@ mutate(
 indiv_balance_fit = analysis_school_data %>%
 feols(
     data = ., 
-    .[indiv_balance_vars] ~ 0 + treat_dist
+    .[indiv_balance_vars] ~ 0 + treat_dist,
+    vcov = "HC"
     ) 
 
 # Probably a better way to get the schools in the sample
@@ -413,13 +477,54 @@ school_treat_df = analysis_school_data %>%
 school_balance_fit = school_treat_df %>%
   feols(
     data = ., 
-    .[balance_variables] ~ 0 + treat_dist
+    .[balance_variables] ~ 0 + treat_dist,
+    vcov = "HC"
   )
+
+#### Endline
+endline_balance_data = endline.data %>%
+  inner_join(
+    cluster_treat_df, 
+    by = "cluster.id"
+  ) %>%
+  mutate(
+    endline_neighbours_worm_knowledge = case_when(
+      neighbours_worms_affect == "yes" ~ TRUE, 
+      neighbours_worms_affect == "no" ~ FALSE, 
+      TRUE ~ NA
+    )
+  )
+  
+
+
+endline_and_baseline_data = bind_rows(
+  endline_balance_data %>%
+    select(treat_dist, neighbours_worm_knowledge = endline_neighbours_worm_knowledge) %>%
+    mutate(
+      type = "endline"
+    ),
+  baseline_balance_data %>%
+    select(treat_dist, neighbours_worm_knowledge = baseline_neighbours_worm_knowledge) %>%
+    mutate(
+      type = "baseline"
+    )
+)
+
+endline_vars = c(
+  "endline_neighbours_worm_knowledge"
+  )
+endline_balance_fit = endline_balance_data %>%
+feols(
+    data = ., 
+    .[endline_vars] ~ 0 + treat_dist, 
+    vcov = "HC"
+    ) 
 
 
 balance_fits = c(
   indiv_balance_fit,
-  school_balance_fit
+  baseline_balance_fit,
+  list("lhs: endline_neighbours_worm_knowledge" = endline_balance_fit)
 )
 
 
@@ -571,6 +676,29 @@ N_wtp_obs_df = analysis_school_data %>%
 
 
 
+N_baseline_obs = baseline_balance_data %>%
+  group_by(treat_dist) %>%
+  summarise(
+    N_indiv = n_distinct(KEY), 
+    N_pot = n_distinct(cluster.id)
+  ) %>%
+  mutate(
+    type = "baseline"
+  )
+
+
+# baseline_balance_fit$`lhs: years_schooling` %>%
+#   tidy(conf.int = TRUE) %>%
+#   mutate(dist_close = str_detect(term, "close")) %>%
+#   ggplot(aes(
+#     x = estimate, 
+#     xmin = conf.low, 
+#     xmax = conf.high, 
+#     y = term
+#   )) +
+#   geom_pointrange() +
+#   facet_wrap(~dist_close)
+
 
 N_by_treat_dist_df = analysis_school_data %>%
   group_by(
@@ -582,6 +710,7 @@ N_by_treat_dist_df = analysis_school_data %>%
   )  %>% 
   mutate(type = "takeup") %>%
   bind_rows(
+    N_baseline_obs,
     N_beliefs_obs_df %>% mutate(type = "beliefs"), 
     N_wtp_obs_df
   ) %>%
@@ -596,7 +725,11 @@ N_by_treat_dist_df = analysis_school_data %>%
   pivot_wider(
     names_from = c(treatment, distance),
     values_from = value
-  ) 
+  )  %>%
+  mutate(
+    type = factor(type, levels = c("baseline", "takeup", "beliefs", "WTP"))
+  ) %>%
+  arrange(type)
 
 
 
@@ -604,6 +737,137 @@ N_by_treat_dist_df = analysis_school_data %>%
 
 
 
+```
+
+
+```{r}
+
+baseline_endline_externality_fit = endline_and_baseline_data %>%
+  feols(
+      data = ., 
+      neighbours_worm_knowledge ~ 0 + treat_dist:type, 
+      vcov = "HC"
+      ) 
+
+library(marginaleffects)
+
+indiv_externality_comp_test = comparisons(
+  baseline_endline_externality_fit, 
+  variable = list(type = "reference"), 
+  newdata = datagrid(
+    treat_dist = unique(baseline_balance_data$treat_dist)
+  )
+)
+indiv_externality_comp_df = tibble(
+  treat_dist = indiv_externality_comp_test$treat_dist, 
+  p.value = indiv_externality_comp_test$p.value
+)
+
+indiv_externality_comp_df
+
+generate_joint_externality_hyp_m = function(fit, treat_term, dist_term) {
+  hyp_df = fit %>%
+    tidy() %>%
+    select(term) %>% 
+    mutate(
+      treat = str_extract(term, "(?<=treat: ).*(?=,)"),
+      dist = str_extract(term, "(?<=dist: ).*(?=:)"), 
+      type = str_extract(term, "(?<=type).*$")
+    ) %>%
+    mutate(
+      val = 0,
+      val = if_else(
+        treat == treat_term &
+        dist == dist_term &
+        type == "baseline", 
+        -1, 
+        val
+        ),
+      val = if_else(
+        treat == treat_term &
+        dist == dist_term &
+        type == "endline", 
+        1, 
+        val
+        )
+    )
+  return(hyp_df$val)
+}
+
+dist_treat_grid = expand_grid(
+  treat = c("bracelet", "calendar", "ink", "control"), 
+  dist = c("close", "far")
+) %>%
+  arrange(dist)
+dist_treat_grid
+
+externality_joint_hyp_matrix = map2(
+  dist_treat_grid$treat, 
+  dist_treat_grid$dist, 
+  ~generate_joint_externality_hyp_m(fit = baseline_endline_externality_fit, .x, .y )
+) %>%
+  do.call(rbind, .)
+
+
+joint_externality_p_value = car::linearHypothesis(
+  baseline_endline_externality_fit, 
+  externality_joint_hyp_matrix
+)$"Pr(>Chisq)"[2]
+
+
+indiv_close_externality_p_value = map(
+    c(split(externality_joint_hyp_matrix[1:4, ], 1:4), list(externality_joint_hyp_matrix[1:4, ])),
+    ~car::linearHypothesis(
+      baseline_endline_externality_fit, 
+      .x
+    )$"Pr(>Chisq)"[2]
+)
+
+indiv_far_externality_p_value = map(
+    c(split(externality_joint_hyp_matrix[5:8, ], 1:4), list(externality_joint_hyp_matrix[5:8, ])),
+    ~car::linearHypothesis(
+      baseline_endline_externality_fit, 
+      .x
+    )$"Pr(>Chisq)"[2]
+)
+
+
+externality_p = c(
+  indiv_close_externality_p_value %>% unlist(), 
+  indiv_far_externality_p_value %>% unlist(), 
+  joint_externality_p_value
+)
+
+externality_hyp_row = dist_treat_grid %>%
+  add_row(treat = NA, dist = "close_joint_p", .after = 4) %>%
+  add_row(treat = NA, dist = "far_joint_p", .after = 9) %>%
+  add_row(treat = NA, dist = "joint_p", .after = 10) %>%
+  mutate(p.value = externality_p)  %>%
+  mutate(
+    p.value = round(p.value, 3),
+  ) %>%
+  mutate(
+  p.value = p.value %>% as.character()
+  ) %>%
+  pivot_wider(
+    names_from = c(treat, dist), 
+    values_from = p.value
+  ) %>%
+  mutate(
+    lhs = "No change in externality knowledge, $p$-value"
+  )  %>%
+  mutate(across(contains("joint_p"), as.numeric))
+
+colnames(externality_hyp_row) = str_remove(colnames(externality_hyp_row), "NA_")
+
+
+
+```
+
+
+```{r}
+
+1+2
 wide_indiv_bal_df = create_balance_input(
     balance_tidy_df, 
     col_order = col_order, 
@@ -614,6 +878,7 @@ wide_indiv_bal_df = create_balance_input(
     far_joint_p = far_joint_signif_fstats,
     joint_p = joint_signif_fstats
   ) %>%
+  bind_rows(externality_hyp_row) %>%
   select(all_of(col_order))  %>%
   bind_rows(
     N_by_treat_dist_df %>%
@@ -629,28 +894,26 @@ wide_indiv_bal_df = create_balance_input(
   mutate(across(where(is.character), replace_na, "-")) %>%
   mutate(
     lhs = case_when(
-      lhs == "N Indiv" ~ "N Individuals", 
-      lhs == "N Pot" ~ "N Points of Treatment",
-      lhs == "Cluster Dist To Pot" ~ "Cluster Distance to PoT",
+      lhs == "N Indiv" ~ "N individuals", 
+      lhs == "N Pot" ~ "N points of treatment",
+      lhs == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      lhs == "Baseline neighbours worm knowledge" ~ "Understand deworming externality, baseline",
+      lhs == "Endline neighbours worm knowledge" ~ "Understand deworming externality, endline",
+      lhs == "Treated lgl" ~ "Dewormed self", 
+      lhs == "Months since treatment" ~ "Months since last dewormed",
       TRUE ~ lhs
     )
   )
 
 
-
-
 ```
-
-
-
-
 
 ## Balance
 
 ```{r, results="asis"}
 #| balance-table,
 #| dependson="balance-setup"
-
+2+1
 # TODO: add tests for imbalance
 treat_colnames = str_to_title(treat_levels_c)
 bal_table = wide_indiv_bal_df %>% 
@@ -666,11 +929,12 @@ kable_styling(
     latex_options = c("scale_down")
 ) %>%
 add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
-# footnote(general = "Insert footnote here.") %>%
+footnote(general = "Insert footnote here.") %>%
   pack_rows(
     index = c(
-      "Individual-level Covariates" = 3, 
-      "Point of Treatment Covariates" = 10, 
+      "Individual-level Covariates" = 9, 
+      # "Point of Treatment Covariates" = 10, 
+      "Baseline Sample" = 2,
       "Takeup Sample" = 2,
       "Belief Sample" = 2,
       "WTP Sample" = 2
@@ -681,7 +945,7 @@ add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
     bold = TRUE
   ) 
 
-
+bal_table
 
 custom_save_latex_table = function(table, table_name){
   table_conn = file(
