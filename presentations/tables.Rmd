@@ -414,11 +414,10 @@ baseline_vars = c(
 )
 
 
-baseline_balance_fit = baseline_balance_data %>%
-feols(
-    data = ., 
+baseline_balance_fit = feols(
+    data = baseline_balance_data, 
     .[baseline_vars] ~ 0 + treat_dist, 
-    ~constituency
+    ~county
     # vcov = "HC"
     ) 
 
@@ -440,7 +439,7 @@ balance_variables = c(
 
 indiv_balance_vars = c(
   "female", 
-  "phone_owner",
+  "phone_owner", 
   "age"
 )
 
@@ -467,25 +466,26 @@ mutate(
   female = fct_match(gender, "female")
 )
 
+  
 
-indiv_balance_fit = analysis_school_data %>%
-feols(
-    data = ., 
+indiv_balance_fit = feols(
+    data = analysis_school_data, 
     .[indiv_balance_vars] ~ 0 + treat_dist,
-    cluster = ~constituency
+    cluster = ~county
     ) 
 
 # Probably a better way to get the schools in the sample
 school_treat_df = analysis_school_data %>%
   filter(!is.na(assigned.treatment)) %>%
-  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency) %>%
+  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency, county) %>%
   unique()
 
-school_balance_fit = school_treat_df %>%
-  feols(
-    data = ., 
+
+school_balance_fit = feols(
+    data = school_treat_df, 
     .[balance_variables] ~ 0 + treat_dist,
-    ~constituency
+    ~county
+
   )
 
 #### Endline
@@ -506,25 +506,25 @@ endline_balance_data = endline.data %>%
 
 endline_and_baseline_data = bind_rows(
   endline_balance_data %>%
-    select(treat_dist, neighbours_worm_knowledge = endline_neighbours_worm_knowledge, constituency) %>%
+    select(treat_dist, neighbours_worm_knowledge = endline_neighbours_worm_knowledge, constituency, county) %>%
     mutate(
       type = "endline"
     ),
   baseline_balance_data %>%
-    select(treat_dist, neighbours_worm_knowledge = baseline_neighbours_worm_knowledge, constituency) %>%
+    select(treat_dist, neighbours_worm_knowledge = baseline_neighbours_worm_knowledge, constituency, county) %>%
     mutate(
       type = "baseline"
     )
-)
+) %>%
+  na.omit()
 
 endline_vars = c(
   "endline_neighbours_worm_knowledge"
   )
-endline_balance_fit = endline_balance_data %>%
-feols(
-    data = ., 
+endline_balance_fit = feols(
+    data = endline_balance_data, 
     .[endline_vars] ~ 0 + treat_dist, 
-    cluster = ~constituency
+    cluster = ~county
     ) 
 
 balance_fits = c(
@@ -547,7 +547,10 @@ balance_tidy_df = balance_fits %>%
       lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
     )
 
+```
 
+```{r}
+#| joint-tests
 # Number of dist groups x treatment
 n_variables = 8
 # matrix R for test 
@@ -573,21 +576,112 @@ hyp_matrix_far = cbind(
   part_hyp_matrix[, 1:(ncol(part_hyp_matrix) - 1)]
 )
 
+library(fwildclusterboot)
+
+perform_cluster_boot = function(data, var, joint_R, close_R, far_R) {
+  subset_data = data %>%
+    select(all_of(var), treat_dist, county, constituency) %>%
+    na.omit()
+
+
+  fml = as.formula(paste0(var, " ~ 0 + treat_dist"))
+  fit = lm(
+    formula = fml, 
+    data = subset_data
+  )
+  joint_boot_output = mboottest(
+    object = fit, 
+    clustid = c("county", "constituency"), 
+    bootcluster = "constituency", 
+    B = 999, 
+    R = joint_R
+  )
+  close_boot_output = mboottest(
+    object = fit, 
+    clustid = c("county", "constituency"), 
+    bootcluster = "constituency", 
+    B = 999, 
+    R = close_R
+  )
+  far_boot_output = mboottest(
+    object = fit, 
+    clustid = c("county", "constituency"), 
+    bootcluster = "constituency", 
+    B = 999, 
+    R = far_R
+  )
+  return(lst(
+    joint_pval = joint_boot_output$p_val, 
+    close_pval = close_boot_output$p_val, 
+    far_pval = far_boot_output$p_val))
+}
+
+indiv_boot = map(
+  indiv_balance_vars, 
+  ~perform_cluster_boot(
+    data = analysis_school_data, 
+    var = .x, 
+    joint_R = hyp_matrix,
+    close_R = hyp_matrix_close,
+    far_R = hyp_matrix_far
+     )
+)
+
+
+baseline_boot = map(
+  baseline_vars, 
+  ~perform_cluster_boot(
+    data = baseline_balance_data,
+    var = .x, 
+    joint_R = hyp_matrix,
+    close_R = hyp_matrix_close,
+    far_R = hyp_matrix_far
+  )
+)
+
+school_boot = map(
+  balance_variables,
+  ~perform_cluster_boot(
+    data = school_treat_df,
+    var = .x,
+    joint_R = hyp_matrix,
+    close_R = hyp_matrix_close,
+    far_R = hyp_matrix_far
+  )
+)
+
+endline_boot = map(
+  endline_vars,
+  ~perform_cluster_boot(
+    data = endline_balance_data,
+    var = .x,
+    joint_R = hyp_matrix,
+    close_R = hyp_matrix_close,
+    far_R = hyp_matrix_far
+  )
+)
+
+
+boot_fits = c(
+  indiv_boot, 
+  school_boot, 
+  baseline_boot, 
+  endline_boot
+
+)
 
 joint_signif_fstats = map_dbl(
-  balance_fits,
-  ~car::linearHypothesis(.x, hyp_matrix)$"Pr(>Chisq)"[2]
+  boot_fits, "joint_pval"
 ) %>% round(4)
 
 close_joint_signif_fstats = map_dbl(
-  balance_fits,
-  ~car::linearHypothesis(.x, hyp_matrix_close)$"Pr(>Chisq)"[2]
-)
+  boot_fits, "close_pval"
+) %>% round(4)
 
 far_joint_signif_fstats = map_dbl(
-  balance_fits,
-  ~car::linearHypothesis(.x, hyp_matrix_far)$"Pr(>Chisq)"[2]
-)
+  boot_fits, "far_pval"
+) %>%
+  round(4)
 
 col_order = c(
   "lhs", 
@@ -746,12 +840,50 @@ N_by_treat_dist_df = analysis_school_data %>%
 
 
 ```{r}
+#| baseline-learning
 
-baseline_endline_externality_fit = endline_and_baseline_data %>%
-  feols(
-      data = ., 
+
+baseline_endline_externality_fit = feols(
+      data = endline_and_baseline_data, 
       neighbours_worm_knowledge ~ 0 + treat_dist:type, 
-      ~constituency
+      ~county
+      ) 
+perform_externality_cluster_boot = function(data, R) {
+  subset_data = data %>%
+    select(neighbours_worm_knowledge, treat_dist, type, constituency, county ) %>%
+    na.omit()
+
+  fit = lm(
+    formula = neighbours_worm_knowledge ~ 0 + treat_dist:type, 
+    data = subset_data
+  )
+
+  if (is.matrix(R)) {
+    joint_boot_output = mboottest(
+      object = fit, 
+      clustid = c("county", "constituency"), 
+      bootcluster = "constituency", 
+      B = 999, 
+      R = R
+    )
+  } else {
+    joint_boot_output = boottest(
+      object = fit, 
+      clustid = c("county", "constituency"),
+      param = names(coef(fit)), 
+      bootcluster = "constituency", 
+      B = 999, 
+      R = R
+    )
+  }
+  return(joint_boot_output$p_val)
+}
+
+
+baseline_endline_externality_fit = feols(
+      data = endline_and_baseline_data, 
+      neighbours_worm_knowledge ~ 0 + treat_dist:type, 
+      ~county
       ) 
 
 library(marginaleffects)
@@ -814,26 +946,19 @@ externality_joint_hyp_matrix = map2(
   do.call(rbind, .)
 
 
-joint_externality_p_value = car::linearHypothesis(
-  baseline_endline_externality_fit, 
+joint_externality_p_value = perform_externality_cluster_boot(
+  endline_and_baseline_data,
   externality_joint_hyp_matrix
-)$"Pr(>Chisq)"[2]
-
+)
 
 indiv_close_externality_p_value = map(
     c(split(externality_joint_hyp_matrix[1:4, ], 1:4), list(externality_joint_hyp_matrix[1:4, ])),
-    ~car::linearHypothesis(
-      baseline_endline_externality_fit, 
-      .x
-    )$"Pr(>Chisq)"[2]
+    ~perform_externality_cluster_boot(endline_and_baseline_data, .x)
 )
 
 indiv_far_externality_p_value = map(
     c(split(externality_joint_hyp_matrix[5:8, ], 1:4), list(externality_joint_hyp_matrix[5:8, ])),
-    ~car::linearHypothesis(
-      baseline_endline_externality_fit, 
-      .x
-    )$"Pr(>Chisq)"[2]
+    ~perform_externality_cluster_boot(endline_and_baseline_data, .x)
 )
 
 
@@ -872,7 +997,7 @@ colnames(externality_hyp_row) = str_remove(colnames(externality_hyp_row), "NA_")
 
 ```{r}
 #| balance-creation, dependson="balance-setup"
-1+3
+1+10
 wide_indiv_bal_df = create_balance_input(
     balance_tidy_df, 
     col_order = col_order, 
