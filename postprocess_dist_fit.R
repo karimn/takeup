@@ -93,6 +93,8 @@ param_used <- c(
 load_from_csv <- function(fit_file, input_path, param) {
   dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
       read_cmdstan_csv(variables = param) 
+  # dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-1.csv}"), full.names = TRUE) %>% 
+  #     read_cmdstan_csv(variables = param) 
 }
 
 load_fit <- function(fit_file, input_path = script_options$input_path, load_from_csv = script_options$load_from_csv, param = param_used) {
@@ -552,38 +554,6 @@ dist_fit_data %<>%
 
 if (!script_options$no_rate_of_change) {
   
-  ## Ed edits because Anne wants rep return vs control  
-  # cluster_rep_return_dist_control = dist_fit_data %>%
-  #   select(cluster_rep_return_dist) %>%
-  #   unnest(cols = c(cluster_rep_return_dist)) %>%
-  #   filter(assigned_treatment == "control")
-
-  # cluster_rep_return_te_df = dist_fit_data %>%
-  #     select(cluster_rep_return_dist) %>%
-  #     unnest(cols = c(cluster_rep_return_dist))  %>%
-  #     # filter(assigned_treatment != "control")  %>%
-  #     unnest(iter_data) %>%
-  #     left_join(
-  #       cluster_rep_return_dist_control %>% 
-  #         select(roc_distance_index, iter_data) %>%
-  #         unnest(iter_data) %>%
-  #         rename(iter_est_right = iter_est),
-  #       by = c("roc_distance_index", "iter_id")
-  #     ) %>%
-  #     mutate( 
-  #       iter_est_te = iter_est - iter_est_right
-  #     ) %>%
-  #     nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
-  #     select(-contains("per"), -mean_est) %>%
-  #     mutate(
-  #       mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
-  #       takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs))
-  #     ) %>% 
-  #     unnest(takeup_quantiles)
-
-  # cluster_rep_return_te_df %>%
-  #   select(-iter_data) %>%
-  #   write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
 
   # Back to Karim work
   dist_fit_data %<>% 
@@ -599,11 +569,42 @@ if (!script_options$no_rate_of_change) {
             summarize_roc()
         }
       }),
-      
       sim_delta = map2(fit, stan_data, extract_sim_delta),
     )
 
 
+  ## Ed edits because Anne wants rep return vs control  
+  cluster_rep_return_dist_control = dist_fit_data %>%
+    select(cluster_rep_return_dist) %>%
+    unnest(cols = c(cluster_rep_return_dist)) %>%
+    filter(assigned_treatment == "control")
+
+  cluster_rep_return_te_df = dist_fit_data %>%
+      select(cluster_rep_return_dist) %>%
+      unnest(cols = c(cluster_rep_return_dist))  %>%
+      # filter(assigned_treatment != "control")  %>%
+      unnest(iter_data) %>%
+      left_join(
+        cluster_rep_return_dist_control %>% 
+          select(roc_distance_index, iter_data) %>%
+          unnest(iter_data) %>%
+          rename(iter_est_right = iter_est),
+        by = c("roc_distance_index", "iter_id")
+      ) %>%
+      mutate( 
+        iter_est_te = iter_est - iter_est_right
+      ) %>%
+      nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+      select(-contains("per"), -mean_est) %>%
+      mutate(
+        mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
+        takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)
+      ) %>% 
+      unnest(takeup_quantiles)
+
+  cluster_rep_return_te_df %>%
+    select(-iter_data) %>%
+    write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
 
 
 
@@ -722,3 +723,156 @@ save(dist_fit_data, file = file.path(script_options$output_path, str_interp("pro
 plan(sequential)
 
 cat(str_glue("Post processing completed [version {fit_version}]\n\n"))
+
+
+
+
+##### Checks ####
+# dist_fit_env = new.env()
+# with_env = function(f, e = parent.frame()) {
+#     stopifnot(is.function(f))
+#     environment(f) = e
+#     f
+# }
+
+# load_df_function = function(x){
+#     load(file.path("temp-data", str_interp("processed_dist_fit${x}.RData")))
+#     return(dist_fit_data)
+# }
+
+
+# dist_fit_data_71 = with_env(load_df_function, dist_fit_env)(71) 
+
+# n_nan_71 = dist_fit_data_71 %>%
+#   filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+#   select(fit_type, model, wtp_results)  %>%
+#   unnest(wtp_results) %>%
+#   slice(1) %>%
+#   unnest(iter_data) %>%
+#   summarise(
+#     frac_nan = sum(is.nan(iter_est)), 
+#     frac_not_nan = sum(!is.nan(iter_est)), 
+#     frac_zero = sum(iter_est == 0, na.rm = TRUE), 
+#     frac_not_zero = sum(iter_est != 0, na.rm = TRUE), 
+#     n_iter = n()
+#   ) %>% 
+#   mutate(across(contains("frac"), ~.x/n_iter)) %>%
+#   mutate(
+#     fit_version = 71
+#   )
+
+# n_nan_75 = dist_fit_data %>%
+#   select(fit) %>%
+#   unnest() %>%
+#   filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#   tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>%
+#   slice(1) %>%
+#   unnest(iter_data) %>%
+#   summarise(
+#     frac_nan = sum(is.nan(iter_est)), 
+#     frac_not_nan = sum(!is.nan(iter_est)), 
+#     frac_zero = sum(iter_est == 0, na.rm = TRUE), 
+#     frac_not_zero = sum(iter_est != 0, na.rm = TRUE), 
+#     n_iter = n()
+#   ) %>% 
+#   mutate(across(contains("frac"), ~.x/n_iter)) %>%
+#   mutate(
+#     fit_version = 75
+#   )
+
+# bind_rows(
+#   n_nan_71,
+#   n_nan_75
+# )
+
+# dist_fit_data = dist_fit_data %>%
+#   mutate(
+#     wtp_results = map(fit, get_wtp_results)
+#   )
+
+# dist_fit_data_75 %>%
+#   filter(model_type == "structural") %>%
+#   select(fit_type, model, wtp_results) %>%
+#   unnest(wtp_results) %>%
+#   filter(variable == "prob_prefer_calendar") %>%
+#   ggplot(aes(
+#     x = index, 
+#     y = per_0.5, 
+#     ymin = per_0.05, 
+#     ymax = per_0.95
+#   )) +
+#   geom_pointrange() +
+#   facet_wrap(~fit_type)
+
+# get_wtp_results <- function(wtp_draws) {
+#   wtp_draws %>% 
+#     filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#     tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+#     mutate(
+#       quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
+#       mean_est = map_dbl(iter_data, ~ mean(.x$iter_value, na.rm = TRUE)),
+#     ) %>% 
+#     unnest(quants)
+# }
+
+# wtp_test = dist_fit_data %>%
+#   select(fit) %>%
+#   unnest() %>%
+#   filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#   tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>%
+#   mutate(
+#     mean_est = map_dbl(iter_data, mean, na.rm = TRUE), 
+#     conf.low = map_dbl(iter_data, quantile, 0.05, na.rm = TRUE), 
+#     conf.high = map_dbl(iter_data, quantile, 0.95, na.rm = TRUE)
+#   )
+
+
+# dist_fit_data %>%
+#   select(fit) %>%
+#   unnest() %>%
+#   filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#   tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>%
+#   slice(1) %>%
+#   unnest(iter_data) %>%
+#   filter(iter_est == 0)
+
+
+# cmdstan_fit_obj = as_cmdstan_fit(
+#   str_glue("data/stan_analysis_data/dist_fit{script_options$fit_version}_STRUCTURAL_LINEAR_U_SHOCKS-1.csv"))
+
+# library(tidybayes)
+# library(posterior)
+
+# prefer_cal_draws = gather_rvars(
+#   cmdstan_fit_obj,
+#   prob_prefer_calendar[index]
+# )
+
+# rm(cmdstan_fit_obj)
+# gc()
+
+# prefer_cal_draws %>%
+#   # filter(index == 1) %>%
+#   unnest_rvars() %>%
+#   ggplot(aes(
+#     x = .value, 
+#     fill = factor(index)
+#   )) +
+#   geom_histogram(bins = 60) +
+#   guides(fill = "none") +
+#   labs(
+#     title = "Prob Prefer Calendar, Posterior Draws", 
+#     subtitle = "Fill just denotes different monetary values"
+#   ) +
+#   theme_bw()
+  
+# ggsave(
+#   "temp-plots/tmp.png", 
+#   width = 8,
+#   height = 6, 
+#   dpi = 500
+# )
+
+
+# stop()
+
