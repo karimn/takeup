@@ -1058,7 +1058,6 @@ knitr::kable(
     align = "lccccccccccc"
 ) %>%
 kable_styling(
-    latex_options = c("scale_down")
 ) %>%
 add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
 footnote(general = "Insert footnote here.") %>%
