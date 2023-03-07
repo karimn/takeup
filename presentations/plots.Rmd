@@ -420,9 +420,10 @@ baseline.data %>%
   theme(legend.position = "bottom",
       strip.text.y = element_text(angle = 0), 
       strip.background = element_rect(colour = NA), 
-      panel.border = element_blank()) +
+      panel.border = element_blank(), 
+      panel.grid.major.y = element_blank()) +
   guides(fill = "none") +
-  scale_fill_grey(start = 0.2, end = 0.5)
+  scale_fill_grey(start = 0.2, end = 0.5) 
 
 ```
 
@@ -496,14 +497,15 @@ analysis_data %>%
 #|  fig.note="This plot shows first estimates using the first order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 
-plot_1ord_beliefs_est <- function(beliefs_results, 
+plot_ord_beliefs_est <- function(beliefs_results, 
                              top_title = NULL, 
                              width = 0.3, 
-                             crossbar_width = 0.2) {
+                             crossbar_width = 0.2, 
+                             order = 1) {
   pos_dodge <- position_dodge(width = width)
 
   first_plot <- beliefs_results$prob_knows %>% 
-    filter(ord == 1) %>% 
+    filter(ord == order) %>% 
     ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
     geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
@@ -538,7 +540,7 @@ plot_1ord_beliefs_est <- function(beliefs_results,
         NULL,
       
       beliefs_results$ate_knows %>% 
-        filter(ord == 1, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        filter(ord == order, assigned_dist_group_left == assigned_dist_group_right) %>% 
         ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
         geom_vline(xintercept = 0, linetype = "dotted") +
         geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
@@ -576,9 +578,22 @@ dist_fit_data %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
-  plot_1ord_beliefs_est( )
+  plot_ord_beliefs_est(order = 1 )
 ```
 
+
+
+```{r}
+#| sob-belief-facet,
+#|  fig.cap="First Order Belief Levels and Average Treatment Effects",
+#|  fig.note="This plot shows first estimates using the first order beliefs 
+#|   binomial model. Total sample size: 999 observations at the individual level."
+dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  pull(beliefs_results) %>%
+  first() %>%
+  plot_ord_beliefs_est(order = 2)
+```
 
 #### Beliefs Plots ####
 ```{r}
