@@ -126,7 +126,7 @@ matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
     mu_rep[, 2] = dist_beta * design_matrix[treatment_id]';
   } else if (mu_rep_type == 4) { // mu = x \lambda, x = \hat{p}, \lambda = base_mu_rep
     vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[{treatment_id}], beta, dist_beta, dist);
-    mu_rep[, 2] = base_mu_rep * dist_beta * exp(-beliefs_latent) ./ (1 + exp(-beliefs_latent))^2;
+    mu_rep[, 2] = base_mu_rep * (dist_beta * design_matrix[treatment_id]') * exp(-beliefs_latent) ./ (1 + exp(-beliefs_latent))^2;
   } else { // exp
     mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
   } 
