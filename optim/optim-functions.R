@@ -31,6 +31,8 @@ calculate_belief_latent_predictor = function(beta,
     return(val)
 }
 
+inv_logit = function(x){1/(1 + exp(-x))}
+
 #' Calculate Visibility \mu(z,d)
 #' 
 #' Takes in distance, base_mu_rep which act as control, mu_beliefs_effect (=1),
@@ -61,6 +63,9 @@ calculate_mu_rep = function(dist,
         return(beliefs_latent)
     } else if (mu_rep_type == 3) {
         return(0)
+    } else if (mu_rep_type == 4) {
+      mu_rep =  base_mu_rep * inv_logit(beliefs_latent)
+
     } else {
         mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
     }
@@ -101,6 +106,19 @@ calculate_mu_rep_deriv = function(dist,
           control = control)
         mu_rep_deriv = mu_rep * mu_beliefs_effect * dist_val 
     }
+
+  if (mu_rep_type == 4) {
+    beliefs_latent = calculate_belief_latent_predictor(
+        beta = beta, 
+        dist_beta = dist_beta, 
+        dist = dist, 
+        control_beta = beta_control, 
+        control_dist_beta = dist_beta_control, 
+        control = control
+        )
+        mu_rep_deriv = base_mu_rep * dist_beta * exp(-beliefs_latent) / (1 + exp(-beliefs_latent))^2
+  }
+
     return(mu_rep_deriv)
 }
 

@@ -100,10 +100,16 @@ vector calculate_mu_rep(array[] int treatment_ids, vector dist,
       return log(beliefs_latent) ;
     } else if (mu_rep_type == 2) { // linear
       return beliefs_latent;
+    } else if (mu_rep_type == 4) { // mu = x \lambda, x = \hat{p}, \lambda = base_mu_rep
+      return base_mu_rep * inv_logit(beliefs_latent);
     } else { // exp
       return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
     }
+
 }
+
+
+
 
 matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
                               real base_mu_rep, real mu_beliefs_effect,
@@ -118,10 +124,15 @@ matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
     return mu_rep;
   } else if (mu_rep_type == 2) { // linear
     mu_rep[, 2] = dist_beta * design_matrix[treatment_id]';
+  } else if (mu_rep_type == 4) { // mu = x \lambda, x = \hat{p}, \lambda = base_mu_rep
+    vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[{treatment_id}], beta, dist_beta, dist);
+    mu_rep[, 2] = base_mu_rep * dist_beta * exp(-beliefs_latent) ./ (1 + exp(-beliefs_latent))^2;
   } else { // exp
     mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
   } 
-  
+  if (mu_rep_type == 3) {
+    reject("mu_rep_type = 3 not yet implemented.");
+  }
   return mu_rep;
 }
 

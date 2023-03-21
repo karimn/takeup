@@ -37,8 +37,8 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit75 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS  \
+    --outputname=dist_fit80 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -395,6 +395,10 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         mu_rep_type = 2
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 4
       )
   )
 
