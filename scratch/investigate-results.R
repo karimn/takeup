@@ -16,69 +16,678 @@ library(ggthemes)
 library(cmdstanr)
 library(posterior)
 library(tidybayes)
+library(furrr)
 
 library(econometr)
 
-load("temp-data/processed_dist_fit80_lite.RData")
+treat_levels = c("control", "ink", "calendar", "bracelet")
+inv_logit = function(x){1/(1+exp(-x))}
+
+load(file.path("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+
+analysis_data <- monitored_nosms_data %>% 
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+cluster_treatment_map = distinct(analysis_data, assigned_treatment, assigned_dist_group) %>% 
+  arrange(assigned_dist_group, assigned_treatment) # We must arrange by distance first
+
+analysis_data %<>% 
+  nest_join(
+    endline.know.table.data %>% 
+      filter(fct_match(know.table.type, "table.A")),
+    by = "KEY.individ", 
+    name = "knowledge_data"
+  ) %>% 
+  mutate(
+    map_dfr(knowledge_data, ~ {
+      tibble(
+        obs_know_person = sum(.x$num.recognized),
+        obs_know_person_prop = mean(.x$num.recognized),
+        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
+        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
+        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
+        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
+      )
+    }
+  ))
+
+beliefs_ate_pairs <- cluster_treatment_map %>% 
+  mutate(treatment_id = seq(n())) %>% {
+      bind_rows(
+        left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
+          filter(assigned_treatment != assigned_treatment_control) %>% 
+          select(treatment_id, treatment_id_control),
+        
+        left_join(., filter(., fct_match(assigned_dist_group, "close")), by = c("assigned_treatment"), suffix = c("", "_control")) %>% 
+          filter(assigned_dist_group != assigned_dist_group_control) %>% 
+          select(treatment_id, treatment_id_control),
+      )
+} %>%
+  arrange(treatment_id, treatment_id_control) 
 
 
 
-grab_cal_draws = function(x){
-  fit_obj = as_cmdstan_fit(
-    str_glue("data/stan_analysis_data/dist_fit{x}_STRUCTURAL_LINEAR_U_SHOCKS-1.csv"))
-
-  prefer_cal_draws = gather_rvars(
-    fit_obj,
-    prob_prefer_calendar[index]
-  )
-  return(prefer_cal_draws)
+calculate_belief_latent_predictor = function(beta, 
+                                             dist_beta, 
+                                             dist, 
+                                             control_beta, 
+                                             control_dist_beta, 
+                                             control) {
+    # Don't want to double count control and add it twice
+    if (control == FALSE) {
+        val = beta + dist*dist_beta + control_beta + control_dist_beta*dist
+    } else {
+        val = beta + dist*dist_beta 
+    }
+    return(val)
 }
 
-fit_obj = as_cmdstan_fit(
-  str_glue("data/stan_analysis_data/dist_fit80_STRUCTURAL_LINEAR_U_SHOCKS-1.csv"))
+belief_data = analysis_data %>%
+  filter(obs_know_person > 0)  %>%
+  mutate(
+    j = 1:n()
+  )
 
-fit_obj 
 
-p_hat_draws = gather_rvars(
-  fit_obj,
-  base_mu_rep, 
-  centered_cluster_beta_1ord[j,k],
-  centered_cluster_dist_beta_1ord[j,k]
+belief_data %>%
+  group_by(
+    assigned_treatment, 
+    assigned_dist_group
+  ) %>%
+  select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+  group_by(
+    assigned_treatment, 
+    assigned_dist_group
+  ) %>%
+  summarise(
+    pr = mean(knows_other_dewormed/obs_know_person)
+  )  %>%
+  spread( 
+    assigned_treatment, 
+    pr
+  )
+
+
+
+
+load_draws2 = function(fit_version, model) {
+  fit_obj = as_cmdstan_fit(
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-1.csv"))
+  draws = spread_rvars(
+    fit_obj,
+    centered_obs_beta_1ord[j, k],
+    centered_obs_dist_beta_1ord[j, k],
+    obs_lin_pred_1ord[j, k],
+    obs_prob_1ord[j, k]
+  )
+  return(draws)
+}
+
+load_draws3 = function(fit_version, model) {
+  fit_obj = as_cmdstan_fit(
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-1.csv"))
+  draws = spread_rvars(
+    fit_obj,
+    # centered_obs_beta_1ord[j, k],
+    # centered_obs_dist_beta_1ord[j, k],
+    obs_lin_pred_1ord[j, k],
+    obs_prob_1ord[j, k]
+  )
+  return(draws)
+}
+
+belief_data = analysis_data %>%
+  filter(obs_know_person > 0)  %>%
+  mutate(
+    j = 1:n()
+  )
+
+raw_ndgt_model_draws = load_draws3(
+  80,
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
+) 
+
+k_cw_df = tibble(
+  k = 1:4, 
+  treatment = c("control", "ink", "calendar", "bracelet")
+)
+k_dist_cw_df = tibble(
+  k = 1:8, 
+  treatment = rep(treat_levels, 2)
 )
 
-rm(fit_obj)
-gc()
+ndgt_model_draws = raw_ndgt_model_draws %>%
+  left_join(
+    belief_data %>%
+      select(j, assigned_dist_group), 
+    by = "j"
+  )
 
-subset_p_hat_draws = p_hat_draws %>%
-  filter(is.na(j) | j == 1)
 
 
-treat_levels = c("control", "ink", "calendar", "bracelet")
+subset_ndgt_model_draws = ndgt_model_draws %>%
+  mutate(
+    stan_dist = if_else(k <= 4, "close", "far")
+  ) %>%
+  filter(stan_dist == assigned_dist_group) %>%
+  left_join(k_dist_cw_df)
 
-wide_p_hat_draws = subset_p_hat_draws %>%
-  select(-j)  %>%
-  mutate(base_mu_rep = .value[.variable == "base_mu_rep"]) %>%
-  mutate(control_beta = .value[.variable == "centered_cluster_beta_1ord" & k == 1]) %>% 
-  # mutate(control_dist_beta = .value[.variable == "centered_cluster_dist_beta_1ord" & k == 1]) %>% 
+
+model_draws = load_draws2(
+  80, 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")
+
+
+
+dist_model_draws = model_draws %>%
+  left_join(
+    belief_data %>%
+      select(assigned_dist_group, j, standard_cluster.dist.to.pot)
+    ) %>%
+  mutate(
+    not_control = k != 1, 
+    not_close = assigned_dist_group != "close"
+  ) %>%
+  group_by(j) %>%
+  mutate( 
+    control_beta = centered_obs_beta_1ord[k == 1],
+    control_dist_beta = centered_obs_dist_beta_1ord[k == 1]
+  ) %>%
+  ungroup() %>%
+  mutate(
+    ed_pred = centered_obs_beta_1ord + 
+              centered_obs_dist_beta_1ord*standard_cluster.dist.to.pot + 
+              not_control*(control_beta + control_dist_beta*standard_cluster.dist.to.pot)
+              # not_close*(centered_obs_beta_1ord)
+  )  
+
+
+
+joint_dist_model_draws = dist_model_draws %>%
+  select(-obs_lin_pred_1ord, -obs_prob_1ord) %>%
+  left_join(k_cw_df) %>%
+  left_join(
+    subset_ndgt_model_draws %>% select(j, treatment, contains("1ord")), 
+    by = c("j", "treatment")
+  )
+
+joint_dist_model_draws %>%
+  select(obs_lin_pred_1ord)
+
+
+
+
+far_dist_model_draws = joint_dist_model_draws %>%
+  filter(assigned_dist_group == "far") %>%
+  select( 
+    j,
+    k, 
+    obs_lin_pred_1ord, 
+    ed_pred,
+    standard_cluster.dist.to.pot
+  )
+
+joint_dist_model_draws %>%
+  # filter(assigned_dist_group == "far") %>%
+  mutate(
+    difference = obs_lin_pred_1ord - ed_pred, 
+    d_s = difference/standard_cluster.dist.to.pot
+  )  %>%
+  group_by(k, assigned_dist_group) %>%
+  slice(1:5) %>%
+  select(k, d_s) %>%
+  print(n = 50)
+
+
+
+
+summ_dist_model_draws = joint_dist_model_draws %>%
+  # filter(assigned_dist_group == "close") %>%
+  group_by(
+    treatment, assigned_dist_group
+  ) %>%
+  summarise(
+    ed_p_hat = mean(rvar_mean(inv_logit(ed_pred))),
+    stan_pred_p_hat = mean(rvar_mean(inv_logit(obs_lin_pred_1ord))),
+    stan_p_hat = mean(rvar_mean(obs_prob_1ord))
+  ) %>%
+  arrange(assigned_dist_group) %>%
+  left_join(k_cw_df) 
+
+summ_draw_table = summ_dist_model_draws %>%
+  gather(
+    variable, value, contains("p_hat")
+  ) %>%
+  mutate(treatment = factor(treatment, levels = treat_levels)) %>%
+  pivot_wider(
+    id_cols = c(variable, assigned_dist_group), 
+    names_from = treatment, 
+    values_from = value
+  ) %>%
+  arrange(assigned_dist_group, variable) %>%
+  select(variable, assigned_dist_group, all_of(treat_levels))
+
+
+raw_summ = belief_data %>%
+  group_by(
+    assigned_treatment, 
+    assigned_dist_group
+  ) %>%
+  select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+  group_by(
+    assigned_treatment, 
+    assigned_dist_group
+  ) %>%
+  summarise(
+    pr = mean(knows_other_dewormed/obs_know_person)
+  )  %>%
+  mutate(assigned_treatment = factor(assigned_treatment, levels = treat_levels)) %>%
+  spread( 
+    assigned_treatment, 
+    pr
+  )
+
+full_stan_summ =  ndgt_model_draws %>%
+  group_by(k) %>%
+  summarise(
+    pr = rvar_mean(obs_prob_1ord)
+  ) %>%
+  mutate(pr = mean(pr)) %>%
+  left_join(
+    k_dist_cw_df
+  ) %>%
+  mutate(assigned_dist_group = if_else(
+    k <= 4, "close", "far"
+  )) %>%
+  mutate(treatment = factor(treatment, levels = treat_levels)) %>%
+  select(-k) %>%
+  spread(
+    treatment, pr
+  )
+
+
+raw_summ
+summ_draw_table
+full_stan_summ
+
+
+
+
+rf_glm_fit = belief_data %>%
+  select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+  glm(
+    data = .,
+    knows_other_dewormed/obs_know_person ~ 0 + assigned_treatment:assigned_dist_group,
+    weights = obs_know_person, 
+    family = binomial(link = "logit")
+  )
+
+
+library(marginaleffects)
+
+rf_p_hat = predictions(
+  rf_glm_fit, 
+  newdata = datagrid(
+    assigned_treatment = treat_levels, 
+    assigned_dist_group = c("close", "far")
+  )
+)
+
+
+rf_plot_df = rf_p_hat %>%
+  as_tibble() %>%
+    select(
+      treatment = assigned_treatment, 
+      assigned_dist_group, 
+      value = estimate, conf.low, 
+      conf.high
+      )  %>%
+  mutate(name = "frequentist probit") %>%
+  mutate(type = "FREQ")
+
+
+
+# rf_plot_df = belief_data %>%
+#   select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+#   glm(
+#     data = .,
+#     knows_other_dewormed/obs_know_person ~ 0 + assigned_treatment:assigned_dist_group,
+#     weights = obs_know_person, 
+#     family = binomial(link = "logit")
+#   ) %>%
+#   tidy(conf.int = TRUE) %>%
+#   mutate(
+#     treatment = str_extract(term, "(?<=treatment).*(?=:)"), 
+#     assigned_dist_group = str_extract(term, "(?<=dist_group).*$")
+#   ) %>%
+#   rename(value = estimate)
+
+
+
+
+ndgt_plot_df = ndgt_model_draws %>%
+  group_by(k) %>%
+  summarise(
+    pr = rvar_mean(obs_prob_1ord)
+  ) %>%
+  left_join(k_dist_cw_df) %>%
+  mutate(assigned_dist_group = rep(c("close", "far"), each = 4))  %>%
+  rename(value = pr) %>%
+  median_qi(value) %>%
+  to_broom_names() %>%
+  mutate(name = "imputed distance", type = "BAYES")
+
+
+plot_df = joint_dist_model_draws %>%
+  # filter(assigned_dist_group == "close") %>%
+  group_by(
+    treatment, assigned_dist_group
+  ) %>%
+  mutate(
+    ed_p_hat = inv_logit(ed_pred), 
+    stan_pred_p_hat = inv_logit(obs_lin_pred_1ord), 
+    stan_p_hat = obs_prob_1ord 
+  ) %>%
+  select(contains("p_hat")) %>%
+  summarise(across(contains("p_hat"), rvar_mean))  %>%
+  pivot_longer(
+      contains("p_hat")
+  ) %>%
+  median_qi(value) %>%
+  to_broom_names() %>%
+  mutate(type = "BAYES") %>%
+  bind_rows(
+    ndgt_plot_df, 
+    rf_plot_df
+  ) %>%
+  mutate(treatment = factor(treatment, levels = treat_levels)) %>%
+  mutate( 
+    name = factor(name, levels = c("frequentist probit", "imputed distance", "ed_p_hat", "stan_pred_p_hat", "stan_p_hat"))
+  )
+
+
+
+plot_df %>%
+  filter(name != "frequentist probit") %>%
+  filter(!(name %in% c("stan_pred_p_hat", "stan_p_hat"))) %>%
+  ggplot(aes(
+    x = value, 
+    xmin = conf.low, 
+    xmax = conf.high, 
+    y = treatment, 
+    colour = name
+  )) +
+  geom_pointrange(
+    position = position_dodge(0.5)
+  ) +
+  geom_pointrange(
+    data = plot_df %>%
+      filter(name == "frequentist probit"),
+    position = position_dodge(1), 
+    colour = "black", 
+    size = 1
+  ) +
+  facet_wrap(
+    ~assigned_dist_group, 
+    ncol = 1) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  ggthemes::scale_color_canva(palette = "Primary colors with a vibrant twist") +
+  labs(caption = "Black indicates frequentist probit.")
+
+
+ggsave(
+  "temp-plots/figuring-out-close-far.png", 
+  width = 10,
+  height = 10, 
+  dpi = 500)
+
+
+stop()
+
+ndgt_model_draws %>%
+  group_by(k) %>%
+  summarise(
+    pr = rvar_mean(obs_prob_1ord)
+  ) %>%
+  mutate(pr = mean(pr)) %>%
+  left_join(k_dist_cw_df) %>%
+  mutate(dist = rep(c("close", "far"), each = 4)) %>%
+  select(-k) %>%
+  spread(treatment, pr) 
+
+ndgt_model_draws %>%
+  left_join(
+    belief_data %>%
+      mutate(j = 1:n()) %>%
+      select(j, assigned_dist_group))  %>%
+    left_join(k_dist_cw_df) %>%
+  group_by(treatment, assigned_dist_group) %>%
+  summarise(
+    pr = rvar_mean(obs_prob_1ord)
+  ) %>%
+  mutate(pr = mean(pr)) %>%
+  spread(treatment, pr)
+
+
+
+
+  ## here ed
+
+comp_dist_model_draws %>%
+  filter(assigned_dist_group == "far") %>%
+  group_by(
+    k, assigned_dist_group
+  ) %>%
+  summarise(
+    ed_p_hat = mean(rvar_mean(inv_logit(ed_pred))),
+    stan_pred_p_hat = mean(rvar_mean(inv_logit(obs_lin_pred_1ord))),
+    stan_p_hat = mean(rvar_mean(obs_prob_1ord))
+  ) %>%
+  arrange(assigned_dist_group) %>%
+  left_join(k_cw_df)
+
+comp_dist_model_draws %>%
+  # select(ed_pred, obs_lin_pred_1ord) %>%
+  mutate(diff = mean(ed_pred - obs_lin_pred_1ord))  %>%
+  filter(abs(diff) > 0.01) %>%
+  select(standard_cluster.dist.to.pot) %>%
+  unique() %>%
+  arrange(standard_cluster.dist.to.pot)
+
+
+
+
+
+  mutate(
+    centered_obs_beta_1ord 
+  )
+
+stop()
+
+load_draws = function(fit_version, model, type = "cluster") {
+  fit_obj = as_cmdstan_fit(
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-1.csv"))
+
+  if (type == "cluster") {
+    lin_pred_draws = gather_rvars(
+      fit_obj,
+      base_mu_rep, 
+      centered_cluster_beta_1ord[j,k],
+      centered_cluster_dist_beta_1ord[j,k]
+    ) %>%
+      group_by(.variable, k) %>%
+      summarise(.value = rvar_mean(.value)) 
+  }
+
+  if (type == "obs") {
+    lin_pred_draws = gather_rvars(
+      fit_obj,
+      # base_mu_rep, 
+      centered_obs_beta_1ord[j,k],
+      centered_obs_dist_beta_1ord[j,k]
+    ) %>%
+      group_by(.variable, k) %>%
+      summarise(.value = rvar_mean(.value)) 
+  }
+
+  p_hat_draws = spread_rvars(
+    fit_obj, 
+    obs_prob_1ord[j, k], 
+    obs_lin_pred_1ord[j, k]
+  )
+  return(lst(
+    p_hat_draws,
+    lin_pred_draws
+  ))
+}
+
+
+
+
+# p_hat_71_struct = load_draws(71, "STRUCTURAL_LINEAR_U_SHOCKS")
+
+
+# p_hat_80_struct_phat = load_draws(80, "structural_linear_u_shocks_phat_mu_rep")
+
+p_hat_71_struct_obs = load_draws(
+  82, 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
+  type = "obs")
+
+
+
+stop()
+
+
+clean_p_hat_draws = p_hat_71_struct_obs$p_hat_draws %>%
+  left_join(
+    belief_data %>%
+      select(j, dist = cluster.dist.to.pot, dist_std = standard_cluster.dist.to.pot)
+  ) %>%
+  left_join(
+    k_cw_df
+  )
+
+clean_p_hat_summary = clean_p_hat_draws %>%
+  group_by(treatment, dist_group) %>%
+  summarise(
+    .value = rvar_mean(obs_prob_1ord, na.rm = TRUE)
+  ) 
+  # mutate(.value = mean(.value, na.rm = TRUE))
+
+
+
+lin_pred_draws = bind_rows(
+  # p_hat_71_struct$lin_pred_draws %>% mutate(fit_version = 71, obs_version = "cluster"),
+  # p_hat_80_struct_phat$lin_pred_draws %>% mutate(fit_version = 80, obs_version = "cluster"),
+  p_hat_71_struct_obs$lin_pred_draws %>% mutate(fit_version = 71, obs_version = "obs"),
+  # p_hat_80_struct_phat_obs$lin_pred_draws %>% mutate(fit_version = 80, obs_version = "obs")
+) %>%
+  mutate(
+    .variable = case_when(
+      str_detect(.variable, "centered_.{3,7}_beta_1ord") ~ "beta_1ord",
+      str_detect(.variable, "centered_.{3,7}_dist_beta_1ord") ~ "dist_beta_1ord",
+      TRUE ~ .variable
+    )
+  )
+
+wide_lin_pred_draws = lin_pred_draws %>%
   filter(.variable != "base_mu_rep") %>%
+  group_by(fit_version, obs_version) %>%
+  mutate(control_beta = .value[.variable == "beta_1ord" & k == 1]) %>% 
+  mutate(
+    control_dist_beta = .value[.variable == "dist_beta_1ord" & k == 1]
+  ) %>%
+  mutate(control = k == 1) %>%
   pivot_wider(
     names_from = .variable, values_from = .value
   )  %>%
   mutate(
     treatment = factor(treat_levels, levels = treat_levels)
+  ) 
+
+
+wide_lin_pred_draws
+
+
+
+unique_dists = unique(clean_p_hat_draws$dist_std)
+
+
+  ed = calculate_belief_latent_predictor(
+    wide_lin_pred_draws[[1, "beta_1ord"]], 
+    wide_lin_pred_draws[[1, "dist_beta_1ord"]], 
+    unique_dists[[1]], 
+    wide_lin_pred_draws[[1, "control_beta"]], 
+    wide_lin_pred_draws[[1, "control_dist_beta"]], 
+    control = TRUE
   )
 
-inv_logit = function(x){1/(1+exp(-x))}
 
-calculate_p_hat = function(wide_data, dist) {
-  wide_data %>%
-    mutate(not_control = k != 1) %>%
-    mutate(dist = dist) %>%
-    mutate(
-      p_hat = inv_logit(not_control*control_beta + centered_cluster_beta_1ord + centered_cluster_dist_beta_1ord*dist)
-      ) %>%
-    select(treatment, dist, p_hat, everything())
+wide_lin_pred_draws %>%
+  mutate(
+    lin_pred = 
+  ) %>%
+  select( 
+    val
+  )
+
+ed
+
+clean_p_hat_draws %>%
+  filter(dist_std == unique_dists[[1]]) %>%
+  filter(k == 1) %>%
+  filter(j == 1)
+
+
+
+
+
+calculate_dist_linear_predictor = function(wide_data, k, dist) {
+  calculate_belief_latent_predictor(
+    wide_data[[k, "beta_1ord"]], 
+    wide_data[[k, "dist_beta_1ord"]], 
+    dist, 
+    wide_data[[k, "control_beta"]], 
+    wide_data[[k, "control_dist_beta"]], 
+    control = k == 1
+  )
 }
+
+
+
+# calculate_p_hat = function(wide_data, dist) {
+#   wide_data %>%
+#     mutate(not_control = k != 1) %>%
+#     mutate(dist_std = dist) %>%
+#     mutate(
+#       p_hat = inv_logit(beta_1ord + dist_beta_1ord*dist)
+#       ) %>%
+#     select(treatment, dist_std, p_hat, fit_version, everything())
+# }
 
 
 sd_of_dist = read_rds("temp-data/sd_of_dist.rds")
@@ -87,17 +696,242 @@ sd_of_dist = read_rds("temp-data/sd_of_dist.rds")
 distances = seq(from = 0, to = 2500, length.out = 20) / sd_of_dist
 
 
-p_hat_df = map_dfr(
-  distances,
+lin_pred_dist_draws = map_dfr(
+  1:4, 
+  ~ {
+      belief_data %>%
+        select( 
+          assigned_dist_group, dist_std = standard_cluster.dist.to.pot
+        ) %>% 
+        mutate(k = .x) %>%
+        mutate(
+          lin_pred = map2(
+            dist_std,
+            k,
+            ~calculate_dist_linear_predictor(
+              wide_lin_pred_draws, 
+              k = .y,
+              dist = .x
+            )
+          )
+        )
+  }
+) %>%
+  unnest(lin_pred)
+
+
+wide_lin_pred_draws
+
+
+
+
+lin_pred_dist_draws = lin_pred_dist_draws %>%
+  group_by(k) %>%
+  mutate(j = 1:n()) %>%
+  left_join(
+    k_cw_df
+  )  %>%
+  ungroup()
+
+j_idx = 10
+lin_pred_dist_draws %>%
+  filter(j == j_idx) %>%
+  select(assigned_dist_group, dist_std, treatment, lin_pred) %>%
+  mutate(p_hat = inv_logit(lin_pred))
+
+clean_p_hat_draws %>%
+  filter(j == j_idx)  %>%
+  select(dist_group, dist_std, treatment, obs_lin_pred_1ord, obs_prob_1ord)
+
+clean_p_hat_draws %>%
+  filter(j == 1) 
+
+
+
+
+
+clean_p_hat_draws %>%
+  slice(10)
+
+
+
+
+
+
+
+
+lin_pred_dist_draws %>%
+  mutate(
+    p_hat = inv_logit(lin_pred)
+  ) %>%
+  group_by(k, assigned_dist_group) %>%
+  summarise(
+    p_hat = rvar_mean(p_hat), 
+    lin_pred = rvar_mean(lin_pred)
+  ) %>%
+  mutate(
+    p_hat = mean(p_hat), 
+    lin_pred = mean(lin_pred)
+  ) %>%
+  left_join(
+    k_cw_df
+  ) %>%
+  arrange(assigned_dist_group, treatment)
+
+
+
+
+lin_pred_dist_draws %>%
+  mutate(
+    p_hat = inv_logit(lin_pred)
+  ) %>%
+  group_by(k, assigned_dist_group) %>%
+  summarise(
+    p_hat = rvar_mean(p_hat), 
+    lin_pred = rvar_mean(lin_pred)
+  ) %>%
+  mutate(
+    p_hat = mean(p_hat), 
+    lin_pred = mean(lin_pred)
+  ) %>%
+  left_join(
+    k_cw_df
+  ) %>%
+  write_csv(
+    "temp-data/80-lin-pred-p-hat.csv"
+  )
+
+
+comp_lin_pred = bind_rows(
+  read_csv(
+    "temp-data/80-lin-pred-p-hat.csv"
+  ) %>% mutate(fit = 80),
+  read_csv(
+    "temp-data/71-lin-pred-p-hat.csv"
+  ) %>% mutate(fit = 71)
+)
+
+comp_lin_pred %>%
+  select(-k, -dist_group) %>%
+  select(-lin_pred)  %>%
+  spread(
+    fit, p_hat
+  )
+
+
+stan_data
+
+stop()
+
+
+clean_p_hat_summary %>%
+  summarise(.value = mean(.value, na.rm = TRUE))
+
+
+pred_p_hat_draws = belief_data %>%
+  select( 
+    assigned_dist_group, standard_cluster.dist.to.pot
+  ) %>%
+  mutate(
+    p_hat_draws = map(
+      standard_cluster.dist.to.pot, 
+      ~calculate_p_hat(
+        wide_lin_pred_draws,
+         .x
+      )
+    )
+  )
+
+clean_pred_p_hat_draws = pred_p_hat_draws %>%
+  unnest_wider(p_hat_draws) %>%
+  unnest(cols = c(treatment, dist_std, p_hat))
+
+
+clean_pred_p_hat_summary = clean_pred_p_hat_draws %>%
+  group_by(treatment, assigned_dist_group) %>%
+  summarise(p_hat = rvar_mean(p_hat, na.rm = TRUE)) 
+
+
+inner_join(
+  clean_p_hat_summary,
+  clean_pred_p_hat_summary, 
+  by = c("treatment", "dist_group" = "assigned_dist_group")
+) %>%
+  mutate(
+    diff = .value - p_hat, 
+    .value = mean(.value, na.rm = TRUE), 
+    p_hat = mean(p_hat, na.rm = TRUE)
+  ) %>%
+  select(treatment, dist_group, .value, p_hat, diff) %>%
+  median_qi(diff, na.rm = TRUE)  %>%
+  to_broom_names() %>%
+  ggplot(aes(
+    x = diff, 
+    xmin = conf.low, 
+    xmax = conf.high,
+    y = treatment, 
+    colour = dist_group
+  )) +
+  geom_pointrange(
+    position = position_dodge(0.5)
+  ) +
+  geom_vline(
+    xintercept = 0, 
+    linetype = "longdash"
+  ) +
+  theme_minimal()
+
+stop()
+
+clean_p_hat_draws
+
+
+pred_p_hat_draws = map_dfr(
+  belief_data$standard_cluster.dist.to.pot,
   ~calculate_p_hat(
-    wide_p_hat_draws, 
+    wide_lin_pred_draws, 
     .x
   )
 )
 
 
+clean_p_hat_draws %>%
+  filter(dist_std == unique_dists[[1]]) %>%
+  group_by(treatment) %>%
+  summarise(
+    .value = rvar_mean(.value, na.rm = TRUE)
+  ) %>%
+  mutate(.value = mean(.value, na.rm = TRUE)) %>%
+  mutate(treatment = factor(treatment, levels = treat_levels)) %>%
+  arrange(treatment)
+
+pred_p_hat_draws %>%
+  filter(
+    dist_std == unique_dists[[1]]
+  )  %>%
+  group_by(treatment)  %>%
+  summarise(
+    p_hat = rvar_mean(p_hat)
+  ) %>%
+  mutate(p_hat = mean(p_hat)) %>%
+  arrange(treatment)
+
+pred_p_hat_draws %>%
+  mutate(
+    p_hat = mean(p_hat)
+  ) %>%
+  ggplot(aes(
+    x = dist, 
+    y = p_hat, 
+    colour = treatment
+  )) +
+  geom_point()
+
+
+
 
 p_hat_df %>%
+  filter(fit_version == 71) %>%
   mutate(
     p_hat = mean(p_hat), 
     distance = dist*sd_of_dist
@@ -105,11 +939,12 @@ p_hat_df %>%
   ggplot(aes(
     x = distance, 
     y = p_hat, 
-    colour = treatment
+    colour = treatment, 
+    linetype = factor(obs_version)
   )) +
   geom_point() +
   geom_line() +
-  theme_minimal() +
+  theme_bw() +
   theme(legend.position = "bottom") +
   labs(
     x = "Distance", 
@@ -120,12 +955,202 @@ p_hat_df %>%
   ggthemes::scale_color_canva(
     palette = "Primary colors with a vibrant twist", 
     labels = as_labeller(str_to_title)
+  ) +
+  facet_grid(~fit_version) +
+  geom_hline( 
+    yintercept = 1, 
+    linetype = "longdash"
+  )
+
+p_hat_df %>%
+  mutate(
+    p_hat = mean(p_hat), 
+    distance = dist*sd_of_dist
+  ) %>%
+  ggplot(aes(
+    x = distance, 
+    y = p_hat, 
+    colour = treatment, 
+    linetype = factor(fit_version)
+  )) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  labs(
+    x = "Distance", 
+    y = "P hat", 
+    title = "Estimated 1st Order Belief Proportion vs Distance", 
+    colour = ""
+  ) +
+  ggthemes::scale_color_canva(
+    palette = "Primary colors with a vibrant twist", 
+    labels = as_labeller(str_to_title)
+  ) +
+  facet_grid(obs_version~fit_version) +
+  geom_hline( 
+    yintercept = 1, 
+    linetype = "longdash"
+  )
+
+
+p_hat_df %>%
+  mutate(
+    p_hat = mean(p_hat), 
+    distance = dist*sd_of_dist
+  ) %>%
+  ggplot(aes(
+    x = distance, 
+    y = p_hat, 
+    colour = obs_version, 
+    linetype = factor(fit_version)
+  )) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  labs(
+    x = "Distance", 
+    y = "P hat", 
+    title = "Estimated 1st Order Belief Proportion vs Distance", 
+    colour = ""
+  ) +
+  ggthemes::scale_color_canva(
+    palette = "Primary colors with a vibrant twist", 
+    labels = as_labeller(str_to_title)
+  ) +
+  facet_wrap(~treatment, ncol = 1) +
+  geom_hline( 
+    yintercept = 1, 
+    linetype = "longdash"
   )
 
 ggsave("temp-plots/anne-check/pr-1ord-continuous-distance.png", 
 width = 8, 
 height = 6, 
 dpi = 500)
+
+
+
+belief_data = analysis_data %>%
+  filter(obs_know_person > 0) 
+
+p_hat_belief_data = belief_data %>%
+  select(
+    assigned_dist_group, 
+    assigned_treatment,
+    standard_cluster.dist.to.pot) %>%
+  mutate(
+    p_hat = map(
+      standard_cluster.dist.to.pot, 
+      ~calculate_p_hat(
+        wide_p_hat_draws, 
+        .x
+      ) %>% as_tibble() %>% select(p_hat, treatment, dist, fit_version, obs_version)
+    )
+  )
+
+
+
+long_p_hat_belief_data = p_hat_belief_data %>%
+  unnest(p_hat)
+
+
+long_p_hat_belief_data %>%
+  filter(fit_version == 71) %>%
+  filter(treatment == assigned_treatment) %>%
+  filter(assigned_dist_group == "close") %>%
+  group_by(
+    fit_version,
+    obs_version,
+    assigned_dist_group, 
+    assigned_treatment
+  ) %>%
+  summarise(
+    p_hat = rvar_mean(p_hat)
+  ) %>%
+  mutate(
+    p_hat = mean(p_hat)
+  )
+
+
+long_p_hat_belief_data %>%
+  mutate(dist = dist*sd_of_dist) %>%
+  mutate(p_hat = mean(p_hat)) %>%
+  filter(assigned_treatment == treatment) %>%
+  ggplot(aes(
+    x = dist, 
+    y = p_hat, 
+    colour = treatment
+  )) +
+  geom_point() +
+  facet_wrap(~fit_version, ncol = 1)  +
+  geom_point(
+    data = . %>%
+      group_by(
+        fit_version, 
+        treatment, 
+        assigned_dist_group
+      ) %>%
+      summarise(p_hat = mean(p_hat)) %>%
+      mutate(dist = if_else(assigned_dist_group == "close", 1250/2, 1250 + (2500/2))), 
+    colour = "black", 
+    size = 2
+  ) +
+  geom_point(
+    data = belief_data %>%
+      select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+      group_by(
+        assigned_treatment, 
+        assigned_dist_group
+      ) %>%
+      summarise(
+        p_hat = mean(knows_other_dewormed/obs_know_person)
+      ) %>%
+      mutate(dist = if_else(assigned_dist_group == "close", 1250/2 + 200, 200 + 1250 + (2500/2))), 
+      colour = "red", 
+      size = 4
+  )
+
+
+
+belief_data %>%
+  select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+  group_by(
+    assigned_treatment, 
+    assigned_dist_group
+  ) %>%
+  summarise(
+    pr = mean(knows_other_dewormed/obs_know_person),
+    sd =  1/sqrt(n())*pr*(1-pr), 
+    conf.low = pr - 1.96*sd,
+    conf.high = pr + 1.96*sd
+  ) %>%
+  ggplot(aes(
+    x = pr, 
+    xmin = conf.low, 
+    xmax = conf.high,
+    y = assigned_treatment, 
+    colour = assigned_dist_group
+  )) +
+  geom_pointrange(
+    position = position_dodge(0.5)
+  ) +
+  # facet_wrap(~assigned_dist_group, ncol = 1)  +
+  theme_bw() + 
+  guides(colour = "none") +
+  geom_vline(xintercept = 0.8) +
+  geom_vline(xintercept = 0.85, linetype = "longdash") 
+
+belief_data %>%
+  select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
+  glm(
+    data = .,
+    knows_other_dewormed/obs_know_person ~ 0 + assigned_treatment:assigned_dist_group,
+    weights = obs_know_person, 
+    family = binomial(link = "logit")
+  ) %>%
+  tidy()
 
 
 # prefer_cal_draws_77 = grab_cal_draws(77)
@@ -225,7 +1250,7 @@ analysis_data <- monitored_nosms_data
 
 
 ## Fit Loading
-load(file.path("temp-data", str_interp("processed_dist_fit71_lite.RData")))
+load(file.path("temp-data", str_interp("processed_dist_fit80_lite.RData")))
 
 dist_fit_data %<>%
   left_join(tribble(
@@ -250,8 +1275,6 @@ stan_data = (dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>%
   select(stan_data) %>%
   pull())[[1]]
-
-
 
 
 belief_data = dist_fit_data %>%
