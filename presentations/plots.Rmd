@@ -12,6 +12,7 @@ params:
   input_path: data/stan_analysis_data
   output_path: temp-data
   models: STRUCTURAL_LINEAR_U_SHOCKS
+  load_phat: FALSE
 ---
 
 ```{r takeup-present-setup, include=FALSE}
@@ -40,7 +41,8 @@ if (interactive()) {
     rf_fit_version = 75,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
-    models = "STRUCTURAL_LINEAR_U_SHOCKS"
+    models = "STRUCTURAL_LINEAR_U_SHOCKS",
+    load_phat = FALSE
   )
 }
 
@@ -62,8 +64,8 @@ knitr::opts_chunk$set(
   warnings = FALSE, 
   warning = FALSE, 
   cache = TRUE, 
-  cache.path = "takeup-figure-cache/", 
-  fig.path = "takeup-fig/", 
+  cache.path = str_glue("takeup-{params$models}-figure-cache/"), 
+  fig.path = str_glue("takeup-{params$models}-fig/"), 
   fig.align = "center"
   )
 
@@ -156,18 +158,20 @@ analysis_data <- monitored_nosms_data
 ```{r, fit_loading}
 load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
+
+with_env = function(f, e = parent.frame()) {
+    stopifnot(is.function(f))
+    environment(f) = e
+    f
+}
+
+# temp fix
 if (params$fit_version != params$rf_fit_version) {
   # Only load structural
   dist_fit_data = dist_fit_data %>%
-    filter(model %in% c("STRUCTURAL_LINEAR_U_SHOCKS"))
+    filter(model %in% models_we_want)
 
   rf_env = new.env()
-
-  with_env = function(f, e = parent.frame()) {
-      stopifnot(is.function(f))
-      environment(f) = e
-      f
-  }
 
   load_rf_function = function(){
       load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}_lite.RData")))
@@ -178,12 +182,40 @@ if (params$fit_version != params$rf_fit_version) {
   rf_fit_data = with_env(load_rf_function, rf_env)() %>%
     filter(model %in% c("REDUCED_FORM_NO_RESTRICT"))
 
+
   dist_fit_data = bind_rows(
     rf_fit_data, 
     dist_fit_data
   )
 
 }
+
+if (params$load_phat) {
+  phat_env = new.env()
+  load_phat_function = function(){
+      load(file.path("temp-data", str_interp("processed_dist_fit80_lite.RData")))
+      return(dist_fit_data)
+  }
+  phat_fit_data = with_env(load_phat_function, phat_env)() %>%
+    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP") 
+  dist_fit_data = bind_rows(
+    dist_fit_data, 
+    phat_fit
+  )
+  dist_fit_data = dist_fit_data %>%
+    mutate(
+      model = if_else(
+        fit_type == "prior-predict" & model == "STRUCTURAL_LINEAR_U_SHOCKS",
+        "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
+        as.character(model)), 
+      model = factor(model)
+    )
+
+  models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
+
+}
+
+
 
 dist_fit_data %<>%
   left_join(tribble(
@@ -193,7 +225,7 @@ dist_fit_data %<>%
   ), by = "fit_type") 
 
 dist_fit_data = dist_fit_data %>%
-  filter(model %in% c("REDUCED_FORM_NO_RESTRICT", "STRUCTURAL_LINEAR_U_SHOCKS"))
+  filter(model %in% c("REDUCED_FORM_NO_RESTRICT", models_we_want))
 
 
 
@@ -393,9 +425,7 @@ social_perception_data = baseline.data %>%
                             "Immunize/not immunize children" = "immuniz")) 
 
 
-
-
-baseline.data %>% 
+baseline_praise_stigma_plot_data = baseline.data %>% 
   select(matches("^(praise|stigma)_[^_]+$")) %>% 
   gather(key = key, value = response) %>% 
   separate(key, c("praise.stigma", "topic"), "_") %>% 
@@ -409,7 +439,9 @@ baseline.data %>%
                             "Wearing/not wearing nice clothes to church" = "clothe",
                             "Use Latrine/open defecation" = "defecat",
                             "Deworming/not deworming during MDA" = "dewor",
-                            "Immunize/not immunize children" = "immuniz")) %>% 
+                            "Immunize/not immunize children" = "immuniz")) 
+
+baseline_praise_stigma_plot_data %>%
   ggplot(aes(response, fill = fct_rev(response))) +
   geom_col(aes(y = n), alpha = 0.5) +
   labs(y = "Share of Respondents", x = "") +
@@ -424,6 +456,62 @@ baseline.data %>%
       panel.grid.major.y = element_blank()) +
   guides(fill = "none") +
   scale_fill_grey(start = 0.2, end = 0.5) 
+
+baseline_praise_stigma_plot_data %>%
+  ggplot(aes(response, fill = fct_rev(response))) +
+  geom_col(aes(y = n), alpha = 0.5, position = position_dodge(width = 0.8)) +
+  labs(y = "Share of Respondents", x = "") +
+  scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
+  coord_flip() +
+  facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20), space = "free") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text.x = element_text(angle = 0),
+        strip.background = element_rect(colour = NA),
+        panel.border = element_blank(),
+        panel.grid.major.x = element_blank()) +
+  guides(fill = "none") +
+  scale_fill_grey(start = 0.2, end = 0.5)
+
+baseline_praise_stigma_plot_data %>%
+  ggplot(aes(response, fill = fct_rev(response))) +
+  geom_col(aes(y = n), alpha = 0.5, position = position_dodge(width = 0.6), width = 0.4) +
+  labs(y = "Share of Respondents", x = "") +
+  scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
+  coord_flip() +
+  facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20), space = "free") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text.x = element_text(angle = 0),
+        strip.background = element_rect(colour = NA),
+        panel.border = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.spacing = unit(0.2, "cm"),
+        plot.margin = unit(c(1,0.5,1,0.5), "lines")) +
+  guides(fill = "none") +
+  scale_fill_grey(start = 0.2, end = 0.5)
+
+# baseline_praise_stigma_plot_data %>%
+#   ggplot(aes(response, fill = fct_rev(response))) +
+#   geom_col(aes(y = n), alpha = 0.5, width = 0.4, position = position_dodge()) +
+#   labs(y = "Share of Respondents", x = "") +
+#   scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
+#   coord_flip() +
+#   facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20), space = "free") +
+#   theme_bw() +
+#   theme(legend.position = "bottom",
+#         strip.text.x = element_text(angle = 0),
+#         strip.background = element_rect(colour = NA),
+#         panel.border = element_blank(),
+#         panel.grid.major.x = element_blank(),
+#         panel.spacing = unit(0.2, "cm"),
+#         plot.margin = unit(c(1,0.5,1,0.5), "lines")) +
+#   guides(fill = "none") +
+#   scale_fill_grey(start = 0.2, end = 0.5) +
+#   scale_x_discrete(breaks = expansion(add = -0.5))
+
+
+
 
 ```
 
@@ -604,7 +692,7 @@ plot_ord_beliefs_est <- function(beliefs_results,
 }
 
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
@@ -619,10 +707,18 @@ dist_fit_data %>%
 #|  fig.note="This plot shows first estimates using the second order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   pull(beliefs_results) %>%
   first() %>%
   plot_ord_beliefs_est(order = 2)
+
+
+# mu = mu_0 exp(linear predictor)
+# mu = \hat{p}_{z,d} x lambda 
+
+# mu = (\hat{p}_{z,d})/(1 - \hat{p}_{z,d}) x lambda 
+
+
 ```
 
 #### Beliefs Plots ####
@@ -1193,7 +1289,6 @@ default_ate_limits = c(-0.15, 0.15)
 structural_signalling_ate_plot = dist_fit_data %>%
   grab_signalling_ate(., "structural", models_we_want) 
 
-structural_signalling_ate_plot
 
 
 structural_signalling_ate_plot = dist_fit_data %>%
@@ -1220,6 +1315,7 @@ structural_signalling_ate_plot = dist_fit_data %>%
 structural_signalling_ate_plot +
   theme_minimal() +
   labs(caption = "")
+
 ggsave(
   plot = structural_signalling_ate_plot,
   filename = file.path(
@@ -1256,7 +1352,7 @@ default_ate_limits = c(-0.15, 0.15)
 
 structural_incentive_ate_plot = dist_fit_data %>%
   grab_incentive_ate(., model_type_to_plot = "structural") %>%
-  filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+  filter(model == models_we_want) %>%
   plot_estimands(., 
                  est_takeup_te, 
                  assigned_treatment_left, 
@@ -1316,7 +1412,7 @@ wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model
 
 
 joint_wtp_results <- dist_fit_data %>%
-  filter(fct_match(fit_type, "fit") & fct_match(model_type, "structural") & fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit") & fct_match(model_type, "structural") & fct_match(model, models_we_want)) %>%
   pull(wtp_results) %>%
   first()
 
@@ -1419,7 +1515,7 @@ joint_wtp_results %>%
 #|  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
 #|  inner ribbon: 50\\% credibility interval."
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
@@ -1430,7 +1526,7 @@ dist_fit_data %>%
 
 
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
@@ -1482,13 +1578,57 @@ dist_prob_plot +
 
 
 ```{r}
+library(tidyverse)
+df = tibble(
+  x = seq(from = -4, to = 4, length.out = 100), 
+  y = pnorm(x)
+)
+
+df %>%
+  ggplot(aes(
+    x = x, 
+    y = y
+  )) +
+  geom_point()
+
+
+df = tibble(
+  x = seq(from = 0.01, to = 0.99, length.out = 100)
+) %>%
+  mutate(
+    lo = x/(1 - x)
+  ) 
+
+
+df %>%
+  # filter(x >= 0.6 & x <= 0.9) %>%
+  ggplot(aes(
+    x = x, 
+    y = lo
+  )) +
+  geom_point() +
+  labs(
+    x = "Probability", 
+    y = "Odds Ratio"
+  ) +
+  geom_vline(
+    xintercept = c(0.8, 0.85)
+  )  +
+  geom_vline(
+    xintercept = c(0.78, 0.68)
+  ) 
+
+```
+
+
+```{r}
 #| rep-return-dist-value,
 #| fig.cap="Value of Reputational Return Across Bracelet and Control",
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model." 
 
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   select(model_name, cluster_rep_return_dist) %>%
   unnest(cluster_rep_return_dist) %>% 
   mutate(
@@ -1529,7 +1669,7 @@ dist_fit_data %>%
 plot_rep_returns_one_by_one = function(data, treatment) {
     subtitle_str = str_to_title(treatment)
     plot = data %>%
-        filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
+        filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
         select(model_name, cluster_rep_return_dist) %>%
         unnest(cluster_rep_return_dist) %>% 
         filter(assigned_treatment == treatment) %>%
@@ -1573,11 +1713,10 @@ treatments = c(
 single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
     plot_rep_returns_one_by_one(treatment = .x)  
 )
-single_rep_return_plots[[2]]
+ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 ```
 
-
-## Social Multiplier ##
+## Social Multiplier  - OLD MODEL BELOW HERE
 
 ```{r}
 #| social-multiplier,

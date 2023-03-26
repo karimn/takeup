@@ -29,11 +29,11 @@ script_options = docopt::docopt(
     "),
     args = if (interactive()) "
                             71
-                            bracelet
-                            bracelet
-                            --output-name=cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS
+                            control
+                            control
+                            --output-name=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS
                             --from-csv
-                            --num-post-draws=Inf
+                            --num-post-draws=200
                             --rep-cutoff=Inf
                             --dist-cutoff=3500
                             --type-lb=-Inf
@@ -225,6 +225,8 @@ dist_data = read_rds(
 brms_long_distance_mat = dist_data$brms_long_distance_mat
 long_distance_mat = dist_data$long_distance_mat
 sd_of_dist = dist_data$sd_of_dist
+sd_of_dist %>%
+    saveRDS("temp-data/sd_of_dist.rds")
 if (run_estimation == TRUE){
 
 
