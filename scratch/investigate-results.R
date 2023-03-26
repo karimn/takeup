@@ -165,7 +165,7 @@ belief_data = analysis_data %>%
   )
 
 raw_ndgt_model_draws = load_draws3(
-  80,
+  82,
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 ) 
 
@@ -196,7 +196,7 @@ subset_ndgt_model_draws = ndgt_model_draws %>%
 
 
 model_draws = load_draws2(
-  80, 
+  82, 
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")
 
 
@@ -459,7 +459,7 @@ plot_df %>%
 
 
 ggsave(
-  "temp-plots/figuring-out-close-far.png", 
+  "temp-plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_figuring-out-close-far.png", 
   width = 10,
   height = 10, 
   dpi = 500)
@@ -574,7 +574,7 @@ load_draws = function(fit_version, model, type = "cluster") {
 
 p_hat_71_struct_obs = load_draws(
   82, 
-  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
+  "STRUCTURAL_LINEAR_U_SHOCKS", 
   type = "obs")
 
 
