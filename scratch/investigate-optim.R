@@ -196,7 +196,13 @@ comp_df %>%
 
 if (use_map_demand) {
 
+demand_files = fs::dir_ls(
+    "optim/data/agg-log-full",
+    regexp = "pred"
+)
 demand_files = demand_files[!str_detect(demand_files, "no-cutoff") & str_detect(demand_files, "STRUCTURAL_LINEAR_U_SHOCKS.csv")]
+
+
 
 demand_df = tibble(
     demand_file = demand_files
