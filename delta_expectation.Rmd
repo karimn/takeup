@@ -8,15 +8,15 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: "71" 
-  reduced_form_takeup_version: 71
+  structural_takeup_version: 80
+  reduced_form_takeup_version: 75
 ---
 
 ```{r setup, include=FALSE}
 if (interactive()) {
   params = list(
-    structural_takeup_version = 71,
-    reduced_form_takeup_version = 71
+    structural_takeup_version = 80,
+    reduced_form_takeup_version = 75
   )
 }
 library(magrittr)
@@ -296,7 +296,8 @@ models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR",
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",
-  "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP"
+  "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
   )
 
 
@@ -350,7 +351,11 @@ dist_fit_data %>%
       rel_heights = c(1, 0.4)
     )
   } 
+
+
+
 ```
+
 
 ```{r signaling-te, fig.width=8, fig.height=13}
 dist_fit_data %>% 
@@ -399,6 +404,13 @@ dist_fit_data %>%
       ncol = 1, rel_heights = c(1, 0.4)
     )
   } 
+
+ggsave(
+  "temp-plots/anne-check/all-signalling.png", 
+  width = 10, 
+  height = 15,
+  dpi = 600
+)
 ```
 
 ```{r private-incentive-te, fig.width=8, fig.height=15}
@@ -447,6 +459,12 @@ dist_fit_data %>%
       ncol = 1, rel_heights = c(1, 0.4)
     )
   }
+ggsave(
+  "temp-plots/anne-check/all-private.png", 
+  width = 10, 
+  height = 15,
+  dpi = 600
+)
 ```
 
 ```{r take-up-prob, fig.width=9}
@@ -595,18 +613,26 @@ dist_fit_data %>%
   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
   filter(roc_distance < 2.5) %>%
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = model_name)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
   scale_color_discrete("", aesthetics = c("color", "fill")) +
   labs(
     title = "Type Cutoff",
     x = "Distance to Treatment", y = ""
   ) +
   # coord_cartesian(ylim = c(0, 0.1))
-  facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+  # facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "top")
   NULL
+
+
+ggsave(
+  "temp-plots/anne-check/vstart.png", 
+  width = 10, 
+  height = 10,
+  dpi = 500
+)
 ```
 
 ```{r, eval=FALSE}
