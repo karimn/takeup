@@ -196,17 +196,6 @@ if (params$component_checks) {
 
 
 
-  struct_df
-
-
-  struct_df %>%
-    filter(treatment_b %in% c("calendar", "control")) %>%
-    select(mu_rep, dist, draw, treatment_b) %>%
-    spread(treatment_b, mu_rep) %>%
-    mutate(cal_minus_control = calendar - control) %>%
-    summarise(mean(cal_minus_control))
-
-
   struct_df %>%
     select(mu_rep, dist, treatment_b) %>%
     group_by(
@@ -257,17 +246,6 @@ if (params$component_checks) {
           mu_rep =  mean(mu_rep)
         )
     )
-
-    spread(treatment_b, mu_rep) %>%
-    mutate(cal_minus_control = calendar - control) %>%
-    filter(dist < 500) %>%
-    ggplot(aes(
-      x = control,
-      y = calendar, 
-      colour = dist
-    )) +
-    geom_point() +
-    geom_abline()
 
 
 
