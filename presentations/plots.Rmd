@@ -1,17 +1,18 @@
 ---
 title: "Social Signaling and Prosocial Behavior"
 subtitle: "Experimental Evidence in Community Deworming in Kenya"
-author: "Anne Karing (Princeton) and Karim Naguib"
+author: "Anne Karing (UChicago) and Karim Naguib ()"
 date: "12/10/2020"
 output: 
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 75
-  fit_version: 71
+  rf_fit_version: 85
+  fit_version: 85
   input_path: data/stan_analysis_data
   output_path: temp-data
-  models: STRUCTURAL_LINEAR_U_SHOCKS
+  models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+  component_checks: TRUE
   load_phat: FALSE
 ---
 
@@ -37,12 +38,13 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 71,
-    rf_fit_version = 75,
+    fit_version = 85,
+    rf_fit_version = 85,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
-    models = "STRUCTURAL_LINEAR_U_SHOCKS",
-    load_phat = FALSE
+    models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+    load_phat = FALSE, 
+    component_checks = TRUE
   )
 }
 
@@ -90,8 +92,6 @@ knit_hooks$set(plot = function(x, options) {
 
 
 ```{r, plot_setup_stuff}
-
-
 default_top_levels = c("Bracelet", "Combined")
 
 # 66 ed fit
@@ -150,6 +150,191 @@ monitored_nosms_data <- analysis.data %>%
   ungroup()
 
 analysis_data <- monitored_nosms_data
+
+```
+
+
+## Component checks
+
+
+```{r}
+#| component-checks,
+#| fig.cap = "Model subcomponents",
+#| fig.width = 10, fig.height = 10
+
+if (params$component_checks) {
+  component_files = map(
+      c("control", "ink", "calendar", "bracelet"),
+      ~file.path(
+        "optim", 
+        "data",
+        str_glue(
+          "pred-social-multiplier-fit{params$fit_version}-cutoff-b-{.x}-mu-{.x}-{params$models}.csv"
+        )
+        )
+      ) %>%
+      unlist()
+
+    struct_df = imap_dfr(component_files, ~read_csv(.x) %>% mutate(file = .x)) %>%
+      mutate(
+        treatment_b = str_extract(file, "(?<=b-)\\w+(?=-mu)"),
+        treatment_mu = str_extract(file, "(?<=-mu-)(\\w+)(?=-)")
+      )
+
+  # raw_u_sd_alpha = 3.3
+  # raw_u_sd_beta = 1.1
+  # inv_raw_u_sd = rgamma(100000, raw_u_sd_alpha, raw_u_sd_beta)
+  # raw_u_sd = 1 / inv_raw_u_sd
+  # library(tidyverse)
+  # tibble(
+  #   x = raw_u_sd
+  # )  %>%
+  # ggplot(aes(
+  #   x = x
+  # )) +
+  # geom_histogram(bins = 100, colour = "white")
+
+
+
+  struct_df
+
+
+  struct_df %>%
+    filter(treatment_b %in% c("calendar", "control")) %>%
+    select(mu_rep, dist, draw, treatment_b) %>%
+    spread(treatment_b, mu_rep) %>%
+    mutate(cal_minus_control = calendar - control) %>%
+    summarise(mean(cal_minus_control))
+
+
+  struct_df %>%
+    select(mu_rep, dist, treatment_b) %>%
+    group_by(
+      dist, treatment_b
+    ) %>%
+    summarise(
+      mu_rep = mean(mu_rep)
+    ) %>%
+    ggplot(aes(
+      x = dist, 
+      y = mu_rep, 
+      colour = treatment_b
+    )) +
+    geom_point() +
+    geom_line()
+
+
+  struct_df %>%
+    filter(
+      treatment_b %in% c(
+        "calendar", 
+        "control")) %>%
+    select(mu_rep, dist, draw, treatment_b)  %>%
+    group_by(treatment_b, dist) %>%
+    summarise(
+      mean_mu_rep = mean(mu_rep)
+    )
+
+  struct_df %>%
+    filter(
+      treatment_b %in% c(
+        "calendar", 
+        "control")) %>%
+    select(mu_rep, dist, draw, treatment_b)  %>% 
+    ggplot(aes(
+      x = dist, 
+      y = mu_rep, 
+      colour = treatment_b
+    )) +
+    geom_point(alpha = 0.1) +
+    # facet_wrap(~treatment_b) +
+    geom_line(
+      data = . %>%
+        group_by(
+          treatment_b, dist
+        ) %>%
+        summarise(
+          mu_rep =  mean(mu_rep)
+        )
+    )
+
+    spread(treatment_b, mu_rep) %>%
+    mutate(cal_minus_control = calendar - control) %>%
+    filter(dist < 500) %>%
+    ggplot(aes(
+      x = control,
+      y = calendar, 
+      colour = dist
+    )) +
+    geom_point() +
+    geom_abline()
+
+
+
+    long_struct_df = struct_df %>%
+      mutate(
+        signal_value = mu_rep*delta_v_star
+      ) %>%
+      gather(
+        variable, 
+        value, 
+        -draw, -dist, -treatment_b, -treatment_mu, -file)  %>%
+      filter(
+        variable %in% c(
+          "b", 
+          "mu", 
+          "linear_pred", 
+          "v_star", 
+          "delta_v_star",
+          "mu_rep",
+          "signal_value",
+          "pred_takeup",
+          "sm"
+        )
+      ) %>%
+      mutate(
+        variable = factor(variable, 
+        levels = c(
+          "b", 
+          "mu", 
+          "linear_pred", 
+          "v_star", 
+          "delta_v_star",
+          "mu_rep",
+          "signal_value",
+          "pred_takeup",
+          "sm"
+          ))
+      ) %>%
+      group_by(
+        variable, 
+        treatment_b, 
+        treatment_mu,
+        dist
+      ) %>%
+      summarise(
+        value = mean(value)
+      )
+
+
+
+  long_struct_df %>%
+    ggplot(aes(
+      x = dist, 
+      y = value, 
+      colour = interaction(treatment_b, treatment_mu)
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~variable, scales = "free") +
+    labs(colour = "") +
+    theme_minimal() +
+    theme(legend.position = "bottom") 
+
+
+}
+
+
 
 ```
 
