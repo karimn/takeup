@@ -2,7 +2,6 @@ library(magrittr)
 library(tidyverse)
 library(broom)
 library(ggrepel)
-library(ggmap)
 library(ggstance)
 library(gridExtra)
 library(cowplot)
@@ -11,14 +10,15 @@ library(knitr)
 library(modelr)
 library(car)
 library(rstan)
-library(latex2exp)
 library(ggthemes)
 library(cmdstanr)
 library(posterior)
 library(tidybayes)
 library(furrr)
 
-library(econometr)
+
+models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS"
+
 
 treat_levels = c("control", "ink", "calendar", "bracelet")
 inv_logit = function(x){1/(1+exp(-x))}
@@ -132,31 +132,30 @@ belief_data %>%
 
 
 
-load_draws2 = function(fit_version, model) {
+load_param_draws = function(fit_version, model, chain) {
   fit_obj = as_cmdstan_fit(
-    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-1.csv"))
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"))
   draws = spread_rvars(
     fit_obj,
     centered_obs_beta_1ord[j, k],
-    centered_obs_dist_beta_1ord[j, k],
-    obs_lin_pred_1ord[j, k],
-    obs_prob_1ord[j, k]
-  )
+    centered_obs_dist_beta_1ord[j, k]
+  ) %>%
+    mutate(chain = chain, model = model, fit_version = fit_version)
   return(draws)
 }
 
-load_draws3 = function(fit_version, model) {
+load_p_draws = function(fit_version, model, chain) {
   fit_obj = as_cmdstan_fit(
-    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-1.csv"))
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"))
   draws = spread_rvars(
     fit_obj,
-    # centered_obs_beta_1ord[j, k],
-    # centered_obs_dist_beta_1ord[j, k],
     obs_lin_pred_1ord[j, k],
     obs_prob_1ord[j, k]
-  )
+  ) %>%
+    mutate(chain = chain, model = model, fit_version = fit_version)
   return(draws)
 }
+
 
 belief_data = analysis_data %>%
   filter(obs_know_person > 0)  %>%
@@ -164,10 +163,23 @@ belief_data = analysis_data %>%
     j = 1:n()
   )
 
-raw_ndgt_model_draws = load_draws3(
-  82,
-  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
-) 
+raw_ndgt_model_draws = map_dfr(
+  1:4, 
+  ~load_p_draws(
+    fit_version = 85, 
+    model = models_we_want,  
+    chain = .x
+  )
+)
+
+raw_ndgt_model_draws = raw_ndgt_model_draws %>%
+  group_by(
+    j, k, model, fit_version
+  ) %>%
+  summarise(
+    across(where(is_rvar), ~rvar(c(draws_of(.x))))
+  ) %>%
+  ungroup()
 
 k_cw_df = tibble(
   k = 1:4, 
@@ -194,10 +206,29 @@ subset_ndgt_model_draws = ndgt_model_draws %>%
   filter(stan_dist == assigned_dist_group) %>%
   left_join(k_dist_cw_df)
 
+model_draws = map_dfr(
+  1:4,
+  ~load_param_draws(
+    fit_version = 85,
+    model = models_we_want,
+    chain = .x
+  )
+)
 
-model_draws = load_draws2(
-  82, 
-  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")
+# pool over chains
+
+
+model_draws = model_draws %>%
+  group_by(
+    j, k, model, fit_version
+  ) %>%
+  summarise(
+    across(where(is_rvar), ~rvar(c(draws_of(.x))))
+  ) %>%
+  ungroup()
+
+
+
 
 
 
@@ -226,7 +257,6 @@ dist_model_draws = model_draws %>%
 
 
 joint_dist_model_draws = dist_model_draws %>%
-  select(-obs_lin_pred_1ord, -obs_prob_1ord) %>%
   left_join(k_cw_df) %>%
   left_join(
     subset_ndgt_model_draws %>% select(j, treatment, contains("1ord")), 
@@ -455,11 +485,14 @@ plot_df %>%
   theme_bw() +
   theme(legend.position = "bottom") +
   ggthemes::scale_color_canva(palette = "Primary colors with a vibrant twist") +
-  labs(caption = "Black indicates frequentist probit.")
+  labs(
+    caption = "Black indicates frequentist probit.", 
+    title = str_glue("1ord Beliefs, {models_we_want}")
+  )
 
 
 ggsave(
-  "temp-plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_figuring-out-close-far.png", 
+  str_glue("temp-plots/{models_we_want}_figuring-out-close-far.png"),
   width = 10,
   height = 10, 
   dpi = 500)
