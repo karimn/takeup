@@ -26,23 +26,25 @@ script_options = docopt::docopt(
         --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
         --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
         --suppress-reputation  Suppress reputational returns
+        --single-chain  Only use first chain for draws (useful for debugging) 
     "),
     args = if (interactive()) "
-                            71
+                            85
                             control
                             control
-                            --output-name=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS
-                            --from-csv
+                            --output-name=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+                            --to-csv
                             --num-post-draws=200
                             --rep-cutoff=Inf
                             --dist-cutoff=3500
                             --type-lb=-Inf
                             --type-ub=Inf
                             --num-cores=12
-                            --model=STRUCTURAL_LINEAR_U_SHOCKS
+                            --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                             --num-extra-pots=4
-                            --pred-distance
                             --data-input-name=full-experiment.rds
+                            --single-chain
+                            --run-estimation
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -97,7 +99,8 @@ mu_rep_type = switch(
     STRUCTURAL_LINEAR_U_SHOCKS = 0,
     STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = 1,
     STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = 2,
-    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = 3
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = 3,
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP = 4
 )
 
 
@@ -109,12 +112,16 @@ models_we_want = c(
 # sd_of_dist = sd(rf_analysis_data$cluster.dist.to.pot)
 
 
-
-
 if (script_options$to_csv) {
-    struct_model_files = fs::dir_ls(
-        script_options$input_path, 
-        regex = str_glue("dist_fit{fit_version}_{script_options$model}-.*csv"))
+    if (script_options$single_chain) {
+        struct_model_files = fs::dir_ls(
+            script_options$input_path, 
+            regex = str_glue("dist_fit{fit_version}_{script_options$model}-1\\.csv"))
+    } else {
+        struct_model_files = fs::dir_ls(
+            script_options$input_path, 
+            regex = str_glue("dist_fit{fit_version}_{script_options$model}-.*csv"))
+    }
     
     struct_model_fit = as_cmdstan_fit(struct_model_files)
     # N.B. this is very hardcoded for vanilla structural model
@@ -185,7 +192,7 @@ if (script_options$from_csv) {
             )
         )
     )
-    if (script_options$fit_rf) {
+    if (!script_options$fit_rf) {
         rf_model_fit = read_rds(
             file.path(
                 script_options$input_path, 

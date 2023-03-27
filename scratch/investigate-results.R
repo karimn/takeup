@@ -457,6 +457,8 @@ plot_df = joint_dist_model_draws %>%
     name = factor(name, levels = c("frequentist probit", "imputed distance", "ed_p_hat", "stan_pred_p_hat", "stan_p_hat"))
   )
 
+plot_df %>%
+  write_csv("temp-data/belief-plot-df.csv")
 
 
 plot_df %>%

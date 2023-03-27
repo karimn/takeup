@@ -20,8 +20,8 @@ header-includes:
     - \usepackage{makecell}
     - \usepackage{xcolor}
 params:
-    fit_version: 80
-    rf_fit_version: 75
+    fit_version: 85
+    rf_fit_version: 85
     input_path: data/stan_analysis_data
     output_path: temp-data 
     optim_input_path: "optim/data/agg-log-full-many-pots"
@@ -42,8 +42,8 @@ library(magrittr)
 
 if (interactive()) {
     params = lst(
-        fit_version = 80,
-        rf_fit_version = 75,
+        fit_version = 85,
+        rf_fit_version = 85,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
         optim_input_path = "optim/data/agg-log-full-many-pots",
@@ -76,7 +76,9 @@ knitr::opts_chunk$set(
     cache = TRUE, 
     warnings = FALSE,
     warning = FALSE,
-    cache.path = "takeup-table-cache/", fig.path = "takeup-table-fig-cache/", fig.align = "center")
+    cache.path = str_glue("takeup-{params$models}-table-cache/"), 
+    fig.path = str_glue("takeup-{params$models}-table-fig-cache/"), 
+    fig.align = "center")
 
 dir.create("presentations/tables", showWarnings = FALSE)
 
@@ -2578,7 +2580,7 @@ summ_optim_df = all_optim_df %>%
             cutoff_type
         ) %>%
         filter(
-            model %in% 'STRUCTURAL_LINEAR_U_SHOCKS'
+            model %in% models_we_want
         ) %>%
         filter(
             cutoff_type  == "cutoff"
