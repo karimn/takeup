@@ -282,7 +282,19 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
         }
         
         pred_takeup = 1 - pnorm(v_star/(total_error_sd))
-        return(lst(pred_takeup, linear_pred, b, mu_rep, mu_rep_deriv, delta_v_star, delta = beta_b_d, delta_v_star_deriv, v_star, total_error_sd))
+        return(lst(
+          pred_takeup, 
+          linear_pred, 
+          b, 
+          mu_rep, 
+          mu_rep_deriv, 
+          delta_v_star, 
+          delta = beta_b_d, 
+          delta_v_star_deriv, 
+          v_star, 
+          total_error_sd, 
+          pr_obs = mu_rep/base_mu_rep
+          ))
     }
 }
 
