@@ -223,12 +223,14 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           b = beta_b_z - beta_b_d*distance + beta_b_control 
         }
         if (suppress_reputation) {
-          cat("SUPP REP")
           v_star = - b
           linear_pred = b 
           mu_rep = 0
-          mu_rep_deriv = 0
-          delta_v_star = 0
+          mu_rep_deriv = NA
+          delta_v_star = NA
+          delta_v_star_deriv = NA
+          pr_obs = NA 
+
         }  else {
           if (visibility_treatment == "control") {
             mu_rep_control_param = TRUE
