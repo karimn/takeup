@@ -7,8 +7,8 @@ output:
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 85
-  fit_version: 85
+  rf_fit_version: 86
+  fit_version: 86
   input_path: data/stan_analysis_data
   output_path: temp-data
   models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
@@ -38,8 +38,8 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 85,
-    rf_fit_version = 85,
+    fit_version = 86,
+    rf_fit_version = 86,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
     models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
@@ -196,58 +196,18 @@ if (params$component_checks) {
 
 
 
-  struct_df %>%
-    select(mu_rep, dist, treatment_b) %>%
-    group_by(
-      dist, treatment_b
-    ) %>%
-    summarise(
-      mu_rep = mean(mu_rep)
-    ) %>%
-    ggplot(aes(
-      x = dist, 
-      y = mu_rep, 
-      colour = treatment_b
-    )) +
-    geom_point() +
-    geom_line()
 
-
-  struct_df %>%
-    filter(
-      treatment_b %in% c(
-        "calendar", 
-        "control")) %>%
-    select(mu_rep, dist, draw, treatment_b)  %>%
-    group_by(treatment_b, dist) %>%
-    summarise(
-      mean_mu_rep = mean(mu_rep)
-    )
-
-  struct_df %>%
-    filter(
-      treatment_b %in% c(
-        "calendar", 
-        "control")) %>%
-    select(mu_rep, dist, draw, treatment_b)  %>% 
-    ggplot(aes(
-      x = dist, 
-      y = mu_rep, 
-      colour = treatment_b
-    )) +
-    geom_point(alpha = 0.1) +
-    # facet_wrap(~treatment_b) +
-    geom_line(
-      data = . %>%
-        group_by(
-          treatment_b, dist
-        ) %>%
-        summarise(
-          mu_rep =  mean(mu_rep)
+  struct_variables =  c(
+          "b", 
+          "linear_pred", 
+          "v_star", 
+          "delta_v_star",
+          "mu_rep",
+          "signal_value",
+          "pred_takeup",
+          "sm", 
+          "pr_obs"
         )
-    )
-
-
 
     long_struct_df = struct_df %>%
       mutate(
@@ -258,31 +218,12 @@ if (params$component_checks) {
         value, 
         -draw, -dist, -treatment_b, -treatment_mu, -file)  %>%
       filter(
-        variable %in% c(
-          "b", 
-          "mu", 
-          "linear_pred", 
-          "v_star", 
-          "delta_v_star",
-          "mu_rep",
-          "signal_value",
-          "pred_takeup",
-          "sm"
-        )
+        variable %in% struct_variables
       ) %>%
       mutate(
-        variable = factor(variable, 
-        levels = c(
-          "b", 
-          "mu", 
-          "linear_pred", 
-          "v_star", 
-          "delta_v_star",
-          "mu_rep",
-          "signal_value",
-          "pred_takeup",
-          "sm"
-          ))
+        variable = factor(
+          variable, 
+          levels = struct_variables)
       ) %>%
       group_by(
         variable, 
@@ -1893,8 +1834,10 @@ ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-bracelet_sm_df = read_csv("optim/data/pred-social-multiplier-fit71-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS.csv")
-control_sm_df = read_csv("optim/data/pred-social-multiplier-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv")
+bracelet_sm_df = read_csv(
+  str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
+control_sm_df = read_csv(
+  str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-control-mu-control-{params$models}.csv"))
 
 sm_df = bind_rows(
   control_sm_df %>% mutate(treatment = "control"),
@@ -1938,6 +1881,74 @@ summ_sm_df %>%
     x = "Distance to Treatment (d) [km]" ,
    y = "Social Multiplier"
   ) 
+
+
+```
+
+
+
+
+```{r}
+#| all-social-multiplier,
+#| fig.cap="Estimated Social Multiplier Over Distance",
+#| fig.note = "This plot shows the social multiplier estimated using the structural 
+#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#|  increases individuals become less and less sensitive to the increased cost due to 
+#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  Line: median.
+#|  Outer ribbon: 90\\% credible interval.
+#|  Inner ribbon: 50\\% credible interval."
+
+
+sm_df = map_dfr(
+  c("bracelet", "calendar", "ink", "control"), 
+  ~read_csv(
+    str_glue(
+      "optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-{.x}-mu-{.x}-{params$models}.csv"
+    )
+  ) %>% mutate(treatment = .x)
+)
+
+summ_sm_df = sm_df %>%
+  group_by(
+    treatment, dist
+  ) %>%
+  summarise(
+    mean_est = mean(sm), 
+    per_0.05 = quantile(sm, 0.05),
+    per_0.5 = quantile(sm, 0.5),
+    per_0.95 = quantile(sm, 0.95),
+    per_0.25 = quantile(sm, 0.25),
+    per_0.75 = quantile(sm, 0.75)
+  ) %>%
+  mutate(treatment = factor(treatment, levels = c('control', "ink", 'calendar', 'bracelet')))
+
+
+summ_sm_df %>%
+  filter(dist > 0) %>%
+  mutate(dist = dist/1000) %>%
+  ggplot(aes(
+    x = dist, 
+  )) +
+  geom_line(aes(y = per_0.5, color = treatment)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
+  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
+  # geom_rug(
+  #   inherit.aes = FALSE,
+  #   aes(x = dist, color = treatment),
+  #   alpha = 0.75,
+  #   data = rf_analysis_data %>%
+  #     filter(fct_match(assigned.treatment, c("control", "ink", "calendar", "bracelet"))) %>%
+  #     distinct(cluster_id, treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000 )) +
+  # scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+  # scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+  scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
+  labs(
+    x = "Distance to Treatment (d) [km]" ,
+   y = "Social Multiplier"
+  ) +
+  facet_wrap(~treatment)
 
 
 ```
@@ -1996,7 +2007,7 @@ dist_fit_data %>%
 ## SMS ##
 
 
-```{r}
+```{r,eval=FALSE}
 #| sms-tes,
 #| fig.cap="Average Treatment Effect, with and without SMS"
 
@@ -2004,7 +2015,7 @@ include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-by-sms-incentive
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 #| sms-te-diff,
 #| fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
 
