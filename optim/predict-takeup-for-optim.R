@@ -22,14 +22,13 @@ script_options = docopt::docopt(
         --model=<model>  Which model to use [default: STRUCTURAL_LINEAR_U_SHOCKS]
         --fit-rf  Estimate a simple brms reduced form model with distance entering continuously 
         --run-estimation  Whether th run estimation stuff
-        --num-extra-pots=<num-extra-pots>  How many extra PoTs to sample per village above experiment [default: 2]
         --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
         --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
         --suppress-reputation  Suppress reputational returns
         --single-chain  Only use first chain for draws (useful for debugging) 
     "),
     args = if (interactive()) "
-                            85
+                            86
                             control
                             control
                             --output-name=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
@@ -41,8 +40,7 @@ script_options = docopt::docopt(
                             --type-ub=Inf
                             --num-cores=12
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
-                            --num-extra-pots=4
-                            --data-input-name=full-experiment.rds
+                            --data-input-name=full-many-pots-experiment.rds
                             --single-chain
                             --run-estimation
                               " 
@@ -70,6 +68,23 @@ source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
 source(file.path("analysis_util.R"))
 source(file.path( "dist_structural_util.R"))
 
+mu_rep_type = switch(
+    script_options$model,
+    STRUCTURAL_LINEAR_U_SHOCKS = 0,
+    STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = 1,
+    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = 2,
+    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = 3,
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP = 4
+)
+
+cat(
+    str_glue(
+        "model: {script_options$model} \n
+        mu_rep_type: {mu_rep_type} \n
+        "
+    )
+)
+
 
 source(file.path("multilvlr", "multilvlr_util.R"))
 source(file.path("stan_models", "stan_owen_t.R"))
@@ -81,7 +96,6 @@ script_options = script_options %>%
                 "rep_cutoff",
                 "num_post_draws", 
                 "num_cores",
-                "num_extra_pots",
                 "type_lb",
                 "type_ub"), as.numeric)
 fit_version = script_options$fit_version
@@ -93,15 +107,6 @@ append_output = if (!is.null(script_options$output_name)) {
 } else {
     ""
 }
-
-mu_rep_type = switch(
-    script_options$model,
-    STRUCTURAL_LINEAR_U_SHOCKS = 0,
-    STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP = 1,
-    STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = 2,
-    STRUCTURAL_LINEAR_U_SHOCKS_NO_REP = 3,
-    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP = 4
-)
 
 
 models_we_want = c(
@@ -256,6 +261,11 @@ pred_functions = map(
 )
 
 
+print(
+    str_glue(
+        "Running pred function 1 {pred_functions[[1]](10)}"
+    )
+)
 
 if (script_options$fit_rf) {
 
@@ -281,6 +291,19 @@ if (script_options$fit_rf) {
 
 subset_long_distance_mat = long_distance_mat %>%
     filter(dist < script_options$dist_cutoff)
+
+
+
+ed = subset_long_distance_mat %>%
+    mutate(
+        as_tibble(pred_functions[[1]](dist)), 
+        draw = draw_treat_grid[1, "draw"]
+    )
+
+ed
+
+
+print(str_glue("Running {length(pred_functions)} pred functions"))
 
 tictoc::tic()
 plan(multicore, workers = script_options$num_cores)
