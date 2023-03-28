@@ -7,8 +7,8 @@ output:
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 85
-  fit_version: 85
+  rf_fit_version: 86
+  fit_version: 86
   input_path: data/stan_analysis_data
   output_path: temp-data
   models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
@@ -38,8 +38,8 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 85,
-    rf_fit_version = 85,
+    fit_version = 86,
+    rf_fit_version = 86,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
     models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
