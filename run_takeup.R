@@ -2,9 +2,9 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim]
-  run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --save-rds]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim --save-rds]
+  run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age --save-rds]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
   run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -25,6 +25,7 @@ Options:
   --include-paths=<paths>  Includes path for cmdstanr [default: stan_models]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
   --num-mix-groups=<num>  Number of finite mixtures in distance model [default: 2]
+  --save-rds  Save RDS object (default is to save cmdstanr files to csv)
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
@@ -37,7 +38,7 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit80 \
+    --outputname=dist_fit86 \
     --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
@@ -504,6 +505,7 @@ stan_data <- lst(
   beliefs_use_stratum_level = script_options$multilevel,
   beliefs_use_cluster_level = script_options$multilevel,
   beliefs_use_obs_level = script_options$multilevel,
+  beliefs_use_indiv_intercept = script_options$multilevel,
   beliefs_use_dist = !(script_options$no_dist %||% FALSE),
   
   know_table_A_sample_size = 10,
@@ -740,7 +742,7 @@ if (script_options$takeup) {
     if (script_options$fit || script_options$prior) {
       save(dist_fit, models, stan_data, file = output_file_name)
       
-      if (script_options$cmdstanr) {
+      if (script_options$cmdstanr & script_options$save_rds) {
         walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
       }  
     } else if (script_options$cv) {
