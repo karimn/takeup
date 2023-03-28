@@ -13,7 +13,6 @@ params:
   output_path: temp-data
   models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
   component_checks: TRUE
-  load_phat: FALSE
 ---
 
 ```{r takeup-present-setup, include=FALSE}
@@ -43,7 +42,6 @@ if (interactive()) {
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
     models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
-    load_phat = FALSE, 
     component_checks = TRUE
   )
 }
@@ -291,31 +289,6 @@ if (params$fit_version != params$rf_fit_version) {
     rf_fit_data, 
     dist_fit_data
   )
-
-}
-
-if (params$load_phat) {
-  phat_env = new.env()
-  load_phat_function = function(){
-      load(file.path("temp-data", str_interp("processed_dist_fit80_lite.RData")))
-      return(dist_fit_data)
-  }
-  phat_fit_data = with_env(load_phat_function, phat_env)() %>%
-    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP") 
-  dist_fit_data = bind_rows(
-    dist_fit_data, 
-    phat_fit
-  )
-  dist_fit_data = dist_fit_data %>%
-    mutate(
-      model = if_else(
-        fit_type == "prior-predict" & model == "STRUCTURAL_LINEAR_U_SHOCKS",
-        "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
-        as.character(model)), 
-      model = factor(model)
-    )
-
-  models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 
 }
 
@@ -1618,15 +1591,6 @@ joint_wtp_results %>%
 #|  model's estimates of $w^*$ in each cluster and taking the complement of the Gaussian CDF 
 #|  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
 #|  inner ribbon: 50\\% credibility interval."
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(
-    model_name,
-    cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
-    obs_cluster_takeup_level,
-  ) %>% 
-  unnest(cluster_takeup_prop) %>%
-  select(assigned_treatment)
 
 
 dist_prob_plot <- dist_fit_data %>% 
@@ -1817,6 +1781,8 @@ treatments = c(
 single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
     plot_rep_returns_one_by_one(treatment = .x)  
 )
+
+
 ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 ```
 

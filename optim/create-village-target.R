@@ -11,10 +11,10 @@ script_options <- docopt::docopt(
           --force
 "),
   args = if (interactive()) "
-                            pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                            --input-path=optim/data/agg-log-full \
-                            --output-path=optim/data/agg-log-full \
-                            --output-basename=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS 
+                            pred-demand-dist-fit86-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv \
+                            --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --output-basename=target-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 

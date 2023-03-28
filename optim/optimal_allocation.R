@@ -27,14 +27,14 @@ script_options <- docopt::docopt(
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv \
+                                --target-constraint=target-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv \
                                 --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
                                 --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
-                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit85-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
+                                --output-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                                --demand-input-filename=pred-demand-dist-fit86-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
 
                                 --posterior-median \
                                 --welfare-function=log
@@ -56,7 +56,7 @@ library(Matrix)
 library(slam)
 
 if (script_options$solver == "gurobi") {
-    library(gurobi)
+    # library(gurobi)
     library(ROI.plugin.gurobi)
 } else {
     library(ROI.plugin.glpk)

@@ -10,7 +10,7 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=0 # 1
+SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=1
@@ -25,7 +25,7 @@ CUTOFF="" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
 SUPPRESS_REP="" # "suppress-rep-" #suppress-rep-
-
+CONSTRAINT_TARGET="suppress-rep-"
 
 mkdir -p ${OUTPUT_PATH}
 mkdir -p ${PLOT_OUTPUT_PATH}
@@ -80,7 +80,7 @@ run_optim () {
                                     --num-cores=${NUM_CORES} \
                                     --type-lb=-Inf \
                                     --type-ub=Inf \
-                                    --data-input-name=$DATA_INPUT_NAME \
+                                    --data-input-name=${DATA_INPUT_NAME} \
                                     --output-path=${OUTPUT_PATH} \
                                     --model=${MODEL} \
                                     --single-chain \
@@ -93,11 +93,11 @@ run_optim () {
     then
     echo "Running target creation"
         Rscript ./optim/create-village-target.R \
-            pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+            pred-demand-dist-fit${VERSION}-${CONSTRAINT_TARGET}${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
             --input-path=${OUTPUT_PATH} \
             --output-path=${OUTPUT_PATH} \
             --num-cores=${NUM_CORES} \
-            --output-basename=target-${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
+            --output-basename=target-${CONSTRAINT_TARGET}${CUTOFF}cutoff-b-control-mu-control-${MODEL} 
     fi
 
     if [ $SKIP_OA != 1 ]
@@ -108,12 +108,12 @@ run_optim () {
                                     --num-cores=12 \
                                     --min-cost  \
                                     --constraint-type=${CONSTRAINT_TYPE} \
-                                    --target-constraint=target-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+                                    --target-constraint=target-${CONSTRAINT_TARGET}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
                                     --output-path=${OUTPUT_PATH} \
-                                    --output-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
+                                    --output-filename=target-${CONSTRAINT_TARGET}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
                                     --data-input-path=optim/data \
-                                    --data-input-name=$DATA_INPUT_NAME \
+                                    --data-input-name=${DATA_INPUT_NAME} \
                                     --time-limit=10000 \
                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
                                     --welfare-function=${WELFARE_FUNCTION} \
@@ -129,10 +129,10 @@ run_optim () {
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
-                                    --optim-input-a-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
-                                    --data-input-name=$DATA_INPUT_NAME \
+                                    --optim-input-a-filename=target-${CONSTRAINT_TARGET}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --data-input-name=${DATA_INPUT_NAME} \
                                     --output-path=${PLOT_OUTPUT_PATH} \
-                                    --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
+                                    --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
                                     --pdf-output-path=presentations/takeup-${MODEL}-fig
     fi
@@ -155,33 +155,43 @@ run_optim () {
 
 
 compare_option () {
+    if [[ ${CONSTRAINT_TARGET} == "rep-" ]]
+    then
+        TMP_REP_VAR_A=""
+        TMP_REP_VAR_B=""
+    else 
+        TMP_REP_VAR_A="suppress-rep-"
+        TMP_REP_VAR_B=""
+    fi
         Rscript ./optim/postprocess_allocation.R  \
                                     --min-cost \
                                     ${POSTERIOR_MEDIAN} \
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
-                                    --optim-input-a-filename=${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
-                                    --optim-input-b-filename=${SUPPRESS_REP}${CUTOFF}cutoff-b-$3-mu-$4-${MODEL}-${POSTVAR}-optimal-allocation.rds \
-                                    --comp-output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
+                                    --optim-input-a-filename=target-${CONSTRAINT_TARGET}-${TMP_REP_VAR_A}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --optim-input-b-filename=target-${CONSTRAINT_TARGET}-${TMP_REP_VAR_B}${CUTOFF}cutoff-b-$3-mu-$4-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --comp-output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${PLOT_OUTPUT_PATH} \
-                                    --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
+                                    --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
-                                    --pdf-output-path=presentations/takeup-fig/optim/
+                                    --pdf-output-path=presentations/takeup-${MODEL}-fig/
 }
 
 CUTOFF=""
 ## Cutoff
-run_optim "control" "control"
-run_optim "control" "bracelet"
-run_optim "control" "calendar"
-run_optim "control" "ink"
-#
-#
-run_optim "bracelet" "bracelet"
-run_optim "ink" "ink"
-run_optim "calendar" "calendar"
+# run_optim "control" "control"
+# # run_optim "control" "bracelet"
+# # run_optim "control" "calendar"
+# # run_optim "control" "ink"
+
+# run_optim "bracelet" "bracelet"
+# run_optim "ink" "ink"
+# run_optim "calendar" "calendar"
+
+
+
 # #
 # run_optim "bracelet" "control"
 # run_optim "ink" "control"
@@ -193,20 +203,20 @@ run_optim "calendar" "calendar"
 
 
 # this ed hhhhhhhhhhhhhhhhhhhh
-# if [[ ${SUPPRESS_REP} == "" ]]
-# then 
-#     compare_option "control" "control" "control" "bracelet"
-#     compare_option "control" "control" "control" "ink"
-#     compare_option "control" "control" "control" "calendar"
-# fi
+if [[ ${CONSTRAINT_TARGET} == "rep-" ]]
+then 
+    compare_option "control" "control" "control" "bracelet"
+    compare_option "control" "control" "control" "ink"
+    compare_option "control" "control" "control" "calendar"
+fi
 
-# if [[ ${SUPPRESS_REP} == "suppress-rep-" ]]
-# then
-#     compare_option "bracelet" "bracelet" "bracelet" "bracelet"
-#     compare_option "control" "control" "control" "control"
-#     compare_option "ink" "ink" "ink" "ink"
-#     compare_option "calendar" "calendar" "calendar" "calendar"
-# fi
+if [[ ${CONSTRAINT_TARGET} == "suppress-rep-" ]]
+then
+    compare_option "bracelet" "bracelet" "bracelet" "bracelet"
+    compare_option "control" "control" "control" "control"
+    compare_option "ink" "ink" "ink" "ink"
+    compare_option "calendar" "calendar" "calendar" "calendar"
+fi
 
 CUTOFF="no-"
 

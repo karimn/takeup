@@ -25,16 +25,16 @@ script_options <- docopt::docopt(
                             --constraint-type=agg \
                             --welfare-function=log \
                             --min-cost \
-                            --optim-input-path=optim/data/agg-log-full-many-pots \
-                            --optim-input-a-filename=suppress-rep-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            --optim-input-b-filename=cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            --comp-output-basename=agg-log-suppress-rep-cutoff-cf-b1-bracelet-b2-bracelet-mu1-bracelet-mu2-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median \
+                            --optim-input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --optim-input-a-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
+                            --optim-input-b-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
+                            --comp-output-basename=agg-log-suppress-rep-cutoff-cf-b1-control-b2-control-mu1-control-mu2-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=agg-log-cutoff-b-bracelet-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
+                            --output-basename=agg-log-suppress-rep-cutoff-b-bracelet-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
                             --posterior-median \
-                            --pdf-output-path=presentations/takeup-fig/optim
+                            --pdf-output-path=presentations/takeup-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/fig/optim
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -362,12 +362,18 @@ if (!is.null(script_options$optim_input_b_filename)) {
             optimal_b_df
         )
     )
-
+    # if any suppress rep, the first input is assumed to have rep suppressed
     suppress_rep = c(
         script_options$optim_input_a_filename,
         script_options$optim_input_b_filename) %>%
-    str_detect(., "suppress")
-    comp_optimal_df$suppress_rep = suppress_rep
+    str_detect(., "suppress") %>%
+    any()
+    if (suppress_rep == TRUE) {
+        comp_optimal_df$suppress_rep = c(TRUE, FALSE)
+    } else {
+        comp_optimal_df$suppress_rep = c(FALSE, FALSE)
+    }
+
 
     comp_optimal_df[, n_pots_used := lapply(model_output, function(x){length(unique(x$j))})]
 
