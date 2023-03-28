@@ -2,11 +2,11 @@
 PRED_DISTANCE="--pred-distance" # --pred-distance
 SUPPRESS_REP="" # "--suppress-rep"
 OUTPUT_NAME="rep"
-MODEL="STRUCTURAL_LINEAR_U_SHOCKS"
+MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
 RUN_ESTIMATION="--run-estimation"
 SINGLE_CHAIN="--single-chain"
-VERSION=85
+VERSION=86
 
 
 set -e

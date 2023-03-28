@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-LATEST_VERSION=85
+LATEST_VERSION=86
 VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
 
 NUM_CORES=16
@@ -24,7 +24,7 @@ DATA_INPUT_NAME="${COUNTY}-many-pots-experiment.rds"
 CUTOFF="" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
-SUPPRESS_REP="suppress-rep-" # "suppress-rep-" #suppress-rep-
+SUPPRESS_REP="" # "suppress-rep-" #suppress-rep-
 
 
 mkdir -p ${OUTPUT_PATH}
@@ -91,7 +91,7 @@ run_optim () {
 
     if [ ${RUN_TARGET_CREATION} == 1 ]
     then
-
+    echo "Running target creation"
         Rscript ./optim/create-village-target.R \
             pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
             --input-path=${OUTPUT_PATH} \
@@ -102,6 +102,7 @@ run_optim () {
 
     if [ $SKIP_OA != 1 ]
     then
+    echo "Running optimization"
         Rscript ./optim/optimal_allocation.R  \
                                     ${POSTERIOR_MEDIAN} \
                                     --num-cores=12 \
@@ -121,6 +122,7 @@ run_optim () {
 
     if [ $SKIP_PP != 1 ]
     then
+        echo "Running postprocessing"
         Rscript ./optim/postprocess_allocation.R  \
                                     --min-cost \
                                     ${POSTERIOR_MEDIAN} \
@@ -132,7 +134,7 @@ run_optim () {
                                     --output-path=${PLOT_OUTPUT_PATH} \
                                     --output-basename=${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
-                                    --pdf-output-path=presentations/takeup-fig/optim
+                                    --pdf-output-path=presentations/takeup-${MODEL}-fig
     fi
 
 }
@@ -172,14 +174,14 @@ compare_option () {
 CUTOFF=""
 ## Cutoff
 run_optim "control" "control"
-# run_optim "control" "bracelet"
-# run_optim "control" "calendar"
-# run_optim "control" "ink"
+run_optim "control" "bracelet"
+run_optim "control" "calendar"
+run_optim "control" "ink"
 #
 #
-# run_optim "bracelet" "bracelet"
-# run_optim "ink" "ink"
-# run_optim "calendar" "calendar"
+run_optim "bracelet" "bracelet"
+run_optim "ink" "ink"
+run_optim "calendar" "calendar"
 # #
 # run_optim "bracelet" "control"
 # run_optim "ink" "control"
