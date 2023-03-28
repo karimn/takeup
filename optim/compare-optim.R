@@ -8,11 +8,14 @@ script_options <- docopt::docopt(
         --output-path=<output-path>  The output path [default: {file.path('temp-data')}]
         --posterior-median  Whether to compare posterior medians or entire posterior draws
         --many-pots
+        --model=<model>
 "),
   args = if (interactive()) "
-        --input-path=~/projects/takeup/optim/data/agg-log-full-many-pots
-        --output-path=~/projects/takeup/optim/data/agg-log-full-many-pots
+        --input-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
+        --output-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
         --many-pots
+        --posterior-median
+        --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -38,7 +41,7 @@ if (script_options$posterior_median) {
     )
 }
 
-models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS"
+models_we_want = script_options$model 
 
 oa_df = map_dfr(
     oa_files, 

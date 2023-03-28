@@ -1,5 +1,8 @@
-obs_beta_common_raw ~ std_normal();
-obs_beta_common_sd ~ normal(0, 0.125);
+
+if (beliefs_use_indiv_intercept) {
+  obs_beta_common_raw ~ std_normal();
+  obs_beta_common_sd ~ normal(0, 0.125);
+}
 
 hyper_beta_1ord[1] ~ normal(0, 1);
 hyper_beta_1ord[2:] ~ normal(0, 0.5);
@@ -28,6 +31,8 @@ if (beliefs_use_cluster_level) {
     cluster_dist_beta_1ord_sd ~ normal(0, 0.25);
   }
 }
+
+
 
 if (beliefs_use_stratum_level) {
   to_vector(stratum_beta_1ord_raw) ~ std_normal();

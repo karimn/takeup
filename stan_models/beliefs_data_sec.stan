@@ -4,6 +4,7 @@ int<lower = 0, upper = 1> beliefs_use_obs_level;
 int<lower = 0, upper = 1> beliefs_use_cluster_level;
 int<lower = 0, upper = 1> beliefs_use_stratum_level;
 int<lower = 0, upper = 1> beliefs_use_dist;
+int<lower = 0, upper = 1> beliefs_use_indiv_intercept;
 
 int know_table_A_sample_size;
 

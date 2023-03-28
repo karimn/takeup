@@ -36,5 +36,5 @@ row_vector<lower = 0>[beliefs_use_stratum_level && beliefs_use_dist ? num_treatm
 row_vector<lower = 0>[beliefs_use_cluster_level && beliefs_use_dist ? num_treatments: 0] cluster_dist_beta_2ord_sd;
 row_vector<lower = 0>[beliefs_use_obs_level && beliefs_use_dist ? num_treatments : 0] obs_dist_beta_2ord_sd;
  
-vector[num_beliefs_obs] obs_beta_common_raw;
-real<lower = 0> obs_beta_common_sd;
+vector[beliefs_use_indiv_intercept ? num_beliefs_obs : 0] obs_beta_common_raw;
+vector<lower = 0>[beliefs_use_indiv_intercept ? 1 : 0] obs_beta_common_sd;
