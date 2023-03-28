@@ -17,7 +17,7 @@ library(tidybayes)
 library(furrr)
 
 
-models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS"
+models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 
 
 treat_levels = c("control", "ink", "calendar", "bracelet")
@@ -166,7 +166,7 @@ belief_data = analysis_data %>%
 raw_ndgt_model_draws = map_dfr(
   1:4, 
   ~load_p_draws(
-    fit_version = 85, 
+    fit_version = 86, 
     model = models_we_want,  
     chain = .x
   )
@@ -209,7 +209,7 @@ subset_ndgt_model_draws = ndgt_model_draws %>%
 model_draws = map_dfr(
   1:4,
   ~load_param_draws(
-    fit_version = 85,
+    fit_version = 86,
     model = models_we_want,
     chain = .x
   )
@@ -365,6 +365,52 @@ full_stan_summ
 
 
 
+
+
+dist_summ_df = joint_dist_model_draws %>%
+  # filter(assigned_dist_group == "close") %>%
+  group_by(
+    treatment, standard_cluster.dist.to.pot
+  ) %>%
+  summarise(
+    ed_p_hat = mean(rvar_mean(inv_logit(ed_pred))),
+    stan_pred_p_hat = mean(rvar_mean(inv_logit(obs_lin_pred_1ord))),
+    stan_p_hat = mean(rvar_mean(obs_prob_1ord))
+  ) %>%
+  arrange(standard_cluster.dist.to.pot) %>%
+  left_join(k_cw_df) 
+
+
+unique_dists = unique(dist_summ_df$standard_cluster.dist.to.pot)
+
+
+dist_summ_df %>%
+  filter(standard_cluster.dist.to.pot == unique_dists[[3]])
+
+dist_summ_df %>%
+  select(-k) %>%
+  gather(variable, value, -standard_cluster.dist.to.pot, -treatment )  %>%
+  filter(variable == "ed_p_hat") %>%
+  ggplot(aes(
+     x = standard_cluster.dist.to.pot*630,
+     y = value, 
+     colour = treatment
+  )) +
+  facet_wrap(~variable, ncol = 1) +
+  geom_line(size=1)
+  # geom_smooth() 
+
+  ggsave("temp-plots/pr-by-treat-dist.png", width = 8, height = 6, dpi = 500)
+
+
+  ggplot(aes(
+    x = standard_cluster.dist.to.pot, 
+    y = 
+  ))
+
+
+
+
 rf_glm_fit = belief_data %>%
   select(obs_know_person, knows_other_dewormed, assigned_treatment, assigned_dist_group) %>%
   glm(
@@ -420,15 +466,14 @@ rf_plot_df = rf_p_hat %>%
 ndgt_plot_df = ndgt_model_draws %>%
   group_by(k) %>%
   summarise(
-    pr = rvar_mean(obs_prob_1ord)
+    pr = rvar_mean(obs_prob_1ord, na.rm = TRUE)
   ) %>%
   left_join(k_dist_cw_df) %>%
   mutate(assigned_dist_group = rep(c("close", "far"), each = 4))  %>%
   rename(value = pr) %>%
-  median_qi(value) %>%
+  median_qi(value, na.rm = TRUE) %>%
   to_broom_names() %>%
   mutate(name = "imputed distance", type = "BAYES")
-
 
 plot_df = joint_dist_model_draws %>%
   # filter(assigned_dist_group == "close") %>%
@@ -441,11 +486,11 @@ plot_df = joint_dist_model_draws %>%
     stan_p_hat = obs_prob_1ord 
   ) %>%
   select(contains("p_hat")) %>%
-  summarise(across(contains("p_hat"), rvar_mean))  %>%
+  summarise(across(contains("p_hat"), rvar_mean, na.rm = TRUE))  %>%
   pivot_longer(
       contains("p_hat")
   ) %>%
-  median_qi(value) %>%
+  median_qi(value, na.rm = TRUE) %>%
   to_broom_names() %>%
   mutate(type = "BAYES") %>%
   bind_rows(
@@ -456,9 +501,6 @@ plot_df = joint_dist_model_draws %>%
   mutate( 
     name = factor(name, levels = c("frequentist probit", "imputed distance", "ed_p_hat", "stan_pred_p_hat", "stan_p_hat"))
   )
-
-plot_df %>%
-  write_csv("temp-data/belief-plot-df.csv")
 
 
 plot_df %>%
@@ -669,7 +711,6 @@ wide_lin_pred_draws
 
 
 
-unique_dists = unique(clean_p_hat_draws$dist_std)
 
 
   ed = calculate_belief_latent_predictor(
