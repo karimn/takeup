@@ -116,7 +116,7 @@ calculate_mu_rep_deriv = function(dist,
         control_dist_beta = dist_beta_control, 
         control = control
         )
-        mu_rep_deriv = base_mu_rep * dist_beta * exp(-beliefs_latent) / (1 + exp(-beliefs_latent))^2
+        mu_rep_deriv = base_mu_rep * dist_val * exp(-beliefs_latent) / (1 + exp(-beliefs_latent))^2
   }
 
     return(mu_rep_deriv)
