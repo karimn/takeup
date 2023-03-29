@@ -160,7 +160,6 @@ analysis_data <- monitored_nosms_data
 #| fig.cap = "Model subcomponents",
 #| fig.width = 10, fig.height = 10
 
-if (params$component_checks) {
   component_files = map(
       c("control", "ink", "calendar", "bracelet"),
       ~file.path(
@@ -179,18 +178,21 @@ if (params$component_checks) {
         treatment_mu = str_extract(file, "(?<=-mu-)(\\w+)(?=-)")
       )
 
-  # raw_u_sd_alpha = 3.3
-  # raw_u_sd_beta = 1.1
-  # inv_raw_u_sd = rgamma(100000, raw_u_sd_alpha, raw_u_sd_beta)
-  # raw_u_sd = 1 / inv_raw_u_sd
-  # library(tidyverse)
-  # tibble(
-  #   x = raw_u_sd
-  # )  %>%
-  # ggplot(aes(
-  #   x = x
-  # )) +
-  # geom_histogram(bins = 100, colour = "white")
+  library(tidyverse)
+2+2
+  raw_u_sd_alpha = 4
+  raw_u_sd_beta = 1
+  inv_raw_u_sd = rgamma(100000, raw_u_sd_alpha, raw_u_sd_beta)
+  raw_u_sd = 1 / inv_raw_u_sd
+  library(tidyverse)
+  tibble(
+    x = raw_u_sd
+  )  %>%
+  ggplot(aes(
+    x = x
+  )) +
+  geom_histogram(bins = 100, colour = "white")
+
 
 
 
@@ -234,8 +236,7 @@ if (params$component_checks) {
       )
 
 
-
-  long_struct_df %>%
+long_struct_df %>%
     ggplot(aes(
       x = dist, 
       y = value, 
@@ -249,11 +250,34 @@ if (params$component_checks) {
     theme(legend.position = "bottom") 
 
 
-}
+
+```
+
+```{r}
+
+long_struct_df %>%
+  filter(variable == "sm") %>%
+    ggplot(aes(
+      x = dist, 
+      y = value/0.209, 
+      colour = interaction(treatment_b, treatment_mu)
+    )) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~variable, scales = "free") +
+    labs(colour = "") +
+    theme_minimal() +
+    theme(legend.position = "bottom")  +
+    geom_hline(
+      yintercept = -1, 
+      linetype = "longdash"
+    )
+
 
 
 
 ```
+
 
 
 ## Fit Loading
@@ -1690,6 +1714,82 @@ df %>%
 
 
 ```{r}
+#| rep-return-te-df
+
+rep_te_plot_df = read_csv(
+  file.path(
+    params$output_path, 
+    str_glue("
+    rep_return_te_diff_draws_dist_fit{params$fit_version}-{params$models}.csv")
+  )
+)
+
+
+1+1
+
+
+rep_te_plot_fun = function(data, treat) {
+  data %>%
+    filter(distance <= 2500) %>%
+    mutate(distance = distance / 1000) %>%
+    filter(assigned_treatment == treat) %>%
+    ggplot(aes(distance)) +
+    geom_line(aes(y = per_0.5))  +
+    geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
+    geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
+    geom_rug(
+      aes(dist),
+      alpha = 0.5,
+      data = rf_analysis_data %>%
+        distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
+        rename(assigned_treatment = assigned.treatment)  %>%
+        filter(assigned_treatment %in% c("control", treat))
+    ) +
+    scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
+    labs(
+      # title = "Valuation of Reputational Returns in Terms of Distance",
+      x = "Distance to Treatment [km]", y = "Distance Value [km]",
+    ) +
+    geom_hline(yintercept = 0, linetype = "longdash") +
+    theme(legend.position = "bottom") +
+    NULL 
+
+}
+
+
+
+
+```
+
+
+```{r}
+#| rep-return-te-dist-bracelet,
+#| fig.cap="Difference in Value of Reputational Return Across Bracelet and Control",
+#| fig.note="Value priced in terms of walking distance. Estimates generated using 
+#|  decomposition from structural model.", dependson = c("rep-return-te-df")
+
+rep_te_plot_fun(rep_te_plot_df, "bracelet")
+```
+
+```{r}
+#| rep-return-te-dist-calendar,
+#| fig.cap="Difference in Value of Reputational Return Across Calendar and Control",
+#| fig.note="Value priced in terms of walking distance. Estimates generated using 
+#|  decomposition from structural model.", dependson = "rep-return-te-df"
+
+rep_te_plot_fun(rep_te_plot_df, "calendar")
+```
+
+```{r}
+#| rep-return-te-dist-ink,
+#| fig.cap="Difference in Value of Reputational Return Across Ink and Control",
+#| fig.note="Value priced in terms of walking distance. Estimates generated using 
+#|  decomposition from structural model." , dependson = "rep-return-te-df"
+
+rep_te_plot_fun(rep_te_plot_df, "ink")
+```
+
+```{r}
 #| rep-return-dist-value,
 #| fig.cap="Value of Reputational Return Across Bracelet and Control",
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
@@ -1804,7 +1904,7 @@ bracelet_sm_df = read_csv(
   str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
 control_sm_df = read_csv(
   str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-control-mu-control-{params$models}.csv"))
-
+1 + 1
 sm_df = bind_rows(
   control_sm_df %>% mutate(treatment = "control"),
   bracelet_sm_df %>% mutate(treatment = "bracelet")
@@ -1900,25 +2000,38 @@ summ_sm_df %>%
   geom_line(aes(y = per_0.5, color = treatment)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
   geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
-  # geom_rug(
-  #   inherit.aes = FALSE,
-  #   aes(x = dist, color = treatment),
-  #   alpha = 0.75,
-  #   data = rf_analysis_data %>%
-  #     filter(fct_match(assigned.treatment, c("control", "ink", "calendar", "bracelet"))) %>%
-  #     distinct(cluster_id, treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000 )) +
-  # scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
-  # scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+  scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
+  labs(
+    x = "Distance to Treatment (d) [km]" ,
+   y = "Social Multiplier"
+  )  +
+  geom_hline(
+    yintercept = -0.209
+  )
+
+
+```
+
+
+```{r}
+
+summ_sm_df %>%
+  filter(dist > 0) %>%
+  mutate(dist = dist/1000) %>%
+  ggplot(aes(
+    x = dist, 
+  )) +
+  geom_line(aes(y = per_0.5, color = treatment)) +
   scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
   labs(
     x = "Distance to Treatment (d) [km]" ,
    y = "Social Multiplier"
   ) +
-  facet_wrap(~treatment)
-
+  geom_hline(
+    yintercept = -0.209
+  )
 
 ```
-
 
 ```{r}
 #| rate-of-change,

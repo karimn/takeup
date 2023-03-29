@@ -1,10 +1,8 @@
-
 #!/usr/bin/Rscript
 #
 # This script is used to postprocess Stan fit for the various models, reduced form and structural. In addition to putting our analysis in a format that 
 # allows for easy extraction of all levels and treatment effects, it allows handles imputing take-up levels for counterfactuals using Stan-generated cost-benefits 
 # and reputational returns parameters: using these we can calculate the probability of take-up after calculating the v^* fixed point solution.
-#
 
 script_options <- docopt::docopt(
   stringr::str_glue(
@@ -21,7 +19,12 @@ Options:
   # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
   # args = if (interactive()) "test --full-outputname --cores=1 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true)
-  args = if (interactive()) "71  --cores=1 --models=STRUCTURAL_LINEAR_U_SHOCKS  --load-from-csv " else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "
+    86 \
+    --cores=1 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+    --load-from-csv 
+    " else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -97,8 +100,6 @@ var_names = get_variables(cmdstan_fit) %>%
     str_extract("\\D+") %>%
     str_remove_all("\\[") %>%
     unique()
-
-
 
 wtp_rvars = spread_rvars(cmdstan_fit, hyper_wtp_mu, wtp_sigma)
 
@@ -187,12 +188,145 @@ clean_draw_output %>%
 
 # var_names
 
-# cluster_rep_return_rvar_df = gather_rvars(cmdstan_fit, cluster_rep_return_dist[i,j,k])
+cluster_rep_return_rvar_df = gather_rvars(cmdstan_fit, cluster_rep_return_dist[i,j,k])
 
-#   cluster_rep_return_dist_control = dist_fit_data %>%
-#     select(cluster_rep_return_dist) %>%
-#     unnest(cols = c(cluster_rep_return_dist)) %>%
-#     filter(assigned_treatment == "control")
+rm(cmdstan_fit)
+gc()
+
+cluster_rep_return_rvar_df
+
+roc_distance_df = tibble(
+    i = 1:51, 
+    distance = seq(0, 5000, 100)
+)
+
+
+roc_distance_df
+
+cluster_rep_return_dist_df = cluster_rep_return_rvar_df %>%
+    group_by(i, j) %>%
+    mutate(control_value = .value[k == 1]) %>%
+    filter(k != 1) %>%
+    left_join(
+        roc_distance_df, 
+        by = "i"
+    )
+
+
+cluster_rep_return_dist_df %>%
+    filter(k == 4) %>%
+    filter(j == 1) %>%
+    unnest_rvars() %>%
+    ggplot(aes(
+        x = control_value, 
+        y = .value, 
+        colour = distance
+    )) +
+    geom_point() +
+    geom_abline(
+        linetype = "longdash"
+    )
+
+dist_k_cluster_rep_return_dist_df = cluster_rep_return_dist_df %>%
+    mutate(
+        rep_return_te = .value - control_value
+    ) %>%
+    group_by(
+        distance, k
+    ) %>%
+    summarise(
+        rep_return_te = rvar_mean(rep_return_te)
+    )
+
+
+
+rep_te_ci_df = dist_k_cluster_rep_return_dist_df %>%
+    point_interval(
+        rep_return_te, 
+        .width = c(0.95, 0.9, 0.8, 0.5)
+        ) 
+
+
+rep_te_ci_wide_df = rep_te_ci_df %>%
+    pivot_wider(
+        id_cols = c(distance, k), 
+        names_from = .width, 
+        values_from = .lower:.upper
+    )
+
+rep_per_colnames = c(
+    "distance",
+    "k",
+    "per_0.025",
+    "per_0.05",
+    "per_0.1",
+    "per_0.25",
+# upper
+    "per_0.975",
+    "per_0.95",
+    "per_0.9",
+    "per_0.75"
+)
+
+colnames(rep_te_ci_wide_df) = rep_per_colnames
+rep_te_ci_wide_df = rep_te_ci_wide_df %>%
+    mutate(
+        assigned_treatment = case_when(
+            k == 2 ~ "ink", 
+            k == 3 ~ "calendar", 
+            k == 4 ~ "bracelet"
+        )
+    )
+
+
+
+rep_te_point_df = dist_k_cluster_rep_return_dist_df %>%
+    mutate(per_0.5 = median(rep_return_te)) %>%
+    select(-rep_return_te)
+
+
+rep_te_plot_df = left_join(
+    rep_te_ci_wide_df, 
+    rep_te_point_df, 
+    by = c("distance", "k")
+)
+
+rep_te_plot_df
+
+rep_te_plot_df %>%
+    write_csv(
+        file.path(
+            script_options$output_path, 
+            str_interp(
+                "rep_return_te_diff_draws_dist_fit${fit_version}-${script_options$models}.csv"
+            )
+        )
+    )
+
+
+# summ_dist_k_cluster_rep_return_dist_df %>%
+#     ggplot(aes(
+#         x = distance, 
+#         y = rep_return_te, 
+#         ymin = conf.low, 
+#         ymax = conf.high,
+#         colour = factor(k)
+#     )) +
+#     geom_pointrange() +
+#     facet_wrap(
+#         ~k, 
+#         ncol = 1
+#     ) +
+#     geom_hline(yintercept = 0, linetype = "longdash") +
+#     theme_minimal() +
+#     theme(legend.position = "bottom")
+
+
+
+cluster_rep_return_dist_control = dist_fit_data %>%
+    select(cluster_rep_return_dist) %>%
+    unnest(cols = c(cluster_rep_return_dist)) %>%
+    filter(assigned_treatment == "control")
 
 #   cluster_rep_return_te_df = dist_fit_data %>%
 #       select(cluster_rep_return_dist) %>%
