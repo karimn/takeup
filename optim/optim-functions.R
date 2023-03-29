@@ -211,7 +211,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              private_benefit_treatment, 
                              visibility_treatment,
                              beta_b_control,
-                             suppress_reputation) {
+                             suppress_reputation, 
+                             static_signal) {
     function(distance){
       
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
@@ -237,39 +238,46 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           } else {
             mu_rep_control_param = FALSE
           }
-
-          mu_rep = calculate_mu_rep(
-              dist = distance,
-              base_mu_rep = base_mu_rep,
-              mu_beliefs_effect = 1,
-              beta = mu_beta_z,
-              dist_beta = mu_beta_d,
-              beta_control = mu_beta_z_control,
-              dist_beta_control = mu_beta_d_control,
-              mu_rep_type = mu_rep_type, 
-              control = mu_rep_control_param)
-          mu_rep_deriv = calculate_mu_rep_deriv(
-              dist = distance,
-              base_mu_rep = base_mu_rep,
-              mu_beliefs_effect = 1,
-              beta = mu_beta_z,
-              dist_beta = mu_beta_d,
-              beta_control = mu_beta_z_control,
-              dist_beta_control = mu_beta_d_control,
-              mu_rep_type = mu_rep_type, 
-              control = mu_rep_control_param)
-          # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
-          cutoff_mu_rep = calculate_mu_rep(
-              dist = rep_cutoff/dist_sd,
-              base_mu_rep = base_mu_rep,
-              mu_beliefs_effect = 1,
-              beta = mu_beta_z,
-              dist_beta = mu_beta_d,
-              beta_control = mu_beta_z_control,
-              dist_beta_control = mu_beta_d_control,
-              mu_rep_type = mu_rep_type, 
-              control = mu_rep_control_param)
-          mu_rep[which(over_cutoff)] = cutoff_mu_rep
+          # if social planner uses static signal, add it to private benefit and set 
+          # mu_rep to 0 so v_star doesn't vary w/ distance
+          if (!is.null(static_signal)) {
+            b = b + static_signal
+            mu_rep = 0
+            mu_rep_deriv = NA
+          } else {
+            mu_rep = calculate_mu_rep(
+                dist = distance,
+                base_mu_rep = base_mu_rep,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z,
+                dist_beta = mu_beta_d,
+                beta_control = mu_beta_z_control,
+                dist_beta_control = mu_beta_d_control,
+                mu_rep_type = mu_rep_type, 
+                control = mu_rep_control_param)
+            mu_rep_deriv = calculate_mu_rep_deriv(
+                dist = distance,
+                base_mu_rep = base_mu_rep,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z,
+                dist_beta = mu_beta_d,
+                beta_control = mu_beta_z_control,
+                dist_beta_control = mu_beta_d_control,
+                mu_rep_type = mu_rep_type, 
+                control = mu_rep_control_param)
+            # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+            cutoff_mu_rep = calculate_mu_rep(
+                dist = rep_cutoff/dist_sd,
+                base_mu_rep = base_mu_rep,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z,
+                dist_beta = mu_beta_d,
+                beta_control = mu_beta_z_control,
+                dist_beta_control = mu_beta_d_control,
+                mu_rep_type = mu_rep_type, 
+                control = mu_rep_control_param)
+            mu_rep[which(over_cutoff)] = cutoff_mu_rep
+          }
 
           v_star_soln = find_v_star(
               distance = distance,
@@ -321,7 +329,8 @@ find_pred_takeup = function(params) {
         beta_b_control = params$beta_b_control, 
         private_benefit_treatment = params$private_benefit_treatment, 
         visibility_treatment = params$visibility_treatment,
-        suppress_reputation = params$suppress_reputation
+        suppress_reputation = params$suppress_reputation,
+        static_signal = params$static_signal
     )
 }
 
@@ -336,7 +345,8 @@ extract_params = function(param_draws,
                           rep_cutoff = Inf, 
                           bounds = c(-Inf, Inf),
                           mu_rep_type = 0,
-                          suppress_reputation) {
+                          suppress_reputation, 
+                          static_signal) {
     treatments = c(
         "control",
         "ink",
@@ -399,7 +409,8 @@ extract_params = function(param_draws,
         "private_benefit_treatment" = as.character(private_benefit_treatment), 
         "visibility_treatment" = as.character(visibility_treatment), 
         "beta_b_control" = beta_b_control, 
-        "suppress_reputation" = suppress_reputation
+        "suppress_reputation" = suppress_reputation, 
+        "static_signal" = static_signal
         ) %>%
         as.list()
 

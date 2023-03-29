@@ -26,13 +26,17 @@ script_options = docopt::docopt(
         --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
         --suppress-reputation  Suppress reputational returns
         --single-chain  Only use first chain for draws (useful for debugging) 
+
+        --static-signal-pm  Policy maker only estimates v* across some distance and doesn't realise v* a function of distance
+        --static-signal-distance=<static-signal-distance>  Distance over which PM estimates v* [default: NA]
+
     "),
     args = if (interactive()) "
                             86
                             control
                             control
-                            --output-name=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
-                            --to-csv
+                            --output-name=static-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+                            --from-csv
                             --num-post-draws=200
                             --rep-cutoff=Inf
                             --dist-cutoff=3500
@@ -43,6 +47,7 @@ script_options = docopt::docopt(
                             --data-input-name=full-many-pots-experiment.rds
                             --single-chain
                             --run-estimation
+
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -97,7 +102,8 @@ script_options = script_options %>%
                 "num_post_draws", 
                 "num_cores",
                 "type_lb",
-                "type_ub"), as.numeric)
+                "type_ub", 
+                "static_signal_distance"), as.numeric)
 fit_version = script_options$fit_version
 
 script_options$bounds = c(script_options$type_lb, script_options$type_ub)
@@ -239,12 +245,48 @@ long_distance_mat = dist_data$long_distance_mat
 sd_of_dist = dist_data$sd_of_dist
 sd_of_dist %>%
     saveRDS("temp-data/sd_of_dist.rds")
+
+if (script_options$static_signal_pm == TRUE) {
+    # generate dynamic (non-static) prediction functions to calculate static signal 
+    # at required cutoff
+    true_pred_functions = map(
+        draw_treat_grid$draw,
+        ~extract_params(
+            param_draws = struct_param_draws,
+            private_benefit_treatment = script_options$private_benefit_z,
+            visibility_treatment = script_options$visibility_z,
+            draw_id = .x,
+            dist_sd = sd_of_dist,
+            j_id = 1,
+            rep_cutoff = script_options$rep_cutoff,
+            dist_cutoff = script_options$dist_cutoff, 
+            bounds = script_options$bounds,
+            mu_rep_type = mu_rep_type,
+            suppress_reputation = script_options$suppress_reputation, 
+            static_signal = NULL
+        ) %>% find_pred_takeup()
+    )
+
+    static_pred_outputs = map(
+        true_pred_functions, 
+        ~.x(script_options$static_signal_distance)
+    )
+
+    delta_v_stars = map_dbl(static_pred_outputs, "delta_v_star")
+    mu_reps = map_dbl(static_pred_outputs, "mu_rep")
+
+    draw_treat_grid$static_signal_value = mu_reps*delta_v_stars
+} 
+
+
 if (run_estimation == TRUE){
 
 
 
-pred_functions = map(
+
+pred_functions = map2(
     draw_treat_grid$draw,
+    draw_treat_grid$static_signal_value,
     ~extract_params(
         param_draws = struct_param_draws,
         private_benefit_treatment = script_options$private_benefit_z,
@@ -256,15 +298,9 @@ pred_functions = map(
         dist_cutoff = script_options$dist_cutoff, 
         bounds = script_options$bounds,
         mu_rep_type = mu_rep_type,
-        suppress_reputation = script_options$suppress_reputation
+        suppress_reputation = script_options$suppress_reputation, 
+        static_signal = .y
     ) %>% find_pred_takeup()
-)
-
-
-print(
-    str_glue(
-        "Running pred function 1 {pred_functions[[1]](10)}"
-    )
 )
 
 if (script_options$fit_rf) {
@@ -294,13 +330,6 @@ subset_long_distance_mat = long_distance_mat %>%
 
 
 
-ed = subset_long_distance_mat %>%
-    mutate(
-        as_tibble(pred_functions[[1]](dist)), 
-        draw = draw_treat_grid[1, "draw"]
-    )
-
-ed
 
 
 print(str_glue("Running {length(pred_functions)} pred functions"))
@@ -522,3 +551,60 @@ sm_df %>%
 
 
  }
+
+
+
+# pred_functions[[1]](500)
+# true_pred_functions[[1]](500)
+
+# comp_df = tibble(
+#     dist = seq(from = 0, to = 2500, length.out = 20)
+# )
+
+
+
+# pred_df = map_dfr(pred_functions[1:20], 
+#     ~{
+#         comp_df %>%
+#             mutate(
+#                 as_tibble(.x(dist))
+#             )
+#     }, .id = "draw"
+# )
+
+# true_pred_df = map_dfr(
+#     true_pred_functions[1:20], 
+#     ~{
+#         comp_df %>%
+#             mutate(
+#                 as_tibble(.x(dist))
+#             )
+#     },
+#     .id = "draw"
+# )
+
+
+# comp_pred_df = bind_rows(
+#     pred_df %>% mutate(pred_type = "Static Signalling"),
+#     true_pred_df %>% mutate(pred_type = "V Star Signalling")
+# )
+
+
+# comp_pred_df %>%
+#     ggplot(aes(
+#         x = dist, 
+#         y = pred_takeup, 
+#         colour = pred_type, 
+#         group = interaction(draw, pred_type)
+#     )) +
+#     geom_line(alpha = 0.7) +
+#     labs(
+#         colour = "", 
+#         title = "Static Signalling vs V Star Signalling, Control", 
+#         subtitle = "20 posterior draws"
+#     )
+# ggsave(
+#     "temp-plots/static-dynamic-signalling.png",
+#     width = 8,
+#     height = 6, dpi = 500
+# )
