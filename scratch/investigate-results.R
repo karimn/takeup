@@ -164,7 +164,7 @@ belief_data = analysis_data %>%
   )
 
 raw_ndgt_model_draws = map_dfr(
-  1:4, 
+  1, 
   ~load_p_draws(
     fit_version = 86, 
     model = models_we_want,  
@@ -207,7 +207,7 @@ subset_ndgt_model_draws = ndgt_model_draws %>%
   left_join(k_dist_cw_df)
 
 model_draws = map_dfr(
-  1:4,
+  1,
   ~load_param_draws(
     fit_version = 86,
     model = models_we_want,
@@ -403,10 +403,6 @@ dist_summ_df %>%
   ggsave("temp-plots/pr-by-treat-dist.png", width = 8, height = 6, dpi = 500)
 
 
-  ggplot(aes(
-    x = standard_cluster.dist.to.pot, 
-    y = 
-  ))
 
 
 
@@ -419,6 +415,119 @@ rf_glm_fit = belief_data %>%
     weights = obs_know_person, 
     family = binomial(link = "logit")
   )
+
+
+rf_cts_glm_fit = belief_data %>%
+  select(
+    obs_know_person, 
+    knows_other_dewormed, 
+    assigned_treatment, 
+    assigned_dist_group, 
+    standard_cluster.dist.to.pot, 
+    cluster.dist.to.pot) %>%
+  glm(
+    data = .,
+    knows_other_dewormed/obs_know_person ~ 0 + assigned_treatment*cluster.dist.to.pot,
+    weights = obs_know_person, 
+    family = binomial(link = "logit")
+  )
+
+
+
+treatment = c(
+  "bracelet", 
+  "calendar", 
+  "control", 
+  "ink"
+)
+
+
+discrete_pred_hat = map_dfr(
+  treatment,
+  ~predictions(
+    rf_glm_fit, 
+    newdata = belief_data %>%
+    select(
+      obs_know_person, 
+      knows_other_dewormed, 
+      assigned_treatment, 
+      assigned_dist_group, 
+      standard_cluster.dist.to.pot, 
+      cluster.dist.to.pot)  %>%
+    mutate(
+      assigned_treatment = .x
+    )) %>% as_tibble()
+) 
+
+cts_pred_hat = map_dfr(
+  treatment,
+  ~predictions(
+    rf_cts_glm_fit, 
+    newdata = belief_data %>%
+    select(
+      obs_know_person, 
+      knows_other_dewormed, 
+      assigned_treatment, 
+      assigned_dist_group, 
+      standard_cluster.dist.to.pot, 
+      cluster.dist.to.pot)  %>%
+    mutate(
+      assigned_treatment = .x
+    )) %>% as_tibble()
+) 
+
+
+levels_discrete_pred_hat = discrete_pred_hat %>%
+  group_by(
+    assigned_dist_group, 
+    assigned_treatment
+  ) %>%
+  summarise(
+    p_hat = median(estimate)
+  ) %>%
+  spread(assigned_treatment, p_hat) 
+
+levels_cts_pred_hat = cts_pred_hat %>%
+  group_by(
+    assigned_dist_group, 
+    assigned_treatment
+  ) %>%
+  summarise(
+    p_hat = median(estimate)
+  ) %>%
+  spread(assigned_treatment, p_hat) 
+
+cts_rough_te = levels_cts_pred_hat %>%
+  mutate(across(where(is.numeric), ~.x - control))
+
+discrete_rough_te = levels_discrete_pred_hat %>%
+  mutate(across(where(is.numeric), ~.x - control))
+
+
+cts_rough_te
+discrete_rough_te
+
+cts_pred_hat %>%
+  group_by(
+    assigned_dist_group, 
+    assigned_treatment
+  ) %>%
+  summarise(
+    p_hat = mean(estimate)
+  ) %>%
+  ggplot(aes(
+    x = p_hat, 
+    y = assigned_treatment, 
+    colour = assigned_dist_group
+  )) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+ggsave("temp-plots/glm-cts-fit.png", width = 8, height= 6, dpi = 500)
+
+stop()
 
 
 library(marginaleffects)
