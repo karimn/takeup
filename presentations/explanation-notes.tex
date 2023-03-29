@@ -1,0 +1,78 @@
+\documentclass{article}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{bm}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{xcolor}
+ \geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+ }
+ \usepackage{fancyhdr}
+
+ \pagestyle{fancy}
+ \fancyhf{}
+
+
+\title{Explanation Notes}
+
+\begin{document}
+\maketitle
+
+
+\section*{Structural Model Influencing $\hat{p}$ Estimates}
+
+
+We estimate first-order beliefs using a sub-experiment and generate the parameter 
+$\hat{p}$, which feeds into:
+$$
+\mu(z,d) = \lambda \cdot x = \mu_0 \underbrace{
+\text{logit}^{-1}(\beta^{1\text{ord}}_z Z + \gamma^{1\text{ord}}_z Z\cdot d)
+    }_{
+\hat{p}
+    }
+$$
+where $\mu(z,d)$ measures how visible actions are and how much individuals care about 
+reputational returns.
+
+
+We can think about estimating $\hat{p}$ two different ways:
+\begin{itemize}
+    \item $\hat{p}_\text{sub}$, we only use the sub-experiment information and run a simple probit model.
+    \item $\hat{p}_\text{struct}$, we estimate the model \emph{jointly} - using both the sub-experiment and observed takeup.
+       \begin{itemize}
+        \item The structural model translates observed first-order beliefs, takeup, cost (distance), and incentives (treatments) into private benefits and signalling benefits.
+    \end{itemize}
+\end{itemize}
+In general, we wouldn't expect $\hat{p}_\text{sub}$ to always equal $\hat{p}_\text{struct}$, although they should 
+be somewhat similar we'd hope. 
+
+Why is this the case? Imagine that we'd messed up the data collection in the 
+calendar belief sub-experiment - we dropped half the ``know" responses by accident. That is,
+$\hat{p}_\text{sub, calendar} = \frac{1}{2}p_\text{calendar}$. The structural model is essentially running a regression: it 
+regresses observed takeup on private benefits (which it has an idea about from WTP experiment) and signalling 
+benefits (it has an inkling from beliefs experiment). However, these private and signalling benefits aren't taken 
+as given - it will adjust them up or down to match the data best.
+
+Carrying on our story, it has a pretty good idea of overall signalling and private benefit for the control, ink, and 
+bracelet arm but it faces a puzzle in the calendar arm. Under the ``suggested'' signalling benefit 
+using the belief sub-experiment, observed takeup is much higher than 
+it's currently predicting. The only way to rationalise this is to bump up private benefit or increase signalling benefit. 
+It can't increase $\mu_0$, since that's common to everyone. It could bump up private benefit, but that also has 
+ramifications for the bracelet takeup since the two are related. The only thing it concludes is that calendar 
+visibility is much higher than the beliefs sub-experiment suggests and $\hat{p}_\text{sub, calendar}$ is too low, $\hat{p}_\text{struct, calendar}$ 
+will be somewhat higher.
+
+
+In reality, all these things are going to happen - the model will adjust private benefit a little, adjust $\mu_0$ for 
+everyone, and increase $\hat{p}_\text{struct, calendar}$. It will choose the set of parameters values that 
+maximise the likelihood of observing the data - all the data, observed first-order 
+beliefs \emph{and} observed takeup.
+
+
+
+\end{document}
