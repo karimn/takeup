@@ -12,6 +12,7 @@ params:
   input_path: data/stan_analysis_data
   output_path: temp-data
   models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+  plot_caption: TRUE
   component_checks: TRUE
 ---
 
@@ -42,7 +43,8 @@ if (interactive()) {
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
     models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
-    component_checks = TRUE
+    component_checks = TRUE, 
+    plot_caption = TRUE
   )
 }
 
@@ -92,12 +94,16 @@ knit_hooks$set(plot = function(x, options) {
 ```{r, plot_setup_stuff}
 default_top_levels = c("Bracelet", "Combined")
 
-# 66 ed fit
-# 60 Karim fit
-# 62 also Karim fit
-
-
-model_fit_by = if_else(fit_version %in% c(60, 62), "Karim", "Ed")
+if (params$plot_caption) {
+  default_plot_caption = labs(
+    caption = "
+  Line range: 90% credible interval. 
+  Outer box: 80% credible interval. Inner box: 50% credible interval. 
+  Thick vertical line: median. Point: mean."
+  )
+} else {
+  default_plot_caption = labs(caption = "")
+}
 
 
 models_we_want = c(
@@ -253,31 +259,6 @@ long_struct_df %>%
 
 ```
 
-```{r}
-
-long_struct_df %>%
-  filter(variable == "sm") %>%
-    ggplot(aes(
-      x = dist, 
-      y = value/0.209, 
-      colour = interaction(treatment_b, treatment_mu)
-    )) +
-    geom_point() +
-    geom_line() +
-    facet_wrap(~variable, scales = "free") +
-    labs(colour = "") +
-    theme_minimal() +
-    theme(legend.position = "bottom")  +
-    geom_hline(
-      yintercept = -1, 
-      linetype = "longdash"
-    )
-
-
-
-
-```
-
 
 
 ## Fit Loading
@@ -358,7 +339,7 @@ theme_set(theme_minimal() +
 #### Delta Expectation ####
 
 ```{r}
-#| delta-expectation,
+#| delta-with-u-example,
 #| fig.cap="Net reputational return, $\\mu\\Delta[w^*]$, as a function of cutoff type, $w^*$",
 #| fig.note="This plot shows how expected reputational return, $\\mu\\Delta[w^*]$ 
 #|  varies as cutoff type, $w^*$, changes. As $\\sigma_u$ increases, the 
@@ -558,60 +539,6 @@ baseline_praise_stigma_plot_data %>%
   guides(fill = "none") +
   scale_fill_grey(start = 0.2, end = 0.5) 
 
-baseline_praise_stigma_plot_data %>%
-  ggplot(aes(response, fill = fct_rev(response))) +
-  geom_col(aes(y = n), alpha = 0.5, position = position_dodge(width = 0.8)) +
-  labs(y = "Share of Respondents", x = "") +
-  scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
-  coord_flip() +
-  facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20), space = "free") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        strip.text.x = element_text(angle = 0),
-        strip.background = element_rect(colour = NA),
-        panel.border = element_blank(),
-        panel.grid.major.x = element_blank()) +
-  guides(fill = "none") +
-  scale_fill_grey(start = 0.2, end = 0.5)
-
-baseline_praise_stigma_plot_data %>%
-  ggplot(aes(response, fill = fct_rev(response))) +
-  geom_col(aes(y = n), alpha = 0.5, position = position_dodge(width = 0.6), width = 0.4) +
-  labs(y = "Share of Respondents", x = "") +
-  scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
-  coord_flip() +
-  facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20), space = "free") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        strip.text.x = element_text(angle = 0),
-        strip.background = element_rect(colour = NA),
-        panel.border = element_blank(),
-        panel.grid.major.x = element_blank(),
-        panel.spacing = unit(0.2, "cm"),
-        plot.margin = unit(c(1,0.5,1,0.5), "lines")) +
-  guides(fill = "none") +
-  scale_fill_grey(start = 0.2, end = 0.5)
-
-# baseline_praise_stigma_plot_data %>%
-#   ggplot(aes(response, fill = fct_rev(response))) +
-#   geom_col(aes(y = n), alpha = 0.5, width = 0.4, position = position_dodge()) +
-#   labs(y = "Share of Respondents", x = "") +
-#   scale_y_continuous(breaks = seq(0.25, 1, 0.25)) +
-#   coord_flip() +
-#   facet_grid(topic ~ praise.stigma, labeller = label_wrap_gen(width = 20), space = "free") +
-#   theme_bw() +
-#   theme(legend.position = "bottom",
-#         strip.text.x = element_text(angle = 0),
-#         strip.background = element_rect(colour = NA),
-#         panel.border = element_blank(),
-#         panel.grid.major.x = element_blank(),
-#         panel.spacing = unit(0.2, "cm"),
-#         plot.margin = unit(c(1,0.5,1,0.5), "lines")) +
-#   guides(fill = "none") +
-#   scale_fill_grey(start = 0.2, end = 0.5) +
-#   scale_x_discrete(breaks = expansion(add = -0.5))
-
-
 
 
 ```
@@ -711,7 +638,7 @@ villages %>%
 #### Belief Facet Plots ####
 
 ```{r}
-#| fob-belief-facet,
+#| fob-beliefs-line-plot-post,
 #|  fig.cap="First Order Belief Levels and Average Treatment Effects",
 #|  fig.note="This plot shows first estimates using the first order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
@@ -774,6 +701,7 @@ plot_ord_beliefs_est <- function(beliefs_results,
           subtitle = "Panel B: Treatment Effects",
           x = "", y = "") +
     labs(x = "Percentage Points") +
+    default_plot_caption +
     scale_x_continuous(
       labels = scales::label_percent(suffix = "")
     )  +
@@ -803,7 +731,7 @@ dist_fit_data %>%
 
 
 ```{r}
-#| sob-belief-facet,
+#| sob-beliefs-line-plot-post,
 #|  fig.cap="Second Order Belief Levels and Average Treatment Effects",
 #|  fig.note="This plot shows first estimates using the second order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
@@ -852,6 +780,7 @@ belief_te_1ord = belief_data$ate_knows %>%
   ) +
   theme_minimal() + 
   theme(legend.position = "bottom") + 
+  default_plot_caption +
     NULL
 
 belief_te_1ord
@@ -887,6 +816,7 @@ belief_te_2ord = belief_data$ate_knows %>%
   ) +
   theme_minimal() + 
   theme(legend.position = "bottom") + 
+  default_plot_caption +
     NULL
 
 belief_te_2ord
@@ -923,6 +853,7 @@ belief_1ord_prop_p = belief_data$prob_knows %>%
   scale_x_continuous(
     labels = scales::label_percent(suffix = "")
   )  +
+  default_plot_caption +
     NULL
 
 belief_1ord_prop_p +
@@ -965,6 +896,7 @@ belief_2ord_prop_p = belief_data$prob_knows %>%
   )  +
   theme_minimal() + 
   theme(legend.position = "bottom") + 
+  default_plot_caption +
     NULL
 
 belief_2ord_prop_p + labs(title = "", subtitle = "")
@@ -1043,6 +975,7 @@ combined_1ord_prop_p = combined_belief_prop %>%
     guides(colour = "none") +
   theme_minimal() + 
   theme(legend.position = "bottom") + 
+  default_plot_caption +
   labs(
     x = "Proportion (%)"
   ) +
@@ -1093,6 +1026,7 @@ combined_belief_2ord_prop_p = combined_belief_prop %>%
     NULL
 
 combined_belief_2ord_prop_p +
+  default_plot_caption +
   labs(title = "", subtitle = "")
 
 ggsave(
@@ -1127,6 +1061,7 @@ combined_belief_1ord_ate_p = combined_belief_ate %>%
     guides(colour = "none") 
 
 combined_belief_1ord_ate_p +
+  default_plot_caption +
   labs(title = "", subtitle = "")
 
 ggsave(
@@ -1156,6 +1091,7 @@ combined_belief_2ord_ate_p = combined_belief_ate %>%
   scale_x_continuous(
     labels = scales::label_percent(suffix = "")
   )  +
+  default_plot_caption +
   theme(legend.position = "bottom") + 
     guides(colour = "none")
 
@@ -1246,7 +1182,7 @@ reduced_incentive_level_plot_df = dist_fit_data %>%
 ```
 
 ```{r}
-#| incentive-levels,
+#| reduced-incentive-level-plot,
 #| fig.cap="Incentive Takeup Levels, Reduced Form Model",
 #| fig.note="This plot shows the level of takeup in each treatment condition by 
 #|  distance, estimated using a Bayesian probit ('reduced form') model. The prior 
@@ -1275,7 +1211,7 @@ reduced_incentive_level_plot = reduced_incentive_level_plot_df %>%
     theme_minimal() +
     theme(legend.position = "bottom")
 reduced_incentive_level_plot +
-  labs(caption = "")
+  default_plot_caption 
 
 ggsave(
   plot = reduced_incentive_level_plot,
@@ -1300,7 +1236,7 @@ reduced_incentive_ate_plot_df = dist_fit_data %>%
 ```
 
 ```{r}
-#| incentive_ate,
+#| reduced-incentive-ate-plot,
 #| fig.cap = "Incentive Average Treatment Effect, Reduced Form Model",
 #| fig.note = "Line range: 90\\% credible interval.
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
@@ -1326,7 +1262,7 @@ reduced_incentive_ate_plot = reduced_incentive_ate_plot_df %>%
     theme_minimal()
 
 reduced_incentive_ate_plot +
-  labs(caption = "")
+  default_plot_caption 
 
 ggsave(
   plot = reduced_incentive_ate_plot,
@@ -1343,7 +1279,7 @@ ggsave(
 
 
 ```{r}
-#| signalling-ate,
+#| structural-signalling-ate-plot,
 #| fig.cap="Signalling Average Treatment Effect, Structural Model",
 #| fig.note = "This plot shows the average signalling treatment effect estimated
 #|  using the structural model. The prior predictive distribution is overlaid at 
@@ -1415,7 +1351,7 @@ structural_signalling_ate_plot = dist_fit_data %>%
         NULL
 structural_signalling_ate_plot +
   theme_minimal() +
-  labs(caption = "")
+  default_plot_caption 
 
 ggsave(
   plot = structural_signalling_ate_plot,
@@ -1434,7 +1370,7 @@ ggsave(
 
 
 ```{r}
-#| incentive-ate,
+#| structural-incentive-ate-plot,
 #| fig.cap="Incentive Average Treatment Effect, Structural Model",
 #| fig.note = "This plot shows the average treatment effect estimated
 #|  using the structural model. The prior predictive distribution is overlaid at 
@@ -1476,7 +1412,7 @@ structural_incentive_ate_plot = dist_fit_data %>%
     theme_minimal()
 
 structural_incentive_ate_plot +
-  labs(caption = "")
+  default_plot_caption 
 
 ggsave(
   plot = structural_incentive_ate_plot,
@@ -1608,7 +1544,7 @@ joint_wtp_results %>%
 
 
 ```{r}
-#| structural-dist-prop-plot,
+#| take-up-prob-with-obs-takeup-and-linerange,
 #| fig.cap="Structural Model Estimates of Take-up Probability by Distance", 
 #| fig.note="This plot shows estimated take-up probability across bracelet and 
 #|  control over distance. Take-up probability is calculated using the structural 
@@ -1649,10 +1585,18 @@ dist_prob_plot <- dist_fit_data %>%
   ) +
   labs(
     x = "Distance to Treatment (d) [km]", y = latex2exp::TeX("Take-up Probability, $1 - F_w(w^*(z,d))$") ,
-    # caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
   ) +
   coord_cartesian(xlim = c(0, 2.5), ylim = c(0, 0.55)) +
   NULL
+
+
+dist_caption =  if(params$plot_caption) {
+  labs(
+    caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+  )
+} else {
+  labs(caption = "")
+}
 
 dist_prob_plot +
   # geom_linerange(aes(assigned_dist_obs / 1000, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), data = . %>% unnest(obs_cluster_takeup_level)) +
@@ -1661,6 +1605,7 @@ dist_prob_plot +
   # facet_wrap(vars(assigned_treatment), labeller = labeller(assigned_treatment = str_to_title)) +
   # facet_grid(rows = vars(assigned_treatment), cols = vars(model_name), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "bottom") +
+  dist_caption +
   NULL
 
 ```
@@ -1670,19 +1615,12 @@ dist_prob_plot +
 
 
 ```{r}
+#| odds-ratio-plot, eval = FALSE
 library(tidyverse)
 df = tibble(
   x = seq(from = -4, to = 4, length.out = 100), 
   y = pnorm(x)
 )
-
-df %>%
-  ggplot(aes(
-    x = x, 
-    y = y
-  )) +
-  geom_point()
-
 
 df = tibble(
   x = seq(from = 0.01, to = 0.99, length.out = 100)
@@ -1702,12 +1640,6 @@ df %>%
   labs(
     x = "Probability", 
     y = "Odds Ratio"
-  ) +
-  geom_vline(
-    xintercept = c(0.8, 0.85)
-  )  +
-  geom_vline(
-    xintercept = c(0.78, 0.68)
   ) 
 
 ```
@@ -1768,7 +1700,8 @@ rep_te_plot_fun = function(data, treat) {
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model.", dependson = c("rep-return-te-df")
 
-rep_te_plot_fun(rep_te_plot_df, "bracelet")
+rep_te_plot_fun(rep_te_plot_df, "bracelet") + 
+  dist_caption
 ```
 
 ```{r}
@@ -1777,7 +1710,8 @@ rep_te_plot_fun(rep_te_plot_df, "bracelet")
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model.", dependson = "rep-return-te-df"
 
-rep_te_plot_fun(rep_te_plot_df, "calendar")
+rep_te_plot_fun(rep_te_plot_df, "calendar") +
+  dist_caption
 ```
 
 ```{r}
@@ -1786,7 +1720,8 @@ rep_te_plot_fun(rep_te_plot_df, "calendar")
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model." , dependson = "rep-return-te-df"
 
-rep_te_plot_fun(rep_te_plot_df, "ink")
+rep_te_plot_fun(rep_te_plot_df, "ink") +
+  dist_caption
 ```
 
 ```{r}
@@ -1886,7 +1821,7 @@ single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
 ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 ```
 
-## Social Multiplier  - OLD MODEL BELOW HERE
+## Social Multiplier 
 
 ```{r}
 #| social-multiplier,
@@ -1991,45 +1926,33 @@ summ_sm_df = sm_df %>%
   mutate(treatment = factor(treatment, levels = c('control', "ink", 'calendar', 'bracelet')))
 
 
-summ_sm_df %>%
-  filter(dist > 0) %>%
-  mutate(dist = dist/1000) %>%
-  ggplot(aes(
-    x = dist, 
-  )) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
-  scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
-  labs(
-    x = "Distance to Treatment (d) [km]" ,
-   y = "Social Multiplier"
-  )  +
-  geom_hline(
-    yintercept = -0.209
-  )
-
 
 ```
 
 
 ```{r}
-
+#| social-multiplier-plot
 summ_sm_df %>%
   filter(dist > 0) %>%
   mutate(dist = dist/1000) %>%
   ggplot(aes(
-    x = dist, 
+    x = dist, y = per_0.5/0.209, color = treatment
   )) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
-  scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
+  geom_line() +
+  geom_point() +
   labs(
     x = "Distance to Treatment (d) [km]" ,
-   y = "Social Multiplier"
+   y = "Rescaled Social Multiplier", 
+   colour = ""
   ) +
   geom_hline(
-    yintercept = -0.209
-  )
+    yintercept = -1, 
+    linetype = "longdash"
+  ) + 
+  ggthemes::scale_color_canva(
+    palette = canva_palette_vibrant, 
+    labels = str_to_title
+    )
 
 ```
 
@@ -2086,7 +2009,7 @@ dist_fit_data %>%
 ## SMS ##
 
 
-```{r,eval=FALSE}
+```{r,eval=TRUE}
 #| sms-tes,
 #| fig.cap="Average Treatment Effect, with and without SMS"
 
@@ -2094,7 +2017,7 @@ include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-by-sms-incentive
 ```
 
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 #| sms-te-diff,
 #| fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
 
