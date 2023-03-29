@@ -1065,6 +1065,210 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
 
 # Plotting Functions ------------------------------------------------------
 
+
+plot_single_beliefs_est <- function(beliefs_results_type_df, 
+                                    order, 
+                                    top_title = NULL, 
+                                    width = 0.3, 
+                                    crossbar_width = 0.2, 
+                                    vline = TRUE) {
+  pos_dodge <- position_dodge(width = width)
+  if (order == 1) {
+    str_title = "First Order Beliefs"
+  } else {
+    str_title = "Second Order Beliefs"
+  }
+  belief_plot = 
+      beliefs_results_type_df %>% 
+        filter(ord == order, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_linerange(aes(
+          xmin = per_0.05, 
+          xmax = per_0.95, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          size = 0.3) +
+        geom_crossbar(aes(
+          x = per_0.5, 
+          xmin = per_0.1, 
+          xmax = per_0.9, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          fatten = 2, 
+          size = 0.4, 
+          width = crossbar_width) +
+        geom_linerange(aes(
+          xmin = per_0.25, 
+          xmax = per_0.75, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          alpha = 0.4, 
+          size = 2.25) +
+        geom_point(aes(
+          x = per_0.5, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = str_title,
+          subtitle = "",
+          x = "", y = "") +
+        theme(
+          legend.position = "bottom"
+        ) + 
+        NULL
+
+  if (vline == TRUE) {
+    belief_plot = belief_plot +
+         geom_vline(xintercept = 0, linetype = "dotted") 
+  }
+        
+  return(belief_plot)
+} 
+
+plot_single_estimands <- function(.data, 
+                           nested_data, 
+                           y, 
+                           results_group = model, 
+                           group_labels = NULL, 
+                           include_prior_predict = FALSE, 
+                           width = 0.3, 
+                           crossbar_width = 0.2,
+                           color_data = .data, 
+                           single_prior_predict = FALSE,
+                           top_levels = c("Bracelet", "Combined")) {
+                            # width = pos_height
+  plot_pos <- ggstance::position_dodgev(height = width)
+  
+  if (single_prior_predict == TRUE) {
+    # Remove prior data that isn't first on plot. We keep data as NA so that 
+    # spacing/height-width ratio remains the same for other plots
+    .data = .data %>%
+      mutate({{ nested_data }} := map_if({{ nested_data }},
+          fct_match(fit_type, "prior-predict"), 
+          ~mutate(.x, 
+            across(
+              c(contains("per"), mean_est),
+              ~if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(assigned_dist_group_left,  top_levels[2])),
+                NA_real_,
+                .x 
+              )
+            )
+          )
+        )
+      ) 
+  # Can't set position in aes() so this does nothing for now
+  # eventually can just filter and add geoms twice 
+    .data = .data %>%
+      mutate({{ nested_data }} := map({{ nested_data }},
+          ~mutate(.x,
+            position = 
+              if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(assigned_dist_group_left,  top_levels[2])),
+                0,
+              width
+              )
+          )
+        )
+      ) 
+  }
+
+  ggplot_obj <- if (include_prior_predict) {
+    subset_data = .data %>% 
+      unnest({{ nested_data }})
+    subset_data %>%
+      ggplot(aes(x = per_0.5, y = {{ y }}, group = model)) +
+      geom_linerange(aes(
+        xmin = per_0.05, 
+        xmax = per_0.95, 
+        group = model), 
+        alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_crossbar(aes(
+        x = per_0.5, 
+        xmin = per_0.1, 
+        xmax = per_0.9),
+        fatten = 2, 
+        size = 0.4, 
+        width = crossbar_width, 
+        position = plot_pos) +
+      geom_linerange(aes(
+        xmin = per_0.25, 
+        xmax = per_0.75, 
+        group = model), 
+      alpha = 0.1, 
+      # fatten = 3, 
+      size = 0.3, 
+      position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      NULL
+  } else {
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(
+        x = per_0.5, 
+        y = {{ y }}, 
+        group = {{ results_group }})) 
+  }
+  
+  ggplot_obj <- ggplot_obj +
+    geom_linerange(aes(
+      xmin = per_0.25, 
+      xmax = per_0.75, 
+      color = {{ results_group }}), 
+      alpha = 0.4, 
+      size = 2.25,
+      position = plot_pos
+      )  +
+    geom_crossbar(aes(
+      x = per_0.5, 
+      xmin = per_0.1, 
+      xmax = per_0.9, 
+      color = {{ results_group }}), 
+      fatten = 2, 
+      size = 0.4, 
+      width = crossbar_width, 
+      position = plot_pos) +
+    geom_linerange(aes(
+      xmin = per_0.05, 
+      xmax = per_0.95, 
+      color = {{ results_group }}), 
+      size = 0.3, 
+      position = plot_pos) +
+    
+    geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
+    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select(model, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  
+  return(ggplot_obj)
+}
+
+
+
 plot_estimands <- function(.data, 
                            nested_data, 
                            y, 
@@ -1076,6 +1280,7 @@ plot_estimands <- function(.data,
                            color_data = .data, 
                            single_prior_predict = FALSE,
                            top_levels = c("Bracelet", "Combined")) {
+                            # width = pos_height
   plot_pos <- ggstance::position_dodgev(height = pos_height)
   
   if (single_prior_predict == TRUE) {
