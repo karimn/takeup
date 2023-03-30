@@ -199,7 +199,7 @@ if (script_options$constraint_type == "agg" & script_options$welfare_function ==
   summ_target_df = read_csv(
     file.path(
       script_options$input_path,
-      paste0("summ-agg-log-", script_options$target_constraint)
+      paste0(script_options$target_constraint)
     )
   )
 

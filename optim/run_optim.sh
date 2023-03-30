@@ -10,7 +10,7 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=0 # 1
+SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=1
@@ -26,9 +26,9 @@ SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
 SUPPRESS_REP="" # "suppress-rep-" #suppress-rep-
 CONSTRAINT_TARGET="rep"
-STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
-STATIC_SIGNAL_DIST=500
-DEMAND_NAME="static-" # "static-"
+STATIC_SIGNAL_PM="" # "--static-signal-pm"
+STATIC_SIGNAL_DIST=
+DEMAND_NAME="" # "static-"
 
 mkdir -p ${OUTPUT_PATH}
 mkdir -p ${PLOT_OUTPUT_PATH}
@@ -122,7 +122,7 @@ run_optim () {
                                     --num-cores=12 \
                                     --min-cost  \
                                     --constraint-type=${CONSTRAINT_TYPE} \
-                                    --target-constraint=target-${CONSTRAINT_TARGET}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+                                    --target-constraint=summ-agg-log-experiment-target-constraint.csv \
                                     --output-path=${OUTPUT_PATH} \
                                     --output-filename=target-${CONSTRAINT_TARGET}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
@@ -132,6 +132,8 @@ run_optim () {
                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --solver=${SOLVER}
+                                    # --target-constraint=target-${CONSTRAINT_TARGET}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
+
     fi
 
     if [ $SKIP_PP != 1 ]
@@ -195,14 +197,14 @@ compare_option () {
 
 CUTOFF=""
 ## Cutoff
-run_optim "control" "control"
-# # run_optim "control" "bracelet"
+# run_optim "control" "control"
+# run_optim "control" "bracelet"
 # # run_optim "control" "calendar"
 # # run_optim "control" "ink"
 
 run_optim "bracelet" "bracelet"
-run_optim "ink" "ink"
-run_optim "calendar" "calendar"
+# run_optim "ink" "ink"
+# run_optim "calendar" "calendar"
 
 
 

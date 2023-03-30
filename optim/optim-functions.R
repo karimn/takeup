@@ -243,7 +243,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           if (!is.null(static_signal)) {
             b = b + static_signal
             mu_rep = 0
-            mu_rep_deriv = NA
+          mu_rep_deriv = NA
           } else {
             mu_rep = calculate_mu_rep(
                 dist = distance,
@@ -998,4 +998,43 @@ clean_solution = function(model_fit, data, takeup) {
     ) 
 
   return(clean_model_output)
+}
+
+## gen oa
+
+gen_oa_stats = function(village_data, pot_data, optimal_data) {
+    assigned_pots = unique(optimal_data$j)
+    n_pots_used =  length(assigned_pots)
+    summ_optimal_data = optimal_data %>%
+        mutate(target_optim = target_optim) %>%
+        summarise(
+            util = sum(log(demand)),
+            mean_demand = mean(demand), 
+            min_demand = min(demand), 
+            n_pot = n_distinct(j), 
+            mean_dist = mean(dist),
+            target_optim = mean(target_optim)
+        ) %>%
+        mutate(
+            target_optim = target_optim
+        ) %>%
+        mutate(
+            overshoot = 100*(util/target_optim - 1)
+        ) 
+
+    takeup_hit = round(summ_optimal_data$mean_demand*100,1 )
+    util_hit = round(summ_optimal_data$util, 2)
+    util_target = round(summ_optimal_data$target_optim, 2)
+    overshoot = round(abs(summ_optimal_data$overshoot), 3)
+    mean_dist = round(summ_optimal_data$mean_dist,1)
+    return(lst(
+        assigned_pots,
+        n_pots_used,
+        takeup_hit, 
+        util_hit,
+        util_target,
+        overshoot, 
+        mean_dist
+    ))
+
 }

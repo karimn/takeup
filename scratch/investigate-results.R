@@ -1,3 +1,14 @@
+
+rm(list = ls())
+
+
+load("data/stan_analysis_data/dist_fit85.RData")
+
+ls()
+models
+
+dist_fit
+
 library(magrittr)
 library(tidyverse)
 library(broom)

@@ -26,18 +26,18 @@ script_options <- docopt::docopt(
                             --welfare-function=log \
                             --min-cost \
                             --optim-input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                            --optim-input-a-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
-                            --optim-input-b-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
-                            --comp-output-basename=agg-log-suppress-rep-cutoff-cf-b1-control-b2-control-mu1-control-mu2-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
+                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
                             --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=agg-log-suppress-rep-cutoff-b-bracelet-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
+                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
                             --posterior-median \
-                            --pdf-output-path=presentations/takeup-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/fig/optim
+                            --pdf-output-path=presentations/takeup-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-fig/
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
+                            # --comp-output-basename=agg-log-cutoff-cf-b1-control-b2-control-mu1-control-mu2-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
+                            # --optim-input-b-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
                             # --target-constraint=0.33
                             #  --min-cost 
                             #  --target-constraint=0.33
@@ -58,6 +58,7 @@ library(latex2exp)
 
 
 
+source("optim/optim-functions.R")
 # script_options = script_options %>%
 #   modify_at(numeric_options, as.numeric)
 
@@ -118,8 +119,7 @@ data = list(
 
 library(scales)
 #extract hex color codes for a plot with three elements in ggplot2 
-hex <- hue_pal()(2)
-
+hex <- ggthemes::canva_pal("Primary colors with a vibrant twist")(2)
 
 if (script_options$map_plot & is.null(script_options$optim_input_b_filename)){
     data$village_locations %>%
@@ -154,43 +154,6 @@ if (script_options$map_plot & is.null(script_options$optim_input_b_filename)){
 if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
 
 
-    gen_oa_stats = function(village_data, pot_data, optimal_data) {
-        assigned_pots = unique(optimal_data$j)
-        n_pots_used =  length(assigned_pots)
-        summ_optimal_data = optimal_data %>%
-            mutate(target_optim = target_optim) %>%
-            summarise(
-                util = sum(log(demand)),
-                mean_demand = mean(demand), 
-                min_demand = min(demand), 
-                n_pot = n_distinct(j), 
-                mean_dist = mean(dist),
-                target_optim = mean(target_optim)
-            ) %>%
-            mutate(
-                target_optim = target_optim
-            ) %>%
-            mutate(
-                overshoot = 100*(util/target_optim - 1)
-            ) 
-
-        takeup_hit = round(summ_optimal_data$mean_demand*100,1 )
-        util_hit = round(summ_optimal_data$util)
-        util_target = round(summ_optimal_data$target_optim)
-        overshoot = round(abs(summ_optimal_data$overshoot), 3)
-        mean_dist = round(summ_optimal_data$mean_dist,1)
-        return(lst(
-            assigned_pots,
-            n_pots_used,
-            takeup_hit, 
-            util_hit,
-            util_target,
-            overshoot, 
-            mean_dist
-        ))
-
-    }
-
 
     plot_optimal_allocation = function(village_data,
                                        pot_data,
@@ -211,6 +174,14 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
         mean_dist = oa_stats$mean_dist
 
         pot_data$assigned_pot = pot_data$id %in% assigned_pots
+
+    title_str = str_glue(
+        "Takeup: {takeup_hit}%"
+    )
+
+    subtitle = str_glue(
+        "Average Distance: {round(mean_dist/1000, 2)}km, Social Welfare: {round(util_hit, 2)}"
+    )
 
         if (script_options$constraint_type == "agg") {
             sub_str = str_glue("Assigned PoTs: {n_pots_used}")
@@ -249,7 +220,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
                 y = 0.75,
                 label = sub_str
             ) +
-            labs(x = "", y = "") +
+            labs(x = "", y = "", title = title_str, subtitle = subtitle) +
             scale_size_manual(
                 values = c("pot_TRUE" = 1.5, "pot_FALSE" = 1 , "village" = 1),
                 breaks = c("pot_TRUE", "pot_FALSE", "village"),
