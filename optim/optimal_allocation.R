@@ -27,13 +27,13 @@ script_options <- docopt::docopt(
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=target-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv \
+                                --target-constraint=summ-agg-log-experiment-target-constraint.csv \
                                 --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
                                 --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
-                                --output-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
                                 --demand-input-filename=pred-demand-dist-fit86-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
 
                                 --posterior-median \
@@ -331,6 +331,71 @@ tidy_output = tidy_output %>%
     )
   )
 tictoc::toc()
+
+
+#' Create Best Solution if OA is Infeasible
+#' 
+#'  Use all PoTs and assign to closest when overall allocation is infeasible
+create_infeasible_soln = function(status_code, demand_data, model_output) {
+  if (status_code == 0) {
+    return(model_output)
+  } 
+  subset_demand_data = demand_data %>%
+    group_by(
+      village_i
+    ) %>%
+    filter(
+      dist == min(dist)
+    ) %>%
+    slice(1) %>%
+    ungroup()
+
+    infeasible_optimal_df = subset_demand_data %>%
+      group_by(village_i, pot_j) %>%
+      summarise(
+        demand = median(demand), 
+        dist = unique(dist)
+      ) %>%
+      left_join(
+        village_data %>%
+          select(id, village_lon = lon, village_lat = lat), 
+        by = c("village_i" = "id")
+      ) %>%
+      left_join(
+          pot_data %>%
+              select(id, pot_lon = lon, pot_lat = lat), 
+          by = c("pot_j" = "id")
+      ) %>%
+      rename(
+        i = village_i, 
+        j = pot_j
+      ) %>%
+      mutate(target_optim = target_optim)
+    return(infeasible_optimal_df) 
+
+}
+
+tidy_output = tidy_output %>%
+  mutate(
+    status_code = map_dbl(optim_fit, ~.x$status$code)
+  )
+
+
+tidy_output = tidy_output %>%
+  mutate(
+    model_output = pmap(
+      list(
+        status_code, 
+        demand_data,
+        model_output
+      ), 
+      ~create_infeasible_soln(
+        ..1, 
+        ..2, 
+        ..3
+      )
+    )
+  )
 
 summ_output = tidy_output %>% 
   head(1) %>%

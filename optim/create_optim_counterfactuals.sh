@@ -205,41 +205,29 @@ compare_option () {
 run_optim "control" "control" # run control control
 run_optim "control" "bracelet" # counterfactual varying bracelet visibility
 run_optim "bracelet" "bracelet" # now bracelet bracelet
-# now we suppress reputation completely. 
-# this is because I didn't think of creating a treatment variable with 0 visibility
-# so we change a global variable woooo
-SUPPRESS_REP="suppress-rep-"
-run_optim "bracelet" "bracelet"
-# Now we swap to static signalling, fixed at d = 0.5
-SUPPRESS_REP=""
+# # Now we swap to static signalling, fixed at d = 0.5
 STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
 STATIC_SIGNAL_DIST=500
 DEMAND_NAME="static-" 
 run_optim "bracelet" "bracelet"
 
-
+# Control plots using realised allocation
 Rscript ./optim/create-presentation-plots.R \
                             --constraint-type=agg \
                             --welfare-function=log \
                             --min-cost \
                             --output-path=${OUTPUT_PATH} \
                             --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
-                            --cutoff-type=cutoff
-                            --data-input-name=full-many-pots-experiment.rds \
+                            --cutoff-type=cutoff \
+                            --data-input-path=optim/data \
+                            --data-input-name=${DATA_INPUT_NAME} \
                             --posterior-median \
-                            --pdf-output-path=presentations/takeup-${MODEL}-fig
+                            --pdf-output-path=presentations/takeup-${MODEL}-fig \
                             --demand-input-path=optim/data/${MODEL}/agg-log-full-many-pots \
                             --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
 
-Rscript ./optim/create-presentation-plots.R \
-                            --constraint-type=agg \
-                            --welfare-function=log \
-                            --min-cost \
-                            --output-path=${OUTPUT_PATH} \
-                            --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-suppress-rep-${CUTOFF}cutoff-b-bracelet-mu-bracelet-${MODEL}-${POSTVAR} \
-                            --cutoff-type=cutoff
-                            --data-input-name=full-many-pots-experiment.rds \
-                            --posterior-median \
-                            --pdf-output-path=presentations/takeup-${MODEL}-fig
-                            --demand-input-path=optim/data/${MODEL}/agg-log-full-many-pots \
-                            --demand-input-filename=pred-demand-dist-fit${VERSION}-suppress-rep-cutoff-b-bracelet-mu-bracelet-${MODEL}.csv
+# now we suppress reputation completely. 
+# this is because I didn't think of creating a treatment variable with 0 visibility
+# so we change a global variable woooo
+SUPPRESS_REP="suppress-rep-"
+run_optim "bracelet" "bracelet"
