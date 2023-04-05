@@ -28,7 +28,7 @@ script_options = docopt::docopt(
         --single-chain  Only use first chain for draws (useful for debugging) 
 
         --static-signal-pm  Policy maker only estimates v* across some distance and doesn't realise v* a function of distance
-        --static-signal-distance=<static-signal-distance>  Distance over which PM estimates v* [default: NA]
+        --static-signal-distance=<static-signal-distance>  Distance over which PM estimates v* in meters [default: NA]
 
     "),
     args = if (interactive()) "

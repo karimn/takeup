@@ -6,9 +6,6 @@ script_options <- docopt::docopt(
         Options:
           --min-cost  Flag to minimise programme cost for a given takeup level.
           --max-takeup  Flag to maximise vaccine takeup for a given cost level.
-          --optim-input-path=<optim-input-path>  Path where input data is stored.
-          --optim-input-a-filename=<optim-input-a-filename>  Optim input a filename.
-          --optim-input-b-filename=<optim-input-b-filename>  Optim input b filename.
           --comp-output-basename=<comp-output-basename>  Comparison output basename
           --output-path=<output-path>  Path where output should be saved.
           --output-basename=<output-basename>  Output basename.
@@ -27,8 +24,6 @@ script_options <- docopt::docopt(
                             --constraint-type=agg \
                             --welfare-function=log \
                             --min-cost \
-                            --optim-input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
                             --output-path=optim/plots/agg-log-full-many-pots \
                             --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --cutoff-type=cutoff
@@ -53,10 +48,6 @@ optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
 
-## Input Paths
-optim_input_a_filepath = file.path(script_options$optim_input_path, 
-                                script_options$optim_input_a_filename)
-optimal_df = read_rds(optim_input_a_filepath)
 
 dist_data = read_rds(
   file.path(
@@ -155,13 +146,6 @@ swf_summ_df  = optimal_data %>%
             social_welfare = sum(log(demand))
         ) 
 
-swf_summ_df %>%
-    write_csv(
-        file.path(
-            "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots", 
-            paste0(script_options$output_basename, "-summ-agg-log-", "experiment-target-constraint.csv")
-        )
-    )
 
 
 
