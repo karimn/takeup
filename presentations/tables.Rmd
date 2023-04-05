@@ -239,6 +239,250 @@ stan_data = (dist_fit_data %>%
   pull())[[1]]
 
 
+endline.know.table.data
+
+library(haven)
+endline_data = read_dta("data/endline_data.dta")
+
+
+
+endline_data %>%
+  select(contains("bracelet")) %>%
+  colnames()
+
+endline_data %>%
+  select(got_bracelet) %>%
+  unique()
+
+
+
+
+
+endline_data %>%
+  select(treatment)
+
+n_function = function(data, treat_no, ...) {
+  endline_data %>%
+  group_by(
+    assigned_treatment, ...
+  ) %>% 
+  filter(assigned_treatment == treat_no) %>%
+  summarise(
+    n = n()
+  ) %>%
+  na.omit() %>%
+  mutate(
+    pct = 100*n/sum(n)
+  ) 
+}
+
+n_function(endline_data, 4, got_bracelet)
+n_function(endline_data, 4, wear_bracelet)
+n_function(endline_data, 4, have_bracelet)
+n_function(endline_data, 4, confirm_bracelet)
+
+
+# not_wear_bracelet 
+
+endline_data %>%
+  select(
+    not_wear_other
+  )  %>%
+  count(not_wear_other) %>%
+  arrange(-n) %>%
+  print(n = 20)
+
+
+not_wear_key_df = tribble(
+  ~key, ~meaning,
+  1, "Lost it",
+  2, "Usually wear it but I took it off temporarily",
+  3, "Do not like it",
+  4, "Gave it to away",
+  99, "Other"
+) %>%
+  mutate(key = as.character(key))
+
+endline_data %>%
+  left_join(not_wear_key_df, by = c("not_wear" = "key"))   %>%
+  select(
+    meaning
+  ) %>%
+  count(meaning) %>%
+  na.omit() %>%
+  mutate(
+    pct = 100*n/sum(n)
+  ) %>%
+  arrange(pct)
+
+
+
+
+n_function(endline_data, 2, got_ink)
+n_function(endline_data, 2, ink_visible)
+
+n_function(endline_data, 3, got_cal)
+n_function(endline_data, 3, have_cal)
+n_function(endline_data, 3, confirm_cal)
+
+n_function(endline_data, 4, seen_bracelet)
+n_function(endline_data, 2, seen_ink)
+n_function(endline_data, 3, seen_cal)
+
+n_function(endline_data, 4, dist_pot_group, seen_bracelet)
+n_function(endline_data, 2, dist_pot_group, seen_ink)
+n_function(endline_data, 3, dist_pot_group, seen_cal)
+
+endline_data %>%
+  select(
+    cal_cost,
+    bracelet_cost) %>%
+  gather(
+    variable, value, cal_cost, bracelet_cost
+  ) %>%
+  filter(value < 200) %>%
+  ggplot(aes(
+    x = value, 
+    fill = variable
+  )) +
+  geom_density(alpha = 0.5) 
+
+
+endline_data %>%
+  select(
+    assigned_treatment,
+    cal_cost,
+    bracelet_cost) %>%
+  gather(
+    variable, value, cal_cost, bracelet_cost
+  )   %>%
+  group_by(
+    variable , assigned_treatment
+  ) %>%
+  summarise(
+    mean = mean(value),
+    med = median(value), 
+    no_cost = mean(value == 0)
+  )
+
+endline_data %>%
+  select(
+    assigned_treatment,
+    cal_cost,
+    bracelet_cost) %>%
+  mutate(assigned_treatment = factor(assigned_treatment)) %>%
+  gather(
+    variable, value, cal_cost, bracelet_cost
+  )    %>%
+  lm(
+    data = .,
+    value ~ assigned_treatment + variable
+  ) %>%
+  tidy(conf.int = TRUE)
+
+endline_data %>%
+  select(
+    cal_cost,
+    bracelet_cost) %>%
+  ggplot(aes(
+    x = bracelet_cost, 
+    y = cal_cost
+  )) +
+  geom_point() +
+  geom_abline()
+
+endline_data %>%
+  colnames()
+
+say_treat_worming = function(data, var, treat_no) {
+  endline_data %>%
+    filter(assigned_treatment == treat_no) %>%
+    mutate(
+      means_dewormed = str_detect(str_to_lower({{ var }}), "drug|medicine|tablet|deworm|Deworm|worm|treat"), 
+    ) %>%
+    group_by(means_dewormed) %>%
+    count()  %>%
+    ungroup() %>%
+    mutate(
+      pct = 100*n/sum(n)
+    )
+}
+
+
+say_treat_idk = function() {
+  endline_data %>%
+    filter(assigned_treatment == treat_no) %>%
+    mutate(
+      means_dewormed = str_detect({{ var }}, "know"), 
+    ) %>%
+    group_by(means_dewormed) %>%
+    count()  %>%
+    ungroup() %>%
+    mutate(
+      pct = 100*n/sum(n)
+    )
+
+}
+
+
+endline.know.table.data %>%
+  colnames()
+
+say_treat_worming(endline_data, bracelet_meaning, 4) 
+say_treat_worming(endline_data, ink_meaning, 2)
+say_treat_worming(endline_data, cal_meaning, 3) 
+
+
+
+endline_data %>%
+  select(contains("cal")) %>%
+  colnames()
+
+endline_data %>%
+  filter(assigned_treatment == 3) %>%
+  mutate(
+    means_dewormed = str_detect(str_to_lower(cal_meaning), "dewom|derwom|pill|medicine|drug|deworm|worm|treat"), 
+  ) %>%
+  filter(means_dewormed == FALSE) %>%
+  select(cal_meaning) %>%
+  group_by(cal_meaning) %>%
+  count() %>%
+  arrange(-n) %>%
+  print(n = 80)
+
+
+endline_data %>%
+  mutate(
+    means_dewormed = 
+  )
+
+endline_data %>%
+  filter(assigned_treatment == 4) %>%
+  mutate(
+    means_dewormed = str_detect(bracelet_meaning, "deworm|Deworm|worm|treat"), 
+  ) %>%
+  filter(means_dewormed == FALSE) %>%
+  select(bracelet_meaning) %>%
+  group_by(bracelet_meaning) %>%
+  count() %>%
+  arrange(-n) %>%
+  print(n = 60)
+
+endline_data %>%
+  select(bracelet_meaning) %>%
+  group_by(bracelet_meaning) %>%
+  count() %>%
+  arrange(-n)
+
+
+
+
+
+endline.data %>%
+
+
+endline_data %>%
+  select()
 
 ```
 
