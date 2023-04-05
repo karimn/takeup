@@ -27,14 +27,14 @@ script_options <- docopt::docopt(
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=target-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv \
+                                --target-constraint=summ-agg-log-experiment-target-constraint.csv \
                                 --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
                                 --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
-                                --output-filename=suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit86-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
+                                --output-filename=cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                                --demand-input-filename=pred-demand-dist-fit86-suppress-rep-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
 
                                 --posterior-median \
                                 --welfare-function=log
@@ -281,7 +281,6 @@ demand_data = demand_data %>%
 
 
 
-
 if (script_options$solver == "glpk") {
   control_args = list(tm_limit = script_options$time_limit)
 } else {
@@ -331,6 +330,33 @@ tidy_output = tidy_output %>%
     )
   )
 tictoc::toc()
+
+stop()
+# working_tidy_output = tidy_output
+
+tidy_output %>%
+  pull(model_output) %>%
+  first()
+
+
+
+
+working_tidy_output %>%
+  pull(model_output) %>%
+  first()
+
+
+
+
+
+working_summ_output = working_tidy_output %>% 
+  head(1) %>%
+  unnest(model_output) %>%
+  summarise(
+    util = sum(log(demand)),
+    mean_demand = mean(demand), 
+    min_demand = min(demand), 
+    n_pot = n_distinct(j))
 
 summ_output = tidy_output %>% 
   head(1) %>%
