@@ -374,7 +374,8 @@ create_infeasible_soln = function(status_code, demand_data, model_output) {
         i = village_i, 
         j = pot_j
       ) %>%
-      mutate(target_optim = target_optim)
+      mutate(target_optim = target_optim) %>%
+      ungroup()
     return(infeasible_optimal_df) 
 
 }
