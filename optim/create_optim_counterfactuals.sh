@@ -236,3 +236,7 @@ run_optim "control" "bracelet"
 #                             --demand-input-path=optim/data/${MODEL}/agg-log-full-many-pots \
 #                             --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
 
+Rscript ./optim/misc-optim-plots.R \
+                            --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                            --fit-version=86
