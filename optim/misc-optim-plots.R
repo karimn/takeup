@@ -18,6 +18,7 @@ script_options <- docopt::docopt(
 library(tidyverse)
 library(data.table)
 library(sf)
+library(tidybayes)
 
 control_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-control-mu-control-{script_options$model}-median-optimal-allocation.rds")
 bracelet_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-bracelet-mu-bracelet-{script_options$model}-median-optimal-allocation.rds")
@@ -169,18 +170,13 @@ comp_df = comp_df %>%
         type = factor(type, levels = c("Experimental", "Optimal: Control", "Optimal: Bracelet"))
     )
 
-stop()
 
 
-comp_df %>%
-    select(dist, type) %>%
-    group_by(type) %>%
-    mutate(id = 1:n()) %>%
-    spread(
-        type, dist
-    ) %>%
+
+plot_fun = function(data) {
+    data %>%
     ggplot(aes(
-        x = Experimental, 
+        x = dist/1000, 
         fill = type
     )) +
     geom_density(
@@ -192,73 +188,24 @@ comp_df %>%
     labs(
         fill = "", 
         y = "Density",
-        x = "Distance Walked (m)"
+        x = "Distance Walked (km)"
     ) +
-    scale_fill_brewer(palette = "Dark2")
+    scale_fill_brewer(palette = "Dark2") +
+    ylim(0, 7.1e-4) +
+    xlim(0, 3000)
+}
 
 
 c1 = comp_df %>%
     mutate(dist = if_else(type != "Experimental", Inf, dist)) %>%
-    ggplot(aes(
-        x = dist, 
-        fill = type
-    )) +
-    geom_density(
-        colour = "black", 
-        alpha = 0.5
-        ) +
-    theme_minimal() +
-    theme(legend.position = "bottom") +
-    labs(
-        fill = "", 
-        y = "Density",
-        x = "Distance Walked (m)"
-    ) +
-    scale_fill_brewer(palette = "Dark2") +
-    ylim(0, 7.1e-4) +
-    xlim(0, 3000)
+    plot_fun()
 
 c2 = comp_df %>%
     mutate(dist = if_else(!(type %in% c("Experimental", "Optimal: Control")), Inf, dist)) %>%
-    ggplot(aes(
-        x = dist, 
-        fill = type
-    )) +
-    geom_density(
-        colour = "black", 
-        alpha = 0.5
-        ) +
-    theme_minimal() +
-    theme(legend.position = "bottom") +
-    labs(
-        fill = "", 
-        y = "Density",
-        x = "Distance Walked (m)"
-    ) +
-    scale_fill_brewer(palette = "Dark2") +
-    ylim(0, 7.1e-4) +
-    xlim(0, 3000)
+    plot_fun()
 
 c3 = comp_df %>%
-    ggplot(aes(
-        x = dist, 
-        fill = type
-    )) +
-    geom_density(
-        colour = "black", 
-        alpha = 0.5
-        ) +
-    theme_minimal() +
-    theme(legend.position = "bottom") +
-    labs(
-        fill = "", 
-        y = "Density",
-        x = "Distance Walked (m)"
-    ) +
-    scale_fill_brewer(palette = "Dark2") +
-    ylim(0, 7.1e-4) +
-    xlim(0, 3000)
-
+    plot_fun()
 
 
 imap(
@@ -277,82 +224,154 @@ imap(
 )
 
 
-ggsave(
-    plot = c1,
-    filename = file.path(
-        script_options$output_path,
-        str_glue(
-            "comp-dist-plot1-fit{script_options$fit_version}-{script_options$model}.pdf"
-        )
-    ),
-    width = 8, 
-    height = 6
+rm(list = c(
+    "comp_df", 
+    "demand_df",
+    "optimal_data",
+    "median_demand_df"
+))
+
+gc()
+
+
+
+# Amplification/Mitigation demand curve plots
+
+demand_files = fs::dir_ls(
+    str_glue("optim/data/{script_options$model}/agg-log-full-many-pots"),
+    regexp = "pred"
 )
 
 
 
-
-# pot_we_want = 8
-
-# villages_in_581 = comp_df %>%
-#     filter(pot_j == pot_we_want) %>%
-#     pull(village_i)
-
-
-# exp_pots_we_want = comp_df %>%
-#     filter(type == "experimental") %>%
-#     filter(village_i %in% villages_in_581) %>%
-#     pull(pot_j)
-
-# comp_df %>%
-#     filter(village_i %in% villages_in_581) %>%
-#     select(village_i, pot_j, dist, demand, type)  %>%
-#     gather(
-#         variable, value, -type, -village_i
-#     ) %>%
-#     spread(variable, value)
-
-# comp_df %>%
-#     filter(village_i %in% villages_in_581) 
-
-# pot_data %>%
-#     colnames()
+demand_file_df = tibble(
+    file = demand_files
+) %>%
+    mutate(
+        b_type = str_extract(file, "(?<=-b-)\\w+(?=-mu)"),
+        mu_type = str_extract(file, "(?<=-mu-)\\w+(?=-)"),
+    )
 
 
 
-# village_data %>%
-#         ggplot() +
-#         geom_sf(alpha = 0.2) +
-#         geom_sf(
-#             data = pot_data,
-#             colour = hex[1],
-#             shape = 17,
-#             # size = 2, 
-#             alpha = 0.2) +
-#         geom_sf(
-#             data = pot_data %>%
-#                 filter(id %in% exp_pots_we_want ),
-#             colour = "red",
-#             shape = 17,
-#             size = 5, 
-#             alpha = 1) +
-#         geom_sf(
-#             data = pot_data %>%
-#                 filter(id %in%  pot_we_want ),
-#             colour = "hotpink",
-#             shape = 17,
-#             size = 5, 
-#             alpha = 1) +
-#         geom_sf(
-#             data = . %>%
-#                 filter(id %in% villages_in_581), 
-#             size = 2
-#         ) +
-#         theme_bw() +
-#         theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-#         labs(
-#             title = "Optimal PoT Allocation Problem",
-#             subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
-#         )  +
-#         labs(x = "", y = "") + 
-#         NULL
+subset_demand_df = demand_file_df %>%
+    filter(b_type == "control") %>%
+    mutate(
+        rep_type = if_else(
+            str_detect(file, "suppress-rep"), 
+            "suppress_rep", 
+            "rep"
+        ), 
+        v_star_type = if_else(
+            str_detect(file, "static"), 
+            "static", 
+            "v_star"
+        )
+    )  %>%
+    filter(rep_type == "rep")
+
+
+subset_demand_df = subset_demand_df %>%
+    filter(
+        (mu_type == "bracelet" & v_star_type == "v_star") |
+        (mu_type == "control" & v_star_type == "v_star") |
+        (mu_type == "control" & v_star_type == "static") 
+    )
+
+subset_demand_df = subset_demand_df %>%
+    mutate(
+        demand_data = map(file, read_csv)
+    )
+
+subset_demand_df = subset_demand_df %>%
+    mutate(
+        demand_data = map(demand_data, ~filter(.x, dist_km <= 3.5))
+    )
+
+summ_subset_demand_df = subset_demand_df %>%
+    mutate(
+        summ_demand_data = map(
+            demand_data, 
+            ~ { .x %>%
+                group_by(dist_km) %>%
+                median_qi(demand, .width = c(0.80, 0.50))
+            }
+        )
+    )
+    
+
+
+
+summ_subset_demand_df = summ_subset_demand_df %>%
+    unnest(summ_demand_data) %>%
+    mutate(
+        v_star_type = if_else(v_star_type == "static", "Static", "W*")
+    ) 
+
+
+summ_subset_demand_df %>%
+    mutate(mu_type = str_to_title(mu_type)) %>%
+    mutate(
+        type = paste0(v_star_type, ": ", mu_type)
+    ) %>%
+    ggplot(aes(
+        x = dist_km, 
+        y = demand,
+        ymin = .lower, 
+        ymax = .upper, 
+
+    )) +
+    geom_line(aes(
+        colour = type, 
+        group = type, 
+        linetype = v_star_type
+    )) +
+    geom_ribbon(
+        data = . %>%
+            filter(.width == 0.5),
+        aes(fill = type), alpha = 0.3) +
+    geom_ribbon(
+        data = . %>%
+            filter(.width == 0.8),
+        aes(fill = type), alpha = 0.3) +
+    theme_minimal() +
+    theme( 
+        legend.position = "bottom",
+        legend.title = element_blank()
+    )  +
+    labs(
+        x = "Distance (km)", 
+        y = "Estimated Takeup", 
+        colour = ""
+    ) +
+    guides(
+        fill = "none", 
+        linetype = "none"
+    ) +
+    ggthemes::scale_color_canva( 
+        palette = "Primary colors with a vibrant twist"
+    ) +
+    ggthemes::scale_fill_canva( 
+        palette = "Primary colors with a vibrant twist"
+    ) +
+    labs(
+        caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+    ) +
+    scale_linetype_manual(
+        values = c("longdash", "solid")
+    )
+
+
+
+ggsave(
+    file.path(
+        script_options$output_path,
+        str_glue(
+            "{script_options$model}-agg-log-full-many-pots-pred-demand-vstar-comp.pdf"
+        )
+    ),
+    width = 8, 
+    height = 6, dpi = 500
+)
+
+
