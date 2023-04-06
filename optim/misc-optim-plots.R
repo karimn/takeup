@@ -309,69 +309,97 @@ summ_subset_demand_df = summ_subset_demand_df %>%
     ) 
 
 
-summ_subset_demand_df %>%
+plot_amp_mit_fun = function(data) {
+    data %>%
+        ggplot(aes(
+            x = dist_km, 
+            y = demand,
+            ymin = .lower, 
+            ymax = .upper, 
+
+        )) +
+        geom_line(aes(
+            colour = type, 
+            group = type, 
+            linetype = v_star_type
+        )) +
+        geom_ribbon(
+            data = . %>%
+                filter(.width == 0.5),
+            aes(fill = type), alpha = 0.3) +
+        geom_ribbon(
+            data = . %>%
+                filter(.width == 0.8),
+            aes(fill = type), alpha = 0.3) +
+        theme_minimal() +
+        theme( 
+            legend.position = "bottom",
+            legend.title = element_blank()
+        )  +
+        labs(
+            x = "Distance (km)", 
+            y = "Estimated Takeup", 
+            colour = ""
+        ) +
+        guides(
+            fill = "none", 
+            linetype = "none"
+        ) +
+        ggthemes::scale_color_canva( 
+            palette = "Primary colors with a vibrant twist"
+        ) +
+        ggthemes::scale_fill_canva( 
+            palette = "Primary colors with a vibrant twist"
+        ) +
+        labs(
+            caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+        ) +
+        scale_linetype_manual(
+            values = c("longdash", "solid")
+        )
+
+}
+
+plot_summ_subset_demand_df = summ_subset_demand_df %>%
     mutate(mu_type = str_to_title(mu_type)) %>%
     mutate(
         type = paste0(v_star_type, ": ", mu_type)
-    ) %>%
-    ggplot(aes(
-        x = dist_km, 
-        y = demand,
-        ymin = .lower, 
-        ymax = .upper, 
+    ) 
 
-    )) +
-    geom_line(aes(
-        colour = type, 
-        group = type, 
-        linetype = v_star_type
-    )) +
-    geom_ribbon(
-        data = . %>%
-            filter(.width == 0.5),
-        aes(fill = type), alpha = 0.3) +
-    geom_ribbon(
-        data = . %>%
-            filter(.width == 0.8),
-        aes(fill = type), alpha = 0.3) +
-    theme_minimal() +
-    theme( 
-        legend.position = "bottom",
-        legend.title = element_blank()
-    )  +
-    labs(
-        x = "Distance (km)", 
-        y = "Estimated Takeup", 
-        colour = ""
-    ) +
-    guides(
-        fill = "none", 
-        linetype = "none"
-    ) +
-    ggthemes::scale_color_canva( 
-        palette = "Primary colors with a vibrant twist"
-    ) +
-    ggthemes::scale_fill_canva( 
-        palette = "Primary colors with a vibrant twist"
-    ) +
-    labs(
-        caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
-    ) +
-    scale_linetype_manual(
-        values = c("longdash", "solid")
-    )
+full_p_amp_mit = plot_summ_subset_demand_df %>%
+    plot_amp_mit_fun() 
+
+ylim_p_amp_mit = ggplot_build(full_p_amp_mit)$layout$panel_scales_y[[1]]$range$range
+
+first_p_amp_mit = plot_summ_subset_demand_df %>%
+    filter(v_star_type == "Static") %>%
+    plot_amp_mit_fun() +
+    ylim(c(ylim_p_amp_mit))
+
+second_p_amp_mit = plot_summ_subset_demand_df %>%
+    filter(v_star_type == "Static" | mu_type == "Bracelet") %>%
+    plot_amp_mit_fun() +
+    ylim(c(ylim_p_amp_mit))
 
 
-
-ggsave(
+imap(
+    list(
+        first_p_amp_mit, 
+        second_p_amp_mit,
+        full_p_amp_mit
+    ), 
+    ~ggsave(
+        plot = .x,
     file.path(
         script_options$output_path,
         str_glue(
-            "{script_options$model}-agg-log-full-many-pots-pred-demand-vstar-comp.pdf"
+            "plot{.y}-{script_options$model}-agg-log-full-many-pots-pred-demand-vstar-comp.pdf"
         )
     ),
     width = 8, 
     height = 6, dpi = 500
 )
+)
+
 
 
