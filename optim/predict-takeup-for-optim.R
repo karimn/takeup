@@ -46,8 +46,10 @@ script_options = docopt::docopt(
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                             --data-input-name=full-many-pots-experiment.rds
                             --single-chain
-                            --run-estimation
+                            --pred-distance
 
+                            --static-signal-pm \
+                            --static-signal-distance=500
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -215,15 +217,9 @@ if (script_options$from_csv) {
     }
 }
 
-
-
-
-
 ## B(z,d):
 # \beta is treatment effect
 # dist_beta_v is distance cost
-
-
 
 
 ## Create estimated demand functions
@@ -457,8 +453,9 @@ if (script_options$fit_rf) {
 if (script_options$pred_distance) {
 
 plan(multicore, workers = script_options$num_cores)
-pred_functions = map(
+pred_functions = map2(
     draw_treat_grid$draw,
+    draw_treat_grid$static_signal_value,
     ~extract_params(
         param_draws = struct_param_draws,
         private_benefit_treatment = script_options$private_benefit_z,
@@ -470,9 +467,12 @@ pred_functions = map(
         dist_cutoff = script_options$dist_cutoff, 
         bounds = script_options$bounds,
         mu_rep_type = mu_rep_type,
-        suppress_reputation = script_options$suppress_reputation
+        suppress_reputation = script_options$suppress_reputation, 
+        static_signal = .y
     ) %>% find_pred_takeup()
 )
+
+
 
 
 

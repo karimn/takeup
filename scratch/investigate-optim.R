@@ -6,14 +6,14 @@ library(cmdstanr)
 
 treatment_var = "bracelet"
 
-
-
 demand_files = fs::dir_ls(
     "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots",
     regexp = "pred"
 )
 
-demand_files
+# private benefit control
+# fix R at 0m: control, bracelet
+
 
 
 demand_file_df = tibble(
@@ -25,9 +25,11 @@ demand_file_df = tibble(
     )
 
 
+demand_file_df
+
 subset_demand_df = demand_file_df %>%
-    filter(b_type == mu_type) %>%
-    filter(b_type == treatment_var) %>%
+    filter(b_type == "control") %>%
+    # filter(b_type == treatment_var) %>%
     mutate(
         rep_type = if_else(
             str_detect(file, "suppress-rep"), 
@@ -39,10 +41,18 @@ subset_demand_df = demand_file_df %>%
             "static", 
             "v_star"
         )
-    ) 
+    )  %>%
+    filter(rep_type == "rep")
+
 
 subset_demand_df = subset_demand_df %>%
-    filter(rep_type == "rep") %>%
+    filter(
+        (mu_type == "bracelet" & v_star_type == "v_star") |
+        (mu_type == "control" & v_star_type == "v_star") |
+        (mu_type == "control" & v_star_type == "static") 
+    )
+
+subset_demand_df = subset_demand_df %>%
     mutate(
         demand_data = map(file, read_csv)
     )
@@ -53,43 +63,49 @@ subset_demand_df = subset_demand_df %>%
     )
 
 summ_subset_demand_df = subset_demand_df %>%
-    unnest(demand_data) %>%
-    group_by(dist_km, v_star_type) %>%
-    median_qi(demand, .width = c(0.80, 0.50 ))
+    mutate(
+        summ_demand_data = map(
+            demand_data, 
+            ~ { .x %>%
+                group_by(dist_km) %>%
+                median_qi(demand, .width = c(0.80, 0.50))
+            }
+        )
+    )
+    
+summ_subset_demand_df %>%
+    unnest(summ_demand_data)
 
-
-summ_subset_demand_df 
-
-
-# summ_subset_demand_df = subset_demand_df %>%
-#     unnest(demand_data) %>%
-#     filter(draw < 50)
 
 
 summ_subset_demand_df = summ_subset_demand_df %>%
+    unnest(summ_demand_data) %>%
     mutate(
         v_star_type = if_else(v_star_type == "static", "Static", "V*")
     ) 
 
+summ_subset_demand_df
 
 summ_subset_demand_df %>%
     ggplot(aes(
         x = dist_km, 
         y = demand,
         ymin = .lower, 
-        ymax = .upper
+        ymax = .upper, 
+
     )) +
     geom_line(aes(
-        colour = v_star_type
+        colour = interaction(v_star_type, mu_type), 
+        group = interaction(v_star_type, mu_type)
     )) +
     geom_ribbon(
         data = . %>%
             filter(.width == 0.5),
-        aes(fill = v_star_type), alpha = 0.3) +
+        aes(fill = interaction(v_star_type, mu_type)), alpha = 0.3) +
     geom_ribbon(
         data = . %>%
             filter(.width == 0.8),
-        aes(fill = v_star_type), alpha = 0.3) +
+        aes(fill = interaction(v_star_type, mu_type)), alpha = 0.3) +
     theme_minimal() +
     theme( 
         legend.position = "bottom",
@@ -114,6 +130,7 @@ summ_subset_demand_df %>%
   )
 
 
+
 ggsave(
     "temp-plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-agg-log-full-many-pots-pred-demand-vstar-comp.pdf",
     width = 8, 
@@ -135,7 +152,8 @@ summ_subset_demand_df %>%
     ) 
 
 ggsave(
-    str_glue("temp-plots/{treatment_var}-v-star.png"), 
+    # str_glue("temp-plots/{treatment_var}-v-star.png"), 
+    "temp-plots/amp-mit-v-star.pdf",
     width = 8,
     height = 6, 
     dpi = 500
