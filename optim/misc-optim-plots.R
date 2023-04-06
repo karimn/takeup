@@ -164,9 +164,23 @@ comp_df = bind_rows(
 )
 
 
-comp_dist_plot = comp_df %>%
+comp_df = comp_df %>%
+    mutate(
+        type = factor(type, levels = c("Experimental", "Optimal: Control", "Optimal: Bracelet"))
+    )
+
+stop()
+
+
+comp_df %>%
+    select(dist, type) %>%
+    group_by(type) %>%
+    mutate(id = 1:n()) %>%
+    spread(
+        type, dist
+    ) %>%
     ggplot(aes(
-        x = dist, 
+        x = Experimental, 
         fill = type
     )) +
     geom_density(
@@ -182,12 +196,93 @@ comp_dist_plot = comp_df %>%
     ) +
     scale_fill_brewer(palette = "Dark2")
 
+
+c1 = comp_df %>%
+    mutate(dist = if_else(type != "Experimental", Inf, dist)) %>%
+    ggplot(aes(
+        x = dist, 
+        fill = type
+    )) +
+    geom_density(
+        colour = "black", 
+        alpha = 0.5
+        ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        fill = "", 
+        y = "Density",
+        x = "Distance Walked (m)"
+    ) +
+    scale_fill_brewer(palette = "Dark2") +
+    ylim(0, 7.1e-4) +
+    xlim(0, 3000)
+
+c2 = comp_df %>%
+    mutate(dist = if_else(!(type %in% c("Experimental", "Optimal: Control")), Inf, dist)) %>%
+    ggplot(aes(
+        x = dist, 
+        fill = type
+    )) +
+    geom_density(
+        colour = "black", 
+        alpha = 0.5
+        ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        fill = "", 
+        y = "Density",
+        x = "Distance Walked (m)"
+    ) +
+    scale_fill_brewer(palette = "Dark2") +
+    ylim(0, 7.1e-4) +
+    xlim(0, 3000)
+
+c3 = comp_df %>%
+    ggplot(aes(
+        x = dist, 
+        fill = type
+    )) +
+    geom_density(
+        colour = "black", 
+        alpha = 0.5
+        ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        fill = "", 
+        y = "Density",
+        x = "Distance Walked (m)"
+    ) +
+    scale_fill_brewer(palette = "Dark2") +
+    ylim(0, 7.1e-4) +
+    xlim(0, 3000)
+
+
+
+imap(
+    list(c1, c2, c3), 
+    ~ggsave(
+        plot = .x,
+        filename = file.path(
+            script_options$output_path,
+            str_glue(
+                "comp-dist-plot{.y}-fit{script_options$fit_version}-{script_options$model}.pdf"
+            )
+        ),
+        width = 8, 
+        height = 6
+        )
+)
+
+
 ggsave(
-    plot = comp_dist_plot,
+    plot = c1,
     filename = file.path(
         script_options$output_path,
         str_glue(
-            "comp-dist-plot-fit{script_options$fit_version}-{script_options$model}.pdf"
+            "comp-dist-plot1-fit{script_options$fit_version}-{script_options$model}.pdf"
         )
     ),
     width = 8, 
