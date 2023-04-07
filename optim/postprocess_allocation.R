@@ -242,7 +242,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
                 labels = c("PoT Used", "PoT Unused", "Village")
             ) +
             theme(legend.title = element_blank()) +
-            theme(legend.position = "bottom") +
+            # theme(legend.position = "bottom") +
         theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
             guides(alpha = guide_legend(override.aes = list(alpha = 1)))
         return(optimal_pot_plot)

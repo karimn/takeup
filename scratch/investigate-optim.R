@@ -1,9 +1,11 @@
+library(tidyverse)
+library(cmdstanr)
+library(tidybayes)
+library(posterior)
 
 
-
-# fit_file = "data/stan_analysis_data/dist_fit71_STRUCTURAL_LINEAR_U_SHOCKS-1.csv"
-
-# fit = as_cmdstan_fit(fit_file)
+fit_file = "data/stan_analysis_data/dist_fit86_STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-1.csv"
+fit = as_cmdstan_fit(fit_file)
 
 
 # # To find fixed point need:
@@ -12,6 +14,29 @@
 # # total_error_sd
 # # u_sd
 
+
+bc_draws = spread_rvars(
+    fit,
+    cluster_rep_return[i,j,k],
+    cluster_rep_return_dist[i,j,k],
+    cluster_w_cutoff[i,j,k], 
+    dist_beta_v[k]
+    )
+
+rm(fit)
+gc()
+
+summ_bc_draws = bc_draws %>%
+    mutate(
+        across( 
+            where(is_rvar), mean
+        )
+    )
+
+summ_bc_draws %>%
+    ggplot(aes(
+        x = 
+    ))
 
 
 # bc_draws = fit$draws(

@@ -11,8 +11,8 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
-SKIP_PREDICTION=0 # 1
-SKIP_OA=0 # 1 or 0
+SKIP_PREDICTION=1 # 1
+SKIP_OA=1 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
@@ -214,8 +214,8 @@ compare_option () {
 # run_optim "bracelet" "bracelet"
 
 # # Now we swap to static signalling, fixed at d = 0.5
-# SUPPRESS_REP="" # turn off suppress rep
 
+SUPPRESS_REP="" # turn off suppress rep
 STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
 STATIC_SIGNAL_DIST=500
 DEMAND_NAME="static-" 
@@ -236,7 +236,7 @@ run_optim "control" "bracelet"
 #                             --demand-input-path=optim/data/${MODEL}/agg-log-full-many-pots \
 #                             --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
 
-Rscript ./optim/misc-optim-plots.R \
-                            --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                            --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                            --fit-version=86
+# Rscript ./optim/misc-optim-plots.R \
+#                             --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+#                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+#                             --fit-version=86

@@ -21,7 +21,7 @@ library(sf)
 library(tidybayes)
 
 control_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-control-mu-control-{script_options$model}-median-optimal-allocation.rds")
-bracelet_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-bracelet-mu-bracelet-{script_options$model}-median-optimal-allocation.rds")
+bracelet_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-control-mu-bracelet-{script_options$model}-median-optimal-allocation.rds")
 
 
 control_oa_df = read_rds(control_oa_files)
@@ -191,21 +191,44 @@ plot_fun = function(data) {
         x = "Distance Walked (km)"
     ) +
     scale_fill_brewer(palette = "Dark2") +
-    ylim(0, 7.1e-4) +
-    xlim(0, 3000)
+    ylim(0, 0.75) +
+    xlim(0, 3.5)
 }
 
 
 c1 = comp_df %>%
     mutate(dist = if_else(type != "Experimental", Inf, dist)) %>%
     plot_fun()
-
 c2 = comp_df %>%
     mutate(dist = if_else(!(type %in% c("Experimental", "Optimal: Control")), Inf, dist)) %>%
-    plot_fun()
+    plot_fun() +
+    annotate(
+        "text", 
+        x = 0.5, 
+        y = 0.7, 
+        label = "Amplification",
+        size = 5, 
+        alpha = 0.7
+    )
 
 c3 = comp_df %>%
-    plot_fun()
+    plot_fun() +
+    annotate(
+        "text", 
+        x = 0.5, 
+        y = 0.7, 
+        label = "Amplification",
+        size = 5, 
+        alpha = 0.7
+    ) +
+    annotate(
+        "text", 
+        x = 3, 
+        y = 0.25, 
+        label = "Mitigation",
+        size = 5, 
+        alpha = 0.7
+    )
 
 
 imap(
@@ -285,7 +308,7 @@ subset_demand_df = subset_demand_df %>%
 
 subset_demand_df = subset_demand_df %>%
     mutate(
-        demand_data = map(demand_data, ~filter(.x, dist_km <= 3.5))
+        demand_data = map(demand_data, ~filter(.x, dist_km <= 2.5))
     )
 
 summ_subset_demand_df = subset_demand_df %>%
@@ -370,16 +393,19 @@ full_p_amp_mit = plot_summ_subset_demand_df %>%
     plot_amp_mit_fun() 
 
 ylim_p_amp_mit = ggplot_build(full_p_amp_mit)$layout$panel_scales_y[[1]]$range$range
+full_p_amp_mit = plot_summ_subset_demand_df %>%
+    plot_amp_mit_fun()  +
+    ylim(c(0, ylim_p_amp_mit[2]))
 
 first_p_amp_mit = plot_summ_subset_demand_df %>%
     filter(v_star_type == "Static") %>%
     plot_amp_mit_fun() +
-    ylim(c(ylim_p_amp_mit))
+    ylim(c(0, ylim_p_amp_mit[2]))
 
 second_p_amp_mit = plot_summ_subset_demand_df %>%
     filter(v_star_type == "Static" | mu_type == "Bracelet") %>%
     plot_amp_mit_fun() +
-    ylim(c(ylim_p_amp_mit))
+    ylim(c(0, ylim_p_amp_mit[2]))
 
 
 imap(
