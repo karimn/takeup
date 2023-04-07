@@ -1,7 +1,9 @@
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_roc; 
+array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_roc_no_vis; 
 array[num_roc_distances] matrix[num_clusters, num_treatments - 1] cluster_roc_diff; 
 matrix[num_clusters, num_treatments - 1] cluster_roc_diff_diffdist; 
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_w_cutoff;
+array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_w_control_cutoff;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_takeup_prop;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_social_multiplier;
 array[num_roc_distances] matrix[num_clusters, num_treatments] cluster_rep_return;
@@ -40,7 +42,7 @@ if (multithreaded) {
         curr_cluster_mu_rep = curr_cluster_mu_rep_control;
       }
         
-      matrix[num_clusters, 5] roc_results = map_calculate_roc(
+      matrix[num_clusters, 6] roc_results = map_calculate_roc(
         curr_net_benefit[, treatment_index],
         curr_net_benefit[, roc_compare_treatment_id_right],
         
@@ -62,11 +64,13 @@ if (multithreaded) {
       );
       
       cluster_w_cutoff[roc_dist_index, , treatment_index] = roc_results[, 1];
+      cluster_w_control_cutoff[roc_dist_index, , treatment_index] = roc_results[, 2];
       cluster_takeup_prop[roc_dist_index, , treatment_index] = 1 - Phi_approx(roc_results[, 1] / total_error_sd[treatment_index]);
       cluster_social_multiplier[roc_dist_index, , treatment_index] = - roc_results[, 3];
       cluster_rep_return[roc_dist_index, , treatment_index] = roc_results[, 3] .* curr_cluster_mu_rep[, 1];
       cluster_rep_return_dist[roc_dist_index, , treatment_index] = cluster_rep_return[roc_dist_index, , treatment_index] / dist_beta_v[1]; 
       cluster_roc[roc_dist_index, , treatment_index] = roc_results[, 5];
+      cluster_roc_no_vis[roc_dist_index, , treatment_index] = roc_results[, 6];
       
       if (treatment_index > roc_compare_treatment_id_right) {
         cluster_roc_diff[roc_dist_index, , diff_index] = cluster_roc[roc_dist_index, , treatment_index] - cluster_roc[roc_dist_index, , roc_compare_treatment_id_right]; 
