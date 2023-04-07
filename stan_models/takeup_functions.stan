@@ -299,9 +299,10 @@ vector calculate_roc_rect(vector phi, vector theta, data array[] real x_r, data 
   real roc_no_vis = -exp(normal_lpdf(w_control | 0, total_error_sd))*dist_beta;
 
   return append_row(
+  append_row(
     append_row([w, w_control]', delta),
-    calculate_roc(w_control, total_error_sd, dist_beta, mu_rep, mu_rep_deriv, delta[1], delta[2]), 
-    roc_no_vis
+    calculate_roc(w_control, total_error_sd, dist_beta, mu_rep, mu_rep_deriv, delta[1], delta[2])),
+    [roc_no_vis]'
   ); 
 }
 
