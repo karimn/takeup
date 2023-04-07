@@ -4,7 +4,7 @@ library(tidybayes)
 library(posterior)
 
 
-fit_file = "data/stan_analysis_data/dist_fit86_STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-1.csv"
+fit_file = "data/stan_analysis_data/dist_fit87_STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-1.csv"
 fit = as_cmdstan_fit(fit_file)
 
 
@@ -17,15 +17,210 @@ fit = as_cmdstan_fit(fit_file)
 
 bc_draws = spread_rvars(
     fit,
-    cluster_rep_return[i,j,k],
-    cluster_rep_return_dist[i,j,k],
-    cluster_w_cutoff[i,j,k], 
-    dist_beta_v[k]
+    # cluster_rep_return[i,j,k],
+    # cluster_rep_return_dist[i,j,k],
+    # cluster_w_cutoff[i,j,k], 
+    # cluster_w_control_cutoff[i,j,k], 
+    # total_error_sd[1],
+    # dist_beta_v[k]
+    cluster_roc[i,j,k], 
+    cluster_roc_no_vis[i,j,k]
     )
 
 rm(fit)
 gc()
 
+summ_bc_draws = bc_draws %>%
+    filter(j == 1) %>%
+    pivot_longer(
+        cols = c(cluster_roc, cluster_roc_no_vis)
+    ) 
+
+summ_bc_draws = summ_bc_draws %>%
+    median_qi(value, .width = c(0.80, 0.50))
+
+dist_df = tibble(
+    i = 1:51,
+    dist = seq(from = 0, to = 5000, by = 100)
+)
+summ_bc_draws = summ_bc_draws %>%
+    left_join(dist_df)
+
+treat_df = tibble(
+    k = 1:4, 
+    treatment = c("control", "ink", "calendar", "bracelet")
+)
+summ_bc_draws = summ_bc_draws %>%
+    left_join(treat_df)
+
+summ_bc_draws = summ_bc_draws %>%
+    mutate(
+        treatment = factor(treatment, levels = c("control", "ink", "calendar", "bracelet"))
+    )
+
+sd_of_dist = read_rds("temp-data/sd_of_dist.rds")
+plot_summ_bc_draws = summ_bc_draws %>%
+    filter(dist < 2500) %>%
+    mutate(dist = dist/1000) %>%
+    mutate(
+        across(c(value, .lower, .upper), magrittr::divide_by, sd_of_dist), 
+        across(c(value, .lower, .upper), magrittr::multiply_by, 1000),
+        across(c(value, .lower, .upper), magrittr::multiply_by, 100))
+
+
+load(file.path("temp-data", str_interp("processed_dist_fit86_lite.RData")))
+library(magrittr)
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+
+plot_summ_bc_draws %>%
+    filter(name == "cluster_roc") %>%
+    filter(treatment %in% c("control", "bracelet")) %>%
+    mutate(k = factor(k)) %>%
+        ggplot(aes(
+            x = dist
+        )) +
+        geom_line(aes(
+            color = treatment,
+            y = value
+        )) +
+        geom_ribbon(
+            data = . %>%
+                filter(.width == 0.5),
+            aes(
+                ymax = .upper, 
+                ymin = .lower,
+                fill = treatment), alpha = 0.3) +
+        geom_ribbon(
+            data = . %>%
+                filter(.width == 0.8),
+            aes(
+                ymax = .upper, 
+                ymin = .lower,
+                fill = treatment), alpha = 0.3) +
+        theme_minimal() +
+        theme( 
+            legend.position = "bottom",
+            legend.title = element_blank()
+        )  +
+        labs(
+            x = "Distance to Treatment (d) [km]", 
+            # y = "Estimated Takeup", 
+            colour = ""
+        ) +
+        guides(
+            linetype = "none"
+        ) +
+        labs(
+            caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+        ) +
+        geom_line(
+            inherit.aes = FALSE, 
+            aes(x = dist, y = value),
+            data = plot_summ_bc_draws %>%
+                filter(name == "cluster_roc_no_vis"),
+            linetype = "longdash"
+        )  +
+        geom_rug(
+            inherit.aes = FALSE,
+            aes(dist),
+            alpha = 0.75,
+            data = rf_analysis_data %>%
+            filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
+            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+        annotate(
+            "text", 
+            x = 0.3, 
+            y = -12, 
+            label = "Amplification", 
+            size = 4, 
+            alpha = 0.7
+        ) +
+        annotate(
+            "text", 
+            x = 2.3, 
+            y = -7.5, 
+            label = "Mitigation", 
+            size = 4, 
+            alpha = 0.7
+        ) +
+        labs(
+            y = "Rate of Change [pp/km]"
+        ) +
+        ggthemes::scale_color_canva( 
+            "",
+            palette = "Primary colors with a vibrant twist", 
+            labels = str_to_title
+        ) +
+        ggthemes::scale_fill_canva( 
+            "",
+            palette = "Primary colors with a vibrant twist", 
+            labels = str_to_title
+        ) 
+
+ggsave("temp-plots/last-minute-roc-plot.pdf", width = 8, height = 6)
+    
+    # %>%
+
+
+
+
+summ_bc_draws = summ_bc_draws %>%
+    left_join(dist_df)
+
+
+summ_bc_draws %>%
+    filter(dist <= 2500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = cluster_roc, 
+        colour = factor(k )
+    )) +
+    geom_point() +
+    geom_line() +
+    geom_line(
+        aes(y = cluster_roc_no_vis), 
+        colour = "black"
+    )
+
+bc_draws %>%
+    select(cluster_w_control_cutoff, total_error_sd) 
+
+r_dnorm = rfun(dnorm)
+
+bc_draws = bc_draws %>%
+    mutate(
+        delta_roc =  -1*dist_beta_v*r_dnorm(cluster_w_control_cutoff, sd = total_error_sd)
+    ) %>%
+    left_join(
+        dist_df
+    )
+
+
+summ_bc_draws = bc_draws %>%
+    mutate(across(where(is_rvar), mean))
+
+summ_bc_draws %>%
+    filter(i == 1) %>%
+   select(i, j, k, delta_roc) %>%
+   tail()
+
+summ_bc_draws %>%
+    filter(dist < 2500) %>%
+    ggplot(aes(
+        x = dist, 
+        y = delta_roc, 
+    )) +
+    geom_line() +
+    geom_point()
+
+
+
+    
 summ_bc_draws = bc_draws %>%
     mutate(
         across( 
