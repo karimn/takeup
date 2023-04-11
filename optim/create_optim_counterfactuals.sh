@@ -221,22 +221,25 @@ STATIC_SIGNAL_DIST=500
 DEMAND_NAME="static-" 
 run_optim "control" "bracelet"
 
-# Control plots using realised allocation
-Rscript ./optim/create-presentation-plots.R \
-                            --constraint-type=agg \
-                            --welfare-function=log \
-                            --min-cost \
-                            --output-path=${OUTPUT_PATH} \
-                            --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
-                            --cutoff-type=cutoff \
-                            --data-input-path=optim/data \
-                            --data-input-name=${DATA_INPUT_NAME} \
-                            --posterior-median \
-                            --pdf-output-path=presentations/takeup-${MODEL}-fig \
-                            --demand-input-path=optim/data/${MODEL}/agg-log-full-many-pots \
-                            --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
+if [[ ${POSTERIOR_MEDIAN} == "--posterior-median" ]]
+then 
+    # Control plots using realised allocation
+    Rscript ./optim/create-presentation-plots.R \
+                                --constraint-type=agg \
+                                --welfare-function=log \
+                                --min-cost \
+                                --output-path=${OUTPUT_PATH} \
+                                --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
+                                --cutoff-type=cutoff \
+                                --data-input-path=optim/data \
+                                --data-input-name=${DATA_INPUT_NAME} \
+                                --posterior-median \
+                                --pdf-output-path=presentations/takeup-${MODEL}-fig \
+                                --demand-input-path=${OUTPUT_PATH} \
+                                --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
 
-Rscript ./optim/misc-optim-plots.R \
-                            --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                            --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                            --fit-version=86
+    Rscript ./optim/misc-optim-plots.R \
+                                --output-path=${OUTPUT_PATH} \
+                                --model=${MODEL} \
+                                --fit-version=${VERSION}
+fi
