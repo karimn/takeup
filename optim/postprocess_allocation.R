@@ -26,12 +26,11 @@ script_options <- docopt::docopt(
                             --welfare-function=log \
                             --min-cost \
                             --optim-input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                            --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
+                            --optim-input-a-filename=target-rep-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-post-draws-optimal-allocation.rds \
                             --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
+                            --output-basename=target-rep-agg-log-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
-                            --posterior-median \
                             --pdf-output-path=presentations/takeup-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-fig/
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -517,8 +516,25 @@ if (stat_type == "post-draws") {
             )  %>%
         unnest(model_output)
 
+    cols_we_want = c(
+        "draw", 
+        "model", 
+        "private_benefit_z",
+        "visibility_z",
+        "i", 
+        "j", 
+        "demand", 
+        "dist", 
+        "village_lon", 
+        "village_lat",
+        "pot_lon", 
+        "pot_lat", 
+        "target_optim"
+    )
+
+
     long_optimal_df = long_optimal_df %>%
-        select(-c(`Level of Education`:cluster.id.y))
+        select(any_of(cols_we_want))
 
     long_optimal_df %>%
         saveRDS(
