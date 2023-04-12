@@ -10,7 +10,7 @@ NUM_CORES=16
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
+POSTERIOR_MEDIAN="" # --posterior-median or ""
 SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
@@ -192,10 +192,10 @@ compare_option () {
                                     --optim-input-path=${OUTPUT_PATH} \
                                     --optim-input-a-filename=target-${CONSTRAINT_TARGET}-${DEMAND_NAME}${TMP_REP_VAR_A}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --optim-input-b-filename=target-${CONSTRAINT_TARGET}-${DEMAND_NAME}${TMP_REP_VAR_B}${CUTOFF}cutoff-b-$3-mu-$4-${MODEL}-${POSTVAR}-optimal-allocation.rds \
-                                    --comp-output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
+                                    --comp-output-basename=target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${PLOT_OUTPUT_PATH} \
-                                    --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
+                                    --output-basename=target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
                                     --pdf-output-path=presentations/takeup-${MODEL}-fig/
 }
