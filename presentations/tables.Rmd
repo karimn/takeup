@@ -2661,17 +2661,6 @@ all_optim_df = read_csv(
 ) 
 
 
-all_optim_df %>%
-  filter(rep_type  == "rep") %>%
-  filter(
-    private_benefit_z == "control" & visibility_z == "bracelet"
-  ) %>%
-  summarise(
-    mean = mean(n_pot), 
-    conf.low = quantile(n_pot, 0.05), 
-    conf.high = quantile(n_pot, 0.95)
-  )
-
 
 
 summ_optim_df = all_optim_df %>%
@@ -2679,10 +2668,12 @@ summ_optim_df = all_optim_df %>%
             private_benefit_z,
             visibility_z, 
             static_vstar,
+            allocation_type,
             model, 
             rep_type,
             cutoff_type
         ) %>%
+        mutate(mean_dist = mean_dist/1000) %>%
         filter(
             model %in% models_we_want
         ) %>%
@@ -2691,10 +2682,17 @@ summ_optim_df = all_optim_df %>%
         ) %>%
         summarise(
             across(
-                everything(),
+                .cols = c(mean_dist, mean_demand),
                 list(
-                    estimate = mean,
-                    CI = ~paste0("(", round(quantile(.x, 0.025), 3), ", ", round(quantile(.x, 0.975), 3), ")")
+                    estimate = ~mean(.x, na.rm = TRUE) %>% round(3),
+                    CI = ~paste0("(", round(quantile(.x, 0.025, na.rm = TRUE), 3), ", ", round(quantile(.x, 0.975, na.rm = TRUE), 3), ")")
+                )
+            ),
+            across(
+                .cols = c(n_pot),
+                list(
+                    estimate = ~mean(.x, na.rm = TRUE) %>% round(0),
+                    CI = ~paste0("(", round(quantile(.x, 0.025, na.rm = TRUE), 0), ", ", round(quantile(.x, 0.975, na.rm = TRUE), 0), ")")
                 )
             )
         )   %>%
@@ -2711,19 +2709,21 @@ summ_optim_df = all_optim_df %>%
     )
 
 
-
 wide_summ_df_rep = summ_optim_df %>%
   filter(rep_type == "rep") %>%
-  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type)   %>%
+  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type)   %>%
   mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
   mutate(variable = str_remove(variable, "_CI")) %>%
   mutate(variable = str_remove(variable, "_estimate"))  %>%
   pivot_wider(
-    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar), 
+    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type), 
     names_from = CI, 
     values_from = value
   )   %>%
-  mutate(estim = as.numeric(estim) %>% round(3))  %>%
+  mutate(estim = if_else(
+    variable %in% c("n_pot"), as.numeric(estim), 
+    as.numeric(estim) %>% round(2)
+  ))  %>%
   mutate(
     estim_value = 
     linebreak(
@@ -2741,16 +2741,19 @@ wide_summ_df_rep = summ_optim_df %>%
 
 wide_summ_df_sup_rep = summ_optim_df %>%
   filter(rep_type == "suppress_rep")  %>%
-  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type)   %>%
+  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type)   %>%
   mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
   mutate(variable = str_remove(variable, "_CI")) %>%
   mutate(variable = str_remove(variable, "_estimate")) %>%
   pivot_wider(
-    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar), 
+    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type), 
     names_from = CI, 
     values_from = value
-  )   %>%
-  mutate(estim = as.numeric(estim) %>% round(3))  %>%
+  )    %>%
+  # mutate(estim = if_else(
+  #   variable %in% c("n_pot"), as.numeric(estim) %>% round(1), 
+  #   as.numeric(estim) %>% round(2)
+  # ))  %>%
   mutate(
     estim_value = 
     linebreak(
@@ -2765,6 +2768,8 @@ wide_summ_df_sup_rep = summ_optim_df %>%
     -estim, -ci
   )  %>%
   spread(variable, estim_value)
+
+
 
 
 
@@ -2796,18 +2801,33 @@ optim_summ_input_df = bind_rows(
   mutate(
     mu_z = fct_relevel(mu_z, 
     c("Control", "Ink", "Calendar", "Signal value fixed at bracelet 0.5km", "Bracelet",  "No Visibility"))
+  )  %>%
+  mutate(
+    mean_dist = if_else(
+      allocation_type == "experimental", 
+      str_remove(mean_dist, "\\\\\\(([^)]+)\\)") %>%
+      str_replace(.,   '\\\\\\}', "}"), 
+      mean_dist
+    ), 
+    n_pot = if_else(
+      allocation_type == "experimental", 
+      str_remove(n_pot, "\\\\\\(([^)]+)\\)") %>%
+      str_replace(.,   '\\\\\\}', "}"), 
+      n_pot
+    ) 
   ) 
+
 
 optim_summ_tbl = optim_summ_input_df %>%
   arrange(rep_type, mu_z, B_z) %>%
-  select(B_z, mu_z, n_pot, mean_demand, overshoot) %>%
+  select(B_z, mu_z, n_pot, mean_demand, mean_dist) %>%
   knitr::kable(
     col.names = c(
-      "Private Benefit", 
+      "Private benefit", 
       "Visibility",
       "Assigned PoTs", 
-      "Mean Take-up", 
-      "Percent Overshoot"
+      "Mean take-up", 
+      "Mean distance (km)"
     ),
     align = "llccc",
     booktabs = TRUE,
@@ -2819,8 +2839,8 @@ optim_summ_tbl = optim_summ_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: Visibility" = 3, 
-      "Panel B: No visibility" = 1
+      "Panel A: Experimental allocation" = 1, 
+      "Panel B: Optimal allocation" = 4
     ), 
     italic = TRUE,
     escape = FALSE,
