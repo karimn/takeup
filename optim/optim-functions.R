@@ -396,6 +396,14 @@ extract_params = function(param_draws,
       )  %>%
       pull(.value)
 
+    if (!is.null(static_signal)) {
+      if (is.na(static_signal)) {
+        static_signal = NULL
+      }
+    } else {
+      static_signal = NULL
+    }
+
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 

@@ -35,20 +35,6 @@ script_options <- docopt::docopt(
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
-                            # --comp-output-basename=agg-log-cutoff-cf-b1-control-b2-control-mu1-control-mu2-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
-                            # --optim-input-b-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds \
-                            # --target-constraint=0.33
-                            #  --min-cost 
-                            #  --target-constraint=0.33
-                            #  --input-path=optim/data
-                            #  --optim-input-a-filename=-no-rep-median-optimal-allocation.rds
-                            #  --village-input-filename=village-df.csv
-                            #  --pot-input-filename=pot-df.csv
-                            #  --demand-input-a-filename=pred_demand_dist_fit71_no_rep.csv
-                            #  --output-path=optim
-                            #  --output-basename=structural-median-no-rep-test
-                            #  --map-plot
-                            #  --posterior-median
 
 library(tidyverse)
 library(sf)

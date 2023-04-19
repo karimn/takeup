@@ -46,13 +46,13 @@ script_options = docopt::docopt(
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                             --data-input-name=full-many-pots-experiment.rds
                             --single-chain
-                            --pred-distance
+                            --run-estimation
 
-                            --static-signal-pm \
-                            --static-signal-distance=500
+                            --static-signal-distance=Inf
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
+
 
 
 # Loading functions
@@ -259,7 +259,7 @@ if (script_options$static_signal_pm == TRUE) {
             bounds = script_options$bounds,
             mu_rep_type = mu_rep_type,
             suppress_reputation = script_options$suppress_reputation, 
-            static_signal = NULL
+            static_signal = NA
         ) %>% find_pred_takeup()
     )
 
@@ -272,12 +272,12 @@ if (script_options$static_signal_pm == TRUE) {
     mu_reps = map_dbl(static_pred_outputs, "mu_rep")
 
     draw_treat_grid$static_signal_value = mu_reps*delta_v_stars
-} 
+}  else {
+    draw_treat_grid$static_signal_value = NA
+}
 
 
 if (run_estimation == TRUE){
-
-
 
 
 pred_functions = map2(
@@ -323,9 +323,6 @@ if (script_options$fit_rf) {
 
 subset_long_distance_mat = long_distance_mat %>%
     filter(dist < script_options$dist_cutoff)
-
-
-
 
 
 print(str_glue("Running {length(pred_functions)} pred functions"))

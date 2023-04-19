@@ -14,7 +14,6 @@ script_options <- docopt::docopt(
         --input-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
         --output-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
         --many-pots
-        --posterior-median
         --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -65,11 +64,12 @@ oa_df = oa_df %>%
     mutate(
         private_benefit_z = factor(private_benefit_z, levels = treatments), 
         visibility_z = factor(visibility_z, levels = treatments), 
+        static_vstar = str_detect(file, "static")
     )
 
 
 subset_oa_df = oa_df %>%
-    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS")  %>%
+    filter(model == script_options$model)  %>%
     filter(
         cutoff_type  == "cutoff"
     ) 
@@ -81,6 +81,7 @@ if (!script_options$posterior_median) { # if all draws
             draw,
             private_benefit_z,
             visibility_z, 
+            static_vstar,
             model, 
             rep_type,
             cutoff_type
@@ -100,6 +101,7 @@ if (!script_options$posterior_median) { # if all draws
         group_by(
             private_benefit_z,
             visibility_z, 
+            static_vstar,
             model, 
             rep_type,
             cutoff_type
@@ -131,11 +133,11 @@ if (!script_options$posterior_median) { # if all draws
         B_z = private_benefit_z, 
         mu_z = visibility_z
     )
-
 clean_summ_optim_df = summ_optim_df %>%
     group_by(
         private_benefit_z,
         visibility_z, 
+        static_vstar,
         model, 
         rep_type,
         cutoff_type
@@ -148,7 +150,29 @@ clean_summ_optim_df = summ_optim_df %>%
         cutoff_type  == "cutoff"
     ) 
 
+clean_summ_optim_df %>%
+    filter(rep_type == "rep") %>%
+    ggplot(aes(
+        x = n_pot, 
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type)
+    )) +
+    geom_density(alpha = 0.6) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
 
+
+
+clean_summ_optim_df %>%
+    filter(rep_type == "rep") %>%
+    ggplot(aes(
+        x = n_pot, 
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type)
+    )) +
+    geom_histogram(
+        colour = "black"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
 
 clean_summ_optim_df %>% 
     write_csv(
