@@ -14,7 +14,6 @@ script_options <- docopt::docopt(
         --input-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
         --output-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
         --many-pots
-        --posterior-median
         --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                              
                              " else commandArgs(trailingOnly = TRUE)
@@ -43,6 +42,8 @@ if (script_options$posterior_median) {
 
 models_we_want = script_options$model 
 
+experimental_file = "target-rep-agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds"
+
 oa_df = map_dfr(
     oa_files, 
     read_rds,
@@ -50,8 +51,29 @@ oa_df = map_dfr(
 ) %>% as_tibble()  %>%
     mutate(
         cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
-        rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep")
+        rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep"), 
+        allocation_type = "optimal"
     ) 
+
+experimental_oa_df = read_rds(
+    file.path(
+        input_path, 
+        experimental_file
+    )
+) %>%
+ as_tibble()  %>%
+ mutate(file = experimental_file) %>%
+    mutate(
+        cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
+        rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep"), 
+        allocation_type = "experimental"
+    ) %>%
+    rename(j = pot_id, i = village_id)
+
+oa_df = bind_rows(
+    oa_df, 
+    experimental_oa_df
+)
 
 treatments = c(
     "bracelet",
@@ -65,11 +87,12 @@ oa_df = oa_df %>%
     mutate(
         private_benefit_z = factor(private_benefit_z, levels = treatments), 
         visibility_z = factor(visibility_z, levels = treatments), 
+        static_vstar = str_detect(file, "static")
     )
 
 
 subset_oa_df = oa_df %>%
-    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS")  %>%
+    filter(model == script_options$model)  %>%
     filter(
         cutoff_type  == "cutoff"
     ) 
@@ -81,6 +104,8 @@ if (!script_options$posterior_median) { # if all draws
             draw,
             private_benefit_z,
             visibility_z, 
+            static_vstar,
+            allocation_type,
             model, 
             rep_type,
             cutoff_type
@@ -89,17 +114,24 @@ if (!script_options$posterior_median) { # if all draws
             util = sum(log(demand)),
             mean_demand = mean(demand), 
             min_demand = min(demand), 
-            n_pot = n_distinct(j),
+            mean_dist = mean(dist),
+            n_pot = n_distinct(j, na.rm = TRUE),
             target_optim = mean(target_optim)
         )  %>%
         mutate(
             overshoot = 100*(util/target_optim - 1)
         )
 
+
+
+
+
     post_summ_optim_df = summ_optim_df %>%
         group_by(
             private_benefit_z,
             visibility_z, 
+            static_vstar,
+            allocation_type,
             model, 
             rep_type,
             cutoff_type
@@ -110,13 +142,13 @@ if (!script_options$posterior_median) { # if all draws
         ) %>%
         filter(
             cutoff_type  == "cutoff"
-        ) %>%
+        )   %>%
         summarise(
             across(
                 everything(),
                 list(
-                    estimate = mean,
-                    CI = ~paste0("(", signif(quantile(.x, 0.025), 3), ", ", signif(quantile(.x, 0.975), 3), ")")
+                    estimate = ~mean(.x, na.rm = TRUE),
+                    CI = ~paste0("(", signif(quantile(.x, 0.025, na.rm = TRUE), 3), ", ", signif(quantile(.x, 0.975, na.rm = TRUE), 3), ")")
                 )
             )
         )   %>%
@@ -125,6 +157,7 @@ if (!script_options$posterior_median) { # if all draws
         arrange(
             private_benefit_z,
             visibility_z,
+            allocation_type,
             rep_type
         ) %>%
     rename(
@@ -136,6 +169,7 @@ clean_summ_optim_df = summ_optim_df %>%
     group_by(
         private_benefit_z,
         visibility_z, 
+        static_vstar,
         model, 
         rep_type,
         cutoff_type
@@ -147,6 +181,30 @@ clean_summ_optim_df = summ_optim_df %>%
     filter(
         cutoff_type  == "cutoff"
     ) 
+
+clean_summ_optim_df %>%
+    filter(rep_type == "rep") %>%
+    ggplot(aes(
+        x = n_pot, 
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type)
+    )) +
+    geom_density(alpha = 0.6) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+
+
+
+clean_summ_optim_df %>%
+    filter(rep_type == "rep") %>%
+    ggplot(aes(
+        x = n_pot, 
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type)
+    )) +
+    geom_histogram(
+        colour = "black"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
 
 
 

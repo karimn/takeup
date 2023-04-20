@@ -24,8 +24,8 @@ script_options <- docopt::docopt(
                             --constraint-type=agg \
                             --welfare-function=log \
                             --min-cost \
-                            --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
+                            --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --output-basename=target-rep-agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
                             --posterior-median \
@@ -140,12 +140,22 @@ optimal_data = optimal_data %>%
     ))
 
 
+optimal_data %>%
+    saveRDS(
+        file.path(
+            script_options$output_path, 
+            str_glue(
+                "{script_options$output_basename}-experimental-control-allocation-data.rds"
+            )
+        )
+    )
+
+
 swf_summ_df  = optimal_data %>%
     group_by(draw) %>%
         mutate(
             social_welfare = sum(log(demand))
         ) 
-
 
 
 

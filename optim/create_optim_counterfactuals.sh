@@ -10,9 +10,9 @@ NUM_CORES=16
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="--posterior-median" # --posterior-median
+POSTERIOR_MEDIAN="" # --posterior-median or ""
 SKIP_PREDICTION=1 # 1
-SKIP_OA=1 # 1 or 0
+SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
@@ -142,7 +142,7 @@ run_optim () {
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --target-constraint=summ-agg-log-experiment-target-constraint.csv \
                                     --output-path=${OUTPUT_PATH} \
-                                    --output-filename=target-${CONSTRAINT_TARGET}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
+                                    --output-filename=target-${CONSTRAINT_TARGET}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
                                     --data-input-path=optim/data \
                                     --data-input-name=${DATA_INPUT_NAME} \
@@ -150,7 +150,6 @@ run_optim () {
                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --solver=${SOLVER}
-                                    # --target-constraint=target-${CONSTRAINT_TARGET}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv \
 
     fi
 
@@ -163,12 +162,12 @@ run_optim () {
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
-                                    --optim-input-a-filename=target-${CONSTRAINT_TARGET}-${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --optim-input-a-filename=target-${CONSTRAINT_TARGET}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --data-input-name=${DATA_INPUT_NAME} \
                                     --output-path=${PLOT_OUTPUT_PATH} \
                                     --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
-                                    --pdf-output-path=presentations/takeup-${MODEL}-fig
+                                    --pdf-output-path=presentations/optim-takeup-${MODEL}-fig
     fi
 
 }
@@ -192,10 +191,10 @@ compare_option () {
                                     --optim-input-path=${OUTPUT_PATH} \
                                     --optim-input-a-filename=target-${CONSTRAINT_TARGET}-${DEMAND_NAME}${TMP_REP_VAR_A}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --optim-input-b-filename=target-${CONSTRAINT_TARGET}-${DEMAND_NAME}${TMP_REP_VAR_B}${CUTOFF}cutoff-b-$3-mu-$4-${MODEL}-${POSTVAR}-optimal-allocation.rds \
-                                    --comp-output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
+                                    --comp-output-basename=target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${SUPPRESS_REP}${CUTOFF}cutoff-b1-$1-mu1-$2-b2-$3-mu2-$4-${MODEL}-${POSTVAR} \
                                     --data-input-name=$DATA_INPUT_NAME \
                                     --output-path=${PLOT_OUTPUT_PATH} \
-                                    --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
+                                    --output-basename=target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
                                     --pdf-output-path=presentations/takeup-${MODEL}-fig/
 }
@@ -203,7 +202,7 @@ compare_option () {
 
 
 # run_optim "control" "control" # run control control
-# run_optim "control" "bracelet" # counterfactual varying bracelet visibility
+run_optim "control" "bracelet" # counterfactual varying bracelet visibility
 # run_optim "bracelet" "bracelet" # now bracelet bracelet
 
 ## now we suppress reputation completely. 
@@ -211,32 +210,35 @@ compare_option () {
 ## so we change a global variable woooo
 
 # SUPPRESS_REP="suppress-rep-"
-# run_optim "bracelet" "bracelet"
+# run_optim "control" "control"
 
 # # Now we swap to static signalling, fixed at d = 0.5
 
-SUPPRESS_REP="" # turn off suppress rep
-STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
-STATIC_SIGNAL_DIST=500
-DEMAND_NAME="static-" 
-run_optim "control" "bracelet"
+# SUPPRESS_REP="" # turn off suppress rep
+# STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
+# STATIC_SIGNAL_DIST=500
+# DEMAND_NAME="static-" 
+# run_optim "control" "bracelet"
 
-# Control plots using realised allocation
-# Rscript ./optim/create-presentation-plots.R \
-#                             --constraint-type=agg \
-#                             --welfare-function=log \
-#                             --min-cost \
-#                             --output-path=${OUTPUT_PATH} \
-#                             --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
-#                             --cutoff-type=cutoff \
-#                             --data-input-path=optim/data \
-#                             --data-input-name=${DATA_INPUT_NAME} \
-#                             --posterior-median \
-#                             --pdf-output-path=presentations/takeup-${MODEL}-fig \
-#                             --demand-input-path=optim/data/${MODEL}/agg-log-full-many-pots \
-#                             --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
+if [[ ${POSTERIOR_MEDIAN} == "--posterior-median" ]]
+then 
+    # Control plots using realised allocation
+    Rscript ./optim/create-presentation-plots.R \
+                                --constraint-type=agg \
+                                --welfare-function=log \
+                                --min-cost \
+                                --output-path=${OUTPUT_PATH} \
+                                --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
+                                --cutoff-type=cutoff \
+                                --data-input-path=optim/data \
+                                --data-input-name=${DATA_INPUT_NAME} \
+                                --posterior-median \
+                                --pdf-output-path=presentations/takeup-${MODEL}-fig \
+                                --demand-input-path=${OUTPUT_PATH} \
+                                --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
 
-# Rscript ./optim/misc-optim-plots.R \
-#                             --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-#                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-#                             --fit-version=86
+    Rscript ./optim/misc-optim-plots.R \
+                                --output-path=${OUTPUT_PATH} \
+                                --model=${MODEL} \
+                                --fit-version=${VERSION}
+fi

@@ -33,15 +33,8 @@ script_options <- docopt::docopt(
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
-<<<<<<< HEAD
-                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit86-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
-=======
-                                --output-filename=cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit86-suppress-rep-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
->>>>>>> 9093090ab638b45f1471941332b007896e7146f9
-
-                                --posterior-median \
+                                --output-filename=TEST-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                                --demand-input-filename=pred-demand-dist-fit86-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
                                 --welfare-function=log
                                 --solver=gurobi
 
@@ -235,23 +228,20 @@ if (n_infeasible > 0) {
   stop("Infeasible allocation desired.")
 }
 
-
-
-
-
 demand_data = initial_demand_data %>%
   nest(demand_data = -any_of(c("draw", 
                                "private_benefit_z", 
                                "visibility_z", 
                                "model")))
-
-
+# typically good to remove this as it's huge and the optimisation needs RAM if 
+# using full posterior
+rm(initial_demand_data)
+gc()
 
 baseline_constraints = create_base_constraints(
   data$n,
   data$m
 )
-
 
 
 demand_data %>%
