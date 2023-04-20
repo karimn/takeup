@@ -324,7 +324,7 @@ matrix map_calculate_roc(
                               mu[cluster_index], mu_control[cluster_index], mu_deriv[cluster_index] ]';
   }
   
-  return to_matrix(map_rect(calculate_roc_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 5, 0);
+  return to_matrix(map_rect(calculate_roc_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 6, 0);
 }
 
 
