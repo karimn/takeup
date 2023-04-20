@@ -140,8 +140,6 @@ if (full_experiment) {
 
     village_df = village.centers %>%
     st_as_sf(coords = c("lon", "lat"), crs = wgs.84) %>%
-    mutate(id = 1:n()) %>%
-    filter(!(id %in% c(40, 45, 116))) %>% # Basically impossible to serve these
     mutate(id = 1:n()) 
 
 
