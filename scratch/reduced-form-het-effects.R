@@ -269,60 +269,27 @@ analysis_data %<>%
         thinks_other_knows_no = sum(fct_match(.x$second.order, "no"), na.rm = TRUE),
       )
     }
-  ))
+  )) %>%
+  mutate(
+    in_knowledge_survey = map_lgl(knowledge_data, ~nrow(.x) > 0), 
+    obs_know_person = if_else(in_knowledge_survey == FALSE, NA_real_, obs_know_person),
+    obs_know_person_prop = if_else(in_knowledge_survey == FALSE, NA_real_, obs_know_person_prop)
+  )
 
 
-comp_belief_data = analysis_data %>%
-    filter(obs_know_person > 0)  %>%
-    select(KEY.individ, contains("know"), assigned.treatment, dist.pot.group, assigned_dist_group) %>%
+analysis_data = analysis_data %>%
+    group_by(cluster.id) %>%
     mutate(
-        doesnt_know_other_dewormed = obs_know_person - knows_other_dewormed, 
-        doesnt_think_other_knows = obs_know_person - thinks_other_knows
-    ) %>% 
-    select(KEY.individ, 
-           assigned.treatment,
-           assigned_dist_group,
-           obs_know_person,
-           knows_other_dewormed_yes,
-           knows_other_dewormed_no,
-           doesnt_know_other_dewormed, 
-           thinks_other_knows_yes, 
-           thinks_other_knows_no, 
-           doesnt_think_other_knows
-           ) %>%
-    gather(variable, value, 
-        knows_other_dewormed_yes:doesnt_think_other_knows)   %>%
-    mutate(knowledge_type = case_when(
-        str_detect(variable, "_yes") ~ "yes",
-        str_detect(variable, "_no") ~ "no",
-        str_detect(variable, "doesnt") ~ "doesn't know"
-    )) %>%
-    mutate(belief_type = if_else(str_detect(variable, "think"), "2ord", "1ord")) %>%
-    mutate(prop = value/obs_know_person) 
+        cluster_obs_know_person_prop = mean(obs_know_person_prop, na.rm = TRUE)
+    ) %>%
+    ungroup()
 
 
-comp_belief_data  %>%
-    select(KEY.individ, obs_know_person) %>%
-    ggplot(aes(
-        x = obs_know_person
-    )) +
-    geom_bar() +
-    theme_minimal() +
-    labs(
-        x = "Number of People Recognised", 
-        y = "Count"
-    ) +
-    scale_x_continuous(breaks = 1:10)
-
-ggsave(
-    "temp-plots/num-recognised-hist.pdf", 
-    width = 8,
-    height = 6
-)
+analysis_data %>%
+    count(num.individuals)
 
 
-
-
+village.centers
 
 #### Regressions ####
 probit_fit = analysis_data %>%
@@ -347,9 +314,150 @@ judgement_geo_fit = judge_analysis_data %>%
         family = binomial(link = "probit")
     )
 
+indiv_knowledge_fit = analysis_data %>%
+    feglm(
+        dewormed ~ obs_know_person_prop + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit")
+    )
+
+cluster_knowledge_fit = analysis_data %>%
+    feglm(
+        dewormed ~ cluster_obs_know_person_prop + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit")
+    )
+
+endline.know.table.data %>%
+    colnames()
+
+endline.know.table.data %>%
+    select(rel.size)
+
+
+endline.know.table.data %>%
+    group_by(second.order) %>%
+    count(second.order.reason) %>%
+    arrange(-n) %>%
+    print(n = 200)
+
+
+endline.know.table.data %>%
+    colnames()
+
+
+endline.know.table.data %>%
+select(second.order)
+
+split_reason_table = endline.know.table.data %>%
+    filter(!is.na(second.order.reason)) %>%
+    filter(second.order != "prefer not say") %>%
+    mutate(
+        cleanish_second_order_reason = case_when(
+            str_detect(second.order.reason, "don't|dont") ~ "dont know",
+            str_detect(second.order.reason, "brace") ~ "bracelet",
+            str_detect(second.order.reason, "ink") ~ "ink",
+            str_detect(second.order.reason, "calen") ~ "calendar",
+            str_detect(second.order.reason, "rare") ~ "rarely see",
+            str_detect(second.order.reason, "told") ~ "told them",
+            TRUE ~ "other"
+        ) 
+    ) %>%
+    group_by(relationship, second.order) %>%
+    count(cleanish_second_order_reason)  %>%
+    arrange(-n) %>%
+    group_by(cleanish_second_order_reason) %>%
+    mutate(
+        total = sum(n)
+    ) %>%
+    spread(relationship, n)  %>%
+    arrange(-total) 
+
+split_reason_table %>%
+    filter(second.order == "yes") %>%
+    print(n = 21)
+
+
+
+split_reason_table %>%
+    gather(variable, value, -second.order, -cleanish_second_order_reason, -total)  %>%
+    mutate(variable = fct_collapse(
+        variable,
+        "extended family" = "extended family",
+        "neighbor" = "neighbor", 
+        "other" = c(
+            "other", 
+            "church", 
+            "friend", 
+            "hh member", "village member" )
+    ) %>% fct_rev) %>%
+    ggplot(aes(
+        x = value,
+        fill = second.order, 
+        y = cleanish_second_order_reason
+    )) +
+    geom_col(position = position_dodge(0.8)) +
+    facet_wrap(~variable, ncol = 1) +
+    theme_bw() +
+    labs(
+        x = "Count",
+        y = "Reason for SOB Response"
+    )
+
+ggsave(
+    "temp-plots/second-order-reason-count.pdf", 
+    width = 10, height = 10
+)
+
+reason_table = endline.know.table.data %>%
+    filter(!is.na(second.order.reason)) %>%
+    mutate(
+        cleanish_second_order_reason = case_when(
+            str_detect(second.order.reason, "don't|dont") ~ "dont know",
+            str_detect(second.order.reason, "brace") ~ "bracelet",
+            str_detect(second.order.reason, "ink") ~ "ink",
+            str_detect(second.order.reason, "calen") ~ "calendar",
+            str_detect(second.order.reason, "rare") ~ "rarely see",
+            str_detect(second.order.reason, "told") ~ "told them",
+            TRUE ~ "other"
+        ) 
+    ) %>%
+    group_by(relationship) %>%
+    count(cleanish_second_order_reason)  %>%
+    arrange(-n) %>%
+    group_by(cleanish_second_order_reason) %>%
+    mutate(
+        total = sum(n)
+    ) %>%
+    spread(relationship, n)  %>%
+    arrange(-total)
+
+reason_table
+
+pr_reason_table = reason_table %>%
+    ungroup() %>%
+    mutate(
+        across(where(is.numeric), ~100*.x/sum(.x, na.rm = TRUE))
+    )
+
+pr_reason_table
+
+    mutate(
+
+    )
+    arrange(cleanish_second_order_reason) %>%
+
+
+
+
+
+
+analysis_data %>%
+    colnames()
+
 etable(
     judgement_geo_fit,
     externality_fit, 
+    indiv_knowledge_fit, 
+    cluster_knowledge_fit,
     order = "!assigned", 
     keep = c("!assigned"),
     drop = "Constant",
