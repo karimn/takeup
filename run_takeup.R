@@ -38,7 +38,7 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit86 \
+    --outputname=dist_fit87 \
     --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
