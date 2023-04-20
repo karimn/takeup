@@ -276,7 +276,6 @@ analysis_data %<>%
     obs_know_person_prop = if_else(in_knowledge_survey == FALSE, NA_real_, obs_know_person_prop)
   )
 
-
 analysis_data = analysis_data %>%
     group_by(cluster.id) %>%
     mutate(
@@ -285,11 +284,21 @@ analysis_data = analysis_data %>%
     ungroup()
 
 
-analysis_data %>%
-    count(num.individuals)
 
+cluster_census_pop_df = census.data %>%
+    filter(!is.na(cluster.id)) %>%
+    group_by(
+        cluster.id
+    ) %>%
+    summarise(
+        census_cluster_pop = sum(num.individuals)
+    )
 
-village.centers
+analysis_data = analysis_data %>%
+    left_join(
+        cluster_census_pop_df, 
+        by = "cluster.id"
+    ) 
 
 #### Regressions ####
 probit_fit = analysis_data %>%
@@ -301,52 +310,74 @@ probit_fit = analysis_data %>%
     ) 
 
 
-
 externality_fit = clean_externality_df %>%
     feglm(
         dewormed ~  frac_externality_knowledge + assigned_treatment:assigned_dist_group,
-        family = binomial(link = "probit")
+        family = binomial(link = "probit"),
+        cluster = ~county
     )
 
 judgement_geo_fit = judge_analysis_data %>%
     feglm(
         dewormed ~  judge_score_dewor + assigned_treatment:assigned_dist_group,
-        family = binomial(link = "probit")
+        family = binomial(link = "probit"),
+        cluster = ~county
     )
 
 indiv_knowledge_fit = analysis_data %>%
     feglm(
-        dewormed ~ obs_know_person_prop + assigned_treatment:assigned_dist_group,
-        family = binomial(link = "probit")
+        dewormed ~ log(census_cluster_pop) + obs_know_person_prop  + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
     )
 
 cluster_knowledge_fit = analysis_data %>%
     feglm(
-        dewormed ~ cluster_obs_know_person_prop + assigned_treatment:assigned_dist_group,
-        family = binomial(link = "probit")
+        dewormed ~ log(census_cluster_pop) + cluster_obs_know_person_prop  + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
     )
 
-endline.know.table.data %>%
-    colnames()
-
-endline.know.table.data %>%
-    select(rel.size)
-
-
-endline.know.table.data %>%
-    group_by(second.order) %>%
-    count(second.order.reason) %>%
-    arrange(-n) %>%
-    print(n = 200)
+etable(
+    indiv_knowledge_fit, 
+    cluster_knowledge_fit, 
+    order = "!assigned"
+)
 
 
-endline.know.table.data %>%
-    colnames()
+analysis_data %>%
+    group_by(cluster.id) %>%
+    summarise(
+        cluster_obs_know_person_prop = unique(cluster_obs_know_person_prop), 
+        takeup = mean(dewormed), 
+        treatment = unique(assigned_treatment), 
+        dist_group = unique(assigned_dist_group)
+    ) %>%
+    ggplot(aes(
+        x = cluster_obs_know_person_prop, 
+        y = takeup, 
+        colour = interaction(treatment, dist_group)
+    )) +
+    geom_point() +
+    geom_smooth(
+        method = "lm", 
+        colour = "black"
+    )
+
+etable(
+    judgement_geo_fit,
+    externality_fit, 
+    indiv_knowledge_fit, 
+    cluster_knowledge_fit,
+    order = "!assigned", 
+    keep = c("!assigned"),
+    drop = "Constant",
+    cluster = ~county
+)
 
 
-endline.know.table.data %>%
-select(second.order)
 
+#### SOB Reason Interlude ####
 split_reason_table = endline.know.table.data %>%
     filter(!is.na(second.order.reason)) %>%
     filter(second.order != "prefer not say") %>%
@@ -438,29 +469,4 @@ pr_reason_table = reason_table %>%
         across(where(is.numeric), ~100*.x/sum(.x, na.rm = TRUE))
     )
 
-pr_reason_table
-
-    mutate(
-
-    )
-    arrange(cleanish_second_order_reason) %>%
-
-
-
-
-
-
-analysis_data %>%
-    colnames()
-
-etable(
-    judgement_geo_fit,
-    externality_fit, 
-    indiv_knowledge_fit, 
-    cluster_knowledge_fit,
-    order = "!assigned", 
-    keep = c("!assigned"),
-    drop = "Constant",
-    cluster = ~county
-)
 
