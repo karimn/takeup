@@ -376,6 +376,21 @@ etable(
 )
 
 
+#### Quick Scarcity Regression ####
+cal_wtp_dist_fit = wtp.data %>%
+    mutate(
+        first_cal = first_choice == "calendar",
+    ) %>%
+    feglm(
+        first_cal ~ dist.pot.group, 
+        family = binomial(link = "probit"), 
+        cluster = ~county
+    )
+
+etable(
+    cal_wtp_dist_fit
+)
+
 
 #### SOB Reason Interlude ####
 split_reason_table = endline.know.table.data %>%
