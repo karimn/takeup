@@ -376,112 +376,91 @@ etable(
 )
 
 
-#### Quick Scarcity Regression ####
-cal_wtp_dist_fit = wtp.data %>%
-    mutate(
-        first_cal = first_choice == "calendar",
-    ) %>%
-    feglm(
-        first_cal ~ dist.pot.group, 
-        family = binomial(link = "probit"), 
-        cluster = ~county
-    )
-
-etable(
-    cal_wtp_dist_fit
-)
-
-
 #### SOB Reason Interlude ####
-split_reason_table = endline.know.table.data %>%
-    filter(!is.na(second.order.reason)) %>%
-    filter(second.order != "prefer not say") %>%
+
+endline.know.table.data = endline.know.table.data %>%
+    mutate(second.order.reason = str_to_lower(second.order.reason) %>% str_remove_all(., "[[:punct:]]")) %>%
     mutate(
-        cleanish_second_order_reason = case_when(
-            str_detect(second.order.reason, "don't|dont") ~ "dont know",
+        category_sob_reason = case_when(
+            str_detect(second.order.reason, "saw me|point of treatment|pot|together|(?=.*met)(?=.*treatment|pot)|not seen|(?=.*didnt|did not|dont)(?=.*see)(?=.*treatment|pot)|didnt meet|(?=.*saw me)(?=.*treatment|pot)") ~ "campaign",
+            # str_detect(second.order.reason, "health|responsible") | (str_detect(second.order.reason, "(?=.*know)(?=.*me)") & !str_detect(second.order.reason, "didnt|did not|dont|doesnt")) ~ "type",
+            str_detect(second.order.reason, "example|good|health|responsible|clean")  ~ "type",
+            str_detect(
+                second.order.reason, 
+                "never  seen|not very|hardly|dk|dont|dont|far|doesnt know|not close|rare|husband|mother|wife|son|daughter|neighbor|neighbour|friend") ~ "relationship",
             str_detect(second.order.reason, "brace") ~ "bracelet",
-            str_detect(second.order.reason, "ink") ~ "ink",
+            str_detect(second.order.reason, "(?<!th)ink") ~ "ink",
             str_detect(second.order.reason, "calen") ~ "calendar",
-            str_detect(second.order.reason, "rare") ~ "rarely see",
-            str_detect(second.order.reason, "told") ~ "told them",
+            str_detect(second.order.reason, "ask|told|tell|talk|(?=.*met)(?!.*treatment|pot)(?=.*met)") ~ "communication",
+            str_detect(second.order.reason, "school|hospital|not around|sick|preg|busy") ~ "circumstances",
+            str_detect(second.order.reason, "tradi|erbal") ~ "traditional",
             TRUE ~ "other"
         ) 
-    ) %>%
-    group_by(relationship, second.order) %>%
-    count(cleanish_second_order_reason)  %>%
+    )   
+
+endline.know.table.data %>%
+    filter(!is.na(second.order.reason)) %>%
+    filter(str_detect(second.order.reason, "wise")) %>%
+    count(second.order.reason) %>%
     arrange(-n) %>%
-    group_by(cleanish_second_order_reason) %>%
-    mutate(
-        total = sum(n)
+    pull(second.order.reason) %>%
+    head(30)
+
+endline.know.table.data %>%
+    group_by(
+        assigned.treatment, 
+        dist.pot.group,
+        category_sob_reason
     ) %>%
-    spread(relationship, n)  %>%
-    arrange(-total) 
-
-split_reason_table %>%
-    filter(second.order == "yes") %>%
-    print(n = 21)
-
-
-
-split_reason_table %>%
-    gather(variable, value, -second.order, -cleanish_second_order_reason, -total)  %>%
-    mutate(variable = fct_collapse(
-        variable,
-        "extended family" = "extended family",
-        "neighbor" = "neighbor", 
-        "other" = c(
-            "other", 
-            "church", 
-            "friend", 
-            "hh member", "village member" )
-    ) %>% fct_rev) %>%
+    summarise(
+        n = n()
+    ) %>%
+    mutate(frac = 100*n / sum(n)) %>%
+    filter(category_sob_reason != "other") %>%
+    filter(
+        !(category_sob_reason %in% c("traditional", "ink", "bracelet", "calendar"))) %>%
     ggplot(aes(
-        x = value,
-        fill = second.order, 
-        y = cleanish_second_order_reason
+        y = category_sob_reason, 
+        x = frac, 
+        fill = assigned.treatment
     )) +
     geom_col(position = position_dodge(0.8)) +
-    facet_wrap(~variable, ncol = 1) +
-    theme_bw() +
+    facet_wrap(~dist.pot.group)  +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
     labs(
-        x = "Count",
-        y = "Reason for SOB Response"
+        x = "Percent of Respondents", 
+        title = "SOB Reason Distribution by Treatment and Distance Group"
     )
 
 ggsave(
-    "temp-plots/second-order-reason-count.pdf", 
-    width = 10, height = 10
+    "temp-plots/second-order-reason-distribution.pdf",
+    width = 10, 
+    height = 10
 )
 
-reason_table = endline.know.table.data %>%
-    filter(!is.na(second.order.reason)) %>%
-    mutate(
-        cleanish_second_order_reason = case_when(
-            str_detect(second.order.reason, "don't|dont") ~ "dont know",
-            str_detect(second.order.reason, "brace") ~ "bracelet",
-            str_detect(second.order.reason, "ink") ~ "ink",
-            str_detect(second.order.reason, "calen") ~ "calendar",
-            str_detect(second.order.reason, "rare") ~ "rarely see",
-            str_detect(second.order.reason, "told") ~ "told them",
-            TRUE ~ "other"
-        ) 
-    ) %>%
-    group_by(relationship) %>%
-    count(cleanish_second_order_reason)  %>%
-    arrange(-n) %>%
-    group_by(cleanish_second_order_reason) %>%
-    mutate(
-        total = sum(n)
-    ) %>%
-    spread(relationship, n)  %>%
-    arrange(-total)
+endline.know.table.data %>%
+    unique() %>%
+    group_by(category_sob_reason) %>%
+    filter(category_sob_reason == "type") %>%
+    select(second.order.reason) %>%
+    sample_n(20, replace = TRUE) %>%
+    unique() %>%
+    pull()
 
-reason_table
-
-pr_reason_table = reason_table %>%
-    ungroup() %>%
-    mutate(
-        across(where(is.numeric), ~100*.x/sum(.x, na.rm = TRUE))
+tmp_endline_reasons %>%
+    unique() %>%
+    group_by(category_sob_reason) %>%
+    sample_n(20, replace = TRUE) %>%
+    unique() %>%
+    write_csv(
+        "temp-data/second-order-reason-check.csv"
     )
-
-
+tmp_endline_reasons %>%
+    unique() %>%
+    group_by(category_sob_reason) %>%
+    sample_n(20, replace = TRUE) %>%
+    unique() %>%
+    write_csv(
+        "temp-data/second-order-reason-check.csv"
+    )
