@@ -259,6 +259,73 @@ stan_data = (dist_fit_data %>%
 ```
 
 
+
+```{r}
+#| sob-reason-table
+
+sob_reason_df = read_csv(
+        "temp-data/second-order-reason-distribution.csv"
+)
+
+# Table AX: Learning about Deworming Status
+# Panel A: Why do they think that you came for deworming?
+# Dependent variable: (1) I saw incentive/signals (2) type (3) Campaign (4) Communication .....
+# Bracelet
+# Calendar
+# Ink
+# Control mean
+# Panel B: Why do they think that you did not come for deworming?
+# Dependent variable:  (1) I saw incentive/signals (2) type (3) Campaign (4) Communication .....
+# Bracelet
+# Calendar
+# Ink
+# Control mean
+# Note: Reasons stated by respondents that reported X individuals knows their deworming status. Examples of "type" , examples "circumstance"
+digits = 3
+sob_reason_df %>%
+  mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits)
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
+  )  %>%
+  mutate(
+    sample_var = str_remove(sample, "sample.var: second.order; sample: ") 
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  mutate(term = str_remove(term, "assigned.treatment")) %>%
+  mutate(term = factor(term, levels = treat_levels_c)) %>%
+  mutate(term = fct_relabel(term, str_to_title) %>% fct_rev) %>%
+  select(sample_var, term, estim_std, var) %>%
+  spread(var, estim_std)  %>%
+  arrange(
+    sample_var, term
+  ) %>%
+  select(-sample_var) %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c("", "Campaign", "Communication", "Social Proximity", "Signal", "Type"),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lccccc", 
+      caption = "Second Order Beliefs: Reasons"
+  ) %>%
+  kable_styling(
+  )  %>%
+  pack_rows(
+    index = c(
+      "Panel A: Why do they think that you came for deworming?" = 4,
+      "Panel B: Why don't they think that you came for deworming?" = 4
+    ), 
+    hline_after = TRUE, 
+    bold = TRUE
+  ) 
+
+
+
+```
+
 ```{r}
 #| endline-data,
 #| eval=FALSE

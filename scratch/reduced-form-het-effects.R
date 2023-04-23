@@ -326,17 +326,88 @@ judgement_geo_fit = judge_analysis_data %>%
 
 indiv_knowledge_fit = analysis_data %>%
     feglm(
-        dewormed ~ log(census_cluster_pop) + obs_know_person_prop  + assigned_treatment:assigned_dist_group,
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            obs_know_person_prop*assigned_treatment  + 
+            assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
         cluster = ~county
     )
 
-cluster_knowledge_fit = analysis_data %>%
-    feglm(
-        dewormed ~ log(census_cluster_pop) + cluster_obs_know_person_prop  + assigned_treatment:assigned_dist_group,
+cluster_knowledge_fit = feglm(
+        data = analysis_data,
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            cluster_obs_know_person_prop*assigned_treatment  + 
+            assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
         cluster = ~county
     )
+
+combined_pred_df = predictions(
+    cluster_knowledge_fit,
+    newdata = datagrid(
+        assigned_treatment = unique(analysis_data$assigned_treatment), 
+        assigned_dist_group = unique(analysis_data$assigned_dist_group),
+        cluster_obs_know_person_prop = seq(from = 0, to = 1, length.out = 10)
+        )
+)
+
+library(lmtest)
+
+ed_test = glm(
+    data = analysis_data, 
+    formula = 
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            cluster_obs_know_person_prop*assigned_treatment*assigned_dist_group,
+    family = binomial(link = "probit")
+)
+
+cluster_knowledge_fit = feglm(
+        data = analysis_data,
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            cluster_obs_know_person_prop*assigned_treatment,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+cluster_knowledge_fit = feols(
+        data = analysis_data,
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            cluster_obs_know_person_prop*assigned_treatment
+    )
+
+
+
+etable(cluster_knowledge_fit)
+
+
+combined_pred_df %>%
+    tibble() %>%
+    ggplot(aes(
+        x = estimate, 
+        xmin = conf.low, 
+        xmax = conf.high,
+        y = assigned_treatment, 
+        colour = cluster_obs_know_person_prop,
+        group = cluster_obs_know_person_prop
+    )) +
+    facet_wrap(~assigned_dist_group)  +
+    geom_pointrange(
+        position = position_dodge(0.5)
+    )
+
+
+cluster_knowledge_fit
+
+etable(
+    cluster_knowledge_fit, 
+    # cluster_knowledge_fit, 
+    order = "!assigned"
+)
 
 etable(
     indiv_knowledge_fit, 
@@ -382,15 +453,15 @@ endline.know.table.data = endline.know.table.data %>%
     mutate(second.order.reason = str_to_lower(second.order.reason) %>% str_remove_all(., "[[:punct:]]")) %>%
     mutate(
         category_sob_reason = case_when(
+            str_detect(second.order.reason, "brace") ~ "bracelet",
+            str_detect(second.order.reason, "(?<!th)ink") ~ "ink",
+            str_detect(second.order.reason, "calen") ~ "calendar",
             str_detect(second.order.reason, "saw me|point of treatment|pot|together|(?=.*met)(?=.*treatment|pot)|not seen|(?=.*didnt|did not|dont)(?=.*see)(?=.*treatment|pot)|didnt meet|(?=.*saw me)(?=.*treatment|pot)") ~ "campaign",
             # str_detect(second.order.reason, "health|responsible") | (str_detect(second.order.reason, "(?=.*know)(?=.*me)") & !str_detect(second.order.reason, "didnt|did not|dont|doesnt")) ~ "type",
             str_detect(second.order.reason, "example|good|health|responsible|clean")  ~ "type",
             str_detect(
                 second.order.reason, 
                 "never  seen|not very|hardly|dk|dont|dont|far|doesnt know|not close|rare|husband|mother|wife|son|daughter|neighbor|neighbour|friend") ~ "relationship",
-            str_detect(second.order.reason, "brace") ~ "bracelet",
-            str_detect(second.order.reason, "(?<!th)ink") ~ "ink",
-            str_detect(second.order.reason, "calen") ~ "calendar",
             str_detect(second.order.reason, "ask|told|tell|talk|(?=.*met)(?!.*treatment|pot)(?=.*met)") ~ "communication",
             str_detect(second.order.reason, "school|hospital|not around|sick|preg|busy") ~ "circumstances",
             str_detect(second.order.reason, "tradi|erbal") ~ "traditional",
@@ -398,69 +469,55 @@ endline.know.table.data = endline.know.table.data %>%
         ) 
     )   
 
-endline.know.table.data %>%
-    filter(!is.na(second.order.reason)) %>%
-    filter(str_detect(second.order.reason, "wise")) %>%
-    count(second.order.reason) %>%
-    arrange(-n) %>%
-    pull(second.order.reason) %>%
-    head(30)
 
-endline.know.table.data %>%
-    group_by(
-        assigned.treatment, 
-        dist.pot.group,
-        category_sob_reason
-    ) %>%
-    summarise(
-        n = n()
-    ) %>%
-    mutate(frac = 100*n / sum(n)) %>%
-    filter(category_sob_reason != "other") %>%
-    filter(
-        !(category_sob_reason %in% c("traditional", "ink", "bracelet", "calendar"))) %>%
-    ggplot(aes(
-        y = category_sob_reason, 
-        x = frac, 
-        fill = assigned.treatment
-    )) +
-    geom_col(position = position_dodge(0.8)) +
-    facet_wrap(~dist.pot.group)  +
-    theme_minimal() +
-    theme(legend.position = "bottom") +
-    labs(
-        x = "Percent of Respondents", 
-        title = "SOB Reason Distribution by Treatment and Distance Group"
-    )
+knowledge_fit = function(data, dep_var) {
+    data %>%
+        filter(second.order %in% c("yes", "no")) %>%
+        mutate(
+            lhs = category_sob_reason_short == dep_var
+        ) %>%
+        feols(
+            data = ., 
+            fml = lhs ~0 +  assigned.treatment,
+            split = ~second.order
+        ) 
+}
 
-ggsave(
-    "temp-plots/second-order-reason-distribution.pdf",
-    width = 10, 
-    height = 10
+
+dep_vars = c(
+    "signal",
+    "type", 
+    "campaign", 
+    "communication", 
+    "relationship"
 )
 
-endline.know.table.data %>%
-    unique() %>%
-    group_by(category_sob_reason) %>%
-    filter(category_sob_reason == "type") %>%
-    select(second.order.reason) %>%
-    sample_n(20, replace = TRUE) %>%
-    unique() %>%
-    pull()
-
-tmp_endline_reasons %>%
-    unique() %>%
-    group_by(category_sob_reason) %>%
-    sample_n(20, replace = TRUE) %>%
-    unique() %>%
-    write_csv(
-        "temp-data/second-order-reason-check.csv"
+endline.know.table.data = endline.know.table.data %>%
+    mutate(
+    category_sob_reason_short =  if_else(
+        category_sob_reason %in% c("bracelet", "ink", "calendar"), 
+        "signal", 
+        category_sob_reason
+    ),
+    category_sob_reason_short =  if_else(
+        category_sob_reason_short %in% c("type", "circumstances"), 
+        "type", 
+        category_sob_reason_short
     )
-tmp_endline_reasons %>%
-    unique() %>%
-    group_by(category_sob_reason) %>%
-    sample_n(20, replace = TRUE) %>%
-    unique() %>%
+    )
+
+
+
+sob_reason_fits = map(
+        dep_vars, 
+        ~knowledge_fit(data = endline.know.table.data, dep_var = .x)
+    )
+
+
+sob_fit_df = imap_dfr(sob_reason_fits, ~map_dfr(., tidy, conf.int = TRUE, .id = "sample") %>% mutate(var = dep_vars[[.y]]))
+
+
+sob_fit_df %>%
     write_csv(
-        "temp-data/second-order-reason-check.csv"
+        "temp-data/second-order-reason-distribution.csv"
     )
