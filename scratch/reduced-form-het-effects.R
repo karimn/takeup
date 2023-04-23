@@ -454,7 +454,7 @@ endline.know.table.data = endline.know.table.data %>%
     mutate(
         category_sob_reason = case_when(
             str_detect(second.order.reason, "brace") ~ "bracelet",
-            str_detect(second.order.reason, "(?<!th)ink") ~ "ink",
+            str_detect(second.order.reason, "\\bink") ~ "ink",
             str_detect(second.order.reason, "calen") ~ "calendar",
             str_detect(second.order.reason, "saw me|point of treatment|pot|together|(?=.*met)(?=.*treatment|pot)|not seen|(?=.*didnt|did not|dont)(?=.*see)(?=.*treatment|pot)|didnt meet|(?=.*saw me)(?=.*treatment|pot)") ~ "campaign",
             # str_detect(second.order.reason, "health|responsible") | (str_detect(second.order.reason, "(?=.*know)(?=.*me)") & !str_detect(second.order.reason, "didnt|did not|dont|doesnt")) ~ "type",
@@ -473,6 +473,8 @@ endline.know.table.data = endline.know.table.data %>%
 knowledge_fit = function(data, dep_var) {
     data %>%
         filter(second.order %in% c("yes", "no")) %>%
+        filter(!is.na(second.order)) %>%
+        filter(!is.na(second.order.reason)) %>%
         mutate(
             lhs = category_sob_reason_short == dep_var
         ) %>%
@@ -486,10 +488,12 @@ knowledge_fit = function(data, dep_var) {
 
 dep_vars = c(
     "signal",
-    "type", 
     "campaign", 
     "communication", 
-    "relationship"
+    "relationship",
+    "type", 
+    "circumstances",
+    "other"
 )
 
 endline.know.table.data = endline.know.table.data %>%
@@ -498,14 +502,34 @@ endline.know.table.data = endline.know.table.data %>%
         category_sob_reason %in% c("bracelet", "ink", "calendar"), 
         "signal", 
         category_sob_reason
-    ),
-    category_sob_reason_short =  if_else(
-        category_sob_reason_short %in% c("type", "circumstances"), 
-        "type", 
-        category_sob_reason_short
     )
     )
 
+
+
+
+endline.know.table.data %>%
+    filter(!is.na(second.order.reason)) %>%
+    filter(second.order != "don't know") %>%
+    filter(
+        category_sob_reason == "other"
+    ) %>%  
+    count(second.order.reason)  %>%
+    arrange(-n) %>%
+    print(n = 30)
+
+endline.know.table.data %>%
+    filter(!is.na(second.order.reason)) %>%
+    filter(second.order == "yes") %>%
+    group_by(assigned.treatment) %>%
+    summarise(
+        pr_bracelet = mean(str_detect(second.order.reason, "brace")),
+        pr_ink = mean(str_detect(second.order.reason, "\\bink"))
+    )
+
+endline.know.table.data %>%
+    filter(str_detect(second.order.reason, "\\bink")) %>%
+    pull(second.order.reason)
 
 
 sob_reason_fits = map(
