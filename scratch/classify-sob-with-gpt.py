@@ -23,12 +23,18 @@ def classify_reason_with_gpt(reason, write_csv = False):
                 Classify the reason into the following categories, examples are provided after each category. Only 
                 return the category name, not the example. If none of the categories fit well, return 'other'.:
 
-                'campaign' - There was a large deworming campaign in the area, which meant many people went at the same time. e.g.: 'didnt see me there', 'it was announced', 'found me at the treatment point'
-                'communication' - I informed the other person. e.g.: 'I told them I was dewormed', 'he informed him'
-                'relationship' - I do/don't have a relationship with the person. e.g.: 'because of ignorance', 'we are not so close', 
-                'signal' - Observing (or not) a bracelet, ink on my thumb, or a calendar. e.g.: 'he saw my ink', 'he didn't see my bracelet'
-                'type' - They know I'm a good person that cares about my health and community (or a bad person that doesn't). e.g.: 'I always attend such activities', 'knows i cannot miss', 'because she knows i love such things'
-                'circumstances' - There were circumstances that prevented me from getting dewormed. e.g.: 'he knows i didnt get information', 'they know am blind' 
+                'campaign' - There was a large deworming campaign in the area, which meant many people went at the same time
+                    e.g.: 'didnt see me there', 'it was announced', 'found me at the treatment point', 'because treatment was for free'.
+                'communication' - I informed the other person. 
+                    e.g.: 'I told them I was dewormed', 'he informed him'.
+                'relationship' - I do/don't have a relationship with the person
+                    e.g.: 'because of ignorance', 'we are not so close', 'family member', 'always interact', 'are relatives'.
+                'signal' - Observing (or not) a bracelet, ink on my thumb, or a calendar
+                    e.g.: 'he saw my ink', 'he didn't see my bracelet'.
+                'type' - They know I'm a good person that cares about my health and community (or a bad person that doesn't)
+                     e.g.: 'I always attend such activities', 'knows i cannot miss', 'because she knows i love such things', 'according to how she understands me when it comes to such things'.
+                'circumstances' - There were circumstances that prevented me from getting dewormed 
+                    e.g.: 'he knows i didnt get information', 'they know am blind', 'am very old', 'am too old to walk', 'because he knows am a student'.
                 'other' - None of the above fit well.
                 """ 
                 }, 
