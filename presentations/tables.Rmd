@@ -258,6 +258,28 @@ stan_data = (dist_fit_data %>%
 
 ```
 
+
+```{r}
+
+
+
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+
+rf_N = rf_analysis_data %>%
+  select(dewormed, assigned_treatment, assigned_dist_group) %>%
+  complete.cases() %>%
+  sum()
+print(
+  str_glue("RF N: {rf_N}")
+)
+```
+
+
 ```{r}
 #| sob-gpt-reason-table
 
@@ -761,6 +783,8 @@ baseline.data = baseline.data %>%
   ) 
 
 
+
+
 # creating a single treat x distance variable for balance testing
 cluster_treat_df = analysis_data %>%
   mutate(
@@ -773,6 +797,42 @@ cluster_treat_df = analysis_data %>%
   select(cluster.id, treat_dist) %>%
   unique()
 
+
+
+know_balance_data = analysis_data %>%
+  nest_join(
+    endline.know.table.data %>% 
+      filter(fct_match(know.table.type, "table.A")),
+    by = "KEY.individ", 
+    name = "knowledge_data"
+  ) %>% 
+  mutate(
+    map_dfr(knowledge_data, ~ {
+      tibble(
+        obs_know_person = sum(.x$num.recognized),
+        obs_know_person_prop = mean(.x$num.recognized),
+        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
+        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
+        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
+        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
+      )
+    }
+  )) %>%
+  inner_join(
+    cluster_treat_df, 
+    by = "cluster.id"
+  )
+
+
+know_vars = c("obs_know_person")
+know_balance_fit = feols(
+    data = know_balance_data, 
+    .[know_vars] ~ 0 + treat_dist, 
+    ~county
+    ) 
+
+
+## Baseline Balance
 baseline_balance_data = baseline.data %>%
   inner_join(
     cluster_treat_df, 
@@ -795,6 +855,8 @@ baseline_balance_fit = feols(
     .[baseline_vars] ~ 0 + treat_dist, 
     ~county
     ) 
+
+
 
 
 # PoT level balance variables
@@ -915,7 +977,8 @@ endline_balance_fit = feols(
 balance_fits = c(
   indiv_balance_fit,
   list("lhs: cluster.dist.to.pot" = school_balance_fit),
-  baseline_balance_fit
+  baseline_balance_fit, 
+  list("lhs: num_recognised" = know_balance_fit)
 )
 
 
@@ -932,6 +995,7 @@ balance_tidy_df = balance_fits %>%
     )
 
 ```
+
 
 ```{r}
 #| joint-tests
@@ -1016,6 +1080,17 @@ indiv_boot = map(
 )
 
 
+know_boot = map(
+  know_vars, 
+  ~perform_cluster_boot(
+    data = know_balance_data,
+    var = .x, 
+    joint_R = hyp_matrix,
+    close_R = hyp_matrix_close,
+    far_R = hyp_matrix_far
+  )
+)
+
 baseline_boot = map(
   baseline_vars, 
   ~perform_cluster_boot(
@@ -1053,7 +1128,8 @@ endline_boot = map(
 boot_fits = c(
   indiv_boot, 
   school_boot, 
-  baseline_boot
+  baseline_boot, 
+  know_boot
 )
 
 joint_signif_fstats = map_dbl(
@@ -1146,6 +1222,8 @@ incentive_choice_data <- wtp.data %>%
           response = 2 * (response == "switch") - 1) 
 
 
+stan_data$num_recognized %>% length()
+
 N_wtp_obs_df = analysis_school_data %>%
   filter(KEY.individ %in% incentive_choice_data$KEY.individ) %>%
   filter(!is.na(KEY.individ)) %>%
@@ -1158,6 +1236,7 @@ N_wtp_obs_df = analysis_school_data %>%
   )  %>%
   mutate(type = "WTP")
 
+N_wtp_obs_df
 
 
 N_baseline_obs = baseline_balance_data %>%
@@ -1421,6 +1500,7 @@ wide_indiv_bal_df = create_balance_input(
       lhs == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
       lhs == "All can get worms" ~ "Know everyone can be infected", 
       lhs == "Correct when treat" ~ "Know bi-yearly treatment recommended", 
+      lhs == "Num recognised" ~ "Number of individuals recognised in community", 
       TRUE ~ lhs
     )
   )
@@ -1448,10 +1528,9 @@ kable_styling(
   latex_options = c("scale_down")
 ) %>%
 add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
-footnote(general = "Insert footnote here.")  %>%
   pack_rows(
     index = c(
-      "Individual-level Covariates" = 11, 
+      "Individual-level Covariates" = 12, 
       "Baseline Sample" = 2,
       "Takeup Sample" = 2,
       "Belief Sample" = 2,
@@ -1537,8 +1616,7 @@ knitr::kable(
 kable_styling(
   latex_options = c("scale_down")
 ) %>%
-add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
-footnote(general = "$\\Delta ..., p$-value corresponds to the null hypothesis that endline and baseline levels are the same.") 
+add_header_above(c("", "Close" = 5, "Far" = 5, "")) 
 
 endline_bal_table %>%
   custom_save_latex_table("endline-table")
