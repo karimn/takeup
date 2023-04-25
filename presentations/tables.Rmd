@@ -258,6 +258,115 @@ stan_data = (dist_fit_data %>%
 
 ```
 
+```{r}
+#| sob-gpt-reason-table
+
+sob_gpt_reason_df = read_csv(
+        "temp-data/second-order-gpt-reason-distribution.csv"
+)
+
+
+gpt_N_df = sob_gpt_reason_df %>%
+  group_by(var) %>%
+  summarise(N = unique(N)) %>%
+  mutate(
+    sample_var = c("yes", "no")
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  spread(
+    var, N
+  ) %>%
+  mutate(
+    term = "N"
+  ) %>%
+  select(
+    sample_var,
+    term,
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) 
+
+
+2+3
+digits = 3
+
+sob_gpt_reason_df %>%
+  mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**", 
+      p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  )  %>%
+  mutate(
+    sample_var = str_remove(sample, "sample.var: second.order; sample: ") 
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  mutate(term = str_remove(term, "assigned.treatment")) %>%
+  mutate(term = if_else(term == "(Intercept)", "Control mean", term)) %>%
+  mutate(term = factor(term, levels = c('Control mean', treat_levels_c))) %>%
+  select(sample_var, term, estim_std, var) %>%
+  spread(var, estim_std)  %>%
+  select(
+    sample_var,
+    term, 
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) %>%
+  bind_rows(gpt_N_df %>% mutate(across(where(is.numeric), as.character))) %>%
+  mutate(term = factor(term, levels = c('N', 'Control mean', treat_levels_c))) %>%
+  mutate(term = fct_relabel(term, str_to_title) %>% fct_rev) %>%
+  arrange(
+    sample_var, term
+  ) %>%
+  select(-sample_var)  %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "General Visibility", 
+        "Communication", 
+        "Social Proximity", 
+        "Incentive", 
+        "Type", "Circumstances", "Other"),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lccccccc", 
+      caption = "Second Order Beliefs: Reasons (GPT)"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )  %>%
+  pack_rows(
+    index = c(
+      "Panel A: Why do they think that you came for deworming?" = 5,
+      "Panel B: Why don't they think that you came for deworming?" = 5
+    ), 
+    hline_after = TRUE, 
+    hline_before = TRUE, 
+    bold = TRUE
+  )  %>%
+  row_spec(c(3, 8), hline_after = TRUE)
+
+
+
+```
 
 
 ```{r}
@@ -267,64 +376,109 @@ sob_reason_df = read_csv(
         "temp-data/second-order-reason-distribution.csv"
 )
 
-# Table AX: Learning about Deworming Status
-# Panel A: Why do they think that you came for deworming?
-# Dependent variable: (1) I saw incentive/signals (2) type (3) Campaign (4) Communication .....
-# Bracelet
-# Calendar
-# Ink
-# Control mean
-# Panel B: Why do they think that you did not come for deworming?
-# Dependent variable:  (1) I saw incentive/signals (2) type (3) Campaign (4) Communication .....
-# Bracelet
-# Calendar
-# Ink
-# Control mean
-# Note: Reasons stated by respondents that reported X individuals knows their deworming status. Examples of "type" , examples "circumstance"
+
+N_df = sob_reason_df %>%
+  group_by(var) %>%
+  summarise(N = unique(N)) %>%
+  mutate(
+    sample_var = c("yes", "no")
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  spread(
+    var, N
+  ) %>%
+  mutate(
+    term = "N"
+  ) %>%
+  select(
+    sample_var,
+    term,
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) 
+
+
+2+3
 digits = 3
+
 sob_reason_df %>%
   mutate(
     estimate = round(estimate, digits),
-    std.error = round(std.error, digits)
+    std.error = round(std.error, digits),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**", 
+      p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
   ) %>%
   mutate(
-    estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
   )  %>%
   mutate(
     sample_var = str_remove(sample, "sample.var: second.order; sample: ") 
   ) %>%
   mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
   mutate(term = str_remove(term, "assigned.treatment")) %>%
-  mutate(term = factor(term, levels = treat_levels_c)) %>%
-  mutate(term = fct_relabel(term, str_to_title) %>% fct_rev) %>%
+  mutate(term = if_else(term == "(Intercept)", "Control mean", term)) %>%
+  mutate(term = factor(term, levels = c('Control mean', treat_levels_c))) %>%
   select(sample_var, term, estim_std, var) %>%
   spread(var, estim_std)  %>%
+  select(
+    sample_var,
+    term, 
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) %>%
+  bind_rows(gpt_N_df %>% mutate(across(where(is.numeric), as.character))) %>%
+  mutate(term = factor(term, levels = c('N', 'Control mean', treat_levels_c))) %>%
+  mutate(term = fct_relabel(term, str_to_title) %>% fct_rev) %>%
   arrange(
     sample_var, term
   ) %>%
-  select(-sample_var) %>%
+  select(-sample_var)  %>%
   knitr::kable(
       format = "latex",
-      col.names = c("", "Campaign", "Communication", "Social Proximity", "Signal", "Type"),
+      col.names = c(
+        "", 
+        "General Visibility", 
+        "Communication", 
+        "Social Proximity", 
+        "Incentive", 
+        "Type", "Circumstances", "Other"),
       escape = FALSE, 
       booktabs = TRUE,
-      align = "lccccc", 
+      align = "lccccccc", 
       caption = "Second Order Beliefs: Reasons"
   ) %>%
   kable_styling(
+    latex_options = c("scale_down")
   )  %>%
   pack_rows(
     index = c(
-      "Panel A: Why do they think that you came for deworming?" = 4,
-      "Panel B: Why don't they think that you came for deworming?" = 4
+      "Panel A: Why do they think that you came for deworming?" = 5,
+      "Panel B: Why don't they think that you came for deworming?" = 5
     ), 
     hline_after = TRUE, 
+    hline_before = TRUE, 
     bold = TRUE
-  ) 
+  )  %>%
+  row_spec(c(3, 8), hline_after = TRUE)
 
 
 
 ```
+
 
 ```{r}
 #| endline-data,

@@ -480,7 +480,7 @@ knowledge_fit = function(data, dep_var) {
         ) %>%
         feols(
             data = ., 
-            fml = lhs ~0 +  assigned.treatment,
+            fml = lhs ~ assigned.treatment,
             split = ~second.order
         ) 
 }
@@ -506,30 +506,106 @@ endline.know.table.data = endline.know.table.data %>%
     )
 
 
-
-
 endline.know.table.data %>%
-    filter(!is.na(second.order.reason)) %>%
-    filter(second.order != "don't know") %>%
-    filter(
-        category_sob_reason == "other"
-    ) %>%  
-    count(second.order.reason)  %>%
-    arrange(-n) %>%
-    print(n = 30)
-
-endline.know.table.data %>%
-    filter(!is.na(second.order.reason)) %>%
-    filter(second.order == "yes") %>%
-    group_by(assigned.treatment) %>%
-    summarise(
-        pr_bracelet = mean(str_detect(second.order.reason, "brace")),
-        pr_ink = mean(str_detect(second.order.reason, "\\bink"))
+    write_csv(
+        "temp-data/second-order-reason-raw-data.csv"
     )
 
+
+
 endline.know.table.data %>%
-    filter(str_detect(second.order.reason, "\\bink")) %>%
-    pull(second.order.reason)
+    filter(!is.na(second.order)) %>%
+    filter(!is.na(second.order.reason)) %>%
+    filter(second.order != "don't know") %>%
+    filter(category_sob_reason == "other") %>%
+    count(
+        second.order.reason
+    ) 
+
+endline.know.table.data %>%
+    filter(!is.na(second.order)) %>%
+    filter(!is.na(second.order.reason)) %>%
+    filter(second.order != "don't know") %>%
+    filter(category_sob_reason == "other") %>%
+    count(
+        second.order.reason
+    ) %>%
+    write_csv(
+        "temp-data/sob-other-reasons.csv"
+    )
+
+
+gpt_df = read_csv("temp-data/sob-other-reasons-feedback-gpt-3.5-turbo-single-pass.csv")
+
+
+gpt_df = gpt_df %>%
+    mutate(
+        gpt_category = str_remove_all(`gpt-3.5-turbo`, "[:punct:]") %>%
+            str_to_lower() %>%
+            str_remove_all("category|categorization|classification") %>%
+            str_trim()
+    ) %>%
+    mutate(
+        gpt_category_clean = case_when(
+            gpt_category == "other" ~ 'other', 
+            gpt_category == "campaign" ~ 'campaign',
+            gpt_category == "type" ~ 'type',
+            gpt_category == "relationship" ~ 'relationship',
+            gpt_category == "circumstances" ~ 'circumstances',
+            gpt_category == "communication" ~ 'communication',
+            gpt_category == "signal" ~ 'signal',
+            str_detect(gpt_category, "unsure") ~ "unsure",
+            TRUE ~ "misc"
+        ) 
+    ) 
+
+
+gpt_df
+
+#### SOB Regressions ####
+
+
+gpt_endline_know_table_data = bind_rows(
+    endline.know.table.data %>%
+        filter(!is.na(second.order)) %>%
+        filter(!is.na(second.order.reason)) %>%
+        filter(second.order != "don't know") %>%
+        filter(category_sob_reason != "other"),
+    left_join(
+        endline.know.table.data %>%
+            filter(!is.na(second.order)) %>%
+            filter(!is.na(second.order.reason)) %>%
+            filter(second.order != "don't know") %>%
+            filter(category_sob_reason == "other"), 
+        gpt_df %>%
+            select(
+                second.order.reason, 
+                gpt_category_clean
+            ), 
+        by = "second.order.reason"
+        )
+    ) %>%
+    mutate(
+        category_sob_reason_short =  if_else(
+            category_sob_reason_short == "other", 
+            gpt_category_clean,
+            category_sob_reason_short
+        )
+    ) %>%
+    # If we can't clean even with GPT just filter 
+    # (by default GPT will put in other but even then some it cannot tell at all) 
+    filter(
+        category_sob_reason_short %in% c(
+            "signal",
+            "campaign", 
+            "communication", 
+            "relationship",
+            "type", 
+            "circumstances",
+            "other"
+        )
+    ) 
+
 
 
 sob_reason_fits = map(
@@ -537,11 +613,22 @@ sob_reason_fits = map(
         ~knowledge_fit(data = endline.know.table.data, dep_var = .x)
     )
 
+sob_gpt_reason_fits = map(
+        dep_vars, 
+        ~knowledge_fit(data = gpt_endline_know_table_data, dep_var = .x)
+    )
 
 sob_fit_df = imap_dfr(sob_reason_fits, ~map_dfr(., tidy, conf.int = TRUE, .id = "sample") %>% mutate(var = dep_vars[[.y]]))
+sob_gpt_fit_df = imap_dfr(sob_gpt_reason_fits, ~map_dfr(., tidy, conf.int = TRUE, .id = "sample") %>% mutate(var = dep_vars[[.y]]))
 
 
 sob_fit_df %>%
     write_csv(
         "temp-data/second-order-reason-distribution.csv"
     )
+
+sob_gpt_fit_df %>%
+    write_csv(
+        "temp-data/second-order-gpt-reason-distribution.csv"
+    )
+
