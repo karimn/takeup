@@ -618,8 +618,9 @@ sob_gpt_reason_fits = map(
         ~knowledge_fit(data = gpt_endline_know_table_data, dep_var = .x)
     )
 
-sob_fit_df = imap_dfr(sob_reason_fits, ~map_dfr(., tidy, conf.int = TRUE, .id = "sample") %>% mutate(var = dep_vars[[.y]]))
-sob_gpt_fit_df = imap_dfr(sob_gpt_reason_fits, ~map_dfr(., tidy, conf.int = TRUE, .id = "sample") %>% mutate(var = dep_vars[[.y]]))
+sob_fit_df = imap_dfr(sob_reason_fits, ~map_dfr(., ~tidy(.x, conf.int = TRUE) %>% mutate(N = nobs(.x)), .id = "sample") %>% mutate(var = dep_vars[[.y]]))
+sob_gpt_fit_df = imap_dfr(sob_gpt_reason_fits, ~map_dfr(., ~tidy(.x, conf.int = TRUE) %>% mutate(N = nobs(.x)), .id = "sample") %>% mutate(var = dep_vars[[.y]]))
+
 
 
 sob_fit_df %>%
@@ -631,4 +632,3 @@ sob_gpt_fit_df %>%
     write_csv(
         "temp-data/second-order-gpt-reason-distribution.csv"
     )
-
