@@ -38,12 +38,12 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 86,
+    fit_version = 88,
     rf_fit_version = 86,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
     models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
-    component_checks = TRUE, 
+    component_checks = FALSE, 
     plot_caption = TRUE
   )
 }
@@ -174,7 +174,7 @@ analysis_data <- monitored_nosms_data
 #| component-checks,
 #| fig.cap = "Model subcomponents",
 #| fig.width = 10, fig.height = 10
-
+if (params$component_checks) {
   component_files = map(
       c("control", "ink", "calendar", "bracelet"),
       ~file.path(
@@ -263,6 +263,8 @@ long_struct_df %>%
     labs(colour = "") +
     theme_minimal() +
     theme(legend.position = "bottom") 
+
+}
 
 
 
