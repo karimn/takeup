@@ -206,11 +206,16 @@ models <- lst(
     structural_beta_county_sd_sd = 0.05,
     structural_beta_cluster_sd_sd = 0.25,
     
-    # wtp_value_utility_sd = 0.0001,
-    wtp_value_utility_sd = 0.1, # dist_fit88 -> high wtp_value_utility_sd
+    wtp_value_utility_sd = 0.0001,
+    # wtp_value_utility_sd = 0.1, # dist_fit88 -> high wtp_value_utility_sd
 
     raw_u_sd_alpha = 3.3, 
+    # raw_u_sd_alpha = 10, # dist_fit89 -> high u sd 
     raw_u_sd_beta = 1.1,
+
+
+
+
 
     init = generate_initializer(
       num_treatments = num_treatments,
