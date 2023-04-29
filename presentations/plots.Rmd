@@ -66,8 +66,8 @@ knitr::opts_chunk$set(
   warnings = FALSE, 
   warning = FALSE, 
   cache = TRUE, 
-  cache.path = str_glue("takeup-{params$models}-figure-cache/"), 
-  fig.path = str_glue("takeup-{params$models}-fig/"), 
+  cache.path = str_glue("takeup-{params$models}{params$fit_version}-figure-cache/"), 
+  fig.path = str_glue("takeup-{params$models}{params$fit_version}-fig/"), 
   fig.align = "center"
   )
 
@@ -336,6 +336,11 @@ stan_data = (dist_fit_data %>%
   pull())[[1]]
 
 
+structural_prior_present = dist_fit_data %>%
+  filter(
+    fct_match(fit_type, "prior-predict"), 
+    fct_match(model_type, "structural")) %>%
+    nrow() > 0
 ```
 
 
@@ -1698,14 +1703,14 @@ structural_signalling_ate_plot = dist_fit_data %>%
   grab_signalling_ate(., "structural", models_we_want) 
 
 
-
 structural_signalling_ate_plot = dist_fit_data %>%
   grab_signalling_ate(., "structural", models_we_want) %>%
       plot_estimands(., 
                      est_takeup_te, 
                      mu_assigned_treatment_left, 
                      results_group = fit_type,
-                     single_prior_predict = TRUE, 
+                     single_prior_predict = structural_prior_present, 
+                     include_prior_predict = structural_prior_present,
                      top_levels = default_top_levels) +
         scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
           limits = default_ate_limits
@@ -1794,7 +1799,8 @@ structural_private_ate_plot = dist_fit_data %>%
                      est_takeup_te, 
                      assigned_treatment_left, 
                      results_group = fit_type,
-                     single_prior_predict = TRUE, 
+                     single_prior_predict = structural_prior_present, 
+                     include_prior_predict = structural_prior_present,
                      top_levels = default_top_levels) +
         scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
           limits = default_ate_limits
@@ -1853,7 +1859,8 @@ single_structural_private_ate_plot = dist_fit_data %>%
                      est_takeup_te, 
                      assigned_treatment_left, 
                      results_group = fit_type, 
-                     single_prior_predict = TRUE, 
+                     single_prior_predict = structural_prior_present, 
+                     include_prior_predict = structural_prior_present,
                      top_levels = default_top_levels, 
                      width = 0.7,
                      crossbar_width = 0.4) +
@@ -1900,7 +1907,8 @@ structural_incentive_ate_plot = dist_fit_data %>%
                  est_takeup_te, 
                  assigned_treatment_left, 
                  results_group = fit_type, 
-                 single_prior_predict = TRUE, 
+                 single_prior_predict = structural_prior_present, 
+                 include_prior_predict = structural_prior_present,
                  top_levels = default_top_levels) +
     scale_x_continuous(
       "", 
@@ -2168,7 +2176,7 @@ df %>%
 
 ```{r}
 #| rep-return-te-df
-
+if (params$component_checks) {
 rep_te_plot_df = read_csv(
   file.path(
     params$output_path, 
@@ -2212,6 +2220,8 @@ rep_te_plot_fun = function(data, treat) {
 
 
 
+
+}
 ```
 
 
@@ -2221,8 +2231,10 @@ rep_te_plot_fun = function(data, treat) {
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model.", dependson = c("rep-return-te-df")
 
+if (params$component_checks) {
 rep_te_plot_fun(rep_te_plot_df, "bracelet") + 
   dist_caption
+}
 ```
 
 ```{r}
@@ -2231,8 +2243,10 @@ rep_te_plot_fun(rep_te_plot_df, "bracelet") +
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model.", dependson = "rep-return-te-df"
 
+if (params$component_checks) {
 rep_te_plot_fun(rep_te_plot_df, "calendar") +
   dist_caption
+}
 ```
 
 ```{r}
@@ -2241,8 +2255,10 @@ rep_te_plot_fun(rep_te_plot_df, "calendar") +
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model." , dependson = "rep-return-te-df"
 
+if (params$component_checks) {
 rep_te_plot_fun(rep_te_plot_df, "ink") +
   dist_caption
+}
 ```
 
 ```{r}
@@ -2356,6 +2372,7 @@ ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
+if (params$component_checks) {
 bracelet_sm_df = read_csv(
   str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
 control_sm_df = read_csv(
@@ -2403,7 +2420,7 @@ summ_sm_df %>%
     x = "Distance to Treatment (d) [km]" ,
    y = "Social Multiplier"
   ) 
-
+}
 
 ```
 
@@ -2422,6 +2439,7 @@ summ_sm_df %>%
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
+if (params$component_checks) {
 
 sm_df = map_dfr(
   c("bracelet", "calendar", "ink", "control"), 
@@ -2451,11 +2469,13 @@ summ_sm_df = sm_df %>%
 
 1+2
 
+}
 ```
 
 
 ```{r}
 #| social-multiplier-plot
+if (params$component_checks) {
 1+2
 summ_sm_df %>%
   filter(dist > 0) %>%
@@ -2503,12 +2523,14 @@ summ_sm_df %>%
 
   1+1
 
+}
 ```
 
 
 ```{r}
 #| only-bracelet-sm-plot
 
+if (params$component_checks) {
 summ_sm_df %>%
   filter(dist > 0) %>%
   mutate(dist = dist/1000) %>%
@@ -2531,6 +2553,7 @@ summ_sm_df %>%
     guides(fill = "none") +
     dist_caption
 1+2
+}
 ```
 
 ```{r}
