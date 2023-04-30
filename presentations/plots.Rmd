@@ -442,7 +442,6 @@ sim_int %>%
 
 
 
-
 #### Reported Social Perception ####
 ```{r}
 #| reported-social-perception,
@@ -2622,4 +2621,167 @@ include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-by-sms-incentive
 #| fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
 
 include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-diff-by-sms-incentive.pdf", rel_path = FALSE)
+```
+
+
+#### Distance to closest school ####
+
+
+```{r}
+#| dist-cts-check
+schools <- st_as_sf(rct.schools.data, crs = wgs.84)
+villages <- village.centers %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = wgs.84)
+
+villages %<>% 
+  mutate(
+    dist_to_closest_school = st_transform(., kenya.proj4) %>% 
+      st_distance(st_transform(schools, kenya.proj4)) %>%
+      plyr::alply(1, min) %>% 
+      unlist()
+  )
+
+```
+
+
+```{r}
+#| dist-cts-plot,
+#| fig.cap="Distance to Closest Potential Point of Treatment, by Realised Assignment",
+#| fig.note="This plot shows how the distribution of distance to the closest possible point of 
+#|  treatment, by the realised assignment condition. The plot shows that any village in 
+#|  far condition could have been assigned a close point of treatment." 
+
+villages %>% 
+  ggplot(aes(dist_to_closest_school/1000)) +
+  geom_histogram(
+    aes(
+      y = stat(density), 
+      fill = dist.pot.group), 
+      position = "identity", 
+      binwidth = 100/1000, 
+      alpha = 0.5, 
+      colour = "black") +
+  labs(
+    x = "Distance to Closest School (km)", 
+    y = "Density") +
+  scale_fill_canva(
+    "Experiment Distance Assignment",
+    palette = canva_palette_vibrant, 
+    label = str_to_title
+  )
+
+```
+
+
+
+```{r}
+
+
+
+
+
+vill_school_pairs = villages %>% 
+  st_join(
+    x = .,
+    y = st_transform(schools, kenya.proj4),
+    join = st_is_within_distance, 
+    dist = 1500,
+    left = TRUE
+  ) 
+# Calculate all pairwise distances between every school and 
+# village (even those > 1500)
+all_vill_school_distances = st_distance(
+  villages, 
+  schools
+)
+# Calculate average distance from school, conditional on school < 1500
+expected_distance = apply(all_vill_school_distances, FUN = function(x){mean(x[x < 1500])}, MARGIN = 1)
+villages$expected_distance = expected_distance
+
+# Create set of numeric school variable to check for balance
+balance_vars = schools %>%
+  select_if(is.numeric) %>%
+  select(-contains("gps")) %>%
+  st_drop_geometry() %>%
+  colnames()
+
+check_observables = function(data, variable, balance_vars) {
+
+  balance_formulae = map(
+    balance_vars,
+    ~as.formula(paste0("`", .x,  "` ~ ", variable))
+  )
+
+  balance_fits = map2_dfr(
+    balance_formulae,
+    balance_vars,
+    ~lm(
+      .x,
+      data = data,
+      na.action = na.omit
+    ) %>% tidy()  %>% mutate(variable = .y)
+  ) %>%
+    filter(!str_detect(term, "Intercept"))
+    return(balance_fits)
+}
+
+
+dist_pot_check = check_observables(
+  vill_school_pairs,
+  variable = "log(dist.to.pot)",
+  balance_vars = balance_vars
+)
+
+dist_pot_group_check = check_observables(
+  vill_school_pairs,
+  variable = "dist.pot.group",
+  balance_vars = balance_vars
+)
+
+dist_closest_school_check = check_observables(
+  vill_school_pairs,
+  variable = "log(dist_to_closest_school)",
+  balance_vars = balance_vars
+)
+
+dist_pot_weight_check = check_observables(
+  vill_school_pairs,
+  variable = "log(dist.to.pot) + log(expected_distance)",
+  balance_vars = balance_vars
+)
+
+dist_checks = bind_rows(
+  dist_closest_school_check,
+  dist_pot_group_check,
+  dist_pot_check,
+  # dist_pot_weight_check %>%
+    # filter(term == "log(dist.to.pot)") %>%
+    # mutate(term = str_c(term, " reweighted"))
+) %>%
+  filter(!is.nan(p.value)) 
+
+
+n_signif_diff_after_adjust = dist_checks %>%
+  group_by(term) %>%
+  mutate(p_adj = p.adjust(p.value, method = "BH")) %>%
+  filter(p_adj < 0.05)
+
+
+
+dist_checks %>%
+  ggplot(aes( 
+    sample = p.value,
+    colour = term
+  )) +
+  stat_qq(distribution = stats::qunif,
+          alpha = 1, geom = "line") +
+  stat_qq_line(distribution = stats::qunif,
+               colour = "black",linetype = "longdash") +
+  theme_bw() +
+  labs(
+      x = "Theoretical Quantile", 
+      y = "Realised Quantile",
+      title = "Under Set Null, P Values ~ U(0,1)"
+  )
+
 ```

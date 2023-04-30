@@ -839,6 +839,14 @@ baseline_balance_data = baseline.data %>%
     by = "cluster.id"
   )
 
+baseline_balance_data = baseline_balance_data %>%
+  left_join(
+    analysis_data %>%
+      select(cluster.id, cluster.dist.to.pot) %>%
+      unique(), 
+    by = "cluster.id"
+  ) 
+
 baseline_vars = c(
   "years_schooling", 
   "know_deworming_stops_worms",
@@ -993,6 +1001,141 @@ balance_tidy_df = balance_fits %>%
     mutate(
       lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
     )
+
+```
+
+
+```{r}
+#| cts-dist-balance
+
+
+dist_balance_cts_fun = function(rhs_var) {
+  ## Indiv
+  indiv_balance_cts_fit = feols(
+      data = analysis_school_data %>%
+        mutate(dist_measure = {{ rhs_var }}), 
+      .[indiv_balance_vars] ~  dist_measure,
+      cluster = ~county
+      ) 
+
+  ## Know
+  know_balance_cts_fit = feols(
+      data = know_balance_data %>%
+        mutate(dist_measure = {{ rhs_var }}), 
+      .[know_vars] ~ dist_measure, 
+      ~county
+      ) 
+
+  ## baseline
+  baseline_balance_cts_fit = feols(
+      data = baseline_balance_data %>%
+        mutate(dist_measure = {{ rhs_var }}), 
+      .[baseline_vars] ~  dist_measure, 
+      ~county
+      ) 
+
+    return(
+      c(
+        indiv_balance_cts_fit,
+        list("lhs: num_recognised" = know_balance_cts_fit),
+        baseline_balance_cts_fit
+      )
+    )
+}
+
+dist_balance_disc_fun = function(rhs_var, interval_length) {
+  analysis_school_data = analysis_school_data %>%
+    mutate(
+      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
+    )
+
+  know_balance_data = know_balance_data %>%
+    mutate(
+      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
+    )
+  baseline_balance_data = baseline_balance_data %>%
+    mutate(
+      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
+    )
+
+  ## Indiv
+  indiv_balance_disc_fit = feols(
+      data = analysis_school_data,
+      .[indiv_balance_vars] ~  0 + dist_measure,
+      cluster = ~county
+      ) 
+
+  ## Know
+  know_balance_disc_fit = feols(
+      data = know_balance_data,
+      .[know_vars] ~ 0 + dist_measure, 
+      ~county
+      ) 
+
+  ## baseline
+  baseline_balance_disc_fit = feols(
+      data = baseline_balance_data,
+      .[baseline_vars] ~ 0 + dist_measure, 
+      ~county
+      ) 
+
+    return(
+      c(
+        indiv_balance_disc_fit,
+        list("lhs: num_recognised" = know_balance_disc_fit),
+        baseline_balance_disc_fit
+      )
+    )
+}
+
+
+
+fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
+disc_dist_balance = dist_balance_disc_fun(cluster.dist.to.pot, interval_length = 500)
+
+
+construct_joint_test_m = function(object) {
+  object = disc_dist_balance[[1]]
+  n_coef = length(coef(object))
+  diag_m = diag(n_coef - 1)
+  neg_1_m = matrix(-1, nrow = n_coef - 1, ncol = 1)
+
+  hyp_m = cbind(neg_1_m, diag_m)
+  return(hyp_m)
+}
+
+
+discrete_dist_balance_pval = map(
+  disc_dist_balance, 
+  ~car::lht(.x, construct_joint_test_m(.x))
+  )  %>%
+  map("Pr(>Chisq)") %>%
+  map_dbl(2)
+
+
+
+
+fully_cts_dist_balance %>%
+  map_dfr(tidy, conf.int = TRUE, .id = "lhs") %>%
+  filter(term == "dist_measure")  %>%
+  ggplot(aes(
+    x = estimate,
+    xmin = conf.low,
+    xmax = conf.high, 
+    y = lhs
+  )) +
+  geom_pointrange() +
+  geom_vline(xintercept = 0, linetype = "longdash")
+
+
+
+
+map_dfr(
+  fully_cts_dist_balance,
+  ~map_dfr(.x, tidy), 
+  .id = "lhs"
+)
+
 
 ```
 
