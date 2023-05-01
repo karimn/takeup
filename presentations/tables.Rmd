@@ -75,8 +75,8 @@ knitr::opts_chunk$set(
     cache = TRUE, 
     warnings = FALSE,
     warning = FALSE,
-    cache.path = str_glue("takeup-{params$models}-table-cache/"), 
-    fig.path = str_glue("takeup-{params$models}-table-fig-cache/"), 
+    cache.path = str_glue("takeup-{params$models}{params$fit_version}-table-cache/"), 
+    fig.path = str_glue("takeup-{params$models}{params$fit_version}-table-fig-cache/"), 
     fig.align = "center")
 
 dir.create("presentations/tables", showWarnings = FALSE)
@@ -1004,138 +1004,24 @@ balance_tidy_df = balance_fits %>%
 
 ```
 
+```{r}
+
+balance_tidy_df = read_csv(
+  file.path("temp-data", "balance_tidy_df.csv")
+)
+
+```
+
 
 ```{r}
 #| cts-dist-balance
 
-
-dist_balance_cts_fun = function(rhs_var) {
-  ## Indiv
-  indiv_balance_cts_fit = feols(
-      data = analysis_school_data %>%
-        mutate(dist_measure = {{ rhs_var }}), 
-      .[indiv_balance_vars] ~  dist_measure,
-      cluster = ~county
-      ) 
-
-  ## Know
-  know_balance_cts_fit = feols(
-      data = know_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}), 
-      .[know_vars] ~ dist_measure, 
-      ~county
-      ) 
-
-  ## baseline
-  baseline_balance_cts_fit = feols(
-      data = baseline_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}), 
-      .[baseline_vars] ~  dist_measure, 
-      ~county
-      ) 
-
-    return(
-      c(
-        indiv_balance_cts_fit,
-        list("lhs: num_recognised" = know_balance_cts_fit),
-        baseline_balance_cts_fit
-      )
-    )
-}
-
-dist_balance_disc_fun = function(rhs_var, interval_length) {
-  analysis_school_data = analysis_school_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
-
-  know_balance_data = know_balance_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
-  baseline_balance_data = baseline_balance_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
-
-  ## Indiv
-  indiv_balance_disc_fit = feols(
-      data = analysis_school_data,
-      .[indiv_balance_vars] ~  0 + dist_measure,
-      cluster = ~county
-      ) 
-
-  ## Know
-  know_balance_disc_fit = feols(
-      data = know_balance_data,
-      .[know_vars] ~ 0 + dist_measure, 
-      ~county
-      ) 
-
-  ## baseline
-  baseline_balance_disc_fit = feols(
-      data = baseline_balance_data,
-      .[baseline_vars] ~ 0 + dist_measure, 
-      ~county
-      ) 
-
-    return(
-      c(
-        indiv_balance_disc_fit,
-        list("lhs: num_recognised" = know_balance_disc_fit),
-        baseline_balance_disc_fit
-      )
-    )
-}
-
-
-
-fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
-disc_dist_balance = dist_balance_disc_fun(cluster.dist.to.pot, interval_length = 500)
-
-
-construct_joint_test_m = function(object) {
-  object = disc_dist_balance[[1]]
-  n_coef = length(coef(object))
-  diag_m = diag(n_coef - 1)
-  neg_1_m = matrix(-1, nrow = n_coef - 1, ncol = 1)
-
-  hyp_m = cbind(neg_1_m, diag_m)
-  return(hyp_m)
-}
-
-
-discrete_dist_balance_pval = map(
-  disc_dist_balance, 
-  ~car::lht(.x, construct_joint_test_m(.x))
-  )  %>%
-  map("Pr(>Chisq)") %>%
-  map_dbl(2)
-
-
-
-
-fully_cts_dist_balance %>%
-  map_dfr(tidy, conf.int = TRUE, .id = "lhs") %>%
-  filter(term == "dist_measure")  %>%
-  ggplot(aes(
-    x = estimate,
-    xmin = conf.low,
-    xmax = conf.high, 
-    y = lhs
-  )) +
-  geom_pointrange() +
-  geom_vline(xintercept = 0, linetype = "longdash")
-
-
-
-
-map_dfr(
-  fully_cts_dist_balance,
-  ~map_dfr(.x, tidy), 
-  .id = "lhs"
+cts_dist_balance_pval_df = read_csv(
+  file.path(
+      "temp-data",
+      str_glue("cts_distance_binned_pvals_INTERVAL_200.csv")
+  )
 )
-
 
 ```
 
@@ -1143,136 +1029,9 @@ map_dfr(
 ```{r}
 #| joint-tests
 
-## We want to test for balance across all conditions and balance within distance condition
-## I don't know how to do such a joint test in R easily so we setup the test matrix 
-## manually for the wald test
-
-# Number of dist groups x treatment
-n_variables = 8
-# matrix R for test 
-hyp_matrix = cbind(
-  matrix(-1, nrow = n_variables - 1, ncol = 1 ), 
-  diag(x = 1, nrow = n_variables - 1, ncol = n_variables)[, 1:(n_variables - 1)]
-)
-
-zero_matrix = matrix(0, nrow = 3, ncol = n_variables - 1) 
-part_hyp_matrix = zero_matrix
-for (i in 1:3) {
-  part_hyp_matrix[i, 2*i] = 1
-}
-
-hyp_matrix_close = cbind(
-  matrix(-1, nrow = 3, ncol = 1), 
-  part_hyp_matrix
-)
-
-hyp_matrix_far = cbind(
-  matrix(0, nrow = 3, ncol = 1),
-  matrix(-1, nrow = 3, ncol = 1), 
-  part_hyp_matrix[, 1:(ncol(part_hyp_matrix) - 1)]
-)
-
-
-perform_cluster_boot = function(data, var, joint_R, close_R, far_R) {
-  subset_data = data %>%
-    select(all_of(var), treat_dist, county, constituency) %>%
-    na.omit()
-
-
-  fml = as.formula(paste0(var, " ~ 0 + treat_dist"))
-  fit = lm(
-    formula = fml, 
-    data = subset_data
-  )
-  joint_boot_output = mboottest(
-    object = fit, 
-    clustid = c("county", "constituency"), 
-    bootcluster = "constituency", 
-    B = 999, 
-    R = joint_R
-  )
-  close_boot_output = mboottest(
-    object = fit, 
-    clustid = c("county", "constituency"), 
-    bootcluster = "constituency", 
-    B = 999, 
-    R = close_R
-  )
-  far_boot_output = mboottest(
-    object = fit, 
-    clustid = c("county", "constituency"), 
-    bootcluster = "constituency", 
-    B = 999, 
-    R = far_R
-  )
-  return(lst(
-    joint_pval = joint_boot_output$p_val, 
-    close_pval = close_boot_output$p_val, 
-    far_pval = far_boot_output$p_val))
-}
-
-indiv_boot = map(
-  indiv_balance_vars, 
-  ~perform_cluster_boot(
-    data = analysis_school_data, 
-    var = .x, 
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-     )
-)
-
-
-know_boot = map(
-  know_vars, 
-  ~perform_cluster_boot(
-    data = know_balance_data,
-    var = .x, 
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-baseline_boot = map(
-  baseline_vars, 
-  ~perform_cluster_boot(
-    data = baseline_balance_data,
-    var = .x, 
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-school_boot = map(
-  balance_variables,
-  ~perform_cluster_boot(
-    data = school_treat_df,
-    var = .x,
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-endline_boot = map(
-  endline_vars,
-  ~perform_cluster_boot(
-    data = endline_balance_data,
-    var = .x,
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-
-boot_fits = c(
-  indiv_boot, 
-  school_boot, 
-  baseline_boot, 
-  know_boot
+boot_fits = read_rds(
+  file.path("temp-data", 
+            "wild_boot_balance_fits.rds")
 )
 
 joint_signif_fstats = map_dbl(
@@ -1449,157 +1208,19 @@ baseline_endline_externality_fit = feols(
       ~county
       ) 
 
-perform_externality_cluster_boot = function(data, var, R) {
-  subset_data = data %>%
-    select(all_of(var), treat_dist, type, county, constituency) %>%
-      na.omit()
-
-
-  fml = as.formula(paste0(var, " ~ 0 + treat_dist:type"))
-  fit = lm(
-    formula = fml, 
-    data = subset_data
-  )
-
-  if (is.matrix(R)) {
-    joint_boot_output = mboottest(
-      object = fit, 
-      clustid = c("county", "constituency"), 
-      bootcluster = "constituency", 
-      B = 999, 
-      R = R
-    )
-  } else {
-    joint_boot_output = boottest(
-      object = fit, 
-      clustid = c("county", "constituency"),
-      param = names(coef(fit)), 
-      bootcluster = "constituency", 
-      B = 999, 
-      R = R
-    )
-  }
-  return(joint_boot_output$p_val)
-}
-
-
-
-indiv_externality_comp_test = baseline_endline_externality_fit %>%
-  map(
-    ~comparisons(
-      .x,
-      variable = list(type = "reference"), 
-      newdata = datagrid(
-        treat_dist = unique(baseline_balance_data$treat_dist)
-      )
-    )
-  )
-
-indiv_externality_comp_df = tibble(
-  lhs = names(indiv_externality_comp_test), 
-  p.value = map(indiv_externality_comp_test, "p.value"), 
-  treat_dist = list(unique(baseline_balance_data$treat_dist)) 
-) %>%
-  mutate(lhs = str_remove(lhs, "lhs: ")) %>%
-    unnest(c(p.value, treat_dist))
-
-#' Another way to generate the hypothesis matrix - slightly more general
-generate_joint_externality_hyp_m = function(fit, treat_term, dist_term) {
-  hyp_df = fit %>%
-    tidy() %>%
-    select(term) %>% 
-    mutate(
-      treat = str_extract(term, "(?<=treat: ).*(?=,)"),
-      dist = str_extract(term, "(?<=dist: ).*(?=:)"), 
-      type = str_extract(term, "(?<=type).*$")
-    ) %>%
-    mutate(
-      val = 0,
-      val = if_else(
-        treat == treat_term &
-        dist == dist_term &
-        type == "baseline", 
-        -1, 
-        val
-        ),
-      val = if_else(
-        treat == treat_term &
-        dist == dist_term &
-        type == "endline", 
-        1, 
-        val
-        )
-    )
-  return(hyp_df$val)
-}
-
-dist_treat_grid = expand_grid(
-  treat = c("bracelet", "calendar", "ink", "control"), 
-  dist = c("close", "far")
-) %>%
-  arrange(dist)
-
-externality_joint_hyp_matrix = map2(
-  dist_treat_grid$treat, 
-  dist_treat_grid$dist, 
-  ~generate_joint_externality_hyp_m(fit = baseline_endline_externality_fit[[1]], .x, .y )
-) %>%
-  do.call(rbind, .)
-
-
-joint_externality_p_value =  map_dbl(
-  comp_endline_vars,
-  ~perform_externality_cluster_boot(
-    data = endline_and_baseline_data, 
-    var = .x, 
-    R = externality_joint_hyp_matrix
+endline_p_val_df = read_csv(
+  file.path(
+    "temp-data", 
+    "endline_balance_p_val_df.csv"
   )
 )
 
-gen_close_p_val = function(x){
-  map(
-      c(split(externality_joint_hyp_matrix[1:4, ], 1:4), list(externality_joint_hyp_matrix[1:4, ])),
-      ~perform_externality_cluster_boot(endline_and_baseline_data, x, .x)
+endline_tidy_df = read_csv(
+  file.path(
+    "temp-data",
+    "endline_balance_tidy_df.csv"
   )
-}
-
-indiv_close_externality_p_value =  map(
-  comp_endline_vars, 
-  gen_close_p_val
 )
-
-gen_far_p_val = function(x) {
-  map(
-    c(split(externality_joint_hyp_matrix[5:8, ], 1:4), list(externality_joint_hyp_matrix[5:8, ])),
-    ~perform_externality_cluster_boot(endline_and_baseline_data,x,  .x)
-)
-}
-
-indiv_far_externality_p_value = map(comp_endline_vars, gen_far_p_val)
-
-
-
-endline_p_val_df = map(1:length(comp_endline_vars), ~c(comp_endline_vars[.x], indiv_close_externality_p_value[[.x]] %>% unlist(), indiv_far_externality_p_value[[.x]] %>% unlist(), joint_externality_p_value[[.x]])) %>%
-  bind_rows()
-
-colnames(endline_p_val_df) = col_order
-
-endline_p_val_df = endline_p_val_df %>%
-  mutate(across(c(everything(), -lhs), as.numeric)) %>%
-  mutate(fit_type = "pval") 
-
-
-endline_tidy_df = endline_balance_fit %>%
-    map_dfr(tidy, .id = "lhs") %>%
-    mutate(
-        lhs = str_remove(lhs, "lhs: ")
-    ) %>%
-    select(
-        lhs, term, estimate, std.error
-    )   %>%
-    mutate(
-      lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
-    ) 
 
 ```
 
@@ -1607,6 +1228,36 @@ endline_tidy_df = endline_balance_fit %>%
 
 ```{r}
 #| balance-creation, dependson="balance-setup"
+
+create_balance_input = function(tidy_df, col_order, digits = 3) {
+bal_input_df = tidy_df %>%
+    mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits)
+    ) %>%
+    mutate(
+    estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
+    )  %>%
+    mutate(lhs_treat = str_extract(term, "(?<=disttreat: ).*(?=\\,)")) %>%
+    mutate(lhs_dist = str_extract(term, "(?<=dist: ).*$")) %>%
+    select(lhs, lhs_treat, lhs_dist, estim_std) %>%
+    mutate(
+    lhs_treat = factor(lhs_treat, treat_levels_c) %>% fct_rev(), 
+    lhs_dist = factor(lhs_dist, dist_levels) %>% fct_rev()
+    ) %>%
+    pivot_wider(
+    names_from = c(lhs_treat, lhs_dist),
+    values_from = estim_std, 
+    )    %>%
+    select(
+    any_of(col_order)
+    )  %>%
+    mutate(
+        lhs = str_to_title(lhs),
+        lhs = str_replace_all(lhs, "_", " ")
+    )
+return(bal_input_df)
+}
 1+10
 wide_indiv_bal_df = create_balance_input(
     balance_tidy_df, 
@@ -1695,15 +1346,6 @@ bal_table %>%
 ```{r}
 #| endline-table
 
-endline_p_val_df %>%  
-      mutate(across(where(is.numeric), round, 3)) %>%
-      mutate_all(as.character) %>%
-      mutate(
-        lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title(), 
-        lhs = str_replace_all(lhs, "_", " ")
-      )  %>% 
-      mutate(type = "pval") %>%
-      pull(lhs)
 
 endline_balance_df = create_balance_input(
     endline_tidy_df, 
@@ -1769,6 +1411,91 @@ endline_bal_table
 ```
 
 
+
+```{r}
+cts_distance_pval_df = read_csv(
+  file.path(
+    "temp-data",
+    str_glue("cts_distance_binned_pvals_many_intervals.csv")
+  )
+)
+
+cts_distance_pval_df  = cts_distance_pval_df %>%
+  group_by(interval) %>%
+  mutate(
+    pval_adj = p.adjust(value, method = "holm"), 
+    term = str_remove(name, "lhs: ")
+  ) %>%
+  select(term, pval = value, pval_adj, interval)
+
+cts_distance_tbl = cts_distance_pval_df %>% 
+  mutate(across(contains("pval"), round, 3)) %>%
+  mutate(
+    stars = case_when(
+     pval < 0.01 ~ "***",
+     pval < 0.05 ~ "**", 
+     pval < 0.1 ~ "*" , 
+      TRUE ~ ""
+    ),
+    pval_term = linebreak(paste0(
+      pval, stars, "\n", "\\ [", str_glue("{pval_adj}"), "]"
+    ), align = "c", double_escape = FALSE)
+  ) %>%
+  select(term, pval_term, interval) %>%
+  mutate(interval = paste0(interval, "m")) %>%
+  pivot_wider(
+    names_from = interval, 
+    values_from = pval_term
+  ) %>%
+      mutate(
+        term = str_replace_all(term, "_", " ") %>% 
+          str_to_title()
+      )  %>%
+  mutate(
+    term = case_when(
+      term == "N Indiv" ~ "N individuals", 
+      term == "N Pot" ~ "N points of treatment",
+      term == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      term == "Baseline Neighbours Worm Knowledge" ~ "Understand deworming externality, baseline",
+      term == "Treated Lgl" ~ "Dewormed self", 
+      term == "Months Since Treatment" ~ "Months since last dewormed",
+      term == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
+      term == "All Can Get Worms" ~ "Know everyone can be infected", 
+      term == "Correct When Treat" ~ "Know bi-yearly treatment recommended", 
+      term == "Num Recognised" ~ "Number of individuals recognised in community", 
+      TRUE ~ term
+    )
+  ) %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "100m",
+        "200m", 
+        "300m",
+        "400m", 
+        "500m", 
+        "10000m"
+        ),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcccccc", 
+      caption = "Binned Continuous Distance: Joint F-test $p$-values"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )   %>%
+add_header_above(c("", "Bin Width" = 6))
+
+
+cts_distance_tbl
+
+
+cts_distance_tbl %>%
+  custom_save_latex_table("cts-distance-table") 
+
+```
+
 ```{r, sample_n, results="asis"}
 
 sample_meta_df = N_by_treat_dist_df %>%
@@ -1809,7 +1536,7 @@ sample_meta_tbl
 
 ```{r}
 #| comparing-draws-correlated-posterior,
-#| eval=FALSE
+#| eval=TRUE
 
 full_data_env = new.env()
 
@@ -1829,25 +1556,6 @@ full_dist_fit_data = with_env(load_full_data_function, full_data_env)() %>%
   filter(model %in% c("REDUCED_FORM_NO_RESTRICT", models_we_want))
 
 
-pr_comparison_te_df = full_dist_fit_data %>%
-  filter(fit_type == "fit") %>%
-  select(model_type, fit_type, est_takeup_te) %>%
-  unnest(est_takeup_te)  %>%
-  unnest(iter_data)   %>%
-  group_by(
-    model_type, 
-    fit_type, 
-    assigned_treatment_left,
-    assigned_treatment_right,
-    mu_assigned_treatment_left, 
-    mu_assigned_treatment_right, 
-    assigned_dist_group_left, 
-    assigned_dist_group_right
-  ) %>%
-  summarise(
-    pr_greater = mean(iter_takeup_te > 0, na.rm = TRUE)
-  ) %>%
-  ungroup()
 
 b_c_draws = full_dist_fit_data %>%
   filter(fit_type == "fit") %>%
@@ -1903,6 +1611,25 @@ b_c_draws %>%
 ```{r}
 #| setup-res-table
 
+pr_comparison_te_df = full_dist_fit_data %>%
+  filter(fit_type == "fit") %>%
+  select(model_type, fit_type, est_takeup_te) %>%
+  unnest(est_takeup_te)  %>%
+  unnest(iter_data)   %>%
+  group_by(
+    model_type, 
+    fit_type, 
+    assigned_treatment_left,
+    assigned_treatment_right,
+    mu_assigned_treatment_left, 
+    mu_assigned_treatment_right, 
+    assigned_dist_group_left, 
+    assigned_dist_group_right
+  ) %>%
+  summarise(
+    pr_greater = mean(iter_takeup_te > 0, na.rm = TRUE)
+  ) %>%
+  ungroup()
 incentive_te = dist_fit_data %>%
   mutate(
     est_takeup_te =
