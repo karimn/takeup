@@ -364,7 +364,7 @@ dist_balance_cts_fun = function(rhs_var) {
   ## Indiv
   indiv_balance_cts_fit = feols(
       data = analysis_school_data %>%
-        mutate(dist_measure = {{ rhs_var }}), 
+        mutate(dist_measure = {{ rhs_var }}/1000), 
       .[indiv_balance_vars] ~  dist_measure,
       cluster = ~county
       ) 
@@ -372,7 +372,7 @@ dist_balance_cts_fun = function(rhs_var) {
   ## Know
   know_balance_cts_fit = feols(
       data = know_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}), 
+        mutate(dist_measure = {{ rhs_var }}/1000), 
       .[know_vars] ~ dist_measure, 
       ~county
       ) 
@@ -380,7 +380,7 @@ dist_balance_cts_fun = function(rhs_var) {
   ## baseline
   baseline_balance_cts_fit = feols(
       data = baseline_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}), 
+        mutate(dist_measure = {{ rhs_var }}/1000), 
       .[baseline_vars] ~  dist_measure, 
       ~county
       ) 
@@ -799,6 +799,13 @@ endline_p_val_df %>%
 
 
 fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
+
+
+fully_cts_dist_balance %>%
+  saveRDS(
+    "temp-data/fully_cts_dist_balance.rds"
+  )
+
 disc_dist_balance = dist_balance_disc_fun(
     cluster.dist.to.pot, 
     interval_length = script_options$cts_interval)

@@ -1413,12 +1413,36 @@ endline_bal_table
 
 
 ```{r}
+#| cts-distance-pval-table
 cts_distance_pval_df = read_csv(
   file.path(
     "temp-data",
     str_glue("cts_distance_binned_pvals_many_intervals.csv")
   )
 )
+
+rename_lhs = function(data) {
+  data %>%
+      mutate(
+        term = str_replace_all(term, "_", " ") %>% 
+          str_to_title()
+      )  %>%
+  mutate(
+    term = case_when(
+      term == "N Indiv" ~ "N individuals", 
+      term == "N Pot" ~ "N points of treatment",
+      term == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      term == "Baseline Neighbours Worm Knowledge" ~ "Understand deworming externality, baseline",
+      term == "Treated Lgl" ~ "Dewormed self", 
+      term == "Months Since Treatment" ~ "Months since last dewormed",
+      term == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
+      term == "All Can Get Worms" ~ "Know everyone can be infected", 
+      term == "Correct When Treat" ~ "Know bi-yearly treatment recommended", 
+      term == "Num Recognised" ~ "Number of individuals recognised in community", 
+      TRUE ~ term
+    )
+  )
+}
 
 cts_distance_pval_df  = cts_distance_pval_df %>%
   group_by(interval) %>%
@@ -1447,25 +1471,7 @@ cts_distance_tbl = cts_distance_pval_df %>%
     names_from = interval, 
     values_from = pval_term
   ) %>%
-      mutate(
-        term = str_replace_all(term, "_", " ") %>% 
-          str_to_title()
-      )  %>%
-  mutate(
-    term = case_when(
-      term == "N Indiv" ~ "N individuals", 
-      term == "N Pot" ~ "N points of treatment",
-      term == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
-      term == "Baseline Neighbours Worm Knowledge" ~ "Understand deworming externality, baseline",
-      term == "Treated Lgl" ~ "Dewormed self", 
-      term == "Months Since Treatment" ~ "Months since last dewormed",
-      term == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
-      term == "All Can Get Worms" ~ "Know everyone can be infected", 
-      term == "Correct When Treat" ~ "Know bi-yearly treatment recommended", 
-      term == "Num Recognised" ~ "Number of individuals recognised in community", 
-      TRUE ~ term
-    )
-  ) %>%
+  rename_lhs() %>%
   knitr::kable(
       format = "latex",
       col.names = c(
@@ -1493,6 +1499,57 @@ cts_distance_tbl
 
 cts_distance_tbl %>%
   custom_save_latex_table("cts-distance-table") 
+
+```
+
+```{r}
+
+cts_dist_fits = 
+  read_rds(
+    "temp-data/fully_cts_dist_balance.rds"
+  )
+cts_dist_fits %>%
+  map_dfr(tidy, .id = "lhs") %>%
+  mutate(
+    lhs = str_remove(lhs, "lhs: ")
+  ) %>%
+  filter(term != "(Intercept)")  %>%
+  mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**", 
+      p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  ) %>%
+  select(
+    lhs, term,
+    estim_std
+  )  %>%
+  spread(term, estim_std) %>%
+  rename(term = lhs) %>%
+  rename_lhs() %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "Distance to PoT (km)",
+        "Distance to PoT squared (km)"
+        ),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcc", 
+      caption = "Continuous Distance: Balance Checks"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )   
+
 
 ```
 
