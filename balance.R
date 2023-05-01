@@ -365,7 +365,7 @@ dist_balance_cts_fun = function(rhs_var) {
   indiv_balance_cts_fit = feols(
       data = analysis_school_data %>%
         mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[indiv_balance_vars] ~  dist_measure,
+      .[indiv_balance_vars] ~  dist_measure + dist_measure^2,
       cluster = ~county
       ) 
 
@@ -373,7 +373,7 @@ dist_balance_cts_fun = function(rhs_var) {
   know_balance_cts_fit = feols(
       data = know_balance_data %>%
         mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[know_vars] ~ dist_measure, 
+      .[know_vars] ~ dist_measure + dist_measure^2, 
       ~county
       ) 
 
@@ -381,7 +381,7 @@ dist_balance_cts_fun = function(rhs_var) {
   baseline_balance_cts_fit = feols(
       data = baseline_balance_data %>%
         mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[baseline_vars] ~  dist_measure, 
+      .[baseline_vars] ~  dist_measure + dist_measure^2, 
       ~county
       ) 
 
