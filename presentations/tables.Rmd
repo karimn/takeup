@@ -1015,18 +1015,6 @@ balance_tidy_df = read_csv(
 ```
 
 
-```{r}
-#| cts-dist-balance
-
-cts_dist_balance_pval_df = read_csv(
-  file.path(
-      "temp-data",
-      str_glue("cts_distance_binned_pvals_INTERVAL_200.csv")
-  )
-)
-
-```
-
 
 ```{r}
 #| joint-tests
@@ -1416,6 +1404,7 @@ endline_bal_table
 
 ```{r}
 #| cts-distance-pval-table
+1+1
 cts_distance_pval_df = read_csv(
   file.path(
     "temp-data",
