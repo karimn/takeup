@@ -1708,8 +1708,8 @@ structural_signalling_ate_plot = dist_fit_data %>%
                      est_takeup_te, 
                      mu_assigned_treatment_left, 
                      results_group = fit_type,
-                     single_prior_predict = structural_prior_present, 
-                     include_prior_predict = structural_prior_present,
+                     single_prior_predict = TRUE, 
+                     include_prior_predict = FALSE,
                      top_levels = default_top_levels) +
         scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
           limits = default_ate_limits
@@ -1792,14 +1792,14 @@ grab_private_ate = function(data, model_type_to_plot, models_we_want) {
 
 structural_private_ate_plot = dist_fit_data %>%
   grab_private_ate(., "structural", models_we_want) %>%
-    mutate(est_takeup_te = map(est_takeup_te, 
-    ~mutate(.x, assigned_dist_group_left = fct_rev(assigned_dist_group_left)))) %>%
+    # mutate(est_takeup_te = map(est_takeup_te, 
+    # ~mutate(.x, assigned_dist_group_left = fct_rev(assigned_dist_group_left)))) %>%
       plot_estimands(., 
                      est_takeup_te, 
                      assigned_treatment_left, 
                      results_group = fit_type,
-                     single_prior_predict = structural_prior_present, 
-                     include_prior_predict = structural_prior_present,
+                     single_prior_predict = TRUE, 
+                     include_prior_predict = FALSE,
                      top_levels = default_top_levels) +
         scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
           limits = default_ate_limits
@@ -1854,12 +1854,13 @@ ggsave(
 
 single_structural_private_ate_plot = dist_fit_data %>%
   grab_private_ate(., model_type_to_plot = "structural", models_we_want) %>%
+  mutate(est_takeup_te = map(est_takeup_te, ~filter(.x, assigned_dist_group_left == "Combined"))) %>%
       plot_single_estimands(., 
                      est_takeup_te, 
                      assigned_treatment_left, 
                      results_group = fit_type, 
-                     single_prior_predict = structural_prior_present, 
-                     include_prior_predict = structural_prior_present,
+                     single_prior_predict = TRUE, 
+                     include_prior_predict = FALSE,
                      top_levels = default_top_levels, 
                      width = 0.7,
                      crossbar_width = 0.4) +
@@ -1906,8 +1907,8 @@ structural_incentive_ate_plot = dist_fit_data %>%
                  est_takeup_te, 
                  assigned_treatment_left, 
                  results_group = fit_type, 
-                 single_prior_predict = structural_prior_present, 
-                 include_prior_predict = structural_prior_present,
+                 single_prior_predict = TRUE, 
+                 include_prior_predict = FALSE,
                  top_levels = default_top_levels) +
     scale_x_continuous(
       "", 
@@ -2677,9 +2678,12 @@ summ_sm_df %>%
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
-  transmute(
+p_roc = dist_fit_data %>% 
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model, models_we_want) 
+    ) %>% 
+  mutate(
     model_name,
     cluster_roc = map2(cluster_roc, stan_data, ~ { 
       mutate(.x,
@@ -2692,12 +2696,13 @@ dist_fit_data %>%
   ) %>%
   unnest(cluster_roc) %>% 
   filter(fct_match(assigned_treatment, c("control","bracelet"))) %>% 
-  filter(roc_distance < 2.5) %>%
-  ggplot(aes(roc_distance)) +
+  filter(roc_distance < 2.5)   %>%
+  ggplot(aes(roc_distance, group = interaction(fit_type, assigned_treatment))) +
   geom_line(aes(y = per_0.5, color = assigned_treatment)) +
   geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.25) +
   geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = assigned_treatment), alpha = 0.25) +
   geom_rug(
+    inherit.aes = FALSE,
     aes(dist),
     alpha = 0.75,
     data = rf_analysis_data %>%
@@ -2711,8 +2716,86 @@ dist_fit_data %>%
   scale_fill_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
   dist_caption +
   NULL
+
+p_roc
+
 ```
 
+
+```{r}
+#| rate-of-change-prior,
+#| fig.cap="Rate of Change Estimates",
+#| fig.note = "This plot shows the rate of change estimated using the structural 
+#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#|  increases individuals become less and less sensitive to the increased cost due to 
+#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  Line: median.
+#|  Outer ribbon: 90\\% credible interval.
+#|  Inner ribbon: 50\\% credible interval."
+
+
+prior_sm_post_df = dist_fit_data %>% 
+  filter(
+    fct_match(fit_type, "prior-predict"), 
+    fct_match(model, models_we_want) 
+    ) %>% 
+  mutate(
+    model_name,
+    cluster_roc = map2(cluster_roc, stan_data, ~ { 
+      mutate(.x,
+        roc_distance = roc_distance / 1000,
+        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
+        across(starts_with("per_"), multiply_by, 1000),
+        across(starts_with("per_"), multiply_by, 100)
+      ) 
+    })
+  ) %>%
+  unnest(cluster_roc) %>% 
+  filter(fct_match(assigned_treatment, c("control","bracelet"))) %>% 
+  filter(
+    fct_match(fit_type, "prior-predict") & assigned_treatment == "bracelet"
+  ) %>%
+  filter(roc_distance < 2.5)  
+
+
+
+p_roc + 
+  geom_line(
+    data = prior_sm_post_df,
+    aes(y = per_0.5), 
+    size = 1, 
+    linetype = "longdash",
+    color = "grey") 
+
+p_roc + 
+  geom_line(
+    data = prior_sm_post_df,
+    aes(y = per_0.5), 
+    size = 1, 
+    linetype = "longdash",
+    color = "grey")  +
+  geom_ribbon(
+    data = prior_sm_post_df,
+    aes(ymin = per_0.25, ymax = per_0.75), fill = "grey", alpha = 0.25) +
+  NULL
+
+p_roc + 
+  geom_line(
+    data = prior_sm_post_df,
+    aes(y = per_0.5), 
+    size = 1, 
+    linetype = "longdash",
+    color = "grey")  +
+  geom_ribbon(
+    data = prior_sm_post_df,
+    aes(ymin = per_0.25, ymax = per_0.75), fill = "grey", alpha = 0.25) +
+  geom_ribbon(
+    data = prior_sm_post_df, 
+    aes(ymin = per_0.05, ymax = per_0.95), fill = "grey", alpha = 0.25) +
+  NULL
+
+```
 
 
 ## SMS ##

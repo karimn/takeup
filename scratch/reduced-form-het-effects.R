@@ -456,12 +456,12 @@ etable(
     drop = c("Constant", "census_cluster_pop"),
     cluster = ~county, 
     replace = TRUE, 
-    depvar = TRUE,
+    depvar = FALSE,
     dict = term_dict,
     # style.tex = style.tex(var.title = "", fixef.title = "", stats.title = " ") 
     tex = TRUE, 
     file = "temp-data/rf-mechanism-full-regression-table.tex",
-    title = "Takeup Heterogeneity", 
+    title = "Takeup Heterogeneity: Full Sample", 
     notes = "All regressions include the saturated interaction of incentive and distance 
     conditions. Additional regressors are included without interactions i.e. as level shifts of 
     overall deworming. All regressions cluster standard errors at the county level and use frequentist 
@@ -494,10 +494,21 @@ etable(
     keep = "recognised",
     cluster = ~county, 
     replace = TRUE, 
-    depvar = TRUE,
-    dict = term_dict,
+    depvar = FALSE,
+    dict = c(
+        term_dict, 
+        "assigned_treatmentink" = "Treatment: Ink", 
+        "assigned_treatmentcalendar" = "Treatment: Calendar", 
+        "assigned_treatmentbracelet" = "Treatment: Bracelet"
+        ),
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-het-knowledge-regression-table.tex"
+    file = "temp-data/rf-mechanism-het-knowledge-regression-table.tex", 
+    title = "Takeup Treatment Effect Heterogeneity: Social Connectedness", 
+    notes = "Standard errors clustered at the county level, estimated using frequentist probit. 
+    All regressions control for the log of village population and the interaction of `Number of people recognised' with 
+    treatment. The first column only uses individuals included in the knowledge survey. The second column averages over 
+    surveyed individuals in a village to produce a village level measure of social connectedness. 
+    "
 )
 ## Any variation in control group
 
@@ -563,11 +574,16 @@ etable(
     drop = c("Constant", "census_cluster_pop"),
     cluster = ~county,
     replace = TRUE, 
-    depvar = TRUE,
+    depvar = FALSE,
     dict = term_dict,
     # style.tex = style.tex(var.title = "", fixef.title = "", stats.title = " ") 
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-control-regression-table.tex"
+    file = "temp-data/rf-mechanism-control-regression-table.tex", 
+    title = "Takeup Heterogeneity: Control Condition", 
+    notes = "Standard errors clustered at the county level, models estimated using frequentist probit.
+    Sample only includes those in the control condition. All regressions control for the covariate of interest 
+    and the assigned distance group. Social connectedness regressions also control for the log of village population.
+    "
 )
 
 
@@ -666,15 +682,21 @@ etable(
     drop = c("Constant", "census_cluster_pop"),
     cluster = ~county,
     replace = TRUE, 
-    depvar = TRUE,
-    extralines = list("_^Homogeneous effects across 'Any incentive', $p$-value" = het_pvals),
+    depvar = FALSE,
+    extralines = list("^_Homogeneous effects across `Any incentive', $p$-value" = het_pvals),
     dict = c(
         term_dict, 
         "any_incentiveTRUE" = "(Any incentive = True)", 
         "any_incentiveFALSE" = "(Any incentive = False)"
         ),
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-incentive-regression-table.tex"
+    file = "temp-data/rf-mechanism-incentive-regression-table.tex", 
+    title = "Takeup Heterogeneity: Any Incentive vs Control",
+    notes = "Standard errors clustered at the county level, models estimated using frequentist probit.
+     All regressions control for the covariate of interest interacted with an `any incentive' dummy as well as 
+     the saturated interaction of treatment assignment with distance group. 
+     Social connectedness regressions also control for the log of village population.
+    "
 )
 
 
