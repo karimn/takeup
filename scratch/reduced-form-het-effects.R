@@ -110,7 +110,6 @@ ggsave(
 
 
 #### Externalities ####
-
 cluster_clean_externality_df  = baseline.data %>%
     group_by(
         cluster.id
@@ -152,9 +151,6 @@ clean_externality_df = analysis_data %>%
     by = "cluster.id"
     )
 
-
-
-
 #### Perceptions ####
 clean_perception_data = baseline.data %>% 
   select(cluster.id, matches("^(praise|stigma)_[^_]+$")) %>% 
@@ -162,8 +158,6 @@ clean_perception_data = baseline.data %>%
   separate(key, c("praise.stigma", "topic"), "_") %>% 
   separate(topic, c("topic", "question.group"), -2)  %>%
   filter(!is.na(response))  
-
-
 
 
 long_topic_judgement_score_df = clean_perception_data %>%
@@ -184,7 +178,6 @@ long_topic_judgement_score_df = clean_perception_data %>%
         )
 
 
-
 overall_judgement_score_df = clean_perception_data %>%
   count(cluster.id, praise.stigma, topic, response)  %>%
   group_by(cluster.id, praise.stigma, topic) %>% 
@@ -203,7 +196,6 @@ overall_judgement_score_df = clean_perception_data %>%
 judgement_score_df = bind_rows(
     long_topic_judgement_score_df, 
     overall_judgement_score_df
-
 )
 
 judgement_score_df %>%
@@ -279,7 +271,8 @@ analysis_data %<>%
 analysis_data = analysis_data %>%
     group_by(cluster.id) %>%
     mutate(
-        cluster_obs_know_person_prop = mean(obs_know_person_prop, na.rm = TRUE)
+        cluster_obs_know_person_prop = mean(obs_know_person_prop, na.rm = TRUE),
+        cluster_obs_know_person = mean(obs_know_person, na.rm = TRUE)
     ) %>%
     ungroup()
 
@@ -300,6 +293,92 @@ analysis_data = analysis_data %>%
         by = "cluster.id"
     ) 
 
+#### Ethnic Fractionalisation ####
+
+
+analysis_data %>%
+    filter(!is.na(ethnicity)) %>%
+    group_by(
+        cluster.id, ethnicity
+    ) %>%
+    mutate(
+        n_ethnicity = n()
+    ) %>%
+    group_by(cluster.id) %>%
+    mutate(
+        ethnicity_share = n_ethnicity/sum(n_ethnicity)
+    ) %>%
+    summarise(
+        fractionalisation = 1 - sum(ethnicity_share^2)
+    ) %>%
+    ggplot(aes(
+        x = fractionalisation
+    )) +
+    geom_histogram(bins = 60, colour = "grey") +
+    theme_minimal() +
+    labs(
+        x = "Fractionalisation", 
+        y = "Count", 
+        title = "Distribution of Fractionalisation Score Across Counties"
+    )
+ggsave(
+    "temp-plots/frac-hist.pdf",
+    width = 16,
+    height = 8
+)
+
+ethnicity_share_df = analysis_data %>%
+    filter(!is.na(ethnicity)) %>%
+    group_by(
+        cluster.id, ethnicity
+    ) %>%
+    mutate(
+        n_ethnicity = n()
+    ) %>%
+    group_by(cluster.id) %>%
+    mutate(
+        ethnicity_share = n_ethnicity/sum(n_ethnicity)
+    ) %>%
+    summarise(
+        fractionalisation = 1 - sum(ethnicity_share^2, na.rm = TRUE)
+    )  %>%
+    ungroup()
+
+analysis_data %>%
+    group_by(assigned_treatment, assigned_dist_group) %>%
+    count(ethnicity) %>%
+    filter(!is.na(ethnicity)) %>%
+    ggplot(aes(
+        y = assigned_treatment, 
+        x = n, 
+        fill = ethnicity
+    )) +
+    geom_col(position = position_dodge(0.9)) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    facet_wrap(~assigned_dist_group, ncol = 1) +
+    labs(
+        x = "Count", 
+        y = "Treatment", 
+        title = "Ethnicity Counts By Condition"
+    )
+
+ggsave(
+    "temp-plots/ethnicity-counts.pdf", 
+    width = 10, 
+    height = 10
+    )
+
+
+
+analysis_data = analysis_data %>%
+    left_join(
+        ethnicity_share_df, 
+        by = "cluster.id"
+    )
+
+
+
 #### Regressions ####
 probit_fit = analysis_data %>%
     feglm(
@@ -309,17 +388,16 @@ probit_fit = analysis_data %>%
         cluster = ~county
     ) 
 
-
 externality_fit = clean_externality_df %>%
     feglm(
-        dewormed ~  frac_externality_knowledge + assigned_treatment:assigned_dist_group,
+        dewormed ~  0 + frac_externality_knowledge + assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
         cluster = ~county
     )
 
-judgement_geo_fit = judge_analysis_data %>%
+judgement_fit = judge_analysis_data %>%
     feglm(
-        dewormed ~  judge_score_dewor + assigned_treatment:assigned_dist_group,
+        dewormed ~  0 + judge_score_dewor + assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
         cluster = ~county
     )
@@ -327,8 +405,9 @@ judgement_geo_fit = judge_analysis_data %>%
 indiv_knowledge_fit = analysis_data %>%
     feglm(
         dewormed ~ 
+            0 + 
             log(census_cluster_pop) + 
-            obs_know_person_prop*assigned_treatment  + 
+            obs_know_person  + 
             assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
         cluster = ~county
@@ -337,114 +416,269 @@ indiv_knowledge_fit = analysis_data %>%
 cluster_knowledge_fit = feglm(
         data = analysis_data,
         dewormed ~ 
+            0 + 
             log(census_cluster_pop) + 
-            cluster_obs_know_person_prop*assigned_treatment  + 
+            cluster_obs_know_person  + 
             assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
         cluster = ~county
     )
 
-combined_pred_df = predictions(
-    cluster_knowledge_fit,
-    newdata = datagrid(
-        assigned_treatment = unique(analysis_data$assigned_treatment), 
-        assigned_dist_group = unique(analysis_data$assigned_dist_group),
-        cluster_obs_know_person_prop = seq(from = 0, to = 1, length.out = 10)
-        )
-)
 
-library(lmtest)
-
-ed_test = glm(
-    data = analysis_data, 
-    formula = 
+ethnicity_fit =  analysis_data %>%
+    feglm(
         dewormed ~ 
-            log(census_cluster_pop) + 
-            cluster_obs_know_person_prop*assigned_treatment*assigned_dist_group,
-    family = binomial(link = "probit")
-)
-
-cluster_knowledge_fit = feglm(
-        data = analysis_data,
-        dewormed ~ 
-            log(census_cluster_pop) + 
-            cluster_obs_know_person_prop*assigned_treatment,
-        family = binomial(link = "probit"),
+        0 + fractionalisation +
+        assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"), 
         cluster = ~county
     )
-
-cluster_knowledge_fit = feols(
-        data = analysis_data,
-        dewormed ~ 
-            log(census_cluster_pop) + 
-            cluster_obs_know_person_prop*assigned_treatment
-    )
+    
 
 
-
-etable(cluster_knowledge_fit)
-
-
-combined_pred_df %>%
-    tibble() %>%
-    ggplot(aes(
-        x = estimate, 
-        xmin = conf.low, 
-        xmax = conf.high,
-        y = assigned_treatment, 
-        colour = cluster_obs_know_person_prop,
-        group = cluster_obs_know_person_prop
-    )) +
-    facet_wrap(~assigned_dist_group)  +
-    geom_pointrange(
-        position = position_dodge(0.5)
-    )
-
-
-cluster_knowledge_fit
-
-etable(
-    cluster_knowledge_fit, 
-    # cluster_knowledge_fit, 
-    order = "!assigned"
-)
-
-etable(
-    indiv_knowledge_fit, 
-    cluster_knowledge_fit, 
-    order = "!assigned"
-)
-
-
-analysis_data %>%
-    group_by(cluster.id) %>%
-    summarise(
-        cluster_obs_know_person_prop = unique(cluster_obs_know_person_prop), 
-        takeup = mean(dewormed), 
-        treatment = unique(assigned_treatment), 
-        dist_group = unique(assigned_dist_group)
-    ) %>%
-    ggplot(aes(
-        x = cluster_obs_know_person_prop, 
-        y = takeup, 
-        colour = interaction(treatment, dist_group)
-    )) +
-    geom_point() +
-    geom_smooth(
-        method = "lm", 
-        colour = "black"
+term_dict = c(
+        judge_score_dewor = "Judgemental score", 
+        frac_externality_knowledge = "Externality knowledge",
+        obs_know_person = "Number of people recognised in community",
+        cluster_obs_know_person = "Number of people recognised in community, village mean",
+        fractionalisation = "Fractionalisation", 
+        deworming = "Dewormed"
     )
 
 etable(
-    judgement_geo_fit,
+    judgement_fit,
     externality_fit, 
     indiv_knowledge_fit, 
     cluster_knowledge_fit,
+    ethnicity_fit,
     order = "!assigned", 
     keep = c("!assigned"),
-    drop = "Constant",
-    cluster = ~county
+    drop = c("Constant", "census_cluster_pop"),
+    cluster = ~county, 
+    replace = TRUE, 
+    depvar = TRUE,
+    dict = term_dict,
+    # style.tex = style.tex(var.title = "", fixef.title = "", stats.title = " ") 
+    tex = TRUE, 
+    file = "temp-data/rf-mechanism-full-regression-table.tex",
+    title = "Takeup Heterogeneity", 
+    notes = "All regressions include the saturated interaction of incentive and distance 
+    conditions. Additional regressors are included without interactions i.e. as level shifts of 
+    overall deworming. All regressions cluster standard errors at the county level and use frequentist 
+    probit."
 )
+
+## Het TEs by social connectedness
+
+indiv_knowledge_het_fit = analysis_data %>%
+    feglm(
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            obs_know_person*assigned_treatment,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+cluster_knowledge_het_fit = feglm(
+        data = analysis_data,
+        dewormed ~ 
+            log(census_cluster_pop) + 
+            cluster_obs_know_person*assigned_treatment,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+etable(
+    indiv_knowledge_het_fit, 
+    cluster_knowledge_het_fit, 
+    keep = "recognised",
+    cluster = ~county, 
+    replace = TRUE, 
+    depvar = TRUE,
+    dict = term_dict,
+    tex = TRUE, 
+    file = "temp-data/rf-mechanism-het-knowledge-regression-table.tex"
+)
+## Any variation in control group
+
+control_externality_fit = clean_externality_df %>%
+    filter(assigned_treatment == "control") %>%
+    feglm(
+        dewormed ~  0 + frac_externality_knowledge + assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+control_judgement_fit = judge_analysis_data %>%
+    filter(assigned_treatment == "control") %>%
+    feglm(
+        dewormed ~  0 + judge_score_dewor + assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+control_indiv_knowledge_fit = analysis_data %>%
+    filter(assigned_treatment == "control") %>%
+    feglm(
+        dewormed ~ 
+            0 + 
+            log(census_cluster_pop) + 
+            obs_know_person  + 
+            assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+control_cluster_knowledge_fit = feglm(
+        data = analysis_data %>% filter(assigned_treatment == "control"),
+        dewormed ~ 
+            0 + 
+            log(census_cluster_pop) + 
+            cluster_obs_know_person  + 
+            assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+
+control_ethnicity_fit =  analysis_data %>%
+    filter(assigned_treatment == "control") %>%
+    feglm(
+        dewormed ~ 
+        0 + fractionalisation +
+        assigned_dist_group,
+        family = binomial(link = "probit"), 
+        cluster = ~county
+    )
+
+
+etable(
+    control_judgement_fit,
+    control_externality_fit, 
+    control_indiv_knowledge_fit, 
+    control_cluster_knowledge_fit,
+    control_ethnicity_fit,
+    order = "!assigned", 
+    keep = c("!assigned"),
+    drop = c("Constant", "census_cluster_pop"),
+    cluster = ~county,
+    replace = TRUE, 
+    depvar = TRUE,
+    dict = term_dict,
+    # style.tex = style.tex(var.title = "", fixef.title = "", stats.title = " ") 
+    tex = TRUE, 
+    file = "temp-data/rf-mechanism-control-regression-table.tex"
+)
+
+
+## Regressions w/ Interaction for Any Treatment ##
+clean_externality_df = clean_externality_df %>%
+    mutate(
+        any_incentive = assigned_treatment != "control"
+    )
+judge_analysis_data = judge_analysis_data %>%
+    mutate(
+        any_incentive = assigned_treatment != "control"
+    )
+analysis_data = analysis_data %>%
+    mutate(
+        any_incentive = assigned_treatment != "control"
+    )
+
+externality_any_fit = clean_externality_df %>%
+    feglm(
+        dewormed ~  0 + frac_externality_knowledge:any_incentive + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+
+judgement_any_fit = judge_analysis_data %>%
+    feglm(
+        dewormed ~  0 + judge_score_dewor:any_incentive + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+indiv_knowledge_any_fit = analysis_data %>%
+    feglm(
+        dewormed ~ 
+            0 + 
+            obs_know_person:any_incentive  + 
+            log(census_cluster_pop) + 
+            assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+cluster_knowledge_any_fit = feglm(
+        data = analysis_data,
+        dewormed ~ 
+            0 + 
+            cluster_obs_know_person:any_incentive  + 
+            log(census_cluster_pop) + 
+            assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+fractionalisation_any_fit = analysis_data %>%
+    feglm(
+        dewormed ~  0 + fractionalisation:any_incentive + assigned_treatment:assigned_dist_group,
+        family = binomial(link = "probit"),
+        cluster = ~county
+    )
+
+het_any_tests = list(
+    car::lht(
+        judgement_any_fit, 
+        c(1, -1, rep(0, 8))
+    ),
+    car::lht(
+        externality_any_fit, 
+        c(1, -1, rep(0, 8))
+    ),
+    car::lht(
+        indiv_knowledge_any_fit,
+        c(0, 1, -1, rep(0, 8))
+
+    ),
+    car::lht(
+        cluster_knowledge_any_fit,
+        c(0, 1, -1, rep(0, 8))
+    ),
+    car::lht(
+        fractionalisation_any_fit, 
+        c(1, -1, rep(0, 8))
+    )
+)
+
+het_pvals = map(het_any_tests, "Pr(>Chisq)") %>% map_dbl(., ~.x[[2]])
+
+etable(
+    judgement_any_fit,
+    externality_any_fit, 
+    indiv_knowledge_any_fit, 
+    cluster_knowledge_any_fit,
+    fractionalisation_any_fit,
+    order = "!assigned", 
+    keep = c("!assigned"),
+    drop = c("Constant", "census_cluster_pop"),
+    cluster = ~county,
+    replace = TRUE, 
+    depvar = TRUE,
+    extralines = list("_^Homogeneous effects across 'Any incentive', $p$-value" = het_pvals),
+    dict = c(
+        term_dict, 
+        "any_incentiveTRUE" = "(Any incentive = True)", 
+        "any_incentiveFALSE" = "(Any incentive = False)"
+        ),
+    tex = TRUE, 
+    file = "temp-data/rf-mechanism-incentive-regression-table.tex"
+)
+
+
+
 
 
 #### SOB Reason Interlude ####

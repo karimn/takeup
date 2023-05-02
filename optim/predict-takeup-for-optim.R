@@ -29,6 +29,7 @@ script_options = docopt::docopt(
 
         --static-signal-pm  Policy maker only estimates v* across some distance and doesn't realise v* a function of distance
         --static-signal-distance=<static-signal-distance>  Distance over which PM estimates v* in meters [default: NA]
+        --fit-type=<fit-type>  Which fit type to use - prior predictive or posterior draws [default: fit] 
 
     "),
     args = if (interactive()) "
@@ -87,7 +88,8 @@ mu_rep_type = switch(
 cat(
     str_glue(
         "model: {script_options$model} \n
-        mu_rep_type: {mu_rep_type} \n
+        mu_rep_type: {mu_rep_type} \n,
+        fit_type: {script_options$fit_type} \n
         "
     )
 )
@@ -122,18 +124,17 @@ models_we_want = c(
 )
 
 
-# sd_of_dist = sd(rf_analysis_data$cluster.dist.to.pot)
 
 
 if (script_options$to_csv) {
     if (script_options$single_chain) {
         struct_model_files = fs::dir_ls(
             script_options$input_path, 
-            regex = str_glue("dist_fit{fit_version}_{script_options$model}-1\\.csv"))
+            regex = str_glue("dist_{script_options$fit_type}{fit_version}_{script_options$model}-1\\.csv"))
     } else {
         struct_model_files = fs::dir_ls(
             script_options$input_path, 
-            regex = str_glue("dist_fit{fit_version}_{script_options$model}-.*csv"))
+            regex = str_glue("dist_{script_options$fit_type}{fit_version}_{script_options$model}-.*csv"))
     }
     
     struct_model_fit = as_cmdstan_fit(struct_model_files)
@@ -201,7 +202,7 @@ if (script_options$from_csv) {
         file.path(
             script_options$input_path, 
             str_interp(
-                "param_posterior_draws_dist_fit${fit_version}_${script_options$model}.csv"
+                "param_posterior_draws_dist_${script_options$fit_type}${fit_version}_${script_options$model}.csv"
             )
         )
     )
@@ -428,7 +429,7 @@ structural_demand_df %>%
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred-demand-dist-fit${fit_version}${append_output}.csv")
+            str_interp("pred-demand-dist-{script_options$fit_type}${fit_version}${append_output}.csv")
         )
     )
 
@@ -532,7 +533,7 @@ sm_df %>%
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred-social-multiplier-fit${fit_version}${append_output}.csv")
+            str_interp("pred-social-multiplier-${script_options$fit_type}${fit_version}${append_output}.csv")
         )
     )
 

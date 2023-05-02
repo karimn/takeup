@@ -38,7 +38,7 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 88,
+    fit_version = 86,
     rf_fit_version = 86,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
@@ -2376,14 +2376,21 @@ bracelet_sm_df = read_csv(
   str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
 control_sm_df = read_csv(
   str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-control-mu-control-{params$models}.csv"))
-1 + 1
+bracelet_prior_sm_df = read_csv(
+  str_glue("optim/data/pred-social-multiplier-prior{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
+control_prior_sm_df = read_csv(
+  str_glue("optim/data/pred-social-multiplier-prior{params$fit_version}-cutoff-b-control-mu-control-{params$models}.csv"))
+
 sm_df = bind_rows(
-  control_sm_df %>% mutate(treatment = "control"),
-  bracelet_sm_df %>% mutate(treatment = "bracelet")
+  control_sm_df %>% mutate(treatment = "control", fit_type = "fit"),
+  bracelet_sm_df %>% mutate(treatment = "bracelet", fit_type = "fit"),
+  control_prior_sm_df %>% mutate(treatment = "control", fit_type = "prior"),
+  bracelet_prior_sm_df %>% mutate(treatment = "bracelet", fit_type = "prior")
 )
+
 summ_sm_df = sm_df %>%
   group_by(
-    treatment, dist
+    treatment, dist, fit_type
   ) %>%
   summarise(
     mean_est = mean(sm), 
@@ -2396,34 +2403,137 @@ summ_sm_df = sm_df %>%
   mutate(treatment = factor(treatment, levels = c('control', 'bracelet')))
 
 
-summ_sm_df %>%
-  filter(dist > 0) %>%
-  mutate(dist = dist/1000) %>%
-  ggplot(aes(
-    x = dist, 
-  )) +
-  geom_line(aes(y = per_0.5, color = treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
-  geom_rug(
-    inherit.aes = FALSE,
-    aes(x = dist, color = treatment),
-    alpha = 0.75,
-    data = rf_analysis_data %>%
-      filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
-      distinct(cluster_id, treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000 )) +
-  # scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
-  # scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
-  scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
-  labs(
-    x = "Distance to Treatment (d) [km]" ,
-   y = "Social Multiplier"
-  ) 
+plot_sm = function(sm_df, plot_prior = FALSE, plot_prior_uncertainty = FALSE) {
+
+  sm_df = sm_df %>%
+    filter(dist > 0) %>%
+    mutate(dist = dist/1000)
+
+  fit_sm_df = sm_df %>%
+    filter(fit_type == "fit")
+  sm_treats = sm_df$treatment %>% unique()
+  prior_sm_df = sm_df %>%
+    filter(fit_type == "prior") %>%
+    filter(treatment == sm_treats[[1]])
+
+  p_sm = fit_sm_df %>%
+    ggplot(aes(
+      x = dist, 
+    )) +
+    geom_line(aes(y = per_0.5, color = treatment)) +
+    geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
+    geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
+    geom_rug(
+      inherit.aes = FALSE,
+      aes(x = dist, color = treatment),
+      alpha = 0.75,
+      data = rf_analysis_data %>%
+        filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
+        distinct(cluster_id, treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000 )) +
+    # scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+    # scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+    scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
+    labs(
+      x = "Distance to Treatment (d) [km]" ,
+    y = "Social Multiplier"
+    )  +
+    scale_fill_canva(
+      "",
+      palette = canva_palette_vibrant
+    ) +
+    scale_color_canva(
+      "",
+      palette = canva_palette_vibrant
+    )
+
+
+  if (plot_prior) {
+    p_sm = p_sm + 
+    # prior
+    geom_line(data = 
+      prior_sm_df,
+    aes(y = per_0.5), 
+    color = "grey", 
+    linewidth = 1, 
+    linetype = "longdash"
+    ) 
 }
 
+  if (plot_prior_uncertainty) {
+
+    p_sm = p_sm + 
+    geom_ribbon(
+      data = 
+      prior_sm_df,
+      aes(
+      ymin = per_0.25, 
+      ymax = per_0.75),
+      fill = "grey", alpha = 0.25) +
+    geom_ribbon(
+      data = 
+        prior_sm_df,
+      aes(
+      ymin = per_0.05, 
+      ymax = per_0.95), 
+      fill = "grey", alpha = 0.25) 
+  }
+  return(p_sm)
+}
+
+
+plot_sm(
+  summ_sm_df, 
+  plot_prior = FALSE
+)
+
+}
 ```
 
 
+
+```{r}
+#| social-multiplier-prior,
+#| fig.cap="Estimated Social Multiplier Over Distance",
+#| fig.note = "This plot shows the social multiplier estimated using the structural 
+#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#|  increases individuals become less and less sensitive to the increased cost due to 
+#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  Line: median.
+#|  Outer ribbon: 90\\% credible interval.
+#|  Inner ribbon: 50\\% credible interval."
+
+if (params$component_checks) {
+  plot_sm(
+    summ_sm_df, 
+    plot_prior = TRUE
+  )
+}
+```
+
+
+```{r}
+#| social-multiplier-prior-uncertainty,
+#| fig.cap="Estimated Social Multiplier Over Distance",
+#| fig.note = "This plot shows the social multiplier estimated using the structural 
+#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#|  increases individuals become less and less sensitive to the increased cost due to 
+#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  Line: median.
+#|  Outer ribbon: 90\\% credible interval.
+#|  Inner ribbon: 50\\% credible interval."
+
+if (params$component_checks) {
+  plot_sm(
+    summ_sm_df, 
+    plot_prior = TRUE, 
+    plot_prior_uncertainty = TRUE
+  )
+}
+
+
+```
 
 
 ```{r}
@@ -2744,11 +2854,6 @@ dist_closest_school_check = check_observables(
   balance_vars = balance_vars
 )
 
-dist_pot_weight_check = check_observables(
-  vill_school_pairs,
-  variable = "log(dist.to.pot) + log(expected_distance)",
-  balance_vars = balance_vars
-)
 
 dist_checks = bind_rows(
   dist_closest_school_check,

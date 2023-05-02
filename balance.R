@@ -812,7 +812,6 @@ disc_dist_balance = dist_balance_disc_fun(
 
 
 construct_joint_test_m = function(object) {
-  object = disc_dist_balance[[1]]
   n_coef = length(coef(object))
   diag_m = diag(n_coef - 1)
   neg_1_m = matrix(-1, nrow = n_coef - 1, ncol = 1)
