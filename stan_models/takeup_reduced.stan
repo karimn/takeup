@@ -8,6 +8,7 @@ data {
 #include takeup_data_sec.stan
 
   int<lower = 0, upper = 1> use_age_group_gp;
+  int<lower = 0, upper = 1> use_dist_cts;
 
   real<lower = 0> reduced_beta_county_sd_sd;
   real<lower = 0> reduced_beta_cluster_sd_sd;
@@ -47,6 +48,8 @@ parameters {
   matrix[use_age_groups ? num_age_groups : 0, num_dist_group_treatments] reduced_beta_age_group_raw;
   row_vector<lower = 0>[use_age_groups ? num_dist_group_treatments : 0] reduced_beta_age_group_alpha;
   row_vector<lower = 0>[use_age_groups && use_age_group_gp ? num_dist_group_treatments : 0] reduced_beta_age_group_rho;
+  
+  vector[use_dist_cts ? 1 : 0] beta_dist_cts;
 
 }
 
@@ -92,6 +95,10 @@ transformed parameters {
       reduced_beta_age_group = reduced_beta_age_group_raw .* rep_matrix(reduced_beta_age_group_alpha, num_age_groups);
     }
   }
+
+  if (use_dist_cts) {
+    reduced_cluster_benefit_cost += beta_dist_cts[1] * cluster_standard_dist;
+  }
   
   for (age_group_index in 1:num_age_groups) {
     reduced_cluster_takeup_prob[, age_group_index] = Phi_approx(reduced_cluster_benefit_cost + cluster_treatment_design_matrix * reduced_beta_age_group[age_group_index]');
@@ -123,6 +130,11 @@ model {
       reduced_beta_age_group_rho ~ normal(0, age_group_rho_sd);
     }
   }
+
+  if (use_dist_cts) {
+    beta_dist_cts ~ normal(0, 5);
+  }
+
   profile("model fitting") {
     if (fit_model_to_data) {
       // Take-up Likelihood 
@@ -191,10 +203,16 @@ generated quantities {
       + rep_matrix((reduced_beta_county * treatment_map_design_matrix[treatment_index]')[cluster_county_id], num_age_groups)
       + rep_matrix(reduced_treatment_effect[treatment_index], num_clusters, num_age_groups) 
       + rep_matrix((treatment_map_design_matrix[treatment_index] * reduced_beta_age_group'), num_clusters);
+
+    if (use_dist_cts) {
+      cluster_age_group_cf_benefit_cost[treatment_index] += rep_matrix(beta_dist_cts[1] .* cluster_standard_dist, num_age_groups);
+    }
       
     cluster_age_group_cf_cutoff[treatment_index, 1] = - cluster_age_group_cf_benefit_cost[treatment_index]; 
     
-    cluster_cf_benefit_cost[treatment_index] = rows_dot_product(cluster_age_group_cf_benefit_cost[treatment_index], cluster_age_group_prop); 
+    cluster_cf_benefit_cost[treatment_index] = rows_dot_product(cluster_age_group_cf_benefit_cost[treatment_index], cluster_age_group_prop);
+
+
     cluster_cf_cutoff[treatment_index, 1] = rows_dot_product(cluster_age_group_cf_cutoff[treatment_index, 1], cluster_age_group_prop);
   }
   
