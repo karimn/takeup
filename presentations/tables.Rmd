@@ -324,9 +324,9 @@ sob_gpt_reason_df %>%
     estimate = round(estimate, digits),
     std.error = round(std.error, digits),
     stars = case_when(
-      p.value < 0.01 ~ "***",
-      p.value < 0.05 ~ "**", 
-      p.value < 0.1 ~ "*" , 
+      term != "(Intercept)" & p.value < 0.01 ~ "***",
+      term != "(Intercept)" & p.value < 0.05 ~ "**", 
+      term != "(Intercept)" & p.value < 0.1 ~ "*" , 
       TRUE ~ ""
     )
   ) %>%
