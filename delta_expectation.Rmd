@@ -8,15 +8,15 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: 80
-  reduced_form_takeup_version: 75
+  structural_takeup_version: 86
+  reduced_form_takeup_version: 86
 ---
 
 ```{r setup, include=FALSE}
 if (interactive()) {
   params = list(
-    structural_takeup_version = 80,
-    reduced_form_takeup_version = 75
+    structural_takeup_version = 86,
+    reduced_form_takeup_version = 86
   )
 }
 library(magrittr)
@@ -248,17 +248,30 @@ if (params$structural_takeup_version != params$reduced_form_takeup_version) {
 }
 
 
+
 dist_fit_data %<>% 
+  # mutate(
+  #   model = fct_expand(
+  #     model, 
+  #     c(
+  #       "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
+  #       "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", 
+  #       "REDUCED_FORM_NO_RESTRICT_PRIOR")),
+  #   model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor(str_c(model, "_PRIOR"), levels = levels(model)), model),
+  #   model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
+  #   model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
+  # ) %>% 
   mutate(
-    model = fct_expand(
-      model, 
-      c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
-        "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", 
-        "REDUCED_FORM_NO_RESTRICT_PRIOR")),
-    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor(str_c(model, "_PRIOR"), levels = levels(model)), model),
-    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
-    model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
-  ) %>% 
+    model_c = if_else(
+      fit_type == "fit", 
+      as.character(model), 
+      str_c(model, "_PRIOR")
+    ), 
+    model = factor(model_c), 
+    model_name = str_replace(model_c, "_PRIOR", "_WITHOUT_ANY_DATA"), 
+    model_name = str_replace_all(model_name, "_", " "), 
+    model_name = str_to_title(model_name)
+  )  %>%
   left_join(
     bind_rows(
       filter(., fct_match(model_type, "structural"), fct_match(fit_type, "fit")) %>%
@@ -297,13 +310,20 @@ models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR",
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",
   "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP", 
-  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
+  "REDUCED_FORM_NO_RESTRICT", 
+  "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
   )
 
 
+dist_fit_data = dist_fit_data %>%
+  mutate(
+    model = factor(model, levels = c(levels(model), models_we_want) %>% unique())
+  )
+
 dist_fit_data %>%
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, models_we_want)) | 
+    (fct_match(model_type, "structural") & model %in% models_we_want) | 
       (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
   ) %>% 
   mutate(
@@ -351,6 +371,12 @@ dist_fit_data %>%
       rel_heights = c(1, 0.4)
     )
   } 
+
+ggsave(
+  "temp-plots/cts-rf-te.pdf", 
+  width = 8, 
+  height = 16
+)
 
 
 
@@ -468,8 +494,9 @@ ggsave(
 ```
 
 ```{r take-up-prob, fig.width=9}
+
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
@@ -517,7 +544,7 @@ where
 
 ```{r rate-of-change}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>%
   transmute(
     model_name,
     cluster_roc = map2(cluster_roc, stan_data, ~ { 
@@ -558,7 +585,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>%
   transmute(
     model, model_name,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
@@ -607,7 +634,7 @@ dist_fit_data %>%
 
 ```{r}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural" )) %>% 
   transmute(model_name, cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
   unnest(cluster_w_cutoff) %>% 
   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
