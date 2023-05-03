@@ -18,6 +18,7 @@ Options:
 ) 
 
 
+set.seed(12932)
 
 library(tidyverse)
 library(marginaleffects)
@@ -82,7 +83,25 @@ baseline.data = baseline.data %>%
     )
   )
 
+
+# Create floor quality variable
 baseline.data = baseline.data %>%
+  mutate(
+    floor_tile_cement = floor == "Cement" | floor == "Tiles"
+  ) %>%
+  group_by(
+    cluster.id
+  ) %>%
+  mutate(
+    frac_floor_tile_cement = mean(floor_tile_cement, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Create years of schooling and completley primary variables
+baseline.data = baseline.data %>%
+  mutate(
+    completed_primary = (school == "Primary 8" | str_detect(school, "Secondary|College|University"))
+  ) %>%
   mutate(
     schooling_years_plus = case_when(
       str_detect(school, "Primary") ~ 0, 
@@ -97,6 +116,7 @@ baseline.data = baseline.data %>%
   ) %>%
   select(-digits_schooling, schooling_years_plus)
 
+# Months since an individual took deworming treatment at baseline (i.e. independent of the campaign)
 baseline.data = baseline.data %>%
   mutate(
     treated_digit = str_extract(treated_when, "\\d+") %>% as.numeric, 
@@ -109,7 +129,15 @@ baseline.data = baseline.data %>%
     mutate(
       months_since_treatment = treated_digit*treated_months
     ) %>%
-    select(-treated_digit, -treated_months)
+    select(-treated_digit, -treated_months) %>%
+    # has someone been dewormed in the last 12 months
+    mutate(
+        dewormed_last_12 = case_when(
+            str_detect(treated_when, "mon|(1 year)") ~ TRUE,
+            is.na(treated_when) ~ NA,
+            TRUE ~ FALSE
+        )
+    )
 
 baseline.data = baseline.data %>%
   mutate(
@@ -199,7 +227,8 @@ baseline_vars = c(
   "years_schooling", 
   "know_deworming_stops_worms",
   "treated_lgl", 
-  "months_since_treatment",
+  "dewormed_last_12", 
+  "floor_tile_cement",
   "all_can_get_worms",
   "correct_when_treat",
   "baseline_neighbours_worm_knowledge"
@@ -211,9 +240,6 @@ baseline_balance_fit = feols(
     .[baseline_vars] ~ 0 + treat_dist, 
     ~county
     ) 
-
-
-
 
 # PoT level balance variables
 balance_variables = c(
@@ -249,7 +275,6 @@ mutate(
 )
 
   
-
 indiv_balance_fit = feols(
     data = analysis_school_data, 
     .[indiv_balance_vars] ~ 0 + treat_dist,
@@ -338,6 +363,99 @@ balance_fits = c(
 )
 
 
+create_balance_comparisons = function(fit) {
+  comp_df = avg_comparisons(
+    fit,
+    variables = list("treat_dist" = "all")
+    ) %>%
+    as_tibble()
+
+  subset_comp_df = comp_df %>%
+    mutate(
+      lhs_treatment = str_extract(contrast, "(?<=^treat: )\\w+"), 
+      rhs_treatment = str_extract(contrast, "(?<=- treat: )\\w+"), 
+      lhs_dist = str_extract(contrast, "(?<=dist: )\\w+"),
+      rhs_dist = str_extract(contrast, "(?<=, dist: )\\w+$")
+    ) %>%
+    filter(
+      lhs_dist == rhs_dist
+    ) %>%
+    filter(rhs_treatment == "control" | lhs_treatment == "control") %>%
+    filter(lhs_treatment != rhs_treatment)  
+
+
+    rhs_control_comp_df = subset_comp_df %>%
+      filter(rhs_treatment == "control") 
+
+    lhs_control_comp_df = subset_comp_df %>%
+      filter(rhs_treatment != "control")
+
+    lhs_control_comp_df = lhs_control_comp_df %>%
+      mutate(
+        new_estimate = estimate*-1, 
+        new_statistic = statistic*-1, 
+        new_conf.low = conf.high*-1,
+        new_conf.high = conf.low*-1,
+        new_lhs_treatment = rhs_treatment,
+        new_rhs_treatment = lhs_treatment
+      )  %>%
+      mutate(
+        estimate = new_estimate, 
+        statistic = new_statistic,
+        conf.low = new_conf.low,
+        conf.high = new_conf.high, 
+        lhs_treatment = new_lhs_treatment,
+        rhs_treatment = new_rhs_treatment
+      ) %>%
+      select(-contains('new_'))
+
+    rearranged_comp_df = bind_rows(
+      lhs_control_comp_df, 
+      rhs_control_comp_df
+   ) %>%
+   select(-contrast)
+
+
+    control_mean_df = fit %>%
+      tidy(conf.int = TRUE) %>%
+      filter(str_detect(term, "control")) %>%
+      mutate(
+        lhs_treatment = "control", rhs_treatment = NA, 
+        lhs_dist = if_else(str_detect(term, "close"), "close", "far"), 
+        rhs_dist = lhs_dist
+      ) %>%
+      select(
+        -term
+      )
+
+  rearranged_comp_df = rearranged_comp_df %>%
+    bind_rows(
+      control_mean_df
+    )
+
+    return(rearranged_comp_df)
+
+}
+
+
+
+comp_balance_tidy_df = balance_fits %>%
+  map_dfr(
+    create_balance_comparisons, 
+    .id = "lhs"
+  )  %>%
+  mutate(
+      lhs = str_remove(lhs, "lhs: ")
+  ) %>%
+  select(
+      lhs, term, estimate, std.error
+  )   %>%
+  mutate(
+    lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
+  )
+
+
+
 balance_tidy_df = balance_fits %>%
     map_dfr(tidy, .id = "lhs") %>%
     mutate(
@@ -348,6 +466,14 @@ balance_tidy_df = balance_fits %>%
     )   %>%
     mutate(
       lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
+    )
+
+comp_balance_tidy_df %>%
+    write_csv(
+        file.path(
+            script_options$output_path,
+            "comp_balance_tidy_df.csv"
+        )
     )
 
 balance_tidy_df %>%
@@ -932,3 +1058,24 @@ tidy_cts_boot_many_pvals_df %>%
             str_glue("cts_distance_binned_pvals_many_intervals.csv")
         )
   )
+
+
+
+balance_data = lst(
+  analysis_school_data,
+  analysis_data, 
+  endline_balance_data, 
+  endline_vars, 
+  baseline_vars,
+  know_vars,
+  indiv_balance_vars
+)
+
+
+saveRDS(
+  balance_data, 
+  file.path(
+    script_options$output_path,
+    "saved_balance_data.rds"
+  )
+)
