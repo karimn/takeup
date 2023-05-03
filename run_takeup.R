@@ -36,14 +36,16 @@ Options:
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "
-    takeup fit \
+    takeup prior \
     --cmdstanr \
-    --outputname=dist_fit88 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP  \
+    --outputname=dist_prior86 \
+    --models=REDUCED_FORM_NO_RESTRICT_DIST_CTS  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
-    --sequential" else commandArgs(trailingOnly = TRUE)
+    --sequential  \
+    --update
+    " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
@@ -364,6 +366,10 @@ models <- lst(
   ),
 ) %>% 
   list_modify(
+    REDUCED_FORM_NO_RESTRICT_DIST_CTS = .$REDUCED_FORM_NO_RESTRICT %>% 
+      list_modify(
+        use_dist_cts = TRUE
+      ),
     STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         fit_wtp_model_to_data = FALSE,

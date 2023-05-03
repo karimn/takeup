@@ -447,9 +447,6 @@ comp_balance_tidy_df = balance_fits %>%
   mutate(
       lhs = str_remove(lhs, "lhs: ")
   ) %>%
-  select(
-      lhs, term, estimate, std.error
-  )   %>%
   mutate(
     lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
   )
@@ -483,7 +480,6 @@ balance_tidy_df %>%
             "balance_tidy_df.csv"
         )
     )
-
 #### Continuous Balance
 #| cts-dist-balance
 dist_balance_cts_fun = function(rhs_var) {
@@ -1065,6 +1061,8 @@ balance_data = lst(
   analysis_school_data,
   analysis_data, 
   endline_balance_data, 
+  baseline_balance_data,
+  endline_and_baseline_data,
   endline_vars, 
   baseline_vars,
   know_vars,

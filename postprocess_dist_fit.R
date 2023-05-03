@@ -115,6 +115,7 @@ model_info <- tribble(
   ~ model,                                             ~ model_name,                                         ~ model_type,
   
   "REDUCED_FORM_NO_RESTRICT",                          "Reduced Form",                                       "reduced form",
+  "REDUCED_FORM_NO_RESTRICT_DIST_CTS",                 "Reduced Form",                                       "reduced form",
   "STRUCTURAL_LINEAR_U_SHOCKS",                        "Structural",                                         "structural",
   # "STRUCTURAL_LINEAR",              "Structural",                                "structural",
   # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
