@@ -378,7 +378,289 @@ analysis_data = analysis_data %>%
     )
 
 
+analysis_data = analysis_data %>%
+    left_join(
+        baseline.data %>%
+            group_by(
+                cluster.id
+            ) %>%
+            summarise(
+                frac_externality_knowledge = mean(any_externality_knowledge, na.rm = TRUE)
+            ) %>% 
+            ungroup(),
+    by = "cluster.id"
+    )
 
+clean_dewormed_last_year = function(data) {
+    data %>%
+        mutate(
+            dewormed_last_12 = case_when(
+                str_detect(treated_when, "mon|(1 year)") ~ TRUE,
+                is.na(treated_when) ~ NA,
+                TRUE ~ FALSE
+            )
+        )
+}
+
+baseline.data = baseline.data %>%
+    clean_dewormed_last_year()
+
+cov_analysis_data = analysis_data %>%
+    select(-frac_externality_knowledge) %>%
+    left_join(
+        baseline.data %>%
+            group_by(
+                cluster.id
+            ) %>%
+            summarise(
+                frac_externality_knowledge = mean(any_externality_knowledge, na.rm = TRUE), 
+                frac_ever_dewormed = mean(treated == "yes", na.rm = TRUE), 
+                frac_dewormed_last_12_cond = mean(dewormed_last_12, na.rm = TRUE),
+                frac_dewormed_last_12_uncond = sum(dewormed_last_12 == TRUE, na.rm = TRUE) / sum(dewormed_last_12 == TRUE | treated == "no", na.rm = TRUE), 
+                frac_know_treat_yearly = mean(map_lgl(when_treat, ~any(.x %in% c("every 6 months", "every year"))))
+            ) %>% 
+            ungroup(),
+        by = "cluster.id"
+    )
+
+
+probit_fit = analysis_data %>%
+    feglm(
+        dewormed ~ 0 + assigned_treatment:assigned_dist_group, 
+        data = ., 
+        family = binomial(link = "probit")
+    ) 
+
+probit_dist_fit = analysis_data %>%
+    feglm(
+        dewormed ~ 0 + assigned_treatment:assigned_dist_group + standard_cluster.dist.to.pot, 
+        data = ., 
+        family = binomial(link = "probit")
+    ) 
+
+probit_control_fit = cov_analysis_data %>%
+    feglm(
+        dewormed ~ 0 + assigned_treatment:assigned_dist_group + 
+        frac_externality_knowledge +
+        frac_ever_dewormed +
+        frac_dewormed_last_12_uncond +
+        frac_know_treat_yearly, 
+        data = ., 
+        family = binomial(link = "probit")
+    )
+
+normal_pred_hat_dist = predictions(
+    probit_dist_fit,
+    newdata = datagrid(
+        assigned_dist_group = unique(analysis_data$assigned_dist_group),
+        assigned_treatment = unique(analysis_data$assigned_treatment)
+    )
+)
+normal_pred_hat = predictions(
+    probit_fit,
+    newdata = datagrid(
+        assigned_dist_group = unique(analysis_data$assigned_dist_group),
+        assigned_treatment = unique(analysis_data$assigned_treatment)
+    )
+)
+
+control_pred_hat = predictions(
+    probit_control_fit,
+    newdata = datagrid(
+        assigned_dist_group = unique(analysis_data$assigned_dist_group),
+        assigned_treatment = unique(analysis_data$assigned_treatment)
+    )
+)
+
+control_pred_hat %>%
+    as_tibble() %>%
+    ggplot(aes(
+        x = estimate, 
+        xmin = conf.low, 
+        xmax = conf.high, 
+        y = assigned_treatment, 
+        colour = assigned_dist_group
+    )) +
+    geom_pointrange(
+        position = position_dodge(0.5)
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    labs(
+        x = "Level Estimates", 
+        y = "", 
+        title = "Level Effects, Controlling for Additional Covariates", 
+        subtitle = "Frequentist probit", 
+        caption = "Fixing other covariates at their mean. 
+        Regress deworming on distance x treatment + fraction_externality_knowledge + fraction_ever_dewormed + fraction_dewormed_last_12 + fraction_aware_treat_annually"
+    ) 
+
+ggsave(
+    "temp-plots/level-effects-controls.pdf", 
+    width = 16, 
+    height = 8
+)
+
+comp_pred_hat = comparisons(
+    probit_control_fit,
+    variables = "assigned_treatment",
+    newdata = datagrid(
+        assigned_dist_group = unique(analysis_data$assigned_dist_group)
+    )
+)
+
+
+pred_dist_df = comparisons(
+    probit_dist_fit, 
+    variables = "assigned_treatment", 
+    newdata = datagrid(
+        assigned_dist_group = unique(analysis_data$assigned_dist_group)
+    )
+)
+pred_df = comparisons(
+    probit_fit, 
+    variables = "assigned_treatment", 
+    newdata = datagrid(
+        assigned_dist_group = unique(analysis_data$assigned_dist_group)
+    )
+)
+
+
+pred_dist_df %>%
+    as_tibble() %>%
+    mutate(
+        term = str_extract(contrast, "\\w+")
+    )  %>%
+    mutate(
+        term = factor(term, levels = c("ink", "calendar", "bracelet")), 
+        term = fct_relabel(term, str_to_title)
+    ) %>%
+    ggplot(aes(
+        x = estimate, 
+        xmin = conf.low, 
+        xmax = conf.high, 
+        y = term, 
+        colour = assigned_dist_group
+    )) +
+    geom_pointrange(
+        position = position_dodge(0.5)
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    geom_vline(
+        xintercept = 0, 
+        linetype = "longdash"
+    ) +
+    labs(
+        x = "Treatment Effect Estimate", 
+        y = "", 
+        title = "Treatment Effects, Distance", 
+        subtitle = "Frequentist probit"
+    ) +
+    ggthemes::scale_color_canva(
+        "",
+        palette = "Primary colors with a vibrant twist", 
+        labels = str_to_title
+    ) +
+    xlim(-0.15, 0.2)
+
+ggsave(
+    "temp-plots/dist-treatment-effects.pdf", 
+    width = 16, 
+    height = 8
+)
+pred_df %>%
+    as_tibble() %>%
+    mutate(
+        term = str_extract(contrast, "\\w+")
+    )  %>%
+    mutate(
+        term = factor(term, levels = c("ink", "calendar", "bracelet")), 
+        term = fct_relabel(term, str_to_title)
+    ) %>%
+    ggplot(aes(
+        x = estimate, 
+        xmin = conf.low, 
+        xmax = conf.high, 
+        y = term, 
+        colour = assigned_dist_group
+    )) +
+    geom_pointrange(
+        position = position_dodge(0.5)
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    geom_vline(
+        xintercept = 0, 
+        linetype = "longdash"
+    ) +
+    labs(
+        x = "Treatment Effect Estimate", 
+        y = "", 
+        title = "Treatment Effects, No Controls", 
+        subtitle = "Frequentist probit", 
+        caption = "Regress deworming on distance x treatment + fraction_externality_knowledge + fraction_ever_dewormed + fraction_dewormed_last_12 + fraction_aware_treat_annually"
+    ) +
+    ggthemes::scale_color_canva(
+        "",
+        palette = "Primary colors with a vibrant twist", 
+        labels = str_to_title
+    ) +
+    xlim(-0.15, 0.2)
+
+ggsave(
+    "temp-plots/treatment-effects.pdf", 
+    width = 16, 
+    height = 8
+)
+
+
+comp_pred_hat %>%
+    as_tibble() %>%
+    mutate(
+        term = str_extract(contrast, "\\w+")
+    )  %>%
+    mutate(
+        term = factor(term, levels = c("ink", "calendar", "bracelet")), 
+        term = fct_relabel(term, str_to_title)
+    ) %>%
+    ggplot(aes(
+        x = estimate, 
+        xmin = conf.low, 
+        xmax = conf.high, 
+        y = term, 
+        colour = assigned_dist_group
+    )) +
+    geom_pointrange(
+        position = position_dodge(0.5)
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    geom_vline(
+        xintercept = 0, 
+        linetype = "longdash"
+    ) +
+    labs(
+        x = "Treatment Effect Estimate", 
+        y = "", 
+        title = "Treatment Effects, Controlling for Additional Covariates", 
+        subtitle = "Frequentist probit", 
+        caption = "Regress deworming on distance x treatment + fraction_externality_knowledge + fraction_ever_dewormed + fraction_dewormed_last_12 + fraction_aware_treat_annually"
+    ) +
+    ggthemes::scale_color_canva(
+        "",
+        palette = "Primary colors with a vibrant twist", 
+        labels = str_to_title
+    ) +
+    xlim(-0.15, 0.2)
+
+ggsave(
+    "temp-plots/treatment-effects-controls.pdf", 
+    width = 16, 
+    height = 8
+)
+
+stop()
 #### Regressions ####
 probit_fit = analysis_data %>%
     feglm(
