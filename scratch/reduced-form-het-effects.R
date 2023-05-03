@@ -82,6 +82,11 @@ baseline.data = baseline.data %>%
         any_externality_knowledge = worms_affect == "yes" | neighbours_worms_affect == "yes"
     )
 
+tex_postprocessing = function(tex) {
+    tex %>%
+        str_remove("\\\\begin\\{table\\}\\[htbp\\]") %>%
+        str_remove("\\\\end\\{table\\}")
+}
 
 baseline.data %>%
     group_by(
@@ -660,7 +665,7 @@ ggsave(
     height = 8
 )
 
-stop()
+
 #### Regressions ####
 probit_fit = analysis_data %>%
     feglm(
@@ -727,10 +732,10 @@ term_dict = c(
         deworming = "Dewormed"
     )
 
+
 etable(
     judgement_fit,
     externality_fit, 
-    indiv_knowledge_fit, 
     cluster_knowledge_fit,
     ethnicity_fit,
     order = "!assigned", 
@@ -742,13 +747,13 @@ etable(
     dict = term_dict,
     # style.tex = style.tex(var.title = "", fixef.title = "", stats.title = " ") 
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-full-regression-table.tex",
-    title = "Takeup Heterogeneity: Full Sample", 
-    notes = "All regressions include the saturated interaction of incentive and distance 
-    conditions. Additional regressors are included without interactions i.e. as level shifts of 
-    overall deworming. All regressions cluster standard errors at the county level and use frequentist 
-    probit."
+    postprocess.tex = tex_postprocessing,
+    file = "presentations/tables/rf-mechanism-full-regression-table.tex"
 )
+
+
+
+
 
 ## Het TEs by social connectedness
 
@@ -784,13 +789,8 @@ etable(
         "assigned_treatmentbracelet" = "Treatment: Bracelet"
         ),
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-het-knowledge-regression-table.tex", 
-    title = "Takeup Treatment Effect Heterogeneity: Social Connectedness", 
-    notes = "Standard errors clustered at the county level, estimated using frequentist probit. 
-    All regressions control for the log of village population and the interaction of `Number of people recognised' with 
-    treatment. The first column only uses individuals included in the knowledge survey. The second column averages over 
-    surveyed individuals in a village to produce a village level measure of social connectedness. 
-    "
+    postprocess.tex = tex_postprocessing,
+    file = "presentations/tables/rf-mechanism-het-knowledge-regression-table.tex"
 )
 ## Any variation in control group
 
@@ -848,7 +848,6 @@ control_ethnicity_fit =  analysis_data %>%
 etable(
     control_judgement_fit,
     control_externality_fit, 
-    control_indiv_knowledge_fit, 
     control_cluster_knowledge_fit,
     control_ethnicity_fit,
     order = "!assigned", 
@@ -860,12 +859,8 @@ etable(
     dict = term_dict,
     # style.tex = style.tex(var.title = "", fixef.title = "", stats.title = " ") 
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-control-regression-table.tex", 
-    title = "Takeup Heterogeneity: Control Condition", 
-    notes = "Standard errors clustered at the county level, models estimated using frequentist probit.
-    Sample only includes those in the control condition. All regressions control for the covariate of interest 
-    and the assigned distance group. Social connectedness regressions also control for the log of village population.
-    "
+    postprocess.tex = tex_postprocessing,
+    file = "presentations/tables/rf-mechanism-control-regression-table.tex"
 )
 
 
@@ -937,11 +932,6 @@ het_any_tests = list(
         c(1, -1, rep(0, 8))
     ),
     car::lht(
-        indiv_knowledge_any_fit,
-        c(0, 1, -1, rep(0, 8))
-
-    ),
-    car::lht(
         cluster_knowledge_any_fit,
         c(0, 1, -1, rep(0, 8))
     ),
@@ -956,7 +946,6 @@ het_pvals = map(het_any_tests, "Pr(>Chisq)") %>% map_dbl(., ~.x[[2]])
 etable(
     judgement_any_fit,
     externality_any_fit, 
-    indiv_knowledge_any_fit, 
     cluster_knowledge_any_fit,
     fractionalisation_any_fit,
     order = "!assigned", 
@@ -972,13 +961,8 @@ etable(
         "any_incentiveFALSE" = "(Any incentive = False)"
         ),
     tex = TRUE, 
-    file = "temp-data/rf-mechanism-incentive-regression-table.tex", 
-    title = "Takeup Heterogeneity: Any Incentive vs Control",
-    notes = "Standard errors clustered at the county level, models estimated using frequentist probit.
-     All regressions control for the covariate of interest interacted with an `any incentive' dummy as well as 
-     the saturated interaction of treatment assignment with distance group. 
-     Social connectedness regressions also control for the log of village population.
-    "
+    postprocess.tex = tex_postprocessing,
+    file = "presentations/tables/rf-mechanism-incentive-regression-table.tex"
 )
 
 
