@@ -506,15 +506,18 @@ sob_reason_df %>%
 
 ```{r}
 #| endline-data,
-#| eval=FALSE
+#| eval=TRUE
 
 # Some initial endline knowledge checks
 
 library(haven)
-endline_data = read_dta("data/endline_data.dta")
+endline_data = read_dta("data/endline_data.dta") %>%
+  mutate(
+    assigned_treatment = as_factor(assigned_treatment)
+  )
 
 n_function = function(data, treat_no, ...) {
-  endline_data %>%
+  data %>%
   group_by(
     assigned_treatment, ...
   ) %>% 
@@ -528,108 +531,233 @@ n_function = function(data, treat_no, ...) {
   ) 
 }
 
-n_function(endline_data, 4, got_bracelet)
-n_function(endline_data, 4, wear_bracelet)
-n_function(endline_data, 4, have_bracelet)
-n_function(endline_data, 4, confirm_bracelet)
 
-
-
-
-
-not_wear_key_df = tribble(
-  ~key, ~meaning,
-  1, "Lost it",
-  2, "Usually wear it but I took it off temporarily",
-  3, "Do not like it",
-  4, "Gave it to away",
-  99, "Other"
-) %>%
-  mutate(key = as.character(key))
-
-endline_data %>%
-  left_join(not_wear_key_df, by = c("not_wear" = "key"))   %>%
-  select(
-    meaning
-  ) %>%
-  count(meaning) %>%
-  na.omit() %>%
+endline_data = endline_data %>%
+  # harmonising
   mutate(
-    pct = 100*n/sum(n)
-  ) %>%
-  arrange(pct)
-
-
-
-
-n_function(endline_data, 2, got_ink)
-n_function(endline_data, 2, ink_visible)
-
-n_function(endline_data, 3, got_cal)
-n_function(endline_data, 3, have_cal)
-n_function(endline_data, 3, confirm_cal)
-
-n_function(endline_data, 4, seen_bracelet)
-n_function(endline_data, 2, seen_ink)
-n_function(endline_data, 3, seen_cal)
-
-n_function(endline_data, 4, dist_pot_group, seen_bracelet)
-n_function(endline_data, 2, dist_pot_group, seen_ink)
-n_function(endline_data, 3, dist_pot_group, seen_cal)
-
-
-endline_data %>%
-  select(
-    assigned_treatment,
-    cal_cost,
-    bracelet_cost) %>%
-  gather(
-    variable, value, cal_cost, bracelet_cost
-  )   %>%
-  group_by(
-    variable , assigned_treatment
-  ) %>%
-  summarise(
-    mean = mean(value),
-    med = median(value), 
-    no_cost = mean(value == 0)
+    have_ink = ink_visible
   )
 
-say_treat_worming = function(data, var, treat_no) {
-  endline_data %>%
-    filter(assigned_treatment == treat_no) %>%
-    mutate(
-      means_dewormed = str_detect(str_to_lower({{ var }}), "drug|medicine|tablet|deworm|Deworm|worm|treat"), 
-    ) %>%
-    group_by(means_dewormed) %>%
-    count()  %>%
-    ungroup() %>%
-    mutate(
-      pct = 100*n/sum(n)
-    )
+mean_deworm_string_f = function(string) {
+  str_detect(str_to_lower(string), "drug|medicine|tablet|deworm|Deworm|worm|treat")
 }
 
+endline_data = endline_data %>%
+  mutate(
+    meandeworm_bracelet = mean_deworm_string_f(bracelet_meaning),
+    meandeworm_ink = mean_deworm_string_f(ink_meaning),
+    meandeworm_cal = mean_deworm_string_f(cal_meaning)
+  )
 
-say_treat_idk = function() {
-  endline_data %>%
-    filter(assigned_treatment == treat_no) %>%
-    mutate(
-      means_dewormed = str_detect({{ var }}, "know"), 
-    ) %>%
-    group_by(means_dewormed) %>%
-    count()  %>%
-    ungroup() %>%
-    mutate(
-      pct = 100*n/sum(n)
+
+got_vars = c(
+  "got_bracelet", 
+  "got_ink", 
+  "got_cal"
+)
+have_vars = c(
+  "have_bracelet", 
+  "have_cal", 
+  "have_ink"
+)
+seen_vars = c(
+  "seen_bracelet", 
+  "seen_ink", 
+  "seen_cal"
+)
+mean_vars = c(
+  "meandeworm_bracelet", 
+  "meandeworm_ink", 
+  "meandeworm_cal"
+)
+
+long_incentive_check_df = endline_data %>%
+  select(all_of(c(got_vars, have_vars, seen_vars, mean_vars)), assigned_treatment)  %>%
+  pivot_longer(
+    cols = all_of(c(got_vars, have_vars, seen_vars, mean_vars))
+  ) %>%
+  mutate(
+    variable_type = str_extract(name, "(\\w+)(?=_)"),
+    name = str_extract(name, "(?<=_)\\w+"), 
+    name = if_else(name == "cal", "calendar", name)
+    )   %>%
+  filter(name == assigned_treatment)  %>%
+  mutate(
+    treat_type = paste0(assigned_treatment, "_", variable_type)
+  ) %>%
+  select(-name)
+
+
+
+tidy_incentive_check_df = long_incentive_check_df %>%
+  feols(
+    value ~ 1,
+    split = ~ treat_type  
+  )  %>%
+  map_dfr(
+    ~tidy(.x) %>% 
+    mutate(n = nobs(.x)), 
+    .id = "lhs"
+  )  %>%
+  mutate(
+    treatment = str_extract(
+      lhs, 
+      "(?<=sample: )\\w+(?=_)"
+    ), 
+    variable_type = str_extract(
+      lhs, 
+      "(?<=sample: \\w{1,10}_)\\w+$"
     )
+  ) %>%
+  select(-lhs) %>%
+  select(-term)
 
-}
+tidy_incentive_check_df %>%
+  group_by(treatment) %>%
+  summarise(
+    n = unique(n)
+  )
+
+wide_incentive_check_input_df = tidy_incentive_check_df %>%
+  mutate(across(c(estimate, std.error), round, 3)) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
+  ) %>%
+  select( 
+    treatment, 
+    variable_type, 
+    estim_std
+  ) %>%
+  mutate(treatment = str_to_title(treatment)) %>%
+  spread(
+    variable_type, 
+    estim_std
+  ) %>%
+  select(
+    treatment,
+    got, # "Did you receive X when you went for deworming?"
+    have, # "Do you still have X?"
+    seen, # "have you seen people wearing these "X"?"/ "have you seen people these calendars before"
+    meandeworm # "What does it mean if a person has a bracelet?" -> coded into deworm mentions
+  )
+
+
+incentive_check_tbl = wide_incentive_check_input_df %>%
+  knitr::kable(
+    format = "latex",
+      col.names = c(
+        "", 
+        "Received incentive when treated", 
+        "Have incentive currently", 
+        "Seen incentive", 
+        "Link incentive to deworming"),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcccc", 
+      caption = "Incentive Check: Endline"
+  ) 
+
+
+incentive_check_tbl
+
+incentive_check_tbl %>%
+  custom_save_latex_table("incentive-check-tbl")
+
+
+# not_wear_key_df = tribble(
+#   ~key, ~meaning,
+#   1, "Lost it",
+#   2, "Usually wear it but I took it off temporarily",
+#   3, "Do not like it",
+#   4, "Gave it to away",
+#   99, "Other"
+# ) %>%
+#   mutate(key = as.character(key))
+
+# endline_data %>%
+#   left_join(not_wear_key_df, by = c("not_wear" = "key"))   %>%
+#   select(
+#     meaning
+#   ) %>%
+#   count(meaning) %>%
+#   na.omit() %>%
+#   mutate(
+#     pct = 100*n/sum(n)
+#   ) %>%
+#   arrange(pct)
 
 
 
-say_treat_worming(endline_data, bracelet_meaning, 4) 
-say_treat_worming(endline_data, ink_meaning, 2)
-say_treat_worming(endline_data, cal_meaning, 3) 
+
+# n_function(endline_data, 2, got_ink)
+# n_function(endline_data, 2, ink_visible)
+
+# n_function(endline_data, 3, got_cal)
+# n_function(endline_data, 3, have_cal)
+# n_function(endline_data, 3, confirm_cal)
+
+
+# n_function(endline_data, 4, seen_bracelet)
+# n_function(endline_data, 2, seen_ink)
+# n_function(endline_data, 3, seen_cal)
+
+# n_function(endline_data, 4, dist_pot_group, seen_bracelet)
+# n_function(endline_data, 2, dist_pot_group, seen_ink)
+# n_function(endline_data, 3, dist_pot_group, seen_cal)
+
+
+# endline_data %>%
+#   select(
+#     assigned_treatment,
+#     cal_cost,
+#     bracelet_cost) %>%
+#   gather(
+#     variable, value, cal_cost, bracelet_cost
+#   )   %>%
+#   group_by(
+#     variable , assigned_treatment
+#   ) %>%
+#   summarise(
+#     mean = mean(value),
+#     med = median(value), 
+#     no_cost = mean(value == 0)
+#   )
+
+# say_treat_worming = function(data, var, treat_no) {
+#   endline_data %>%
+#     filter(assigned_treatment == treat_no) %>%
+#     mutate(
+#       means_dewormed = str_detect(str_to_lower({{ var }}), "drug|medicine|tablet|deworm|Deworm|worm|treat"), 
+#     ) %>%
+#     group_by(means_dewormed) %>%
+#     count()  %>%
+#     ungroup() %>%
+#     mutate(
+#       pct = 100*n/sum(n)
+#     )
+# }
+
+
+# say_treat_idk = function() {
+#   endline_data %>%
+#     filter(assigned_treatment == treat_no) %>%
+#     mutate(
+#       means_dewormed = str_detect({{ var }}, "know"), 
+#     ) %>%
+#     group_by(means_dewormed) %>%
+#     count()  %>%
+#     ungroup() %>%
+#     mutate(
+#       pct = 100*n/sum(n)
+#     )
+
+# }
+
+
+
+# say_treat_worming(endline_data, bracelet_meaning, 4) 
+# say_treat_worming(endline_data, ink_meaning, 2)
+# say_treat_worming(endline_data, cal_meaning, 3) 
 
 
 
@@ -3157,11 +3285,33 @@ optim_summ_tbl
 
 ```{r}
 #| mechanism-full-regression-table, results="asis"
-y = 1+1
-writeLines(readLines("temp-data/rf-mechanism-full-regression-table.tex"))
-writeLines(readLines("temp-data/rf-mechanism-control-regression-table.tex"))
+y = 1+3
 
-writeLines(readLines("temp-data/rf-mechanism-het-knowledge-regression-table.tex"))
+
+
+writeLines(
+  c(
+    "\\begin{table}[htbp]",
+    readLines("presentations/tables/rf-mechanism-full-regression-table.tex"), 
+    "\\end{table}"
+  )
+)
+
+writeLines(
+  c(
+    "\\begin{table}[htbp]",
+    readLines("presentations/tables/rf-mechanism-control-regression-table.tex"), 
+    "\\end{table}"
+    )
+)
+
+writeLines(
+  c(
+    "\\begin{table}",
+    readLines("presentations/tables/rf-mechanism-het-knowledge-regression-table.tex"),
+    "\\end{table}"
+  )
+)
 
 
     # file = "temp-data/rf-mechanism-control-regression-table.tex"
@@ -3176,7 +3326,14 @@ writeLines(readLines("temp-data/rf-mechanism-het-knowledge-regression-table.tex"
 ```{r}
 #| mechanism-incentive-regression-table, results="asis"
 x = 1+3
-writeLines(readLines("temp-data/rf-mechanism-incentive-regression-table.tex"))
+writeLines(
+  c(
+    "\\begin{table}",
+    readLines("presentations/tables/rf-mechanism-incentive-regression-table.tex"), 
+    "\\end{table}"
+  )
+)
+
 ```
 
 \elandscape
