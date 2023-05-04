@@ -615,8 +615,36 @@ tidy_incentive_check_df = long_incentive_check_df %>%
 tidy_incentive_check_df %>%
   group_by(treatment) %>%
   summarise(
-    n = unique(n)
-  )
+    n = unique(n) 
+    )
+
+
+baseline.data %>%
+  select(contains("dist")) %>%
+  colnames()
+
+baseline.data %>%
+  select(why_yes_few_deworm, why_yes_many_deworm) %>%
+  filter(why_yes_few_deworm != why_yes_many_deworm)
+
+baseline.data %>%
+  mutate(
+    few_yes = few_deworm == "yes", 
+    many_yes = many_deworm == "yes"
+  ) %>%
+  feols(
+    data = .,
+    .[c("few_yes", "many_yes")] ~ dist.pot.group
+  ) %>%
+  etable()
+
+baseline.data %>%
+  select(contains("dworm"), assigned.treatment, dist.pot.group)  %>%
+  feols(
+    data = .,
+    ink_dworm_rate ~ dist.pot.group
+  ) %>%
+  etable()
 
 wide_incentive_check_input_df = tidy_incentive_check_df %>%
   mutate(across(c(estimate, std.error), round, 3)) %>%
