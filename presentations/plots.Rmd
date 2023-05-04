@@ -2678,6 +2678,8 @@ summ_sm_df %>%
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
+plot_summ_bc_draws = read_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
+
 p_roc = dist_fit_data %>% 
   filter(
     fct_match(fit_type, "fit"), 
@@ -2708,6 +2710,29 @@ p_roc = dist_fit_data %>%
     data = rf_analysis_data %>%
       filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
       distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+  geom_line(
+      inherit.aes = FALSE, 
+      aes(x = dist, y = value),
+      data = plot_summ_bc_draws %>%
+          filter(name == "cluster_roc_no_vis"),
+      linetype = "longdash"
+  )  +
+  annotate(
+      "text", 
+      x = 2.3, 
+      y = -9, 
+      label = "Amplification", 
+      size = 4, 
+      alpha = 0.7
+  ) +
+  annotate(
+      "text", 
+      x = 2.3, 
+      y = -7.5, 
+      label = "Mitigation", 
+      size = 4, 
+      alpha = 0.7
+  ) +
   labs(
     x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
   ) +
