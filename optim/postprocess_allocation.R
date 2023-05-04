@@ -165,7 +165,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
     )
 
     subtitle = str_glue(
-        "Average Distance: {round(mean_dist/1000, 2)}km, Social Welfare: {round(util_hit, 2)}"
+        "Average Distance: {round(mean_dist/1000, 2)}km, Policymakers's Welfare: {round(util_hit, 2)}"
     )
 
         if (script_options$constraint_type == "agg") {
