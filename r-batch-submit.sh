@@ -40,7 +40,7 @@ done
 		"STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL"
 		"REDUCED_FORM_NO_RESTRICT_DIST_CTS")
 
-	for [model in "${models[@]}"]
+	for model in "${models[@]}"
 	do
 		Rscript --no-save \
 			--no-restore \
@@ -54,7 +54,7 @@ done
 			--outputname=dist_fit${VERSION} \
 			--num-mix-groups=1 \
 			--iter=${ITER} \
-			--sequential > output-${model}-fit${VERSION}.txt 2>&1
+			--sequential > logs/output-${model}-fit${VERSION}.txt 2>&1
 
 		Rscript --no-save \
 			--no-restore \
@@ -68,7 +68,7 @@ done
 			--outputname=dist_prior${VERSION} \
 			--num-mix-groups=1 \
 			--iter=${ITER} \
-			--sequential > output-${model}-prior${VERSION}.txt 2>&1
+			--sequential > logs/output-${model}-prior${VERSION}.txt 2>&1
 	done
 #
 #		Rscript --no-save \
@@ -108,7 +108,7 @@ done
 			${VERSION} \
 			--load-from-csv \
 			--cores=1  \
-			${POSTPROCESS_INOUT_ARGS} > postprocess-output${VERSION}.txt 2>&1 
+			${POSTPROCESS_INOUT_ARGS} > logs/postprocess-output${VERSION}.txt 2>&1 
 
 }
 
