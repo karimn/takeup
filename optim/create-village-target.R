@@ -8,6 +8,7 @@ script_options <- docopt::docopt(
           --output-path=<output-path>  Path where output should be saved.
           --output-basename=<output-basename>  Output basename.
           --num-cores=<num-cores>  Number of cores [default: 4]
+          --util-function=<util-function>  Utility function [default: log]
           --force
           --assign-closest
 "),
@@ -16,6 +17,7 @@ script_options <- docopt::docopt(
                             --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
                             --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
                             --output-basename=target-closest-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                            --util-function=identity \
                             --assign-closest
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -26,6 +28,7 @@ library(tidyverse)
 script_options$num_cores = as.numeric(script_options$num_cores)
 
 
+util_function = eval(parse(text = script_options$util_function))
 
 demand_df = read_csv(
     file.path(
@@ -61,7 +64,7 @@ if (!file.exists(summ_output_file) | script_options$force) {
             arrange(dist) %>%
             slice(1) %>%
             mutate(
-                util = log(demand)
+                util = util_function(demand)
             ) %>%
             group_by(draw) %>%
             summarise(
