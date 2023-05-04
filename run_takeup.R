@@ -210,6 +210,7 @@ models <- lst(
     
     wtp_value_utility_sd = 0.0001,
     # wtp_value_utility_sd = 0.1, # dist_fit88 -> high wtp_value_utility_sd
+    lnorm_wtp_value_utility_prior = FALSE,
 
     raw_u_sd_alpha = 3.3, 
     # raw_u_sd_alpha = 10, # dist_fit89 -> high u sd 
@@ -412,6 +413,17 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         mu_rep_type = 4
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        wtp_value_utility_sd = 0.265
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        lnorm_wtp_value_utility_prior = TRUE, 
+        wtp_value_utility_sd = 4
       )
   )
 

@@ -128,7 +128,9 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP",          "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_REP",                 "Structural",                                         "structural",
-  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL",          "Structural",                                         "structural",
 
 
   

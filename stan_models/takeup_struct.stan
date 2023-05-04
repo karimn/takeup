@@ -16,6 +16,7 @@ data {
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_LINEAR;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_DISCRETE;
+
   
   int<lower = 0, upper = 1> use_wtp_model;
   int<lower = 0, upper = 1> use_homoskedastic_shocks;
@@ -26,6 +27,8 @@ data {
   
   int<lower = 0, upper = 1> use_param_dist_cluster_effects; // These are used for parameteric (linear, quadratic) distance cost models only
   int<lower = 0, upper = 1> use_param_dist_county_effects;
+
+  int<lower = 0, upper = 1> lnorm_wtp_value_utility_prior,
 
   // 0 => exponential, 1 => log, 2 => linear, 3 => reserved for optim R
   // 4 => \hat{p}
@@ -272,8 +275,12 @@ model {
 #include wtp_model_section.stan
 #include beliefs_model_sec.stan
 #include dist_model_sec.stan
-  
-  wtp_value_utility ~ normal(0, wtp_value_utility_sd);
+
+  if (lnorm_wtp_value_utility_prior) {
+    wtp_value_utility ~ lognormal(-10, wtp_value_utility_sd);
+  } else {
+    wtp_value_utility ~ normal(0, wtp_value_utility_sd);
+  }
 
   beta_intercept ~ normal(0, beta_intercept_sd);
   
