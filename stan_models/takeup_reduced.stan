@@ -203,14 +203,14 @@ generated quantities {
       + rep_matrix((reduced_beta_county * treatment_map_design_matrix[treatment_index]')[cluster_county_id], num_age_groups)
       + rep_matrix(reduced_treatment_effect[treatment_index], num_clusters, num_age_groups) 
       + rep_matrix((treatment_map_design_matrix[treatment_index] * reduced_beta_age_group'), num_clusters);
+
+    if (use_dist_cts) {
+      cluster_age_group_cf_benefit_cost[treatment_index] += rep_matrix(beta_dist_cts[1] .* cluster_standard_dist, num_age_groups);
+    }
       
     cluster_age_group_cf_cutoff[treatment_index, 1] = - cluster_age_group_cf_benefit_cost[treatment_index]; 
     
     cluster_cf_benefit_cost[treatment_index] = rows_dot_product(cluster_age_group_cf_benefit_cost[treatment_index], cluster_age_group_prop);
-
-    if (use_dist_cts) {
-      cluster_cf_benefit_cost[treatment_index] += beta_dist_cts[1] .* cluster_standard_dist;
-    }
 
 
     cluster_cf_cutoff[treatment_index, 1] = rows_dot_product(cluster_age_group_cf_cutoff[treatment_index, 1], cluster_age_group_prop);
