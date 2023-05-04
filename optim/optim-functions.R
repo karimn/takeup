@@ -462,92 +462,7 @@ define_baseline_MIPModel = function(data) {
     return(model)
 }
 
-#' Add objectives to baseline MIPModel
-#'
-#' @param data list with n and m (n villages and PoTs). Also village_locations
-#' df and treatment_locations df
-#' @param demand_function function that takes as arguments: i, j, village_locations, pot_locations
-#' i is village index, j is PoT index and village_locations, pot_locations are dfs indexed by i,j
-#' @param optim_type Whether to solve takeup maximisation given budget or min cost given takeup target. 
-#' Accepts: `min_cost` or `max_takeup`
-#' @target_constraint What to put in the budget constraint 
-add_MIPModel_objective = function(model, data, demand_data, optim_type, target_constraint) {
-    n = data$n  # N villages
-    m = data$m  # M points of treatment
-    village_locations = data$village_locations # Village location df
-    pot_locations = data$pot_locations # PoT location df
 
-    if (optim_type == "min_cost") {
-      model = model %>%
-          # Takeup must be at least 
-          add_constraint(sum_over(
-            x[i, j]*demand_data[village_i == i & pot_j == j, demand], i = 1:n, j = 1:m) >=  target_constraint*n)  %>%
-          set_objective(
-            sum_over(y[j], j = 1:m), "min"
-          )
-    }
-    if (optim_type == "min_cost_indiv") {
-      model = model %>%
-          # Takeup must be at least 
-          add_constraint(
-            sum_over(x[i, j]*demand_data[village_i == i & pot_j == j, demand], j = 1:m) >=  target_constraint, i = 1:n)  %>%
-          set_objective(
-            sum_over(y[j], j = 1:m), "min"
-          )
-    }
-
-    if (optim_type == "max_takeup") {
-      model = model %>%
-        # given budget of number PoTs
-        add_constraint(
-          sum_over(
-            y[j],
-            j = 1:m
-          ) <= target_constraint
-        ) %>%
-        # maximize the takeup
-        set_objective(
-                sum_over(
-                    x[i,j] * demand_data[village_i == i & pot_j == j, demand], 
-                    i = 1:n, j = 1:m), "max")
-    }
-    return(model)
-
-}
-
-
-define_and_solve_model = function(baseline_model,
-                                  data,
-                                  demand_data,
-                                  optim_type,
-                                  target_constraint){
-  model = baseline_model %>%
-    add_MIPModel_objective(
-      model =  .,
-      data = data,
-      demand_data = demand_data,
-      optim_type = optim_type,
-      target_constraint = target_constraint
-    )                            
-  fit_model = solve_model(
-    model,
-    with_ROI(solver = "glpk", verbose = TRUE, control = list(tm_limit = script_options$time_limit))
-  )
-  status = solver_status(fit_model)
-  if (status == "success"){
-    match_df = fit_model %>%
-        get_solution(x[i,j]) %>%
-        filter(value > .9) %>%  
-        select(i, j) %>%
-        as_tibble()
-    tidy_output = clean_output(match_df, data, demand_data) 
-    return(tidy_output)
-  } else {
-    return(tibble(fail = TRUE, solver_status = status))
-  }
-}
-
-safe_define_and_solve_model = possibly(define_and_solve_model, otherwise = tibble(fail = TRUE))
 
 clean_output = function(match_df, data, demand_data){
     tidy_output = match_df %>%
@@ -754,20 +669,6 @@ create_takeup_constraint = function(takeup, n, m, constraint_type, takeup_target
       ncol = m*n
     )
 
-    # js = rep(1:n, each = m)
-    # x_index = n*(1:m) - (n - js)
-
-    # takeup_indices = map(1:n, ~x_index[js == .x]) %>%
-    #   unlist()
-    # x_matrix = simple_triplet_matrix(
-    #   i = js,
-    #   j = x_index,
-    #   v = takeup[takeup_indices],
-    #   nrow = n,
-    #   ncol = m*n
-    # )
-
-    # x_matrix %>% as.matrix()
 
     dir = rep(">=", n)
   
@@ -775,14 +676,6 @@ create_takeup_constraint = function(takeup, n, m, constraint_type, takeup_target
     # vill_we_want = 2
     # x_matrix[vill_we_want, find_x_index(n = n, m = m, i = vill_we_want, j = 1:m) ]$v
 
-    # demand_data %>%
-    #   unnest(demand_data) %>%
-    #   group_by(village_i) %>%
-    #   mutate(new_i_id = cur_group_id()) %>%
-    #   arrange(pot_j, new_i_id) %>%
-    #   select(pot_j, new_i_id, village_i, demand) %>%
-    #   filter(new_i_id == vill_we_want) %>%
-    #   filter(demand > 0)
     y_nrow = n
   }
 

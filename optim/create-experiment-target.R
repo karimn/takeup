@@ -1,8 +1,7 @@
-
 #!/usr/bin/Rscript
 script_options <- docopt::docopt(
     stringr::str_glue("Usage:
-        create-presentation-plots.R  [options] 
+        create-experiment-target.R  [options] 
 
         Options:
           --min-cost  Flag to minimise programme cost for a given takeup level.
@@ -21,10 +20,10 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "
                             --constraint-type=agg \
-                            --welfare-function=log \
+                            --welfare-function=identity \
                             --min-cost \
-                            --output-path=optim/plots/agg-log-full-many-pots \
-                            --output-basename=summ-agg-log \
+                            --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --output-basename=summ-agg-identity \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
                             --posterior-median \
@@ -39,6 +38,7 @@ library(data.table)
 library(latex2exp)
 
 
+swf = eval(parse(text = script_options$welfare_function))
 
 source('optim/optim-functions.R')
 
@@ -141,9 +141,8 @@ optimal_data = optimal_data %>%
 swf_summ_df  = optimal_data %>%
     group_by(draw) %>%
         mutate(
-            social_welfare = sum(log(demand))
+            social_welfare = sum(swf(demand))
         ) 
-
 swf_summ_df %>%
     write_csv(
         file.path(

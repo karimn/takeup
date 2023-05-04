@@ -27,23 +27,22 @@ script_options <- docopt::docopt(
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=summ-agg-log-experiment-target-constraint.csv \
+                                --target-constraint=summ-agg-identity-experiment-target-constraint.csv \
                                 --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
                                 --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
                                 --output-filename=TEST-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit86-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
-                                --welfare-function=log
+                                --demand-input-filename=pred-demand-dist-fit86-no-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
+                                --welfare-function=identity
                                 --solver=gurobi
+                                --posterior-median
 
                              " else commandArgs(trailingOnly = TRUE)
 ) 
-                                # --target-constraint=0.31 \
-                            #  --dry-run 
-                            #  --dry-run-subsidy=0.2
 
+                                # --welfare-function=log
 library(tidyverse)
 library(data.table)
 library(ompr)
@@ -166,34 +165,8 @@ if (script_options$constraint_type == "indiv") {
 
 
 
-if (script_options$constraint_type == "agg" & script_options$welfare_function != "log") {
-
-summ_target_df = target_df  %>%
-    group_by(village_i, draw) %>%
-    sample_n(20, replace = TRUE)  %>%
-    mutate(random_village_draw = 1:n()) %>%
-    group_by(draw, random_village_draw) %>%
-    group_nest() %>%
-    mutate(
-      social_welfare = future_map(
-        data, 
-        ~{
-          mutate(
-            .x,
-          util = swf(target_demand)
-        ) %>%
-        summarise(social_welfare = sum(util), mean_takeup = mean(target_demand)) 
-        }
-      )
-    ) %>%
-    unnest(social_welfare)
-
-  target_optim = mean(summ_target_df$social_welfare)
-
-}
-
 # Have precomputed SWF in this case so just load that csv
-if (script_options$constraint_type == "agg" & script_options$welfare_function == "log") {
+if (script_options$constraint_type == "agg") {
   summ_target_df = read_csv(
     file.path(
       script_options$input_path,
@@ -259,9 +232,9 @@ v_neg_value = demand_data %>%
   unnest(demand_data) %>%
   filter(demand > 0) %>%
   summarise(min_util = min(util)) %>%
-  pull()
+  pull() 
 
-v_neg_value
+v_neg_value = -abs(v_neg_value)
 
 demand_data = demand_data %>%
   mutate(
@@ -396,7 +369,7 @@ summ_output = tidy_output %>%
   head(1) %>%
   unnest(model_output) %>%
   summarise(
-    util = sum(log(demand)),
+    util = sum(swf(demand)),
     mean_demand = mean(demand), 
     min_demand = min(demand), 
     n_pot = n_distinct(j))
@@ -406,9 +379,20 @@ if (script_options$constraint_type == "agg") {
     warning("Allocation utility below target utility.")
   }
 }
-
 plot_res = FALSE
 if (plot_res) {
+
+
+tidy_output %>% 
+  unnest(model_output) %>%
+  select(dist) %>%
+  ggplot() +
+  geom_histogram(aes(x = dist), colour = "white") +
+  theme_bw() +
+  labs(
+    x = "Distance Walked (m)", 
+    title = "Distance Walked, No Cutoff - B Bracelet Mu Bracelet"
+  )
 
 tidy_output %>% 
   unnest(model_output) %>%
@@ -434,16 +418,26 @@ tidy_output %>%
     x = village_lon,
     y = village_lat
   )) +
-  geom_segment(aes(
+  geom_point(
+    data = . %>%
+      filter(demand == 0),
+    aes(
+    x = village_lon,
+    y = village_lat
+  ), size = 10, colour = "hotpink") +
+  geom_segment(
+    data = . %>%
+      filter(demand > 0),
+    aes(
     x = village_lon,
     y = village_lat,
     xend = pot_lon, 
     yend = pot_lat
   ))
+
   ## Double checking model
   summ_output
 }
-
 
 # #########################################
 # stop()
