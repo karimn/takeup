@@ -21,8 +21,11 @@ SLURM_INOUT_DIR=~/scratch-midway2
 ITER=800
 # MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 
+echo "Version: $VERSION"
+
 if [[ -v IN_SLURM ]]; then
   echo "Running in SLURM..."
+	
 
   module load -f midway2 gdal/2.4.1 udunits/2.2 proj/6.1 cmake R/4.2.0
 
@@ -106,6 +109,72 @@ fit_models
 #Rscript ./run_takeup.R beliefs fit   --chains=4 --iter 1000 --outputname=beliefs       --output-path=data/stan_analysis_data --num-mix-groups=1
 #wait
 
+<<<<<<< HEAD
+## Reduced Form 
+#Rscript ./run_takeup.R takeup prior \
+#  --models=REDUCED_FORM_NO_RESTRICT \
+#  ${CMDSTAN_ARGS} \
+#  ${OUTPUT_ARGS} \
+#  --threads=${STAN_THREADS} \
+#  --update-output \
+#  --outputname=dist_prior${VERSION} \
+#  --sequential \
+#  --iter=${ITER}
+#
+#
+#Rscript ./run_takeup.R takeup fit \
+#  --models=REDUCED_FORM_NO_RESTRICT \
+#  --iter=${ITER} \
+#  ${CMDSTAN_ARGS} \
+#  ${OUTPUT_ARGS} \
+#  --threads=${STAN_THREADS} \
+#  --update-output \
+#  --outputname=dist_fit${VERSION} \
+#  --sequential
+#  
+## Rscript ./run_takeup.R takeup cv    --models=REDUCED_FORM_NO_RESTRICT ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --folds=10
+#
+## Structural
+#
+#Rscript ./run_takeup.R takeup prior \
+#  --models=${MODEL} \
+#  --iter=${ITER} \
+#  ${CMDSTAN_ARGS} \
+#  ${OUTPUT_ARGS} \
+#  --threads=${STAN_THREADS} \
+#  --update-output \
+#  --outputname=dist_prior${VERSION} \
+#  --num-mix-groups=1 \
+#  --sequential
+#
+#Rscript ./run_takeup.R takeup fit \
+#  --models=${MODEL} \
+#  --iter=${ITER} \
+#  ${CMDSTAN_ARGS} \
+#  ${OUTPUT_ARGS} \
+#  --threads=${STAN_THREADS} \
+#  --update-output \
+#  --outputname=dist_fit${VERSION} \
+#  --num-mix-groups=1 \
+#  --sequential
+#Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP --iter=800 ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_prior${VERSION} --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_REP --iter=800 ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP --iter=800 ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_prior${VERSION} --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP --iter=800 ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup prior --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST     ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_prior${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST     ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS        ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_SUBMODEL      ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_SUBMODEL  ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_TAKEUP            ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+#Rscript ./run_takeup.R takeup fit   --models=STRUCTURAL_LINEAR_U_SHOCKS_NO_WTP_TAKEUP          ${CMDSTAN_ARGS} ${OUTPUT_ARGS} --threads=${STAN_THREADS} --update --outputname=dist_fit${VERSION}   --num-mix-groups=1 --sequential
+# Rscript ./run_takeup.R takeup cv    --models=STRUCTURAL_LINEAR_U_SHOCKS ${CMDSTAN_ARGS} ${OUTPUT_ARGS}             --update --outputname=dist_kfold${VERSION} --num-mix-groups=1 --folds=10
+
+Rscript ./postprocess_dist_fit.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} --cores=1 --load-from-csv
+
+# Simulation
+# ./run_stan_dist_sim.R ${CMDSTAN_ARGS} 
+=======
 
 # # Structural
 
@@ -174,3 +243,4 @@ fit_models
 
 # # Simulation
 # # ./run_stan_dist_sim.R ${CMDSTAN_ARGS} 
+>>>>>>> efe31e4928b3b0387e2acfa0519b7590ba264bb9
