@@ -1,3 +1,23 @@
+#!/usr/bin/Rscript
+script_options <- docopt::docopt(
+    stringr::str_glue("Usage:
+        create-optim-paper-panel.R  [options] 
+
+        Options:
+        --model=<model>
+        --output-path=<output-path>
+        --fit-version=<fit-version>
+        --welfare-function=<welfare-function> Which utility function to use [default: log]
+        --input-path=<input-path>
+"),
+  args = if (interactive()) "
+                            --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
+                            --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
+                            --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                            --fit-version=86 \
+                            --welfare-function=identity
+                             " else commandArgs(trailingOnly = TRUE)
+) 
 library(tidyverse)
 library(data.table)
 library(sf)
@@ -26,22 +46,21 @@ data = list(
     village_locations = st_as_sf(village_data, coords = c("lon", "lat"), crs = wgs.84)
 ) 
 
-optim_input_path = "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots"
+optim_input_path = script_options$input_path 
 optim_files = c(
-    "target-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds",
-    "target-rep-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds",
-    "target-rep-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds",
-    "target-rep-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"
+    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-util-{script_options$welfare_function}-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-util-{script_options$welfare_function}-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
 )
 
-experimental_file = "target-rep-agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds"
+experimental_file = str_glue("target-rep-agg-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
 experimental_demand = read_rds(
     file.path(
         optim_input_path,
         experimental_file
     )
 )
-
 
 experimental_allocation = experimental_demand %>%
     group_by(
@@ -366,24 +385,23 @@ plot_comp_function = function(meta_df, long_df){
 subset_optimisation_df = optimisation_df %>%
     filter(
         file %in% c(
-    "target-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds",
-    "target-rep-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"
+    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
         ) | allocation_type == "experimental"
     ) %>%
     arrange(allocation_type)
+
 subset_long_opt_df = long_opt_df %>%
     filter(
         file %in% c(
-    "target-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds",
-    "target-rep-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"
+    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
         ) | allocation_type == "experimental"
     ) %>%
     arrange(allocation_type)
 
-
-
-
 comp_plot = plot_comp_function(subset_optimisation_df, subset_long_opt_df)
+
 
 ggsave(
     plot = comp_plot,

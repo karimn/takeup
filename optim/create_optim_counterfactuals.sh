@@ -219,4 +219,13 @@ then
                                 --output-path=${OUTPUT_PATH} \
                                 --model=${MODEL} \
                                 --fit-version=${VERSION}
+
+
+    Rscript ./optim/create-optim-paper-panel.R \
+                                --output-path=${PLOT_OUTPUT_PATH} \
+                                --model=${MODEL} \
+                                --fit-version=${VERSION} \
+                                --welfare-function=${WELFARE_FUNCTION} \
+                                --input-path=${OUTPUT_PATH}
+
 fi
