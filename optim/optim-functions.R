@@ -475,32 +475,7 @@ clean_output = function(match_df, data, demand_data){
       demand_data,
       by = c("i" = "village_i", "j" = "pot_j")
     )
-  ## Reassign villages to closest PoT
-  # SP doesn't care about distance cost atm so once he hits target takeup, can 
-  # assign people to whatever PoT if they won't let him drop down to a smaller # of PoTs
-  # therefore, we just reoptimise within allowed PoTs
 
-  #### TEMPORARY FIX #####
-  # dd = copy(demand_data)
-  # assigned_pots = unique(tidy_output$j)
-  # new_tidy_output = dd[pot_j %in% assigned_pots, min_dist_avail := min(dist), village_i][
-  #   dist == min_dist_avail
-  #   ] %>%
-  #   inner_join(data$village_locations %>% 
-  #                   rename(village_lon = lon, village_lat = lat), by = c("village_i" = "id")) %>% 
-  #   inner_join(data$pot_locations %>%
-  #                   rename(pot_lon = lon, pot_lat = lat), by = c("pot_j" = "id"))  %>%
-  #   rename(
-  #     i = village_i, 
-  #     j = pot_j
-  #   ) %>%
-  #   as_tibble() %>%
-  #   select(-min_dist_avail)
-  # if (nrow(tidy_output) == nrow(new_tidy_output)) {
-  #   tidy_output = new_tidy_output
-  # } else {
-  #   warning("Temporary fix failed, using original allocation.")
-  # }
     return(tidy_output)
 }
 
@@ -602,6 +577,77 @@ create_sum_constraint = function(n, m) {
 }
 
 
+#' Create Distance Constraint
+#'
+#' demand_data %>%
+#'  unnest(demand_data) %>%
+#'  arrange(pot_j, village_i) %>%
+#'  select(pot_j, village_i)
+#'
+#' distance vector in order:
+#' pot_1 vill_1
+#' pot_1 vill_2
+#' pot_1 vill_3
+#' ...
+#' pot_2 vill_1
+#' pot_2 vill_2
+#' pot_2 vill_3
+#' ...
+#' pot_m vill_i
+#'
+#' distance walked must be <= distance constraint for each vill 
+#' 
+#' ## min-cost-indiv ##
+#' For each village, distance must be less than or equal to distance constraint
+#' 
+#' Therefore A_distance:
+#' y_1 ... y_m x_11 x_12... x_21 x_22 ... x_nm
+#' 0 ...   0   d_11 d_12 ...0    0    ... 0
+#' 0 ...   0   0    0 ...   d_21    d_22 ... 0
+#' (Basically a block diagonal matrix with each block a village's distance)
+#' i.e. 0 everywhere but if row(A) == i, x_ji = d_ji
+#' i.e. summation of distances by row (on RHS we will have target_i for each 
+#' town i).
+#' A_distance  X = vector(takeup x_{ij, switched on}) <= vector(distance_constraint)
+#' 
+create_distance_constraint = function(distance, n, m, distance_constraint) {
+  rhs = rep(distance_constraint, n)
+
+  xi = map(1:n, ~find_x_index(n = n, m = m, i = .x, j = 1:m)) %>%
+    unlist()
+  i_mat = rep(1:n, each = m)
+  
+
+  x_matrix = simple_triplet_matrix(
+    i = i_mat, 
+    j = xi, 
+    v = distance, 
+    nrow = n, 
+    ncol = m*n
+  )
+
+
+  dir = rep("<=", n)
+  
+  # Suppose we want to find demand in village 2 for all PoTs:
+  # vill_we_want = 2
+  # x_matrix[vill_we_want, find_x_index(n = n, m = m, i = vill_we_want, j = 1:m) ]$v
+
+  y_nrow = n
+
+  y_matrix = simple_triplet_zero_matrix(
+    nrow = y_nrow,
+    ncol = m
+  )
+  return(lst(
+    y_matrix,
+    x_matrix,
+    rhs,
+    dir
+  ))
+}
+
+
 #' Create takeup constraint
 #'
 #'
@@ -671,6 +717,7 @@ create_takeup_constraint = function(takeup, n, m, constraint_type, takeup_target
 
 
     dir = rep(">=", n)
+    rhs = rep(rhs, n)
   
     # Suppose we want to find demand in village 2 for all PoTs:
     # vill_we_want = 2
@@ -749,6 +796,33 @@ create_base_constraints = function(n, m) {
     rhs,
     variable_names
     ))
+}
+
+
+add_distance_constraints = function(distance,
+                                    distance_constraint, 
+                                    baseline_constraints, 
+                                    n, 
+                                    m) {
+  distance_constraint = create_distance_constraint(
+    distance = distance, 
+    n = n,
+    m = m,
+    distance_constraint = distance_constraint
+  )                                      
+  baseline_constraints$constraint_matrix = rbind(
+    baseline_constraints$constraint_matrix,
+    cbind(distance_constraint$y_matrix, distance_constraint$x_matrix)
+  )
+  baseline_constraints$dir = c(
+    baseline_constraints$dir,
+    distance_constraint$dir
+  )
+  baseline_constraints$rhs = c(
+    baseline_constraints$rhs, 
+    distance_constraint$rhs
+  )
+  return(baseline_constraints)
 }
 
 add_takeup_constraints = function(takeup, 
@@ -903,13 +977,13 @@ clean_solution = function(model_fit, data, takeup) {
 
 ## gen oa
 
-gen_oa_stats = function(village_data, pot_data, optimal_data) {
+gen_oa_stats = function(village_data, pot_data, optimal_data, welfare_function) {
     assigned_pots = unique(optimal_data$j)
     n_pots_used =  length(assigned_pots)
     summ_optimal_data = optimal_data %>%
         mutate(target_optim = target_optim) %>%
         summarise(
-            util = sum(log(demand)),
+            util = sum(welfare_function(demand)),
             mean_demand = mean(demand), 
             min_demand = min(demand), 
             n_pot = n_distinct(j), 

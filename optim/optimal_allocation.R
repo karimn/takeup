@@ -22,20 +22,21 @@ script_options <- docopt::docopt(
           --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
           --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
           --solver=<solver>  MILP solver [default: glpk]
+          --distance-constraint=<distance-constraint>  Maximum distance a villager can be forced to walk by PM [default: 3500]
 "),
   args = if (interactive()) "
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=summ-agg-identity-experiment-target-constraint.csv \
-                                --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                                --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots  \
+                                --target-constraint=summ-agg-log-experiment-target-constraint.csv \
+                                --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
+                                --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
                                 --output-filename=TEST-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit86-no-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
-                                --welfare-function=identity
+                                --demand-input-filename=pred-demand-dist-fit86-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
+                                --welfare-function=log
                                 --solver=gurobi
                                 --posterior-median
 
@@ -79,7 +80,8 @@ swf = eval(parse(text = script_options$welfare_function))
 numeric_options = c(
   "dry_run_subsidy",
   "num_cores",
-  "time_limit"
+  "time_limit", 
+  "distance_constraint"
 )
 
 script_options = script_options %>%
@@ -216,14 +218,19 @@ baseline_constraints = create_base_constraints(
   data$m
 )
 
-
-demand_data %>%
-  head(1) %>%
+sorted_distance = demand_data %>%
+  slice(1) %>%
   unnest(demand_data) %>%
-  filter(demand > 0) %>%
-  arrange(util)
+  arrange(village_i, pot_j) %>%
+  pull(dist)
 
-
+baseline_constraints = add_distance_constraints(
+  distance = sorted_distance,
+  distance_constraint = script_options$distance_constraint ,
+  baseline_constraints = baseline_constraints, 
+  n = data$n, 
+  m = data$m
+)
 
 # Have to set -Inf utility from very 0 takeup in no-cutoff to -1e10 since 
 # optimiser gets upset by negative infinity
@@ -379,6 +386,7 @@ if (script_options$constraint_type == "agg") {
     warning("Allocation utility below target utility.")
   }
 }
+
 plot_res = FALSE
 if (plot_res) {
 

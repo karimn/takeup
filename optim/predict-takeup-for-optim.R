@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+print(commandArgs(trailingOnly = TRUE))
 script_options = docopt::docopt(
     stringr::str_glue("Usage:
     predict-takeup-for-optim.R <fit-version> <private-benefit-z> <visibility-z> [options] [ --from-csv | --to-csv ]
@@ -429,7 +430,7 @@ structural_demand_df %>%
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred-demand-dist-{script_options$fit_type}${fit_version}${append_output}.csv")
+            str_interp("pred-demand-dist-${script_options$fit_type}${fit_version}${append_output}.csv")
         )
     )
 

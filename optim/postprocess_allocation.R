@@ -50,6 +50,7 @@ source("optim/optim-functions.R")
 optim_type = if_else(script_options$min_cost, "min_cost", "max_takeup")
 stat_type = if_else(script_options$posterior_median, "median", "post-draws")
 
+swf = eval(parse(text = script_options$welfare_function))
 
 ## Input Paths
 optim_input_a_filepath = file.path(script_options$optim_input_path, 
@@ -147,7 +148,8 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
         oa_stats = gen_oa_stats(
             village_data,
             pot_data,
-            optimal_data
+            optimal_data, 
+            welfare_function = swf
         )
 
         assigned_pots = oa_stats$assigned_pot
@@ -165,7 +167,7 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
     )
 
     subtitle = str_glue(
-        "Average Distance: {round(mean_dist/1000, 2)}km, Policymakers's Welfare: {round(util_hit, 2)}"
+        "Average Distance: {round(mean_dist/1000, 2)}km, Policymaker's Utility: {round(util_hit/144, 2)}"
     )
 
         if (script_options$constraint_type == "agg") {
@@ -249,7 +251,8 @@ if (stat_type == "median" & is.null(script_options$optim_input_b_filename)) {
         ~gen_oa_stats(
             village_data = data$village_locations,
             pot_data = data$pot_locations,
-            optimal_data = .x
+            optimal_data = .x, 
+            welfare_function = swf
         )
     )
 
