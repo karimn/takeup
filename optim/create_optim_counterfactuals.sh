@@ -11,7 +11,7 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="--posterior-median" # --posterior-median or ""
-SKIP_PREDICTION=0 # 1
+SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=1
@@ -22,7 +22,7 @@ COUNTY="full"
 OUTPUT_PATH="optim/data/${MODEL}/${CONSTRAINT_TYPE}-${COUNTY}-many-pots" # /many-pots
 PLOT_OUTPUT_PATH="optim/plots/${MODEL}/${CONSTRAINT_TYPE}-${COUNTY}-many-pots" #/many-pots
 DATA_INPUT_NAME="${COUNTY}-many-pots-experiment.rds"
-CUTOFF="no-" # either no- or empty string
+CUTOFF="" # either no- or empty string
 SOLVER="gurobi"
 MANY_POTS="--many-pots" #"--many-pots"
 SUPPRESS_REP="" # "suppress-rep-" #suppress-rep-
@@ -179,44 +179,44 @@ compare_option () {
 
 
 
-# run_optim "control" "control" # run control control
-run_optim "control" "bracelet" # counterfactual varying bracelet visibility
-#run_optim "bracelet" "bracelet" # now bracelet bracelet
+run_optim "control" "control" # run control control
+# run_optim "control" "bracelet" # counterfactual varying bracelet visibility
+# #run_optim "bracelet" "bracelet" # now bracelet bracelet
 
-## now we suppress reputation completely. 
-## this is because I didn't think of creating a treatment variable with 0 visibility
-## so we change a global variable woooo
+# ## now we suppress reputation completely. 
+# ## this is because I didn't think of creating a treatment variable with 0 visibility
+# ## so we change a global variable woooo
 
-SUPPRESS_REP="suppress-rep-"
-run_optim "control" "control"
+# SUPPRESS_REP="suppress-rep-"
+# run_optim "control" "control"
 
-# # Now we swap to static signalling, fixed at d = 0.5
+# # # Now we swap to static signalling, fixed at d = 0.5
 
-SUPPRESS_REP="" # turn off suppress rep
-STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
-STATIC_SIGNAL_DIST=500
-DEMAND_NAME="static-" 
-run_optim "control" "bracelet"
+# SUPPRESS_REP="" # turn off suppress rep
+# STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
+# STATIC_SIGNAL_DIST=500
+# DEMAND_NAME="static-" 
+# run_optim "control" "bracelet"
 
-# if [[ ${POSTERIOR_MEDIAN} == "--posterior-median" ]]
-# then 
-#     # Control plots using realised allocation
-#     Rscript ./optim/create-presentation-plots.R \
-#                                 --constraint-type=agg \
-#                                 --welfare-function=log \
-#                                 --min-cost \
-#                                 --output-path=${OUTPUT_PATH} \
-#                                 --output-basename=target-${CONSTRAINT_TARGET}-util-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
-#                                 --cutoff-type=cutoff \
-#                                 --data-input-path=optim/data \
-#                                 --data-input-name=${DATA_INPUT_NAME} \
-#                                 --posterior-median \
-#                                 --pdf-output-path=presentations/takeup-${MODEL}-fig \
-#                                 --demand-input-path=${OUTPUT_PATH} \
-#                                 --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
+if [[ ${POSTERIOR_MEDIAN} == "--posterior-median" ]]
+then 
+    # Control plots using realised allocation
+    Rscript ./optim/create-presentation-plots.R \
+                                --constraint-type=agg \
+                                --welfare-function=${WELFARE_FUNCTION} \
+                                --min-cost \
+                                --output-path=${OUTPUT_PATH} \
+                                --output-basename=target-${CONSTRAINT_TARGET}-util-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
+                                --cutoff-type=cutoff \
+                                --data-input-path=optim/data \
+                                --data-input-name=${DATA_INPUT_NAME} \
+                                --posterior-median \
+                                --pdf-output-path=presentations/takeup-${MODEL}-fig \
+                                --demand-input-path=${OUTPUT_PATH} \
+                                --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
 
-#     Rscript ./optim/misc-optim-plots.R \
-#                                 --output-path=${OUTPUT_PATH} \
-#                                 --model=${MODEL} \
-#                                 --fit-version=${VERSION}
-# fi
+    Rscript ./optim/misc-optim-plots.R \
+                                --output-path=${OUTPUT_PATH} \
+                                --model=${MODEL} \
+                                --fit-version=${VERSION}
+fi

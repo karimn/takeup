@@ -7,11 +7,13 @@ script_options <- docopt::docopt(
         --model=<model>
         --output-path=<output-path>
         --fit-version=<fit-version>
+        --welfare-function=<welfare-function> Which utility function to use [default: log]
 "),
   args = if (interactive()) "
-                            --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                            --fit-version=86
+                            --fit-version=86 \
+                            --welfare-function=identity
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 
@@ -20,9 +22,8 @@ library(data.table)
 library(sf)
 library(tidybayes)
 
-control_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-control-mu-control-{script_options$model}-median-optimal-allocation.rds")
-bracelet_oa_files = str_glue("optim/data/{script_options$model}/agg-log-full-many-pots/target-rep-cutoff-b-control-mu-bracelet-{script_options$model}-median-optimal-allocation.rds")
-
+control_oa_files = str_glue("optim/data/{script_options$model}/agg-full-many-pots/target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-{script_options$model}-median-optimal-allocation.rds")
+bracelet_oa_files = str_glue("optim/data/{script_options$model}/agg-full-many-pots/target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-{script_options$model}-median-optimal-allocation.rds")
 
 control_oa_df = read_rds(control_oa_files)
 bracelet_oa_df = read_rds(bracelet_oa_files)
@@ -38,7 +39,7 @@ dist_data = read_rds(
 
 demand_df = read_csv(
     file.path(
-        str_glue("optim/data/{script_options$model}/agg-log-full-many-pots"),
+        str_glue("optim/data/{script_options$model}/agg-full-many-pots"),
         str_glue("pred-demand-dist-fit{script_options$fit_version}-cutoff-b-control-mu-control-{script_options$model}.csv")
     )
 )
@@ -216,7 +217,7 @@ c3 = comp_df %>%
     annotate(
         "text", 
         x = 0.5, 
-        y = 0.7, 
+        y = 0.6, 
         label = "Amplification",
         size = 5, 
         alpha = 0.7
@@ -230,7 +231,6 @@ c3 = comp_df %>%
         alpha = 0.7
     )
 
-
 imap(
     list(c1, c2, c3), 
     ~ggsave(
@@ -238,7 +238,7 @@ imap(
         filename = file.path(
             script_options$output_path,
             str_glue(
-                "comp-dist-plot{.y}-fit{script_options$fit_version}-{script_options$model}.pdf"
+                "comp-dist-plot{.y}-fit{script_options$fit_version}-util-{script_options$welfare_function}-{script_options$model}.pdf"
             )
         ),
         width = 8, 
@@ -257,14 +257,12 @@ rm(list = c(
 gc()
 
 
-
 # Amplification/Mitigation demand curve plots
 
 demand_files = fs::dir_ls(
-    str_glue("optim/data/{script_options$model}/agg-log-full-many-pots"),
+    str_glue("optim/data/{script_options$model}/agg-full-many-pots"),
     regexp = "pred"
 )
-
 
 
 demand_file_df = tibble(
@@ -273,7 +271,8 @@ demand_file_df = tibble(
     mutate(
         b_type = str_extract(file, "(?<=-b-)\\w+(?=-mu)"),
         mu_type = str_extract(file, "(?<=-mu-)\\w+(?=-)"),
-    )
+    ) %>%
+    filter(str_detect(file, paste0(script_options$model, ".csv")))
 
 
 
@@ -291,7 +290,14 @@ subset_demand_df = demand_file_df %>%
             "v_star"
         )
     )  %>%
-    filter(rep_type == "rep")
+    filter(rep_type == "rep") %>%
+    mutate(
+        cutoff_type = if_else(
+                str_detect(file, "no-cutoff"), 
+                "no_cutoff", 
+                "cutoff"
+        )
+    )
 
 
 subset_demand_df = subset_demand_df %>%
@@ -299,7 +305,9 @@ subset_demand_df = subset_demand_df %>%
         (mu_type == "bracelet" & v_star_type == "v_star") |
         (mu_type == "control" & v_star_type == "v_star") |
         (mu_type == "control" & v_star_type == "static") 
-    )
+    )  %>%
+    filter(cutoff_type == "cutoff")
+
 
 subset_demand_df = subset_demand_df %>%
     mutate(

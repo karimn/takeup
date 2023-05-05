@@ -22,19 +22,18 @@ script_options <- docopt::docopt(
 "),
   args = if (interactive()) "
                             --constraint-type=agg \
-                            --welfare-function=log \
+                            --welfare-function=identity \
                             --min-cost \
-                            --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
-                            --output-basename=target-rep-agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
+                            --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
+                            --output-basename=target-rep-agg-identity-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median \
                             --cutoff-type=cutoff
                             --data-input-name=full-many-pots-experiment.rds \
                             --posterior-median \
                             --pdf-output-path=presentations/takeup-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-fig/
-                            --demand-input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots \
+                            --demand-input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
                             --demand-input-filename=pred-demand-dist-fit86-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
                              " else commandArgs(trailingOnly = TRUE)
 ) 
-
 library(tidyverse)
 library(sf)
 library(data.table)
@@ -263,6 +262,5 @@ ggsave(
     height = 6, 
     dpi = 500
 )
-
 
 
