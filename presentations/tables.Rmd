@@ -26,7 +26,7 @@ params:
     rf_fit_version: 86
     input_path: data/stan_analysis_data
     output_path: temp-data 
-    optim_input_path: "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots"
+    optim_input_path: "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots"
     table_output_path: presentations/tables
     models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
 ---
@@ -2918,7 +2918,7 @@ wtp_summ_tbl %>%
 
 ```{r}
 #| optim-table
-
+x = 1+1
 all_optim_df = read_csv(
   file.path(
     params$optim_input_path,

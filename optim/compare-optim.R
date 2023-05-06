@@ -4,17 +4,19 @@ script_options <- docopt::docopt(
         compare-optim.R  [options] 
 
         Options:
-        --input-path=<input-path>  The input path [default: {file.path('optim', 'data', 'agg-log-full')}]
+        --input-path=<input-path>  The input path [default: {file.path('optim', 'data', 'agg-full-many-pots')}]
         --output-path=<output-path>  The output path [default: {file.path('temp-data')}]
         --posterior-median  Whether to compare posterior medians or entire posterior draws
         --many-pots
+        --welfare-function=<welfare-function>  The welfare function [default: log]
         --model=<model>
 "),
   args = if (interactive()) "
-        --input-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
-        --output-path=~/projects/takeup/optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots
-        --many-pots
+        --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots
+        --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots
+        --many-pots 
         --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+        --welfare-function=identity
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -42,8 +44,7 @@ if (script_options$posterior_median) {
 
 models_we_want = script_options$model 
 
-experimental_file = "target-rep-agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds"
-
+experimental_file = str_glue("target-rep-agg-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
 oa_df = map_dfr(
     oa_files, 
     read_rds,

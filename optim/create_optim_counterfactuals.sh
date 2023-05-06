@@ -10,7 +10,7 @@ NUM_CORES=16
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="--posterior-median" # --posterior-median or ""
+POSTERIOR_MEDIAN="" # --posterior-median or ""
 SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
@@ -180,23 +180,23 @@ compare_option () {
 
 
 run_optim "control" "control" # run control control
-# run_optim "control" "bracelet" # counterfactual varying bracelet visibility
-# #run_optim "bracelet" "bracelet" # now bracelet bracelet
+ run_optim "control" "bracelet" # counterfactual varying bracelet visibility
+ #run_optim "bracelet" "bracelet" # now bracelet bracelet
 
-# ## now we suppress reputation completely. 
-# ## this is because I didn't think of creating a treatment variable with 0 visibility
-# ## so we change a global variable woooo
+ ## now we suppress reputation completely. 
+ ## this is because I didn't think of creating a treatment variable with 0 visibility
+ ## so we change a global variable woooo
 
-# SUPPRESS_REP="suppress-rep-"
-# run_optim "control" "control"
+ SUPPRESS_REP="suppress-rep-"
+ run_optim "control" "control"
 
-# # # Now we swap to static signalling, fixed at d = 0.5
+ # # Now we swap to static signalling, fixed at d = 0.5
 
-# SUPPRESS_REP="" # turn off suppress rep
-# STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
-# STATIC_SIGNAL_DIST=500
-# DEMAND_NAME="static-" 
-# run_optim "control" "bracelet"
+ SUPPRESS_REP="" # turn off suppress rep
+ STATIC_SIGNAL_PM="--static-signal-pm" # "--static-signal-pm"
+ STATIC_SIGNAL_DIST=500
+ DEMAND_NAME="static-" 
+ run_optim "control" "bracelet"
 
 if [[ ${POSTERIOR_MEDIAN} == "--posterior-median" ]]
 then 
