@@ -226,7 +226,7 @@ plot_comp_function = function(meta_df, long_df){
         mutate(B_z = private_benefit_z, mu_z = visibility_z) %>%
         mutate(
             mu_z = factor(mu_z), # levels = c("No Visibility", "control", "ink", "calendar", "bracelet")),
-            cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} allocation")
+            cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} solution")
         ) 
 
 
@@ -237,20 +237,20 @@ plot_comp_function = function(meta_df, long_df){
     ) %>%
     mutate(
         mu_z = factor(mu_z), # levels = c("No Visibility", "control", "ink", "calendar", "bracelet")),
-        cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} allocation")
+        cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} solution")
     ) 
 
     summ_df = summ_df %>%
         rename(B_z = private_benefit_z, mu_z = visibility_z) %>%
         mutate(
-            cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} allocation")
+            cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} solution")
         ) 
 
 
     meta_df = meta_df %>%
         as_tibble() %>%
         mutate(
-            cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} allocation")
+            cf_type = str_glue("B({B_z}, d),   mu({mu_z}, d) - {allocation_type} solution")
         ) 
 
     meta_df = meta_df %>%
@@ -289,7 +289,8 @@ plot_comp_function = function(meta_df, long_df){
                 aes(x = village_lon, 
                     y = village_lat, 
                     xend = pot_lon, 
-                    yend = pot_lat
+                    yend = pot_lat, 
+                    linetype = "Assigned Village-PoT Pair"
                     ))  +
             theme_bw()  +
         theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
@@ -333,11 +334,14 @@ plot_comp_function = function(meta_df, long_df){
                 breaks = c("pot_TRUE", "pot_FALSE", "village"),
                 labels = c("PoT Used", "PoT Unused", "Village")
             ) +
+            scale_linetype_manual("Assigned Village-PoT Pair",values=c("Assigned Village-PoT Pair"=1)) +
             theme(legend.title = element_blank()) +
             theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
             # theme(legend.position = "bottom") +
             theme(legend.position = "none") +
-            guides(alpha = guide_legend(override.aes = list(alpha = 1))) 
+            guides(
+                alpha = guide_legend(override.aes = list(alpha = 1))
+            ) 
     }
 
 
@@ -403,14 +407,14 @@ subset_long_opt_df = long_opt_df %>%
 comp_plot = plot_comp_function(subset_optimisation_df, subset_long_opt_df)
 
 
-ggsave(
+save_plot(
     plot = comp_plot,
     filename = file.path(
-        "presentations/optim-takeup-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-fig", 
+        str_glue("presentations/optim-takeup-{script_options$model}-fig"), 
         str_glue(
             "panel-scenarios-compare-optimal-allocation-plot.pdf"
         )
     ), 
-    width = 15, 
-    height = 15
+    base_width = 20, 
+    base_height = 20
 )

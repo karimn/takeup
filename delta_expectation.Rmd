@@ -8,15 +8,15 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: 86
-  reduced_form_takeup_version: 86
+  structural_takeup_version: 90
+  reduced_form_takeup_version: 90
 ---
 
 ```{r setup, include=FALSE}
 if (interactive()) {
   params = list(
-    structural_takeup_version = 86,
-    reduced_form_takeup_version = 86
+    structural_takeup_version = 90,
+    reduced_form_takeup_version = 90
   )
 }
 library(magrittr)
@@ -270,7 +270,13 @@ dist_fit_data %<>%
     model = factor(model_c), 
     model_name = str_replace(model_c, "_PRIOR", "_WITHOUT_ANY_DATA"), 
     model_name = str_replace_all(model_name, "_", " "), 
-    model_name = str_to_title(model_name)
+    model_name = str_to_title(model_name),
+    model_name = case_when(
+      model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP' ~ "Structural Model P-Hat",
+      model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL' ~ "Structural Model, High WTP MU",
+      model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL' ~ "Structural Model, High WTP SD", 
+      TRUE ~ model_name
+    )
   )  %>%
   left_join(
     bind_rows(
@@ -311,6 +317,8 @@ models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",
   "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP", 
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL",
   "REDUCED_FORM_NO_RESTRICT", 
   "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
   )
@@ -1074,7 +1082,7 @@ beliefs_results %>%
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
@@ -1181,7 +1189,7 @@ plot_beliefs_hist <- function(beliefs_results, top_title, binwidth = NULL) {
 }
 
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_prior_results %>% 
