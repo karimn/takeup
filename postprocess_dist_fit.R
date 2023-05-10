@@ -523,8 +523,12 @@ dist_fit_data %<>%
     #   lst(cutoffs = ., total_error_sd, force_draw_takeup = fct_match(fit_type, "prior-predict")) %>%  
     #   pmap(calculate_prob_and_num_takeup), 
     
-    est_takeup_level = list(cluster_cf_cutoff, FALSE) %>% # map_lgl(model_type, fct_match, "structural")) %>%  
-      pmap(organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
+    # for structural model we can just average across all distances (covered on Stan side)
+    # for RF model, we only want to use close distances in the close group and 
+    # far distances in the far group when averaging across all clusters to get 
+    # takeup levels.
+    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "structural")) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
+      pmap(organize_by_treatment,  mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
              organize_by_treatment(condition_on_dist = TRUE, mu_assigned_treatment, assigned_treatment) %>%
