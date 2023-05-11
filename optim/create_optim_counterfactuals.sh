@@ -11,9 +11,9 @@ PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
 POSTERIOR_MEDIAN="" # --posterior-median or ""
-SKIP_PREDICTION=1 # 1
-SKIP_OA=0 # 1 or 0
-SKIP_PP=0 # 1 or 0
+SKIP_PREDICTION=0 # 1
+SKIP_OA=1 # 1 or 0
+SKIP_PP=1 # 1 or 0
 RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="identity"
@@ -42,7 +42,7 @@ Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
     --num-extra-pots=100 \
     --county-subset=${COUNTY} \
-    --distance-cutoff=3500
+    --distance-cutoff=Inf
 
 # # Create experiment target
 # Rscript ./optim/create-experiment-target.R \
