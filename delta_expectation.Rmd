@@ -275,6 +275,9 @@ dist_fit_data %<>%
       model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP' ~ "Structural Model P-Hat",
       model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL' ~ "Structural Model, High WTP MU",
       model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL' ~ "Structural Model, High WTP SD", 
+      model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL" ~ "Struct p-hat, No WTP data",
+      model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL" ~ "Struct p-hat, No belief data",
+      model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS" ~ "Struct p-hat, No submodel data",
       TRUE ~ model_name
     )
   )  %>%
