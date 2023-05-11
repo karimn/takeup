@@ -9,13 +9,15 @@ script_options <- docopt::docopt(
         --fit-version=<fit-version>
         --welfare-function=<welfare-function> Which utility function to use [default: log]
         --input-path=<input-path>
+        --distance-constraint=<distance-constraint>  Maximum distance DM can send someone in meters. [default: 3500]
 "),
   args = if (interactive()) "
                             --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
                             --output-path=optim/plots/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
                             --fit-version=86 \
-                            --welfare-function=identity
+                            --welfare-function=identity \
+                            --distance-constraint=3500
                              " else commandArgs(trailingOnly = TRUE)
 ) 
 library(tidyverse)
@@ -48,13 +50,13 @@ data = list(
 
 optim_input_path = script_options$input_path 
 optim_files = c(
-    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
-    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
-    str_glue("target-rep-util-{script_options$welfare_function}-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
-    str_glue("target-rep-util-{script_options$welfare_function}-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
 )
 
-experimental_file = str_glue("target-rep-agg-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
+experimental_file = str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
 experimental_demand = read_rds(
     file.path(
         optim_input_path,
@@ -389,8 +391,8 @@ plot_comp_function = function(meta_df, long_df){
 subset_optimisation_df = optimisation_df %>%
     filter(
         file %in% c(
-    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
-    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
         ) | allocation_type == "experimental"
     ) %>%
     arrange(allocation_type)
@@ -398,8 +400,8 @@ subset_optimisation_df = optimisation_df %>%
 subset_long_opt_df = long_opt_df %>%
     filter(
         file %in% c(
-    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
-    str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
+    str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
         ) | allocation_type == "experimental"
     ) %>%
     arrange(allocation_type)
@@ -412,7 +414,7 @@ save_plot(
     filename = file.path(
         str_glue("presentations/optim-takeup-{script_options$model}-fig"), 
         str_glue(
-            "panel-scenarios-compare-optimal-allocation-plot.pdf"
+            "panel-scenarios-compare-optimal-allocation-plot-distconstraint-{script_options$distance_constraint}.pdf"
         )
     ), 
     base_width = 20, 
