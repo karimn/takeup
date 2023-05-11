@@ -10,10 +10,10 @@ NUM_CORES=16
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="" # --posterior-median or ""
-SKIP_PREDICTION=0 # 1
-SKIP_OA=1 # 1 or 0
-SKIP_PP=1 # 1 or 0
+POSTERIOR_MEDIAN="--posterior-median" # --posterior-median or ""
+SKIP_PREDICTION=1 # 1
+SKIP_OA=0 # 1 or 0
+SKIP_PP=0 # 1 or 0
 RUN_TARGET_CREATION=1
 RUN_ESTIMATION="--run-estimation"
 WELFARE_FUNCTION="identity"
@@ -30,6 +30,7 @@ CONSTRAINT_TARGET="rep"
 STATIC_SIGNAL_PM="" # "--static-signal-pm"
 STATIC_SIGNAL_DIST=500
 DEMAND_NAME="" # "static-"
+CONSTRAINT_DISTANCE=10000
 
 mkdir -p ${OUTPUT_PATH}
 mkdir -p ${PLOT_OUTPUT_PATH}
@@ -42,20 +43,23 @@ Rscript ./optim/create-distance-data.R \
     --output-name=${DATA_INPUT_NAME} \
     --num-extra-pots=100 \
     --county-subset=${COUNTY} \
-    --distance-cutoff=Inf
+    --distance-cutoff=Inf 
 
 # # Create experiment target
-# Rscript ./optim/create-experiment-target.R \
-#                 --constraint-type=${CONSTRAINT_TYPE} \
-#                 --welfare-function=${WELFARE_FUNCTION} \
-#                 --min-cost \
-#                 --output-path=${OUTPUT_PATH} \
-#                 --output-basename=summ-${CONSTRAINT_TYPE}-${WELFARE_FUNCTION} \
-#                 --cutoff-type=cutoff \
-#                 --data-input-name=full-many-pots-experiment.rds \
-#                 --posterior-median \
-#                 --demand-input-path=${OUTPUT_PATH} \
-#                 --demand-input-filename=pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv
+if [[ ! -e ${OUTPUT_PATH}/summ-agg-${WELFARE_FUNCTION}-experiment-target-constraint.csv ]]
+then
+    Rscript ./optim/create-experiment-target.R \
+                    --constraint-type=${CONSTRAINT_TYPE} \
+                    --welfare-function=${WELFARE_FUNCTION} \
+                    --min-cost \
+                    --output-path=${OUTPUT_PATH} \
+                    --output-basename=summ-${CONSTRAINT_TYPE}-${WELFARE_FUNCTION} \
+                    --cutoff-type=cutoff \
+                    --data-input-name=full-many-pots-experiment.rds \
+                    --posterior-median \
+                    --demand-input-path=${OUTPUT_PATH} \
+                    --demand-input-filename=pred-demand-dist-fit${VERSION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}.csv
+fi
 
 
 
@@ -120,14 +124,15 @@ run_optim () {
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --target-constraint=summ-${CONSTRAINT_TYPE}-${WELFARE_FUNCTION}-experiment-target-constraint.csv \
                                     --output-path=${OUTPUT_PATH} \
-                                    --output-filename=target-${CONSTRAINT_TARGET}-util-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
+                                    --output-filename=target-${CONSTRAINT_TARGET}-distconstraint-${CONSTRAINT_DISTANCE}-util-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL} \
                                     --input-path=${OUTPUT_PATH}  \
                                     --data-input-path=optim/data \
                                     --data-input-name=${DATA_INPUT_NAME} \
                                     --time-limit=10000 \
                                     --demand-input-filename=pred-demand-dist-fit${VERSION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}.csv \
                                     --welfare-function=${WELFARE_FUNCTION} \
-                                    --solver=${SOLVER}
+                                    --solver=${SOLVER} \
+                                    --distance-constraint=${CONSTRAINT_DISTANCE}
 
     fi
 
@@ -140,10 +145,10 @@ run_optim () {
                                     --constraint-type=${CONSTRAINT_TYPE} \
                                     --welfare-function=${WELFARE_FUNCTION} \
                                     --optim-input-path=${OUTPUT_PATH} \
-                                    --optim-input-a-filename=target-${CONSTRAINT_TARGET}-util-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
+                                    --optim-input-a-filename=target-${CONSTRAINT_TARGET}-distconstraint-${CONSTRAINT_DISTANCE}-util-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR}-optimal-allocation.rds \
                                     --data-input-name=${DATA_INPUT_NAME} \
                                     --output-path=${PLOT_OUTPUT_PATH} \
-                                    --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-util-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
+                                    --output-basename=${CONSTRAINT_TYPE}-target-${CONSTRAINT_TARGET}-distconstraint-${CONSTRAINT_DISTANCE}-util-${WELFARE_FUNCTION}-${DEMAND_NAME}${SUPPRESS_REP}${CUTOFF}cutoff-b-$1-mu-$2-${MODEL}-${POSTVAR} \
                                     --cutoff-type=${CUTOFF}cutoff \
                                     --pdf-output-path=presentations/optim-takeup-${MODEL}-fig
     fi
@@ -180,7 +185,7 @@ compare_option () {
 
 
 run_optim "control" "control" # run control control
- run_optim "control" "bracelet" # counterfactual varying bracelet visibility
+run_optim "control" "bracelet" # counterfactual varying bracelet visibility
  #run_optim "bracelet" "bracelet" # now bracelet bracelet
 
  ## now we suppress reputation completely. 
@@ -205,7 +210,7 @@ then
                                 --constraint-type=agg \
                                 --welfare-function=${WELFARE_FUNCTION} \
                                 --min-cost \
-                                --output-path=${OUTPUT_PATH} \
+                                --output-path=${PLOT_OUTPUT_PATH} \
                                 --output-basename=target-${CONSTRAINT_TARGET}-util-${WELFARE_FUNCTION}-${CUTOFF}cutoff-b-control-mu-control-${MODEL}-${POSTVAR} \
                                 --cutoff-type=cutoff \
                                 --data-input-path=optim/data \
@@ -213,12 +218,18 @@ then
                                 --posterior-median \
                                 --pdf-output-path=presentations/takeup-${MODEL}-fig \
                                 --demand-input-path=${OUTPUT_PATH} \
-                                --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv
-
-    Rscript ./optim/misc-optim-plots.R \
-                                --output-path=${OUTPUT_PATH} \
+                                --demand-input-filename=pred-demand-dist-fit${VERSION}-cutoff-b-control-mu-control-${MODEL}.csv \
                                 --model=${MODEL} \
-                                --fit-version=${VERSION}
+                                --fit-version=${VERSION} \
+                                --distance-constraint=${CONSTRAINT_DISTANCE} 
+
+    # superceded by create-presentation-plots unless you want demand curves
+    # Rscript ./optim/misc-optim-plots.R \
+                                # --output-path=${OUTPUT_PATH} \
+                                # --model=${MODEL} \
+                                # --fit-version=${VERSION} \
+                                # --distance-constraint=${CONSTRAINT_DISTANCE} \
+                                # --welfare-function=${WELFARE_FUNCTION} 
 
 
     Rscript ./optim/create-optim-paper-panel.R \
@@ -226,6 +237,7 @@ then
                                 --model=${MODEL} \
                                 --fit-version=${VERSION} \
                                 --welfare-function=${WELFARE_FUNCTION} \
-                                --input-path=${OUTPUT_PATH}
+                                --input-path=${OUTPUT_PATH} \
+                                --distance-constraint=${CONSTRAINT_DISTANCE} 
 
 fi

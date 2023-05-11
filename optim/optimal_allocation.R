@@ -28,17 +28,18 @@ script_options <- docopt::docopt(
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=summ-agg-log-experiment-target-constraint.csv \
+                                --target-constraint=summ-agg-identity-experiment-target-constraint.csv \
                                 --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
                                 --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
                                 --output-filename=TEST-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
-                                --demand-input-filename=pred-demand-dist-fit86-cutoff-b-bracelet-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
-                                --welfare-function=log
+                                --demand-input-filename=pred-demand-dist-fit86-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
+                                --welfare-function=identity
                                 --solver=gurobi
                                 --posterior-median
+                                --distance-constraint=4500
 
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -166,7 +167,6 @@ if (script_options$constraint_type == "indiv") {
 }
 
 
-
 # Have precomputed SWF in this case so just load that csv
 if (script_options$constraint_type == "agg") {
   summ_target_df = read_csv(
@@ -254,7 +254,7 @@ demand_data = demand_data %>%
   )
 
 
-
+target_optim
 
 if (script_options$solver == "glpk") {
   control_args = list(tm_limit = script_options$time_limit)
@@ -305,7 +305,6 @@ tidy_output = tidy_output %>%
     )
   )
 tictoc::toc()
-
 
 #' Create Best Solution if OA is Infeasible
 #' 
