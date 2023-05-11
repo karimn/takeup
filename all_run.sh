@@ -4,9 +4,9 @@
 #SBATCH --job-name=takeup        # create a short name for your job
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
-#SBATCH --cpus-per-task=24       # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem-per-cpu=5G         # memory per cpu-core (4G is default)
-#SBATCH --time=0-06:00:00        # maximum time needed (HH:MM:SS)
+#SBATCH --cpus-per-task=12       # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G         # memory per cpu-core (4G is default)
+#SBATCH --time=0-10:00:00        # maximum time needed (HH:MM:SS)
 #SBATCH --mail-type=begin        # send email when job begins
 #SBATCH --mail-type=end          # send email when job ends
 #SBATCH --mail-user=edjee96@gmail.com
@@ -55,7 +55,7 @@ fit_models () {
 		"REDUCED_FORM_NO_RESTRICT"
 		)
 
-	for [model in "${models[@]}"]
+	for model in "${models[@]}"
 	do
 		Rscript --no-save \
 			--no-restore \
