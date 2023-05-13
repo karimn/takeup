@@ -2,7 +2,8 @@
 #!/usr/bin/env bash
 
 LATEST_VERSION=86
-VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
+# VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
+VERSION=86
 
 NUM_CORES=16
 
@@ -10,7 +11,7 @@ NUM_CORES=16
 PRED_DISTANCE="" # --pred-distance
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
 NUM_POST_DRAWS=200
-POSTERIOR_MEDIAN="--posterior-median" # --posterior-median or ""
+POSTERIOR_MEDIAN="" # --posterior-median or ""
 SKIP_PREDICTION=1 # 1
 SKIP_OA=0 # 1 or 0
 SKIP_PP=0 # 1 or 0
@@ -30,8 +31,9 @@ CONSTRAINT_TARGET="rep"
 STATIC_SIGNAL_PM="" # "--static-signal-pm"
 STATIC_SIGNAL_DIST=500
 DEMAND_NAME="" # "static-"
-CONSTRAINT_DISTANCE=10000
-
+DEFAULT_CONSTRAINT_DISTANCE=3500
+CONSTRAINT_DISTANCE=${1:-$DEFAULT_CONSTRAINT_DISTANCE} # Get version from command line if provided
+echo "Constraint distance: ${CONSTRAINT_DISTANCE}"
 mkdir -p ${OUTPUT_PATH}
 mkdir -p ${PLOT_OUTPUT_PATH}
 
@@ -239,5 +241,11 @@ then
                                 --welfare-function=${WELFARE_FUNCTION} \
                                 --input-path=${OUTPUT_PATH} \
                                 --distance-constraint=${CONSTRAINT_DISTANCE} 
-
+else 
+    Rscript ./optim/compare-optim.R \
+        --input-path=${OUTPUT_PATH} \
+        --output-path=${OUTPUT_PATH} \
+        --many-pots \
+        --model=${MODEL} \
+        --welfare-function=${WELFARE_FUNCTION}
 fi

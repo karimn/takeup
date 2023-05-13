@@ -44,7 +44,9 @@ if (script_options$posterior_median) {
 
 models_we_want = script_options$model 
 
-experimental_file = str_glue("target-rep-agg-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
+util_f = eval(parse(text = script_options$welfare_function))
+
+experimental_file = str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
 oa_df = map_dfr(
     oa_files, 
     read_rds,
@@ -53,7 +55,8 @@ oa_df = map_dfr(
     mutate(
         cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
         rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep"), 
-        allocation_type = "optimal"
+        allocation_type = "optimal",
+        distance_constraint = str_extract(file, "(?<=distconstraint-)\\d+") %>% as.numeric
     ) 
 
 experimental_oa_df = read_rds(
@@ -96,10 +99,12 @@ subset_oa_df = oa_df %>%
     filter(model == script_options$model)  %>%
     filter(
         cutoff_type  == "cutoff"
-    ) 
+    ) %>%
+    filter(!is.na(distance_constraint) | allocation_type == "experimental")
 
 
 if (!script_options$posterior_median) { # if all draws
+
     summ_optim_df = subset_oa_df %>%
         group_by(
             draw,
@@ -107,12 +112,13 @@ if (!script_options$posterior_median) { # if all draws
             visibility_z, 
             static_vstar,
             allocation_type,
+            distance_constraint,
             model, 
             rep_type,
             cutoff_type
         ) %>%
         summarise(
-            util = sum(log(demand)),
+            util = sum(util_f(demand)),
             mean_demand = mean(demand), 
             min_demand = min(demand), 
             mean_dist = mean(dist),
@@ -133,6 +139,7 @@ if (!script_options$posterior_median) { # if all draws
             visibility_z, 
             static_vstar,
             allocation_type,
+            distance_constraint,
             model, 
             rep_type,
             cutoff_type
@@ -171,6 +178,7 @@ clean_summ_optim_df = summ_optim_df %>%
         private_benefit_z,
         visibility_z, 
         static_vstar,
+        distance_constraint,
         model, 
         rep_type,
         cutoff_type
@@ -183,15 +191,18 @@ clean_summ_optim_df = summ_optim_df %>%
         cutoff_type  == "cutoff"
     ) 
 
+
 clean_summ_optim_df %>%
     filter(rep_type == "rep") %>%
+    filter(!is.na(distance_constraint), distance_constraint != 2500) %>%
     ggplot(aes(
         x = n_pot, 
         fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type)
     )) +
     geom_density(alpha = 0.6) +
     theme_minimal() +
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom") +
+    facet_wrap(~distance_constraint)
 
 
 
@@ -206,6 +217,7 @@ clean_summ_optim_df %>%
     ) +
     theme_minimal() +
     theme(legend.position = "bottom")
+
 
 
 

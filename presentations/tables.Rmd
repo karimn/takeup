@@ -50,7 +50,7 @@ if (interactive()) {
         rf_fit_version = 86,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
-        optim_input_path =  "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-log-full-many-pots",
+        optim_input_path =  "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots",
         table_output_path = "presentations/tables",
         models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
     )
@@ -2917,7 +2917,7 @@ wtp_summ_tbl %>%
 ```
 
 ```{r}
-#| optim-table
+#| optim-table-main
 x = 1+1
 all_optim_df = read_csv(
   file.path(
@@ -2928,13 +2928,13 @@ all_optim_df = read_csv(
 
 
 
-
 summ_optim_df = all_optim_df %>%
         group_by(
             private_benefit_z,
             visibility_z, 
             static_vstar,
             allocation_type,
+            distance_constraint,
             model, 
             rep_type,
             cutoff_type
@@ -2977,12 +2977,12 @@ summ_optim_df = all_optim_df %>%
 
 wide_summ_df_rep = summ_optim_df %>%
   filter(rep_type == "rep") %>%
-  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type)   %>%
+  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type, -distance_constraint)   %>%
   mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
   mutate(variable = str_remove(variable, "_CI")) %>%
   mutate(variable = str_remove(variable, "_estimate"))  %>%
   pivot_wider(
-    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type), 
+    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type, distance_constraint), 
     names_from = CI, 
     values_from = value
   )   %>%
@@ -3007,12 +3007,12 @@ wide_summ_df_rep = summ_optim_df %>%
 
 wide_summ_df_sup_rep = summ_optim_df %>%
   filter(rep_type == "suppress_rep")  %>%
-  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type)   %>%
+  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type, -distance_constraint)   %>%
   mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
   mutate(variable = str_remove(variable, "_CI")) %>%
   mutate(variable = str_remove(variable, "_estimate")) %>%
   pivot_wider(
-    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type), 
+    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type, distance_constraint), 
     names_from = CI, 
     values_from = value
   )    %>%
@@ -3083,8 +3083,8 @@ optim_summ_input_df = bind_rows(
     ) 
   ) 
 
-
 optim_summ_tbl = optim_summ_input_df %>%
+  filter(distance_constraint == 3500 | allocation_type == "experimental") %>%
   arrange(rep_type, mu_z, B_z) %>%
   select(B_z, mu_z, n_pot, mean_demand, mean_dist) %>%
   knitr::kable(
@@ -3105,7 +3105,7 @@ optim_summ_tbl = optim_summ_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: Experimental allocation" = 1, 
+      "Panel A: Random allocation" = 1, 
       "Panel B: Optimal allocation" = 4
     ), 
     italic = TRUE,
@@ -3121,6 +3121,56 @@ optim_summ_tbl %>%
   custom_save_latex_table("optim-summ-table")
 
 optim_summ_tbl 
+
+```
+
+
+```{r}
+#|optim-summ-table-robust,
+#| dependson = c("optim-summ-table")
+optim_summ_robust_tbl = optim_summ_input_df %>%
+  arrange(allocation_type, distance_constraint, rep_type, mu_z, B_z) %>%
+  select(B_z, mu_z, distance_constraint, n_pot, mean_demand, mean_dist) %>%
+  mutate(distance_constraint = distance_constraint/1000) %>%
+  knitr::kable(
+    col.names = c(
+      "Private benefit", 
+      "Visibility",
+      "\\makecell{Maximum \\\\ distance constraint (km)}",
+      "Assigned PoTs", 
+      "Mean take-up", 
+      "Mean distance (km)"
+    ),
+    align = "llcccc",
+    booktabs = TRUE,
+    escape = FALSE,
+    format = "latex"
+    ) %>%
+  kableExtra::kable_styling(
+    # latex_options =  c("scale_down")
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Random allocation" = 1, 
+      "Panel B: Optimal allocation, 2.5km" = 4,
+      "Panel B: Optimal allocation, 3.5km" = 4,
+      "Panel B: Optimal allocation, 4.5km" = 4,
+      "Panel B: Optimal allocation, 5.5km" = 4,
+      "Panel B: Optimal allocation, 10km" = 4
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) 
+
+
+optim_summ_robust_tbl
+
+optim_summ_robust_tbl %>%
+  custom_save_latex_table("optim-summ-robust-table")
 
 ```
 

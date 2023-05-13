@@ -8,15 +8,15 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: 90
-  reduced_form_takeup_version: 90
+  structural_takeup_version: 91
+  reduced_form_takeup_version: 91
 ---
 
 ```{r setup, include=FALSE}
 if (interactive()) {
   params = list(
-    structural_takeup_version = 90,
-    reduced_form_takeup_version = 90
+    structural_takeup_version = 91,
+    reduced_form_takeup_version = 91
   )
 }
 library(magrittr)
