@@ -8,19 +8,17 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-prior --no-rate-of-change --keep-fit --models=<models>]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-prior --no-rate-of-change --keep-fit --models=<models> --single-chain]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
   --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
   --output-path=<path>  Path to find results [default: temp-data]
-  --keep-fit "), 
-  # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "test --full-outputname --cores=1 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true)
-  args = if (interactive()) "71  --cores=1 --models=STRUCTURAL_LINEAR_U_SHOCKS  --load-from-csv " else commandArgs(trailingOnly = TRUE)
+  --keep-fit 
+  --single-chain  For debugging purposes, only use the first chain
+  
+  "), 
+  args = if (interactive()) "90  --cores=1 --load-from-csv --single-chain" else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -91,10 +89,13 @@ param_used <- c(
 # param_used %<>% c("structural_cluster_takeup_prob", "missing_cluster_standard_dist") 
 
 load_from_csv <- function(fit_file, input_path, param) {
-  dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
-      read_cmdstan_csv(variables = param) 
-  # dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-1.csv}"), full.names = TRUE) %>% 
-  #     read_cmdstan_csv(variables = param) 
+  if (script_options$single_chain) {
+    dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-1.csv}"), full.names = TRUE) %>% 
+        read_cmdstan_csv(variables = param) 
+  } else {
+    dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
+        read_cmdstan_csv(variables = param) 
+  }
 }
 
 load_fit <- function(fit_file, input_path = script_options$input_path, load_from_csv = script_options$load_from_csv, param = param_used) {
@@ -530,7 +531,7 @@ dist_fit_data %<>%
     # for RF model, we only want to use close distances in the close group and 
     # far distances in the far group when averaging across all clusters to get 
     # takeup levels.
-    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "structural")) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
+    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "reduced form")) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
       pmap(organize_by_treatment,  mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%

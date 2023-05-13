@@ -285,7 +285,10 @@ dist_fit_data %<>%
     bind_rows(
       filter(., fct_match(model_type, "structural"), fct_match(fit_type, "fit")) %>%
         select(model, model_type, fit_type) %>% 
-        mutate(model_color = c(canva_pal(canva_palette_vibrant)(min(4, n())), canva_pal("Pop art")(max(0, n() - 4)))),
+        # mutate(model_color = c(canva_pal(canva_palette_vibrant)(min(4, n())), canva_pal("Pop art")(max(0, n() - 4)))),
+        mutate(
+          model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
+        ) %>%
       filter(., !fct_match(model_type, "structural") | !fct_match(fit_type, "fit")) %>%
         select(model, model_type, fit_type) %>% 
         mutate(model_color = if_else(fct_match(fit_type, "fit"), "black", "darkgrey"))
@@ -312,6 +315,12 @@ rf_analysis_data <- dist_fit_data %>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r incentive-te, fig.width=8, fig.height=16}
+
+fit_models = dist_fit_data %>%
+  filter(fit_type != "prior-predict")  %>%
+  pull(model) %>%
+  as.character()
+
 models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS", 
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
@@ -323,9 +332,11 @@ models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL",
   "REDUCED_FORM_NO_RESTRICT", 
-  "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
+  "REDUCED_FORM_NO_RESTRICT_DIST_CTS", 
+  fit_models
   )
 
+canva_pal("Fresh and bright")(10)
 
 dist_fit_data = dist_fit_data %>%
   mutate(
@@ -346,7 +357,8 @@ dist_fit_data %>%
             assigned_treatment_left != assigned_treatment_right,
             fct_match(assigned_treatment_right, c("control")),
             fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
@@ -417,7 +429,8 @@ dist_fit_data %>%
           fct_relevel("Combined"),
         mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left),
       ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% { 
     cowplot::plot_grid(
       plot_estimands(., est_takeup_te, mu_assigned_treatment_left) +
@@ -474,7 +487,8 @@ dist_fit_data %>%
           fct_relevel("Combined"),
         assigned_treatment_left = str_to_title(assigned_treatment_left),
       ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_te, assigned_treatment_left) +
@@ -794,7 +808,8 @@ dist_fit_data %>%
         fct_relevel("Combined"),
       assigned_treatment = str_to_title(assigned_treatment),
     ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_level, assigned_treatment) +
