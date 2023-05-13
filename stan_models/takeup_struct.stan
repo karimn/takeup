@@ -277,9 +277,9 @@ model {
 #include dist_model_sec.stan
 
   if (lnorm_wtp_value_utility_prior) {
-    wtp_value_utility ~ lognormal(-10, wtp_value_utility_sd);
+    wtp_value_utility ~ lognormal(wtp_value_utility_mean, wtp_value_utility_sd);
   } else {
-    wtp_value_utility ~ normal(0, wtp_value_utility_sd);
+    wtp_value_utility ~ normal(wtp_value_utility_mean, wtp_value_utility_sd);
   }
 
   beta_intercept ~ normal(0, beta_intercept_sd);

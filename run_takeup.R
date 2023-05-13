@@ -209,6 +209,7 @@ models <- lst(
     structural_beta_cluster_sd_sd = 0.25,
     
     wtp_value_utility_sd = 0.0001,
+    wtp_value_utility_mean = 0.0,
     # wtp_value_utility_sd = 0.1, # dist_fit88 -> high wtp_value_utility_sd
     lnorm_wtp_value_utility_prior = FALSE,
 
@@ -274,6 +275,7 @@ models <- lst(
       structural_beta_cluster_sd_sd = 0.25,
       
       wtp_value_utility_sd = 0.0001,
+      wtp_value_utility_mean = 0.0,
 
       raw_u_sd_alpha = 3.3, 
       raw_u_sd_beta = 1.1,
@@ -347,6 +349,7 @@ models <- lst(
 
     # just here so the reduced form model runs - don't think actually used
     wtp_value_utility_sd = 0.0001,
+    wtp_value_utility_mean = 0.0,
     raw_u_sd_alpha = 3.3, 
     raw_u_sd_beta = 1.1,
 
@@ -417,15 +420,33 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         mu_rep_type = 4, # phat mu rep
-        wtp_value_utility_sd = 0.265
+        wtp_value_utility_mean = 0.265,
+        wtp_value_utility_sd = 0.0001
       ),
     STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         mu_rep_type = 4, # phat mu rep
         lnorm_wtp_value_utility_prior = TRUE, 
-        wtp_value_utility_sd = 4
+        wtp_value_utility_sd = 4,
+        wtp_value_utility_mean = -10
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>%
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        fit_wtp_model_to_data = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>%
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        fit_beliefs_model_to_data = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>%
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        fit_beliefs_model_to_data = FALSE,
+        fit_wtp_model_to_data = FALSE
       )
-  )
+)
 
 # WTP Stan Data -----------------------------------------------------------
 
