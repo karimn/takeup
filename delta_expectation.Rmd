@@ -32,7 +32,7 @@ source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
 ggplot2::theme_set(theme_minimal())
-
+library(paletteer)
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 ```
 
