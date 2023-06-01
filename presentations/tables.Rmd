@@ -591,70 +591,68 @@ long_incentive_check_df = endline_data %>%
   ) %>%
   select(-name)
 
-
-
 tidy_incentive_check_df = long_incentive_check_df %>%
   feols(
-    value ~ 1,
-    split = ~ treat_type  
-  )  %>%
+    value ~ i(assigned_treatment, "ink"),
+    split = ~variable_type
+  ) %>%
   map_dfr(
-    ~tidy(.x) %>% 
+    ~tidy(.x) %>%
     mutate(n = nobs(.x)), 
     .id = "lhs"
-  )  %>%
+  ) %>%
   mutate(
     treatment = str_extract(
-      lhs, 
-      "(?<=sample: )\\w+(?=_)"
-    ), 
+      term, "(?<=assigned_treatment::)\\w+"
+    ),
+    treatment = replace_na(treatment, "ink")
+  ) %>%
+  mutate(
     variable_type = str_extract(
       lhs, 
-      "(?<=sample: \\w{1,10}_)\\w+$"
+      "(?<=sample: )\\w+$"
     )
-  ) %>%
-  select(-lhs) %>%
-  select(-term)
+    ) %>%
+  select(
+    -lhs,
+    -term
+  )
 
-tidy_incentive_check_df %>%
-  group_by(treatment) %>%
-  summarise(
-    n = unique(n) 
-    )
-
-
-baseline.data %>%
-  select(contains("dist")) %>%
-  colnames()
-
-baseline.data %>%
-  select(why_yes_few_deworm, why_yes_many_deworm) %>%
-  filter(why_yes_few_deworm != why_yes_many_deworm)
-
-baseline.data %>%
-  mutate(
-    few_yes = few_deworm == "yes", 
-    many_yes = many_deworm == "yes"
-  ) %>%
-  feols(
-    data = .,
-    .[c("few_yes", "many_yes")] ~ dist.pot.group
-  ) %>%
-  etable()
-
-baseline.data %>%
-  select(contains("dworm"), assigned.treatment, dist.pot.group)  %>%
-  feols(
-    data = .,
-    ink_dworm_rate ~ dist.pot.group
-  ) %>%
-  etable()
+# tidy_incentive_check_df = long_incentive_check_df %>%
+#   feols(
+#     value ~ 1,
+#     split = ~ treat_type  
+#   )  %>%
+#   map_dfr(
+#     ~tidy(.x) %>% 
+#     mutate(n = nobs(.x)), 
+#     .id = "lhs"
+#   )  %>%
+#   mutate(
+#     treatment = str_extract(
+#       lhs, 
+#       "(?<=sample: )\\w+(?=_)"
+#     ), 
+#     variable_type = str_extract(
+#       lhs, 
+#       "(?<=sample: \\w{1,10}_)\\w+$"
+#     )
+#   ) %>%
+#   select(-lhs) %>%
+#   select(-term)
 
 wide_incentive_check_input_df = tidy_incentive_check_df %>%
   mutate(across(c(estimate, std.error), round, 3)) %>%
   mutate(
-    estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
+    stars = case_when(
+      treatment != "ink" & p.value < 0.01 ~ "***",
+      treatment != "ink" & p.value < 0.05 ~ "**", 
+      treatment != "ink" & p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    ),
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
   ) %>%
+  mutate(treatment = str_replace(treatment, "ink", "ink (levels)")) %>%
   select( 
     treatment, 
     variable_type, 
@@ -688,7 +686,6 @@ incentive_check_tbl = wide_incentive_check_input_df %>%
       align = "lcccc", 
       caption = "Incentive Check: Endline"
   ) 
-
 
 incentive_check_tbl
 
@@ -794,13 +791,43 @@ endline_data = endline_data %>%
     dist_pot_group = as_factor(dist_pot_group)
   )
 
-
 dworm_endline_fit = endline_data %>%
   mutate(dworm_rate = dworm_rate/10) %>%
   feols(
-    dworm_rate ~ 0 + assigned_treatment:dist_pot_group + dist_to_pot
+    dworm_rate ~ 0 + assigned_treatment:dist_pot_group + dist_to_pot,
+    cluster = ~county
   ) 
 
+
+
+endline_close_far_preds = predictions(
+  dworm_endline_fit,
+  newdata = datagrid(
+    assigned_treatment = endline_data$assigned_treatment %>% unique(),
+    dist_to_pot = endline_data %>%
+      group_by(dist_pot_group) %>%
+      summarise(dist = mean(dist_to_pot)) %>%
+      pull(dist),
+    dist_pot_group = c("close", "far")
+  )
+  )
+
+endline_close_far_hyps = c(
+    "ink" = "b1 = b4",
+    "calendar" = "b5 = b8",
+    "bracelet" = "b9 = b12",
+    "control" = "b13 = b16"
+  )
+
+endline_close_far_df = map_dfr(
+  endline_close_far_hyps,
+  ~hypotheses(
+    endline_close_far_preds,
+    .x
+  ) %>%
+  tidy(),
+  .id = "treatment"
+)
 
 
 
@@ -808,7 +835,7 @@ dworm_endline_comp_df = map_dfr(
   c("close", "far"), 
   ~avg_comparisons(
     model = dworm_endline_fit, 
-    variables = "assigned_treatment", 
+    variables = list("assigned_treatment" = "all"), 
     newdata = datagrid(
       dist_pot_group = .x
     )
@@ -818,7 +845,7 @@ dworm_endline_comp_df = map_dfr(
 bind_rows(
   avg_comparisons(
     model = dworm_endline_fit, 
-    variables = "assigned_treatment"
+    variables = list("assigned_treatment" = "all")
   ) %>%
   tidy() %>%
   mutate(term = "Combined")
@@ -843,14 +870,35 @@ bind_rows(
     ) %>%
     tidy() %>%
     mutate(term = "Combined", treatment = "control")
+  ) 
+  # select(term, treatment, estimate, std.error, p.value) 
+
+subset_dworm_endline_comp_df = dworm_endline_comp_df %>%
+  mutate(
+    lhs = str_extract(contrast, "^\\w+"),
+    rhs = str_extract(contrast, "\\w+$")
   ) %>%
-  select(term, treatment, estimate, std.error, p.value) 
+  filter(
+    is.na(contrast) | rhs == "control" | (str_detect(contrast, "brac") & str_detect(contrast, "cal") )
+  ) %>%
+  filter(lhs != "control" | is.na(contrast)) %>%
+  mutate(
+    bra_cal = if_else(
+      rhs != "control" & str_detect(lhs, "bra|cal"),
+      TRUE,
+      FALSE
+    ),
+    bra_cal = replace_na(bra_cal, FALSE)
+  ) %>%
+  filter(
+    bra_cal == FALSE | (bra_cal == TRUE & treatment == "bracelet")
+  ) %>%
+  select(term, treatment, estimate, std.error, p.value, bra_cal)
 
 
 
-
-
-dworm_endline_comp_tbl = dworm_endline_comp_df   %>%
+dworm_endline_comp_tbl = subset_dworm_endline_comp_df  %>%
+  filter(bra_cal == FALSE) %>%
   mutate(
     across(c(estimate, std.error), round, 3),
     stars = case_when(
@@ -863,26 +911,61 @@ dworm_endline_comp_tbl = dworm_endline_comp_df   %>%
   mutate(
     estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
   ) %>%
+  bind_rows(
+    subset_dworm_endline_comp_df %>%
+      filter(bra_cal == TRUE) %>%
+      mutate(estim_std = round(p.value, 4) %>% as.character(), treatment = "H0: Bracelet = Calendar, $p$-value")
+  ) %>%
   select(term, treatment, estim_std) %>%
-  mutate(treatment = str_to_title(treatment)) %>%
+  mutate(treatment = if_else(!str_detect(treatment, "value"), str_to_title(treatment), treatment)) %>%
   mutate(treatment = if_else(treatment == "Control", "Control mean", treatment)) %>%
-  mutate(treatment = factor(treatment, levels = c("Control mean", str_to_title(treat_levels_c))) %>% fct_rev) %>%
+  mutate(
+    treatment = factor(
+      treatment, 
+      levels = c("Control mean", 
+      "H0: Bracelet = Calendar, $p$-value",
+      "Ink",
+      "Calendar",
+      "Bracelet")) %>% fct_rev()) %>%
   spread(
     term, 
     estim_std
   )  %>%
-  select(treatment, Combined, close, far) %>%
+  select(treatment, Combined, close, far) 
+
+
+
+dworm_endline_comp_tbl = left_join(
+ dworm_endline_comp_tbl,
+  endline_close_far_df %>%
+    select(treatment, p.value) %>%
+    mutate(
+      treatment = case_when(
+        treatment == "bracelet" ~ "Bracelet",
+        treatment == "calendar" ~ "Calendar",
+        treatment == "ink" ~ "Ink",
+        treatment == "control" ~ "Control mean"
+      )
+    )  %>%
+    mutate(p.value = round(p.value, 5) %>% as.character)
+)
+  
+
+
+
+dworm_endline_comp_tbl %>%
   knitr::kable(
-      format = "latex",
+      # format = "latex",
       col.names = c(
         "", 
         "Combined",
         "Close", 
-        "Far"
+        "Far",
+        "H0: Close = Far, $p$-value"
         ),
       escape = FALSE, 
       booktabs = TRUE,
-      align = "lccc", 
+      align = "lcccc", 
       caption = "Surveyed individuals' predicted deworming rates"
   )  %>%
   row_spec(3, hline_after = TRUE)
@@ -2917,7 +3000,8 @@ wtp_summ_tbl %>%
 ```
 
 ```{r}
-#| optim-table-main
+#| optim-table-main,
+#| eval=FALSE
 x = 1+1
 all_optim_df = read_csv(
   file.path(
@@ -3125,9 +3209,9 @@ optim_summ_tbl
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 #|optim-summ-table-robust,
-#| dependson = c("optim-summ-table")
+#| dependson = c("optim-summ-table"), eval=FALSE
 optim_summ_robust_tbl = optim_summ_input_df %>%
   arrange(allocation_type, distance_constraint, rep_type, mu_z, B_z) %>%
   select(B_z, mu_z, distance_constraint, n_pot, mean_demand, mean_dist) %>%

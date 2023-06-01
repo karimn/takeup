@@ -346,7 +346,7 @@ models <- lst(
     suppress_reputation = TRUE,
     use_age_group_gp = TRUE,
     
-
+    use_dist_cts = FALSE,
     # just here so the reduced form model runs - don't think actually used
     wtp_value_utility_sd = 0.0001,
     wtp_value_utility_mean = 0.0,
