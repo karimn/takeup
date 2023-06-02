@@ -160,6 +160,9 @@ plot_summ_bc_draws %>%
             "",
             palette = "Primary colors with a vibrant twist", 
             labels = str_to_title
+        )  +
+        scale_y_continuous(
+            breaks = seq(-15, -5, 2.5)
         ) 
 
 ggsave("temp-plots/last-minute-roc-plot.pdf", width = 8, height = 6)

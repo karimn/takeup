@@ -1,13 +1,42 @@
 
 rm(list = ls())
 
+      beta[CALENDAR_TREATMENT_INDEX] = beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu;
+      beta[BRACELET_TREATMENT_INDEX] = beta_bracelet_effect;
 
-load("data/stan_analysis_data/dist_fit85.RData")
 
-ls()
-models
 
-dist_fit
+0.25*0.4
+
+sigma = 3
+N = 10000
+x = abs(rnorm(N, mean = 0.25, sd = 0.01))
+
+bra_effect = abs(rnorm(N, mean = 0.1, sd = 0.1))
+beta_cal = bra_effect + x * 0.4 
+beta_bra = bra_effect
+
+mean(beta_cal)
+mean(beta_bra)
+
+tibble(
+  beta_cal = beta_cal,
+  beta_bra = beta_bra
+) %>%
+  gather(variable, value) %>%
+  ggplot(aes(
+    x = value, 
+    fill = variable
+  )) +
+  geom_histogram()
+
+
+mean(beta_cal > beta_bra)
+
+mean(beta_cal)
+mean(beta_bra)
+
+# load("data/stan_analysis_data/dist_fit86.RData")
 
 library(magrittr)
 library(tidyverse)
@@ -28,7 +57,105 @@ library(tidybayes)
 library(furrr)
 
 
-models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"
+models_we_want = "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
+
+
+load_param_draws = function(fit_version, model, chain, ...) {
+  fit_obj = as_cmdstan_fit(
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"))
+  draws = spread_rvars(
+    fit_obj,
+    ...
+  ) %>%
+    mutate(chain = chain, model = model, fit_version = fit_version)
+  return(draws)
+}
+
+
+beta_draws = load_param_draws(
+  90,
+  models_we_want,
+  1,
+  cluster_cf_cutoff[treat_idx, j, clust_idx]
+)
+
+
+
+
+stop()
+
+treat_idx_cw = tibble(
+  treat_idx = 1:8,
+  stan_dist_pot_group = rep(c("close", "far"), each = 4),
+  stan_treatment = rep(c("control", "ink", "calendar", "bracelet"), 2)
+)
+
+beta_ana_data = beta_draws %>%
+  left_join(
+    analysis_data %>% 
+      select(
+        cluster_id, 
+        standard_cluster.dist.to.pot, 
+        assigned_treatment, 
+        assigned_dist_group
+        ) %>%
+      unique(), 
+    by = c("clust_idx" = "cluster_id")
+  ) %>%
+  left_join(
+    treat_idx_cw, 
+    by = c("treat_idx")
+  )
+
+
+beta_ana_data %>%
+  filter(
+    stan_dist_pot_group == assigned_dist_group
+  )
+
+rvar_pnorm = rfun(pnorm)
+
+meds = beta_ana_data %>%
+  filter(stan_dist_pot_group == assigned_dist_group) %>%
+  mutate(assigned_treatment = stan_treatment, assigned_dist_group = stan_dist_pot_group) %>%
+  mutate(
+    pr = rvar_pnorm(-cluster_cf_cutoff)
+  )  %>%
+  group_by(
+    assigned_treatment, 
+    assigned_dist_group
+  ) %>%
+  summarise(
+    mean = rvar_mean(pr)
+  ) %>%
+  median_qi(mean)   %>%
+  to_broom_names()
+
+meds %>%
+  ggplot(aes(
+    x = mean, 
+    xmin = conf.low,
+    xmax = conf.high, 
+    y = assigned_treatment,
+    color = assigned_dist_group
+  )) +
+  geom_pointrange() +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+
+
+beta_ana_data %>%
+  mutate(
+    assigned_dist_group = 
+  )
+
+beta_draws %>%
+  group_by(clust_idx) %>%
+  summarise(
+    n = n()
+  )
+
 
 
 treat_levels = c("control", "ink", "calendar", "bracelet")
