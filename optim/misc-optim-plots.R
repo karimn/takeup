@@ -17,16 +17,11 @@ script_options <- docopt::docopt(
                             --welfare-function=identity
                              " else commandArgs(trailingOnly = TRUE)
 ) 
-
-rm(list = c(
-    "comp_df", 
-    "demand_df",
-    "optimal_data",
-    "median_demand_df"
-))
-
-gc()
-
+library(tidyverse)
+library(tidybayes)
+library(posterior)
+library(cmdstanr)
+library(ggthemes)
 
 # Amplification/Mitigation demand curve plots
 
@@ -209,11 +204,6 @@ imap(
 
 
 
-library(tidyverse)
-library(cmdstanr)
-library(tidybayes)
-library(posterior)
-
 
 fit_file = "data/stan_analysis_data/dist_fit87_STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-1.csv"
 fit = as_cmdstan_fit(fit_file)
@@ -281,98 +271,3 @@ plot_summ_bc_draws = summ_bc_draws %>%
 plot_summ_bc_draws %>%
     write_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
 
-
-library(magrittr)
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
-
-plot_summ_bc_draws %>%
-    filter(name == "cluster_roc") %>%
-    filter(treatment %in% c("control", "bracelet")) %>%
-    mutate(k = factor(k)) %>%
-        ggplot(aes(
-            x = dist
-        )) +
-        geom_line(aes(
-            color = treatment,
-            y = value
-        )) +
-        geom_ribbon(
-            data = . %>%
-                filter(.width == 0.5),
-            aes(
-                ymax = .upper, 
-                ymin = .lower,
-                fill = treatment), alpha = 0.3) +
-        geom_ribbon(
-            data = . %>%
-                filter(.width == 0.8),
-            aes(
-                ymax = .upper, 
-                ymin = .lower,
-                fill = treatment), alpha = 0.3) +
-        theme_minimal() +
-        theme( 
-            legend.position = "bottom",
-            legend.title = element_blank()
-        )  +
-        labs(
-            x = "Distance to Treatment (d) [km]", 
-            # y = "Estimated Takeup", 
-            colour = ""
-        ) +
-        guides(
-            linetype = "none"
-        ) +
-        labs(
-            caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
-        ) +
-        geom_line(
-            inherit.aes = FALSE, 
-            aes(x = dist, y = value),
-            data = plot_summ_bc_draws %>%
-                filter(name == "cluster_roc_no_vis"),
-            linetype = "longdash"
-        )  +
-        geom_rug(
-            inherit.aes = FALSE,
-            aes(dist),
-            alpha = 0.75,
-            data = rf_analysis_data %>%
-            filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
-            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-        annotate(
-            "text", 
-            x = 0.3, 
-            y = -12, 
-            label = "Amplification", 
-            size = 4, 
-            alpha = 0.7
-        ) +
-        annotate(
-            "text", 
-            x = 2.3, 
-            y = -7.5, 
-            label = "Mitigation", 
-            size = 4, 
-            alpha = 0.7
-        ) +
-        labs(
-            y = "Rate of Change [pp/km]"
-        ) +
-        ggthemes::scale_color_canva( 
-            "",
-            palette = "Primary colors with a vibrant twist", 
-            labels = str_to_title
-        ) +
-        ggthemes::scale_fill_canva( 
-            "",
-            palette = "Primary colors with a vibrant twist", 
-            labels = str_to_title
-        ) 
-ggsave("temp-plots/last-minute-roc-plot.pdf", width = 8, height = 6)
-    
