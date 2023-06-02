@@ -18,7 +18,7 @@ Options:
   --single-chain  For debugging purposes, only use the first chain
   
   "), 
-  args = if (interactive()) "90  --cores=1 --load-from-csv --single-chain" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "92  --cores=1 --load-from-csv --single-chain" else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -584,40 +584,43 @@ if (!script_options$no_rate_of_change) {
       sim_delta = map2(fit, stan_data, extract_sim_delta),
     )
 
-
-  ## Ed edits because Anne wants rep return vs control  
-  cluster_rep_return_dist_control = dist_fit_data %>%
-    select(cluster_rep_return_dist) %>%
-    unnest(cols = c(cluster_rep_return_dist)) %>%
-    filter(assigned_treatment == "control")
-
-  cluster_rep_return_te_df = dist_fit_data %>%
+  any_structural_models = any(dist_fit_data$model_type == "structural")
+  if (any_structural_models) {
+    ## Ed edits because Anne wants rep return vs control  
+    cluster_rep_return_dist_control = dist_fit_data %>%
       select(cluster_rep_return_dist) %>%
-      unnest(cols = c(cluster_rep_return_dist))  %>%
-      # filter(assigned_treatment != "control")  %>%
-      unnest(iter_data) %>%
-      left_join(
-        cluster_rep_return_dist_control %>% 
-          select(roc_distance_index, iter_data) %>%
-          unnest(iter_data) %>%
-          rename(iter_est_right = iter_est),
-        by = c("roc_distance_index", "iter_id")
-      ) %>%
-      mutate( 
-        iter_est_te = iter_est - iter_est_right
-      ) %>%
-      nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
-      select(-contains("per"), -mean_est) %>%
-      mutate(
-        mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
-        takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)
-      ) %>% 
-      unnest(takeup_quantiles)
+      unnest(cols = c(cluster_rep_return_dist)) %>%
+      filter(assigned_treatment == "control")
 
-  cluster_rep_return_te_df %>%
-    select(-iter_data) %>%
-    write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
+    cluster_rep_return_te_df = dist_fit_data %>%
+        select(cluster_rep_return_dist) %>%
+        unnest(cols = c(cluster_rep_return_dist))  %>%
+        # filter(assigned_treatment != "control")  %>%
+        unnest(iter_data) %>%
+        left_join(
+          cluster_rep_return_dist_control %>% 
+            select(roc_distance_index, iter_data) %>%
+            unnest(iter_data) %>%
+            rename(iter_est_right = iter_est),
+          by = c("roc_distance_index", "iter_id")
+        ) %>%
+        mutate( 
+          iter_est_te = iter_est - iter_est_right
+        ) %>%
+        nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+        select(-contains("per"), -mean_est) %>%
+        mutate(
+          mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
+          takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)
+        ) %>% 
+        unnest(takeup_quantiles)
 
+    cluster_rep_return_te_df %>%
+      select(-iter_data) %>%
+      write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
+
+
+  }
 
 
 }
