@@ -55,8 +55,10 @@ optim_files = c(
     str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-static-cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds"),
     str_glue("target-rep-distconstraint-{script_options$distance_constraint}-util-{script_options$welfare_function}-suppress-rep-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-optimal-allocation.rds")
 )
-
-experimental_file = str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
+# experimental_file = str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
+experimental_file = str_glue(
+    "target-rep-agg-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds"
+)
 experimental_demand = read_rds(
     file.path(
         optim_input_path,
@@ -108,7 +110,7 @@ optimisation_df =
     map_dfr(read_rds) %>%
     select(-demand_data, -optim_problem, -optim_fit)   
 
-optimisation_df[, allocation_type := "optimal"] 
+optimisation_df[, allocation_type := "policymaker"] 
 
 optimisation_df = rbindlist(
     list(
@@ -136,11 +138,11 @@ optimisation_df[
 long_opt_df = bind_rows(
     optimisation_df %>%
         as_tibble()   %>%
-        filter(status_code != 1 &  allocation_type == "optimal") %>%
+        filter(status_code != 1 &  allocation_type == "policymaker") %>%
         unnest(cols = c(model_output)),
     optimisation_df %>%
         as_tibble()   %>%
-        filter(status_code == 1 & allocation_type == "optimal") %>%
+        filter(status_code == 1 & allocation_type == "policymaker") %>%
         unnest(cols = c(model_output)),
     optimisation_df %>%
         as_tibble()   %>%

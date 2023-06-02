@@ -120,7 +120,7 @@ if (script_options$map_plot & is.null(script_options$optim_input_b_filename)){
         theme_bw() +
         theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
         labs(
-            title = "Optimal PoT Allocation Problem",
+            title = "PoT Allocation Problem",
             subtitle = "Black dots indicate villages. Triangles indicate potential clinic locations."
         )  +
         labs(x = "", y = "") + 
