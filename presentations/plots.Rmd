@@ -7,7 +7,7 @@ output:
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 86
+  rf_fit_version: 92
   fit_version: 86
   input_path: data/stan_analysis_data
   output_path: temp-data
@@ -39,7 +39,7 @@ library(econometr)
 if (interactive()) {
   params = lst(
     fit_version = 86,
-    rf_fit_version = 86,
+    rf_fit_version = 90,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
     models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
@@ -298,7 +298,7 @@ if (params$fit_version != params$rf_fit_version) {
 
 
   rf_fit_data = with_env(load_rf_function, rf_env)() %>%
-    filter(model %in% c("REDUCED_FORM_NO_RESTRICT"))
+    filter(model %in% c("REDUCED_FORM_NO_RESTRICT_DIST_CTS"))
 
 
   dist_fit_data = bind_rows(
@@ -318,8 +318,7 @@ dist_fit_data %<>%
   ), by = "fit_type") 
 
 dist_fit_data = dist_fit_data %>%
-  filter(model %in% c("REDUCED_FORM_NO_RESTRICT", models_we_want))
-
+  filter(model %in% c("REDUCED_FORM_NO_RESTRICT_DIST_CTS", models_we_want))
 
 
 rf_analysis_data <- dist_fit_data %>% 
@@ -2998,3 +2997,110 @@ dist_checks %>%
   )
 
 ```
+
+
+
+
+```{r}
+#| roc-amp-mit-line,
+#| fig.cap="Rate of Change Estimates",
+#| fig.note = "This plot shows the rate of change estimated using the structural 
+#|  model. The dashed line corresponds to a multiplier where there is no visibility.
+#|  Line: median.
+#|  Outer ribbon: 90\\% credible interval.
+#|  Inner ribbon: 50\\% credible interval."
+
+library(magrittr)
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+
+plot_summ_bc_draws %>%
+    filter(name == "cluster_roc") %>%
+    filter(treatment %in% c("control", "bracelet")) %>%
+    mutate(k = factor(k)) %>%
+        ggplot(aes(
+            x = dist
+        )) +
+        geom_line(aes(
+            color = treatment,
+            y = value
+        )) +
+        geom_ribbon(
+            data = . %>%
+                filter(.width == 0.5),
+            aes(
+                ymax = .upper, 
+                ymin = .lower,
+                fill = treatment), alpha = 0.3) +
+        geom_ribbon(
+            data = . %>%
+                filter(.width == 0.8),
+            aes(
+                ymax = .upper, 
+                ymin = .lower,
+                fill = treatment), alpha = 0.3) +
+        theme_minimal() +
+        theme( 
+            legend.position = "bottom",
+            legend.title = element_blank()
+        )  +
+        labs(
+            x = "Distance to Treatment (d) [km]", 
+            # y = "Estimated Takeup", 
+            colour = ""
+        ) +
+        guides(
+            linetype = "none"
+        ) +
+        labs(
+            caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+        ) +
+        geom_line(
+            inherit.aes = FALSE, 
+            aes(x = dist, y = value),
+            data = plot_summ_bc_draws %>%
+                filter(name == "cluster_roc_no_vis"),
+            linetype = "longdash"
+        )  +
+        geom_rug(
+            inherit.aes = FALSE,
+            aes(dist),
+            alpha = 0.75,
+            data = rf_analysis_data %>%
+            filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
+            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
+        annotate(
+            "text", 
+            x = 0.3, 
+            y = -12, 
+            label = "Amplification", 
+            size = 4, 
+            alpha = 0.7
+        ) +
+        annotate(
+            "text", 
+            x = 2.3, 
+            y = -7.5, 
+            label = "Mitigation", 
+            size = 4, 
+            alpha = 0.7
+        ) +
+        labs(
+            y = "Rate of Change [pp/km]"
+        ) +
+        ggthemes::scale_color_canva( 
+            "",
+            palette = "Primary colors with a vibrant twist", 
+            labels = str_to_title
+        ) +
+        ggthemes::scale_fill_canva( 
+            "",
+            palette = "Primary colors with a vibrant twist", 
+            labels = str_to_title
+        ) 
+
+``` 
