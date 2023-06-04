@@ -37,7 +37,6 @@ params:
 ```{r, "startup", include=FALSE}
 library(tidyverse)
 library(marginaleffects)
-library(fwildclusterboot) # I hope you have Julia installed Ed
 library(broom)
 library(knitr)
 library(kableExtra)
@@ -79,8 +78,8 @@ knitr::opts_chunk$set(
     cache = TRUE, 
     warnings = FALSE,
     warning = FALSE,
-    cache.path = str_glue("takeup-{params$models}{params$fit_version}-table-cache/"), 
-    fig.path = str_glue("takeup-{params$models}{params$fit_version}-table-fig-cache/"), 
+    cache.path = str_glue("takeup-{params$struct_models}{params$fit_version}-table-cache/"), 
+    fig.path = str_glue("takeup-{params$struct_models}{params$fit_version}-table-fig-cache/"), 
     fig.align = "center")
 
 dir.create("presentations/tables", showWarnings = FALSE)
@@ -793,11 +792,13 @@ endline_data = endline_data %>%
     dist_pot_group = as_factor(dist_pot_group)
   )
 
+
+
 dworm_endline_fit = endline_data %>%
   mutate(dworm_rate = dworm_rate/10) %>%
   feols(
-    dworm_rate ~ 0 + assigned_treatment:dist_pot_group + dist_to_pot,
-    cluster = ~county
+    dworm_rate ~ 0 + assigned_treatment:dist_pot_group + dist_to_pot | county,
+    cluster = ~cluster_id
   ) 
 
 
@@ -832,6 +833,30 @@ endline_close_far_df = map_dfr(
 )
 
 
+d_bar = endline_data %>%
+  group_by(dist_pot_group) %>%
+  summarise(dist = mean(dist_to_pot)) %>%
+  pull(dist) %>%
+  sort()
+
+control_mean_close_far_pred = map_dfr(
+      c("close", "far"),
+    ~avg_predictions(
+      dworm_endline_fit, 
+      newdata = datagrid(
+        assigned_treatment = "control",
+        dist_pot_group = .x, 
+        dist_to_pot = d_bar
+        ),
+        by = "dist_to_pot"
+    ) %>%
+    tidy() %>%
+    mutate(term = .x) ) %>%
+    filter(
+      (term == "close" & dist_to_pot == d_bar[1]) |
+      (term == "far" & dist_to_pot == d_bar[2])
+    )
+
 
 dworm_endline_comp_df = map_dfr(
   c("close", "far"), 
@@ -865,15 +890,25 @@ bind_rows(
       "far"
     ))
   ) %>%
+  filter(treatment != "control") %>%
   bind_rows(
     avg_predictions(
       dworm_endline_fit, 
       variables = "assigned_treatment"
     ) %>%
     tidy() %>%
-    mutate(term = "Combined", treatment = "control")
+    mutate(term = "Combined")  %>%
+    rename(treatment = assigned_treatment) %>%
+    filter(treatment == "control")
+  )  %>%
+  bind_rows(
+    control_mean_close_far_pred %>%
+      mutate(treatment = "control")
   ) 
-  # select(term, treatment, estimate, std.error, p.value) 
+
+
+
+
 
 subset_dworm_endline_comp_df = dworm_endline_comp_df %>%
   mutate(
@@ -894,8 +929,7 @@ subset_dworm_endline_comp_df = dworm_endline_comp_df %>%
   ) %>%
   filter(
     bra_cal == FALSE | (bra_cal == TRUE & treatment == "bracelet")
-  ) %>%
-  select(term, treatment, estimate, std.error, p.value, bra_cal)
+  ) 
 
 
 
@@ -955,7 +989,7 @@ dworm_endline_comp_tbl = left_join(
 
 
 
-dworm_endline_comp_tbl %>%
+dworm_endline_comp_tbl_knitr = dworm_endline_comp_tbl %>%
   knitr::kable(
       # format = "latex",
       col.names = c(
@@ -970,93 +1004,12 @@ dworm_endline_comp_tbl %>%
       align = "lcccc", 
       caption = "Surveyed individuals' predicted deworming rates"
   )  %>%
-  row_spec(3, hline_after = TRUE)
+  row_spec(4, hline_after = TRUE)
 
-dworm_endline_comp_tbl
+dworm_endline_comp_tbl_knitr
 
-dworm_endline_comp_tbl %>%
+dworm_endline_comp_tbl_knitr %>%
   custom_save_latex_table("endline-dworm-indiv-pred-tbl")
-
-# avg_comparisons(
-#   dworm_endline_fit, 
-#   variables = "assigned_treatment",
-#   newdata = datagrid(
-#     dist_pot_group = "far"
-#   )
-# )
-
-#   comp_df = avg_comparisons(
-#     fit,
-#     variables = list("treat_dist" = "all")
-#     ) %>%
-#     as_tibble()
-
-#   subset_comp_df = comp_df %>%
-#     mutate(
-#       lhs_treatment = str_extract(contrast, "(?<=^treat: )\\w+"), 
-#       rhs_treatment = str_extract(contrast, "(?<=- treat: )\\w+"), 
-#       lhs_dist = str_extract(contrast, "(?<=dist: )\\w+"),
-#       rhs_dist = str_extract(contrast, "(?<=, dist: )\\w+$")
-#     ) %>%
-#     filter(
-#       lhs_dist == rhs_dist
-#     ) %>%
-#     filter(rhs_treatment == "control" | lhs_treatment == "control") %>%
-#     filter(lhs_treatment != rhs_treatment)  
-
-# tidy_dworm_endline_fit = dworm_endline_fit %>%
-#   tidy(conf.int = TRUE)  %>%
-#   filter(term != "dist_to_pot") %>%
-#   mutate(
-#     dist_pot_group = if_else(
-#       str_detect(
-#         term, 
-#         "far"
-#         ), 
-#         "far", 
-#         "close"
-#     ), 
-#     treatment = str_extract(
-#       term, 
-#       "(?<=assigned_treatment)\\w+"
-#     )
-#   )  %>%
-#   mutate(
-#     treatment = factor(
-#       treatment, 
-#       levels = treat_levels_c
-#     ), 
-#     treatment = fct_relabel(treatment, str_to_title)
-#   )
-
-    # stars = case_when(
-    #   term != "(Intercept)" & p.value < 0.01 ~ "***",
-    #   term != "(Intercept)" & p.value < 0.05 ~ "**", 
-    #   term != "(Intercept)" & p.value < 0.1 ~ "*" , 
-    #   TRUE ~ ""
-    # )
-
-# tidy_dworm_endline_fit %>%
-#   mutate(
-
-#     estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
-#   )
-
-# tidy_dworm_endline_fit %>%
-#   ggplot(aes(
-#     x = estimate, 
-#     xmin = conf.low, 
-#     xmax = conf.high, 
-#     y = treatment, 
-#     colour = dist_pot_group
-#   )) +
-#   geom_pointrange(
-#     position = position_dodge(0.5)
-#   ) +
-#   labs(
-#     colour = "", 
-#     x = "Estimated Levels (Out of 10)"
-#   )
 
 
 ```
@@ -1145,6 +1098,7 @@ create_balance_input = function(tidy_df, col_order, digits = 3, comp_df = FALSE)
 
   bal_input_df = bal_input_df %>%
     select(lhs, lhs_treat, lhs_dist, estim_std) %>%
+    unique() %>%
     mutate(
       lhs_treat = factor(lhs_treat, treat_levels_c) %>% fct_rev(), 
       lhs_dist = factor(lhs_dist, dist_levels) %>% fct_rev()
@@ -1274,7 +1228,7 @@ comp_endline_vars = comp_endline_vars[comp_endline_vars != "know_deworming_stops
 baseline_endline_externality_fit = feols(
       data = endline_and_baseline_data, 
       .[comp_endline_vars] ~ 0 + treat_dist:type, 
-      ~county
+      ~cluster.id
       ) 
 
 endline_p_val_df = read_csv(
@@ -1297,6 +1251,7 @@ endline_tidy_df = read_csv(
 
 ```{r}
 #| balance-creation, dependson="balance-setup"
+
 
 comp_wide_indiv_bal_df = create_balance_input(
     comp_balance_tidy_df, 
@@ -2580,7 +2535,15 @@ disagg_base_belief_data = analysis_data %>%
     }
   )) %>%
     filter(obs_know_person > 0)  %>%
-    select(KEY.individ, contains("know"), assigned.treatment, dist.pot.group, assigned_dist_group) %>%
+    select(
+      KEY.individ, 
+      contains("know"), 
+      assigned.treatment, 
+      dist.pot.group, 
+      assigned_dist_group,
+      cluster.id,
+      county
+      ) %>%
     mutate(
         doesnt_know_other_dewormed = obs_know_person - knows_other_dewormed, 
         doesnt_think_other_knows = obs_know_person - thinks_other_knows
@@ -2594,7 +2557,9 @@ disagg_base_belief_data = analysis_data %>%
            doesnt_know_other_dewormed, 
            thinks_other_knows_yes, 
            thinks_other_knows_no, 
-           doesnt_think_other_knows
+           doesnt_think_other_knows,
+           cluster.id,
+           county
            ) %>%
     gather(variable, value, 
         knows_other_dewormed_yes:doesnt_think_other_knows)   %>%
@@ -2671,7 +2636,7 @@ combined_disagg_belief = disagg_base_belief_data  %>%
     mutate(
       assigned_dist_group = "Combined"
     )
-
+    
 
 comp_belief_data = bind_rows(
   combined_disagg_belief,
@@ -2802,6 +2767,68 @@ all_wide_disagg_belief_tbl %>%
 ```
 
 
+
+```{r}
+
+wide_disagg_belief_sob_tbl = wide_disagg_belief_input_df %>%
+  select(-contains("1")) %>%
+  arrange(treatment) %>%
+  ungroup() %>%
+  select(-treatment) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "Knowledge",
+      paste0("(", 1:3, ")")
+    ), 
+    format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    # latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Second-Order Beliefs" = 3
+      )
+  ) %>%
+  group_rows(
+    index = c(
+      "Bracelet" = 3,
+      "Calendar" = 3,
+      "Ink" = 3,
+      "Control" = 3
+    ), 
+    hline_after = TRUE,
+    hline_before = TRUE
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+  )
+
+
+wide_disagg_belief_sob_tbl
+
+wide_disagg_belief_sob_tbl %>%
+  custom_save_latex_table(
+    "sob-disagg-beliefs-table"
+  )
+
+```
 
 ```{r}
 

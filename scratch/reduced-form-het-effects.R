@@ -433,14 +433,16 @@ probit_fit = analysis_data %>%
     feglm(
         dewormed ~ 0 + assigned_treatment:assigned_dist_group | county, 
         data = ., 
-        family = binomial(link = "probit")
+        family = binomial(link = "probit"), 
+        cluster = ~cluster.id
     ) 
 
 probit_dist_fit = analysis_data %>%
     feglm(
         dewormed ~ 0 + assigned_treatment:assigned_dist_group + standard_cluster.dist.to.pot | county,
         data = ., 
-        family = binomial(link = "probit")
+        family = binomial(link = "probit"), 
+        cluster = ~cluster.id
     ) 
 
 probit_control_fit = cov_analysis_data %>%
@@ -451,66 +453,10 @@ probit_control_fit = cov_analysis_data %>%
         frac_dewormed_last_12_uncond +
         frac_know_treat_yearly | county, 
         data = ., 
-        family = binomial(link = "probit")
+        family = binomial(link = "probit"),
+        cluster = ~cluster.id
     )
 
-normal_pred_hat_dist = marginaleffects::predictions(
-    new_probit_dist_fit,
-    newdata = datagrid(
-        assigned_dist_group = unique(analysis_data$assigned_dist_group),
-        assigned_treatment = unique(analysis_data$assigned_treatment), 
-        standard_cluster.dist.to.pot = c(1, 2.5)
-    )
-)
-
-
-
-normal_pred_hat_dist %>%
-    tibble() %>%
-    filter(
-        (assigned_dist_group == "close" & standard_cluster.dist.to.pot == 1) | 
-        (assigned_dist_group == "far" & standard_cluster.dist.to.pot == 2.5) 
-    ) %>%
-    ggplot(aes(
-        x = estimate, 
-        xmin = conf.low,
-        xmax = conf.high, 
-        y = assigned_treatment, 
-        colour = assigned_dist_group, 
-        shape = factor(standard_cluster.dist.to.pot)
-    ), size = 5) +
-    geom_pointrange(size = 4, position = position_dodge(0.5)) +
-    geom_point(
-        inherit.aes = FALSE,
-        size = 4,
-        data = 
-            cov_analysis_data %>%
-                group_by(
-                    assigned_dist_group, 
-                    assigned_treatment
-                ) %>%
-                summarise(
-                    estimate = mean(dewormed, na.rm = TRUE)
-                ), 
-        colour = "black", 
-        aes(shape = assigned_dist_group, x= estimate, y = assigned_treatment, linetype = assigned_dist_group), 
-        position = position_dodge(0.5)
-    ) +
-    geom_point(
-        inherit.aes = FALSE,
-        size = 10,
-        data = 
-            meds %>%
-            rename(estimate = mean),
-
-        colour = "hotpink", 
-        aes(shape = assigned_dist_group, x= estimate, y = assigned_treatment, linetype = assigned_dist_group), 
-        position = position_dodge(0.5)
-    ) +
-    theme_bw() +
-    theme(legend.position = "bottom")
-
-ggsave("temp-plots/tmp.png", width = 8*2, height = 6*2)
 normal_pred_hat = predictions(
     probit_fit,
     newdata = datagrid(
@@ -721,21 +667,21 @@ probit_fit = analysis_data %>%
         dewormed ~ 0 + assigned_treatment:assigned_dist_group | county, 
         data = ., 
         family = binomial(link = "probit"), 
-        cluster = ~county
+        cluster = ~cluster.id
     ) 
 
 externality_fit = clean_externality_df %>%
     feglm(
         dewormed ~  0 + frac_externality_knowledge + assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 judgement_fit = judge_analysis_data %>%
     feglm(
         dewormed ~  0 + judge_score_dewor + assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 indiv_knowledge_fit = analysis_data %>%
@@ -746,7 +692,7 @@ indiv_knowledge_fit = analysis_data %>%
             obs_know_person  + 
             assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 cluster_knowledge_fit = feglm(
@@ -757,7 +703,7 @@ cluster_knowledge_fit = feglm(
             cluster_obs_know_person  + 
             assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 
@@ -767,7 +713,7 @@ ethnicity_fit =  analysis_data %>%
         0 + fractionalisation +
         assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"), 
-        cluster = ~county
+        cluster = ~cluster.id
     )
     
 
@@ -790,7 +736,7 @@ etable(
     order = "!assigned", 
     keep = c("!assigned"),
     drop = c("Constant", "census_cluster_pop"),
-    cluster = ~county, 
+    cluster = ~cluster.id, 
     replace = TRUE, 
     depvar = FALSE,
     dict = term_dict,
@@ -803,7 +749,6 @@ etable(
 
 
 
-
 ## Het TEs by social connectedness
 
 indiv_knowledge_het_fit = analysis_data %>%
@@ -812,7 +757,7 @@ indiv_knowledge_het_fit = analysis_data %>%
             log(census_cluster_pop) + 
             obs_know_person*assigned_treatment | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 cluster_knowledge_het_fit = feglm(
@@ -821,14 +766,14 @@ cluster_knowledge_het_fit = feglm(
             log(census_cluster_pop) + 
             cluster_obs_know_person*assigned_treatment | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 etable(
     indiv_knowledge_het_fit, 
     cluster_knowledge_het_fit, 
     keep = "recognised",
-    cluster = ~county, 
+    cluster = ~cluster.id, 
     replace = TRUE, 
     depvar = FALSE,
     dict = c(
@@ -848,7 +793,7 @@ control_externality_fit = clean_externality_df %>%
     feglm(
         dewormed ~  0 + frac_externality_knowledge + assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 control_judgement_fit = judge_analysis_data %>%
@@ -856,7 +801,7 @@ control_judgement_fit = judge_analysis_data %>%
     feglm(
         dewormed ~  0 + judge_score_dewor + assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 control_indiv_knowledge_fit = analysis_data %>%
@@ -868,7 +813,7 @@ control_indiv_knowledge_fit = analysis_data %>%
             obs_know_person  + 
             assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 control_cluster_knowledge_fit = feglm(
@@ -879,7 +824,7 @@ control_cluster_knowledge_fit = feglm(
             cluster_obs_know_person  + 
             assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 
@@ -890,7 +835,7 @@ control_ethnicity_fit =  analysis_data %>%
         0 + fractionalisation +
         assigned_dist_group,
         family = binomial(link = "probit"), 
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 
@@ -902,7 +847,7 @@ etable(
     order = "!assigned", 
     keep = c("!assigned"),
     drop = c("Constant", "census_cluster_pop"),
-    cluster = ~county,
+    cluster = ~cluster.id,
     replace = TRUE, 
     depvar = FALSE,
     dict = term_dict,
@@ -929,17 +874,17 @@ analysis_data = analysis_data %>%
 
 externality_any_fit = clean_externality_df %>%
     feglm(
-        dewormed ~  0 + frac_externality_knowledge:any_incentive + assigned_treatment:assigned_dist_group | county,
+        dewormed ~  0 + frac_externality_knowledge:any_incentive + assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 
 judgement_any_fit = judge_analysis_data %>%
     feglm(
-        dewormed ~  0 + judge_score_dewor:any_incentive + assigned_treatment:assigned_dist_group | county,
+        dewormed ~  0 + judge_score_dewor:any_incentive + assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 indiv_knowledge_any_fit = analysis_data %>%
@@ -950,7 +895,7 @@ indiv_knowledge_any_fit = analysis_data %>%
             log(census_cluster_pop) + 
             assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 cluster_knowledge_any_fit = feglm(
@@ -959,16 +904,16 @@ cluster_knowledge_any_fit = feglm(
             0 + 
             cluster_obs_know_person:any_incentive  + 
             log(census_cluster_pop) + 
-            assigned_treatment:assigned_dist_group | county,
+            assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 fractionalisation_any_fit = analysis_data %>%
     feglm(
-        dewormed ~  0 + fractionalisation:any_incentive + assigned_treatment:assigned_dist_group | county,
+        dewormed ~  0 + fractionalisation:any_incentive + assigned_treatment:assigned_dist_group,
         family = binomial(link = "probit"),
-        cluster = ~county
+        cluster = ~cluster.id
     )
 
 het_any_tests = list(
@@ -1000,7 +945,7 @@ etable(
     order = "!assigned", 
     keep = c("!assigned"),
     drop = c("Constant", "census_cluster_pop"),
-    cluster = ~county,
+    cluster = ~cluster.id,
     replace = TRUE, 
     depvar = FALSE,
     extralines = list("^_Homogeneous effects across `Any incentive', $p$-value" = het_pvals),
