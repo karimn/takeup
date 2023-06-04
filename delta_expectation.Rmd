@@ -71,6 +71,7 @@ $f(\cdot)$ and $F(\cdot)$ are the pdf and cdf, respectively, for the subscript r
 To get a sense of what flexibility this affords our model, consider how $\mu\Delta^*$ changes in two different scenarios: first, don't include the shock $u$ but allow $\mu$ to vary, second, hold $\mu$ fixed at 1 and allow the standard deviation of $u$ to vary. From here on I'm assuming that $V \sim N(0,1)$, $U \sim N(0, \sigma_u)$, and they are uncorrelated.
 
 ```{r, fig.width=8}
+#| delta-theory
 sim_int <- expand.grid(
   w = seq(-2, 2, 0.1),
   u_sd = seq(0.0, 2.0, 0.05),
@@ -609,6 +610,7 @@ dist_fit_data %>%
 ```
 
 ```{r}
+#| rate-of-change-difference
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>%
   transmute(
@@ -641,6 +643,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.height=2, fig.width=8}
+#| difference-in-roc-difference
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, cluster_roc_diff_diffdist) %>% 
@@ -658,6 +661,7 @@ dist_fit_data %>%
 ```
 
 ```{r}
+#| type-cutoff
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural" )) %>% 
   transmute(model_name, cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
@@ -705,6 +709,7 @@ ggsave(
 ```
 
 ```{r}
+#| sim-delta
 dist_fit_data %>% 
   filter(fct_match(model, models_we_want)) %>% 
   select(model_name, fit_type, sim_delta) %>% 
@@ -763,6 +768,7 @@ r^*(z,d) &= \frac{\mu(z,d) \Delta[w^*(z,d)]}{\delta} \\
 \end{align*}
 
 ```{r, fig.width=8}
+#| value-rep-returns
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   select(model_name, cluster_rep_return_dist) %>%
@@ -789,6 +795,7 @@ dist_fit_data %>%
 ### Levels
 
 ```{r, fig.width=8, fig.height=19}
+#| levels
 dist_fit_data %>% 
   filter(
     (fct_match(model_type, "structural") & fct_match(model, models_we_want)) | 
@@ -835,6 +842,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=8, fig.height=19}
+#| signal-levels
 dist_fit_data %>% 
   filter(
     (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
@@ -884,6 +892,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=8, fig.height=19}
+#| private-levels
 dist_fit_data %>% 
   filter(
     (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
@@ -1012,6 +1021,7 @@ all_fit %>%
 ### Posterior Predictive Checking
 
 ```{r, fig.width=7.5, fig.height=8}
+#| pp-check
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, cluster_cf_cutoff) %>% 
@@ -1029,6 +1039,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=8, fig.height=8}
+#| other-pp-check
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_type, model_name, cluster_cf_cutoff) %>% 
