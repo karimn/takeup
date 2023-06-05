@@ -9,7 +9,7 @@ Options:
   --cts-interval=<cts-interval>  Interval for continuous distance binning [default: 200]
 "),
   args = if (interactive()) "
-    --num-boot-draws=999 \
+    --num-boot-draws=200 \
     --output-path=temp-data \
     --cts-interval=200
     " else commandArgs(trailingOnly = TRUE)
@@ -204,7 +204,7 @@ know_vars = c("obs_know_person")
 know_balance_fit = feols(
     data = know_balance_data, 
     .[know_vars] ~ 0 + treat_dist, 
-    ~county
+    ~cluster.id
     ) 
 
 
@@ -238,7 +238,7 @@ baseline_vars = c(
 baseline_balance_fit = feols(
     data = baseline_balance_data, 
     .[baseline_vars] ~ 0 + treat_dist, 
-    ~county
+    ~cluster.id
     ) 
 
 # PoT level balance variables
@@ -278,20 +278,20 @@ mutate(
 indiv_balance_fit = feols(
     data = analysis_school_data, 
     .[indiv_balance_vars] ~ 0 + treat_dist,
-    cluster = ~county
+    cluster = ~cluster.id
     ) 
 
 # Probably a better way to get the schools in the sample
 school_treat_df = analysis_school_data %>%
   filter(!is.na(assigned.treatment)) %>%
-  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency, county) %>%
+  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency, cluster.id) %>%
   unique()
 
 
 school_balance_fit = feols(
     data = school_treat_df, 
     .[balance_variables] ~ 0 + treat_dist,
-    ~county
+    ~cluster.id
 
   )
 
@@ -324,7 +324,7 @@ endline_and_baseline_data = bind_rows(
       all_can_get_worms,
       correct_when_treat, 
       know_deworming_stops_worms,
-      constituency, county) %>%
+      constituency, cluster.id) %>%
     mutate(
       type = "endline"
     ),
@@ -335,7 +335,7 @@ endline_and_baseline_data = bind_rows(
       all_can_get_worms,
       correct_when_treat, 
       know_deworming_stops_worms,
-      constituency, county) %>%
+      constituency, cluster.id) %>%
     mutate(
       type = "baseline"
     )
@@ -351,7 +351,7 @@ endline_vars = c(
 endline_balance_fit = feols(
     data = endline_balance_data, 
     .[endline_vars] ~ 0 + treat_dist, 
-    cluster = ~county
+    cluster = ~cluster.id
     ) 
 
 # put all the baseline balance fits into a list we can map over
@@ -488,7 +488,7 @@ dist_balance_cts_fun = function(rhs_var) {
       data = analysis_school_data %>%
         mutate(dist_measure = {{ rhs_var }}/1000), 
       .[indiv_balance_vars] ~  dist_measure + dist_measure^2,
-      cluster = ~county
+      cluster = ~cluster.id
       ) 
 
   ## Know
@@ -496,7 +496,7 @@ dist_balance_cts_fun = function(rhs_var) {
       data = know_balance_data %>%
         mutate(dist_measure = {{ rhs_var }}/1000), 
       .[know_vars] ~ dist_measure + dist_measure^2, 
-      ~county
+      ~cluster.id
       ) 
 
   ## baseline
@@ -504,7 +504,7 @@ dist_balance_cts_fun = function(rhs_var) {
       data = baseline_balance_data %>%
         mutate(dist_measure = {{ rhs_var }}/1000), 
       .[baseline_vars] ~  dist_measure + dist_measure^2, 
-      ~county
+      ~cluster.id
       ) 
 
     return(
@@ -535,21 +535,21 @@ dist_balance_disc_fun = function(rhs_var, interval_length) {
   indiv_balance_disc_fit = feols(
       data = analysis_school_data,
       .[indiv_balance_vars] ~  0 + dist_measure,
-      cluster = ~county
+      cluster = ~cluster.id
       ) 
 
   ## Know
   know_balance_disc_fit = feols(
       data = know_balance_data,
       .[know_vars] ~ 0 + dist_measure, 
-      ~county
+      ~cluster.id
       ) 
 
   ## baseline
   baseline_balance_disc_fit = feols(
       data = baseline_balance_data,
       .[baseline_vars] ~ 0 + dist_measure, 
-      ~county
+      ~cluster.id
       ) 
 
     return(
@@ -612,7 +612,7 @@ hyp_matrix_far = cbind(
 
 perform_balance_cluster_boot = function(data, var, joint_R, close_R, far_R) {
   subset_data = data %>%
-    select(all_of(var), treat_dist, county, constituency) %>%
+    select(all_of(var), treat_dist, cluster.id, constituency) %>%
     na.omit()
 
 
@@ -623,22 +623,22 @@ perform_balance_cluster_boot = function(data, var, joint_R, close_R, far_R) {
   )
   joint_boot_output = mboottest(
     object = fit, 
-    clustid = c("county", "constituency"), 
-    bootcluster = "constituency", 
+    clustid = "cluster.id", 
+    bootcluster = "cluster.id", 
     B = script_options$num_boot_draws, 
     R = joint_R
   )
   close_boot_output = mboottest(
     object = fit, 
-    clustid = c("county", "constituency"), 
-    bootcluster = "constituency", 
+    clustid = "cluster.id", 
+    bootcluster = "cluster.id", 
     B = script_options$num_boot_draws, 
     R = close_R
   )
   far_boot_output = mboottest(
     object = fit, 
-    clustid = c("county", "constituency"), 
-    bootcluster = "constituency", 
+    clustid = "cluster.id", 
+    bootcluster = "cluster.id", 
     B = script_options$num_boot_draws, 
     R = far_R
   )
@@ -734,12 +734,12 @@ comp_endline_vars = comp_endline_vars[comp_endline_vars != "know_deworming_stops
 baseline_endline_externality_fit = feols(
       data = endline_and_baseline_data, 
       .[comp_endline_vars] ~ 0 + treat_dist:type, 
-      ~county
+      ~cluster.id
       ) 
 
 perform_externality_cluster_boot = function(data, var, R) {
   subset_data = data %>%
-    select(all_of(var), treat_dist, type, county, constituency) %>%
+    select(all_of(var), treat_dist, type, cluster.id, constituency) %>%
       na.omit()
 
 
@@ -752,17 +752,17 @@ perform_externality_cluster_boot = function(data, var, R) {
   if (is.matrix(R)) {
     joint_boot_output = mboottest(
       object = fit, 
-      clustid = c("county", "constituency"), 
-      bootcluster = "constituency", 
+      clustid = c("cluster.id"), 
+      bootcluster = "cluster.id", 
       B = script_options$num_boot_draws, 
       R = R
     )
   } else {
     joint_boot_output = boottest(
       object = fit, 
-      clustid = c("county", "constituency"),
+      clustid = c("cluster.id"),
       param = names(coef(fit)), 
-      bootcluster = "constituency", 
+      bootcluster = "cluster.id", 
       B = script_options$num_boot_draws, 
       R = R
     )
@@ -946,7 +946,7 @@ construct_joint_test_m = function(object) {
 perform_cts_distance_boot = function(data, y_var, dist_var, interval_length, suppress_intercept = FALSE) {
     sym_dist_var = sym(dist_var)
     subset_data = data %>%
-        select(all_of(y_var), all_of(dist_var), county, constituency) %>%
+        select(all_of(y_var), all_of(dist_var), cluster.id, constituency) %>%
         na.omit() 
     if (!is.null(interval_length)) {
         subset_data = subset_data %>%
@@ -969,8 +969,8 @@ perform_cts_distance_boot = function(data, y_var, dist_var, interval_length, sup
 
     boot_p = mboottest(
         object = fit, 
-        clustid = c("county", "constituency"),
-        bootcluster = "constituency", 
+        clustid = c("cluster.id"),
+        bootcluster = "cluster.id", 
         B = script_options$num_boot_draws, 
         R = R
     )$p_val
