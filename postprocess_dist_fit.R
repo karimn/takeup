@@ -18,7 +18,11 @@ Options:
   --single-chain  For debugging purposes, only use the first chain
   
   "), 
-  args = if (interactive()) "92  --cores=1 --load-from-csv --single-chain" else commandArgs(trailingOnly = TRUE)
+  args = if (interactive()) "
+  93
+  --cores=1 
+  --load-from-csv 
+  --single-chain" else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -391,7 +395,8 @@ extract_sim_delta <- function(fit, stan_data) {
 ate_pivot <- function(level_data, ate_combo, other_ate_join_col = NULL) {
   if (!is_null(level_data)) {
     present_col <- intersect(names(level_data), c("mu_assigned_treatment", "assigned_treatment", "assigned_dist_group"))
-    ate_combo_col <- str_c(rep(present_col, each = 2), c("_left", "_right"))
+    # ate_combo_col <- str_c(rep(present_col, each = 2), c("_left", "_right"))
+    ate_combo_col <- paste0(rep(present_col, each = 2), c("_left", "_right"))
     
     left_data <- inner_join(select(ate_combo, all_of(ate_combo_col)) %>% distinct_all(.keep_all = TRUE),
                             level_data,
@@ -700,6 +705,9 @@ ate_combo <- dist_fit_data %>%
                  assigned_treatment_left != assigned_treatment_right) 
     )
   }
+
+
+
 
 dist_fit_data %<>% 
   mutate(

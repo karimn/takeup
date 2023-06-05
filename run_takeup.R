@@ -2,8 +2,8 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --save-rds]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim --save-rds]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --county-fe --save-rds]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --county-fe --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim --save-rds]
   run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age --save-rds]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -36,14 +36,16 @@ Options:
   # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "
-    takeup prior \
+    takeup fit \
     --cmdstanr \
-    --outputname=dist_prior86 \
+    --outputname=dist_fit93 \
     --models=REDUCED_FORM_NO_RESTRICT_DIST_CTS  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
     --sequential  \
+    --county-fe \
+    --multilevel \ 
     --update
     " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
@@ -347,6 +349,8 @@ models <- lst(
     use_age_group_gp = TRUE,
     
     use_dist_cts = FALSE,
+    county_slopes = !script_options$county_fe,
+
     # just here so the reduced form model runs - don't think actually used
     wtp_value_utility_sd = 0.0001,
     wtp_value_utility_mean = 0.0,
