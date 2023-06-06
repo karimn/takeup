@@ -23,7 +23,7 @@ header-includes:
     - \newcommand{\elandscape}{\end{landscape}}
 params:
     fit_version: 86
-    rf_fit_version: 92
+    rf_fit_version: 93
     input_path: data/stan_analysis_data
     output_path: temp-data 
     optim_input_path: "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots"
@@ -47,7 +47,7 @@ library(magrittr)
 if (interactive()) {
     params = lst(
         fit_version = 86,
-        rf_fit_version = 92,
+        rf_fit_version = 93,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
         optim_input_path =  "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots",
@@ -180,7 +180,7 @@ custom_save_latex_table = function(table, table_name){
       table_conn
     )
     close(table_conn)
-    return(NULL)
+    return(table)
 }
 ```
 
@@ -696,91 +696,6 @@ incentive_check_tbl %>%
 
 ```
 
-```{r}
-
-# 9,935 adults of which 2,250 adults are surveyed at baseline, 
-# 3,750 adults surveyed at endline 
-# and 3,935 adults selected for text messaging intervention
-
-
-# KEY - surveyCTO key HH ID
-# KEY.individ individual's key
-# KEY.hh hh's key
-
-# rct-design-fieldwork/takeup_field_notebook.Rmd > the randomisation, 
-# cleaning of columns, baseline 
-
-# prepare_analysis_data.R <-- look in here
-# census file 
-
-
-# census 40,000
-# (had permission to use non-monitored)
-# had the census but needed to match names using strings
-# using census names was extremely messy
-#     didn't improve estimates, TEs don't change, 
-#     didn't want to add judgement calls on name merges so just stick to sample we 
-#     know.
-
-
-# random-subset for part of experiment
-# in that 144 villages we did run a sub-census
-# did this for logistics and so we could sample from them. 
-
-# had self-reported deworming for all of sub-census
-# some of subcensus are in endline but not in monitored sample
-# but use PoT data for takeup model.
-
-# is endline subsample of monitored sample or endline some new combined sample
-
-# analysis_data %>%
-#   select(individ.baseline.sample.pool, monitored) %>%
-#   group_by(individ.baseline.sample.pool, monitored) %>%
-#   summarise(
-#     n = n()
-#   )
-
-
-# analysis_data %>%
-#   select(sms.treatment.2) %>%
-#   unique()
-
-# analysis_data %>%
-#   group_by(baseline = individ.baseline.sample.pool, endline) %>%
-#   summarise(
-#     dewormed = mean(dewormed)
-#   )
-
-# analysis_data %>%
-#   group_by(baseline = individ.baseline.sample.pool, endline, monitored = true.monitored) %>%
-#   summarise(
-#    n = n() 
-#   )
-
-# analysis_data %>%
-#   group_by(endline) %>%
-#   summarise(
-#     n_indiv = n_distinct(KEY.individ)
-#   )
-
-# analysis_data %>%
-#   group_by(endline) %>%
-#   summarise(
-#    n = n() 
-#   )
-
-# analysis_data %>%
-#   summarise(
-#     n_analysis = n_distinct(KEY.individ)
-#   )
-
-# analysis_data %>%
-#   select(contains("KEY")) %>%
-#   colnames()
-
-
-
-```
 
 
 ```{r}
@@ -1675,6 +1590,7 @@ sample_meta_tbl
 #| comparing-draws-correlated-posterior,
 #| eval=TRUE
 
+
 full_data_env = new.env()
 
 with_env = function(f, e = parent.frame()) {
@@ -1684,69 +1600,144 @@ with_env = function(f, e = parent.frame()) {
 }
 
 load_full_data_function = function(){
-    load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}.RData")))
+    load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}.RData"))) 
+    rf_dist_fit_data = dist_fit_data %>%
+      filter(model %in% params$rf_models)
+    load(file.path("temp-data", str_interp("processed_dist_fit${params$fit_version}.RData"))) 
+    struct_dist_fit_data = dist_fit_data %>%  
+      filter(model %in% params$struct_models)
+    dist_fit_data = bind_rows(
+      rf_dist_fit_data,
+      struct_dist_fit_data
+    )
     return(dist_fit_data)
 }
 
 
 full_dist_fit_data = with_env(load_full_data_function, full_data_env)() %>%
-  filter(model %in% c("REDUCED_FORM_NO_RESTRICT", models_we_want))
-
-
-
-b_c_draws = full_dist_fit_data %>%
-  filter(fit_type == "fit") %>%
-  select(model_type, fit_type, est_takeup_te) %>%
-  unnest(est_takeup_te)  %>%
-  unnest(iter_data)   %>%
-  filter(
-    assigned_treatment_left == mu_assigned_treatment_left,
-    assigned_treatment_right == mu_assigned_treatment_right,
-    assigned_dist_group_left == assigned_dist_group_right, 
-    assigned_treatment_right == "control"
-  )
-
-b_c_draws %>%
-  select(-mean_est, -contains("per")) %>% 
-  select(
-    assigned_treatment_left, assigned_treatment_right, assigned_dist_group_left, iter_id, iter_takeup_te
-  )  %>%
-  pivot_wider(
-    names_from = assigned_treatment_left, 
-    values_from = iter_takeup_te
-  ) %>%
-  ggplot(aes(
-    x = bracelet, 
-    y = calendar, 
-    colour = assigned_dist_group_left
-  )) +
-  geom_point() +
-  geom_smooth(
-    method = lm, 
-    se = FALSE
-  ) +
-  geom_abline(
-    linetype = "longdash"
-  ) +
-  labs(
-    title = "Plotting Overall ATE Posterior Draws - Very Correlated Estimates", 
-    subtitle = "Bracelet vs Calendar"
-  )
-  ggsave(
-    "temp-plots/correlated-beta.png", 
-    width = 8, 
-    height = 6,
-    dpi = 500
-  )
-
-
+  filter(model %in% models_we_want)
 
 ```
 
 
 
 ```{r}
+#| sig-diff-draws
+
+#' Prepare Incentive TE Data
+#' 
+#' Filtering so that we have:
+#' visibility matching private benefit (if structural)
+#' comparison within same distance group
+#' control on RHS
+#' Bracelet/calendar/ink on lhs
+prep_incentive_te = function(takeup_te_data, model_type) {
+  if (fct_match(model_type, "structural")) {
+    takeup_te_data = takeup_te_data %>%
+      filter(
+        # make sure visibility and private benefit match
+        mu_assigned_treatment_left == assigned_treatment_left,
+        mu_assigned_treatment_right == assigned_treatment_right
+      )
+  }
+  output_te = takeup_te_data %>%
+    filter(
+      # comparing within same distance group (NA corresponds to reduced form model)
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      # rhs is control, lhs isn't same as rhs 
+      assigned_treatment_left != assigned_treatment_right, 
+      fct_match(assigned_treatment_right, c("control"))
+    ) %>%
+      mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+        assigned_dist_group_right = fct_explicit_na(assigned_dist_group_right, "combined")  %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined")
+        )
+  return(output_te)
+}
+
+#' Prepare Signal TE Data
+#' 
+#' Filtering so that we have:
+#' comparison within same distance group
+#' control private benefit on RHS & LHS
+#' Bracelet/calendar/ink visibility on lhs
+#' Control visibility on RHS
+prep_signal_te = function(takeup_te_data, model_type, fit_type) {
+  if (fct_match(fit_type, "fit") & fct_match(model_type, "structural")) {
+    output_te = takeup_te_data %>%
+      filter(
+      # comparing within same distance group (NA corresponds to reduced form model)
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      # ensure private benefit set to control
+      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+      # visibility LHS has to exist
+      !is.na(mu_assigned_treatment_left),
+      # fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+      fct_match(mu_assigned_treatment_right, "control"),
+      mu_assigned_treatment_left != mu_assigned_treatment_right
+      ) %>%
+      mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+        mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left)
+        )
+  } else {
+    output_te = NULL
+  }
+  return(output_te)
+}
+
+
+
+#' Prepare Private Incentive TE Data
+#' 
+#' Filtering so that we have:
+#' comparison within same distance group
+#' control visibility on RHS & LHS
+#' Bracelet/calendar/ink private benefit on lhs
+#' Control private benefit on RHS
+prep_private_te = function(takeup_te_data, model_type, fit_type) {
+  if (fct_match(fit_type, "fit") & fct_match(model_type, "structural")) {
+    output_te = takeup_te_data %>%
+      filter(
+      # same distance comparison
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      # visibility not NA (probably don't need if matching on struct)
+      !is.na(mu_assigned_treatment_left),
+      !is.na(mu_assigned_treatment_right),
+      # visibility control on LHS & RHS
+      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+      # control private benefit RHS
+      fct_match(assigned_treatment_right, "control"),
+      # LHS != RHS private benefit
+      assigned_treatment_right != assigned_treatment_left
+      )   %>%
+      mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left)
+        )
+  } else {
+    output_te = NULL
+  }
+  return(output_te)
+}
+
+1+1
+
+```
+
+```{r}
 #| setup-res-table
+1+1
 
 pr_comparison_te_df = full_dist_fit_data %>%
   filter(fit_type == "fit") %>%
@@ -1767,37 +1758,52 @@ pr_comparison_te_df = full_dist_fit_data %>%
     pr_greater = mean(iter_takeup_te > 0, na.rm = TRUE)
   ) %>%
   ungroup()
+
+
+incentive_far_bigger_te_df = full_dist_fit_data %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  select(
+    model_type,
+    est_takeup_te
+  ) %>%
+  mutate(
+    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te)
+  ) %>%
+  unnest(est_takeup_te) %>%
+  filter(assigned_dist_group_left != "Combined")  %>%
+  unnest(iter_data) %>%
+  select(
+    model_type,
+    assigned_treatment_left,
+    assigned_dist_group_left,
+    iter_id, iter_takeup_te
+  ) %>%
+  spread(
+    assigned_dist_group_left,
+    iter_takeup_te
+  ) %>%
+  group_by(
+    model_type,
+    assigned_treatment_left
+  ) %>%
+  summarise(
+    pr_far_bigger = mean(Far > Close)
+  )
+
 incentive_te = dist_fit_data %>%
   mutate(
-    est_takeup_te =
-      map_if(est_takeup_te, fct_match(model_type, "structural"),
-             filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
-        map(filter,
-            (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-            assigned_treatment_left != assigned_treatment_right,
-            fct_match(assigned_treatment_right, c("control")),
-            fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
+    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te),
     model_color = canva_pal(canva_palette_vibrant)(n())
   ) %>% 
-  select(model, model_type, model_name, est_takeup_te, fit_type, model_color) %>% 
-  mutate(
-    est_takeup_te = map(
-      est_takeup_te,
-      mutate,
-      assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-        fct_relabel(str_to_title) %>% 
-        fct_relevel("Combined"),
-      assigned_treatment_left = str_to_title(assigned_treatment_left)
-    )) %>%
-    unnest(est_takeup_te)  %>%
-    select( 
-      model_type,
-      assigned_treatment = assigned_treatment_left, 
-      assigned_dist = assigned_dist_group_left,
-      mean_est, 
-      per_0.05, 
-      per_0.95
-    )
+  unnest(est_takeup_te)  %>%
+  select( 
+    model_type,
+    assigned_treatment = assigned_treatment_left, 
+    assigned_dist = assigned_dist_group_left,
+    mean_est, 
+    per_0.05, 
+    per_0.95
+  )
 
 
 incentive_control_mean = dist_fit_data %>%
@@ -1816,70 +1822,48 @@ incentive_control_mean = dist_fit_data %>%
     mean_est, 
     per_0.05, 
     per_0.95
-  ) %>%
+  )  %>%
   mutate(
-    assigned_treatment = str_to_title(assigned_treatment), 
-    assigned_dist = fct_explicit_na(assigned_dist, "Combined") %>% 
-      fct_relabel(str_to_title) %>% 
-      fct_relevel("Combined")
-  )
+    assigned_dist = fct_explicit_na(assigned_dist, "combined") %>%
+      fct_relabel(str_to_title) %>%
+      fct_relevel("Combined"),
+    assigned_treatment = str_to_title(assigned_treatment)
+    )
 
 signalling_te = dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
   mutate(
-    est_takeup_te = map(
-      est_takeup_te,
-      filter,
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
-      !is.na(mu_assigned_treatment_left),
-      fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
-      fct_match(mu_assigned_treatment_right, "control"),
-    ) %>% 
-      map(
-        mutate,
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left),
-      ),
-    model_color = canva_pal(canva_palette_vibrant)(n())) %>%
-    unnest(est_takeup_te)  %>%
+    est_takeup_te = pmap(
+      list(est_takeup_te, model_type, fit_type),
+      ~prep_signal_te(..1, ..2, ..3)
+      )
+    ) %>%
+    filter(map_lgl(est_takeup_te, ~!is.null(.x))) %>%
+    unnest(est_takeup_te) %>%
     select(
-      assigned_treatment = mu_assigned_treatment_left, 
+      assigned_treatment = mu_assigned_treatment_left,
       assigned_dist = assigned_dist_group_left, 
       model_type,
-      mean_est,
-      per_0.05,
+      mean_est, 
+      per_0.05, 
       per_0.95
     )
 
 
 
-
 private_te = dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
   mutate(
-    est_takeup_te = map(
-      est_takeup_te,
-      filter,
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      !is.na(mu_assigned_treatment_left),
-      !is.na(mu_assigned_treatment_right),
-      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
-      fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
-      fct_match(assigned_treatment_right, "control"),
-    ) %>% 
-      map(
-        mutate,
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left),
-      ),
+    est_takeup_te = pmap(
+      list(est_takeup_te, model_type, fit_type),
+      ~prep_private_te(
+        ..1,
+        ..2,
+        ..3
+      )
+    ),
     model_color = canva_pal(canva_palette_vibrant)(n())) %>%
+    filter(map_lgl(est_takeup_te, ~!is.null(.x))) %>%
     unnest(est_takeup_te) %>%
     select(
       assigned_treatment = assigned_treatment_left,
@@ -1912,10 +1896,8 @@ incentive_bracelet_calendar_diff_df = pr_comparison_te_df %>%
       pr_greater
     ) %>%
     mutate(
-      assigned_treatment = "Pr(Bracelet > Calendar)"
+      assigned_treatment = "$\\hat{\\pi}$(Bracelet > Calendar)"
     )
-
-
 
 signal_bracelet_calendar_diff_df = pr_comparison_te_df %>%
   filter(
@@ -1937,10 +1919,8 @@ signal_bracelet_calendar_diff_df = pr_comparison_te_df %>%
       pr_greater
     ) %>%
     mutate(
-      assigned_treatment = "Pr(Bracelet > Calendar)"
+      assigned_treatment = "$\\hat{\\pi}$(Bracelet > Calendar)"
     )
-
-
 
 
 te_df = bind_rows(
@@ -1953,22 +1933,14 @@ te_df = bind_rows(
 ) %>%
   mutate(
     assigned_treatment = if_else(
-      assigned_treatment == "Pr(Bracelet > Calendar)", 
-      "Pr(Bracelet > Calendar)", 
-      assigned_treatment
-      ),
-    assigned_treatment = if_else(
-      assigned_treatment == "Control", 
+      assigned_treatment == "control" | assigned_treatment == "Control", 
       "Control mean", 
       assigned_treatment
     ),
     assigned_treatment = factor(
       assigned_treatment, 
-      levels = c("Bracelet", "Calendar", "Ink", "Control mean", "Pr(Bracelet > Calendar)"))
+      levels = c("Bracelet", "Calendar", "Ink", "Control mean", "$\\hat{\\pi}$(Bracelet > Calendar)"))
   )
-
-
-
 
 rf_te_input_df = te_df %>%
   filter(model_type == "reduced form") %>%
@@ -2035,6 +2007,7 @@ structural_te_input_df = te_df %>%
   ))
 
 
+
 te_input_df = right_join(
   rf_te_input_df,
   structural_te_input_df,
@@ -2066,12 +2039,15 @@ te_input_df = right_join(
 
 
 latex_group_gap_space = "2em"
-
+1+2
 ```
 
 
 ```{r, results="asis"}
-1+1
+
+
+1+3
+
 te_kbl_df = te_input_df %>%
   arrange(Estimand, Treatment) %>%
   mutate(
@@ -2135,25 +2111,8 @@ te_kbl_df = te_input_df %>%
   add_indent(12) %>%
   footnote(
     escape = FALSE,
-    threeparttable = TRUE,
-    # general = 
-        # str_glue(
-        #     "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-        #     'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-        #     isolate the effect of reputational returns and the private utility derived from each treatment. 
-        #     \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-        #     Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-        #     data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
-
-        #     Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-        #     in the interest of brevity.
-
-        #     Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-        #     correlated and therefore the probability that bracelet exceeds calendar is very low.
-        #     "
-        # ) 
+    threeparttable = TRUE
   )
-
 
 te_kbl_df %>%
   custom_save_latex_table(
@@ -2161,17 +2120,52 @@ te_kbl_df %>%
   )
 
 x = 1 + 5
-te_kbl_df 
-
 ```
 
 
 #### Split Table ####
 ```{r}
 #| overall-table-only
-
-overall_te_kbl_df = te_input_df %>%
+te_far_bigger_input_df = incentive_far_bigger_te_df %>%
+  mutate(
+    Treatment = assigned_treatment_left,
+    Estimand = "incentive"
+  ) %>%
+  select(
+    model_type,
+    Treatment,
+    Estimand,
+    pr_far_bigger
+  ) %>%
+  spread(
+    model_type, pr_far_bigger
+  ) %>%
+  rename(
+    rf_pr_bigger = `reduced form`,
+    pr_bigger = structural
+  )
+  
+overall_te_kbl_df = 
+  te_input_df %>%
   filter(Estimand == "incentive" | Treatment == "Control mean") %>%
+  left_join(
+    te_far_bigger_input_df %>% 
+      mutate(Treatment = factor(Treatment), Estimand = factor(Estimand)) %>%
+      mutate(across(where(is.numeric), round, 3)),
+    by = c("Treatment", "Estimand")
+  ) %>%
+  select(
+    Estimand,
+    Treatment,
+    rf_Combined,
+    rf_Close,
+    rf_Far,
+    rf_pr_bigger,
+    Combined,
+    Close,
+    Far,
+    pr_bigger
+  ) %>%
   arrange(Estimand, Treatment) %>%
   mutate(
     Estimand = if_else(
@@ -2183,16 +2177,14 @@ overall_te_kbl_df = te_input_df %>%
   select(-Estimand) %>%
   kbl(
     col.names = c(
-      # "Estimand", 
-      # "Treatment", 
       "Dependent variable: Take-up",
-      paste0("(", 1:6, ")")
+      paste0("(", 1:8, ")")
     ), 
     format = "latex", 
     linesep = "\\addlinespace \\addlinespace \\addlinespace",
     booktabs = TRUE, 
     escape = FALSE, 
-    align = "lcccccc", 
+    align = "lcccccccc", 
     caption = "Results"
   ) %>%
   kable_styling(
@@ -2203,17 +2195,20 @@ overall_te_kbl_df = te_input_df %>%
       "Combined", 
       "Close", 
       "Far",
+      "$\\\\hat{\\\\pi}$($\\\\textrm{TE}_{\\\\text{Far}} > \\\\textrm{TE}_{\\\\text{Close}}$)",
       "Combined", 
       "Close", 
-      "Far"
+      "Far",
+      "$\\\\hat{\\\\pi}$($\\\\textrm{TE}_{\\\\text{Far}} > \\\\textrm{TE}_{\\\\text{Close}}$)"
       ), 
-    line = FALSE
+    line = FALSE,
+    escape = FALSE
   ) %>%
   add_header_above(
     c(
       " " = 1,
-      "Reduced Form" = 3, 
-      "Structural" = 3
+      "Reduced Form" = 4, 
+      "Structural" = 4
       )
   ) %>%
   # add_indent(4) %>%
@@ -2221,23 +2216,7 @@ overall_te_kbl_df = te_input_df %>%
   add_indent(1:5) %>%
   footnote(
     escape = FALSE,
-    threeparttable = TRUE,
-    # general = 
-    #     str_glue(
-    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-    #         'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-    #         isolate the effect of reputational returns and the private utility derived from each treatment. 
-    #         \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-    #         Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-    #         data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
-
-    #         Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-    #         in the interest of brevity.
-
-    #         Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-    #         correlated and therefore the probability that bracelet exceeds calendar is very low.
-    #         "
-    #     ) 
+    threeparttable = TRUE
   )
 
 
@@ -2245,8 +2224,6 @@ overall_te_kbl_df %>%
   custom_save_latex_table(
     "overall-te-table"
   )
-
-overall_te_kbl_df
 
 ```
 
@@ -2312,33 +2289,13 @@ decomposed_te_kbl_df = te_input_df %>%
   add_indent(1:8) %>%
   footnote(
     escape = FALSE,
-    threeparttable = TRUE,
-    # general = 
-    #     str_glue(
-    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-    #         'Overall' indicates the total treatment effect; 'Signalling' and 'Private' use the structural model to 
-    #         isolate the effect of reputational returns and the private utility derived from each treatment. 
-    #         \\\\textit{{Bracelet - Calendar}} shows the posterior difference in takeup across bracelet and calendar conditions.
-    #         Structural estimates use all three samples: {stan_data$num_obs} individuals' deworming status; {stan_data$num_beliefs_obs} individual's elicited first-order beliefs; and 
-    #         data from {stan_data$num_wtp_obs} individual's Willingness-To-Pay choices. Reduced form estimates use {stan_data$num_obs} individuals' deworming status.
-
-    #         Private utility derived from each treatment doesn't vary with distance, therefore we only display Combined results 
-    #         in the interest of brevity.
-
-    #         Whilst credibility intervals overlap for bracelet vs calendar comparison, the posterior estimates are highly 
-    #         correlated and therefore the probability that bracelet exceeds calendar is very low.
-    #         "
-    #     ) 
+    threeparttable = TRUE
   )
 
 decomposed_te_kbl_df %>%
   custom_save_latex_table(
     "private-signal-te-table"
   )
-
-decomposed_te_kbl_df
-
-
 ```
 
 
@@ -2489,15 +2446,8 @@ wide_belief_tbl = wide_belief_input_df %>%
   ) %>%
   footnote(
     escape = FALSE,
-    threeparttable = TRUE,
-    # general = 
-    #     str_glue(
-    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-    #         {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
-    #         "
-    #     ) 
+    threeparttable = TRUE
   )
-wide_belief_tbl
 
 wide_belief_tbl %>%
   custom_save_latex_table(
@@ -2509,8 +2459,6 @@ wide_belief_tbl %>%
 
 ```{r}
 #| disagg-beliefs
-
-
 
 disagg_base_belief_data = analysis_data %>%
   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>%
@@ -2642,16 +2590,10 @@ comp_belief_data = bind_rows(
   combined_disagg_belief,
   close_far_disagg_belief
 )
-
-
-
-
 ```
 
 
 ```{r}
-
-
 wide_disagg_belief_input_df = comp_belief_data %>%
   select(
     treatment = assigned.treatment, 
@@ -2694,17 +2636,12 @@ wide_disagg_belief_input_df = comp_belief_data %>%
     `2ord_Combined`, `2ord_close`, `2ord_far`
   )
 
-
-
-
 all_wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
   arrange(treatment) %>%
   ungroup() %>%
   select(-treatment) %>%
   kbl(
     col.names = c(
-      # "Estimand", 
-      # "Treatment", 
       "Knowledge",
       paste0("(", 1:6, ")")
     ), 
@@ -2747,22 +2684,13 @@ all_wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
   ) %>%
   footnote(
     escape = FALSE,
-    threeparttable = TRUE,
-    # general = 
-    #     str_glue(
-    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-    #         {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
-    #         "
-    #     ) 
+    threeparttable = TRUE
   )
-
-all_wide_disagg_belief_tbl
 
 all_wide_disagg_belief_tbl %>%
   custom_save_latex_table(
     "all-disagg-beliefs-table"
   )
-
 
 ```
 
@@ -2777,8 +2705,6 @@ wide_disagg_belief_sob_tbl = wide_disagg_belief_input_df %>%
   select(-treatment) %>%
   kbl(
     col.names = c(
-      # "Estimand", 
-      # "Treatment", 
       "Knowledge",
       paste0("(", 1:3, ")")
     ), 
@@ -2820,8 +2746,6 @@ wide_disagg_belief_sob_tbl = wide_disagg_belief_input_df %>%
     threeparttable = TRUE,
   )
 
-
-wide_disagg_belief_sob_tbl
 
 wide_disagg_belief_sob_tbl %>%
   custom_save_latex_table(
@@ -2880,17 +2804,7 @@ wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
   footnote(
     escape = FALSE,
     threeparttable = TRUE,
-    # general = 
-    #     str_glue(
-    #         "Point estimates represent posterior means, 90\\\\% percent credibility intervals are shown in parentheses.
-    #         {stan_data$num_beliefs_obs} individual's elicited first-order beliefs.
-    #         "
-    #     ) 
   )
-
-wide_disagg_belief_input_df
-
-
 
 wide_disagg_belief_tbl %>%
   custom_save_latex_table(
@@ -2962,7 +2876,7 @@ wtp_summ_input_df = bind_rows(
     filter(val_diff %in% c(50, 0, -50)) %>%
     select(variable, val_diff, per_0.5, per_0.05, per_0.95) %>%
     mutate(
-      variable = "Pr(prefer calendar)",
+      variable = "P(prefer calendar)",
       variable = paste0(
         variable, ", offered: ", val_diff, "KSh"
       )
