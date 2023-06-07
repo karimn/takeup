@@ -35,7 +35,6 @@ library(ggthemes)
 
 library(econometr)
 
-
 if (interactive()) {
   params = lst(
     fit_version = 86,
@@ -87,9 +86,6 @@ knit_hooks$set(plot = function(x, options) {
         sep = '')
 })
 ```
-
-
-
 
 ```{r, plot_setup_stuff}
 default_top_levels = c("Bracelet", "Combined")
@@ -171,9 +167,9 @@ analysis_data <- monitored_nosms_data
 
 
 ```{r}
-#| component-checks,
-#| fig.cap = "Model subcomponents",
-#| fig.width = 10, fig.height = 10
+# component-checks,
+# fig.cap = "Model subcomponents",
+# fig.width = 10, fig.height = 10
 if (params$component_checks) {
   component_files = map(
       c("control", "ink", "calendar", "bracelet"),
@@ -354,12 +350,12 @@ theme_set(theme_minimal() +
 #### Delta Expectation ####
 
 ```{r}
-#| delta-with-u-example,
-#| fig.cap="Net reputational return, $\\mu\\Delta[w^*]$, as a function of cutoff type, $w^*$",
-#| fig.note="This plot shows how expected reputational return, $\\mu\\Delta[w^*]$ 
-#|  varies as cutoff type, $w^*$, changes. As $\\sigma_u$ increases, the 
-#|  reputational return falls as it becomes harder to infer someone's type based 
-#|  off actions." 
+# delta-with-u-example,
+# fig.cap="Net reputational return, $\\mu\\Delta[w^*]$, as a function of cutoff type, $w^*$",
+# fig.note="This plot shows how expected reputational return, $\\mu\\Delta[w^*]$ 
+#  varies as cutoff type, $w^*$, changes. As $\\sigma_u$ increases, the 
+#  reputational return falls as it becomes harder to infer someone's type based 
+#  off actions." 
 
 sim_int <- expand.grid(
   w = seq(-2, 2, 0.1),
@@ -440,13 +436,12 @@ sim_int %>%
 ```
 
 
-
 #### Reported Social Perception ####
 ```{r}
-#| reported-social-perception,
-#|  fig.cap="Reported social perception of some observable activities.",
-#|  fig.note="This plot shows the praise and stigma associated with various activities 
-#|  including deworming."
+# reported-social-perception,
+#  fig.cap="Reported social perception of some observable activities.",
+#  fig.note="This plot shows the praise and stigma associated with various activities 
+#  including deworming."
 
 
 # colnames(baseline.data)
@@ -559,13 +554,13 @@ baseline_praise_stigma_plot_data %>%
 
 #### Distance Randomisation ####
 ```{r}
-#| dist-plot,
-#| fig.cap="Distance to Treatment Location (meters)",
-#| fig.note="This graph shows a density plot of distance to the assigned point of
-#|  treatment from each cluster centroid and household location. Clusters assigned to 
-#|  the close condition have greater density <1.25km whilst those assigned to the 
-#|  far condition place greater density >1.25km. 
-#|  Density estimates use all 9,805 surveyed individuals in the takeup sample."
+# dist-plot,
+# fig.cap="Distance to Treatment Location (meters)",
+# fig.note="This graph shows a density plot of distance to the assigned point of
+#  treatment from each cluster centroid and household location. Clusters assigned to 
+#  the close condition have greater density <1.25km whilst those assigned to the 
+#  far condition place greater density >1.25km. 
+#  Density estimates use all 9,805 surveyed individuals in the takeup sample."
 
 
 
@@ -592,13 +587,13 @@ analysis_data %>%
 
 
 ```{r}
-#| dist-hist,
-#| fig.cap="Distance to Treatment Location (meters)",
-#| fig.note="This graph shows a histogram plot of distance to the assigned point of
-#|  treatment from each cluster centroid and household location. Clusters assigned to 
-#|  the close condition have greater density <1.25km whilst those assigned to the 
-#|  far condition place greater density >1.25km. 
-#|  Density estimates use all 9,805 surveyed individuals in the takeup sample."
+# dist-hist,
+# fig.cap="Distance to Treatment Location (meters)",
+# fig.note="This graph shows a histogram plot of distance to the assigned point of
+#  treatment from each cluster centroid and household location. Clusters assigned to 
+#  the close condition have greater density <1.25km whilst those assigned to the 
+#  far condition place greater density >1.25km. 
+#  Density estimates use all 9,805 surveyed individuals in the takeup sample."
 
 analysis_data %>%  
   mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
@@ -638,10 +633,10 @@ villages = villages %>%
 
 
 ```{r}
-#| pot-distance-overlap,
-#|  fig.cap="Distribution of Distance to Closest Possible Point of Treatment, by Distance Condition",
-#|  fig.note="This plot shows there's significant overlap between the distribution of closest points of treatment 
-#|  across distance condition - i.e. any village assigned to a far PoT could have been assigned to a close PoT and vice versa."
+# pot-distance-overlap,
+#  fig.cap="Distribution of Distance to Closest Possible Point of Treatment, by Distance Condition",
+#  fig.note="This plot shows there's significant overlap between the distribution of closest points of treatment 
+#  across distance condition - i.e. any village assigned to a far PoT could have been assigned to a close PoT and vice versa."
 villages %>% 
   ggplot(aes(dist_to_closest_school)) +
   geom_histogram(aes(y = stat(density), fill = dist.pot.group), colour = "black", position = "identity", binwidth = 100, alpha = 0.5) +
@@ -652,10 +647,10 @@ villages %>%
 #### Belief Facet Plots ####
 
 ```{r}
-#| fob-beliefs-line-plot-post,
-#|  fig.cap="First Order Belief Levels and Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the first order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# fob-beliefs-line-plot-post,
+#  fig.cap="First Order Belief Levels and Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the first order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 plot_ord_beliefs_est <- function(beliefs_results, 
                              top_title = NULL, 
@@ -749,10 +744,10 @@ dist_fit_data %>%
 
 
 ```{r}
-#| sob-beliefs-line-plot-post,
-#|  fig.cap="Second Order Belief Levels and Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the second order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# sob-beliefs-line-plot-post,
+#  fig.cap="Second Order Belief Levels and Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the second order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   pull(beliefs_results) %>%
@@ -771,10 +766,10 @@ dist_fit_data %>%
 
 #### Beliefs Plots ####
 ```{r}
-#| belief-1ord-ate,
-#|  fig.cap="First Order Belief Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the first order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-1ord-ate,
+#  fig.cap="First Order Belief Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the first order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 belief_data = dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
@@ -814,10 +809,10 @@ ggsave(
 
 
 ```{r}
-#| belief-2ord-ate,
-#|  fig.cap="Second Order Belief Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the second order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-2ord-ate,
+#  fig.cap="Second Order Belief Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the second order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 belief_te_2ord = belief_data$ate_knows %>%
   filter(assigned_treatment_left != "control") %>%
@@ -847,10 +842,10 @@ ggsave(
 
 
 ```{r}
-#| belief-1ord-prop,
-#|  fig.cap="First Order Belief Levels",
-#|  fig.note="This plot shows first estimates using the first order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-1ord-prop,
+#  fig.cap="First Order Belief Levels",
+#  fig.note="This plot shows first estimates using the first order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 ## Props
 
@@ -891,10 +886,10 @@ ggsave(
 
 
 ```{r}
-#| belief-2ord-prop,
-#|  fig.cap="Second Order Belief Levels",
-#|  fig.note="This plot shows first estimates using the second order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-2ord-prop,
+#  fig.cap="Second Order Belief Levels",
+#  fig.note="This plot shows first estimates using the second order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 belief_2ord_prop_p = belief_data$prob_knows %>%
     mutate(assigned_treatment = fct_drop(assigned_treatment)) %>%
@@ -927,11 +922,11 @@ ggsave(
 
 #### Belief ATEs combined ####
 ```{r}
-#| belief-1ord-prop-combined,
-#|  fig.cap="First Order Belief Levels - Combined",
-#|  fig.note="This plot shows estimates using the first order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
+# belief-1ord-prop-combined,
+#  fig.cap="First Order Belief Levels - Combined",
+#  fig.note="This plot shows estimates using the first order beliefs 
+#   binomial model. Estimates are combined across the close and far condition. 
+#   Total sample size: 999 observations at the individual level."
 
 
 
@@ -1020,11 +1015,11 @@ ggsave(
 
 
 ```{r}
-#| belief-2ord-prop-combined,
-#|  fig.cap="Second Order Belief Levels - Combined",
-#|  fig.note="This plot shows estimates using the second order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
+# belief-2ord-prop-combined,
+#  fig.cap="Second Order Belief Levels - Combined",
+#  fig.note="This plot shows estimates using the second order beliefs 
+#   binomial model. Estimates are combined across the close and far condition. 
+#   Total sample size: 999 observations at the individual level."
 
 combined_belief_2ord_prop_p = combined_belief_prop %>%
   plot_single_beliefs_est(
@@ -1060,11 +1055,11 @@ ggsave(
 
 
 ```{r}
-#| belief-1ord-ate-combined,
-#|  fig.cap="First Order Belief Average Treatment Effects - Combined",
-#|  fig.note="This plot shows estimates using the first order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
+# belief-1ord-ate-combined,
+#  fig.cap="First Order Belief Average Treatment Effects - Combined",
+#  fig.note="This plot shows estimates using the first order beliefs 
+#   binomial model. Estimates are combined across the close and far condition. 
+#   Total sample size: 999 observations at the individual level."
 
 combined_belief_1ord_ate_p = combined_belief_ate %>%
     plot_single_beliefs_est(order = 1)  +
@@ -1094,11 +1089,11 @@ ggsave(
 ```
 
 ```{r}
-#| belief-2ord-ate-combined,
-#|  fig.cap="Second Order Belief Average Treatment Effects - Combined",
-#|  fig.note="This plot shows estimates using the second order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
+# belief-2ord-ate-combined,
+#  fig.cap="Second Order Belief Average Treatment Effects - Combined",
+#  fig.note="This plot shows estimates using the second order beliefs 
+#   binomial model. Estimates are combined across the close and far condition. 
+#   Total sample size: 999 observations at the individual level."
 
 combined_belief_2ord_ate_p = combined_belief_ate %>%
     plot_single_beliefs_est(order = 2)  +
@@ -1130,11 +1125,11 @@ ggsave(
 
 
 ```{r}
-#| disagg-fob-close,
-#|  fig.cap="Disaggregated First Order Belief Levels - Close",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-close,
+#  fig.cap="Disaggregated First Order Belief Levels - Close",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 
 cv = function(alpha){
@@ -1239,11 +1234,11 @@ comp_belief_data %>%
 ```
 
 ```{r}
-#| disagg-fob-far,
-#|  fig.cap="Disaggregated First Order Belief Levels - Close",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-far,
+#  fig.cap="Disaggregated First Order Belief Levels - Close",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 comp_belief_data %>%
   filter(belief_type == "1ord") %>%
@@ -1262,11 +1257,11 @@ comp_belief_data %>%
 ```
 
 ```{r}
-#| disagg-fob-far-single-ci,
-#|  fig.cap="Disaggregated First Order Belief Levels - Close",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-far-single-ci,
+#  fig.cap="Disaggregated First Order Belief Levels - Close",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 
 comp_belief_data %>%
@@ -1285,11 +1280,11 @@ comp_belief_data %>%
 
 
 ```{r}
-#| disagg-fob-both,
-#|  fig.cap="Disaggregated First Order Belief Levels",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-both,
+#  fig.cap="Disaggregated First Order Belief Levels",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 
 plot_disagg_ord_beliefs_est <- function(data, 
@@ -1408,11 +1403,11 @@ comp_belief_data %>%
 
 
 ```{r}
-#| disagg-sob-both,
-#|  fig.cap="Disaggregated Second Order Belief Levels",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-sob-both,
+#  fig.cap="Disaggregated Second Order Belief Levels",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+3
 comp_belief_data %>%
   filter(belief_type == "2ord") %>%
@@ -1427,11 +1422,11 @@ comp_belief_data %>%
 
 
 ```{r}
-#| pref-gift-plot,
-#| fig.cap="Preferences for gift by treatment arm",
-#| fig.note="This plot shows the preference for either the bracelet or calendar gift 
-#|  by each treatment arm/distance condition.",
-#| fig.width=10, fig.height=10
+# pref-gift-plot,
+# fig.cap="Preferences for gift by treatment arm",
+# fig.note="This plot shows the preference for either the bracelet or calendar gift 
+#  by each treatment arm/distance condition.",
+# fig.width=10, fig.height=10
 
 
 pref_gift_df = analysis_data %>%
@@ -1556,18 +1551,18 @@ reduced_incentive_level_plot_df = dist_fit_data %>%
 ```
 
 ```{r}
-#| reduced-incentive-level-plot,
-#| fig.cap="Incentive Takeup Levels, Reduced Form Model",
-#| fig.note="This plot shows the level of takeup in each treatment condition by 
-#|  distance, estimated using a Bayesian probit ('reduced form') model. The prior 
-#|  predictive distribution is overlaid at the top of the plot, which shows the 
-#|  predicted treatment effects before conditioning on the data. The prior is 
-#|  centered at 50\\% takeup and the 90\\% credible interval covers almost the entire
-#|  unit interval. The plot shows that deworming takeup is higher in the close condition
-#|  and that the bracelet has the highest level amongst the offered treatments.
-#|  Line range: 90\\% credible interval. 
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval. 
-#|  Point: mean. 9,805 observations from the individual takeup sample used for estimates."
+# reduced-incentive-level-plot,
+# fig.cap="Incentive Takeup Levels, Reduced Form Model",
+# fig.note="This plot shows the level of takeup in each treatment condition by 
+#  distance, estimated using a Bayesian probit ('reduced form') model. The prior 
+#  predictive distribution is overlaid at the top of the plot, which shows the 
+#  predicted treatment effects before conditioning on the data. The prior is 
+#  centered at 50\\% takeup and the 90\\% credible interval covers almost the entire
+#  unit interval. The plot shows that deworming takeup is higher in the close condition
+#  and that the bracelet has the highest level amongst the offered treatments.
+#  Line range: 90\\% credible interval. 
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval. 
+#  Point: mean. 9,805 observations from the individual takeup sample used for estimates."
 
 
 reduced_incentive_level_plot = reduced_incentive_level_plot_df %>%
@@ -1610,11 +1605,11 @@ reduced_incentive_ate_plot_df = dist_fit_data %>%
 ```
 
 ```{r}
-#| reduced-incentive-ate-plot,
-#| fig.cap = "Incentive Average Treatment Effect, Reduced Form Model",
-#| fig.note = "Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean."
+# reduced-incentive-ate-plot,
+# fig.cap = "Incentive Average Treatment Effect, Reduced Form Model",
+# fig.note = "Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean."
 
 reduced_incentive_ate_plot = reduced_incentive_ate_plot_df %>%
   plot_estimands(., 
@@ -1653,18 +1648,18 @@ ggsave(
 
 
 ```{r}
-#| structural-signalling-ate-plot,
-#| fig.cap="Signalling Average Treatment Effect, Structural Model",
-#| fig.note = "This plot shows the average signalling treatment effect estimated
-#|  using the structural model. The prior predictive distribution is overlaid at 
-#|  the top of the plot, which shows the 
-#|  predicted signalling treatment effects before conditioning on the data. The prior is 
-#|  centered at a treatment effect of approximately 0. The plot shows that the signalling effect 
-#|  is greatest for the ink and bracelet treatments and largest in the far condition.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean. Signalling effect calculated using
-#|  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
+# structural-signalling-ate-plot,
+# fig.cap="Signalling Average Treatment Effect, Structural Model",
+# fig.note = "This plot shows the average signalling treatment effect estimated
+#  using the structural model. The prior predictive distribution is overlaid at 
+#  the top of the plot, which shows the 
+#  predicted signalling treatment effects before conditioning on the data. The prior is 
+#  centered at a treatment effect of approximately 0. The plot shows that the signalling effect 
+#  is greatest for the ink and bracelet treatments and largest in the far condition.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean. Signalling effect calculated using
+#  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
 
 1+1
 grab_signalling_ate = function(data, model_type_to_plot, models_we_want) {
@@ -1744,17 +1739,17 @@ ggsave(
 
 
 ```{r}
-#| structural-private-ate-plot,
-#| fig.cap="Private Incentive Average Treatment Effect, Structural Model",
-#| fig.note = "This plot shows the average private incentive treatment effect estimated
-#|  using the structural model. The prior predictive distribution is overlaid at 
-#|  the top of the plot, which shows the 
-#|  predicted priavte incentive treatment effects before conditioning on the data. The prior is 
-#|  centered at a treatment effect of approximately 0. The plot shows that the private incentive effect 
-#|  is greatest for the calendar and bracelet treatments.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean.", dependson = c("structural-signalling-ate-plot")
+# structural-private-ate-plot,
+# fig.cap="Private Incentive Average Treatment Effect, Structural Model",
+# fig.note = "This plot shows the average private incentive treatment effect estimated
+#  using the structural model. The prior predictive distribution is overlaid at 
+#  the top of the plot, which shows the 
+#  predicted priavte incentive treatment effects before conditioning on the data. The prior is 
+#  centered at a treatment effect of approximately 0. The plot shows that the private incentive effect 
+#  is greatest for the calendar and bracelet treatments.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean.", dependson = c("structural-signalling-ate-plot")
 
 1+1
 
@@ -1882,21 +1877,21 @@ single_structural_private_ate_plot +
 ```
 
 ```{r}
-#| structural-incentive-ate-plot,
-#| fig.cap="Incentive Average Treatment Effect, Structural Model",
-#| fig.note = "This plot shows the average treatment effect estimated
-#|  using the structural model. The prior predictive distribution is overlaid at 
-#|  the top of the plot, which shows the 
-#|  predicted treatment effects before conditioning on the data. The prior is 
-#|  centered at a treatment effect of 0 and the 90\\% credible interval covers the 
-#|  interval $[-0.125,0.125]$. The plot shows that the treatment effect is greatest
-#|  for the bracelet treatment and estimated treatment effects are larger for the 
-#|  bracelet at close than far.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean. Treatment effect calculated using
-#|  structural model incorporating willingness-to-pay, beliefs, and takeup data." ,
-#|   dependson = c("structural-signalling-ate-plot")
+# structural-incentive-ate-plot,
+# fig.cap="Incentive Average Treatment Effect, Structural Model",
+# fig.note = "This plot shows the average treatment effect estimated
+#  using the structural model. The prior predictive distribution is overlaid at 
+#  the top of the plot, which shows the 
+#  predicted treatment effects before conditioning on the data. The prior is 
+#  centered at a treatment effect of 0 and the 90\\% credible interval covers the 
+#  interval $[-0.125,0.125]$. The plot shows that the treatment effect is greatest
+#  for the bracelet treatment and estimated treatment effects are larger for the 
+#  bracelet at close than far.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean. Treatment effect calculated using
+#  structural model incorporating willingness-to-pay, beliefs, and takeup data." ,
+#   dependson = c("structural-signalling-ate-plot")
 
 1+1
 structural_incentive_ate_plot = dist_fit_data %>%
@@ -1942,7 +1937,7 @@ ggsave(
 
 
 ```{r}
-#| load-wtp
+# load-wtp
 
 
 wtp_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model_fit_results.rds")) 
@@ -1950,14 +1945,14 @@ wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model
 ```
 
 ```{r wtp-post}
-#| wtp-post,
-#| fig.cap="Willingness-To-Pay Estimates",
-#| fig.note = "Calendar valued at 47.2KSh more than Bracelet with a 90\\% credibility 
-#|  interval of $[41.2, 52.8]$.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
-#|  with a Bayesian multinomial discrete choice model using a Probit likelihood."
+# wtp-post,
+# fig.cap="Willingness-To-Pay Estimates",
+# fig.note = "Calendar valued at 47.2KSh more than Bracelet with a 90\\% credibility 
+#  interval of $[41.2, 52.8]$.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
+#  with a Bayesian multinomial discrete choice model using a Probit likelihood."
 
 
 
@@ -2051,14 +2046,14 @@ joint_wtp_results %>%
 
 
 ```{r}
-#| wtp-post-joint,
-#| fig.cap="Willingness-To-Pay Estimates",
-#| fig.note = "Calendar valued at 47.2KSh more than Bracelet with a 90\\% credibility 
-#|  interval of $[41.2, 52.8]$.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
-#|  with a Bayesian multinomial discrete choice model using a Probit likelihood."
+# wtp-post-joint,
+# fig.cap="Willingness-To-Pay Estimates",
+# fig.note = "Calendar valued at 47.2KSh more than Bracelet with a 90\\% credibility 
+#  interval of $[41.2, 52.8]$.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
+#  with a Bayesian multinomial discrete choice model using a Probit likelihood."
 1+1
 joint_wtp_results %>% 
   mutate(fit_type = "joint") %>% 
@@ -2072,13 +2067,13 @@ joint_wtp_results %>%
 
 
 ```{r}
-#| take-up-prob-with-obs-takeup-and-linerange,
-#| fig.cap="Structural Model Estimates of Take-up Probability by Distance", 
-#| fig.note="This plot shows estimated take-up probability across bracelet and 
-#|  control over distance. Take-up probability is calculated using the structural 
-#|  model's estimates of $w^*$ in each cluster and taking the complement of the Gaussian CDF 
-#|  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
-#|  inner ribbon: 50\\% credibility interval."
+# take-up-prob-with-obs-takeup-and-linerange,
+# fig.cap="Structural Model Estimates of Take-up Probability by Distance", 
+# fig.note="This plot shows estimated take-up probability across bracelet and 
+#  control over distance. Take-up probability is calculated using the structural 
+#  model's estimates of $w^*$ in each cluster and taking the complement of the Gaussian CDF 
+#  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
+#  inner ribbon: 50\\% credibility interval."
 
 
 dist_prob_plot <- dist_fit_data %>% 
@@ -2143,7 +2138,7 @@ dist_prob_plot +
 
 
 ```{r}
-#| odds-ratio-plot, eval = FALSE
+# odds-ratio-plot, eval = FALSE
 library(tidyverse)
 df = tibble(
   x = seq(from = -4, to = 4, length.out = 100), 
@@ -2174,7 +2169,7 @@ df %>%
 
 
 ```{r}
-#| rep-return-te-df
+# rep-return-te-df
 if (params$component_checks) {
 rep_te_plot_df = read_csv(
   file.path(
@@ -2225,10 +2220,10 @@ rep_te_plot_fun = function(data, treat) {
 
 
 ```{r}
-#| rep-return-te-dist-bracelet,
-#| fig.cap="Difference in Value of Reputational Return Across Bracelet and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model.", dependson = c("rep-return-te-df")
+# rep-return-te-dist-bracelet,
+# fig.cap="Difference in Value of Reputational Return Across Bracelet and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model.", dependson = c("rep-return-te-df")
 
 if (params$component_checks) {
 rep_te_plot_fun(rep_te_plot_df, "bracelet") + 
@@ -2237,10 +2232,10 @@ rep_te_plot_fun(rep_te_plot_df, "bracelet") +
 ```
 
 ```{r}
-#| rep-return-te-dist-calendar,
-#| fig.cap="Difference in Value of Reputational Return Across Calendar and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model.", dependson = "rep-return-te-df"
+# rep-return-te-dist-calendar,
+# fig.cap="Difference in Value of Reputational Return Across Calendar and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model.", dependson = "rep-return-te-df"
 
 if (params$component_checks) {
 rep_te_plot_fun(rep_te_plot_df, "calendar") +
@@ -2249,10 +2244,10 @@ rep_te_plot_fun(rep_te_plot_df, "calendar") +
 ```
 
 ```{r}
-#| rep-return-te-dist-ink,
-#| fig.cap="Difference in Value of Reputational Return Across Ink and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model." , dependson = "rep-return-te-df"
+# rep-return-te-dist-ink,
+# fig.cap="Difference in Value of Reputational Return Across Ink and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model." , dependson = "rep-return-te-df"
 
 if (params$component_checks) {
 rep_te_plot_fun(rep_te_plot_df, "ink") +
@@ -2261,10 +2256,10 @@ rep_te_plot_fun(rep_te_plot_df, "ink") +
 ```
 
 ```{r}
-#| rep-return-dist-value,
-#| fig.cap="Value of Reputational Return Across Bracelet and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model." 
+# rep-return-dist-value,
+# fig.cap="Value of Reputational Return Across Bracelet and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model." 
 
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
@@ -2360,16 +2355,16 @@ ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 ## Social Multiplier 
 
 ```{r}
-#| social-multiplier,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# social-multiplier,
+# fig.cap="Estimated Social Multiplier Over Distance",
+# fig.note = "This plot shows the social multiplier estimated using the structural 
+#  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#  increases individuals become less and less sensitive to the increased cost due to 
+#  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 if (params$component_checks) {
 bracelet_sm_df = read_csv(
@@ -2492,16 +2487,16 @@ plot_sm(
 
 
 ```{r}
-#| social-multiplier-prior,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# social-multiplier-prior,
+# fig.cap="Estimated Social Multiplier Over Distance",
+# fig.note = "This plot shows the social multiplier estimated using the structural 
+#  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#  increases individuals become less and less sensitive to the increased cost due to 
+#  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 if (params$component_checks) {
   plot_sm(
@@ -2513,16 +2508,16 @@ if (params$component_checks) {
 
 
 ```{r}
-#| social-multiplier-prior-uncertainty,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# social-multiplier-prior-uncertainty,
+# fig.cap="Estimated Social Multiplier Over Distance",
+# fig.note = "This plot shows the social multiplier estimated using the structural 
+#  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#  increases individuals become less and less sensitive to the increased cost due to 
+#  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 if (params$component_checks) {
   plot_sm(
@@ -2537,16 +2532,16 @@ if (params$component_checks) {
 
 
 ```{r}
-#| all-social-multiplier,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# all-social-multiplier,
+# fig.cap="Estimated Social Multiplier Over Distance",
+# fig.note = "This plot shows the social multiplier estimated using the structural 
+#  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#  increases individuals become less and less sensitive to the increased cost due to 
+#  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 if (params$component_checks) {
 
@@ -2583,7 +2578,7 @@ summ_sm_df = sm_df %>%
 
 
 ```{r}
-#| social-multiplier-plot
+# social-multiplier-plot
 if (params$component_checks) {
 1+2
 summ_sm_df %>%
@@ -2637,7 +2632,7 @@ summ_sm_df %>%
 
 
 ```{r}
-#| only-bracelet-sm-plot
+# only-bracelet-sm-plot
 
 if (params$component_checks) {
 summ_sm_df %>%
@@ -2666,16 +2661,16 @@ summ_sm_df %>%
 ```
 
 ```{r}
-#| rate-of-change,
-#| fig.cap="Rate of Change Estimates",
-#| fig.note = "This plot shows the rate of change estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# rate-of-change,
+# fig.cap="Rate of Change Estimates",
+# fig.note = "This plot shows the rate of change estimated using the structural 
+#  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#  increases individuals become less and less sensitive to the increased cost due to 
+#  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 plot_summ_bc_draws = read_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
 
@@ -2747,16 +2742,16 @@ p_roc
 
 
 ```{r}
-#| rate-of-change-prior,
-#| fig.cap="Rate of Change Estimates",
-#| fig.note = "This plot shows the rate of change estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# rate-of-change-prior,
+# fig.cap="Rate of Change Estimates",
+# fig.note = "This plot shows the rate of change estimated using the structural 
+#  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#  increases individuals become less and less sensitive to the increased cost due to 
+#  greater associated reputational returns. At 2.5km individuals in the bracelet 
+#  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 
 prior_sm_post_df = dist_fit_data %>% 
@@ -2826,16 +2821,16 @@ p_roc +
 
 
 ```{r,eval=TRUE}
-#| sms-tes,
-#| fig.cap="Average Treatment Effect, with and without SMS"
+# sms-tes,
+# fig.cap="Average Treatment Effect, with and without SMS"
 
 include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-by-sms-incentive.pdf", rel_path = FALSE)
 ```
 
 
 ```{r, eval=TRUE}
-#| sms-te-diff,
-#| fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
+# sms-te-diff,
+# fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
 
 include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-diff-by-sms-incentive.pdf", rel_path = FALSE)
 ```
@@ -2845,7 +2840,7 @@ include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-diff-by-sms-ince
 
 
 ```{r}
-#| dist-cts-check
+# dist-cts-check
 schools <- st_as_sf(rct.schools.data, crs = wgs.84)
 villages <- village.centers %>% 
   st_as_sf(coords = c("lon", "lat"), crs = wgs.84)
@@ -2862,11 +2857,11 @@ villages %<>%
 
 
 ```{r}
-#| dist-cts-plot,
-#| fig.cap="Distance to Closest Potential Point of Treatment, by Realised Assignment",
-#| fig.note="This plot shows how the distribution of distance to the closest possible point of 
-#|  treatment, by the realised assignment condition. The plot shows that any village in 
-#|  far condition could have been assigned a close point of treatment." 
+# dist-cts-plot,
+# fig.cap="Distance to Closest Potential Point of Treatment, by Realised Assignment",
+# fig.note="This plot shows how the distribution of distance to the closest possible point of 
+#  treatment, by the realised assignment condition. The plot shows that any village in 
+#  far condition could have been assigned a close point of treatment." 
 
 villages %>% 
   ggplot(aes(dist_to_closest_school/1000)) +
@@ -3002,13 +2997,13 @@ dist_checks %>%
 
 
 ```{r}
-#| roc-amp-mit-line,
-#| fig.cap="Rate of Change Estimates",
-#| fig.note = "This plot shows the rate of change estimated using the structural 
-#|  model. The dashed line corresponds to a multiplier where there is no visibility.
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+# roc-amp-mit-line,
+# fig.cap="Rate of Change Estimates",
+# fig.note = "This plot shows the rate of change estimated using the structural 
+#  model. The dashed line corresponds to a multiplier where there is no visibility.
+#  Line: median.
+#  Outer ribbon: 90\\% credible interval.
+#  Inner ribbon: 50\\% credible interval."
 
 library(magrittr)
 rf_analysis_data <- dist_fit_data %>% 
