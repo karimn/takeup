@@ -31,6 +31,8 @@ calculate_belief_latent_predictor = function(beta,
     return(val)
 }
 
+inv_logit = function(x){1/(1 + exp(-x))}
+
 #' Calculate Visibility \mu(z,d)
 #' 
 #' Takes in distance, base_mu_rep which act as control, mu_beliefs_effect (=1),
@@ -61,12 +63,64 @@ calculate_mu_rep = function(dist,
         return(beliefs_latent)
     } else if (mu_rep_type == 3) {
         return(0)
+    } else if (mu_rep_type == 4) {
+      mu_rep =  base_mu_rep * inv_logit(beliefs_latent)
+
     } else {
         mu_rep = base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta_control))
     }
     return(mu_rep)
 }
 
+calculate_mu_rep_deriv = function(dist, 
+                            base_mu_rep, 
+                            mu_beliefs_effect, 
+                            beta, 
+                            dist_beta, 
+                            beta_control,
+                            dist_beta_control,
+                            mu_rep_type = 0,  
+                            control) {
+    if (mu_rep_type == 1) { # log
+      return(NA)
+    } else if (mu_rep_type == 2) { # linear
+      return(NA)
+    } else if (mu_rep_type == 3) {
+      return(NA)
+    } else {
+
+      if (control == FALSE) {
+          dist_val =  dist_beta  + dist_beta_control
+      } else {
+          dist_val =  dist_beta 
+      }
+      mu_rep = calculate_mu_rep(
+          dist = dist,
+          base_mu_rep = base_mu_rep,
+          mu_beliefs_effect = mu_beliefs_effect,
+          beta = beta,
+          dist_beta = dist_beta,
+          beta_control = beta_control,
+          dist_beta_control = dist_beta_control,
+          mu_rep_type = mu_rep_type, 
+          control = control)
+        mu_rep_deriv = mu_rep * mu_beliefs_effect * dist_val 
+    }
+
+  if (mu_rep_type == 4) {
+    beliefs_latent = calculate_belief_latent_predictor(
+        beta = beta, 
+        dist_beta = dist_beta, 
+        dist = dist, 
+        control_beta = beta_control, 
+        control_dist_beta = dist_beta_control, 
+        control = control
+        )
+        mu_rep_deriv = base_mu_rep * dist_val * exp(-beliefs_latent) / (1 + exp(-beliefs_latent))^2
+  }
+
+    return(mu_rep_deriv)
+}
 
 
 #' Find Cutoff Type
@@ -108,16 +162,20 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
         v_star = pmin(v_star, bounds[2])
         v_star = pmax(v_star, bounds[1])
         delta_v_star = analytical_delta_bounded(v_star, u_sd, bounds)
+        delta_v_star_deriv = analytical_delta_deriv_bounded(v_star, u_sd, bounds, delta_w = delta_v_star)
         delta_v_star = pmin(delta_v_star, bounds[2])
 
     } else {
         delta_v_star = analytical_delta(v_star, u_sd)
+        delta_v_star_deriv = analytical_delta_deriv(v_star, u_sd, delta_w = delta_v_star)
     }
     v_star[solv_term_code > 2] = NA
     delta_v_star[solv_term_code > 2] = NA
+    delta_v_star_deriv[solv_term_code > 2] = NA
     return(lst(
         v_star,
-        delta_v_star
+        delta_v_star,
+        delta_v_star_deriv
     ))
 }
 
@@ -153,7 +211,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              private_benefit_treatment, 
                              visibility_treatment,
                              beta_b_control,
-                             suppress_reputation) {
+                             suppress_reputation, 
+                             static_signal) {
     function(distance){
       
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
@@ -168,36 +227,57 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           v_star = - b
           linear_pred = b 
           mu_rep = 0
-          delta_v_star = 0
+          mu_rep_deriv = NA
+          delta_v_star = NA
+          delta_v_star_deriv = NA
+          pr_obs = NA 
+
         }  else {
           if (visibility_treatment == "control") {
             mu_rep_control_param = TRUE
           } else {
             mu_rep_control_param = FALSE
           }
-
-          mu_rep = calculate_mu_rep(
-              dist = distance,
-              base_mu_rep = base_mu_rep,
-              mu_beliefs_effect = 1,
-              beta = mu_beta_z,
-              dist_beta = mu_beta_d,
-              beta_control = mu_beta_z_control,
-              dist_beta_control = mu_beta_d_control,
-              mu_rep_type = mu_rep_type, 
-              control = mu_rep_control_param)
-          # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
-          cutoff_mu_rep = calculate_mu_rep(
-              dist = rep_cutoff/dist_sd,
-              base_mu_rep = base_mu_rep,
-              mu_beliefs_effect = 1,
-              beta = mu_beta_z,
-              dist_beta = mu_beta_d,
-              beta_control = mu_beta_z_control,
-              dist_beta_control = mu_beta_d_control,
-              mu_rep_type = mu_rep_type, 
-              control = mu_rep_control_param)
-          mu_rep[which(over_cutoff)] = cutoff_mu_rep
+          # if social planner uses static signal, add it to private benefit and set 
+          # mu_rep to 0 so v_star doesn't vary w/ distance
+          if (!is.null(static_signal)) {
+            b = b + static_signal
+            mu_rep = 0
+          mu_rep_deriv = NA
+          } else {
+            mu_rep = calculate_mu_rep(
+                dist = distance,
+                base_mu_rep = base_mu_rep,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z,
+                dist_beta = mu_beta_d,
+                beta_control = mu_beta_z_control,
+                dist_beta_control = mu_beta_d_control,
+                mu_rep_type = mu_rep_type, 
+                control = mu_rep_control_param)
+            mu_rep_deriv = calculate_mu_rep_deriv(
+                dist = distance,
+                base_mu_rep = base_mu_rep,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z,
+                dist_beta = mu_beta_d,
+                beta_control = mu_beta_z_control,
+                dist_beta_control = mu_beta_d_control,
+                mu_rep_type = mu_rep_type, 
+                control = mu_rep_control_param)
+            # if distance greater than cutoff, set mu_rep to cutoff mu_rep within distance
+            cutoff_mu_rep = calculate_mu_rep(
+                dist = rep_cutoff/dist_sd,
+                base_mu_rep = base_mu_rep,
+                mu_beliefs_effect = 1,
+                beta = mu_beta_z,
+                dist_beta = mu_beta_d,
+                beta_control = mu_beta_z_control,
+                dist_beta_control = mu_beta_d_control,
+                mu_rep_type = mu_rep_type, 
+                control = mu_rep_control_param)
+            mu_rep[which(over_cutoff)] = cutoff_mu_rep
+          }
 
           v_star_soln = find_v_star(
               distance = distance,
@@ -208,12 +288,25 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
               bounds = bounds
           )
           delta_v_star = v_star_soln$delta_v_star
+          delta_v_star_deriv = v_star_soln$delta_v_star_deriv
           v_star = v_star_soln$v_star
           linear_pred = b + mu_rep*delta_v_star
         }
         
         pred_takeup = 1 - pnorm(v_star/(total_error_sd))
-        return(lst(pred_takeup, linear_pred, b, mu_rep, delta_v_star, v_star, total_error_sd))
+        return(lst(
+          pred_takeup, 
+          linear_pred, 
+          b, 
+          mu_rep, 
+          mu_rep_deriv, 
+          delta_v_star, 
+          delta = beta_b_d, 
+          delta_v_star_deriv, 
+          v_star, 
+          total_error_sd, 
+          pr_obs = mu_rep/base_mu_rep
+          ))
     }
 }
 
@@ -236,7 +329,8 @@ find_pred_takeup = function(params) {
         beta_b_control = params$beta_b_control, 
         private_benefit_treatment = params$private_benefit_treatment, 
         visibility_treatment = params$visibility_treatment,
-        suppress_reputation = params$suppress_reputation
+        suppress_reputation = params$suppress_reputation,
+        static_signal = params$static_signal
     )
 }
 
@@ -251,7 +345,8 @@ extract_params = function(param_draws,
                           rep_cutoff = Inf, 
                           bounds = c(-Inf, Inf),
                           mu_rep_type = 0,
-                          suppress_reputation) {
+                          suppress_reputation, 
+                          static_signal) {
     treatments = c(
         "control",
         "ink",
@@ -301,6 +396,14 @@ extract_params = function(param_draws,
       )  %>%
       pull(.value)
 
+    if (!is.null(static_signal)) {
+      if (is.na(static_signal)) {
+        static_signal = NULL
+      }
+    } else {
+      static_signal = NULL
+    }
+
     params = c(
         params, 
         "mu_beta_z_control" = mu_beta_z_control, 
@@ -314,7 +417,8 @@ extract_params = function(param_draws,
         "private_benefit_treatment" = as.character(private_benefit_treatment), 
         "visibility_treatment" = as.character(visibility_treatment), 
         "beta_b_control" = beta_b_control, 
-        "suppress_reputation" = suppress_reputation
+        "suppress_reputation" = suppress_reputation, 
+        "static_signal" = static_signal
         ) %>%
         as.list()
 
@@ -358,92 +462,7 @@ define_baseline_MIPModel = function(data) {
     return(model)
 }
 
-#' Add objectives to baseline MIPModel
-#'
-#' @param data list with n and m (n villages and PoTs). Also village_locations
-#' df and treatment_locations df
-#' @param demand_function function that takes as arguments: i, j, village_locations, pot_locations
-#' i is village index, j is PoT index and village_locations, pot_locations are dfs indexed by i,j
-#' @param optim_type Whether to solve takeup maximisation given budget or min cost given takeup target. 
-#' Accepts: `min_cost` or `max_takeup`
-#' @target_constraint What to put in the budget constraint 
-add_MIPModel_objective = function(model, data, demand_data, optim_type, target_constraint) {
-    n = data$n  # N villages
-    m = data$m  # M points of treatment
-    village_locations = data$village_locations # Village location df
-    pot_locations = data$pot_locations # PoT location df
 
-    if (optim_type == "min_cost") {
-      model = model %>%
-          # Takeup must be at least 
-          add_constraint(sum_over(
-            x[i, j]*demand_data[village_i == i & pot_j == j, demand], i = 1:n, j = 1:m) >=  target_constraint*n)  %>%
-          set_objective(
-            sum_over(y[j], j = 1:m), "min"
-          )
-    }
-    if (optim_type == "min_cost_indiv") {
-      model = model %>%
-          # Takeup must be at least 
-          add_constraint(
-            sum_over(x[i, j]*demand_data[village_i == i & pot_j == j, demand], j = 1:m) >=  target_constraint, i = 1:n)  %>%
-          set_objective(
-            sum_over(y[j], j = 1:m), "min"
-          )
-    }
-
-    if (optim_type == "max_takeup") {
-      model = model %>%
-        # given budget of number PoTs
-        add_constraint(
-          sum_over(
-            y[j],
-            j = 1:m
-          ) <= target_constraint
-        ) %>%
-        # maximize the takeup
-        set_objective(
-                sum_over(
-                    x[i,j] * demand_data[village_i == i & pot_j == j, demand], 
-                    i = 1:n, j = 1:m), "max")
-    }
-    return(model)
-
-}
-
-
-define_and_solve_model = function(baseline_model,
-                                  data,
-                                  demand_data,
-                                  optim_type,
-                                  target_constraint){
-  model = baseline_model %>%
-    add_MIPModel_objective(
-      model =  .,
-      data = data,
-      demand_data = demand_data,
-      optim_type = optim_type,
-      target_constraint = target_constraint
-    )                            
-  fit_model = solve_model(
-    model,
-    with_ROI(solver = "glpk", verbose = TRUE, control = list(tm_limit = script_options$time_limit))
-  )
-  status = solver_status(fit_model)
-  if (status == "success"){
-    match_df = fit_model %>%
-        get_solution(x[i,j]) %>%
-        filter(value > .9) %>%  
-        select(i, j) %>%
-        as_tibble()
-    tidy_output = clean_output(match_df, data, demand_data) 
-    return(tidy_output)
-  } else {
-    return(tibble(fail = TRUE, solver_status = status))
-  }
-}
-
-safe_define_and_solve_model = possibly(define_and_solve_model, otherwise = tibble(fail = TRUE))
 
 clean_output = function(match_df, data, demand_data){
     tidy_output = match_df %>%
@@ -456,32 +475,7 @@ clean_output = function(match_df, data, demand_data){
       demand_data,
       by = c("i" = "village_i", "j" = "pot_j")
     )
-  ## Reassign villages to closest PoT
-  # SP doesn't care about distance cost atm so once he hits target takeup, can 
-  # assign people to whatever PoT if they won't let him drop down to a smaller # of PoTs
-  # therefore, we just reoptimise within allowed PoTs
 
-  #### TEMPORARY FIX #####
-  # dd = copy(demand_data)
-  # assigned_pots = unique(tidy_output$j)
-  # new_tidy_output = dd[pot_j %in% assigned_pots, min_dist_avail := min(dist), village_i][
-  #   dist == min_dist_avail
-  #   ] %>%
-  #   inner_join(data$village_locations %>% 
-  #                   rename(village_lon = lon, village_lat = lat), by = c("village_i" = "id")) %>% 
-  #   inner_join(data$pot_locations %>%
-  #                   rename(pot_lon = lon, pot_lat = lat), by = c("pot_j" = "id"))  %>%
-  #   rename(
-  #     i = village_i, 
-  #     j = pot_j
-  #   ) %>%
-  #   as_tibble() %>%
-  #   select(-min_dist_avail)
-  # if (nrow(tidy_output) == nrow(new_tidy_output)) {
-  #   tidy_output = new_tidy_output
-  # } else {
-  #   warning("Temporary fix failed, using original allocation.")
-  # }
     return(tidy_output)
 }
 
@@ -583,6 +577,77 @@ create_sum_constraint = function(n, m) {
 }
 
 
+#' Create Distance Constraint
+#'
+#' demand_data %>%
+#'  unnest(demand_data) %>%
+#'  arrange(pot_j, village_i) %>%
+#'  select(pot_j, village_i)
+#'
+#' distance vector in order:
+#' pot_1 vill_1
+#' pot_1 vill_2
+#' pot_1 vill_3
+#' ...
+#' pot_2 vill_1
+#' pot_2 vill_2
+#' pot_2 vill_3
+#' ...
+#' pot_m vill_i
+#'
+#' distance walked must be <= distance constraint for each vill 
+#' 
+#' ## min-cost-indiv ##
+#' For each village, distance must be less than or equal to distance constraint
+#' 
+#' Therefore A_distance:
+#' y_1 ... y_m x_11 x_12... x_21 x_22 ... x_nm
+#' 0 ...   0   d_11 d_12 ...0    0    ... 0
+#' 0 ...   0   0    0 ...   d_21    d_22 ... 0
+#' (Basically a block diagonal matrix with each block a village's distance)
+#' i.e. 0 everywhere but if row(A) == i, x_ji = d_ji
+#' i.e. summation of distances by row (on RHS we will have target_i for each 
+#' town i).
+#' A_distance  X = vector(takeup x_{ij, switched on}) <= vector(distance_constraint)
+#' 
+create_distance_constraint = function(distance, n, m, distance_constraint) {
+  rhs = rep(distance_constraint, n)
+
+  xi = map(1:n, ~find_x_index(n = n, m = m, i = .x, j = 1:m)) %>%
+    unlist()
+  i_mat = rep(1:n, each = m)
+  
+
+  x_matrix = simple_triplet_matrix(
+    i = i_mat, 
+    j = xi, 
+    v = distance, 
+    nrow = n, 
+    ncol = m*n
+  )
+
+
+  dir = rep("<=", n)
+  
+  # Suppose we want to find demand in village 2 for all PoTs:
+  # vill_we_want = 2
+  # x_matrix[vill_we_want, find_x_index(n = n, m = m, i = vill_we_want, j = 1:m) ]$v
+
+  y_nrow = n
+
+  y_matrix = simple_triplet_zero_matrix(
+    nrow = y_nrow,
+    ncol = m
+  )
+  return(lst(
+    y_matrix,
+    x_matrix,
+    rhs,
+    dir
+  ))
+}
+
+
 #' Create takeup constraint
 #'
 #'
@@ -650,35 +715,14 @@ create_takeup_constraint = function(takeup, n, m, constraint_type, takeup_target
       ncol = m*n
     )
 
-    # js = rep(1:n, each = m)
-    # x_index = n*(1:m) - (n - js)
-
-    # takeup_indices = map(1:n, ~x_index[js == .x]) %>%
-    #   unlist()
-    # x_matrix = simple_triplet_matrix(
-    #   i = js,
-    #   j = x_index,
-    #   v = takeup[takeup_indices],
-    #   nrow = n,
-    #   ncol = m*n
-    # )
-
-    # x_matrix %>% as.matrix()
 
     dir = rep(">=", n)
+    rhs = rep(rhs, n)
   
     # Suppose we want to find demand in village 2 for all PoTs:
     # vill_we_want = 2
     # x_matrix[vill_we_want, find_x_index(n = n, m = m, i = vill_we_want, j = 1:m) ]$v
 
-    # demand_data %>%
-    #   unnest(demand_data) %>%
-    #   group_by(village_i) %>%
-    #   mutate(new_i_id = cur_group_id()) %>%
-    #   arrange(pot_j, new_i_id) %>%
-    #   select(pot_j, new_i_id, village_i, demand) %>%
-    #   filter(new_i_id == vill_we_want) %>%
-    #   filter(demand > 0)
     y_nrow = n
   }
 
@@ -752,6 +796,33 @@ create_base_constraints = function(n, m) {
     rhs,
     variable_names
     ))
+}
+
+
+add_distance_constraints = function(distance,
+                                    distance_constraint, 
+                                    baseline_constraints, 
+                                    n, 
+                                    m) {
+  distance_constraint = create_distance_constraint(
+    distance = distance, 
+    n = n,
+    m = m,
+    distance_constraint = distance_constraint
+  )                                      
+  baseline_constraints$constraint_matrix = rbind(
+    baseline_constraints$constraint_matrix,
+    cbind(distance_constraint$y_matrix, distance_constraint$x_matrix)
+  )
+  baseline_constraints$dir = c(
+    baseline_constraints$dir,
+    distance_constraint$dir
+  )
+  baseline_constraints$rhs = c(
+    baseline_constraints$rhs, 
+    distance_constraint$rhs
+  )
+  return(baseline_constraints)
 }
 
 add_takeup_constraints = function(takeup, 
@@ -902,4 +973,43 @@ clean_solution = function(model_fit, data, takeup) {
     ) 
 
   return(clean_model_output)
+}
+
+## gen oa
+
+gen_oa_stats = function(village_data, pot_data, optimal_data, welfare_function) {
+    assigned_pots = unique(optimal_data$j)
+    n_pots_used =  length(assigned_pots)
+    summ_optimal_data = optimal_data %>%
+        mutate(target_optim = target_optim) %>%
+        summarise(
+            util = sum(welfare_function(demand)),
+            mean_demand = mean(demand), 
+            min_demand = min(demand), 
+            n_pot = n_distinct(j), 
+            mean_dist = mean(dist),
+            target_optim = mean(target_optim)
+        ) %>%
+        mutate(
+            target_optim = target_optim
+        ) %>%
+        mutate(
+            overshoot = 100*(util/target_optim - 1)
+        ) 
+
+    takeup_hit = round(summ_optimal_data$mean_demand*100,1 )
+    util_hit = round(summ_optimal_data$util, 2)
+    util_target = round(summ_optimal_data$target_optim, 2)
+    overshoot = round(abs(summ_optimal_data$overshoot), 3)
+    mean_dist = round(summ_optimal_data$mean_dist,1)
+    return(lst(
+        assigned_pots,
+        n_pots_used,
+        takeup_hit, 
+        util_hit,
+        util_target,
+        overshoot, 
+        mean_dist
+    ))
+
 }

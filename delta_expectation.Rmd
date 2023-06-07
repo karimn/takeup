@@ -8,15 +8,15 @@ output:
     includes:
       in_header: takeup_workingpaper_header.sty
 params:
-  structural_takeup_version: "71" 
-  reduced_form_takeup_version: 71
+  structural_takeup_version: 91
+  reduced_form_takeup_version: 91
 ---
 
 ```{r setup, include=FALSE}
 if (interactive()) {
   params = list(
-    structural_takeup_version = 71,
-    reduced_form_takeup_version = 71
+    structural_takeup_version = 91,
+    reduced_form_takeup_version = 91
   )
 }
 library(magrittr)
@@ -32,7 +32,7 @@ source(file.path("multilvlr", "multilvlr_util.R"))
 source("dist_structural_util.R")
 
 ggplot2::theme_set(theme_minimal())
-
+library(paletteer)
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 ```
 
@@ -71,6 +71,7 @@ $f(\cdot)$ and $F(\cdot)$ are the pdf and cdf, respectively, for the subscript r
 To get a sense of what flexibility this affords our model, consider how $\mu\Delta^*$ changes in two different scenarios: first, don't include the shock $u$ but allow $\mu$ to vary, second, hold $\mu$ fixed at 1 and allow the standard deviation of $u$ to vary. From here on I'm assuming that $V \sim N(0,1)$, $U \sim N(0, \sigma_u)$, and they are uncorrelated.
 
 ```{r, fig.width=8}
+#| delta-theory
 sim_int <- expand.grid(
   w = seq(-2, 2, 0.1),
   u_sd = seq(0.0, 2.0, 0.05),
@@ -248,22 +249,47 @@ if (params$structural_takeup_version != params$reduced_form_takeup_version) {
 }
 
 
+
 dist_fit_data %<>% 
+  # mutate(
+  #   model = fct_expand(
+  #     model, 
+  #     c(
+  #       "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
+  #       "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", 
+  #       "REDUCED_FORM_NO_RESTRICT_PRIOR")),
+  #   model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor(str_c(model, "_PRIOR"), levels = levels(model)), model),
+  #   model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
+  #   model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
+  # ) %>% 
   mutate(
-    model = fct_expand(
-      model, 
-      c("STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
-        "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR", 
-        "REDUCED_FORM_NO_RESTRICT_PRIOR")),
-    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "structural"), factor(str_c(model, "_PRIOR"), levels = levels(model)), model),
-    model = if_else(fct_match(fit_type, "prior-predict") & fct_match(model_type, "reduced form"), factor("REDUCED_FORM_NO_RESTRICT_PRIOR", levels = levels(model)), model),
-    model_name = if_else(fct_match(fit_type, "prior-predict"), str_c(model_name, " without Any Data"), model_name)
-  ) %>% 
+    model_c = if_else(
+      fit_type == "fit", 
+      as.character(model), 
+      str_c(model, "_PRIOR")
+    ), 
+    model = factor(model_c), 
+    model_name = str_replace(model_c, "_PRIOR", "_WITHOUT_ANY_DATA"), 
+    model_name = str_replace_all(model_name, "_", " "), 
+    model_name = str_to_title(model_name),
+    model_name = case_when(
+      model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP' ~ "Structural Model P-Hat",
+      model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL' ~ "Structural Model, High WTP MU",
+      model == 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL' ~ "Structural Model, High WTP SD", 
+      model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL" ~ "Struct p-hat, No WTP data",
+      model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL" ~ "Struct p-hat, No belief data",
+      model == "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS" ~ "Struct p-hat, No submodel data",
+      TRUE ~ model_name
+    )
+  )  %>%
   left_join(
     bind_rows(
       filter(., fct_match(model_type, "structural"), fct_match(fit_type, "fit")) %>%
         select(model, model_type, fit_type) %>% 
-        mutate(model_color = c(canva_pal(canva_palette_vibrant)(min(4, n())), canva_pal("Pop art")(max(0, n() - 4)))),
+        # mutate(model_color = c(canva_pal(canva_palette_vibrant)(min(4, n())), canva_pal("Pop art")(max(0, n() - 4)))),
+        mutate(
+          model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
+        ) %>%
       filter(., !fct_match(model_type, "structural") | !fct_match(fit_type, "fit")) %>%
         select(model, model_type, fit_type) %>% 
         mutate(model_color = if_else(fct_match(fit_type, "fit"), "black", "darkgrey"))
@@ -290,19 +316,37 @@ rf_analysis_data <- dist_fit_data %>%
 Running a simple model (a non-hierarchical model with a linear cost), we get the following estimates.
 
 ```{r incentive-te, fig.width=8, fig.height=16}
+
+fit_models = dist_fit_data %>%
+  filter(fit_type != "prior-predict")  %>%
+  pull(model) %>%
+  as.character()
+
 models_we_want = c(
   "STRUCTURAL_LINEAR_U_SHOCKS", 
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST", 
   "STRUCTURAL_LINEAR_U_SHOCKS_PRIOR", 
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_BELIEFS_DIST_PRIOR",
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",
-  "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP"
+  "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP", 
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL",
+  "REDUCED_FORM_NO_RESTRICT", 
+  "REDUCED_FORM_NO_RESTRICT_DIST_CTS", 
+  fit_models
   )
 
+canva_pal("Fresh and bright")(10)
+
+dist_fit_data = dist_fit_data %>%
+  mutate(
+    model = factor(model, levels = c(levels(model), models_we_want) %>% unique())
+  )
 
 dist_fit_data %>%
   filter(
-    (fct_match(model_type, "structural") & fct_match(model, models_we_want)) | 
+    (fct_match(model_type, "structural") & model %in% models_we_want) | 
       (fct_match(model_type, "reduced form") & fct_match(fit_type, "fit")),
   ) %>% 
   mutate(
@@ -314,7 +358,8 @@ dist_fit_data %>%
             assigned_treatment_left != assigned_treatment_right,
             fct_match(assigned_treatment_right, c("control")),
             fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar")),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% 
   select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
   mutate(
@@ -350,7 +395,17 @@ dist_fit_data %>%
       rel_heights = c(1, 0.4)
     )
   } 
+
+ggsave(
+  "temp-plots/cts-rf-te.pdf", 
+  width = 8, 
+  height = 16
+)
+
+
+
 ```
+
 
 ```{r signaling-te, fig.width=8, fig.height=13}
 dist_fit_data %>% 
@@ -375,7 +430,8 @@ dist_fit_data %>%
           fct_relevel("Combined"),
         mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left),
       ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% { 
     cowplot::plot_grid(
       plot_estimands(., est_takeup_te, mu_assigned_treatment_left) +
@@ -399,6 +455,13 @@ dist_fit_data %>%
       ncol = 1, rel_heights = c(1, 0.4)
     )
   } 
+
+ggsave(
+  "temp-plots/anne-check/all-signalling.png", 
+  width = 10, 
+  height = 15,
+  dpi = 600
+)
 ```
 
 ```{r private-incentive-te, fig.width=8, fig.height=15}
@@ -425,7 +488,8 @@ dist_fit_data %>%
           fct_relevel("Combined"),
         assigned_treatment_left = str_to_title(assigned_treatment_left),
       ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_te, assigned_treatment_left) +
@@ -447,11 +511,18 @@ dist_fit_data %>%
       ncol = 1, rel_heights = c(1, 0.4)
     )
   }
+ggsave(
+  "temp-plots/anne-check/all-private.png", 
+  width = 10, 
+  height = 15,
+  dpi = 600
+)
 ```
 
 ```{r take-up-prob, fig.width=9}
+
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
@@ -499,7 +570,7 @@ where
 
 ```{r rate-of-change}
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>%
   transmute(
     model_name,
     cluster_roc = map2(cluster_roc, stan_data, ~ { 
@@ -539,8 +610,9 @@ dist_fit_data %>%
 ```
 
 ```{r}
+#| rate-of-change-difference
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural")) %>%
   transmute(
     model, model_name,
     y_rate_of_change_diff = map2(cluster_roc_diff, stan_data, ~ {
@@ -571,6 +643,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.height=2, fig.width=8}
+#| difference-in-roc-difference
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, cluster_roc_diff_diffdist) %>% 
@@ -588,25 +661,34 @@ dist_fit_data %>%
 ```
 
 ```{r}
+#| type-cutoff
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
+  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want), fct_match(model_type, "structural" )) %>% 
   transmute(model_name, cluster_w_cutoff = map(cluster_w_cutoff, mutate, roc_distance = roc_distance / 1000)) %>% 
   unnest(cluster_w_cutoff) %>% 
   filter(fct_match(assigned_treatment, c("ink", "control", "bracelet"))) %>% 
   filter(roc_distance < 2.5) %>%
   ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = model_name)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = model_name), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = model_name), alpha = 0.4) +
+  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
+  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
+  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
   scale_color_discrete("", aesthetics = c("color", "fill")) +
   labs(
     title = "Type Cutoff",
     x = "Distance to Treatment", y = ""
   ) +
   # coord_cartesian(ylim = c(0, 0.1))
-  facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
+  # facet_wrap(vars(assigned_treatment), labeller = labeller(.default = str_to_title)) +
   theme(legend.position = "top")
   NULL
+
+
+ggsave(
+  "temp-plots/anne-check/vstart.png", 
+  width = 10, 
+  height = 10,
+  dpi = 500
+)
 ```
 
 ```{r, eval=FALSE}
@@ -627,6 +709,7 @@ dist_fit_data %>%
 ```
 
 ```{r}
+#| sim-delta
 dist_fit_data %>% 
   filter(fct_match(model, models_we_want)) %>% 
   select(model_name, fit_type, sim_delta) %>% 
@@ -685,6 +768,7 @@ r^*(z,d) &= \frac{\mu(z,d) \Delta[w^*(z,d)]}{\delta} \\
 \end{align*}
 
 ```{r, fig.width=8}
+#| value-rep-returns
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
   select(model_name, cluster_rep_return_dist) %>%
@@ -711,6 +795,7 @@ dist_fit_data %>%
 ### Levels
 
 ```{r, fig.width=8, fig.height=19}
+#| levels
 dist_fit_data %>% 
   filter(
     (fct_match(model_type, "structural") & fct_match(model, models_we_want)) | 
@@ -730,7 +815,8 @@ dist_fit_data %>%
         fct_relevel("Combined"),
       assigned_treatment = str_to_title(assigned_treatment),
     ),
-    model_color = canva_pal(canva_palette_vibrant)(n())
+    # model_color = canva_pal(canva_palette_vibrant)(n())
+    model_color = paletteer_d("ggthemes::Tableau_20")[1:n()]
   ) %>% {
     cowplot::plot_grid(
       plot_estimands(., est_takeup_level, assigned_treatment) +
@@ -756,6 +842,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=8, fig.height=19}
+#| signal-levels
 dist_fit_data %>% 
   filter(
     (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
@@ -805,6 +892,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=8, fig.height=19}
+#| private-levels
 dist_fit_data %>% 
   filter(
     (fct_match(model_type, "structural") & fct_match(model, models_we_want))  
@@ -933,6 +1021,7 @@ all_fit %>%
 ### Posterior Predictive Checking
 
 ```{r, fig.width=7.5, fig.height=8}
+#| pp-check
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_name, cluster_cf_cutoff) %>% 
@@ -950,6 +1039,7 @@ dist_fit_data %>%
 ```
 
 ```{r, fig.width=8, fig.height=8}
+#| other-pp-check
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% 
   select(model_type, model_name, cluster_cf_cutoff) %>% 
@@ -1021,7 +1111,7 @@ beliefs_results %>%
 
 ```{r beliefs-line-plot-post, fig.width=8, fig.height=8}
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_results %>%
@@ -1128,7 +1218,7 @@ plot_beliefs_hist <- function(beliefs_results, top_title, binwidth = NULL) {
 }
 
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS")) %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")) %>%
   pull(beliefs_results) %>%
   first() %>%
 # beliefs_prior_results %>% 

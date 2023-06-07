@@ -2,7 +2,24 @@
 title: Optim
 output: 
   pdf_document:
+    keep_tex: yes
     extra_dependencies: ["amsmath", "threeparttable", "placeins"]
+header-includes:
+    - \usepackage{booktabs}
+    - \usepackage{longtable}
+    - \usepackage{array}
+    - \usepackage{multirow}
+    - \usepackage{wrapfig}
+    - \usepackage{float}
+    - \usepackage{colortbl}
+    - \usepackage{pdflscape}
+    - \usepackage{tabu}
+    - \usepackage{threeparttable}
+    - \usepackage{threeparttablex}
+    - \usepackage[normalem]{ulem}
+    - \usepackage[utf8]{inputenc}
+    - \usepackage{makecell}
+    - \usepackage{xcolor}
 params: 
   plot_input_path: "~/projects/takeup/optim/plots/agg-log-full-many-pots"
   misc_input_path: "~/projects/takeup/optim/plots/agg-log-full-many-pots"
@@ -12,12 +29,17 @@ params:
 
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(warning = TRUE, message = FALSE, echo = FALSE) 
+knitr::opts_chunk$set(
+  warning = TRUE, 
+  message = FALSE, 
+  echo = FALSE, 
+  cache = TRUE
+  ) 
 if (interactive()) {
   params = list(
-    plot_input_path = "~/projects/takeup/optim/plots/agg-log-full",
-    data_input_path = "~/projects/takeup/optim/data/agg-log-full",
-    misc_input_path = "~/projects/takeup/temp-data"
+    plot_input_path = "~/projects/takeup/optim/plots/agg-log-full-many-pots",
+    data_input_path = "~/projects/takeup/optim/data/agg-log-full-many-pots",
+    misc_input_path = "~/projects/takeup/optim/plots/agg-log-full-many-pots"
   )
 }
 library(knitr)
@@ -25,7 +47,22 @@ library(tidyverse)
 library(ggplot2)
 library(ompr)
 library(ompr.roi)
+library(kableExtra)
 library(ROI.plugin.glpk)
+
+regular_plot <- knit_hooks$get("plot")
+
+# Custom knitr hook to add notes to the plot
+knit_hooks$set(plot = function(x, options) {
+  paste("\n\n\\begin{figure}\n",
+        "\\includegraphics[width=\\maxwidth]{",
+        opts_knit$get("base.url"), paste(x, collapse = "."),
+        "}\n",
+        "\\caption{", options$fig.cap, "}\n",
+        "\\textit{Note:} {\\footnotesize ", options$fig.note,"}",
+        "\n\\end{figure}\n\n",
+        sep = '')
+})
 ```
 
 # Problem Setup 
@@ -91,6 +128,13 @@ $$
 ### Holding Private Benefit at Control
 
 ```{r, echo=FALSE, fig.align="center", fig.cap="Optimal allocation of points of treatment, $\\mu_{z=\\text{control}}$. Blue triangles indicate funded PoTs; red triangles unused PoTs; black dots denote villages; and line segments a PoT-village pairing"}
+#| cf-b-control-mu-control,
+#|  fig.align="center",
+#|  fig.cap="Optimal allocation of points of treatment, $B_{z=\\textrm{control}}, \\mu_{z=\\textrm{control}}$.",
+#|  fig.note="
+#|   Blue triangles indicate funded PoTs; red triangles unused PoTs; black 
+#|   points denote villages; and line segments a PoT-village pair."
+
 include_graphics(
   file.path(
     params$plot_input_path,
@@ -224,16 +268,45 @@ summ_df_rep = read_csv(
   )
   ) 
 
-colnames(summ_df_rep) = str_remove(colnames(summ_df_rep), "_estimate")
- summ_df_rep %>% 
+
+wide_summ_df_rep = summ_df_rep %>%
+  gather(variable, value, -B_z, -mu_z)  %>%
+  mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
+  mutate(variable = str_remove(variable, "_CI")) %>%
+  mutate(variable = str_remove(variable, "_estimate")) %>%
+  pivot_wider(
+    id_cols = c(B_z, mu_z, variable), 
+    names_from = CI, 
+    values_from = value
+  )   %>%
+  mutate(estim = as.numeric(estim) %>% round(3))  %>%
+  mutate(
+    estim_value = 
+    linebreak(
+      paste0(
+        estim, "\n", 
+        ci
+      ), 
+      align = "c"
+    )
+  ) %>%
+  select(
+    -estim, -ci
+  )  %>%
+  mutate(across(where(is.character), str_replace_all, "_", " ")) %>%
+  spread(variable, estim_value)
+  
+colnames(wide_summ_df_rep) = str_replace_all(colnames(wide_summ_df_rep), "_", " ")
+
+wide_summ_df_rep %>% 
   knitr::kable(
-    digits = 3, 
     caption = "PM Aware of Signalling",
-    booktabs = TRUE
+    booktabs = TRUE,
+    format = "latex",
+    escape = FALSE
     ) %>%
   kableExtra::kable_styling(
-    font_size = 7,
-    latex_options =  "scale_down"
+    latex_options =  c("scale_down")
   )
 
 summ_df_sup_rep = read_csv(

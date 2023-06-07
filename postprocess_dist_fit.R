@@ -8,19 +8,21 @@
 script_options <- docopt::docopt(
   stringr::str_glue(
 "Usage:
-  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-prior --no-rate-of-change --keep-fit --models=<models>]
+  postprocess_dist_fit.R <fit-version> [--full-outputname --cores=<num-cores> --output-path=<path> --input-path=<path> --load-from-csv --no-prior --no-rate-of-change --keep-fit --models=<models> --single-chain]
   
 Options:
   --cores=<num-cores>  Number of cores to use [default: 12]
   --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
   --output-path=<path>  Path to find results [default: temp-data]
-  --keep-fit "), 
-  # args = if (interactive()) "29" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "30" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "test --full-outputname --load-from-csv --cores=1" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "31 --cores=6" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "test --full-outputname --cores=1 --input-path=/tigress/kn6838/takeup --output-path=/tigress/kn6838/takeup" else commandargs(trailingonly = true)
-  args = if (interactive()) "71  --cores=1 --models=STRUCTURAL_LINEAR_U_SHOCKS  --load-from-csv " else commandArgs(trailingOnly = TRUE)
+  --keep-fit 
+  --single-chain  For debugging purposes, only use the first chain
+  
+  "), 
+  args = if (interactive()) "
+  93
+  --cores=1 
+  --load-from-csv 
+  --single-chain" else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -91,8 +93,13 @@ param_used <- c(
 # param_used %<>% c("structural_cluster_takeup_prob", "missing_cluster_standard_dist") 
 
 load_from_csv <- function(fit_file, input_path, param) {
-  dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
-      read_cmdstan_csv(variables = param) 
+  if (script_options$single_chain) {
+    dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-1.csv}"), full.names = TRUE) %>% 
+        read_cmdstan_csv(variables = param) 
+  } else {
+    dir(input_path, pattern = str_c(str_remove(basename(fit_file), fixed(".rds")), r"{-\d+.csv}"), full.names = TRUE) %>% 
+        read_cmdstan_csv(variables = param) 
+  }
 }
 
 load_fit <- function(fit_file, input_path = script_options$input_path, load_from_csv = script_options$load_from_csv, param = param_used) {
@@ -113,6 +120,7 @@ model_info <- tribble(
   ~ model,                                             ~ model_name,                                         ~ model_type,
   
   "REDUCED_FORM_NO_RESTRICT",                          "Reduced Form",                                       "reduced form",
+  "REDUCED_FORM_NO_RESTRICT_DIST_CTS",                 "Reduced Form",                                       "reduced form",
   "STRUCTURAL_LINEAR_U_SHOCKS",                        "Structural",                                         "structural",
   # "STRUCTURAL_LINEAR",              "Structural",                                "structural",
   # "STRUCTURAL_QUADRATIC",           "Structural Quadratic Cost",                 "structural",
@@ -125,6 +133,12 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_LOG_MU_REP",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP",          "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_NO_REP",                 "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS",          "Structural",                                         "structural",
 
 
   
@@ -381,7 +395,8 @@ extract_sim_delta <- function(fit, stan_data) {
 ate_pivot <- function(level_data, ate_combo, other_ate_join_col = NULL) {
   if (!is_null(level_data)) {
     present_col <- intersect(names(level_data), c("mu_assigned_treatment", "assigned_treatment", "assigned_dist_group"))
-    ate_combo_col <- str_c(rep(present_col, each = 2), c("_left", "_right"))
+    # ate_combo_col <- str_c(rep(present_col, each = 2), c("_left", "_right"))
+    ate_combo_col <- paste0(rep(present_col, each = 2), c("_left", "_right"))
     
     left_data <- inner_join(select(ate_combo, all_of(ate_combo_col)) %>% distinct_all(.keep_all = TRUE),
                             level_data,
@@ -517,8 +532,12 @@ dist_fit_data %<>%
     #   lst(cutoffs = ., total_error_sd, force_draw_takeup = fct_match(fit_type, "prior-predict")) %>%  
     #   pmap(calculate_prob_and_num_takeup), 
     
-    est_takeup_level = list(cluster_cf_cutoff, FALSE) %>% # map_lgl(model_type, fct_match, "structural")) %>%  
-      pmap(organize_by_treatment, mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
+    # for structural model we can just average across all distances (covered on Stan side)
+    # for RF model, we only want to use close distances in the close group and 
+    # far distances in the far group when averaging across all clusters to get 
+    # takeup levels.
+    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "reduced form")) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
+      pmap(organize_by_treatment,  mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
              organize_by_treatment(condition_on_dist = TRUE, mu_assigned_treatment, assigned_treatment) %>%
@@ -552,38 +571,6 @@ dist_fit_data %<>%
 
 if (!script_options$no_rate_of_change) {
   
-  ## Ed edits because Anne wants rep return vs control  
-  # cluster_rep_return_dist_control = dist_fit_data %>%
-  #   select(cluster_rep_return_dist) %>%
-  #   unnest(cols = c(cluster_rep_return_dist)) %>%
-  #   filter(assigned_treatment == "control")
-
-  # cluster_rep_return_te_df = dist_fit_data %>%
-  #     select(cluster_rep_return_dist) %>%
-  #     unnest(cols = c(cluster_rep_return_dist))  %>%
-  #     # filter(assigned_treatment != "control")  %>%
-  #     unnest(iter_data) %>%
-  #     left_join(
-  #       cluster_rep_return_dist_control %>% 
-  #         select(roc_distance_index, iter_data) %>%
-  #         unnest(iter_data) %>%
-  #         rename(iter_est_right = iter_est),
-  #       by = c("roc_distance_index", "iter_id")
-  #     ) %>%
-  #     mutate( 
-  #       iter_est_te = iter_est - iter_est_right
-  #     ) %>%
-  #     nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
-  #     select(-contains("per"), -mean_est) %>%
-  #     mutate(
-  #       mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
-  #       takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs))
-  #     ) %>% 
-  #     unnest(takeup_quantiles)
-
-  # cluster_rep_return_te_df %>%
-  #   select(-iter_data) %>%
-  #   write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
 
   # Back to Karim work
   dist_fit_data %<>% 
@@ -599,12 +586,46 @@ if (!script_options$no_rate_of_change) {
             summarize_roc()
         }
       }),
-      
       sim_delta = map2(fit, stan_data, extract_sim_delta),
     )
 
+  any_structural_models = any(dist_fit_data$model_type == "structural")
+  if (any_structural_models) {
+    ## Ed edits because Anne wants rep return vs control  
+    cluster_rep_return_dist_control = dist_fit_data %>%
+      select(cluster_rep_return_dist) %>%
+      unnest(cols = c(cluster_rep_return_dist)) %>%
+      filter(assigned_treatment == "control")
+
+    cluster_rep_return_te_df = dist_fit_data %>%
+        select(cluster_rep_return_dist) %>%
+        unnest(cols = c(cluster_rep_return_dist))  %>%
+        # filter(assigned_treatment != "control")  %>%
+        unnest(iter_data) %>%
+        left_join(
+          cluster_rep_return_dist_control %>% 
+            select(roc_distance_index, iter_data) %>%
+            unnest(iter_data) %>%
+            rename(iter_est_right = iter_est),
+          by = c("roc_distance_index", "iter_id")
+        ) %>%
+        mutate( 
+          iter_est_te = iter_est - iter_est_right
+        ) %>%
+        nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+        select(-contains("per"), -mean_est) %>%
+        mutate(
+          mean_est = map_dbl(iter_data, ~ mean(.$iter_est_te)),
+          takeup_quantiles = map(iter_data, quantilize_est, iter_est_te, wide = TRUE, quant_probs = c(quant_probs), na.rm = TRUE)
+        ) %>% 
+        unnest(takeup_quantiles)
+
+    cluster_rep_return_te_df %>%
+      select(-iter_data) %>%
+      write_csv(file.path(script_options$output_path, str_interp("processed_rep_return_dist_fit${fit_version}.csv")))
 
 
+  }
 
 
 }
@@ -685,6 +706,9 @@ ate_combo <- dist_fit_data %>%
     )
   }
 
+
+
+
 dist_fit_data %<>% 
   mutate(
     # Calculate treatment effects
@@ -722,3 +746,156 @@ save(dist_fit_data, file = file.path(script_options$output_path, str_interp("pro
 plan(sequential)
 
 cat(str_glue("Post processing completed [version {fit_version}]\n\n"))
+
+
+
+
+##### Checks ####
+# dist_fit_env = new.env()
+# with_env = function(f, e = parent.frame()) {
+#     stopifnot(is.function(f))
+#     environment(f) = e
+#     f
+# }
+
+# load_df_function = function(x){
+#     load(file.path("temp-data", str_interp("processed_dist_fit${x}.RData")))
+#     return(dist_fit_data)
+# }
+
+
+# dist_fit_data_71 = with_env(load_df_function, dist_fit_env)(71) 
+
+# n_nan_71 = dist_fit_data_71 %>%
+#   filter(model == "STRUCTURAL_LINEAR_U_SHOCKS") %>%
+#   select(fit_type, model, wtp_results)  %>%
+#   unnest(wtp_results) %>%
+#   slice(1) %>%
+#   unnest(iter_data) %>%
+#   summarise(
+#     frac_nan = sum(is.nan(iter_est)), 
+#     frac_not_nan = sum(!is.nan(iter_est)), 
+#     frac_zero = sum(iter_est == 0, na.rm = TRUE), 
+#     frac_not_zero = sum(iter_est != 0, na.rm = TRUE), 
+#     n_iter = n()
+#   ) %>% 
+#   mutate(across(contains("frac"), ~.x/n_iter)) %>%
+#   mutate(
+#     fit_version = 71
+#   )
+
+# n_nan_75 = dist_fit_data %>%
+#   select(fit) %>%
+#   unnest() %>%
+#   filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#   tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>%
+#   slice(1) %>%
+#   unnest(iter_data) %>%
+#   summarise(
+#     frac_nan = sum(is.nan(iter_est)), 
+#     frac_not_nan = sum(!is.nan(iter_est)), 
+#     frac_zero = sum(iter_est == 0, na.rm = TRUE), 
+#     frac_not_zero = sum(iter_est != 0, na.rm = TRUE), 
+#     n_iter = n()
+#   ) %>% 
+#   mutate(across(contains("frac"), ~.x/n_iter)) %>%
+#   mutate(
+#     fit_version = 75
+#   )
+
+# bind_rows(
+#   n_nan_71,
+#   n_nan_75
+# )
+
+# dist_fit_data = dist_fit_data %>%
+#   mutate(
+#     wtp_results = map(fit, get_wtp_results)
+#   )
+
+# dist_fit_data_75 %>%
+#   filter(model_type == "structural") %>%
+#   select(fit_type, model, wtp_results) %>%
+#   unnest(wtp_results) %>%
+#   filter(variable == "prob_prefer_calendar") %>%
+#   ggplot(aes(
+#     x = index, 
+#     y = per_0.5, 
+#     ymin = per_0.05, 
+#     ymax = per_0.95
+#   )) +
+#   geom_pointrange() +
+#   facet_wrap(~fit_type)
+
+# get_wtp_results <- function(wtp_draws) {
+#   wtp_draws %>% 
+#     filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#     tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>% 
+#     mutate(
+#       quants = map(iter_data, quantilize_est, iter_est, quant_probs = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95), na.rm = TRUE),
+#       mean_est = map_dbl(iter_data, ~ mean(.x$iter_value, na.rm = TRUE)),
+#     ) %>% 
+#     unnest(quants)
+# }
+
+# wtp_test = dist_fit_data %>%
+#   select(fit) %>%
+#   unnest() %>%
+#   filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#   tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>%
+#   mutate(
+#     mean_est = map_dbl(iter_data, mean, na.rm = TRUE), 
+#     conf.low = map_dbl(iter_data, quantile, 0.05, na.rm = TRUE), 
+#     conf.high = map_dbl(iter_data, quantile, 0.95, na.rm = TRUE)
+#   )
+
+
+# dist_fit_data %>%
+#   select(fit) %>%
+#   unnest() %>%
+#   filter(str_detect(variable, r"{^(prob_prefer_calendar|(strata|hyper)_wtp_mu)}")) %>% 
+#   tidyr::extract(variable, c("variable", "index"), r"{([^\[]+)(?:\[(\d+)\])?}", convert = TRUE) %>%
+#   slice(1) %>%
+#   unnest(iter_data) %>%
+#   filter(iter_est == 0)
+
+
+# cmdstan_fit_obj = as_cmdstan_fit(
+#   str_glue("data/stan_analysis_data/dist_fit{script_options$fit_version}_STRUCTURAL_LINEAR_U_SHOCKS-1.csv"))
+
+# library(tidybayes)
+# library(posterior)
+
+# prefer_cal_draws = gather_rvars(
+#   cmdstan_fit_obj,
+#   prob_prefer_calendar[index]
+# )
+
+# rm(cmdstan_fit_obj)
+# gc()
+
+# prefer_cal_draws %>%
+#   # filter(index == 1) %>%
+#   unnest_rvars() %>%
+#   ggplot(aes(
+#     x = .value, 
+#     fill = factor(index)
+#   )) +
+#   geom_histogram(bins = 60) +
+#   guides(fill = "none") +
+#   labs(
+#     title = "Prob Prefer Calendar, Posterior Draws", 
+#     subtitle = "Fill just denotes different monetary values"
+#   ) +
+#   theme_bw()
+  
+# ggsave(
+#   "temp-plots/tmp.png", 
+#   width = 8,
+#   height = 6, 
+#   dpi = 500
+# )
+
+
+# stop()
+

@@ -47,17 +47,45 @@ dist_df = distance_data$long_distance_mat %>%
 
 
 if (from_cmdstan_fit) {
-    fit_files = str_glue("data/stan_analysis_data/dist_fit75_STRUCTURAL_LINEAR_U_SHOCKS-1.csv")
+    fit_files = str_glue("data/stan_analysis_data/dist_fit86_STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-1.csv")
+
     fit = as_cmdstan_fit(fit_files)
+
+    fit
+
+    library(tidybayes)
+
+
+    dist_beta_draws = gather_draws(
+        fit, 
+        dist_beta_v[j], 
+        centered_cluster_dist_beta_1ord[j, k],
+    )
+
+    rm(fit)
+    gc()
+
+    dist_beta_draws %>%
+        filter(j == 1 | is.na(j)) %>%
+        summarise_draws()
+
+    rm(dist_beta_draws)
+
+    dist_beta_draws %>%
+        summarise_draws()
+
+
     optim_fit_draws = fit$draws(
         variables = c(
-            "optim_w", 
-            "total_error_sd",
-            "net_private_benefit",
-            "visibility", 
-            "structural_cluster_benefit",
-            "obs_cluster_mu_rep",
-            "sim_delta" 
+            # "optim_w", 
+            # "total_error_sd",
+            # "net_private_benefit",
+            # "visibility", 
+            # "structural_cluster_benefit",
+            # "obs_cluster_mu_rep",
+            # "sim_delta", 
+            "dist_beta"
+    
         )
     )
     optim_fit_draws %>%

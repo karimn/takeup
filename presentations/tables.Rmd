@@ -1,0 +1,3259 @@
+---
+title: "Tables"
+output: 
+  pdf_document:
+    keep_tex: yes
+header-includes:
+    - \usepackage{booktabs}
+    - \usepackage{longtable}
+    - \usepackage{array}
+    - \usepackage{multirow}
+    - \usepackage{wrapfig}
+    - \usepackage{float}
+    - \usepackage{colortbl}
+    - \usepackage{tabu}
+    - \usepackage{threeparttable}
+    - \usepackage{threeparttablex}
+    - \usepackage[normalem]{ulem}
+    - \usepackage[utf8]{inputenc}
+    - \usepackage{makecell}
+    - \usepackage{xcolor}
+    - \usepackage{pdflscape}
+    - \newcommand{\blandscape}{\begin{landscape}}
+    - \newcommand{\elandscape}{\end{landscape}}
+params:
+    fit_version: 86
+    rf_fit_version: 93
+    input_path: data/stan_analysis_data
+    output_path: temp-data 
+    optim_input_path: "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots"
+    table_output_path: presentations/tables
+    struct_models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+    rf_models: REDUCED_FORM_NO_RESTRICT_DIST_CTS
+---
+
+
+
+```{r, "startup", include=FALSE}
+library(tidyverse)
+library(marginaleffects)
+library(broom)
+library(knitr)
+library(kableExtra)
+library(ggthemes)
+library(fixest)
+library(magrittr)
+
+if (interactive()) {
+    params = lst(
+        fit_version = 86,
+        rf_fit_version = 93,
+        input_path = "data/stan_analysis_data",
+        output_path = "temp-data",
+        optim_input_path =  "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots",
+        table_output_path = "presentations/tables",
+        struct_models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+        rf_models = "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
+    )
+    source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
+    source(file.path("analysis_util.R"))
+    source(file.path( "dist_structural_util.R"))
+    source(file.path("multilvlr", "multilvlr_util.R"))
+} else {
+    source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
+    source(file.path("analysis_util.R"))
+    source(file.path( "dist_structural_util.R"))
+    source(file.path("multilvlr", "multilvlr_util.R"))
+}
+
+models_we_want = c(params$struct_models, params$rf_models)
+
+options(
+    dplyr.show_progress = FALSE, 
+    digits = 4, 
+    knitr.kable.NA = '')
+
+knitr::opts_chunk$set(
+    echo = FALSE, 
+    cache = TRUE, 
+    warnings = FALSE,
+    warning = FALSE,
+    cache.path = str_glue("takeup-{params$struct_models}{params$fit_version}-table-cache/"), 
+    fig.path = str_glue("takeup-{params$struct_models}{params$fit_version}-table-fig-cache/"), 
+    fig.align = "center")
+
+dir.create("presentations/tables", showWarnings = FALSE)
+
+```
+
+
+
+
+```{r, "load_analysis_data"}
+
+fit_version = params$fit_version
+
+treat_levels_c = c("control", "ink", "calendar", "bracelet")
+treat_levels = c("ink", "calendar", "bracelet")
+dist_levels = c("close", "far")
+model_level_order = c("reduced form", "structural")
+
+quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
+
+output_basepath = file.path(
+  params$output_path,
+  str_glue("output_dist_fit{params$fit_version}")
+)
+
+
+canva_palette_vibrant <- "Primary colors with a vibrant twist"
+
+theme_set(theme_minimal() +
+            theme(legend.position = "bottom"))
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+if (interactive()) {
+    rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
+    rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.rds"))
+    cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
+    load(file.path("data", "takeup_village_pot_dist.RData"))
+    load(file.path("data", "analysis.RData"))
+} else {
+    rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
+    rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.rds"))
+    cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
+    load(file.path("data", "takeup_village_pot_dist.RData"))
+    load(file.path("data", "analysis.RData"))
+}
+
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+
+analysis_data <- monitored_nosms_data
+
+#' Save Latex table 
+#' 
+#' This function saves a latex table to file whilst removing the table environment
+#' this means we can just use \input{table} in the main tex file whilst controlling 
+#' placement/notes in the tex file itself (Anne doesn't use Rmd for everything :<( )
+custom_save_latex_table = function(table, table_name){
+  table_conn = file(
+    file.path(
+      params$table_output_path, paste0(table_name, ".tex")
+    )
+  )
+  table %>%
+    str_remove(
+      ., 
+      fixed("\\begin{table}")
+    ) %>%
+    str_remove(
+      .,
+      "\\\\caption\\{.*\\}"
+    ) %>%
+    str_remove(
+      ., 
+      "\\\\end\\{table\\}"
+    )  %>%
+    writeLines(
+      table_conn
+    )
+    close(table_conn)
+    return(table)
+}
+```
+
+
+```{r}
+
+## Fit Loading
+load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+
+# If the fit version is different, we need to load the RF fit
+if (params$fit_version != params$rf_fit_version) {
+  # Only load structural
+  dist_fit_data = dist_fit_data %>%
+    filter(model %in% c(params$struct_models))
+
+  rf_env = new.env()
+
+  with_env = function(f, e = parent.frame()) {
+      stopifnot(is.function(f))
+      environment(f) = e
+      f
+  }
+
+  load_rf_function = function(){
+      load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}_lite.RData")))
+      return(dist_fit_data)
+  }
+
+
+  rf_fit_data = with_env(load_rf_function, rf_env)() %>%
+    filter(model %in% c(params$rf_models))
+
+  dist_fit_data = bind_rows(
+    rf_fit_data, 
+    dist_fit_data
+  )
+
+}
+
+dist_fit_data %<>%
+  left_join(tribble(
+    ~ fit_type,        ~ model_color,
+      "fit",           "black", 
+      "prior-predict", "darkgrey",
+  ), by = "fit_type") %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c(models_we_want, "REDUCED_FORM_NO_RESTRICT")))
+
+dist_fit_data = dist_fit_data %>%
+  filter(model %in% models_we_want)
+
+
+
+delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
+
+belief_data = dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model, c(models_we_want))) %>%
+  pull(beliefs_results) %>%
+  first() 
+
+
+cols_we_want = c(
+    "est_takeup_level",
+    "beliefs_results",
+    "wtp_results",
+    "est_takeup_te",
+    "est_takeup_dist_te"
+)
+```
+
+
+## Sample Info
+```{r, sample_table}
+
+stan_data = (dist_fit_data %>%
+  filter(fct_match(model_type, "structural")) %>%
+  select(stan_data) %>%
+  pull())[[1]]
+
+```
+
+
+```{r}
+
+
+
+rf_analysis_data <- dist_fit_data %>% 
+  filter(
+    fct_match(model_type, "reduced form"),
+    fct_match(fit_type, "fit"),
+  ) %$% 
+  stan_data[[1]]$analysis_data 
+
+rf_N = rf_analysis_data %>%
+  select(dewormed, assigned_treatment, assigned_dist_group) %>%
+  complete.cases() %>%
+  sum()
+print(
+  str_glue("RF N: {rf_N}")
+)
+```
+
+
+```{r}
+#| sob-gpt-reason-table
+
+sob_gpt_reason_df = read_csv(
+        "temp-data/second-order-gpt-reason-distribution.csv"
+)
+
+
+gpt_N_df = sob_gpt_reason_df %>%
+  group_by(var) %>%
+  summarise(N = unique(N)) %>%
+  mutate(
+    sample_var = c("yes", "no")
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  spread(
+    var, N
+  ) %>%
+  mutate(
+    term = "N"
+  ) %>%
+  select(
+    sample_var,
+    term,
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) 
+
+
+2+3
+digits = 3
+
+gpt_table = sob_gpt_reason_df %>%
+  mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits),
+    stars = case_when(
+      term != "(Intercept)" & p.value < 0.01 ~ "***",
+      term != "(Intercept)" & p.value < 0.05 ~ "**", 
+      term != "(Intercept)" & p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  )  %>%
+  mutate(
+    sample_var = str_remove(sample, "sample.var: second.order; sample: ") 
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  mutate(term = str_remove(term, "assigned.treatment")) %>%
+  mutate(term = if_else(term == "(Intercept)", "Control mean", term)) %>%
+  mutate(term = factor(term, levels = c('Control mean', treat_levels_c))) %>%
+  select(sample_var, term, estim_std, var) %>%
+  spread(var, estim_std)  %>%
+  select(
+    sample_var,
+    term, 
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) %>%
+  bind_rows(gpt_N_df %>% mutate(across(where(is.numeric), as.character))) %>%
+  mutate(term = factor(term, levels = c('N', 'Control mean', treat_levels_c))) %>%
+  mutate(term = fct_relabel(term, str_to_title) %>% fct_rev) %>%
+  arrange(
+    sample_var, term
+  ) %>%
+  select(-sample_var)  %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "General Visibility", 
+        "Communication", 
+        "Social Proximity", 
+        "Incentive", 
+        "Type", "Circumstances", "Other"),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lccccccc", 
+      caption = "Second Order Beliefs: Reasons (GPT)"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )  %>%
+  pack_rows(
+    index = c(
+      "Panel A: Why do they think that you came for deworming?" = 5,
+      "Panel B: Why don't they think that you came for deworming?" = 5
+    ), 
+    hline_after = TRUE, 
+    hline_before = TRUE, 
+    bold = TRUE
+  )  %>%
+  row_spec(c(3, 8), hline_after = TRUE)
+
+
+
+gpt_table %>%
+  custom_save_latex_table("why-deworm-gpt-reason-table")
+
+
+```
+
+
+```{r}
+#| sob-reason-table
+
+sob_reason_df = read_csv(
+        "temp-data/second-order-reason-distribution.csv"
+)
+
+
+N_df = sob_reason_df %>%
+  group_by(var) %>%
+  summarise(N = unique(N)) %>%
+  mutate(
+    sample_var = c("yes", "no")
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  spread(
+    var, N
+  ) %>%
+  mutate(
+    term = "N"
+  ) %>%
+  select(
+    sample_var,
+    term,
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) 
+
+
+2+3
+digits = 3
+
+sob_reason_df %>%
+  mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**", 
+      p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  )  %>%
+  mutate(
+    sample_var = str_remove(sample, "sample.var: second.order; sample: ") 
+  ) %>%
+  mutate(sample_var = factor(sample_var, levels = c("yes", "no"))) %>%
+  mutate(term = str_remove(term, "assigned.treatment")) %>%
+  mutate(term = if_else(term == "(Intercept)", "Control mean", term)) %>%
+  mutate(term = factor(term, levels = c('Control mean', treat_levels_c))) %>%
+  select(sample_var, term, estim_std, var) %>%
+  spread(var, estim_std)  %>%
+  select(
+    sample_var,
+    term, 
+    campaign, 
+    communication,
+    relationship, 
+    signal, 
+    type, 
+    circumstances, 
+    other
+  ) %>%
+  bind_rows(gpt_N_df %>% mutate(across(where(is.numeric), as.character))) %>%
+  mutate(term = factor(term, levels = c('N', 'Control mean', treat_levels_c))) %>%
+  mutate(term = fct_relabel(term, str_to_title) %>% fct_rev) %>%
+  arrange(
+    sample_var, term
+  ) %>%
+  select(-sample_var)  %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "General Visibility", 
+        "Communication", 
+        "Social Proximity", 
+        "Incentive", 
+        "Type", "Circumstances", "Other"),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lccccccc", 
+      caption = "Second Order Beliefs: Reasons"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )  %>%
+  pack_rows(
+    index = c(
+      "Panel A: Why do they think that you came for deworming?" = 5,
+      "Panel B: Why don't they think that you came for deworming?" = 5
+    ), 
+    hline_after = TRUE, 
+    hline_before = TRUE, 
+    bold = TRUE
+  )  %>%
+  row_spec(c(3, 8), hline_after = TRUE)
+
+
+
+```
+
+
+```{r}
+#| endline-data,
+#| eval=TRUE
+
+# Some initial endline knowledge checks
+
+library(haven)
+endline_data = read_dta("data/endline_data.dta") %>%
+  mutate(
+    assigned_treatment = as_factor(assigned_treatment)
+  )
+
+n_function = function(data, treat_no, ...) {
+  data %>%
+  group_by(
+    assigned_treatment, ...
+  ) %>% 
+  filter(assigned_treatment == treat_no) %>%
+  summarise(
+    n = n()
+  ) %>%
+  na.omit() %>%
+  mutate(
+    pct = 100*n/sum(n)
+  ) 
+}
+
+
+endline_data = endline_data %>%
+  # harmonising
+  mutate(
+    have_ink = ink_visible
+  )
+
+mean_deworm_string_f = function(string) {
+  str_detect(str_to_lower(string), "drug|medicine|tablet|deworm|Deworm|worm|treat")
+}
+
+endline_data = endline_data %>%
+  mutate(
+    meandeworm_bracelet = mean_deworm_string_f(bracelet_meaning),
+    meandeworm_ink = mean_deworm_string_f(ink_meaning),
+    meandeworm_cal = mean_deworm_string_f(cal_meaning)
+  )
+
+
+got_vars = c(
+  "got_bracelet", 
+  "got_ink", 
+  "got_cal"
+)
+have_vars = c(
+  "have_bracelet", 
+  "have_cal", 
+  "have_ink"
+)
+seen_vars = c(
+  "seen_bracelet", 
+  "seen_ink", 
+  "seen_cal"
+)
+mean_vars = c(
+  "meandeworm_bracelet", 
+  "meandeworm_ink", 
+  "meandeworm_cal"
+)
+
+long_incentive_check_df = endline_data %>%
+  select(all_of(c(got_vars, have_vars, seen_vars, mean_vars)), assigned_treatment)  %>%
+  pivot_longer(
+    cols = all_of(c(got_vars, have_vars, seen_vars, mean_vars))
+  ) %>%
+  mutate(
+    variable_type = str_extract(name, "(\\w+)(?=_)"),
+    name = str_extract(name, "(?<=_)\\w+"), 
+    name = if_else(name == "cal", "calendar", name)
+    )   %>%
+  filter(name == assigned_treatment)  %>%
+  mutate(
+    treat_type = paste0(assigned_treatment, "_", variable_type)
+  ) %>%
+  select(-name)
+
+tidy_incentive_check_df = long_incentive_check_df %>%
+  feols(
+    value ~ i(assigned_treatment, "ink"),
+    split = ~variable_type
+  ) %>%
+  map_dfr(
+    ~tidy(.x) %>%
+    mutate(n = nobs(.x)), 
+    .id = "lhs"
+  ) %>%
+  mutate(
+    treatment = str_extract(
+      term, "(?<=assigned_treatment::)\\w+"
+    ),
+    treatment = replace_na(treatment, "ink")
+  ) %>%
+  mutate(
+    variable_type = str_extract(
+      lhs, 
+      "(?<=sample: )\\w+$"
+    )
+    ) %>%
+  select(
+    -lhs,
+    -term
+  )
+
+# tidy_incentive_check_df = long_incentive_check_df %>%
+#   feols(
+#     value ~ 1,
+#     split = ~ treat_type  
+#   )  %>%
+#   map_dfr(
+#     ~tidy(.x) %>% 
+#     mutate(n = nobs(.x)), 
+#     .id = "lhs"
+#   )  %>%
+#   mutate(
+#     treatment = str_extract(
+#       lhs, 
+#       "(?<=sample: )\\w+(?=_)"
+#     ), 
+#     variable_type = str_extract(
+#       lhs, 
+#       "(?<=sample: \\w{1,10}_)\\w+$"
+#     )
+#   ) %>%
+#   select(-lhs) %>%
+#   select(-term)
+
+wide_incentive_check_input_df = tidy_incentive_check_df %>%
+  mutate(across(c(estimate, std.error), round, 3)) %>%
+  mutate(
+    stars = case_when(
+      treatment != "ink" & p.value < 0.01 ~ "***",
+      treatment != "ink" & p.value < 0.05 ~ "**", 
+      treatment != "ink" & p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    ),
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  ) %>%
+  mutate(treatment = str_replace(treatment, "ink", "ink (levels)")) %>%
+  select( 
+    treatment, 
+    variable_type, 
+    estim_std
+  ) %>%
+  mutate(treatment = str_to_title(treatment)) %>%
+  spread(
+    variable_type, 
+    estim_std
+  ) %>%
+  select(
+    treatment,
+    got, # "Did you receive X when you went for deworming?"
+    have, # "Do you still have X?"
+    seen, # "have you seen people wearing these "X"?"/ "have you seen people these calendars before"
+    meandeworm # "What does it mean if a person has a bracelet?" -> coded into deworm mentions
+  )
+
+
+incentive_check_tbl = wide_incentive_check_input_df %>%
+  knitr::kable(
+    format = "latex",
+      col.names = c(
+        "", 
+        "Received incentive when treated", 
+        "Have incentive currently", 
+        "Seen incentive", 
+        "Link incentive to deworming"),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcccc", 
+      caption = "Incentive Check: Endline"
+  ) 
+
+incentive_check_tbl
+
+incentive_check_tbl %>%
+  custom_save_latex_table("incentive-check-tbl")
+
+
+```
+
+
+
+```{r}
+#| endline-results-indiv, results="asis"
+
+endline_data = endline_data %>%
+  mutate(
+    assigned_treatment = as_factor(assigned_treatment), 
+    dist_pot_group = as_factor(dist_pot_group)
+  )
+
+
+
+dworm_endline_fit = endline_data %>%
+  mutate(dworm_rate = dworm_rate/10) %>%
+  feols(
+    dworm_rate ~ 0 + assigned_treatment:dist_pot_group + dist_to_pot | county,
+    cluster = ~cluster_id
+  ) 
+
+
+
+endline_close_far_preds = predictions(
+  dworm_endline_fit,
+  newdata = datagrid(
+    assigned_treatment = endline_data$assigned_treatment %>% unique(),
+    dist_to_pot = endline_data %>%
+      group_by(dist_pot_group) %>%
+      summarise(dist = mean(dist_to_pot)) %>%
+      pull(dist),
+    dist_pot_group = c("close", "far")
+  )
+  )
+
+endline_close_far_hyps = c(
+    "ink" = "b1 = b4",
+    "calendar" = "b5 = b8",
+    "bracelet" = "b9 = b12",
+    "control" = "b13 = b16"
+  )
+
+endline_close_far_df = map_dfr(
+  endline_close_far_hyps,
+  ~hypotheses(
+    endline_close_far_preds,
+    .x
+  ) %>%
+  tidy(),
+  .id = "treatment"
+)
+
+
+d_bar = endline_data %>%
+  group_by(dist_pot_group) %>%
+  summarise(dist = mean(dist_to_pot)) %>%
+  pull(dist) %>%
+  sort()
+
+control_mean_close_far_pred = map_dfr(
+      c("close", "far"),
+    ~avg_predictions(
+      dworm_endline_fit, 
+      newdata = datagrid(
+        assigned_treatment = "control",
+        dist_pot_group = .x, 
+        dist_to_pot = d_bar
+        ),
+        by = "dist_to_pot"
+    ) %>%
+    tidy() %>%
+    mutate(term = .x) ) %>%
+    filter(
+      (term == "close" & dist_to_pot == d_bar[1]) |
+      (term == "far" & dist_to_pot == d_bar[2])
+    )
+
+
+dworm_endline_comp_df = map_dfr(
+  c("close", "far"), 
+  ~avg_comparisons(
+    model = dworm_endline_fit, 
+    variables = list("assigned_treatment" = "all"), 
+    newdata = datagrid(
+      dist_pot_group = .x
+    )
+  ) %>% tidy() %>%
+  mutate(term = .x)
+) %>%
+bind_rows(
+  avg_comparisons(
+    model = dworm_endline_fit, 
+    variables = list("assigned_treatment" = "all")
+  ) %>%
+  tidy() %>%
+  mutate(term = "Combined")
+) %>%
+  mutate(
+    treatment = str_extract(contrast, "^\\w+")
+  ) %>%
+  bind_rows(
+    tidy(dworm_endline_fit) %>%
+    filter(str_detect(term, "control")) %>% 
+    mutate(treatment = "control",
+    term = if_else(
+      str_detect(term, "close"), 
+      "close", 
+      "far"
+    ))
+  ) %>%
+  filter(treatment != "control") %>%
+  bind_rows(
+    avg_predictions(
+      dworm_endline_fit, 
+      variables = "assigned_treatment"
+    ) %>%
+    tidy() %>%
+    mutate(term = "Combined")  %>%
+    rename(treatment = assigned_treatment) %>%
+    filter(treatment == "control")
+  )  %>%
+  bind_rows(
+    control_mean_close_far_pred %>%
+      mutate(treatment = "control")
+  ) 
+
+
+
+
+
+subset_dworm_endline_comp_df = dworm_endline_comp_df %>%
+  mutate(
+    lhs = str_extract(contrast, "^\\w+"),
+    rhs = str_extract(contrast, "\\w+$")
+  ) %>%
+  filter(
+    is.na(contrast) | rhs == "control" | (str_detect(contrast, "brac") & str_detect(contrast, "cal") )
+  ) %>%
+  filter(lhs != "control" | is.na(contrast)) %>%
+  mutate(
+    bra_cal = if_else(
+      rhs != "control" & str_detect(lhs, "bra|cal"),
+      TRUE,
+      FALSE
+    ),
+    bra_cal = replace_na(bra_cal, FALSE)
+  ) %>%
+  filter(
+    bra_cal == FALSE | (bra_cal == TRUE & treatment == "bracelet")
+  ) 
+
+
+
+dworm_endline_comp_tbl = subset_dworm_endline_comp_df  %>%
+  filter(bra_cal == FALSE) %>%
+  mutate(
+    across(c(estimate, std.error), round, 3),
+    stars = case_when(
+      treatment != "control" & p.value < 0.01 ~ "***",
+      treatment != "control" & p.value < 0.05 ~ "**", 
+      treatment != "control" & p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  ) %>%
+  bind_rows(
+    subset_dworm_endline_comp_df %>%
+      filter(bra_cal == TRUE) %>%
+      mutate(estim_std = round(p.value, 4) %>% as.character(), treatment = "H0: Bracelet = Calendar, $p$-value")
+  ) %>%
+  select(term, treatment, estim_std) %>%
+  mutate(treatment = if_else(!str_detect(treatment, "value"), str_to_title(treatment), treatment)) %>%
+  mutate(treatment = if_else(treatment == "Control", "Control mean", treatment)) %>%
+  mutate(
+    treatment = factor(
+      treatment, 
+      levels = c("Control mean", 
+      "H0: Bracelet = Calendar, $p$-value",
+      "Ink",
+      "Calendar",
+      "Bracelet")) %>% fct_rev()) %>%
+  spread(
+    term, 
+    estim_std
+  )  %>%
+  select(treatment, Combined, close, far) 
+
+
+
+dworm_endline_comp_tbl = left_join(
+ dworm_endline_comp_tbl,
+  endline_close_far_df %>%
+    select(treatment, p.value) %>%
+    mutate(
+      treatment = case_when(
+        treatment == "bracelet" ~ "Bracelet",
+        treatment == "calendar" ~ "Calendar",
+        treatment == "ink" ~ "Ink",
+        treatment == "control" ~ "Control mean"
+      )
+    )  %>%
+    mutate(p.value = round(p.value, 5) %>% as.character)
+)
+  
+
+
+
+dworm_endline_comp_tbl_knitr = dworm_endline_comp_tbl %>%
+  knitr::kable(
+      # format = "latex",
+      col.names = c(
+        "", 
+        "Combined",
+        "Close", 
+        "Far",
+        "H0: Close = Far, $p$-value"
+        ),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcccc", 
+      caption = "Surveyed individuals' predicted deworming rates"
+  )  %>%
+  row_spec(4, hline_after = TRUE)
+
+dworm_endline_comp_tbl_knitr
+
+dworm_endline_comp_tbl_knitr %>%
+  custom_save_latex_table("endline-dworm-indiv-pred-tbl")
+
+
+```
+
+
+```{r}
+
+balance_tidy_df = read_csv(
+  file.path("temp-data", "balance_tidy_df.csv")
+)
+
+
+comp_balance_tidy_df = read_csv(
+  file.path("temp-data", "comp_balance_tidy_df.csv")
+)
+
+
+balance_data = read_rds(
+  file.path(
+    "temp-data",
+    "saved_balance_data.rds"
+  )
+)
+
+analysis_school_data = balance_data$analysis_school_data
+baseline_balance_data = balance_data$baseline_balance_data
+endline_vars = balance_data$endline_vars
+endline_and_baseline_data = balance_data$endline_and_baseline_data
+
+
+```
+
+
+
+```{r}
+#| joint-tests
+
+boot_fits = read_rds(
+  file.path("temp-data", 
+            "wild_boot_balance_fits.rds")
+)
+
+joint_signif_fstats = map_dbl(
+  boot_fits, "joint_pval"
+) %>% round(4)
+
+close_joint_signif_fstats = map_dbl(
+  boot_fits, "close_pval"
+) %>% round(4)
+
+far_joint_signif_fstats = map_dbl(
+  boot_fits, "far_pval"
+) %>%
+  round(4)
+
+col_order = c(
+  "lhs", 
+  paste0(treat_levels_c, "_close"),
+  "close_joint_p",
+  paste0(treat_levels_c, "_far"),
+  "far_joint_p",
+  "joint_p"
+)
+
+create_balance_input = function(tidy_df, col_order, digits = 3, comp_df = FALSE) {
+  bal_input_df = tidy_df %>%
+      mutate(
+      estimate = round(estimate, digits),
+      std.error = round(std.error, digits)
+      ) %>%
+      mutate(
+      estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
+      )  
+
+    if (comp_df == FALSE) {
+      bal_input_df = bal_input_df %>%
+        mutate(lhs_treat = str_extract(term, "(?<=disttreat: ).*(?=\\,)")) %>%
+        mutate(lhs_dist = str_extract(term, "(?<=dist: ).*$"))
+    } else {
+      bal_input_df = bal_input_df %>%
+        mutate(
+          lhs_treat = lhs_treatment, 
+          lhs_dist = lhs_dist
+        ) 
+    } 
+
+  bal_input_df = bal_input_df %>%
+    select(lhs, lhs_treat, lhs_dist, estim_std) %>%
+    unique() %>%
+    mutate(
+      lhs_treat = factor(lhs_treat, treat_levels_c) %>% fct_rev(), 
+      lhs_dist = factor(lhs_dist, dist_levels) %>% fct_rev()
+    ) %>%
+    pivot_wider(
+    names_from = c(lhs_treat, lhs_dist),
+    values_from = estim_std, 
+    )    %>%
+    select(
+    any_of(col_order)
+    )  %>%
+    mutate(
+        lhs = str_to_title(lhs),
+        lhs = str_replace_all(lhs, "_", " ")
+    )
+return(bal_input_df)
+}
+
+
+N_beliefs_obs_df = analysis_school_data[stan_data$beliefs_obs_index, ] %>%
+  group_by(
+    treat_dist
+  ) %>%
+  summarise(
+    N_indiv = n_distinct(KEY.individ),
+    N_pot = n_distinct(cluster.id)
+  )  
+
+
+
+
+stratum_map = analysis.data %>% 
+  mutate(stratum = county) %>%
+  mutate(stratum_id = as.integer(stratum)) %>% 
+  distinct(stratum_id, stratum)
+
+incentive_choice_data <- analysis.data %>%
+  filter(!is.na(gift_choice) & gift_choice != "neither",
+          assigned.treatment == "control",
+          sms.treatment.2 == "sms.control") %>%
+  mutate(offer = 0,
+          response = "keep")
+
+incentive_choice_data <- wtp.data %>%
+  semi_join(analysis.data, "cluster.id") %>% # Make sure we have the same clusters
+  filter(!is.na(first_choice)) %>%
+  transmute(county, cluster.id,
+            gift_choice = first_choice,
+            offer = price,
+            response = second_choice) %>%
+  bind_rows(incentive_choice_data) %>%
+  left_join(stratum_map, c("county" = "stratum")) %>%
+  mutate(gift_choice = 2 * (gift_choice == "calendar") - 1,
+          response = 2 * (response == "switch") - 1) 
+
+
+
+N_wtp_obs_df = analysis_school_data %>%
+  filter(KEY.individ %in% incentive_choice_data$KEY.individ) %>%
+  filter(!is.na(KEY.individ)) %>%
+  group_by(
+    treat_dist
+  ) %>%
+  summarise(
+    N_indiv = n_distinct(KEY.individ),
+    N_pot = n_distinct(cluster.id)
+  )  %>%
+  mutate(type = "WTP")
+
+
+
+N_baseline_obs = baseline_balance_data %>%
+  group_by(treat_dist) %>%
+  summarise(
+    N_indiv = n_distinct(KEY), 
+    N_pot = n_distinct(cluster.id)
+  ) %>%
+  mutate(
+    type = "baseline"
+  )
+
+
+
+
+N_by_treat_dist_df = analysis_school_data %>%
+  group_by(
+    treat_dist
+  ) %>%
+  summarise(
+    N_indiv = n_distinct(KEY.individ),
+    N_pot = n_distinct(cluster.id)
+  )  %>% 
+  mutate(type = "takeup") %>%
+  bind_rows(
+    N_baseline_obs,
+    N_beliefs_obs_df %>% mutate(type = "beliefs"), 
+    N_wtp_obs_df
+  ) %>%
+  mutate(
+    treatment = str_extract(treat_dist, "(?<=treat: ).*(?=\\,)"), 
+    distance = str_extract(treat_dist, "(?<=dist: ).*$")
+  ) %>%
+  select(-treat_dist)  %>%
+  pivot_longer(
+    cols = c(N_indiv, N_pot), names_to = "lhs"
+  ) %>%
+  pivot_wider(
+    names_from = c(treatment, distance),
+    values_from = value
+  )  %>%
+  mutate(
+    type = factor(type, levels = c("baseline", "takeup", "beliefs", "WTP"))
+  ) %>%
+  arrange(type)
+
+```
+
+
+```{r}
+#| baseline-learning
+
+# Here we test if there's a difference in learning between baseline and endline 
+# across a range of alternative mechanisms.
+comp_endline_vars = endline_vars %>%
+  str_remove(., "endline_")
+comp_endline_vars = comp_endline_vars[comp_endline_vars != "know_deworming_stops_worms"]
+baseline_endline_externality_fit = feols(
+      data = endline_and_baseline_data, 
+      .[comp_endline_vars] ~ 0 + treat_dist:type, 
+      ~cluster.id
+      ) 
+
+endline_p_val_df = read_csv(
+  file.path(
+    "temp-data", 
+    "endline_balance_p_val_df.csv"
+  )
+)
+
+endline_tidy_df = read_csv(
+  file.path(
+    "temp-data",
+    "endline_balance_tidy_df.csv"
+  )
+)
+
+```
+
+
+
+```{r}
+#| balance-creation, dependson="balance-setup"
+
+
+comp_wide_indiv_bal_df = create_balance_input(
+    comp_balance_tidy_df, 
+    col_order = col_order, 
+    digits = 3, 
+    comp_df = TRUE
+)  %>%
+  mutate(
+    close_joint_p = close_joint_signif_fstats,
+    far_joint_p = far_joint_signif_fstats,
+    joint_p = joint_signif_fstats
+  ) %>%
+  select(all_of(col_order))  %>%
+  bind_rows(
+    N_by_treat_dist_df %>%
+      mutate(
+        lhs = str_replace_all(lhs, "_", " ") %>% 
+          str_to_title()
+      ) %>%
+      mutate(across(where(is.numeric), as.character)) %>%
+      mutate(across(where(is.numeric), replace_na, "-")) 
+  ) %>%
+  select(-type) %>%
+  mutate(across(where(is.character), ~if_else(.x == "", "-", .x))) %>%
+  mutate(across(where(is.character), replace_na, "-")) %>%
+  mutate(
+    lhs = case_when(
+      lhs == "N Indiv" ~ "N individuals", 
+      lhs == "N Pot" ~ "N points of treatment",
+      lhs == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      lhs == "Baseline neighbours worm knowledge" ~ "Understand deworming externality, baseline",
+      lhs == "Endline neighbours worm knowledge" ~ "Understand deworming externality, endline",
+      lhs == "Treated lgl" ~ "Dewormed self", 
+      lhs == "Months since treatment" ~ "Months since last dewormed",
+      lhs == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
+      lhs == "All can get worms" ~ "Know everyone can be infected", 
+      lhs == "Correct when treat" ~ "Know bi-yearly treatment recommended", 
+      lhs == "Num recognised" ~ "Number of individuals recognised in community", 
+      TRUE ~ lhs
+    )
+  )
+
+1+10
+wide_indiv_bal_df = create_balance_input(
+    balance_tidy_df, 
+    col_order = col_order, 
+    digits = 3
+)  %>%
+  mutate(
+    close_joint_p = close_joint_signif_fstats,
+    far_joint_p = far_joint_signif_fstats,
+    joint_p = joint_signif_fstats
+  ) %>%
+  select(all_of(col_order))  %>%
+  bind_rows(
+    N_by_treat_dist_df %>%
+      mutate(
+        lhs = str_replace_all(lhs, "_", " ") %>% 
+          str_to_title()
+      ) %>%
+      mutate(across(where(is.numeric), as.character)) %>%
+      mutate(across(where(is.numeric), replace_na, "-")) 
+  ) %>%
+  select(-type) %>%
+  mutate(across(where(is.character), ~if_else(.x == "", "-", .x))) %>%
+  mutate(across(where(is.character), replace_na, "-")) %>%
+  mutate(
+    lhs = case_when(
+      lhs == "N Indiv" ~ "N individuals", 
+      lhs == "N Pot" ~ "N points of treatment",
+      lhs == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      lhs == "Baseline neighbours worm knowledge" ~ "Understand deworming externality, baseline",
+      lhs == "Endline neighbours worm knowledge" ~ "Understand deworming externality, endline",
+      lhs == "Treated lgl" ~ "Dewormed self", 
+      lhs == "Months since treatment" ~ "Months since last dewormed",
+      lhs == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
+      lhs == "All can get worms" ~ "Know everyone can be infected", 
+      lhs == "Correct when treat" ~ "Know bi-yearly treatment recommended", 
+      lhs == "Num recognised" ~ "Number of individuals recognised in community", 
+      TRUE ~ lhs
+    )
+  )
+
+```
+
+## Balance
+
+```{r, results="asis"}
+#| comp-balance-table,
+#| dependson=c("balance-setup", "balance-creation")
+
+wide_treat_colnames = str_to_title(treat_levels_c)
+
+wide_treat_colnames[2:4] = str_c(wide_treat_colnames[2:4], " - Control")
+
+
+comp_bal_table = comp_wide_indiv_bal_df %>% 
+knitr::kable(
+    format = "latex",
+    escape = FALSE, 
+    col.names = c("", wide_treat_colnames, "F-test $p$-value", wide_treat_colnames, "F-test $p$-value", "Joint F-test $p$-value"), 
+    booktabs = TRUE, 
+    caption = "Balance Table", 
+    align = "lccccccccccc"
+) %>%
+kable_styling(
+  latex_options = c("scale_down")
+) %>%
+add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
+  pack_rows(
+    index = c(
+      "Individual-level Covariates" = 12, 
+      "Baseline Sample" = 2,
+      "Takeup Sample" = 2,
+      "Belief Sample" = 2,
+      "WTP Sample" = 2
+    ), 
+    hline_after = TRUE, 
+    bold = TRUE
+  ) 
+
+comp_bal_table
+
+
+comp_bal_table %>%
+  custom_save_latex_table("comp-balance-table")
+
+```
+
+```{r, results="asis"}
+#| balance-table,
+#| dependson=c("balance-setup", "balance-creation")
+3+1
+
+treat_colnames = str_to_title(treat_levels_c)
+bal_table = wide_indiv_bal_df %>% 
+knitr::kable(
+    format = "latex",
+    escape = FALSE, 
+    col.names = c("", treat_colnames, "F-test $p$-value", treat_colnames, "F-test $p$-value", "Joint F-test $p$-value"), 
+    booktabs = TRUE, 
+    caption = "Balance Table", 
+    align = "lccccccccccc"
+) %>%
+kable_styling(
+  latex_options = c("scale_down")
+) %>%
+add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
+  pack_rows(
+    index = c(
+      "Individual-level Covariates" = 12, 
+      "Baseline Sample" = 2,
+      "Takeup Sample" = 2,
+      "Belief Sample" = 2,
+      "WTP Sample" = 2
+    ), 
+    hline_after = TRUE, 
+    bold = TRUE
+  ) 
+
+bal_table
+
+
+bal_table %>%
+  custom_save_latex_table("balance-table")
+
+```
+
+
+```{r}
+#| endline-table
+
+
+endline_balance_df = create_balance_input(
+    endline_tidy_df, 
+    col_order = col_order[!str_detect(col_order, "_p$")], 
+    digits = 3
+)   %>%
+  mutate(type = "fit") %>%
+  bind_rows(
+    endline_p_val_df %>%  
+      mutate(across(where(is.numeric), round, 3)) %>%
+      mutate_all(as.character) %>%
+      mutate(
+        lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title(), 
+        lhs = str_replace_all(lhs, "_", " ")
+      )  %>% 
+      mutate(type = "pval")
+  ) %>%
+  arrange(lhs, type) %>%
+  mutate(
+    lhs = case_when(
+      lhs == "N Indiv" ~ "N individuals", 
+      lhs == "N Pot" ~ "N points of treatment",
+      lhs == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      lhs == "Neighbours worm knowledge" ~ "Understand deworming externality",
+      lhs == "Endline neighbours worm knowledge" ~ "Understand deworming externality",
+      lhs == "Treated lgl" ~ "Dewormed self", 
+      lhs == "Months since treatment" ~ "Months since last dewormed",
+      lhs == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
+      lhs == "All can get worms" ~ "Know everyone can be infected", 
+      lhs == "Correct when treat" ~ "Know bi-yearly treatment recommended", 
+      TRUE ~ lhs
+    )
+  ) %>%
+  mutate(lhs = if_else(type == "pval", paste0("$\\Delta$", lhs, ", $p$-value"), lhs)) %>%
+  select(-type) %>%
+  mutate(across(where(is.character), ~if_else(.x == "", "-", .x))) %>%
+  mutate(across(where(is.character), replace_na, "-")) %>%
+  select(all_of(col_order)) %>%
+  filter(lhs != "Knowledge of deworming medication")
+endline_balance_df %>%
+  select(far_joint_p)
+
+treat_colnames = str_to_title(treat_levels_c)
+endline_bal_table = endline_balance_df %>% 
+knitr::kable(
+    format = "latex",
+    escape = FALSE, 
+    col.names = c("", treat_colnames, "F-test $p$-value", treat_colnames, "F-test $p$-value", "Joint F-test $p$-value"), 
+    booktabs = TRUE, 
+    caption = "Endline Table", 
+    align = "lccccccccccc"
+) %>%
+kable_styling(
+  latex_options = c("scale_down")
+) %>%
+add_header_above(c("", "Close" = 5, "Far" = 5, "")) 
+
+endline_bal_table %>%
+  custom_save_latex_table("endline-table")
+
+endline_bal_table
+
+```
+
+
+
+```{r}
+#| cts-distance-pval-table
+1+1
+cts_distance_pval_df = read_csv(
+  file.path(
+    "temp-data",
+    str_glue("cts_distance_binned_pvals_many_intervals.csv")
+  )
+)
+
+rename_lhs = function(data) {
+  data %>%
+      mutate(
+        term = str_replace_all(term, "_", " ") %>% 
+          str_to_title()
+      )  %>%
+  mutate(
+    term = case_when(
+      term == "N Indiv" ~ "N individuals", 
+      term == "N Pot" ~ "N points of treatment",
+      term == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
+      term == "Baseline Neighbours Worm Knowledge" ~ "Understand deworming externality, baseline",
+      term == "Treated Lgl" ~ "Dewormed self", 
+      term == "Months Since Treatment" ~ "Months since last dewormed",
+      term == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
+      term == "All Can Get Worms" ~ "Know everyone can be infected", 
+      term == "Correct When Treat" ~ "Know bi-yearly treatment recommended", 
+      term == "Num Recognised" ~ "Number of individuals recognised in community", 
+      TRUE ~ term
+    )
+  )
+}
+
+cts_distance_pval_df  = cts_distance_pval_df %>%
+  group_by(interval) %>%
+  mutate(
+    pval_adj = p.adjust(value, method = "holm"), 
+    term = str_remove(name, "lhs: ")
+  ) %>%
+  select(term, pval = value, pval_adj, interval)
+
+cts_distance_tbl = cts_distance_pval_df %>% 
+  mutate(across(contains("pval"), round, 3)) %>%
+  mutate(
+    stars = case_when(
+     pval < 0.01 ~ "***",
+     pval < 0.05 ~ "**", 
+     pval < 0.1 ~ "*" , 
+      TRUE ~ ""
+    ),
+    pval_term = linebreak(paste0(
+      pval, stars, "\n", "\\ [", str_glue("{pval_adj}"), "]"
+    ), align = "c", double_escape = FALSE)
+  ) %>%
+  select(term, pval_term, interval) %>%
+  mutate(interval = paste0(interval, "m")) %>%
+  pivot_wider(
+    names_from = interval, 
+    values_from = pval_term
+  ) %>%
+  rename_lhs() %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "100m",
+        "200m", 
+        "300m",
+        "400m", 
+        "500m", 
+        "10000m"
+        ),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcccccc", 
+      caption = "Binned Continuous Distance: Joint F-test $p$-values"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )   %>%
+add_header_above(c("", "Bin Width" = 6))
+
+
+cts_distance_tbl
+
+
+cts_distance_tbl %>%
+  custom_save_latex_table("cts-distance-table") 
+
+```
+
+```{r}
+
+cts_dist_fits = 
+  read_rds(
+    "temp-data/fully_cts_dist_balance.rds"
+  )
+cts_dist_fits %>%
+  map_dfr(tidy, .id = "lhs") %>%
+  mutate(
+    lhs = str_remove(lhs, "lhs: ")
+  ) %>%
+  filter(term != "(Intercept)")  %>%
+  mutate(
+    estimate = round(estimate, digits),
+    std.error = round(std.error, digits),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**", 
+      p.value < 0.1 ~ "*" , 
+      TRUE ~ ""
+    )
+  ) %>%
+  mutate(
+    estim_std = linebreak(paste0(estimate, stars, "\n", str_glue("({std.error})")), align = "c") 
+  ) %>%
+  select(
+    lhs, term,
+    estim_std
+  )  %>%
+  spread(term, estim_std) %>%
+  rename(term = lhs) %>%
+  rename_lhs() %>%
+  knitr::kable(
+      format = "latex",
+      col.names = c(
+        "", 
+        "Distance to PoT (km)",
+        "Distance to PoT squared (km)"
+        ),
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcc", 
+      caption = "Continuous Distance: Balance Checks"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )   
+
+
+```
+
+```{r, sample_n, results="asis"}
+
+sample_meta_df = N_by_treat_dist_df %>%
+  gather(variable, value, -type, -lhs) %>%
+  group_by(
+    type, lhs
+  ) %>%
+  summarise(
+    n = sum(value, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  spread(lhs, n) %>%
+  mutate(
+    sample = case_when(
+      type == "beliefs" ~ "Beliefs", 
+      type == "takeup" ~ "Takeup", 
+      type == "WTP" ~ "WTP"
+    )
+  ) %>%
+  select(-type) %>%
+  select(sample, everything())
+
+
+
+sample_meta_tbl = sample_meta_df %>%
+    kbl(
+        booktabs = TRUE, 
+        format = "latex", 
+        caption = "Sample Size Across Experiments", 
+        align = "lcc",
+        col.names = c("Experiment", "N Individuals", "N PoTs")
+    )  %>%
+    kable_styling()
+sample_meta_tbl
+
+```
+
+
+
+```{r}
+#| comparing-draws-correlated-posterior,
+#| eval=TRUE
+
+
+full_data_env = new.env()
+
+with_env = function(f, e = parent.frame()) {
+    stopifnot(is.function(f))
+    environment(f) = e
+    f
+}
+
+load_full_data_function = function(){
+    load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}.RData"))) 
+    rf_dist_fit_data = dist_fit_data %>%
+      filter(model %in% params$rf_models)
+    load(file.path("temp-data", str_interp("processed_dist_fit${params$fit_version}.RData"))) 
+    struct_dist_fit_data = dist_fit_data %>%  
+      filter(model %in% params$struct_models)
+    dist_fit_data = bind_rows(
+      rf_dist_fit_data,
+      struct_dist_fit_data
+    )
+    return(dist_fit_data)
+}
+
+
+full_dist_fit_data = with_env(load_full_data_function, full_data_env)() %>%
+  filter(model %in% models_we_want)
+
+```
+
+
+
+```{r}
+#| sig-diff-draws
+
+#' Prepare Incentive TE Data
+#' 
+#' Filtering so that we have:
+#' visibility matching private benefit (if structural)
+#' comparison within same distance group
+#' control on RHS
+#' Bracelet/calendar/ink on lhs
+prep_incentive_te = function(takeup_te_data, model_type) {
+  if (fct_match(model_type, "structural")) {
+    takeup_te_data = takeup_te_data %>%
+      filter(
+        # make sure visibility and private benefit match
+        mu_assigned_treatment_left == assigned_treatment_left,
+        mu_assigned_treatment_right == assigned_treatment_right
+      )
+  }
+  output_te = takeup_te_data %>%
+    filter(
+      # comparing within same distance group (NA corresponds to reduced form model)
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      # rhs is control, lhs isn't same as rhs 
+      assigned_treatment_left != assigned_treatment_right, 
+      fct_match(assigned_treatment_right, c("control"))
+    ) %>%
+      mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+        assigned_dist_group_right = fct_explicit_na(assigned_dist_group_right, "combined")  %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined")
+        )
+  return(output_te)
+}
+
+#' Prepare Signal TE Data
+#' 
+#' Filtering so that we have:
+#' comparison within same distance group
+#' control private benefit on RHS & LHS
+#' Bracelet/calendar/ink visibility on lhs
+#' Control visibility on RHS
+prep_signal_te = function(takeup_te_data, model_type, fit_type) {
+  if (fct_match(fit_type, "fit") & fct_match(model_type, "structural")) {
+    output_te = takeup_te_data %>%
+      filter(
+      # comparing within same distance group (NA corresponds to reduced form model)
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      # ensure private benefit set to control
+      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
+      # visibility LHS has to exist
+      !is.na(mu_assigned_treatment_left),
+      # fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
+      fct_match(mu_assigned_treatment_right, "control"),
+      mu_assigned_treatment_left != mu_assigned_treatment_right
+      ) %>%
+      mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+        mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left)
+        )
+  } else {
+    output_te = NULL
+  }
+  return(output_te)
+}
+
+
+
+#' Prepare Private Incentive TE Data
+#' 
+#' Filtering so that we have:
+#' comparison within same distance group
+#' control visibility on RHS & LHS
+#' Bracelet/calendar/ink private benefit on lhs
+#' Control private benefit on RHS
+prep_private_te = function(takeup_te_data, model_type, fit_type) {
+  if (fct_match(fit_type, "fit") & fct_match(model_type, "structural")) {
+    output_te = takeup_te_data %>%
+      filter(
+      # same distance comparison
+      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
+      # visibility not NA (probably don't need if matching on struct)
+      !is.na(mu_assigned_treatment_left),
+      !is.na(mu_assigned_treatment_right),
+      # visibility control on LHS & RHS
+      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
+      # control private benefit RHS
+      fct_match(assigned_treatment_right, "control"),
+      # LHS != RHS private benefit
+      assigned_treatment_right != assigned_treatment_left
+      )   %>%
+      mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
+          fct_relabel(str_to_title) %>%
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left)
+        )
+  } else {
+    output_te = NULL
+  }
+  return(output_te)
+}
+
+1+1
+
+```
+
+```{r}
+#| setup-res-table
+1+1
+
+pr_comparison_te_df = full_dist_fit_data %>%
+  filter(fit_type == "fit") %>%
+  select(model_type, fit_type, est_takeup_te) %>%
+  unnest(est_takeup_te)  %>%
+  unnest(iter_data)   %>%
+  group_by(
+    model_type, 
+    fit_type, 
+    assigned_treatment_left,
+    assigned_treatment_right,
+    mu_assigned_treatment_left, 
+    mu_assigned_treatment_right, 
+    assigned_dist_group_left, 
+    assigned_dist_group_right
+  ) %>%
+  summarise(
+    pr_greater = mean(iter_takeup_te > 0, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+
+incentive_far_bigger_te_df = full_dist_fit_data %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  select(
+    model_type,
+    est_takeup_te
+  ) %>%
+  mutate(
+    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te)
+  ) %>%
+  unnest(est_takeup_te) %>%
+  filter(assigned_dist_group_left != "Combined")  %>%
+  unnest(iter_data) %>%
+  select(
+    model_type,
+    assigned_treatment_left,
+    assigned_dist_group_left,
+    iter_id, iter_takeup_te
+  ) %>%
+  spread(
+    assigned_dist_group_left,
+    iter_takeup_te
+  ) %>%
+  group_by(
+    model_type,
+    assigned_treatment_left
+  ) %>%
+  summarise(
+    pr_far_bigger = mean(Far > Close)
+  )
+
+incentive_te = dist_fit_data %>%
+  mutate(
+    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te),
+    model_color = canva_pal(canva_palette_vibrant)(n())
+  ) %>% 
+  unnest(est_takeup_te)  %>%
+  select( 
+    model_type,
+    assigned_treatment = assigned_treatment_left, 
+    assigned_dist = assigned_dist_group_left,
+    mean_est, 
+    per_0.05, 
+    per_0.95
+  )
+
+
+incentive_control_mean = dist_fit_data %>%
+  select(model_type, fit_type, model, est_takeup_level) %>%
+  unnest(
+    est_takeup_level
+  ) %>%
+  filter(
+    mu_assigned_treatment == assigned_treatment # PB = mu
+    ) %>%
+  filter(assigned_treatment == "control") %>%
+  select( 
+    model_type,
+    assigned_treatment = assigned_treatment, 
+    assigned_dist = assigned_dist_group,
+    mean_est, 
+    per_0.05, 
+    per_0.95
+  )  %>%
+  mutate(
+    assigned_dist = fct_explicit_na(assigned_dist, "combined") %>%
+      fct_relabel(str_to_title) %>%
+      fct_relevel("Combined"),
+    assigned_treatment = str_to_title(assigned_treatment)
+    )
+
+signalling_te = dist_fit_data %>% 
+  select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
+  mutate(
+    est_takeup_te = pmap(
+      list(est_takeup_te, model_type, fit_type),
+      ~prep_signal_te(..1, ..2, ..3)
+      )
+    ) %>%
+    filter(map_lgl(est_takeup_te, ~!is.null(.x))) %>%
+    unnest(est_takeup_te) %>%
+    select(
+      assigned_treatment = mu_assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      mean_est, 
+      per_0.05, 
+      per_0.95
+    )
+
+
+
+private_te = dist_fit_data %>% 
+  select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
+  mutate(
+    est_takeup_te = pmap(
+      list(est_takeup_te, model_type, fit_type),
+      ~prep_private_te(
+        ..1,
+        ..2,
+        ..3
+      )
+    ),
+    model_color = canva_pal(canva_palette_vibrant)(n())) %>%
+    filter(map_lgl(est_takeup_te, ~!is.null(.x))) %>%
+    unnest(est_takeup_te) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      mean_est, 
+      per_0.05, 
+      per_0.95
+    )
+
+## Differences Between Bracelet and Calendar
+incentive_bracelet_calendar_diff_df = pr_comparison_te_df %>%
+    filter(
+      (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+      model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_left == assigned_treatment_left)), # same mu and B
+      model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_right == assigned_treatment_right)), # same mu and B
+      fct_match(assigned_treatment_right, "calendar"), 
+      fct_match(assigned_treatment_left, "bracelet")
+    )  %>%
+    mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      ) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      pr_greater
+    ) %>%
+    mutate(
+      assigned_treatment = "$\\hat{\\pi}$(Bracelet > Calendar)"
+    )
+
+signal_bracelet_calendar_diff_df = pr_comparison_te_df %>%
+  filter(
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+    (assigned_treatment_left == assigned_treatment_right), # same B on LHS and RHS
+    (mu_assigned_treatment_left == "bracelet" & mu_assigned_treatment_right == "calendar"), 
+    assigned_treatment_left == "control" 
+) %>%
+    mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      ) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      pr_greater
+    ) %>%
+    mutate(
+      assigned_treatment = "$\\hat{\\pi}$(Bracelet > Calendar)"
+    )
+
+
+te_df = bind_rows(
+  incentive_te %>% mutate(estimand = "incentive"),
+  incentive_bracelet_calendar_diff_df %>% mutate(estimand = "incentive", is_diff = TRUE),
+  private_te %>% mutate(estimand = "private"),
+  signalling_te %>% mutate(estimand = "signal"),
+  signal_bracelet_calendar_diff_df %>% mutate(estimand = "signal", is_diff = TRUE),
+  incentive_control_mean %>% mutate(estimand = "control mean")
+) %>%
+  mutate(
+    assigned_treatment = if_else(
+      assigned_treatment == "control" | assigned_treatment == "Control", 
+      "Control mean", 
+      assigned_treatment
+    ),
+    assigned_treatment = factor(
+      assigned_treatment, 
+      levels = c("Bracelet", "Calendar", "Ink", "Control mean", "$\\hat{\\pi}$(Bracelet > Calendar)"))
+  )
+
+rf_te_input_df = te_df %>%
+  filter(model_type == "reduced form") %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = if_else(
+      is_diff == FALSE | is.na(is_diff),
+      linebreak(
+        paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+        align = "c"
+        ), 
+      as.character(round(pr_greater, 3))
+    )
+  ) %>%
+  select(
+    model_type, 
+    assigned_treatment, 
+    assigned_dist, 
+    estim_value, 
+    estimand
+  ) %>%
+  pivot_wider(
+    names_from = assigned_dist, 
+    values_from = estim_value
+  )  %>%
+  rename(
+    rf_Close = Close, 
+    rf_Far = Far, 
+    rf_Combined = Combined
+  )
+
+structural_te_input_df = te_df %>%
+  filter(model_type == "structural") %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = if_else(
+      is_diff == FALSE | is.na(is_diff),
+      linebreak(
+        paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+        align = "c"
+        ), 
+      as.character(round(pr_greater, 3))
+    )
+  ) %>%
+  select(
+    model_type, 
+    assigned_treatment, 
+    assigned_dist, 
+    estim_value, 
+    estimand
+  ) %>%
+  pivot_wider(
+    id_cols = c(assigned_treatment, estimand),
+    names_from = assigned_dist, 
+    values_from = estim_value
+  )  %>%
+  mutate(across(
+    c(Close, Far), 
+    ~if_else(
+      estimand == "private", 
+      NA_character_, 
+      .x
+    )
+  ))
+
+
+
+te_input_df = right_join(
+  rf_te_input_df,
+  structural_te_input_df,
+  by = c("estimand", "assigned_treatment")
+)  %>%
+  select(-model_type) %>%
+  select(
+    Estimand = estimand, 
+    Treatment = assigned_treatment, 
+    everything()
+  ) %>%
+  mutate(across(c(contains("rf_"), Close, Far), replace_na, "-")) %>%
+  mutate(Estimand = factor(Estimand, levels = c("incentive", "signal", "private", ""))) %>%
+  arrange(Estimand) %>%
+  select(
+    Estimand, 
+    Treatment, 
+    rf_Combined, 
+    rf_Close,
+    rf_Far,
+    Combined,
+    Close,
+    Far
+  )
+
+
+
+
+
+
+latex_group_gap_space = "2em"
+1+2
+```
+
+
+```{r, results="asis"}
+
+
+1+3
+
+te_kbl_df = te_input_df %>%
+  arrange(Estimand, Treatment) %>%
+  mutate(
+    Estimand = if_else(
+      Treatment == "Ink", 
+      Estimand, 
+      factor("")
+    )
+  ) %>%
+  select(-Estimand) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "Dependent variable: Take-up",
+      paste0("(", 1:6, ")")
+    ), 
+    format = "latex", 
+    linesep = "\\addlinespace \\addlinespace \\addlinespace",
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Results"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far", 
+      "Combined",
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  ) %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Reduced Form" = 3, 
+      "Structural" = 3
+      )
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Overall" = 4, 
+      "Panel B: Signalling" = 4, 
+      "Panel C: Private" = 3
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) %>%
+  # add_indent(c(4, 8)) %>%
+  row_spec(11, hline_after = TRUE) %>%
+  add_indent(12) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE
+  )
+
+te_kbl_df %>%
+  custom_save_latex_table(
+    "te-table"
+  )
+
+x = 1 + 5
+```
+
+
+#### Split Table ####
+```{r}
+#| overall-table-only
+te_far_bigger_input_df = incentive_far_bigger_te_df %>%
+  mutate(
+    Treatment = assigned_treatment_left,
+    Estimand = "incentive"
+  ) %>%
+  select(
+    model_type,
+    Treatment,
+    Estimand,
+    pr_far_bigger
+  ) %>%
+  spread(
+    model_type, pr_far_bigger
+  ) %>%
+  rename(
+    rf_pr_bigger = `reduced form`,
+    pr_bigger = structural
+  )
+  
+overall_te_kbl_df = 
+  te_input_df %>%
+  filter(Estimand == "incentive" | Treatment == "Control mean") %>%
+  left_join(
+    te_far_bigger_input_df %>% 
+      mutate(Treatment = factor(Treatment), Estimand = factor(Estimand)) %>%
+      mutate(across(where(is.numeric), round, 3)),
+    by = c("Treatment", "Estimand")
+  ) %>%
+  select(
+    Estimand,
+    Treatment,
+    rf_Combined,
+    rf_Close,
+    rf_Far,
+    rf_pr_bigger,
+    Combined,
+    Close,
+    Far,
+    pr_bigger
+  ) %>%
+  arrange(Estimand, Treatment) %>%
+  mutate(
+    Estimand = if_else(
+      Treatment == "Ink", 
+      Estimand, 
+      factor("")
+    )
+  ) %>%
+  select(-Estimand) %>%
+  kbl(
+    col.names = c(
+      "Dependent variable: Take-up",
+      paste0("(", 1:8, ")")
+    ), 
+    format = "latex", 
+    linesep = "\\addlinespace \\addlinespace \\addlinespace",
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccccc", 
+    caption = "Results"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far",
+      "$\\\\hat{\\\\pi}$($\\\\textrm{TE}_{\\\\text{Far}} > \\\\textrm{TE}_{\\\\text{Close}}$)",
+      "Combined", 
+      "Close", 
+      "Far",
+      "$\\\\hat{\\\\pi}$($\\\\textrm{TE}_{\\\\text{Far}} > \\\\textrm{TE}_{\\\\text{Close}}$)"
+      ), 
+    line = FALSE,
+    escape = FALSE
+  ) %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Reduced Form" = 4, 
+      "Structural" = 4
+      )
+  ) %>%
+  # add_indent(4) %>%
+  row_spec(4, hline_after = TRUE) %>%
+  add_indent(1:5) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE
+  )
+
+
+overall_te_kbl_df %>%
+  custom_save_latex_table(
+    "overall-te-table"
+  )
+
+```
+
+
+```{r}
+
+decomposed_te_kbl_df = te_input_df %>%
+  select(-contains("rf_")) %>%
+  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control mean") %>%
+  arrange(Estimand, Treatment) %>%
+  mutate(
+    Estimand = if_else(
+      Treatment == "Ink", 
+      Estimand, 
+      factor("")
+    )
+  ) %>%
+  select(-Estimand) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "Dependent variable: Take-up",
+      paste0("(", 1:3, ")")
+    ), 
+    format = "latex", 
+    linesep = "\\addlinespace \\addlinespace \\addlinespace",
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lccc", 
+    caption = "Results"
+  ) %>%
+  kable_styling(
+    # latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  ) %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Structural" = 3
+      )
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Signal" = 4, 
+      "Panel B: Private" = 3
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) %>%
+  row_spec(7, hline_after = TRUE) %>%
+  add_indent(1:8) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE
+  )
+
+decomposed_te_kbl_df %>%
+  custom_save_latex_table(
+    "private-signal-te-table"
+  )
+```
+
+
+```{r}
+#| beliefs
+
+
+belief_data = dist_fit_data %>%
+  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+  pull(beliefs_results) %>%
+  first() 
+
+belief_close_far_input_df = belief_data$ate_knows %>%
+  filter(assigned_treatment_left != "control") %>%
+  filter(assigned_treatment_right == "control") %>%
+  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left))  %>%
+  filter(assigned_dist_group_right == assigned_dist_group_left) %>%
+  mutate(treatment = fct_relabel(assigned_treatment_left, str_to_title))  %>%
+  select(
+    treatment, 
+    distance = assigned_dist_group_right, 
+    estimate = per_0.5, 
+    conf.low = per_0.05, 
+    conf.high = per_0.95, 
+    order = ord
+  )
+
+
+#### Belief ATEs combined ####
+belief_data_control = belief_data$prob_knows %>%
+    filter(assigned_treatment == "control")  %>%
+    select(assigned_treatment, assigned_dist_group, iter_data, ord) %>%
+    unnest(iter_data)
+
+combined_belief_ate = belief_data$prob_knows %>%
+    filter(assigned_treatment != "control") %>%
+    select(assigned_treatment, iter_data, ord) %>%
+    unnest(iter_data) %>%
+    rename(assigned_treatment_left = assigned_treatment) %>%
+    left_join(
+        belief_data_control %>% 
+            rename(assigned_treatment_right = assigned_treatment) %>%
+            select(iter_est_right = iter_est, iter_id, ord, assigned_treatment_right),
+        by = c("iter_id", "ord")
+    ) %>%
+    mutate(
+        iter_est_te = iter_est - iter_est_right
+    )  %>%
+    select(-.chain, -.iteration, -.draw) %>%
+    nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
+    mutate(
+        mean_est = map_dbl(iter_data, ~mean(.x$iter_est_te)), 
+        quants = map(iter_data, quantilize_est, iter_est_te, quant_probs = quant_probs, na.rm = TRUE)
+    )  %>%
+    unnest(quants) %>%
+    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
+    mutate(
+        assigned_treatment_left = fct_drop(assigned_treatment_left), 
+        assigned_treatment_right = fct_drop(assigned_treatment_right)
+    )  %>%
+    mutate(treatment = fct_relabel(assigned_treatment_left, str_to_title))  %>%
+    select( 
+      treatment = treatment, 
+      distance = assigned_dist_group_right, 
+      estimate = per_0.5, 
+      conf.low = per_0.05,
+      conf.high = per_0.95,
+      order = ord
+    )
+
+
+belief_input_df = bind_rows(
+  belief_close_far_input_df,
+  combined_belief_ate
+) %>% 
+  mutate(
+    distance = str_to_title(distance), 
+    treatment = fct_rev(treatment), 
+    distance = factor(distance, levels = c("Combined", "Close", "Far"))
+    )
+
+
+
+wide_belief_input_df = belief_input_df %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = linebreak(
+      paste0(estimate, "\n", "(", conf.low, ", ", conf.high, ")"), 
+      align = "c"
+      )
+  ) %>%
+  select(treatment, distance, order, estim_value) %>%
+  pivot_wider(
+    names_from = c(distance, order), 
+    values_from = estim_value
+  ) %>%
+  select( 
+    treatment, 
+    contains("_1"), 
+    contains("_2")
+  ) %>%
+  arrange(treatment)  %>%
+  select(
+    treatment, 
+    Combined_1, 
+    Close_1,
+    Far_1, 
+    Combined_2, 
+    Close_2, 
+    Far_2
+  )
+
+
+wide_belief_tbl = wide_belief_input_df %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "",
+      paste0("(", 1:6, ")")
+    ), 
+    # format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    # latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined",
+      "Close", 
+      "Far", 
+      "Combined",
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "First-Order Beliefs" = 3, 
+      "Second-Order Beliefs" = 3
+      )
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE
+  )
+
+wide_belief_tbl %>%
+  custom_save_latex_table(
+    "beliefs-table"
+  )
+```
+
+
+
+```{r}
+#| disagg-beliefs
+
+disagg_base_belief_data = analysis_data %>%
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>%
+  nest_join(
+    endline.know.table.data %>% 
+      filter(fct_match(know.table.type, "table.A")),
+    by = "KEY.individ", 
+    name = "knowledge_data"
+  ) %>% 
+  mutate(
+    map_dfr(knowledge_data, ~ {
+      tibble(
+        obs_know_person = sum(.x$num.recognized),
+        obs_know_person_prop = mean(.x$num.recognized),
+        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
+        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
+        knows_other_dewormed_no = sum(fct_match(.x$dewormed, "no"), na.rm = TRUE),
+        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
+        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
+        thinks_other_knows_no = sum(fct_match(.x$second.order, "no"), na.rm = TRUE),
+      )
+    }
+  )) %>%
+    filter(obs_know_person > 0)  %>%
+    select(
+      KEY.individ, 
+      contains("know"), 
+      assigned.treatment, 
+      dist.pot.group, 
+      assigned_dist_group,
+      cluster.id,
+      county
+      ) %>%
+    mutate(
+        doesnt_know_other_dewormed = obs_know_person - knows_other_dewormed, 
+        doesnt_think_other_knows = obs_know_person - thinks_other_knows
+    ) %>% 
+    select(KEY.individ, 
+           assigned.treatment,
+           assigned_dist_group,
+           obs_know_person,
+           knows_other_dewormed_yes,
+           knows_other_dewormed_no,
+           doesnt_know_other_dewormed, 
+           thinks_other_knows_yes, 
+           thinks_other_knows_no, 
+           doesnt_think_other_knows,
+           cluster.id,
+           county
+           ) %>%
+    gather(variable, value, 
+        knows_other_dewormed_yes:doesnt_think_other_knows)   %>%
+    mutate(knowledge_type = case_when(
+        str_detect(variable, "_yes") ~ "yes",
+        str_detect(variable, "_no") ~ "no",
+        str_detect(variable, "doesnt") ~ "doesn't know"
+    )) %>%
+    mutate(belief_type = if_else(str_detect(variable, "think"), "2ord", "1ord")) %>%
+    mutate(prop = value/obs_know_person) 
+
+cv = function(alpha){
+  qnorm(1 - (alpha/2))
+}
+
+close_far_disagg_belief = disagg_base_belief_data  %>%
+    group_by(assigned.treatment, assigned_dist_group, knowledge_type, belief_type)  %>%
+    summarise(
+        mean_est = mean(prop), 
+        std.error = sd(prop)/sqrt(n()),
+        per_0.5 = mean(prop), 
+        per_0.05 = per_0.5 - cv(0.05)*std.error, 
+        per_0.95 = per_0.5 + cv(0.05)*std.error,
+        per_0.1 =  per_0.5 - cv(0.1)*std.error,
+        per_0.9 =  per_0.5 + cv(0.1)*std.error,
+        per_0.25 =  per_0.5 - cv(0.5)*std.error,
+        per_0.75 =  per_0.5 + cv(0.5)*std.error
+    ) %>%
+    mutate(
+      knowledge_type = factor(knowledge_type, levels = c("yes", "no", "doesn't know")), 
+      knowledge_type = fct_relabel(knowledge_type, str_to_title) %>% fct_rev
+    ) %>%
+    mutate(
+      assigned.treatment = factor(assigned.treatment, 
+                                  levels = c("bracelet",
+                                             "calendar", 
+                                             "ink",
+                                             "control")) %>%
+                          fct_relabel(str_to_title) %>%
+                          fct_rev
+    )
+
+
+cv = function(alpha){
+  qnorm(1 - (alpha/2))
+}
+
+combined_disagg_belief = disagg_base_belief_data  %>%
+    group_by(assigned.treatment, knowledge_type, belief_type)  %>%
+    summarise(
+        mean_est = mean(prop), 
+        std.error = sd(prop)/sqrt(n()),
+        per_0.5 = mean(prop), 
+        per_0.05 = per_0.5 - cv(0.05)*std.error, 
+        per_0.95 = per_0.5 + cv(0.05)*std.error,
+        per_0.1 =  per_0.5 - cv(0.1)*std.error,
+        per_0.9 =  per_0.5 + cv(0.1)*std.error,
+        per_0.25 =  per_0.5 - cv(0.5)*std.error,
+        per_0.75 =  per_0.5 + cv(0.5)*std.error
+    ) %>%
+    mutate(
+      knowledge_type = factor(knowledge_type, levels = c("yes", "no", "doesn't know")), 
+      knowledge_type = fct_relabel(knowledge_type, str_to_title) %>% fct_rev
+    ) %>%
+    mutate(
+      assigned.treatment = factor(assigned.treatment, 
+                                  levels = c("bracelet",
+                                             "calendar", 
+                                             "ink",
+                                             "control")) %>%
+                          fct_relabel(str_to_title) %>%
+                          fct_rev
+    ) %>%
+    mutate(
+      assigned_dist_group = "Combined"
+    )
+    
+
+comp_belief_data = bind_rows(
+  combined_disagg_belief,
+  close_far_disagg_belief
+)
+```
+
+
+```{r}
+wide_disagg_belief_input_df = comp_belief_data %>%
+  select(
+    treatment = assigned.treatment, 
+    distance = assigned_dist_group, 
+    knowledge_type,
+    mean_est, 
+    per_0.05, 
+    per_0.95, 
+    ord = belief_type
+  )  %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = linebreak(
+      paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+      align = "c"
+      )
+  ) %>%
+  select( 
+    treatment,
+    distance, 
+    knowledge_type, 
+    ord, 
+    estim_value
+  ) %>%
+  mutate(ord = factor(ord, levels = c("1ord", "2ord"))) %>%
+  pivot_wider(
+    names_from = c(ord, distance), 
+    values_from = estim_value
+  ) %>%
+  select(
+    treatment, knowledge_type, 
+    contains("1ord"), 
+    contains("2ord")
+  ) %>%
+  mutate(
+    treatment = fct_rev(treatment)
+  ) %>%
+  select(
+    treatment, knowledge_type, `1ord_Combined`, `1ord_close`, `1ord_far`, 
+    `2ord_Combined`, `2ord_close`, `2ord_far`
+  )
+
+all_wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
+  arrange(treatment) %>%
+  ungroup() %>%
+  select(-treatment) %>%
+  kbl(
+    col.names = c(
+      "Knowledge",
+      paste0("(", 1:6, ")")
+    ), 
+    format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    # latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far", 
+      "Combined",
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "First-Order Beliefs" = 3, 
+      "Second-Order Beliefs" = 3
+      )
+  ) %>%
+  group_rows(
+    index = c(
+      "Bracelet" = 3,
+      "Calendar" = 3,
+      "Ink" = 3,
+      "Control" = 3
+    ), 
+    hline_after = TRUE,
+    hline_before = TRUE
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE
+  )
+
+all_wide_disagg_belief_tbl %>%
+  custom_save_latex_table(
+    "all-disagg-beliefs-table"
+  )
+
+```
+
+
+
+```{r}
+
+wide_disagg_belief_sob_tbl = wide_disagg_belief_input_df %>%
+  select(-contains("1")) %>%
+  arrange(treatment) %>%
+  ungroup() %>%
+  select(-treatment) %>%
+  kbl(
+    col.names = c(
+      "Knowledge",
+      paste0("(", 1:3, ")")
+    ), 
+    format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    # latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "Second-Order Beliefs" = 3
+      )
+  ) %>%
+  group_rows(
+    index = c(
+      "Bracelet" = 3,
+      "Calendar" = 3,
+      "Ink" = 3,
+      "Control" = 3
+    ), 
+    hline_after = TRUE,
+    hline_before = TRUE
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+  )
+
+
+wide_disagg_belief_sob_tbl %>%
+  custom_save_latex_table(
+    "sob-disagg-beliefs-table"
+  )
+
+```
+
+```{r}
+
+wide_disagg_belief_tbl = wide_disagg_belief_input_df %>%
+  select(-contains("2")) %>%
+  arrange(treatment) %>%
+  ungroup() %>%
+  select(-treatment) %>%
+  kbl(
+    col.names = c(
+      # "Estimand", 
+      # "Treatment", 
+      "Knowledge",
+      paste0("(", 1:3, ")")
+    ), 
+    format = "latex", 
+    booktabs = TRUE, 
+    escape = FALSE, 
+    align = "lcccccc", 
+    caption = "Beliefs Results"
+  ) %>%
+  kable_styling(
+    # latex_options = c("scale_down")
+  ) %>%
+  add_header_above(
+    c(" ", 
+      "Combined", 
+      "Close", 
+      "Far"
+      ), 
+    line = FALSE
+  )  %>%
+  add_header_above(
+    c(
+      " " = 1,
+      "First-Order Beliefs" = 3
+      )
+  ) %>%
+  group_rows(
+    index = c(
+      "Bracelet" = 3,
+      "Calendar" = 3,
+      "Ink" = 3,
+      "Control" = 3
+    ), 
+    hline_after = TRUE,
+    hline_before = TRUE
+  ) %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+  )
+
+wide_disagg_belief_tbl %>%
+  custom_save_latex_table(
+    "fob-disagg-beliefs-table"
+  )
+```
+
+
+
+#### WTP Table ####
+
+
+```{r}
+1+1
+wtp_summ_df = dist_fit_data %>% 
+  filter(fct_match(model_type, "structural")) %>% 
+  pull(wtp_results) %>%
+  first()  %>%
+  group_by(variable)  %>%
+  filter(variable == "hyper_wtp_mu") %>%
+  select( 
+    per_0.5,
+    per_0.05, 
+    per_0.95
+  ) %>%
+  mutate(across(where(is.numeric), ~.x*100)) %>%
+  mutate(across(where(is.numeric), round, 3))
+
+
+
+pr_wtp_greater_df = read_csv(
+  file.path(
+    params$output_path, 
+    str_interp("wtp_phi_summary_draws_dist_fit${params$fit_version}.csv")
+  )
+)
+
+pr_wtp_greater_input_df = pr_wtp_greater_df %>%
+  mutate(
+    variable = "$\\textrm{Pr}(V_{\\textrm{calendar}} > V_{\\textrm{bracelet}} + 0\\textrm{Ksh})$"
+  ) %>%
+  select(
+    variable, 
+    per_0.5 = phi_mu_std, 
+    per_0.05 = conf.low, 
+    per_0.95 = conf.high) 
+
+misc_param_summaries = read_csv(
+  file.path(
+      params$output_path,
+      str_glue("misc_processed_dist_fit{params$fit_version}.csv")
+  )
+) %>%
+  mutate(across(where(is.numeric), ~.x*100)) %>%
+  mutate(across(where(is.numeric), round, 2))
+
+
+wtp_summ_input_df = bind_rows(
+  wtp_summ_df,
+  misc_param_summaries %>%
+    filter(variable == "wtp_sigma"),
+   pr_wtp_greater_input_df,
+  dist_fit_data %>% 
+    filter(fct_match(model_type, "structural")) %>% 
+    pull(wtp_results) %>%
+    first()  %>%
+    filter(variable == "prob_prefer_calendar") %>%
+    left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index")  %>%
+    filter(val_diff %in% c(50, 0, -50)) %>%
+    select(variable, val_diff, per_0.5, per_0.05, per_0.95) %>%
+    mutate(
+      variable = "P(prefer calendar)",
+      variable = paste0(
+        variable, ", offered: ", val_diff, "KSh"
+      )
+    ) %>%
+    select(-val_diff)
+) 
+
+
+
+wtp_summ_tbl = wtp_summ_input_df %>%
+  mutate(
+    variable = case_when(
+      variable == "hyper_wtp_mu" ~ "Valuation difference (Ksh) mean, $\\mu$", 
+      variable == "wtp_sigma" ~ "Valuation difference (Ksh) standard deviation, $\\sigma$", 
+      TRUE ~ variable
+      )
+  ) %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  mutate(
+    estim_value = 
+      linebreak(
+        paste0(per_0.5, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
+        align = "c"
+        )
+  ) %>%
+  select( 
+    variable, estim_value
+  ) %>%
+  kbl(
+    col.names = c("Parameter", "Posterior estimates"), 
+    booktabs = TRUE, 
+    escape = FALSE,
+    format = "latex",
+    align = "lc"
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Model parameters" = 2, 
+      "Panel B: Estimated preferences" = 4
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  )  %>%
+  footnote(
+    escape = FALSE,
+    threeparttable = TRUE,
+  )
+
+
+
+wtp_summ_tbl
+
+wtp_summ_tbl %>%
+  custom_save_latex_table(
+    "wtp-summ-table"
+  )
+  
+  
+
+```
+
+```{r}
+#| optim-table-main,
+#| eval=TRUE
+x = 1+1
+all_optim_df = read_csv(
+  file.path(
+    params$optim_input_path,
+    "posterior-clean-summ-optim.csv"
+  )
+) 
+
+
+
+summ_optim_df = all_optim_df %>%
+        group_by(
+            private_benefit_z,
+            visibility_z, 
+            static_vstar,
+            allocation_type,
+            distance_constraint,
+            model, 
+            rep_type,
+            cutoff_type
+        ) %>%
+        mutate(mean_dist = mean_dist/1000) %>%
+        filter(
+            model %in% models_we_want
+        ) %>%
+        filter(
+            cutoff_type  == "cutoff"
+        ) %>%
+        summarise(
+            across(
+                .cols = c(mean_dist, mean_demand),
+                list(
+                    estimate = ~mean(.x, na.rm = TRUE) %>% round(3),
+                    CI = ~paste0("(", round(quantile(.x, 0.025, na.rm = TRUE), 3), ", ", round(quantile(.x, 0.975, na.rm = TRUE), 3), ")")
+                )
+            ),
+            across(
+                .cols = c(n_pot),
+                list(
+                    estimate = ~mean(.x, na.rm = TRUE) %>% round(0),
+                    CI = ~paste0("(", round(quantile(.x, 0.025, na.rm = TRUE), 0), ", ", round(quantile(.x, 0.975, na.rm = TRUE), 0), ")")
+                )
+            )
+        )   %>%
+        ungroup() %>%
+        select(-model, -cutoff_type) %>%
+        arrange(
+            private_benefit_z,
+            visibility_z,
+            rep_type
+        ) %>%
+    rename(
+        B_z = private_benefit_z, 
+        mu_z = visibility_z
+    )
+
+
+wide_summ_df_rep = summ_optim_df %>%
+  filter(rep_type == "rep") %>%
+  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type, -distance_constraint)   %>%
+  mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
+  mutate(variable = str_remove(variable, "_CI")) %>%
+  mutate(variable = str_remove(variable, "_estimate"))  %>%
+  pivot_wider(
+    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type, distance_constraint), 
+    names_from = CI, 
+    values_from = value
+  )   %>%
+  mutate(estim = if_else(
+    variable %in% c("n_pot"), as.numeric(estim), 
+    as.numeric(estim) %>% round(2)
+  ))  %>%
+  mutate(
+    estim_value = 
+    linebreak(
+      paste0(
+        estim, "\n", 
+        ci
+      ), 
+      align = "c"
+    )
+  ) %>%
+  select(
+    -estim, -ci
+  )  %>%
+  spread(variable, estim_value)
+
+wide_summ_df_sup_rep = summ_optim_df %>%
+  filter(rep_type == "suppress_rep")  %>%
+  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type, -distance_constraint)   %>%
+  mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
+  mutate(variable = str_remove(variable, "_CI")) %>%
+  mutate(variable = str_remove(variable, "_estimate")) %>%
+  pivot_wider(
+    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type, distance_constraint), 
+    names_from = CI, 
+    values_from = value
+  )    %>%
+  # mutate(estim = if_else(
+  #   variable %in% c("n_pot"), as.numeric(estim) %>% round(1), 
+  #   as.numeric(estim) %>% round(2)
+  # ))  %>%
+  mutate(
+    estim_value = 
+    linebreak(
+      paste0(
+        estim, "\n", 
+        ci
+      ), 
+      align = "c"
+    )
+  ) %>%
+  select(
+    -estim, -ci
+  )  %>%
+  spread(variable, estim_value)
+
+
+
+
+
+optim_summ_input_df = bind_rows(
+  wide_summ_df_rep %>% 
+    mutate(rep_type = "rep") %>%
+    filter(B_z == "control"),
+  wide_summ_df_sup_rep %>% mutate(rep_type = "suppress_rep") %>% filter(B_z == mu_z)
+) %>%
+  mutate(
+    mu_z = if_else(rep_type == "suppress_rep", "No visibility", mu_z), 
+    mu_z = if_else(static_vstar == TRUE & mu_z == "bracelet", "Signal value fixed at 0.5km", mu_z), 
+  ) %>%
+  mutate(mu_z = factor(
+    mu_z, 
+    c("bracelet", 
+      "calendar", 
+      "ink", 
+      "control", 
+      "No visibility", 
+      "Signal value fixed at 0.5km"
+      )))  %>%
+  mutate(B_z = factor(B_z, c("bracelet", "calendar", "ink", "control")))  %>%
+  mutate(B_z = fct_relabel(B_z, str_to_title)) %>%
+  mutate(mu_z = fct_relabel(mu_z, str_to_title))  %>%
+  mutate(
+    mu_z = recode_factor(mu_z, "Signal Value Fixed At 0.5km" = "Signal value fixed at bracelet 0.5km")
+  ) %>%
+  mutate(
+    mu_z = fct_relevel(mu_z, 
+    c("Control", "Ink", "Calendar", "Signal value fixed at bracelet 0.5km", "Bracelet",  "No Visibility"))
+  )  %>%
+  mutate(
+    mean_dist = if_else(
+      allocation_type == "experimental", 
+      str_remove(mean_dist, "\\\\\\(([^)]+)\\)") %>%
+      str_replace(.,   '\\\\\\}', "}"), 
+      mean_dist
+    ), 
+    n_pot = if_else(
+      allocation_type == "experimental", 
+      str_remove(n_pot, "\\\\\\(([^)]+)\\)") %>%
+      str_replace(.,   '\\\\\\}', "}"), 
+      n_pot
+    ) 
+  ) 
+
+optim_summ_tbl = optim_summ_input_df %>%
+  filter(distance_constraint == 3500 | allocation_type == "experimental") %>%
+  arrange(rep_type, mu_z, B_z) %>%
+  select(B_z, mu_z, n_pot, mean_demand, mean_dist) %>%
+  knitr::kable(
+    col.names = c(
+      "Private benefit", 
+      "Visibility",
+      "Assigned PoTs", 
+      "Mean take-up", 
+      "Mean distance (km)"
+    ),
+    align = "llccc",
+    booktabs = TRUE,
+    format = "latex",
+    escape = FALSE
+    ) %>%
+  kableExtra::kable_styling(
+    # latex_options =  c("scale_down")
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Random allocation" = 1, 
+      "Panel B: Policymaker allocation" = 4
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) 
+
+
+optim_summ_tbl %>%
+  custom_save_latex_table("optim-summ-table")
+
+optim_summ_tbl 
+
+```
+
+
+```{r}
+#|optim-summ-table-robust,
+#| dependson = c("optim-summ-table")
+optim_summ_robust_tbl = optim_summ_input_df %>%
+  arrange(allocation_type, distance_constraint, rep_type, mu_z, B_z) %>%
+  select(B_z, mu_z, distance_constraint, n_pot, mean_demand, mean_dist) %>%
+  mutate(distance_constraint = distance_constraint/1000) %>%
+  knitr::kable(
+    col.names = c(
+      "Private benefit", 
+      "Visibility",
+      "\\makecell{Maximum \\\\ distance constraint (km)}",
+      "Assigned PoTs", 
+      "Mean take-up", 
+      "Mean distance (km)"
+    ),
+    align = "llcccc",
+    booktabs = TRUE,
+    escape = FALSE,
+    format = "latex"
+    ) %>%
+  kableExtra::kable_styling(
+    # latex_options =  c("scale_down")
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: Random allocation" = 1, 
+      "Panel B: Policymaker allocation, 2.5km" = 4,
+      "Panel C: Policymaker allocation, 3.5km" = 4,
+      "Panel D: Policymaker allocation, 4.5km" = 4,
+      "Panel E: Policymaker allocation, 5.5km" = 4,
+      "Panel F: Policymaker allocation, 10km" = 4
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) 
+
+
+optim_summ_robust_tbl
+
+optim_summ_robust_tbl %>%
+  custom_save_latex_table("optim-summ-robust-table")
+
+```
+
+# Mechanism Stuff 
+
+```{r}
+#| mechanism-full-regression-table, results="asis"
+y = 1+3
+
+
+
+writeLines(
+  c(
+    "\\begin{table}[htbp]",
+    readLines("presentations/tables/rf-mechanism-full-regression-table.tex"), 
+    "\\end{table}"
+  )
+)
+
+writeLines(
+  c(
+    "\\begin{table}[htbp]",
+    readLines("presentations/tables/rf-mechanism-control-regression-table.tex"), 
+    "\\end{table}"
+    )
+)
+
+writeLines(
+  c(
+    "\\begin{table}",
+    readLines("presentations/tables/rf-mechanism-het-knowledge-regression-table.tex"),
+    "\\end{table}"
+  )
+)
+
+
+    # file = "temp-data/rf-mechanism-control-regression-table.tex"
+    # file = "temp-data/rf-mechanism-het-knowledge-regression-table.tex"
+    # file = "temp-data/rf-mechanism-incentive-regression-table.tex"
+
+```
+
+\newpage
+\blandscape
+
+```{r}
+#| mechanism-incentive-regression-table, results="asis"
+x = 1+3
+writeLines(
+  c(
+    "\\begin{table}",
+    readLines("presentations/tables/rf-mechanism-incentive-regression-table.tex"), 
+    "\\end{table}"
+  )
+)
+
+```
+
+\elandscape

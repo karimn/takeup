@@ -1,0 +1,289 @@
+\documentclass{article}
+\title{Heckman Lifecycle Notes}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{bm}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{xcolor}
+ \geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+ }
+
+
+\begin{document}
+\maketitle
+
+
+
+\section*{Some Potential Action Points}
+(There were lots of random things raised.)
+\begin{itemize}
+    \item Add back blood donation slide.
+    \item Selection into who's getting dewormed
+    \item JH: Look at family effect - do families go together or do singletons go?
+    \item MK: Using individual level distance?
+    \item Change notation on $\lambda$ slide so it doesn't look like a random effect. 
+\end{itemize}
+
+
+\section*package{Questions in Chronological Order}
+\textcolor{blue}{Blue denotes Ed's editorialising.}
+\newline
+\newline
+\textbf{JH}:\emph{Slide 5} What are beliefs about praise/stigma?
+
+\emph{
+    \textcolor{blue}{
+    Maybe we should have gone straight to praise/stigma - since he got so held up on 
+    this? Even later in the talk he asks if people see deworming as a good thing (around the 2 hour mark.)}
+}
+\newline
+\newline
+
+\textbf{JH}: This is a community condition - you're not necessarily stigmatising 
+yourself, but rather saying your community is dirty.
+
+\emph{\textbf{AK}: I'm going to show data on individual level views about deworming}
+\newline 
+\newline
+
+\textbf{Jin:}\emph{Slide 6} How we know unique equilibrium? Each community has 
+its own idiosyncratic equilibrium takeup.
+
+\emph{
+    \textcolor{blue}{
+Point one, super minor quibble, I think we veered towards making the same mistake Anna Vitali did here. We said something 
+like: We're going to use our structural estimation technique and make sure things aren't too 
+in the tails.
+I think it'd be better if we make it clear the unique equilibrium comes from theory.
+Theory gives unique equilibrium $\rightarrow$ our model is identified $\rightarrow$ we estimate parameters.
+We don't want to confuse identification and estimation. In reality, they just bound 
+$1 + \mu \Delta'$ in the Laws and Norms paper, so what you said is basically true but 
+the identification police might get angry.}
+Point two, \textbf{AK:} this is exactly why we need to introduce exogenous shocks to takeup 
+so that we're not doing inference with endogenous takeup equilibrium.
+}
+\newline
+\newline
+
+
+\textbf{MK}: \emph{Slide $\approx$ 9} Do you have data on who's showing up? Are we getting 
+infected/non-infected people? Do we know where people are coming from/what are their occupations? Farmers, etc.?
+\emph{
+    \textbf{AK}: We didn't collect this sort of data but we know from other medical trials 
+    that it's typically older men who are most infected.
+    We know that our treatment has no differential effect by age.
+}
+\newline
+\newline
+\textbf{MK}: \emph{Slide $\approx$ 9} Could look at lake distance due to different types of worms - I can't spell 
+the worm and Anne can't say this type of worm but Michael can.
+\newline
+\newline
+\textbf{Q}: \emph{Map slide/close-far} Are we putting PoTs in an urban area, individuals living 
+in rural areas travel to the urban town to get dewormed and also do shopping - individuals are 
+just signalling their wealth/ability to shop?
+\emph{
+    \textbf{AK}: No, we're chosing where the PoTs are. They're like grains of sand on the beach, etc.
+}
+\newline
+\newline
+\textbf{Q}: \emph{This was Bill and Melinda Gates guy I think} Since worms are endemic, are there communities where rep returns are higher/lower 
+and exploit that exposure.
+\newline
+\newline
+\textbf{JH}: How often do you have to deworm? How do people get infected? 
+\emph{
+    \textbf{AK}: 6 months/if you want to eradicate worms, everyone just needs to take it intensively and 
+    we'd eradicate them. Random discussion across the room here.
+}
+\newline
+\newline
+\textbf{Q (Jin?)}: Why not just give to kids using current programmes and have them 
+pass on to parents?
+\newline
+\newline
+\textbf{JH}: How much does $v^*$ depend on previous deworming behaviour? Has it 
+been endorsed by some local group? [Obama line]. This study has been 20/30 years now, 
+are there areas where this is seen as good practice but others where it's seen as 
+very remote.
+Sophisticated places might be really praising deworming but less sophisticated might 
+not stigmatise. Heckman really thinking about previous exposure influencing $v^*$.
+\emph{\textbf{MK}: Michael deworming was probably introduced at exact same time in our study 
+area but could get data on that and check. \textbf{JH}: There's been stuff going on 
+in this field for years, public info to everyone, how is prior exposure influencing 
+treatment effect.
+\textbf{AK}: I don't find meaningful heterogeneity in my other work. 
+\textbf{MK}: Our treatment is actually only soil transmitted Helminths, so 
+those close to the Lake might be more less salient since different timetables for 
+how often you have to deworm.
+}
+\newline
+\newline
+\textbf{Juanna}: There might be heterogeneity by awareness of externalities, stigma 
+will vary with awareness of externalities. Those more aware of externalities should 
+stigmatise not getting the action more. Can externalities be included in $\Delta(v^*)$ model?
+\emph{
+    \textbf{AK}: If there's more awareness of externalities we can think of it as 
+    just amplifying social image concerns. Just driving up $\mu$. 
+    Externalities aren't in the model, we could add a term just controlling for 
+    average level of takeup - there'd be no interaction. We would just linearly add 
+    an average takeup term.
+    \textbf{MK}: Our current knowledge of externality interactions is that empirically, 
+    we think these things are linear. We can't reject linearity, we don't have enough 
+    power to in other work. It's not clear if there should be a presumption on 
+    externalities one way or the other.
+}
+\newline
+\newline
+\textbf{Jin}: Making a point about making sure we don't divide by $0$, restricting the 
+bounds of support for the social multiplier, $\frac{1}{1 + \mu \Delta'(v^*)}$.
+\emph{
+    \textcolor{blue}{
+    Here we could have said: $\mu > 0, \Delta' > 0$ in all the support of our data so the social 
+    multiplier is always well defined.}
+}
+\newline
+\newline
+\textbf{JH}: You're talking about individuals but presumably there must be a strong 
+family effect. One person in the family could re-infect everyone. Do families enrol 
+in the programme or just individuals?
+\emph{
+    \textbf{AK}: Everyone can enrol. \textbf{JH}: But do families go together or 
+    do people go separately, what's the family structure? Returns as a single 
+    individual vs a family, it's very different.
+}
+\newline
+\newline
+\textbf{Q}: Would people know if they were infected afterwards? Would you see it 
+in your stool?
+\emph{\textbf{MK}: You could survey people after and see if higher worm load people 
+came before or after. [Tangent] Worm loads are really falling in Kenya.}
+\newline
+\newline
+\textbf{Q}: You're assigned to far/close, but you're always assigned to the closest. The 
+far people, are they more remote? Who employs CHVs? Can't people just give their 
+bracelet to someone else?
+\newline
+\newline
+\textbf{MK}: Do you have individual HH level distance? We could use the variation 
+from individual level HH to exploit more variation? For some individuals, 
+even in close/far we'll have variation in which HHs are closest.
+\newline
+\newline
+\textbf{HL:} Since individuals can go to pharmacies, when we measure the distance 
+they have to walk it's not quite the most precise measure. We're ignoring the closest 
+PoT could be a pharmacy.
+\emph{\textbf{AK}: But pharmacies you have to pay}
+\newline
+\newline
+\textbf{MK}: If there's other stories going on, how would that influence 
+estimation of the model?
+\emph{\textcolor{blue}{This is a good point. We have the $u$ shock, so in some sense we load any 
+other factor into there. If our functional form is really off, loading everything into 
+$u$ isn't going to buy us much. This is just one of the weaknesses of structural 
+models, we don't really have any guarantees in the case of serious misspecification. 
+What we can say (in addition to the $u$-shock) is that we've used a lot of different 
+functional forms for $\mu$ and the results are fairly robust which is a good sign. Can't 
+say much beyond that I think. We could run alternative models for social learning etc and 
+horserace but that's a whole different paper I think.}}
+\newline
+\newline
+\textbf{Jin}: How do we know type isn't correlated with distance? 
+\emph{\textbf{AK\&MK}: We randomise the sites.}
+\newline
+\newline
+\textbf{JH}: Asking if we can identify the variance?
+\emph{\textcolor{blue}{We can, fuck yeah. Then he said something about it influencing 
+other terms separately etc. which I don't understand}}
+\newline
+\newline
+\textbf{JH}: It sounds like this (WTP) experiment is really flirting with the endowment 
+effect. We give a calendar, then ask them to surrender it etc.
+\emph{
+    \textbf{AK}: Yeah we could add a $\kappa$ term. If there is an endowment effect 
+    we would have to divide by 2. But really this isn't a big deal because we're 
+    assuming they're the same.
+    \textcolor{blue}{I think we should avoid saying we assume they're the same, and phrase it as:
+    Look, we estimate a very small monetary difference for the two, and on top of that 
+    we translate monetary difference into utils very, very conservatively. This means 
+    our posteriors for the private benefit actually end up being the same in this instance. 
+    }
+}
+\newline
+\newline
+\textbf{JH}: How exactly are you identifying this $\mu$ in the structural model?
+\emph{\textbf{AK}: We use the beliefs data!}
+\textbf{JH}:  Why do I need heterogeneity on $\lambda$?
+\emph{
+    \textcolor{blue}{
+        Our notation was confusing here, we have $\lambda \sim N(0, \tau^\lambda)$ which 
+        makes it look like some sort of random effect. Actually, we have no heterogeneity on 
+        $\lambda$, that was just the prior. We should change that to make it clearer.
+    } 
+}
+\newline
+\newline
+\textbf{JH \& team}: Villages assigned ``Far" are remote areas discussion II. 
+\newline
+\newline
+\textbf{JH}: Do we use individual level data that says: Have I seen somebody get the 
+bracelet. And then what do I think of that person etc. Did we think about asking: How did 
+you know if someone got wormed/dewormed? 
+\emph{\textbf{AK}: Using the baseline data on observability - i.e. people know what 
+bracelet is etc.}
+\newline
+\newline
+\textbf{JH}: We could have just created visibility through newspapers etc. and it 
+would have been the same treatment/effect?
+\emph{\textbf{AK}: Well no, because you wouldn't be able to make individual type inferences. 
+People have a choice to signal and we're giving people a change to signal them at all.} 
+\newline
+\newline
+\textbf{Q}: Did we look at the difference between: How many people do you think 
+have been dewormed? Was this person dewormed? How did you know they were dewormed? Vs did you 
+observe one of these signals? We need to get at this relative gap. We need a multiplier 
+that's relative to how many people did we see. That is, I saw this/think it's X but actually 
+now that I've seen this bracelet I update and think there's actually five more people 
+that actually got it - he thinks the model helps us a little bit but doesn't exactly get 
+at what we want.
+\textbf{JH}: This is an information story, not a reputation story. A repuation 
+story would be: How many people looked at the ink on my arm.
+\emph{\textbf{AK}: But why would information just change my decision to get dewormed, if I 
+learnt about someone else?\textbf{JH}: Well, because I get praised. \textbf{AK}: Well, 
+exactly. \textbf{JH}: There seems to be a different issue between information asymmetry vs 
+just displaying information. I do this because I get exultation, other people see me. \textbf{AK}: Yes, 
+that's the channel we're interested in. \textbf{JH}: But that's reputation, that's pure 
+reputation. That's not information. Information and reputation are two different things. \textbf{AK}: 
+They are two different things, but you can only get reputational returns if there is information or 
+visibility about others actions. \textbf{JH}: I could have very strong reputation in my village, but then nobody goes.
+\textcolor{blue}{I think here we should have said - exactly, you'd have a high} $\Delta(v^*)$ \textcolor{blue}{but 
+}$\lambda$ \textcolor{blue}{would be very low - nobody goes because no-one cares about the reputational return. But 
+we're estimating these and we don't find individuals place zero value on rep returns.} 
+\textbf{JH}: But I still feel good because I did this good act \textbf{AK:} Speaking 
+about self-image. We didn't really make progress on bridging this lol???
+}.
+\newline
+\newline
+\textbf{HL}: Pharmacy optimal allocation/counterfactuals point again.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}

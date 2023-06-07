@@ -2,9 +2,9 @@
 
 script_options <- docopt::docopt(
   stringr::str_glue("Usage:
-  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age]
-  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim]
-  run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age]
+  run_takeup.R takeup prior [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --county-fe --save-rds]
+  run_takeup.R takeup fit [--no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --multilevel --age --county-fe --sbc --num-sbc-sims=<num-sbc-sims> --gen-optim --save-rds]
+  run_takeup.R takeup cv [--folds=<number of folds> --parallel-folds=<parallel-folds> --no-save --sequential --chains=<chains> --threads=<threads> --iter=<iter> --thin=<thin> --force-iter --models=<models> --outputname=<output file name> --update-output --cmdstanr --include-paths=<paths> --output-path=<path> --num-mix-groups=<num> --age --save-rds]
   
   run_takeup.R beliefs prior [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
   run_takeup.R beliefs fit [--chains=<chains> --iter=<iter> --outputname=<output file name> --include-paths=<paths> --output-path=<path> --multilevel --no-dist]
@@ -25,6 +25,7 @@ Options:
   --include-paths=<paths>  Includes path for cmdstanr [default: stan_models]
   --output-path=<path>  Where to save output files [default: {file.path('data', 'stan_analysis_data')}]
   --num-mix-groups=<num>  Number of finite mixtures in distance model [default: 2]
+  --save-rds  Save RDS object (default is to save cmdstanr files to csv)
 "),
 
   # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
@@ -37,12 +38,16 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit75 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS  \
+    --outputname=dist_fit93 \
+    --models=REDUCED_FORM_NO_RESTRICT_DIST_CTS  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
-    --sequential" else commandArgs(trailingOnly = TRUE)
+    --sequential  \
+    --county-fe \
+    --multilevel \ 
+    --update
+    " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
@@ -206,9 +211,17 @@ models <- lst(
     structural_beta_cluster_sd_sd = 0.25,
     
     wtp_value_utility_sd = 0.0001,
+    wtp_value_utility_mean = 0.0,
+    # wtp_value_utility_sd = 0.1, # dist_fit88 -> high wtp_value_utility_sd
+    lnorm_wtp_value_utility_prior = FALSE,
 
     raw_u_sd_alpha = 3.3, 
+    # raw_u_sd_alpha = 10, # dist_fit89 -> high u sd 
     raw_u_sd_beta = 1.1,
+
+
+
+
 
     init = generate_initializer(
       num_treatments = num_treatments,
@@ -264,6 +277,7 @@ models <- lst(
       structural_beta_cluster_sd_sd = 0.25,
       
       wtp_value_utility_sd = 0.0001,
+      wtp_value_utility_mean = 0.0,
 
       raw_u_sd_alpha = 3.3, 
       raw_u_sd_beta = 1.1,
@@ -334,9 +348,12 @@ models <- lst(
     suppress_reputation = TRUE,
     use_age_group_gp = TRUE,
     
+    use_dist_cts = FALSE,
+    county_slopes = !script_options$county_fe,
 
     # just here so the reduced form model runs - don't think actually used
     wtp_value_utility_sd = 0.0001,
+    wtp_value_utility_mean = 0.0,
     raw_u_sd_alpha = 3.3, 
     raw_u_sd_beta = 1.1,
 
@@ -357,6 +374,10 @@ models <- lst(
   ),
 ) %>% 
   list_modify(
+    REDUCED_FORM_NO_RESTRICT_DIST_CTS = .$REDUCED_FORM_NO_RESTRICT %>% 
+      list_modify(
+        use_dist_cts = TRUE
+      ),
     STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         fit_wtp_model_to_data = FALSE,
@@ -395,8 +416,41 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_LINEAR_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         mu_rep_type = 2
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 4
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_MU_WTP_VAL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        wtp_value_utility_mean = 0.265,
+        wtp_value_utility_sd = 0.0001
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIGH_SD_WTP_VAL = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        lnorm_wtp_value_utility_prior = TRUE, 
+        wtp_value_utility_sd = 4,
+        wtp_value_utility_mean = -10
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>%
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        fit_wtp_model_to_data = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL = .$STRUCTURAL_LINEAR_U_SHOCKS %>%
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        fit_beliefs_model_to_data = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>%
+      list_modify(
+        mu_rep_type = 4, # phat mu rep
+        fit_beliefs_model_to_data = FALSE,
+        fit_wtp_model_to_data = FALSE
       )
-  )
+)
 
 # WTP Stan Data -----------------------------------------------------------
 
@@ -500,6 +554,7 @@ stan_data <- lst(
   beliefs_use_stratum_level = script_options$multilevel,
   beliefs_use_cluster_level = script_options$multilevel,
   beliefs_use_obs_level = script_options$multilevel,
+  beliefs_use_indiv_intercept = script_options$multilevel,
   beliefs_use_dist = !(script_options$no_dist %||% FALSE),
   
   know_table_A_sample_size = 10,
@@ -736,7 +791,7 @@ if (script_options$takeup) {
     if (script_options$fit || script_options$prior) {
       save(dist_fit, models, stan_data, file = output_file_name)
       
-      if (script_options$cmdstanr) {
+      if (script_options$cmdstanr & script_options$save_rds) {
         walk2(dist_fit, dist_fit_obj, ~ .y$save_object(.x))
       }  
     } else if (script_options$cv) {

@@ -4,15 +4,19 @@ script_options <- docopt::docopt(
         compare-optim.R  [options] 
 
         Options:
-        --input-path=<input-path>  The input path [default: {file.path('optim', 'data', 'agg-log-full')}]
+        --input-path=<input-path>  The input path [default: {file.path('optim', 'data', 'agg-full-many-pots')}]
         --output-path=<output-path>  The output path [default: {file.path('temp-data')}]
         --posterior-median  Whether to compare posterior medians or entire posterior draws
         --many-pots
+        --welfare-function=<welfare-function>  The welfare function [default: log]
+        --model=<model>
 "),
   args = if (interactive()) "
-        --input-path=~/projects/takeup/optim/data/agg-log-full-many-pots
-        --output-path=~/projects/takeup/optim/data/agg-log-full-many-pots
-        --many-pots
+        --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots
+        --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots
+        --many-pots 
+        --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+        --welfare-function=identity
                              
                              " else commandArgs(trailingOnly = TRUE)
 ) 
@@ -38,8 +42,11 @@ if (script_options$posterior_median) {
     )
 }
 
-models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS"
+models_we_want = script_options$model 
 
+util_f = eval(parse(text = script_options$welfare_function))
+
+experimental_file = str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
 oa_df = map_dfr(
     oa_files, 
     read_rds,
@@ -47,8 +54,30 @@ oa_df = map_dfr(
 ) %>% as_tibble()  %>%
     mutate(
         cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
-        rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep")
+        rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep"), 
+        allocation_type = "optimal",
+        distance_constraint = str_extract(file, "(?<=distconstraint-)\\d+") %>% as.numeric
     ) 
+
+experimental_oa_df = read_rds(
+    file.path(
+        input_path, 
+        experimental_file
+    )
+) %>%
+ as_tibble()  %>%
+ mutate(file = experimental_file) %>%
+    mutate(
+        cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
+        rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep"), 
+        allocation_type = "experimental"
+    ) %>%
+    rename(j = pot_id, i = village_id)
+
+oa_df = bind_rows(
+    oa_df, 
+    experimental_oa_df
+)
 
 treatments = c(
     "bracelet",
@@ -62,41 +91,55 @@ oa_df = oa_df %>%
     mutate(
         private_benefit_z = factor(private_benefit_z, levels = treatments), 
         visibility_z = factor(visibility_z, levels = treatments), 
+        static_vstar = str_detect(file, "static")
     )
 
 
 subset_oa_df = oa_df %>%
-    filter(model == "STRUCTURAL_LINEAR_U_SHOCKS")  %>%
+    filter(model == script_options$model)  %>%
     filter(
         cutoff_type  == "cutoff"
-    ) 
+    ) %>%
+    filter(!is.na(distance_constraint) | allocation_type == "experimental")
 
 
 if (!script_options$posterior_median) { # if all draws
+
     summ_optim_df = subset_oa_df %>%
         group_by(
             draw,
             private_benefit_z,
             visibility_z, 
+            static_vstar,
+            allocation_type,
+            distance_constraint,
             model, 
             rep_type,
             cutoff_type
         ) %>%
         summarise(
-            util = sum(log(demand)),
+            util = sum(util_f(demand)),
             mean_demand = mean(demand), 
             min_demand = min(demand), 
-            n_pot = n_distinct(j),
+            mean_dist = mean(dist),
+            n_pot = n_distinct(j, na.rm = TRUE),
             target_optim = mean(target_optim)
         )  %>%
         mutate(
             overshoot = 100*(util/target_optim - 1)
         )
 
+
+
+
+
     post_summ_optim_df = summ_optim_df %>%
         group_by(
             private_benefit_z,
             visibility_z, 
+            static_vstar,
+            allocation_type,
+            distance_constraint,
             model, 
             rep_type,
             cutoff_type
@@ -107,13 +150,13 @@ if (!script_options$posterior_median) { # if all draws
         ) %>%
         filter(
             cutoff_type  == "cutoff"
-        ) %>%
+        )   %>%
         summarise(
             across(
                 everything(),
                 list(
-                    estimate = mean,
-                    CI = ~paste0("(", signif(quantile(.x, 0.025), 3), ", ", signif(quantile(.x, 0.975), 3), ")")
+                    estimate = ~mean(.x, na.rm = TRUE),
+                    CI = ~paste0("(", signif(quantile(.x, 0.025, na.rm = TRUE), 3), ", ", signif(quantile(.x, 0.975, na.rm = TRUE), 3), ")")
                 )
             )
         )   %>%
@@ -122,6 +165,7 @@ if (!script_options$posterior_median) { # if all draws
         arrange(
             private_benefit_z,
             visibility_z,
+            allocation_type,
             rep_type
         ) %>%
     rename(
@@ -129,13 +173,59 @@ if (!script_options$posterior_median) { # if all draws
         mu_z = visibility_z
     )
 
-post_summ_optim_df %>% 
+clean_summ_optim_df = summ_optim_df %>%
+    group_by(
+        private_benefit_z,
+        visibility_z, 
+        static_vstar,
+        distance_constraint,
+        model, 
+        rep_type,
+        cutoff_type
+    ) %>%
+    select(-draw) %>%
+    filter(
+        model %in% models_we_want
+    ) %>%
+    filter(
+        cutoff_type  == "cutoff"
+    ) 
+
+
+clean_summ_optim_df %>%
     filter(rep_type == "rep") %>%
-    select(-rep_type) %>%
+    filter(!is.na(distance_constraint), distance_constraint != 2500) %>%
+    ggplot(aes(
+        x = n_pot, 
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type)
+    )) +
+    geom_density(alpha = 0.6) +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    facet_wrap(~distance_constraint)
+
+
+
+clean_summ_optim_df %>%
+    filter(rep_type == "rep") %>%
+    ggplot(aes(
+        x = n_pot, 
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type)
+    )) +
+    geom_histogram(
+        colour = "black"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+
+
+
+
+clean_summ_optim_df %>% 
     write_csv(
         file.path(
             output_path,
-            "posterior-rep-summ-optim.csv"
+            "posterior-clean-summ-optim.csv"
         ))
 
 post_summ_optim_df %>% 

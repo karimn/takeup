@@ -1,109 +1,8 @@
-library(magrittr)
-library(tidyverse)
-library(broom)
-library(ggrepel)
-library(ggmap)
-library(ggstance)
-library(gridExtra)
-library(cowplot)
-library(rgeos)
-library(sp)
-library(knitr)
-library(modelr)
-library(car)
-library(rstan)
-library(latex2exp)
-library(ggthemes)
-library(ggforce)
-
-library(econometr)
-source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
-source(file.path("analysis_util.R"))
-source(file.path( "dist_structural_util.R"))
 
 
-source(file.path("multilvlr", "multilvlr_util.R"))
 
-fit_version <- 74
-default_top_levels = c("Bracelet", "Combined")
-
-# 66 ed fit
-# 60 Karim fit
-# 62 also Karim fit
-
-
-model_fit_by = if_else(fit_version %in% c(60, 62), "Karim", "Ed")
-
-
-models_we_want = c(
-  "STRUCTURAL_LINEAR_U_SHOCKS"
-)
-
-
-quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
-
-output_basepath = str_glue("temp-data/output_dist_fit{fit_version}")
-
-canva_palette_vibrant <- "Primary colors with a vibrant twist"
-
-theme_set(theme_minimal() +
-            theme(legend.position = "bottom"))
-
-wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
-
-rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
-rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.rds"))
-cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
-
-load(file.path("data", "takeup_village_pot_dist.RData"))
-
-load(file.path("data", "analysis.RData"))
-
-standardize <- as_mapper(~ (.) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original)
-
-nosms_data <- analysis.data %>% 
-  filter(sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-
-analysis_data <- monitored_nosms_data
-
-
-## Fit Loading
-
-load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-
-
-dist_fit_data %<>%
-  left_join(tribble(
-    ~ fit_type,        ~ model_color,
-      "fit",           "black", 
-      "prior-predict", "darkgrey",
-  ), by = "fit_type")
-
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
-delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
-
+#### Beliefs Plots ####
+```{r, beliefs}
 belief_data = dist_fit_data %>%
   filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
@@ -277,109 +176,7 @@ cv = function(alpha){
   qnorm(1 - (alpha/2))
 }
 
-comp_belief_data = analysis_data %>%
-  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group) %>%
-  nest_join(
-    endline.know.table.data %>% 
-      filter(fct_match(know.table.type, "table.A")),
-    by = "KEY.individ", 
-    name = "knowledge_data"
-  ) %>% 
-  mutate(
-    map_dfr(knowledge_data, ~ {
-      tibble(
-        obs_know_person = sum(.x$num.recognized),
-        obs_know_person_prop = mean(.x$num.recognized),
-        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
-        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
-        knows_other_dewormed_no = sum(fct_match(.x$dewormed, "no"), na.rm = TRUE),
-        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
-        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
-        thinks_other_knows_no = sum(fct_match(.x$second.order, "no"), na.rm = TRUE),
-      )
-    }
-  )) %>%
-    filter(obs_know_person > 0)  %>%
-    select(KEY.individ, contains("know"), assigned.treatment, dist.pot.group, assigned_dist_group) %>%
-    mutate(
-        doesnt_know_other_dewormed = obs_know_person - knows_other_dewormed, 
-        doesnt_think_other_knows = obs_know_person - thinks_other_knows
-    ) %>% 
-    select(KEY.individ, 
-           assigned.treatment,
-           assigned_dist_group,
-           obs_know_person,
-           knows_other_dewormed_yes,
-           knows_other_dewormed_no,
-           doesnt_know_other_dewormed, 
-           thinks_other_knows_yes, 
-           thinks_other_knows_no, 
-           doesnt_think_other_knows
-           ) %>%
-    gather(variable, value, 
-        knows_other_dewormed_yes:doesnt_think_other_knows)   %>%
-    mutate(knowledge_type = case_when(
-        str_detect(variable, "_yes") ~ "yes",
-        str_detect(variable, "_no") ~ "no",
-        str_detect(variable, "doesnt") ~ "doesn't know"
-    )) %>%
-    mutate(belief_type = if_else(str_detect(variable, "think"), "2ord", "1ord")) %>%
-    mutate(prop = value/obs_know_person) %>%
-    group_by(assigned.treatment, assigned_dist_group, knowledge_type, belief_type) %>% 
-    summarise(
-        mean_est = mean(prop), 
-        std.error = sd(prop)/sqrt(n()),
-        per_0.5 = mean(prop), 
-        per_0.05 = per_0.5 - cv(0.05)*std.error, 
-        per_0.95 = per_0.5 + cv(0.05)*std.error,
-        per_0.1 =  per_0.5 - cv(0.1)*std.error,
-        per_0.9 =  per_0.5 + cv(0.1)*std.error,
-        per_0.25 =  per_0.5 - cv(0.5)*std.error,
-        per_0.75 =  per_0.5 + cv(0.5)*std.error
-    ) %>%
-    mutate(
-      knowledge_type = factor(knowledge_type, levels = c("yes", "no", "doesn't know")), 
-      knowledge_type = fct_relabel(knowledge_type, str_to_title) %>% fct_rev
-    ) %>%
-    mutate(
-      assigned.treatment = factor(assigned.treatment, 
-                                  levels = c("bracelet",
-                                             "calendar", 
-                                             "ink",
-                                             "control")) %>%
-                          fct_relabel(str_to_title) %>%
-                          fct_rev
-    )
 
-
-
-comp_belief_data %>%
-  filter(belief_type == "1ord") %>%
-  filter(assigned_dist_group == "close") %>%
-  plot_belief_breakdown() +
-  labs(
-    title = "Disaggregated First Order Beliefs - Close", 
-    subtitle = "Proportion"
-  )
-
-ggsave(file.path(
-  output_basepath,
-  "disagg-fob-close.png"
-  ),
-  width = 7.5,
-  height = 5.0,
-  dpi = 500)
-
-
-
-comp_belief_data %>%
-  filter(belief_type == "1ord") %>%
-  filter(assigned_dist_group == "far") %>%
-  plot_belief_breakdown() +
-  labs(
-    title = "Disaggregated First Order Beliefs - Far",
-    subtitle = "Proportion"
-  )
   
 
 ggsave(file.path(
@@ -390,7 +187,12 @@ ggsave(file.path(
   height = 5.0,
   dpi = 500)
 
+
+```
+
+
 #### Rate of Change
+```{r}
 roc_df = dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   transmute(
@@ -567,10 +369,11 @@ dist_fit_data %>%
   NULL 
 ggsave(file.path(output_basepath, str_glue("dist_fit{fit_version}-diff-roc-facet-treat.png")), width = 7.5, height = 5.0, dpi = 500)
 
+```
 
 #### Difference Rep Returns by Dist ####
 
-
+```{r, rep_returns}
 dist_fit_data %>% 
   filter(fct_match(fit_type, "fit"), fct_match(model, c("STRUCTURAL_LINEAR_U_SHOCKS"))) %>%
   select(model_name, cluster_rep_return_dist) %>%
@@ -705,6 +508,7 @@ iwalk(
 )
 
 ## Rep returns vs control
+model_fit_by = FALSE # for now
 if (model_fit_by == "Ed") {
 
   rep_return_df = read_csv(str_interp("temp-data/processed_rep_return_dist_fit${fit_version}.csv")) 
@@ -758,9 +562,12 @@ if (model_fit_by == "Ed") {
   )
 }
 
+```
+
+
 
 #### Different Distributions and Delta ####
-
+```{r, dists_and_delta}
 find_truncated_normal_mean = function(mu, sigma, a, b){
     alpha = (a - mu)/sigma
     beta = (b - mu)/sigma
@@ -874,162 +681,7 @@ ggsave(
     height = 5.0,
     dpi = 500
 )
-
-
-
-## ATEs
-grab_incentive_ate = function(data, model_type_to_plot, nested_data = est_takeup_te) {
-
-  subset_data = data %>%
-    filter(
-      (fct_match(model_type, model_type_to_plot))
-    ) %>% 
-    mutate(
-      {{ nested_data }} :=
-        map_if({{ nested_data }}, fct_match(model_type, "structural"),
-              filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
-          map(filter,
-              (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-              assigned_treatment_left != assigned_treatment_right,
-              fct_match(assigned_treatment_right, c("control")),
-              fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))
-    )  %>%
-    select(model, model_name, {{ nested_data }}, fit_type, model_color) %>% 
-    mutate(
-      {{ nested_data }} := map(
-        {{ nested_data }},
-        mutate,
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left)))
-      )
-    ) 
-    return(subset_data)
-}
-
-reduced_incentive_level_plot = dist_fit_data %>%
-    filter(
-      (fct_match(model_type, "reduced form"))
-    )  %>%
-    mutate(est_takeup_level = map_if(est_takeup_level,
-        fct_match(fit_type, "prior-predict"), 
-        ~mutate(.x, 
-          across(
-            c(contains("per"), mean_est),
-            ~if_else(
-              !(fct_match(assigned_treatment,  "bracelet") & is.na(assigned_dist_group)),
-              NA_real_,
-              .x 
-            )
-          )
-        )
-      )
-    ) %>%
-    mutate(
-      est_takeup_level = map(
-        est_takeup_level,
-        mutate,
-        assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment = fct_rev(factor(str_to_title(assigned_treatment), 
-                                    levels = c("Bracelet",
-                                                "Calendar",
-                                                "Ink",
-                                                "Control")))
-        )
-        ) %>%
-  plot_estimands(.,est_takeup_level, assigned_treatment, results_group = fit_type) +
-    scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
-    scale_y_discrete("") +
-    labs(
-      # title = "Incentive Average Treatment Effect"
-    ) +
-    ggforce::facet_col(vars(assigned_dist_group), 
-                space = "free",
-                scales = "free_y") +
-    NULL  +
-    guides(colour = "none")
-reduced_incentive_level_plot
-ggsave(
-  plot = reduced_incentive_level_plot,
-  filename = file.path(
-    output_basepath,
-    "reduced-incentive-level-plot.png"
-  ),
-  width = 7.5,
-  height = 5,
-  dpi = 500
-)
-
-
-reduced_incentive_ate_plot = dist_fit_data %>%
-  grab_incentive_ate(., model_type_to_plot = "reduced form") %>%
-  plot_estimands(., 
-                 est_takeup_te, 
-                 assigned_treatment_left, 
-                 results_group = fit_type, 
-                 single_prior_predict = TRUE, 
-                 top_levels = default_top_levels) +
-    scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05)) +
-    scale_y_discrete("") +
-    labs(
-      # title = "Incentive Average Treatment Effect"
-    ) +
-    ggforce::facet_col(vars(assigned_dist_group_left), 
-                space = "free",
-                scales = "free_y") +
-    NULL  +
-    guides(colour = "none")
-reduced_incentive_ate_plot
-ggsave(
-  plot = reduced_incentive_ate_plot,
-  filename = file.path(
-    output_basepath,
-    "reduced-incentive-ate-plot.png"
-  ),
-  width = 7.5,
-  height = 5,
-  dpi = 500
-)
-
-default_ate_limits = c(-0.1, 0.2)
-
-structural_incentive_ate_plot = dist_fit_data %>%
-  grab_incentive_ate(., model_type_to_plot = "structural") %>%
-  plot_estimands(., 
-                 est_takeup_te, 
-                 assigned_treatment_left, 
-                 results_group = fit_type, 
-                 single_prior_predict = TRUE, 
-                 top_levels = default_top_levels) +
-    scale_x_continuous(
-      "", 
-      breaks = seq(-0.2, 0.2, 0.05), 
-      limits = default_ate_limits) +
-    scale_y_discrete("") +
-    labs(
-      # title = "Incentive Average Treatment Effect"
-    ) +
-    ggforce::facet_col(vars(assigned_dist_group_left), 
-                space = "free",
-                scales = "free_y") +
-    NULL  +
-    guides(colour = "none") 
-
-structural_incentive_ate_plot
-
-ggsave(
-  plot = structural_incentive_ate_plot,
-  filename = file.path(
-    output_basepath,
-    "structural-incentive-ate-plot.png"
-  ),
-  width = 7.5,
-  height = 5.0,
-  dpi = 500
-)
+```
 
 ## SIGNALLING
 
@@ -1258,10 +910,10 @@ iwalk(
     filename = file.path(output_basepath, str_glue("reduced-form-incentive-ate-diffs-{treatments[.y]}.png")),
     width = 7.5, height = 5.0, dpi = 500 )
 )
+```
 
 
-
-## Social Multiplier ##
+<!-- ## Social Multiplier ##
 
 
 # dist_fit_data %>%
@@ -1434,8 +1086,6 @@ iwalk(
 #     #   data = rf_analysis_data %>%
 #     #     mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>%
 #     #     distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-#     scale_color_discrete(aesthetics = c("color", "fill"))  +
-
-
+#     scale_color_discrete(aesthetics = c("color", "fill"))  + -->
 
 

@@ -100,10 +100,16 @@ vector calculate_mu_rep(array[] int treatment_ids, vector dist,
       return log(beliefs_latent) ;
     } else if (mu_rep_type == 2) { // linear
       return beliefs_latent;
+    } else if (mu_rep_type == 4) { // mu = x \lambda, x = \hat{p}, \lambda = base_mu_rep
+      return base_mu_rep * inv_logit(beliefs_latent);
     } else { // exp
       return base_mu_rep * exp(mu_beliefs_effect * (beliefs_latent - beta[, 1])); // Remove intercept 
     }
+
 }
+
+
+
 
 matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
                               real base_mu_rep, real mu_beliefs_effect,
@@ -118,10 +124,15 @@ matrix calculate_mu_rep_deriv(int treatment_id, vector dist,
     return mu_rep;
   } else if (mu_rep_type == 2) { // linear
     mu_rep[, 2] = dist_beta * design_matrix[treatment_id]';
+  } else if (mu_rep_type == 4) { // mu = x \lambda, x = \hat{p}, \lambda = base_mu_rep
+    vector[rows(beta)] beliefs_latent = calculate_beliefs_latent_predictor(design_matrix[{treatment_id}], beta, dist_beta, dist);
+    mu_rep[, 2] = base_mu_rep .* (dist_beta * design_matrix[treatment_id]') .* exp(-beliefs_latent) ./ (1 + exp(-beliefs_latent))^2;
   } else { // exp
     mu_rep[, 2] = mu_rep[, 1] .* (mu_beliefs_effect * (dist_beta * design_matrix[treatment_id]')); 
   } 
-  
+  if (mu_rep_type == 3) {
+    reject("mu_rep_type = 3 not yet implemented.");
+  }
   return mu_rep;
 }
 
@@ -284,10 +295,14 @@ vector calculate_roc_rect(vector phi, vector theta, data array[] real x_r, data 
   real w_control = find_fixedpoint_solution(benefit_cost_control, mu_rep_control, total_error_sd_control, u_sd_control, x_i[1], x_r[1], x_r[2], x_r[3]);
   
   vector[2] delta = expected_delta_deriv(w_control, total_error_sd, u_sd, x_r, x_i);
-   
+
+  real roc_no_vis = -exp(normal_lpdf(w_control | 0, total_error_sd))*dist_beta;
+
   return append_row(
+  append_row(
     append_row([w, w_control]', delta),
-    calculate_roc(w_control, total_error_sd, dist_beta, mu_rep, mu_rep_deriv, delta[1], delta[2])
+    calculate_roc(w_control, total_error_sd, dist_beta, mu_rep, mu_rep_deriv, delta[1], delta[2])),
+    [roc_no_vis]'
   ); 
 }
 
@@ -309,7 +324,7 @@ matrix map_calculate_roc(
                               mu[cluster_index], mu_control[cluster_index], mu_deriv[cluster_index] ]';
   }
   
-  return to_matrix(map_rect(calculate_roc_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 5, 0);
+  return to_matrix(map_rect(calculate_roc_rect, phi, thetas, rep_array({ alg_sol_rel_tol, alg_sol_f_tol, alg_sol_max_steps }, num_clusters), x_is), num_clusters, 6, 0);
 }
 
 

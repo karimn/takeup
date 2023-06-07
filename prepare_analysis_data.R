@@ -17,9 +17,24 @@ kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 # Load the data ----------------------------------------------------------
 load(file.path("data", "takeup_village_pot_dist.RData"))
 
+## Ed note: this produces error "unknown input format" as of 2023/04/13 so 
+## we use the RData file and some env munging instead
 # This data was prepared in takeup_field_notebook.Rmd
-census.data <- read_rds(file.path("data", "takeup_census.rds")) %>% 
+# census.data <- read_rds(file.path("data", "takeup_census.rds")) %>% 
+#   rename(census.consent = consent) # Rename this to reduce chance of error
+census_data_env = new.env()
+with_env = function(f, e = parent.frame()) {
+    stopifnot(is.function(f))
+    environment(f) = e
+    f
+}
+load_census_function = function(){
+  load(file.path("data", "takeup_census.RData"))
+  return(census.data)
+}
+census.data = with_env(load_census_function, census_data_env)() %>%
   rename(census.consent = consent) # Rename this to reduce chance of error
+
 
 baseline.data <- read_rds(file.path("data", "takeup_baseline_data.rds"))
 takeup.data <- read_rds(file.path("data", "takeup.rds"))

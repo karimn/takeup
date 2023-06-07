@@ -22,29 +22,29 @@ script_options <- docopt::docopt(
           --data-input-path=<data-input-path>  Where village and PoT data is stored [default: {file.path('optim', 'data')}]
           --data-input-name=<data-input-name>  Filename of village and PoT data [default: full-experiment-4-extra-pots.rds]
           --solver=<solver>  MILP solver [default: glpk]
+          --distance-constraint=<distance-constraint>  Maximum distance a villager can be forced to walk by PM [default: 3500]
 "),
   args = if (interactive()) "
                                 --num-cores=12 \
                                 --min-cost  \
                                 --constraint-type=agg \
-                                --target-constraint=target-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv \
-                                --output-path=optim/data/agg-log-full-many-pots \
-                                --input-path=optim/data/agg-log-full-many-pots  \
+                                --target-constraint=summ-agg-identity-experiment-target-constraint.csv \
+                                --output-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots \
+                                --input-path=optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots  \
                                 --data-input-name=full-many-pots-experiment.rds
                                 --data-input-path=optim/data
                                 --time-limit=10000 \
-                                --output-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS \
-                                --demand-input-filename=pred-demand-dist-fit71-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS.csv
-
-                                --welfare-function=log
+                                --output-filename=TEST-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP \
+                                --demand-input-filename=pred-demand-dist-fit86-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv
+                                --welfare-function=identity
                                 --solver=gurobi
+                                --posterior-median
+                                --distance-constraint=4500
 
                              " else commandArgs(trailingOnly = TRUE)
 ) 
-                                # --target-constraint=0.31 \
-                            #  --dry-run 
-                            #  --dry-run-subsidy=0.2
 
+                                # --welfare-function=log
 library(tidyverse)
 library(data.table)
 library(ompr)
@@ -55,7 +55,7 @@ library(Matrix)
 library(slam)
 
 if (script_options$solver == "gurobi") {
-    library(gurobi)
+    # library(gurobi)
     library(ROI.plugin.gurobi)
 } else {
     library(ROI.plugin.glpk)
@@ -81,7 +81,8 @@ swf = eval(parse(text = script_options$welfare_function))
 numeric_options = c(
   "dry_run_subsidy",
   "num_cores",
-  "time_limit"
+  "time_limit", 
+  "distance_constraint"
 )
 
 script_options = script_options %>%
@@ -119,6 +120,7 @@ pot_data = pot_data %>%
   filter(id <= m_max)
 village_data = village_data %>%
   filter(id <= n_max)
+
 
 
 if (script_options$posterior_median) {
@@ -165,39 +167,12 @@ if (script_options$constraint_type == "indiv") {
 }
 
 
-
-if (script_options$constraint_type == "agg" & script_options$welfare_function != "log") {
-
-summ_target_df = target_df  %>%
-    group_by(village_i, draw) %>%
-    sample_n(20, replace = TRUE)  %>%
-    mutate(random_village_draw = 1:n()) %>%
-    group_by(draw, random_village_draw) %>%
-    group_nest() %>%
-    mutate(
-      social_welfare = future_map(
-        data, 
-        ~{
-          mutate(
-            .x,
-          util = swf(target_demand)
-        ) %>%
-        summarise(social_welfare = sum(util), mean_takeup = mean(target_demand)) 
-        }
-      )
-    ) %>%
-    unnest(social_welfare)
-
-  target_optim = mean(summ_target_df$social_welfare)
-
-}
-
 # Have precomputed SWF in this case so just load that csv
-if (script_options$constraint_type == "agg" & script_options$welfare_function == "log") {
+if (script_options$constraint_type == "agg") {
   summ_target_df = read_csv(
     file.path(
       script_options$input_path,
-      paste0("summ-agg-log-", script_options$target_constraint)
+      paste0(script_options$target_constraint)
     )
   )
 
@@ -228,32 +203,34 @@ if (n_infeasible > 0) {
   stop("Infeasible allocation desired.")
 }
 
-
-
-
-
 demand_data = initial_demand_data %>%
   nest(demand_data = -any_of(c("draw", 
                                "private_benefit_z", 
                                "visibility_z", 
                                "model")))
-
-
+# typically good to remove this as it's huge and the optimisation needs RAM if 
+# using full posterior
+rm(initial_demand_data)
+gc()
 
 baseline_constraints = create_base_constraints(
   data$n,
   data$m
 )
 
-
-
-demand_data %>%
-  head(1) %>%
+sorted_distance = demand_data %>%
+  slice(1) %>%
   unnest(demand_data) %>%
-  filter(demand > 0) %>%
-  arrange(util)
+  arrange(village_i, pot_j) %>%
+  pull(dist)
 
-
+baseline_constraints = add_distance_constraints(
+  distance = sorted_distance,
+  distance_constraint = script_options$distance_constraint ,
+  baseline_constraints = baseline_constraints, 
+  n = data$n, 
+  m = data$m
+)
 
 # Have to set -Inf utility from very 0 takeup in no-cutoff to -1e10 since 
 # optimiser gets upset by negative infinity
@@ -262,9 +239,9 @@ v_neg_value = demand_data %>%
   unnest(demand_data) %>%
   filter(demand > 0) %>%
   summarise(min_util = min(util)) %>%
-  pull()
+  pull() 
 
-v_neg_value
+v_neg_value = -abs(v_neg_value)
 
 demand_data = demand_data %>%
   mutate(
@@ -277,8 +254,7 @@ demand_data = demand_data %>%
   )
 
 
-
-
+target_optim
 
 if (script_options$solver == "glpk") {
   control_args = list(tm_limit = script_options$time_limit)
@@ -324,16 +300,82 @@ tidy_output = tidy_output %>%
       demand_data,
       ~clean_solution(.x, data = data, takeup = .y ) %>%
         mutate(target_optim = target_optim), 
-        .progress = TRUE
+        .progress = TRUE, 
+        .options = furrr_options(seed = TRUE)
     )
   )
 tictoc::toc()
+
+#' Create Best Solution if OA is Infeasible
+#' 
+#'  Use all PoTs and assign to closest when overall allocation is infeasible
+create_infeasible_soln = function(status_code, demand_data, model_output) {
+  if (status_code == 0) {
+    return(model_output)
+  } 
+  subset_demand_data = demand_data %>%
+    group_by(
+      village_i
+    ) %>%
+    filter(
+      dist == min(dist)
+    ) %>%
+    slice(1) %>%
+    ungroup()
+
+    infeasible_optimal_df = subset_demand_data %>%
+      group_by(village_i, pot_j) %>%
+      summarise(
+        demand = median(demand), 
+        dist = unique(dist)
+      ) %>%
+      left_join(
+        village_data %>%
+          select(id, village_lon = lon, village_lat = lat), 
+        by = c("village_i" = "id")
+      ) %>%
+      left_join(
+          pot_data %>%
+              select(id, pot_lon = lon, pot_lat = lat), 
+          by = c("pot_j" = "id")
+      ) %>%
+      rename(
+        i = village_i, 
+        j = pot_j
+      ) %>%
+      mutate(target_optim = target_optim) %>%
+      ungroup()
+    return(infeasible_optimal_df) 
+
+}
+
+tidy_output = tidy_output %>%
+  mutate(
+    status_code = map_dbl(optim_fit, ~.x$status$code)
+  )
+
+
+tidy_output = tidy_output %>%
+  mutate(
+    model_output = pmap(
+      list(
+        status_code, 
+        demand_data,
+        model_output
+      ), 
+      ~create_infeasible_soln(
+        ..1, 
+        ..2, 
+        ..3
+      )
+    )
+  )
 
 summ_output = tidy_output %>% 
   head(1) %>%
   unnest(model_output) %>%
   summarise(
-    util = sum(log(demand)),
+    util = sum(swf(demand)),
     mean_demand = mean(demand), 
     min_demand = min(demand), 
     n_pot = n_distinct(j))
@@ -346,6 +388,18 @@ if (script_options$constraint_type == "agg") {
 
 plot_res = FALSE
 if (plot_res) {
+
+
+tidy_output %>% 
+  unnest(model_output) %>%
+  select(dist) %>%
+  ggplot() +
+  geom_histogram(aes(x = dist), colour = "white") +
+  theme_bw() +
+  labs(
+    x = "Distance Walked (m)", 
+    title = "Distance Walked, No Cutoff - B Bracelet Mu Bracelet"
+  )
 
 tidy_output %>% 
   unnest(model_output) %>%
@@ -371,16 +425,26 @@ tidy_output %>%
     x = village_lon,
     y = village_lat
   )) +
-  geom_segment(aes(
+  geom_point(
+    data = . %>%
+      filter(demand == 0),
+    aes(
+    x = village_lon,
+    y = village_lat
+  ), size = 10, colour = "hotpink") +
+  geom_segment(
+    data = . %>%
+      filter(demand > 0),
+    aes(
     x = village_lon,
     y = village_lat,
     xend = pot_lon, 
     yend = pot_lat
   ))
+
   ## Double checking model
   summ_output
 }
-
 
 # #########################################
 # stop()

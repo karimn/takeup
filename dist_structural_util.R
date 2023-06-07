@@ -408,7 +408,7 @@ generate_initializer <- function(num_treatments,
                                  num_mix = 1,
                                  num_dist_mix = 1,
                                  use_cluster_effects = use_cluster_effects,
-                                 use_county_effects = use_cluster_effects,
+                                 use_county_effects = use_county_effects,
                                  use_param_dist_cluster_effects = use_cluster_effects,
                                  use_mu_cluster_effects = FALSE,
                                  use_mu_county_effects = FALSE,
@@ -457,13 +457,13 @@ generate_initializer <- function(num_treatments,
           dist_quadratic_beta_v = if (!quadratic) array(dim = 0) else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1))) else abs(rnorm(num_treatments, 0, 0.1)), 
           u_sd = abs(rnorm(num_treatments, 0, 0.5)),
           
-          structural_beta_cluster = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = 0),
-          structural_beta_cluster_raw = if (use_cluster_effects) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
-          structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          # structural_beta_cluster = if (use_cluster_effects) rnorm(num_clusters, 0, 0.1) else array(dim = 0),
+          # structural_beta_cluster_raw = if (use_cluster_effects) rnorm(num_clusters, 0, 0.1) else array(dim = c(0, num_treatments)),
+          # structural_beta_cluster_sd = if (use_cluster_effects) abs(rnorm(1, 0, 0.1)) else array(dim = 0),
           
-          structural_beta_county = if (use_county_effects) matrix(rnorm(num_counties * num_treatments, 0, 0.1), nrow = num_counties, ncol = num_treatments) else array(dim = 0),
-          structural_beta_county_raw = if (use_county_effects) matrix(rnorm(num_counties * num_treatments, 0, 0.1), nrow = num_counties, ncol = num_treatments) else array(dim = c(0, num_treatments)),
-          structural_beta_county_sd = if (use_county_effects) abs(rnorm(num_treatments, 0, 0.1)) else array(dim = 0),
+          # structural_beta_county = if (use_county_effects) rnorm(num_counties, 0, 0.1) else array(dim = 0),
+          # structural_beta_county_raw = if (use_county_effects) rnorm(num_counties, 0, 0.1) else array(dim = c(0, num_treatments)),
+          # structural_beta_county_sd = if (use_county_effects) abs(rnorm(1, 0, 0.1)) else array(dim = 0),
           
           beta_nm_effect_cluster = if (use_cluster_effects && name_matched) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
           beta_nm_effect_cluster_raw = if (use_cluster_effects && name_matched) matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments) else array(dim = c(0, num_treatments)),
@@ -1065,6 +1065,210 @@ get_imputed_dist <- function(fit, stan_data, model_type = "structural") {
 
 # Plotting Functions ------------------------------------------------------
 
+
+plot_single_beliefs_est <- function(beliefs_results_type_df, 
+                                    order, 
+                                    top_title = NULL, 
+                                    width = 0.3, 
+                                    crossbar_width = 0.2, 
+                                    vline = TRUE) {
+  pos_dodge <- position_dodge(width = width)
+  if (order == 1) {
+    str_title = "First Order Beliefs"
+  } else {
+    str_title = "Second Order Beliefs"
+  }
+  belief_plot = 
+      beliefs_results_type_df %>% 
+        filter(ord == order, assigned_dist_group_left == assigned_dist_group_right) %>% 
+        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+        geom_linerange(aes(
+          xmin = per_0.05, 
+          xmax = per_0.95, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          size = 0.3) +
+        geom_crossbar(aes(
+          x = per_0.5, 
+          xmin = per_0.1, 
+          xmax = per_0.9, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          fatten = 2, 
+          size = 0.4, 
+          width = crossbar_width) +
+        geom_linerange(aes(
+          xmin = per_0.25, 
+          xmax = per_0.75, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          alpha = 0.4, 
+          size = 2.25) +
+        geom_point(aes(
+          x = per_0.5, 
+          color = assigned_dist_group_left), 
+          position = pos_dodge, 
+          size = 1.8) +
+        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        scale_y_discrete(drop = FALSE) +
+        scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+        labs(
+          title = str_title,
+          subtitle = "",
+          x = "", y = "") +
+        theme(
+          legend.position = "bottom"
+        ) + 
+        NULL
+
+  if (vline == TRUE) {
+    belief_plot = belief_plot +
+         geom_vline(xintercept = 0, linetype = "dotted") 
+  }
+        
+  return(belief_plot)
+} 
+
+plot_single_estimands <- function(.data, 
+                           nested_data, 
+                           y, 
+                           results_group = model, 
+                           group_labels = NULL, 
+                           include_prior_predict = FALSE, 
+                           width = 0.3, 
+                           crossbar_width = 0.2,
+                           color_data = .data, 
+                           single_prior_predict = FALSE,
+                           top_levels = c("Bracelet", "Combined")) {
+                            # width = pos_height
+  plot_pos <- ggstance::position_dodgev(height = width)
+  
+  if (single_prior_predict == TRUE) {
+    # Remove prior data that isn't first on plot. We keep data as NA so that 
+    # spacing/height-width ratio remains the same for other plots
+    .data = .data %>%
+      mutate({{ nested_data }} := map_if({{ nested_data }},
+          fct_match(fit_type, "prior-predict"), 
+          ~mutate(.x, 
+            across(
+              c(contains("per"), mean_est),
+              ~if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(assigned_dist_group_left,  top_levels[2])),
+                NA_real_,
+                .x 
+              )
+            )
+          )
+        )
+      ) 
+  # Can't set position in aes() so this does nothing for now
+  # eventually can just filter and add geoms twice 
+    .data = .data %>%
+      mutate({{ nested_data }} := map({{ nested_data }},
+          ~mutate(.x,
+            position = 
+              if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(assigned_dist_group_left,  top_levels[2])),
+                0,
+              width
+              )
+          )
+        )
+      ) 
+  }
+
+  ggplot_obj <- if (include_prior_predict) {
+    subset_data = .data %>% 
+      unnest({{ nested_data }})
+    subset_data %>%
+      ggplot(aes(x = per_0.5, y = {{ y }}, group = model)) +
+      geom_linerange(aes(
+        xmin = per_0.05, 
+        xmax = per_0.95, 
+        group = model), 
+        alpha = 0.15, fatten = 3, size = 10, position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      geom_crossbar(aes(
+        x = per_0.5, 
+        xmin = per_0.1, 
+        xmax = per_0.9),
+        fatten = 2, 
+        size = 0.4, 
+        width = crossbar_width, 
+        position = plot_pos) +
+      geom_linerange(aes(
+        xmin = per_0.25, 
+        xmax = per_0.75, 
+        group = model), 
+      alpha = 0.1, 
+      # fatten = 3, 
+      size = 0.3, 
+      position = plot_pos, data = . %>% filter(fct_match(fit_type, "prior-predict"))) +
+      NULL
+  } else {
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(
+        x = per_0.5, 
+        y = {{ y }}, 
+        group = {{ results_group }})) 
+  }
+  
+  ggplot_obj <- ggplot_obj +
+    geom_linerange(aes(
+      xmin = per_0.25, 
+      xmax = per_0.75, 
+      color = {{ results_group }}), 
+      alpha = 0.4, 
+      size = 2.25,
+      position = plot_pos
+      )  +
+    geom_crossbar(aes(
+      x = per_0.5, 
+      xmin = per_0.1, 
+      xmax = per_0.9, 
+      color = {{ results_group }}), 
+      fatten = 2, 
+      size = 0.4, 
+      width = crossbar_width, 
+      position = plot_pos) +
+    geom_linerange(aes(
+      xmin = per_0.05, 
+      xmax = per_0.95, 
+      color = {{ results_group }}), 
+      size = 0.3, 
+      position = plot_pos) +
+    
+    geom_point(aes(x = mean_est, color = {{ results_group }}), position = plot_pos) + 
+    geom_point(aes(x = mean_est), color = "white", size = 0.75, position = plot_pos) + 
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: mean."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select(model, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  
+  return(ggplot_obj)
+}
+
+
+
 plot_estimands <- function(.data, 
                            nested_data, 
                            y, 
@@ -1076,6 +1280,7 @@ plot_estimands <- function(.data,
                            color_data = .data, 
                            single_prior_predict = FALSE,
                            top_levels = c("Bracelet", "Combined")) {
+                            # width = pos_height
   plot_pos <- ggstance::position_dodgev(height = pos_height)
   
   if (single_prior_predict == TRUE) {
@@ -1294,13 +1499,12 @@ plot_single_beliefs_est <- function(beliefs_results_type_df,
 } 
 
 
-plot_belief_breakdown = function(data, width = 0.3, crossbar_width = 0.2) {
+plot_belief_breakdown = function(data, width = 0.3, crossbar_width = 0.2, single_ci = FALSE) {
+
   pos_dodge <- position_dodge(width = width)
   p = data %>%
     ggplot(aes(y = assigned.treatment, group = knowledge_type)) +
     geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = knowledge_type), position = pos_dodge, size = 0.3) +
-    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = knowledge_type), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = knowledge_type), position = pos_dodge, alpha = 0.4, size = 2.25) +
     geom_point(aes(x = per_0.5, color = knowledge_type), position = pos_dodge, size = 1.8) +
     geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
     scale_y_discrete(drop = FALSE) +
@@ -1318,11 +1522,18 @@ plot_belief_breakdown = function(data, width = 0.3, crossbar_width = 0.2) {
     ) + 
     scale_x_continuous(
       "", 
-      breaks = seq(0, 1, 0.1),
-      limits = c(0, 1)
+      breaks = seq(0, 0.7, 0.1),
+      limits = c(0, 0.7)
       ) +
     geom_vline(xintercept = 0, linetype = "longdash") +
     NULL
+
+
+    if (single_ci == FALSE) {
+      p = p + geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = knowledge_type), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
+      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = knowledge_type), position = pos_dodge, alpha = 0.4, size = 2.25) 
+    }
+
   return(p)
 }
 plot_beliefs_est <- function(beliefs_results, 
