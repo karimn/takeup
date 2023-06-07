@@ -98,7 +98,7 @@ parameters {
   // Reputational Returns
   
   real<lower = 0> base_mu_rep;
-  vector<lower = 0>[use_homoskedastic_shocks ? 1 : num_treatment_shocks] raw_u_sd;
+  vector<lower = 0>[use_cluster_effects ? num_clusters : 1] raw_u_sd;
   
   // Linear Parametric Cost
   
@@ -141,13 +141,22 @@ transformed parameters {
   matrix[num_clusters, num_dist_group_treatments] cluster_quadratic_dist_cost = rep_matrix(0, num_clusters, num_dist_group_treatments);
   vector[num_clusters] cluster_dist_cost = rep_vector(0, num_clusters);
   
-  vector<lower = 0>[num_treatments] u_sd;
-  vector<lower = 0>[num_treatments] total_error_sd;
-  
-  if (use_homoskedastic_shocks) {
-    u_sd = rep_vector(raw_u_sd[1], num_treatments);  
-  } else {
-    u_sd = raw_u_sd; 
+  vector<lower = 0>[use_cluster_effects ?  num_clusters : num_treatments] u_sd;
+  vector<lower = 0>[use_cluster_effects ? num_clusters : num_treatments] total_error_sd;
+  // TODO: make homo default case w/ clustering
+  // if (use_homoskedastic_shocks) {
+  //   u_sd = rep_vector(raw_u_sd[1], num_treatments);  
+  // } else {
+  //   u_sd = raw_u_sd; 
+  // }
+  if (use_cluster_effects) {
+    u_sd = raw_u_sd;
+  }
+  if (use_homoskedastic_shocks && use_cluster_effects == 0) {
+    u_sd = rep_vector(raw_u_sd[1], num_treatments);
+  } 
+  if (use_homoskedastic_shocks == 0 && use_cluster_effects == 0) {
+    u_sd = raw_u_sd;
   }
     
   total_error_sd = sqrt(1 + square(u_sd));
@@ -208,18 +217,15 @@ transformed parameters {
   
   structural_cluster_benefit_cost = structural_treatment_effect[cluster_assigned_dist_group_treatment] - cluster_dist_cost;
   
-  if (use_cluster_effects) {
-    structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];
-    
+  if (0) {
+    //use_cluster_effects
+    // for now turn off beta level shock
+    // structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];
     structural_cluster_benefit_cost += structural_beta_cluster;
   }
   
   if (use_county_effects) {
-    print(structural_beta_county_raw); 
-    print(structural_beta_county_sd[1]);
-    print(structural_beta_county);
     structural_beta_county = structural_beta_county_raw * structural_beta_county_sd[1];
-    print(structural_beta_county);
     
     // if (use_wtp_model) { // Calendar = Bracelet + strata_effect
     //   structural_beta_county[, 3] = structural_beta_county[, 4] + wtp_value_utility * strata_effect_wtp_mu; 
@@ -234,35 +240,67 @@ transformed parameters {
       structural_cluster_obs_v = - structural_cluster_benefit_cost;
     } else {
       if (multithreaded) {
-        structural_cluster_obs_v = map_find_fixedpoint_solution(
-          structural_cluster_benefit_cost, 
-          obs_cluster_mu_rep,
-          total_error_sd[cluster_incentive_treatment_id],
-          u_sd[cluster_incentive_treatment_id],
-          
-          use_u_in_delta,
-          alg_sol_rel_tol, // 1e-10,
-          alg_sol_f_tol, // 1e-5,
-          alg_sol_max_steps
-        ); 
-      } else {
-        for (cluster_index in 1:num_clusters) {
-          structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
-            structural_cluster_benefit_cost[cluster_index],
-            obs_cluster_mu_rep[cluster_index],
-            total_error_sd[cluster_incentive_treatment_id[cluster_index]],
-            u_sd[cluster_incentive_treatment_id[cluster_index]],
-
+        if (use_cluster_effects) {
+          structural_cluster_obs_v = map_find_fixedpoint_solution(
+            structural_cluster_benefit_cost, 
+            obs_cluster_mu_rep,
+            total_error_sd, // indexed by cluster_id
+            u_sd, // indexed by cluster_id
+            
             use_u_in_delta,
             alg_sol_rel_tol, // 1e-10,
             alg_sol_f_tol, // 1e-5,
             alg_sol_max_steps
-          );
+          ); 
+        } else {
+          structural_cluster_obs_v = map_find_fixedpoint_solution(
+            structural_cluster_benefit_cost, 
+            obs_cluster_mu_rep,
+            total_error_sd[cluster_incentive_treatment_id],
+            u_sd[cluster_incentive_treatment_id],
+            
+            use_u_in_delta,
+            alg_sol_rel_tol, // 1e-10,
+            alg_sol_f_tol, // 1e-5,
+            alg_sol_max_steps
+          ); 
+        }
+      } else {
+        for (cluster_index in 1:num_clusters) {
+          if (use_cluster_effects) {
+            structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
+              structural_cluster_benefit_cost[cluster_index],
+              obs_cluster_mu_rep[cluster_index],
+              total_error_sd[cluster_index],
+              u_sd[cluster_index],
+
+              use_u_in_delta,
+              alg_sol_rel_tol, // 1e-10,
+              alg_sol_f_tol, // 1e-5,
+              alg_sol_max_steps
+            );
+          } else {
+            structural_cluster_obs_v[cluster_index] = find_fixedpoint_solution(
+              structural_cluster_benefit_cost[cluster_index],
+              obs_cluster_mu_rep[cluster_index],
+              total_error_sd[cluster_incentive_treatment_id[cluster_index]],
+              u_sd[cluster_incentive_treatment_id[cluster_index]],
+
+              use_u_in_delta,
+              alg_sol_rel_tol, // 1e-10,
+              alg_sol_f_tol, // 1e-5,
+              alg_sol_max_steps
+            );
+          }
         }
       }
     }
-    
-    structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v ./ total_error_sd[cluster_incentive_treatment_id])';
+    if (use_cluster_effects) {
+      structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v ./ total_error_sd)';
+    } else {
+      structural_cluster_takeup_prob = Phi_approx(- structural_cluster_obs_v ./ total_error_sd[cluster_incentive_treatment_id])';
+
+    }
   }
 }
 
@@ -344,7 +382,7 @@ generated quantities {
   vector[generate_rep ? num_clusters : 0] cluster_rep_benefit_cost; 
   vector[generate_rep ? num_clusters : 0] cluster_rep_cutoff; 
   
-  vector[num_sim_delta_w] sim_delta;
+  array[num_clusters] vector[num_sim_delta_w] sim_delta;
   
   real wtp_travel_dist = dist_beta_v[1] / wtp_value_utility;
   real calendar_preference_in_dist = hyper_wtp_mu / wtp_travel_dist;
@@ -377,30 +415,59 @@ generated quantities {
           mu_rep_type);
         
         if (multithreaded) {
-          cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
-            cluster_cf_benefit_cost[treatment_index],
-            curr_cluster_mu_rep,
-            rep_vector(total_error_sd[curr_assigned_treatment], num_clusters),
-            rep_vector(u_sd[curr_assigned_treatment], num_clusters),
-            
-            use_u_in_delta, 
-            alg_sol_rel_tol, 
-            alg_sol_f_tol, 
-            alg_sol_max_steps
-          );
-        } else {
-          for (cluster_index in 1:num_clusters) {
-            cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
-              cluster_cf_benefit_cost[treatment_index, cluster_index],
-              curr_cluster_mu_rep[cluster_index],
-              total_error_sd[curr_assigned_treatment],
-              u_sd[curr_assigned_treatment],
+          if (use_cluster_effects) {
+            cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
+              cluster_cf_benefit_cost[treatment_index],
+              curr_cluster_mu_rep,
+              total_error_sd,
+              u_sd,
               
               use_u_in_delta, 
               alg_sol_rel_tol, 
               alg_sol_f_tol, 
               alg_sol_max_steps
-            ); 
+            );
+          } else {
+            cluster_cf_cutoff[treatment_index, mu_treatment_index] = map_find_fixedpoint_solution(
+              cluster_cf_benefit_cost[treatment_index],
+              curr_cluster_mu_rep,
+              rep_vector(total_error_sd[curr_assigned_treatment], num_clusters),
+              rep_vector(u_sd[curr_assigned_treatment], num_clusters),
+              
+              use_u_in_delta, 
+              alg_sol_rel_tol, 
+              alg_sol_f_tol, 
+              alg_sol_max_steps
+            );
+          }
+        } else {
+          for (cluster_index in 1:num_clusters) {
+            if (use_cluster_effects) {
+              cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
+                cluster_cf_benefit_cost[treatment_index, cluster_index],
+                curr_cluster_mu_rep[cluster_index],
+                total_error_sd[cluster_index],
+                u_sd[cluster_index],
+                
+                use_u_in_delta, 
+                alg_sol_rel_tol, 
+                alg_sol_f_tol, 
+                alg_sol_max_steps
+              ); 
+
+            } else {
+              cluster_cf_cutoff[treatment_index, mu_treatment_index, cluster_index] = find_fixedpoint_solution(
+                cluster_cf_benefit_cost[treatment_index, cluster_index],
+                curr_cluster_mu_rep[cluster_index],
+                total_error_sd[curr_assigned_treatment],
+                u_sd[curr_assigned_treatment],
+                
+                use_u_in_delta, 
+                alg_sol_rel_tol, 
+                alg_sol_f_tol, 
+                alg_sol_max_steps
+              ); 
+            }
           }
         }
       }
@@ -456,10 +523,31 @@ generated quantities {
         );
     }
   }
-  
-  for (sim_delta_index in 1:num_sim_delta_w) {
-    sim_delta[sim_delta_index] = expected_delta(sim_delta_w[sim_delta_index], total_error_sd[1], u_sd[1], dummy_xr, dummy_xi);
-  }
+
+  if (use_cluster_effects) {
+    for (cluster_idx in 1:num_clusters) {
+      for (sim_delta_index in 1:num_sim_delta_w) {
+        sim_delta[cluster_idx, sim_delta_index] = expected_delta(
+          sim_delta_w[sim_delta_index], 
+          total_error_sd[cluster_idx], 
+          u_sd[cluster_idx], 
+          dummy_xr, 
+          dummy_xi);
+      }
+    }
+  } else {
+    for (sim_delta_index in 1:num_sim_delta_w) {
+      sim_delta[1:num_clusters, sim_delta_index] = rep_array(
+        expected_delta(
+          sim_delta_w[sim_delta_index], 
+          total_error_sd[1], 
+          u_sd[1], 
+          dummy_xr, 
+          dummy_xi), 
+          num_clusters
+      );
+    }
+  } 
 
   if (GEN_OPTIM) {
     #include takeup_optim_quantities.stan
