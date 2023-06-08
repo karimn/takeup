@@ -934,7 +934,10 @@ dworm_endline_comp_tbl_knitr %>%
 
 balance_tidy_df = read_csv(
   file.path("temp-data", "balance_tidy_df.csv")
-)
+) %>%
+  filter(
+    !str_detect(term, "county::")
+  )
 
 
 comp_balance_tidy_df = read_csv(
@@ -962,9 +965,14 @@ endline_and_baseline_data = balance_data$endline_and_baseline_data
 ```{r}
 #| joint-tests
 
+# boot_fits = read_rds(
+#   file.path("temp-data", 
+#             "wild_boot_balance_fits.rds")
+# )
+
 boot_fits = read_rds(
   file.path("temp-data", 
-            "wild_boot_balance_fits.rds")
+            "cluster_balance_fits.rds")
 )
 
 joint_signif_fstats = map_dbl(
@@ -989,47 +997,117 @@ col_order = c(
   "joint_p"
 )
 
-create_balance_input = function(tidy_df, col_order, digits = 3, comp_df = FALSE) {
+diff_names = c(
+  "con",
+  "ink - con",
+  "cal - con",
+  "bra - con",
+  "bra - cal"
+)
+
+col_diff_order = c(
+  "lhs", 
+  paste0(diff_names, "_close"),
+  "close_joint_p",
+  paste0(diff_names, "_far"),
+  "far_joint_p",
+  "joint_p"
+)
+
+create_balance_input = function(tidy_df,  
+                                col_order, 
+                                digits = 3, 
+                                comp_df = FALSE, 
+                                show_pval = FALSE) {
+  if (comp_df) {
+    col_order_we_want = col_diff_order
+  } else {
+    col_order_we_want = col_order
+  }
   bal_input_df = tidy_df %>%
       mutate(
       estimate = round(estimate, digits),
-      std.error = round(std.error, digits)
-      ) %>%
-      mutate(
-      estim_std = linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c") 
-      )  
+      std.error = round(std.error, digits),
+      p.value = round(p.value, digits)
+      ) 
+  if (show_pval == TRUE) {
+    bal_input_df = bal_input_df %>%
+      mutate(below_val = p.value)
+  } else {
+    bal_input_df = bal_input_df %>%
+      mutate(below_val = std.error)
+  }
 
     if (comp_df == FALSE) {
       bal_input_df = bal_input_df %>%
         mutate(lhs_treat = str_extract(term, "(?<=disttreat: ).*(?=\\,)")) %>%
-        mutate(lhs_dist = str_extract(term, "(?<=dist: ).*$"))
+        mutate(lhs_dist = str_extract(term, "(?<=dist: ).*$")) 
+        # TODO RHS treat
     } else {
       bal_input_df = bal_input_df %>%
         mutate(
           lhs_treat = lhs_treatment, 
-          lhs_dist = lhs_dist
+          lhs_dist = lhs_dist,
+          rhs_dist = rhs_dist,
+          rhs_treat = rhs_treatment
         ) 
     } 
-
   bal_input_df = bal_input_df %>%
-    select(lhs, lhs_treat, lhs_dist, estim_std) %>%
-    unique() %>%
+      mutate(
+        estim_std = if_else(
+          lhs_treat == "control",
+          linebreak(paste0(estimate, "\n", str_glue("({std.error})")), align = "c"),
+          linebreak(paste0(estimate, "\n", str_glue("({below_val})")), align = "c")
+        )
+      )  
+
+    bal_input_df %>%
+      select(lhs, lhs_treat, rhs_treat, lhs_dist, estim_std) %>%
+      unique()  %>%
+      mutate(
+        treat_diff = paste0(str_sub(lhs_treat, 1, 3), " - ", str_sub(rhs_treat, 1,3)),
+        treat_diff = if_else(is.na(rhs_treat),  str_sub(lhs_treat, 1, 3), treat_diff)
+        )  %>%
     mutate(
+      treat_diff = factor(treat_diff, levels = c(
+        "con",
+        "ink - con",
+        "cal - con",
+        "bra - con",
+        "bra - cal"
+      )),
       lhs_treat = factor(lhs_treat, treat_levels_c) %>% fct_rev(), 
       lhs_dist = factor(lhs_dist, dist_levels) %>% fct_rev()
     ) %>%
+    select(lhs, treat_diff, lhs_dist, estim_std) 
+
+  wide_bal_input_df = bal_input_df %>%
+    select(lhs, lhs_treat, rhs_treat, lhs_dist, estim_std) %>%
+    unique()  %>%
+    mutate(
+      treat_diff = paste0(str_sub(lhs_treat, 1, 3), " - ", str_sub(rhs_treat, 1,3)),
+      treat_diff = if_else(is.na(rhs_treat),  str_sub(lhs_treat, 1, 3), treat_diff)
+      )  %>%
+    mutate(
+      treat_diff = factor(treat_diff, levels = c(
+        "con",
+        "ink - con",
+        "cal - con",
+        "bra - con",
+        "bra - cal"
+      )),
+      lhs_treat = factor(lhs_treat, treat_levels_c) %>% fct_rev(), 
+      lhs_dist = factor(lhs_dist, dist_levels) %>% fct_rev()
+    ) %>%
+    select(lhs, treat_diff, lhs_dist, estim_std) %>%
     pivot_wider(
-    names_from = c(lhs_treat, lhs_dist),
+    names_from = c(treat_diff, lhs_dist),
     values_from = estim_std, 
     )    %>%
     select(
-    any_of(col_order)
-    )  %>%
-    mutate(
-        lhs = str_to_title(lhs),
-        lhs = str_replace_all(lhs, "_", " ")
-    )
-return(bal_input_df)
+    any_of(col_order_we_want)
+    )  
+  return(wide_bal_input_df)
 }
 
 
@@ -1129,6 +1207,13 @@ N_by_treat_dist_df = analysis_school_data %>%
   ) %>%
   arrange(type)
 
+colnames(N_by_treat_dist_df) = colnames(N_by_treat_dist_df) %>%
+  str_replace("bracelet", "bra") %>%
+  str_replace("control", "con") %>%
+  str_replace("calendar", "cal")
+
+
+
 ```
 
 
@@ -1158,7 +1243,8 @@ endline_tidy_df = read_csv(
     "temp-data",
     "endline_balance_tidy_df.csv"
   )
-)
+) %>%
+  mutate(rhs_treat = "con")
 
 ```
 
@@ -1166,32 +1252,35 @@ endline_tidy_df = read_csv(
 
 ```{r}
 #| balance-creation, dependson="balance-setup"
-
-
 comp_wide_indiv_bal_df = create_balance_input(
-    comp_balance_tidy_df, 
+    comp_balance_tidy_df %>% 
+      filter(comp_type == "treatment"), 
     col_order = col_order, 
     digits = 3, 
-    comp_df = TRUE
+    comp_df = TRUE,
+    show_pval = TRUE
 )  %>%
   mutate(
     close_joint_p = close_joint_signif_fstats,
     far_joint_p = far_joint_signif_fstats,
     joint_p = joint_signif_fstats
   ) %>%
-  select(all_of(col_order))  %>%
-  bind_rows(
-    N_by_treat_dist_df %>%
-      mutate(
-        lhs = str_replace_all(lhs, "_", " ") %>% 
-          str_to_title()
-      ) %>%
-      mutate(across(where(is.numeric), as.character)) %>%
-      mutate(across(where(is.numeric), replace_na, "-")) 
-  ) %>%
-  select(-type) %>%
+ select(all_of(col_diff_order)) %>%
+  # bind_rows(
+    # N_by_treat_dist_df %>%
+    #   mutate(
+    #     lhs = str_replace_all(lhs, "_", " ") %>% 
+    #       str_to_title() 
+    #   ) %>%
+    #   mutate(across(where(is.numeric), as.character)) %>%
+    #   mutate(across(where(is.numeric), replace_na, "-")) 
+  # ) %>%
   mutate(across(where(is.character), ~if_else(.x == "", "-", .x))) %>%
   mutate(across(where(is.character), replace_na, "-")) %>%
+  mutate(
+    lhs = str_replace_all(lhs, "_", " "),
+    lhs = str_to_title(lhs)
+  ) %>%
   mutate(
     lhs = case_when(
       lhs == "N Indiv" ~ "N individuals", 
@@ -1209,46 +1298,7 @@ comp_wide_indiv_bal_df = create_balance_input(
     )
   )
 
-1+10
-wide_indiv_bal_df = create_balance_input(
-    balance_tidy_df, 
-    col_order = col_order, 
-    digits = 3
-)  %>%
-  mutate(
-    close_joint_p = close_joint_signif_fstats,
-    far_joint_p = far_joint_signif_fstats,
-    joint_p = joint_signif_fstats
-  ) %>%
-  select(all_of(col_order))  %>%
-  bind_rows(
-    N_by_treat_dist_df %>%
-      mutate(
-        lhs = str_replace_all(lhs, "_", " ") %>% 
-          str_to_title()
-      ) %>%
-      mutate(across(where(is.numeric), as.character)) %>%
-      mutate(across(where(is.numeric), replace_na, "-")) 
-  ) %>%
-  select(-type) %>%
-  mutate(across(where(is.character), ~if_else(.x == "", "-", .x))) %>%
-  mutate(across(where(is.character), replace_na, "-")) %>%
-  mutate(
-    lhs = case_when(
-      lhs == "N Indiv" ~ "N individuals", 
-      lhs == "N Pot" ~ "N points of treatment",
-      lhs == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
-      lhs == "Baseline neighbours worm knowledge" ~ "Understand deworming externality, baseline",
-      lhs == "Endline neighbours worm knowledge" ~ "Understand deworming externality, endline",
-      lhs == "Treated lgl" ~ "Dewormed self", 
-      lhs == "Months since treatment" ~ "Months since last dewormed",
-      lhs == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
-      lhs == "All can get worms" ~ "Know everyone can be infected", 
-      lhs == "Correct when treat" ~ "Know bi-yearly treatment recommended", 
-      lhs == "Num recognised" ~ "Number of individuals recognised in community", 
-      TRUE ~ lhs
-    )
-  )
+1+1
 
 ```
 
@@ -1258,90 +1308,135 @@ wide_indiv_bal_df = create_balance_input(
 #| comp-balance-table,
 #| dependson=c("balance-setup", "balance-creation")
 
-wide_treat_colnames = str_to_title(treat_levels_c)
+comp_wide_indiv_bal_df = comp_wide_indiv_bal_df %>%
+  arrange(lhs == "Cluster distance to PoT")
+colnames(comp_wide_indiv_bal_df) = colnames(comp_wide_indiv_bal_df) %>%
+  str_replace(., "_close", "") %>%
+  str_replace(., "_far", "") %>%
+  str_to_title()
 
-wide_treat_colnames[2:4] = str_c(wide_treat_colnames[2:4], " - Control")
+bal_table_names = colnames(comp_wide_indiv_bal_df)
 
+bal_table_names[bal_table_names == "Joint_p"] = "Joint Test"
+bal_table_names[bal_table_names == "Far_joint_p"] = "Joint Test"
+bal_table_names[bal_table_names == "Close_joint_p"] = "Joint Test"
+1+1
 
 comp_bal_table = comp_wide_indiv_bal_df %>% 
 knitr::kable(
     format = "latex",
     escape = FALSE, 
-    col.names = c("", wide_treat_colnames, "F-test $p$-value", wide_treat_colnames, "F-test $p$-value", "Joint F-test $p$-value"), 
     booktabs = TRUE, 
+    col.names = bal_table_names,
     caption = "Balance Table", 
-    align = "lccccccccccc"
+    align = "lccccccccccccc"
 ) %>%
 kable_styling(
   latex_options = c("scale_down")
 ) %>%
-add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
-  pack_rows(
-    index = c(
-      "Individual-level Covariates" = 12, 
-      "Baseline Sample" = 2,
-      "Takeup Sample" = 2,
-      "Belief Sample" = 2,
-      "WTP Sample" = 2
-    ), 
-    hline_after = TRUE, 
-    bold = TRUE
-  ) 
-
-comp_bal_table
-
+add_header_above(c("", "Close" = 6, "Far" = 6, "")) 
 
 comp_bal_table %>%
   custom_save_latex_table("comp-balance-table")
 
 ```
 
-```{r, results="asis"}
-#| balance-table,
-#| dependson=c("balance-setup", "balance-creation")
-3+1
 
-treat_colnames = str_to_title(treat_levels_c)
-bal_table = wide_indiv_bal_df %>% 
-knitr::kable(
-    format = "latex",
-    escape = FALSE, 
-    col.names = c("", treat_colnames, "F-test $p$-value", treat_colnames, "F-test $p$-value", "Joint F-test $p$-value"), 
-    booktabs = TRUE, 
-    caption = "Balance Table", 
-    align = "lccccccccccc"
-) %>%
-kable_styling(
-  latex_options = c("scale_down")
-) %>%
-add_header_above(c("", "Close" = 5, "Far" = 5, "")) %>%
-  pack_rows(
-    index = c(
-      "Individual-level Covariates" = 12, 
-      "Baseline Sample" = 2,
-      "Takeup Sample" = 2,
-      "Belief Sample" = 2,
-      "WTP Sample" = 2
-    ), 
-    hline_after = TRUE, 
-    bold = TRUE
-  ) 
+```{r}
 
-bal_table
+comp_balance_tidy_df %>%
+  pull(comp_type) %>%
+  unique()
 
 
-bal_table %>%
-  custom_save_latex_table("balance-table")
+dist_comp_df = inner_join(
+ comp_balance_tidy_df %>%
+  filter(comp_type == "distance")  %>%
+  select(
+    lhs,
+    contains('lhs'),
+    contains("rhs"),
+    term,
+    estimate,
+    std.error,
+    p.value
+  ) %>%
+  filter(
+    is.na(rhs_treatment)
+  ) %>%
+  select(lhs, lhs_treatment, estimate, std.error ) %>%
+  mutate(lhs_treatment = factor(lhs_treatment, treat_levels_c)) %>%
+  mutate(
+    across(c(estimate, std.error), round, 3),
+    lhs_treatment = str_to_title(str_sub(lhs_treatment, 1, 3)),
+    estim_std = linebreak(paste0(estimate,"\n", str_glue("({std.error})")), align = "c") 
+    ) %>%
+    select(-estimate, -std.error) %>%
+  pivot_wider(
+    names_from = lhs_treatment, values_from = estim_std
+  ) %>%
+    select(1,4, 5, 3, 2 ),
+ comp_balance_tidy_df %>%
+  filter(comp_type == "distance")  %>%
+  select(
+    lhs,
+    contains('lhs'),
+    contains("rhs"),
+    term,
+    estimate,
+    std.error,
+    p.value
+  ) %>%
+  filter(
+    !is.na(rhs_treatment)
+  ) %>%
+  select(lhs, lhs_treatment, estimate, p.value ) %>%
+  mutate(lhs_treatment = factor(lhs_treatment, treat_levels_c)) %>%
+  mutate(
+    across(c(estimate, p.value), round, 3), 
+    lhs_treatment = paste0(
+    "$\\textrm{", 
+    str_to_title(str_sub(lhs_treatment, 1, 3)),
+    "}_{\\text{far - close}}",
+    "$"
+     ),
+    estim_std = linebreak(
+      paste0(estimate,"\n", str_glue("({p.value})")), align = "c") 
+     
+     ) %>%
+     select(-estimate, -p.value) %>%
+  pivot_wider(
+    names_from = lhs_treatment, values_from = estim_std
+  ) %>%
+    select(1,4, 5, 3, 2 ),
+  by = "lhs"
+)
+
+dist_comp_df %>%
+  mutate(lhs = str_replace_all(lhs, "_", " ") %>%
+                  str_to_title()
+  ) %>%
+  arrange(lhs == "Cluster Dist To Pot") %>%
+  knitr::kable(
+      # format = "latex",
+      escape = FALSE, 
+      booktabs = TRUE,
+      align = "lcccccccc", 
+      caption = "Distance Comparison Balance table"
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down")
+  )  
+
 
 ```
 
-
 ```{r}
-#| endline-table
+#| endline-table, eval=FALSE
 
 
 endline_balance_df = create_balance_input(
-    endline_tidy_df, 
+    endline_tidy_df %>% filter(!str_detect(term, "county")), 
     col_order = col_order[!str_detect(col_order, "_p$")], 
     digits = 3
 )   %>%
@@ -1378,8 +1473,7 @@ endline_balance_df = create_balance_input(
   mutate(across(where(is.character), replace_na, "-")) %>%
   select(all_of(col_order)) %>%
   filter(lhs != "Knowledge of deworming medication")
-endline_balance_df %>%
-  select(far_joint_p)
+
 
 treat_colnames = str_to_title(treat_levels_c)
 endline_bal_table = endline_balance_df %>% 

@@ -149,8 +149,8 @@ transformed parameters {
   vector<lower = 0>[use_cluster_effects ?  num_clusters : num_treatments] u_sd;
   vector<lower = 0>[use_cluster_effects ? num_clusters : num_treatments] total_error_sd;
 
-  real<lower=0> raw_u_sd_alpha = raw_u_sd_alpha_tilde*1.0 + 3.0;
-  real<lower=0> raw_u_sd_beta = raw_u_sd_beta_tilde*1.0 + 1.0;
+  real<lower=0> raw_u_sd_alpha = raw_u_sd_alpha_tilde*0.05 + 3.0;
+  real<lower=0> raw_u_sd_beta = raw_u_sd_beta_tilde*0.05 + 1.0;
 
 
   if (BELIEFS_ORDER == 1) {
@@ -230,7 +230,7 @@ transformed parameters {
   
   structural_cluster_benefit_cost = structural_treatment_effect[cluster_assigned_dist_group_treatment] - cluster_dist_cost;
   
-  if (0) {
+  if (use_cluster_effects) {
     //use_cluster_effects
     // for now turn off beta level shock
     // structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];

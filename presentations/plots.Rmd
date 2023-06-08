@@ -7,7 +7,7 @@ output:
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 92
+  rf_fit_version: 93
   fit_version: 86
   input_path: data/stan_analysis_data
   output_path: temp-data

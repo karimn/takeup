@@ -174,7 +174,6 @@ cluster_treat_df = analysis_data %>%
   unique()
 
 
-
 know_balance_data = analysis_data %>%
   nest_join(
     endline.know.table.data %>% 
@@ -336,7 +335,6 @@ endline_vars = c(
   "correct_when_treat", 
   "know_deworming_stops_worms"
   )
-stop()
 ## Fits
 endline_balance_fit = feols(
     data = endline_balance_data, 
@@ -380,25 +378,40 @@ create_balance_comparisons = function(fit) {
     ) %>%
     as_tibble()
 
-  subset_comp_df = comp_df %>%
+
+  comp_df = comp_df %>%
     mutate(
       lhs_treatment = str_extract(contrast, "(?<=^treat: )\\w+"), 
       rhs_treatment = str_extract(contrast, "(?<=- treat: )\\w+"), 
       lhs_dist = str_extract(contrast, "(?<=dist: )\\w+"),
       rhs_dist = str_extract(contrast, "(?<=, dist: )\\w+$")
-    ) %>%
+    ) 
+
+
+  same_dist_subset_comp_df = comp_df  %>%
     filter(
-      lhs_dist == rhs_dist
-    ) %>%
-    filter(rhs_treatment == "control" | lhs_treatment == "control") %>%
-    filter(lhs_treatment != rhs_treatment)  
+      lhs_dist == rhs_dist,
+      rhs_treatment == "control" | lhs_treatment == "control",
+      lhs_treatment != rhs_treatment
+    ) 
 
+  same_dist_bra_cal_comp_df = comp_df %>%
+    filter(lhs_dist == rhs_dist) %>%
+    filter(str_detect(contrast, "bracelet") & str_detect(contrast, "calendar"))
 
-    rhs_control_comp_df = subset_comp_df %>%
-      filter(rhs_treatment == "control") 
+    rhs_control_comp_df = same_dist_subset_comp_df %>%
+      filter(rhs_treatment == "control") %>%
+      bind_rows(
+        same_dist_bra_cal_comp_df %>%
+          filter(rhs_treatment == "calendar")
+      )
 
-    lhs_control_comp_df = subset_comp_df %>%
-      filter(rhs_treatment != "control")
+    lhs_control_comp_df = same_dist_subset_comp_df %>%
+      filter(rhs_treatment != "control") %>%
+      bind_rows(
+        same_dist_bra_cal_comp_df %>%
+          filter(rhs_treatment == "bracelet")
+      )
 
     lhs_control_comp_df = lhs_control_comp_df %>%
       mutate(
@@ -441,9 +454,39 @@ create_balance_comparisons = function(fit) {
   rearranged_comp_df = rearranged_comp_df %>%
     bind_rows(
       control_mean_df
-    )
+    ) %>%
+    mutate(comp_type = "treatment")
 
-    return(rearranged_comp_df)
+    ## Now within treatment across distances
+
+    dist_control_mean_df = fit %>%
+      tidy(conf.int = TRUE) %>%
+      filter(str_detect(term, "close")) %>%
+      mutate(
+        lhs_treatment = str_extract(
+          term, 
+          "(?<=treat: )\\w+"),
+        rhs_treatment = NA,
+        lhs_dist = "close",
+        rhs_dist = NA
+      )
+
+    dist_comp_df = comp_df %>%
+      filter(
+        rhs_dist != lhs_dist,
+        lhs_treatment == rhs_treatment
+      )  %>%
+      select(-contrast) %>%
+      bind_rows(
+        dist_control_mean_df
+      ) %>%
+      mutate(comp_type = "distance")
+
+    final_clean_comp_df = bind_rows(
+      rearranged_comp_df,
+      dist_comp_df
+    )
+    return(final_clean_comp_df)
 
 }
 
@@ -763,7 +806,7 @@ endline_tidy_df = endline_balance_fit %>%
         lhs = str_remove(lhs, "lhs: ")
     ) %>%
     select(
-        lhs, term, estimate, std.error
+        lhs, term, estimate, std.error, p.value
     )   %>%
     mutate(
       lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
@@ -787,145 +830,6 @@ endline_p_val_df %>%
     )
 
 #### Continuous Distance Tests ####
-
-
-fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
-
-
-fully_cts_dist_balance %>%
-  saveRDS(
-    "temp-data/fully_cts_dist_balance.rds"
-  )
-
-disc_dist_balance = dist_balance_disc_fun(
-    cluster.dist.to.pot, 
-    interval_length = script_options$cts_interval)
-
-
-construct_joint_test_m = function(object) {
-  n_coef = length(coef(object))
-  diag_m = diag(n_coef - 1)
-  neg_1_m = matrix(-1, nrow = n_coef - 1, ncol = 1)
-
-  hyp_m = cbind(neg_1_m, diag_m)
-  return(hyp_m)
-}
-
-
-perform_cts_distance_boot = function(data, y_var, dist_var, interval_length, suppress_intercept = FALSE) {
-    sym_dist_var = sym(dist_var)
-    subset_data = data %>%
-        select(all_of(y_var), all_of(dist_var), cluster.id, constituency) %>%
-        na.omit() 
-    if (!is.null(interval_length)) {
-        subset_data = subset_data %>%
-            mutate(
-            dist_measure = cut_interval({{ sym_dist_var }}, length = interval_length )
-            )
-    } else {
-        subset_data = subset_data %>%
-            mutate(dist_measure = {{ sym_dist_var }})
-    }
-    if (suppress_intercept) {
-        fml = as.formula(paste0(y_var, " ~ 0 + dist_measure"))
-    } else {
-        fml = as.formula(paste0(y_var, " ~  dist_measure"))
-    }
-    fit = lm(fml, data = subset_data)
-    R = construct_joint_test_m(fit)
-    
-  coef(fit) %>% length()
-
-    boot_p = mboottest(
-        object = fit, 
-        clustid = c("cluster.id"),
-        bootcluster = "cluster.id", 
-        B = script_options$num_boot_draws, 
-        R = R
-    )$p_val
-    return(lst(boot_p))
-}
-
-
-cts_boots = function(interval) {
-  cts_indiv_boot = map(
-    indiv_balance_vars, 
-    ~perform_cts_distance_boot(
-      data = analysis_school_data, 
-      y_var = .x, 
-      dist_var = "cluster.dist.to.pot", 
-      interval_length = interval, 
-      suppress_intercept = TRUE
-      )
-  )
-  cts_know_boot = map(
-    know_vars, 
-    ~perform_cts_distance_boot(
-      data = know_balance_data,
-      y_var = .x, 
-      dist_var = "cluster.dist.to.pot",
-      interval_length = interval, 
-      suppress_intercept = TRUE
-    )
-  )
-  cts_baseline_boot = map(
-    baseline_vars, 
-    ~perform_cts_distance_boot(
-      data = baseline_balance_data,
-      y_var = .x, 
-      dist_var = "cluster.dist.to.pot",
-      interval_length = interval, 
-      suppress_intercept = TRUE
-    )
-  )
-
-  cts_boot_pvals = c(
-      # indiv
-      unlist(cts_indiv_boot),
-      # know 
-      unlist(cts_know_boot),
-      # balance
-      unlist(cts_baseline_boot)
-  )
-
-  names(cts_boot_pvals) = names(fully_cts_dist_balance)
-
-
-  tidy_cts_boot_pvals_df = enframe(
-      cts_boot_pvals
-  ) %>%
-  mutate(
-    interval = interval
-  )
-  return(tidy_cts_boot_pvals_df)
-}
-
-tidy_cts_boot_pvals_df = cts_boots(script_options$cts_interval)
-
-tidy_cts_boot_pvals_df %>%
-    write_csv(
-        file.path(
-            script_options$output_path,
-            str_glue("cts_distance_binned_pvals_INTERVAL_{script_options$cts_interval}.csv")
-        )
-    )
-
-
-tidy_cts_boot_many_pvals_df = map_dfr(
-  c(100, 200, 300, 400, 500, 1000), 
-  cts_boots
-) 
-
-tidy_cts_boot_many_pvals_df %>%
-  write_csv(
-        file.path(
-            script_options$output_path,
-            str_glue("cts_distance_binned_pvals_many_intervals.csv")
-        )
-  )
-
-
-
 balance_data = lst(
   analysis_school_data,
   analysis_data, 
@@ -1029,5 +933,140 @@ dist_balance_disc_fun = function(rhs_var, interval_length) {
 }
 
 
-fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
-disc_dist_balance = dist_balance_disc_fun(cluster.dist.to.pot, interval_length = 500)
+# fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
+# disc_dist_balance = dist_balance_disc_fun(cluster.dist.to.pot, interval_length = 500)
+
+# fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
+
+
+# fully_cts_dist_balance %>%
+#   saveRDS(
+#     "temp-data/fully_cts_dist_balance.rds"
+#   )
+
+# disc_dist_balance = dist_balance_disc_fun(
+#     cluster.dist.to.pot, 
+#     interval_length = script_options$cts_interval)
+
+
+# construct_joint_test_m = function(object) {
+#   n_coef = length(coef(object))
+#   diag_m = diag(n_coef - 1)
+#   neg_1_m = matrix(-1, nrow = n_coef - 1, ncol = 1)
+
+#   hyp_m = cbind(neg_1_m, diag_m)
+#   return(hyp_m)
+# }
+
+
+# perform_cts_distance_boot = function(data, y_var, dist_var, interval_length, suppress_intercept = FALSE) {
+#     sym_dist_var = sym(dist_var)
+#     subset_data = data %>%
+#         select(all_of(y_var), all_of(dist_var), cluster.id, constituency) %>%
+#         na.omit() 
+#     if (!is.null(interval_length)) {
+#         subset_data = subset_data %>%
+#             mutate(
+#             dist_measure = cut_interval({{ sym_dist_var }}, length = interval_length )
+#             )
+#     } else {
+#         subset_data = subset_data %>%
+#             mutate(dist_measure = {{ sym_dist_var }})
+#     }
+#     if (suppress_intercept) {
+#         fml = as.formula(paste0(y_var, " ~ 0 + dist_measure"))
+#     } else {
+#         fml = as.formula(paste0(y_var, " ~  dist_measure"))
+#     }
+#     fit = lm(fml, data = subset_data)
+#     R = construct_joint_test_m(fit)
+    
+#   coef(fit) %>% length()
+
+#     boot_p = mboottest(
+#         object = fit, 
+#         clustid = c("cluster.id"),
+#         bootcluster = "cluster.id", 
+#         B = script_options$num_boot_draws, 
+#         R = R
+#     )$p_val
+#     return(lst(boot_p))
+# }
+
+
+# cts_boots = function(interval) {
+#   cts_indiv_boot = map(
+#     indiv_balance_vars, 
+#     ~perform_cts_distance_boot(
+#       data = analysis_school_data, 
+#       y_var = .x, 
+#       dist_var = "cluster.dist.to.pot", 
+#       interval_length = interval, 
+#       suppress_intercept = TRUE
+#       )
+#   )
+#   cts_know_boot = map(
+#     know_vars, 
+#     ~perform_cts_distance_boot(
+#       data = know_balance_data,
+#       y_var = .x, 
+#       dist_var = "cluster.dist.to.pot",
+#       interval_length = interval, 
+#       suppress_intercept = TRUE
+#     )
+#   )
+#   cts_baseline_boot = map(
+#     baseline_vars, 
+#     ~perform_cts_distance_boot(
+#       data = baseline_balance_data,
+#       y_var = .x, 
+#       dist_var = "cluster.dist.to.pot",
+#       interval_length = interval, 
+#       suppress_intercept = TRUE
+#     )
+#   )
+
+#   cts_boot_pvals = c(
+#       # indiv
+#       unlist(cts_indiv_boot),
+#       # know 
+#       unlist(cts_know_boot),
+#       # balance
+#       unlist(cts_baseline_boot)
+#   )
+
+#   names(cts_boot_pvals) = names(fully_cts_dist_balance)
+
+
+#   tidy_cts_boot_pvals_df = enframe(
+#       cts_boot_pvals
+#   ) %>%
+#   mutate(
+#     interval = interval
+#   )
+#   return(tidy_cts_boot_pvals_df)
+# }
+
+# tidy_cts_boot_pvals_df = cts_boots(script_options$cts_interval)
+
+# tidy_cts_boot_pvals_df %>%
+#     write_csv(
+#         file.path(
+#             script_options$output_path,
+#             str_glue("cts_distance_binned_pvals_INTERVAL_{script_options$cts_interval}.csv")
+#         )
+#     )
+
+
+# tidy_cts_boot_many_pvals_df = map_dfr(
+#   c(100, 200, 300, 400, 500, 1000), 
+#   cts_boots
+# ) 
+
+# tidy_cts_boot_many_pvals_df %>%
+#   write_csv(
+#         file.path(
+#             script_options$output_path,
+#             str_glue("cts_distance_binned_pvals_many_intervals.csv")
+#         )
+#   )
