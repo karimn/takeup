@@ -21,6 +21,7 @@ Options:
   args = if (interactive()) "
   93
   --cores=1 
+  --output-path=ed-temp-data-cluster
   --load-from-csv 
   --single-chain" else commandArgs(trailingOnly = TRUE)
 )
@@ -139,7 +140,8 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL",          "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS",          "Structural",                                         "structural",
-
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB",             "Structural",                                         "structural",
 
   
   "STACKED",                                          "Stacked Model",                                       "combined", # Includes both reduced form and structural models
@@ -585,8 +587,8 @@ if (!script_options$no_rate_of_change) {
           mutate(.x, iter_data = map(iter_data, ~ mutate(.x, iter_est = iter_est * .y), sd(.y$analysis_data$cluster.dist.to.pot))) %>% 
             summarize_roc()
         }
-      }),
-      sim_delta = map2(fit, stan_data, extract_sim_delta),
+      })
+      # sim_delta = map2(fit, stan_data, extract_sim_delta),
     )
 
   any_structural_models = any(dist_fit_data$model_type == "structural")

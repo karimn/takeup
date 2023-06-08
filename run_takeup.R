@@ -39,7 +39,7 @@ Options:
     takeup fit \
     --cmdstanr \
     --outputname=dist_fit93 \
-    --models=REDUCED_FORM_NO_RESTRICT_DIST_CTS  \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -178,7 +178,7 @@ models <- lst(
     use_binomial = FALSE,
     use_cost_model = cost_model_types["param_linear"],
     use_private_incentive_restrictions = FALSE,
-    use_cluster_effects = FALSE,
+    use_cluster_effects = script_options$multilevel,
     use_county_effects = script_options$multilevel,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
@@ -196,6 +196,8 @@ models <- lst(
     alg_sol_max_steps = 1e9L,
     alg_sol_rel_tol = 0.0000001,
 
+    # FOB or SOB Beliefs, default FOB
+    BELIEFS_ORDER = 1,
 
     # Priors
     mu_rep_sd = 0.25,
@@ -244,7 +246,7 @@ models <- lst(
       use_binomial = FALSE,
       use_cost_model = cost_model_types["param_linear"],
       use_private_incentive_restrictions = FALSE,
-      use_cluster_effects = FALSE,
+      use_cluster_effects = script_options$multilevel,
       use_county_effects = script_options$multilevel,
       use_param_dist_cluster_effects = FALSE,
       use_param_dist_county_effects = FALSE,
@@ -304,8 +306,8 @@ models <- lst(
     use_binomial = FALSE,
     use_cost_model = cost_model_types["param_linear"],
     use_private_incentive_restrictions = TRUE,
-    use_cluster_effects = TRUE,
-    use_county_effects = TRUE,
+    use_cluster_effects = script_options$multilevel,
+    use_county_effects = script_options$multilevel,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     suppress_reputation = FALSE,
@@ -378,6 +380,7 @@ models <- lst(
       list_modify(
         use_dist_cts = TRUE
       ),
+
     STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         fit_wtp_model_to_data = FALSE,
@@ -449,7 +452,21 @@ models <- lst(
         mu_rep_type = 4, # phat mu rep
         fit_beliefs_model_to_data = FALSE,
         fit_wtp_model_to_data = FALSE
-      )
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 1,
+        mu_rep_type = 4,
+        use_cluster_effects = TRUE,
+        use_county_effects = TRUE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = TRUE,
+        use_county_effects = TRUE
+      ),
 )
 
 # WTP Stan Data -----------------------------------------------------------
@@ -508,17 +525,7 @@ analysis_data %<>%
   ))
 
 beliefs_ate_pairs <- cluster_treatment_map %>% 
-  #   if (script_options$no_dist) {
-  #     distinct(., assigned_treatment)
-  #   } else .
-  # } %>%  
-  # filter(fct_match(assigned_dist_group, "close")) %>% 
   mutate(treatment_id = seq(n())) %>% {
-    # if (script_options$no_dist) {
-    #   mutate(., treatment_id_control = 1) %>% 
-    #     filter(treatment_id != treatment_id_control) %>% 
-    #     select(treatment_id, treatment_id_control)
-    # } else { 
       bind_rows(
         left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
           filter(assigned_treatment != assigned_treatment_control) %>% 
@@ -547,14 +554,15 @@ if (script_options$gen_optim) {
 
 stan_data <- lst(
   # Distance Model
-  use_dist_county_effects = script_options$multilevel,
-  use_dist_cluster_effects = script_options$multilevel,
+  use_dist_county_effects = FALSE, # script_options$multilevel
+  use_dist_cluster_effects = FALSE, # script_options$multilevel
+
   
   # Beliefs Model 
-  beliefs_use_stratum_level = script_options$multilevel,
-  beliefs_use_cluster_level = script_options$multilevel,
-  beliefs_use_obs_level = script_options$multilevel,
-  beliefs_use_indiv_intercept = script_options$multilevel,
+  beliefs_use_stratum_level = FALSE, # script_options$multilevel
+  beliefs_use_cluster_level = FALSE, # script_options$multilevel
+  beliefs_use_obs_level = FALSE, # script_options$multilevel
+  beliefs_use_indiv_intercept = FALSE, #script_options$multilevel,
   beliefs_use_dist = !(script_options$no_dist %||% FALSE),
   
   know_table_A_sample_size = 10,
@@ -691,6 +699,9 @@ stan_data <- lst(
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
   list_modify(!!!wtp_stan_data) 
+
+
+
 if (script_options$sbc & !script_options$takeup) {
   stop("Not yet implemented")
 }

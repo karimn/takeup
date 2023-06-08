@@ -17,7 +17,7 @@ data {
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_DISCRETE;
 
-  
+  int<lower= 1, upper = 2> BELIEFS_ORDER;  
   int<lower = 0, upper = 1> use_wtp_model;
   int<lower = 0, upper = 1> use_homoskedastic_shocks;
   
@@ -99,6 +99,8 @@ parameters {
   
   real<lower = 0> base_mu_rep;
   vector<lower = 0>[use_cluster_effects ? num_clusters : 1] raw_u_sd;
+  real<lower = 0> raw_u_sd_alpha_tilde;
+  real<lower = 0> raw_u_sd_beta_tilde;
   
   // Linear Parametric Cost
   
@@ -122,7 +124,10 @@ transformed parameters {
 #include dist_transformed_parameters.stan
 #include wtp_transformed_parameters.stan
 #include beliefs_transformed_parameters.stan
-  
+
+  matrix[num_clusters, num_treatments] centered_cluster_beta_beliefs;
+  matrix[num_clusters, num_treatments] centered_cluster_dist_beta_beliefs;
+
   vector[num_dist_group_treatments] beta;
   
   vector[num_dist_group_treatments] structural_treatment_effect;
@@ -143,12 +148,20 @@ transformed parameters {
   
   vector<lower = 0>[use_cluster_effects ?  num_clusters : num_treatments] u_sd;
   vector<lower = 0>[use_cluster_effects ? num_clusters : num_treatments] total_error_sd;
-  // TODO: make homo default case w/ clustering
-  // if (use_homoskedastic_shocks) {
-  //   u_sd = rep_vector(raw_u_sd[1], num_treatments);  
-  // } else {
-  //   u_sd = raw_u_sd; 
-  // }
+
+  real<lower=0> raw_u_sd_alpha = raw_u_sd_alpha_tilde*1.0 + 3.0;
+  real<lower=0> raw_u_sd_beta = raw_u_sd_beta_tilde*1.0 + 1.0;
+
+
+  if (BELIEFS_ORDER == 1) {
+    centered_cluster_beta_beliefs = centered_cluster_beta_1ord;
+    centered_cluster_dist_beta_beliefs = centered_cluster_dist_beta_1ord;
+  }
+  if (BELIEFS_ORDER == 2) {
+    centered_cluster_beta_beliefs = centered_cluster_beta_2ord;
+    centered_cluster_dist_beta_beliefs = centered_cluster_dist_beta_2ord;
+  }
+
   if (use_cluster_effects) {
     u_sd = raw_u_sd;
   }
@@ -180,7 +193,7 @@ transformed parameters {
   if (!suppress_reputation) { 
     obs_cluster_mu_rep = calculate_mu_rep(
       cluster_incentive_treatment_id, cluster_standard_dist, 
-      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
+      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_beliefs, centered_cluster_dist_beta_beliefs,
       mu_rep_type);
   }
 
@@ -353,9 +366,13 @@ model {
     structural_beta_county_raw ~ std_normal();
     structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
   }
-  
+
+  // TODO: make this actually hierarchical   search HERE ED in takeup_data_sec
   raw_u_sd ~ inv_gamma(raw_u_sd_alpha, raw_u_sd_beta);
-  
+
+  raw_u_sd_alpha_tilde ~ std_normal();
+  raw_u_sd_beta_tilde ~ std_normal();
+
   if (fit_model_to_data) {
     // Take-up Likelihood 
     if (use_binomial) {
@@ -411,7 +428,7 @@ generated quantities {
       for (mu_treatment_index in 1:num_treatments) {
         vector[num_clusters] curr_cluster_mu_rep = calculate_mu_rep(
           { mu_treatment_index }, all_cluster_standard_dist[, curr_assigned_dist_group], 
-          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
+          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_beliefs, centered_cluster_dist_beta_beliefs,
           mu_rep_type);
         
         if (multithreaded) {
