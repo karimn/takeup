@@ -114,8 +114,7 @@ baseline.data = baseline.data %>%
     years_schooling = if_else(school == "Never gone to school", 0, years_schooling), 
     years_schooling = if_else(str_detect(school, "College|University"), 16, years_schooling)
   ) %>%
-  select(-digits_schooling, schooling_years_plus)
-
+  select(-digits_schooling, -schooling_years_plus)
 # Months since an individual took deworming treatment at baseline (i.e. independent of the campaign)
 baseline.data = baseline.data %>%
   mutate(
@@ -161,6 +160,7 @@ baseline.data = baseline.data %>%
   ) 
 
 
+
 # creating a single treat x distance variable for balance testing
 cluster_treat_df = analysis_data %>%
   mutate(
@@ -170,7 +170,7 @@ cluster_treat_df = analysis_data %>%
       ", dist: ", dist.pot.group
       ) %>% factor()
   ) %>%
-  select(cluster.id, treat_dist) %>%
+  select(cluster.id, treat_dist, dist_to_pot = cluster.dist.to.pot) %>%
   unique()
 
 
@@ -200,12 +200,9 @@ know_balance_data = analysis_data %>%
   )
 
 
+
+
 know_vars = c("obs_know_person")
-know_balance_fit = feols(
-    data = know_balance_data, 
-    .[know_vars] ~ 0 + treat_dist, 
-    ~cluster.id
-    ) 
 
 
 ## Baseline Balance
@@ -215,6 +212,7 @@ baseline_balance_data = baseline.data %>%
     by = "cluster.id"
   )
 
+
 baseline_balance_data = baseline_balance_data %>%
   left_join(
     analysis_data %>%
@@ -223,11 +221,11 @@ baseline_balance_data = baseline_balance_data %>%
     by = "cluster.id"
   ) 
 
+
 baseline_vars = c(
-  "years_schooling", 
+  "completed_primary", 
   "know_deworming_stops_worms",
   "treated_lgl", 
-  "dewormed_last_12", 
   "floor_tile_cement",
   "all_can_get_worms",
   "correct_when_treat",
@@ -235,16 +233,12 @@ baseline_vars = c(
 )
 
 
-baseline_balance_fit = feols(
-    data = baseline_balance_data, 
-    .[baseline_vars] ~ 0 + treat_dist, 
-    ~cluster.id
-    ) 
 
 # PoT level balance variables
 balance_variables = c(
   "cluster.dist.to.pot"
 )
+
 # Indiv level balance variables
 indiv_balance_vars = c(
   "female", 
@@ -272,28 +266,18 @@ mutate(
 )  %>%
 mutate(
   female = fct_match(gender, "female")
-)
+) %>%
+  rename(dist_to_pot = dist.to.pot)
 
   
-indiv_balance_fit = feols(
-    data = analysis_school_data, 
-    .[indiv_balance_vars] ~ 0 + treat_dist,
-    cluster = ~cluster.id
-    ) 
 
 # Probably a better way to get the schools in the sample
 school_treat_df = analysis_school_data %>%
   filter(!is.na(assigned.treatment)) %>%
-  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency, cluster.id) %>%
+  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency, cluster.id, county, dist_to_pot) %>%
   unique()
 
 
-school_balance_fit = feols(
-    data = school_treat_df, 
-    .[balance_variables] ~ 0 + treat_dist,
-    ~cluster.id
-
-  )
 
 #### Endline
 endline_balance_data = endline.data %>%
@@ -324,7 +308,9 @@ endline_and_baseline_data = bind_rows(
       all_can_get_worms,
       correct_when_treat, 
       know_deworming_stops_worms,
-      constituency, cluster.id) %>%
+      constituency, cluster.id, 
+      county
+      ) %>%
     mutate(
       type = "endline"
     ),
@@ -335,7 +321,9 @@ endline_and_baseline_data = bind_rows(
       all_can_get_worms,
       correct_when_treat, 
       know_deworming_stops_worms,
-      constituency, cluster.id) %>%
+      constituency, cluster.id,
+      county
+      ) %>%
     mutate(
       type = "baseline"
     )
@@ -348,12 +336,34 @@ endline_vars = c(
   "correct_when_treat", 
   "know_deworming_stops_worms"
   )
+stop()
+## Fits
 endline_balance_fit = feols(
     data = endline_balance_data, 
-    .[endline_vars] ~ 0 + treat_dist, 
+    .[endline_vars] ~ 0 + treat_dist + i(county, ref = "Busia"), 
     cluster = ~cluster.id
     ) 
 
+know_balance_fit = feols(
+    data = know_balance_data, 
+    .[know_vars] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot, 
+    ~cluster.id
+    ) 
+baseline_balance_fit = feols(
+    data = baseline_balance_data, 
+    .[baseline_vars] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot, 
+    ~cluster.id
+    ) 
+indiv_balance_fit = feols(
+    data = analysis_school_data, 
+    .[indiv_balance_vars] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot,
+    cluster = ~cluster.id
+    ) 
+school_balance_fit = feols(
+    data = school_treat_df, 
+    .[balance_variables] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot,
+    ~cluster.id
+  )
 # put all the baseline balance fits into a list we can map over
 balance_fits = c(
   indiv_balance_fit,
@@ -452,14 +462,13 @@ comp_balance_tidy_df = balance_fits %>%
   )
 
 
-
 balance_tidy_df = balance_fits %>%
     map_dfr(tidy, .id = "lhs") %>%
     mutate(
         lhs = str_remove(lhs, "lhs: ")
     ) %>%
     select(
-        lhs, term, estimate, std.error
+        lhs, term, estimate, std.error, p.value
     )   %>%
     mutate(
       lhs = str_replace_all(lhs, "\\.", " ") %>% str_to_title()
@@ -480,91 +489,6 @@ balance_tidy_df %>%
             "balance_tidy_df.csv"
         )
     )
-#### Continuous Balance
-#| cts-dist-balance
-dist_balance_cts_fun = function(rhs_var) {
-  ## Indiv
-  indiv_balance_cts_fit = feols(
-      data = analysis_school_data %>%
-        mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[indiv_balance_vars] ~  dist_measure + dist_measure^2,
-      cluster = ~cluster.id
-      ) 
-
-  ## Know
-  know_balance_cts_fit = feols(
-      data = know_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[know_vars] ~ dist_measure + dist_measure^2, 
-      ~cluster.id
-      ) 
-
-  ## baseline
-  baseline_balance_cts_fit = feols(
-      data = baseline_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[baseline_vars] ~  dist_measure + dist_measure^2, 
-      ~cluster.id
-      ) 
-
-    return(
-      c(
-        indiv_balance_cts_fit,
-        list("lhs: num_recognised" = know_balance_cts_fit),
-        baseline_balance_cts_fit
-      )
-    )
-}
-
-dist_balance_disc_fun = function(rhs_var, interval_length) {
-  analysis_school_data = analysis_school_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
-
-  know_balance_data = know_balance_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
-  baseline_balance_data = baseline_balance_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
-
-  ## Indiv
-  indiv_balance_disc_fit = feols(
-      data = analysis_school_data,
-      .[indiv_balance_vars] ~  0 + dist_measure,
-      cluster = ~cluster.id
-      ) 
-
-  ## Know
-  know_balance_disc_fit = feols(
-      data = know_balance_data,
-      .[know_vars] ~ 0 + dist_measure, 
-      ~cluster.id
-      ) 
-
-  ## baseline
-  baseline_balance_disc_fit = feols(
-      data = baseline_balance_data,
-      .[baseline_vars] ~ 0 + dist_measure, 
-      ~cluster.id
-      ) 
-
-    return(
-      c(
-        indiv_balance_disc_fit,
-        list("lhs: num_recognised" = know_balance_disc_fit),
-        baseline_balance_disc_fit
-      )
-    )
-}
-
-
-fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
-disc_dist_balance = dist_balance_disc_fun(cluster.dist.to.pot, interval_length = 500)
-
 
 construct_joint_test_m = function(object) {
   n_coef = length(coef(object))
@@ -610,94 +534,48 @@ hyp_matrix_far = cbind(
 )
 
 
-perform_balance_cluster_boot = function(data, var, joint_R, close_R, far_R) {
-  subset_data = data %>%
-    select(all_of(var), treat_dist, cluster.id, constituency) %>%
-    na.omit()
+perform_balance_joint_test = function(fit, var, joint_R, close_R, far_R) {
+  county_0_mat = matrix(
+    0,
+    nrow = max(nrow(joint_R), nrow(close_R), nrow(far_R)),
+    ncol = 3
+    )
+  resid_df = fixest::degrees_freedom(fit, type = "resid")
+  close_test = car::lht(
+    fit,
+    cbind(close_R, county_0_mat[1:nrow(close_R), ]),
+    error.df = resid_df,
+    test = "F"
+  )
+
+  far_test = car::lht(
+    fit,
+    cbind(far_R, county_0_mat[1:nrow(far_R), ]),
+    error.df = resid_df,
+    test = "F"
+  )
+
+  joint_test = car::lht(
+    fit,
+    cbind(joint_R, county_0_mat[1:nrow(joint_R),]),
+    error.df = resid_df,
+    test = "F"
+  )
 
 
-  fml = as.formula(paste0(var, " ~ 0 + treat_dist"))
-  fit = lm(
-    formula = fml, 
-    data = subset_data
-  )
-  joint_boot_output = mboottest(
-    object = fit, 
-    clustid = "cluster.id", 
-    bootcluster = "cluster.id", 
-    B = script_options$num_boot_draws, 
-    R = joint_R
-  )
-  close_boot_output = mboottest(
-    object = fit, 
-    clustid = "cluster.id", 
-    bootcluster = "cluster.id", 
-    B = script_options$num_boot_draws, 
-    R = close_R
-  )
-  far_boot_output = mboottest(
-    object = fit, 
-    clustid = "cluster.id", 
-    bootcluster = "cluster.id", 
-    B = script_options$num_boot_draws, 
-    R = far_R
-  )
-  return(lst(
-    joint_pval = joint_boot_output$p_val, 
-    close_pval = close_boot_output$p_val, 
-    far_pval = far_boot_output$p_val))
+  pvals = lst(
+    joint_pval = joint_test$`Pr(>F)`[2],
+    far_pval = far_test$`Pr(>F)`[2],
+    close_pval = close_test$`Pr(>F)`[2]
+  ) 
+
+  return(pvals)
 }
 
-indiv_boot = map(
-  indiv_balance_vars, 
-  ~perform_balance_cluster_boot(
-    data = analysis_school_data, 
-    var = .x, 
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-     )
-)
-
-
-know_boot = map(
-  know_vars, 
-  ~perform_balance_cluster_boot(
-    data = know_balance_data,
-    var = .x, 
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-baseline_boot = map(
-  baseline_vars, 
-  ~perform_balance_cluster_boot(
-    data = baseline_balance_data,
-    var = .x, 
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-school_boot = map(
-  balance_variables,
-  ~perform_balance_cluster_boot(
-    data = school_treat_df,
-    var = .x,
-    joint_R = hyp_matrix,
-    close_R = hyp_matrix_close,
-    far_R = hyp_matrix_far
-  )
-)
-
-endline_boot = map(
-  endline_vars,
-  ~perform_balance_cluster_boot(
-    data = endline_balance_data,
-    var = .x,
+balance_joint_tests = map(
+  balance_fits,
+  ~perform_balance_joint_test(
+    .x,
     joint_R = hyp_matrix,
     close_R = hyp_matrix_close,
     far_R = hyp_matrix_far
@@ -705,23 +583,14 @@ endline_boot = map(
 )
 
 
-boot_fits = c(
-  indiv_boot, 
-  school_boot, 
-  baseline_boot, 
-  know_boot
-)
 
-
-boot_fits %>%
+balance_joint_tests %>%
     saveRDS(
         file.path(
             script_options$output_path,
-            "wild_boot_balance_fits.rds"
+            "cluster_balance_fits.rds"
         )
     )
-
-
 
 
 #| baseline-learning
@@ -1077,3 +946,88 @@ saveRDS(
     "saved_balance_data.rds"
   )
 )
+
+#### Continuous Balance
+#| cts-dist-balance
+dist_balance_cts_fun = function(rhs_var) {
+  ## Indiv
+  indiv_balance_cts_fit = feols(
+      data = analysis_school_data %>%
+        mutate(dist_measure = {{ rhs_var }}/1000), 
+      .[indiv_balance_vars] ~  dist_measure + dist_measure^2,
+      cluster = ~cluster.id
+      ) 
+
+  ## Know
+  know_balance_cts_fit = feols(
+      data = know_balance_data %>%
+        mutate(dist_measure = {{ rhs_var }}/1000), 
+      .[know_vars] ~ dist_measure + dist_measure^2, 
+      ~cluster.id
+      ) 
+
+  ## baseline
+  baseline_balance_cts_fit = feols(
+      data = baseline_balance_data %>%
+        mutate(dist_measure = {{ rhs_var }}/1000), 
+      .[baseline_vars] ~  dist_measure + dist_measure^2, 
+      ~cluster.id
+      ) 
+
+    return(
+      c(
+        indiv_balance_cts_fit,
+        list("lhs: num_recognised" = know_balance_cts_fit),
+        baseline_balance_cts_fit
+      )
+    )
+}
+
+dist_balance_disc_fun = function(rhs_var, interval_length) {
+  analysis_school_data = analysis_school_data %>%
+    mutate(
+      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
+    )
+
+  know_balance_data = know_balance_data %>%
+    mutate(
+      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
+    )
+  baseline_balance_data = baseline_balance_data %>%
+    mutate(
+      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
+    )
+
+  ## Indiv
+  indiv_balance_disc_fit = feols(
+      data = analysis_school_data,
+      .[indiv_balance_vars] ~  0 + dist_measure,
+      cluster = ~cluster.id
+      ) 
+
+  ## Know
+  know_balance_disc_fit = feols(
+      data = know_balance_data,
+      .[know_vars] ~ 0 + dist_measure, 
+      ~cluster.id
+      ) 
+
+  ## baseline
+  baseline_balance_disc_fit = feols(
+      data = baseline_balance_data,
+      .[baseline_vars] ~ 0 + dist_measure, 
+      ~cluster.id
+      ) 
+
+    return(
+      c(
+        indiv_balance_disc_fit,
+        list("lhs: num_recognised" = know_balance_disc_fit),
+        baseline_balance_disc_fit
+      )
+    )
+}
+
+
+fully_cts_dist_balance = dist_balance_cts_fun(cluster.dist.to.pot)
+disc_dist_balance = dist_balance_disc_fun(cluster.dist.to.pot, interval_length = 500)

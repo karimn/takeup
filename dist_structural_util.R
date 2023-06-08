@@ -471,17 +471,17 @@ generate_initializer <- function(num_treatments,
           
           structural_cluster_takeup_prob = matrix(rbeta(num_clusters * num_mix, 10, 10), nrow = num_mix),
           
-          dist_beta_cluster_raw = if (discrete_cost) {
-            array(0, dim = c(0, 0))
-          } else if (!use_param_dist_cluster_effects) { 
-            if (salience || use_single_cost_model) array(dim = c(0, 1)) else array(dim = c(0, num_treatments)) 
-          } else {
-            if (salience || use_single_cost_model) matrix(rnorm(num_clusters, 0, 0.1), nrow = num_clusters, ncol = 1)
-            else matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments)
-          },
-          dist_beta_cluster_sd = if (!use_param_dist_cluster_effects) array(dim = 0) 
-            else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1)))
-            else abs(rnorm(num_treatments, 0, 0.1)),
+          # dist_beta_cluster_raw = if (discrete_cost) {
+          #   array(0, dim = c(0, 0))
+          # } else if (!use_param_dist_cluster_effects) { 
+          #   if (salience || use_single_cost_model) array(dim = c(0, 1)) else array(dim = c(0, num_treatments)) 
+          # } else {
+          #   if (salience || use_single_cost_model) matrix(rnorm(num_clusters, 0, 0.1), nrow = num_clusters, ncol = 1)
+          #   else matrix(rnorm(num_clusters * num_treatments, 0, 0.1), nrow = num_clusters, ncol = num_treatments)
+          # },
+          # dist_beta_cluster_sd = if (!use_param_dist_cluster_effects) array(dim = 0) 
+          #   else if (salience || use_single_cost_model) as.array(abs(rnorm(1, 0, 0.1)))
+          #   else abs(rnorm(num_treatments, 0, 0.1)),
           mu_cluster_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_clusters * num_treatments, 0, 0.1), num_clusters, num_treatments),
           mu_cluster_effects_sd = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = 0) else abs(rnorm(num_treatments, 0, 0.1)) ,
           mu_county_effects_raw = if (!use_mu_cluster_effects || (suppress_reputation && !salience)) array(dim = c(0, num_incentive_treatments)) else matrix(rnorm(num_counties * num_treatments, 0, 0.1), num_counties, num_treatments) ,
