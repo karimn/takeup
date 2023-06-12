@@ -142,6 +142,8 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS",          "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB",             "Structural",                                         "structural",
+
 
   
   "STACKED",                                          "Stacked Model",                                       "combined", # Includes both reduced form and structural models

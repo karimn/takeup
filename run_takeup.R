@@ -38,14 +38,13 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit94 \
-    --models=REDUCED_FORM_NO_RESTRICT_DIST_CTS  \
+    --outputname=dist_fit93 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB  \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
     --sequential  \
     --county-fe \
-    --multilevel \ 
     --update
     " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
@@ -467,6 +466,13 @@ models <- lst(
         use_cluster_effects = TRUE,
         use_county_effects = TRUE
       ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = TRUE
+      )
 )
 
 # WTP Stan Data -----------------------------------------------------------
