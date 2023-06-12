@@ -53,12 +53,13 @@ parameters {
   vector[use_dist_cts ? 1 : 0] beta_dist_cts;
 
   corr_matrix[num_dist_group_treatments] Omega;
-  vector<lower=0>[num_dist_group_treatments] tau;
+  vector<lower=0, upper=pi()/2>[num_dist_group_treatments] tau_tilde;
 
 }
 
 transformed parameters {
   vector[num_dist_group_treatments] beta; 
+  vector<lower=0>[num_dist_group_treatments] tau;
   vector[num_dist_group_treatments] reduced_treatment_effect;
   vector[num_clusters] reduced_cluster_benefit_cost;
   vector[num_clusters] reduced_beta_cluster = rep_vector(0, num_clusters);
@@ -66,6 +67,8 @@ transformed parameters {
   matrix[num_age_groups, num_dist_group_treatments] reduced_beta_age_group = rep_matrix(0, num_age_groups, num_dist_group_treatments);
   
   matrix<lower = 0, upper = 1>[num_clusters, num_age_groups] reduced_cluster_takeup_prob;
+  // non centred tau ~ cauchy(0, 2.5)
+  tau = 2.5*tan(tau_tilde);
   
   for (dist_index in 1:num_discrete_dist) {
     beta[(num_treatments * (dist_index - 1) + 1):(num_treatments * dist_index)] = 
@@ -125,7 +128,7 @@ model {
   // beta_ink_effect ~ normal(0, [ beta_ink_effect_sd, beta_far_ink_effect_sd ]');
   // beta_calendar_effect ~ normal(0, [ beta_calendar_effect_sd, beta_far_calendar_effect_sd ]');
   // beta_bracelet_effect ~ normal(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]');
-  tau ~ cauchy(0, 2.5);
+  tau_tilde ~ uniform(0, pi() / 2); // uniform [0, pi/2]
   Omega ~ lkj_corr(2);
   beta ~ multi_normal(rep_row_vector(0, num_dist_group_treatments), quad_form_diag(Omega, tau));
   
