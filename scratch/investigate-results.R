@@ -1,43 +1,3 @@
-
-rm(list = ls())
-
-      beta[CALENDAR_TREATMENT_INDEX] = beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu;
-      beta[BRACELET_TREATMENT_INDEX] = beta_bracelet_effect;
-
-
-
-0.25*0.4
-
-sigma = 3
-N = 10000
-x = abs(rnorm(N, mean = 0.25, sd = 0.01))
-
-bra_effect = abs(rnorm(N, mean = 0.1, sd = 0.1))
-beta_cal = bra_effect + x * 0.4 
-beta_bra = bra_effect
-
-mean(beta_cal)
-mean(beta_bra)
-
-tibble(
-  beta_cal = beta_cal,
-  beta_bra = beta_bra
-) %>%
-  gather(variable, value) %>%
-  ggplot(aes(
-    x = value, 
-    fill = variable
-  )) +
-  geom_histogram()
-
-
-mean(beta_cal > beta_bra)
-
-mean(beta_cal)
-mean(beta_bra)
-
-# load("data/stan_analysis_data/dist_fit86.RData")
-
 library(magrittr)
 library(tidyverse)
 library(broom)
@@ -57,8 +17,7 @@ library(tidybayes)
 library(furrr)
 
 
-models_we_want = "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
-
+models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB"
 
 load_param_draws = function(fit_version, model, chain, ...) {
   fit_obj = as_cmdstan_fit(
@@ -70,6 +29,52 @@ load_param_draws = function(fit_version, model, chain, ...) {
     mutate(chain = chain, model = model, fit_version = fit_version)
   return(draws)
 }
+
+# sd_draws_91 = load_param_draws(
+#   90,
+#   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+#   1,
+#   u_sd[idx_1]
+# )
+
+sd_draws_93 = load_param_draws(
+  93,
+  models_we_want,
+  1,
+  u_sd[idx_1]
+)
+
+assigned_cw = analysis_data %>%
+  select(cluster_id, assigned_treatment, assigned_dist_group) %>%
+  unique()
+
+sd_draws_93 %>%
+  left_join(
+    assigned_cw,
+    by = c("idx_1" = "cluster_id")
+  ) %>%
+  mutate(u_sd = mean(u_sd)) %>%
+  ggplot(aes(
+    x = u_sd,
+    fill = assigned_dist_group
+  )) +
+  geom_histogram( position = position_dodge(0.3)) +
+  facet_wrap(~assigned_treatment, ncol = 1) +
+  theme_minimal()
+
+
+assigned_cw
+
+sd_draws_93 %>%
+  mutate(
+    u_sd = mean(u_sd)
+  ) %>%
+  ggplot(aes(
+    x = u_sd
+  )) +
+  geom_histogram()
+
+stop()
 
 
 beta_draws = load_param_draws(
