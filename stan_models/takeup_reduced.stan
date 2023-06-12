@@ -52,6 +52,9 @@ parameters {
   
   vector[use_dist_cts ? 1 : 0] beta_dist_cts;
 
+  corr_matrix[num_dist_group_treatments] Omega;
+  vector<lower=0>[num_dist_group_treatments] tau;
+
 }
 
 transformed parameters {
@@ -118,10 +121,13 @@ transformed parameters {
 }
 
 model {
-  beta_control ~ normal(0, [ beta_intercept_sd, beta_far_effect_sd ]');
-  beta_ink_effect ~ normal(0, [ beta_ink_effect_sd, beta_far_ink_effect_sd ]');
-  beta_calendar_effect ~ normal(0, [ beta_calendar_effect_sd, beta_far_calendar_effect_sd ]');
-  beta_bracelet_effect ~ normal(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]');
+  // beta_control ~ normal(0, [ beta_intercept_sd, beta_far_effect_sd ]');
+  // beta_ink_effect ~ normal(0, [ beta_ink_effect_sd, beta_far_ink_effect_sd ]');
+  // beta_calendar_effect ~ normal(0, [ beta_calendar_effect_sd, beta_far_calendar_effect_sd ]');
+  // beta_bracelet_effect ~ normal(0, [ beta_bracelet_effect_sd, beta_far_bracelet_effect_sd ]');
+  tau ~ cauchy(0, 2.5);
+  Omega ~ lkj_corr(2);
+  beta ~ multi_normal(rep_row_vector(0, num_dist_group_treatments), quad_form_diag(Omega, tau));
   
   if (use_cluster_effects) {
     reduced_beta_cluster_raw ~ std_normal();
