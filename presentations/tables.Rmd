@@ -1853,6 +1853,101 @@ pr_comparison_te_df = full_dist_fit_data %>%
   ) %>%
   ungroup()
 
+comparison_te_df = full_dist_fit_data %>%
+  filter(fit_type == "fit") %>%
+  select(model_type, fit_type, est_takeup_te) %>%
+  unnest(est_takeup_te)  %>%
+  group_by(
+    model_type, 
+    fit_type, 
+    assigned_treatment_left,
+    assigned_treatment_right,
+    mu_assigned_treatment_left, 
+    mu_assigned_treatment_right, 
+    assigned_dist_group_left, 
+    assigned_dist_group_right
+  ) %>%
+  select(mean_est, per_0.05, per_0.95) %>%
+  ungroup()
+
+full_dist_fit_data %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  select(
+    model_type,
+    est_takeup_te
+  ) %>%
+  mutate(
+    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te)
+  ) %>%
+  unnest(est_takeup_te) %>%
+  filter(assigned_dist_group_left != "Combined")  %>%
+  unnest(iter_data) %>%
+  select(
+    model_type,
+    assigned_treatment_left,
+    assigned_dist_group_left,
+    iter_id, iter_takeup_te
+  ) %>%
+  spread(
+    assigned_dist_group_left,
+    iter_takeup_te
+  ) %>%
+  group_by(
+    model_type,
+    assigned_treatment_left
+  )  %>%
+  mutate(
+    far_close_diff = Far - Close
+  ) %>%
+  select(model_type, assigned_treatment_left, iter_id, far_close_diff) %>%
+  spread(assigned_treatment_left, far_close_diff)  %>%
+  mutate(
+    bra_fc_minus_cal_fc = Bracelet - Calendar
+  ) %>%
+  group_by(
+    model_type
+  ) %>%
+  summarise(
+    pr_positive = mean(bra_fc_minus_cal_fc > 0),
+    mean_diff = mean(bra_fc_minus_cal_fc),
+    median_diff = median(bra_fc_minus_cal_fc),
+    per_0.05 = quantile(bra_fc_minus_cal_fc, 0.05),
+    per_0.95 = quantile(bra_fc_minus_cal_fc, 0.95)
+  ) 
+  
+
+incentive_comp_far_bigger_te = full_dist_fit_data %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  select(
+    model_type,
+    est_takeup_te
+  ) %>%
+  mutate(
+    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te)
+  ) %>%
+  unnest(est_takeup_te) %>%
+  filter(assigned_dist_group_left != "Combined")  %>%
+  unnest(iter_data) %>%
+  select(
+    model_type,
+    assigned_treatment_left,
+    assigned_dist_group_left,
+    iter_id, iter_takeup_te
+  ) %>%
+  spread(
+    assigned_dist_group_left,
+    iter_takeup_te
+  ) %>%
+  group_by(
+    model_type,
+    assigned_treatment_left
+  ) %>%
+  summarise(
+    mean_est = mean(Far - Close),
+    per_0.05 = quantile(Far - Close, 0.05),
+    per_0.95 = quantile(Far - Close, 0.95)
+  )
+
 
 incentive_far_bigger_te_df = full_dist_fit_data %>%
   filter(fct_match(fit_type, "fit")) %>%
@@ -1993,6 +2088,90 @@ incentive_bracelet_calendar_diff_df = pr_comparison_te_df %>%
       assigned_treatment = "$\\hat{\\pi}$(Bracelet > Calendar)"
     )
 
+incentive_bracelet_calendar_comp_diff_df = full_dist_fit_data %>%
+  filter(fit_type == "fit") %>%
+  mutate(
+    est_takeup_te = map2(
+      est_takeup_te,
+      model_type,
+      ~filter(.x,
+        (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+        .y == "reduced form" | (.y == "structural" & (mu_assigned_treatment_left == assigned_treatment_left)), # same mu and B
+        .y == "reduced form" | (.y == "structural" & (mu_assigned_treatment_right == assigned_treatment_right)), # same mu and B
+        fct_match(assigned_treatment_right, "calendar"), 
+        fct_match(assigned_treatment_left, "bracelet")
+      ) %>%
+      mutate(
+          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+            fct_relabel(str_to_title) %>% 
+            fct_relevel("Combined"),
+          assigned_treatment_left = str_to_title(assigned_treatment_left),
+        )   
+    )
+  ) %>%
+  unnest(
+    est_takeup_te
+  ) %>%
+  select(
+    fit_type,
+    model_type,
+    assigned_treatment = assigned_treatment_left,
+    assigned_dist_group = assigned_dist_group_left,
+    mean_est, 
+    per_0.05, 
+    per_0.95
+  ) 
+
+signal_bracelet_calendar_comp_diff_df = comparison_te_df %>%
+  filter(
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+    (assigned_treatment_left == assigned_treatment_right), # same B on LHS and RHS
+    (mu_assigned_treatment_left == "bracelet" & mu_assigned_treatment_right == "calendar"), 
+    assigned_treatment_left == "control" 
+) %>%
+    mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      ) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      mean_est,
+      per_0.05,
+      per_0.95
+    ) %>%
+    mutate(
+      assigned_treatment = "Bracelet - Calendar"
+    )
+
+signal_bracelet_calendar_comp_diff_df = comparison_te_df %>%
+  filter(
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
+    (assigned_treatment_left == assigned_treatment_right), # same B on LHS and RHS
+    (mu_assigned_treatment_left == "bracelet" & mu_assigned_treatment_right == "calendar"), 
+    assigned_treatment_left == "control" 
+) %>%
+    mutate(
+        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
+          fct_relabel(str_to_title) %>% 
+          fct_relevel("Combined"),
+        assigned_treatment_left = str_to_title(assigned_treatment_left),
+      ) %>%
+    select(
+      assigned_treatment = assigned_treatment_left,
+      assigned_dist = assigned_dist_group_left, 
+      model_type,
+      mean_est,
+      per_0.05,
+      per_0.95
+    ) %>%
+    mutate(
+      assigned_treatment = "Bracelet - Calendar"
+    )
+
 signal_bracelet_calendar_diff_df = pr_comparison_te_df %>%
   filter(
     (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
@@ -2126,9 +2305,6 @@ te_input_df = right_join(
     Close,
     Far
   )
-
-
-
 
 
 
@@ -2274,7 +2450,7 @@ overall_te_kbl_df =
       "Dependent variable: Take-up",
       paste0("(", 1:8, ")")
     ), 
-    format = "latex", 
+    # format = "latex", 
     linesep = "\\addlinespace \\addlinespace \\addlinespace",
     booktabs = TRUE, 
     escape = FALSE, 
@@ -2305,7 +2481,6 @@ overall_te_kbl_df =
       "Structural" = 4
       )
   ) %>%
-  # add_indent(4) %>%
   row_spec(4, hline_after = TRUE) %>%
   add_indent(1:5) %>%
   footnote(
