@@ -99,8 +99,6 @@ parameters {
   
   real<lower = 0> base_mu_rep;
   vector<lower = 0>[use_cluster_effects ? num_clusters : 1] raw_u_sd;
-  real<lower = 0> raw_u_sd_alpha_tilde;
-  real<lower = 0> raw_u_sd_beta_tilde;
   
   // Linear Parametric Cost
   
@@ -148,9 +146,6 @@ transformed parameters {
   
   vector<lower = 0>[use_cluster_effects ?  num_clusters : num_treatments] u_sd;
   vector<lower = 0>[use_cluster_effects ? num_clusters : num_treatments] total_error_sd;
-
-  real<lower=0> raw_u_sd_alpha = raw_u_sd_alpha_tilde*0.05 + 3.0;
-  real<lower=0> raw_u_sd_beta = raw_u_sd_beta_tilde*0.05 + 1.0;
 
 
   if (BELIEFS_ORDER == 1) {
@@ -238,13 +233,8 @@ transformed parameters {
   }
   
   if (use_county_effects) {
-    structural_beta_county = structural_beta_county_raw * structural_beta_county_sd[1];
+    structural_beta_county = structural_beta_county_raw; // * structural_beta_county_sd[1];
     
-    // if (use_wtp_model) { // Calendar = Bracelet + strata_effect
-    //   structural_beta_county[, 3] = structural_beta_county[, 4] + wtp_value_utility * strata_effect_wtp_mu; 
-    // } 
-    
-    // county_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_county[cluster_county_id]); 
     structural_cluster_benefit_cost += structural_beta_county[cluster_county_id];
   }
 
@@ -362,16 +352,11 @@ model {
   }
   
   if (use_county_effects) {
-    // to_vector(structural_beta_county_raw) ~ std_normal();
-    structural_beta_county_raw ~ std_normal();
-    structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
+    structural_beta_county_raw ~ normal(0, 0.125);
+    structural_beta_county_sd ~ normal(0, structural_beta_cluster_sd_sd);
   }
 
-  // TODO: make this actually hierarchical   search HERE ED in takeup_data_sec
   raw_u_sd ~ inv_gamma(raw_u_sd_alpha, raw_u_sd_beta);
-
-  raw_u_sd_alpha_tilde ~ std_normal();
-  raw_u_sd_beta_tilde ~ std_normal();
 
   if (fit_model_to_data) {
     // Take-up Likelihood 

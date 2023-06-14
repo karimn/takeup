@@ -41,6 +41,5 @@ real<lower = 0> structural_beta_cluster_sd_sd;
 real<lower = 0> wtp_value_utility_sd;
 real wtp_value_utility_mean;
 
-// TODO: Make hierarchical HERE ED
-// real<lower = 0> raw_u_sd_alpha;
-// real<lower = 0> raw_u_sd_beta;
+real<lower = 0> raw_u_sd_alpha;
+real<lower = 0> raw_u_sd_beta;
