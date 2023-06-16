@@ -7,13 +7,15 @@ output:
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 93
-  fit_version: 86
+  rf_fit_version: 98
+  fit_version: 85
   input_path: data/stan_analysis_data
   output_path: temp-data
-  models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+  struct_model: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+  rf_model: REDUCED_FORM_NO_RESTRICT
   plot_caption: TRUE
-  component_checks: TRUE
+  component_checks: FALSE
+  cache: TRUE
 ---
 
 ```{r takeup-present-setup, include=FALSE}
@@ -38,13 +40,15 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 86,
-    rf_fit_version = 90,
+    fit_version = 85,
+    rf_fit_version = 100,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
-    models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+    struct_model = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+    rf_model = "REDUCED_FORM_NO_RESTRICT_DIST_CTS",
     component_checks = FALSE, 
-    plot_caption = TRUE
+    plot_caption = TRUE,
+    cache = FALSE
   )
 }
 
@@ -65,7 +69,7 @@ knitr::opts_chunk$set(
   message = FALSE, 
   warnings = FALSE, 
   warning = FALSE, 
-  cache = TRUE, 
+  cache = params$cache, 
   cache.path = str_glue("takeup-{params$models}{params$fit_version}-figure-cache/"), 
   fig.path = str_glue("takeup-{params$models}{params$fit_version}-fig/"), 
   fig.align = "center"
@@ -116,7 +120,8 @@ dist_caption =  if(params$plot_caption) {
 
 
 models_we_want = c(
-  params$models
+  params$struct_model,
+  params$rf_model
 )
 
 
@@ -287,7 +292,7 @@ with_env = function(f, e = parent.frame()) {
 if (params$fit_version != params$rf_fit_version) {
   # Only load structural
   dist_fit_data = dist_fit_data %>%
-    filter(model %in% models_we_want)
+    filter(model %in% params$struct_model)
 
   rf_env = new.env()
 
@@ -298,7 +303,7 @@ if (params$fit_version != params$rf_fit_version) {
 
 
   rf_fit_data = with_env(load_rf_function, rf_env)() %>%
-    filter(model %in% c("REDUCED_FORM_NO_RESTRICT_DIST_CTS"))
+    filter(model %in% params$rf_model)
 
 
   dist_fit_data = bind_rows(
@@ -318,7 +323,7 @@ dist_fit_data %<>%
   ), by = "fit_type") 
 
 dist_fit_data = dist_fit_data %>%
-  filter(model %in% c("REDUCED_FORM_NO_RESTRICT_DIST_CTS", models_we_want))
+  filter(model %in%  models_we_want)
 
 
 rf_analysis_data <- dist_fit_data %>% 
@@ -738,10 +743,12 @@ plot_ord_beliefs_est <- function(beliefs_results,
 }
 
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model, models_we_want), 
+    fct_match(model_type, "structural")) %>%
   pull(beliefs_results) %>%
   first() %>%
-# beliefs_results %>%
   plot_ord_beliefs_est(order = 1 )
 
 ```
@@ -754,7 +761,11 @@ dist_fit_data %>%
 #|  fig.note="This plot shows first estimates using the second order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model, models_we_want),
+    fct_match(model_type, "structural")
+    ) %>%
   pull(beliefs_results) %>%
   first() %>%
   plot_ord_beliefs_est(order = 2)
@@ -777,7 +788,11 @@ dist_fit_data %>%
 #|   binomial model. Total sample size: 999 observations at the individual level."
 
 belief_data = dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model, models_we_want),
+    fct_match(model_type, "structural")
+    ) %>%
   pull(beliefs_results) %>%
   first() 
 
@@ -1525,7 +1540,8 @@ reduced_incentive_level_plot_df = dist_fit_data %>%
       (fct_match(model_type, "reduced form"))
     )  %>%
     mutate(est_takeup_level = map_if(est_takeup_level,
-        fct_match(fit_type, "prior-predict"), 
+        # fct_match(fit_type, "prior-predict"), 
+        fit_type == "prior-predict",
         ~mutate(.x, 
           across(
             c(contains("per"), mean_est),
@@ -1696,10 +1712,6 @@ grab_signalling_ate = function(data, model_type_to_plot, models_we_want) {
 }
 
 default_ate_limits = c(-0.125, 0.15)
-
-structural_signalling_ate_plot = dist_fit_data %>%
-  grab_signalling_ate(., "structural", models_we_want) 
-
 
 structural_signalling_ate_plot = dist_fit_data %>%
   grab_signalling_ate(., "structural", models_we_want) %>%
@@ -1900,8 +1912,8 @@ single_structural_private_ate_plot +
 
 1+1
 structural_incentive_ate_plot = dist_fit_data %>%
+  filter(model %in% models_we_want) %>%
   grab_incentive_ate(., model_type_to_plot = "structural") %>%
-  filter(model == models_we_want) %>%
   plot_estimands(., 
                  est_takeup_te, 
                  assigned_treatment_left, 
@@ -2082,7 +2094,11 @@ joint_wtp_results %>%
 
 
 dist_prob_plot <- dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model, models_we_want),
+    fct_match(model_type, "structural")
+    ) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
   transmute(
     model_name,
     cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
@@ -2267,7 +2283,11 @@ rep_te_plot_fun(rep_te_plot_df, "ink") +
 #|  decomposition from structural model." 
 
 dist_fit_data %>% 
-  filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model, models_we_want),
+    fct_match(model_type, "structural")
+    ) %>%
   select(model_name, cluster_rep_return_dist) %>%
   unnest(cluster_rep_return_dist) %>% 
   mutate(
@@ -2308,7 +2328,11 @@ dist_fit_data %>%
 plot_rep_returns_one_by_one = function(data, treatment) {
     subtitle_str = str_to_title(treatment)
     plot = data %>%
-        filter(fct_match(fit_type, "fit"), fct_match(model, models_we_want)) %>%
+        filter(
+          fct_match(fit_type, "fit"), 
+          fct_match(model, models_we_want),
+          fct_match(model_type, "structural")
+          ) %>%
         select(model_name, cluster_rep_return_dist) %>%
         unnest(cluster_rep_return_dist) %>% 
         filter(assigned_treatment == treatment) %>%
@@ -2682,7 +2706,8 @@ plot_summ_bc_draws = read_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
 p_roc = dist_fit_data %>% 
   filter(
     fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want) 
+    fct_match(model, models_we_want) ,
+    fct_match(model_type, "structural")
     ) %>% 
   mutate(
     model_name,
@@ -2762,7 +2787,8 @@ p_roc
 prior_sm_post_df = dist_fit_data %>% 
   filter(
     fct_match(fit_type, "prior-predict"), 
-    fct_match(model, models_we_want) 
+    fct_match(model, models_we_want) ,
+    fct_match(model_type, "structural")
     ) %>% 
   mutate(
     model_name,
