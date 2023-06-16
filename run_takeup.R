@@ -38,18 +38,23 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit93 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB  \
+    --outputname=dist_fit95 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
+    --chains=4 \
     --sequential  \
-    --county-fe \
     --update
     " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
+
+
+
+    # --county-fe \
+    # --multilevel \
 
 library(magrittr)
 library(tidyverse)
@@ -208,8 +213,8 @@ models <- lst(
     beta_calendar_effect_sd = 0.25,
     beta_bracelet_effect_sd = 0.25,
     
-    structural_beta_county_sd_sd = 0.05,
-    structural_beta_cluster_sd_sd = 0.25,
+    structural_beta_county_sd_sd = 0.1,
+    structural_beta_cluster_sd_sd = 0.1,
     
     wtp_value_utility_sd = 0.0001,
     wtp_value_utility_mean = 0.0,
@@ -469,6 +474,13 @@ models <- lst(
     STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = TRUE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 1,
         mu_rep_type = 4,
         use_cluster_effects = FALSE,
         use_county_effects = TRUE
