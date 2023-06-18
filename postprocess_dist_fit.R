@@ -19,10 +19,11 @@ Options:
   
   "), 
   args = if (interactive()) "
-  93
+  95
   --cores=1 
-  --output-path=ed-temp-data-cluster
+  --output-path=temp-data
   --load-from-csv 
+  --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
   --single-chain" else commandArgs(trailingOnly = TRUE)
 )
 
@@ -143,6 +144,8 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_SOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB",             "Structural",                                         "structural",
 
 
   
