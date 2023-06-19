@@ -212,7 +212,8 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              visibility_treatment,
                              beta_b_control,
                              suppress_reputation, 
-                             static_signal) {
+                             static_signal,
+                             fix_mu_at_1 = FALSE) {
     function(distance){
       
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
@@ -232,7 +233,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           delta_v_star_deriv = NA
           pr_obs = NA 
 
-        }  else {
+        } else {
           if (visibility_treatment == "control") {
             mu_rep_control_param = TRUE
           } else {
@@ -243,7 +244,10 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           if (!is.null(static_signal)) {
             b = b + static_signal
             mu_rep = 0
-          mu_rep_deriv = NA
+            mu_rep_deriv = NA
+          } else if (fix_mu_at_1 == TRUE) {
+              mu_rep = 1
+              mu_rep_deriv = 0
           } else {
             mu_rep = calculate_mu_rep(
                 dist = distance,
@@ -330,7 +334,8 @@ find_pred_takeup = function(params) {
         private_benefit_treatment = params$private_benefit_treatment, 
         visibility_treatment = params$visibility_treatment,
         suppress_reputation = params$suppress_reputation,
-        static_signal = params$static_signal
+        static_signal = params$static_signal,
+        fix_mu_at_1 = params$fix_mu_at_1
     )
 }
 
@@ -346,7 +351,8 @@ extract_params = function(param_draws,
                           bounds = c(-Inf, Inf),
                           mu_rep_type = 0,
                           suppress_reputation, 
-                          static_signal) {
+                          static_signal,
+                          fix_mu_at_1 = FALSE) {
     treatments = c(
         "control",
         "ink",
@@ -418,7 +424,8 @@ extract_params = function(param_draws,
         "visibility_treatment" = as.character(visibility_treatment), 
         "beta_b_control" = beta_b_control, 
         "suppress_reputation" = suppress_reputation, 
-        "static_signal" = static_signal
+        "static_signal" = static_signal,
+        "fix_mu_at_1" = fix_mu_at_1
         ) %>%
         as.list()
 
