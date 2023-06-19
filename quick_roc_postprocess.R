@@ -1,0 +1,176 @@
+
+#!/usr/bin/Rscript
+script_options <- docopt::docopt(
+  stringr::str_glue(
+"Usage:
+  quick_roc_postprocess.R <fit-version> [options] [<chain>...]
+  
+Options:
+  --input-path=<path>  Path to find results [default: {file.path('data', 'stan_analysis_data')}]
+  --output-path=<path>  Path to find results [default: temp-data]
+  --model=<model>  Which model to postprocess
+  --prior  Postprocess the prior predictive
+  --cluster-roc
+  --fix-cluster-roc
+  
+  "), 
+  args = if (interactive()) "
+  101
+  --output-path=temp-data
+  --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
+  1
+  " else commandArgs(trailingOnly = TRUE)
+)
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(tidybayes)
+
+
+
+## Load analysis data
+load(file.path("data", "analysis.RData"))
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+analysis_data <- monitored_nosms_data %>% 
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+## Load Stan output
+load_param_draws = function(fit_version, model, chain, prior_predictive = FALSE, ...) {
+  if (prior_predictive == TRUE) {
+    fit_str = str_glue(
+      "data/stan_analysis_data/dist_prior{fit_version}_{model}-{chain}.csv"
+    )
+  } else {
+    fit_str = str_glue(
+      "data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"
+    )
+  }
+
+  fit_obj = as_cmdstan_fit(fit_str)
+  draws = spread_rvars(
+    fit_obj,
+    ...
+  ) %>%
+    mutate(model = model, fit_version = fit_version, fit_type = if_else(prior_predictive, "prior-predict", "fit"))
+  return(draws)
+}
+
+# N.B. treat_idx (the second idx, is the mu (signalling) idx)
+treat_idx_mapper = tibble(
+  treat_idx = 1:4,
+  treatment = c("control", "ink", "calendar", "bracelet")
+) %>%
+  mutate(treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")))
+dist_idx_mapper = tibble(
+  dist_treat_idx = 1:8,
+  dist_treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
+  dist_group = rep(c("close", "far"), each = 4)
+) %>%
+  mutate(dist_treatment = factor(dist_treatment, levels = c("bracelet", "calendar", "ink", "control")))
+cluster_mapper = analysis_data %>%
+  select(
+    cluster_id,
+    assigned_treatment,
+    assigned_dist_group
+  ) %>% unique()
+
+roc_dist_idx_mapper = tibble(
+    roc_distance = seq(0, 5000, 100)) %>% 
+    mutate(roc_dist_idx = seq(n()))
+
+roc_param = c("cluster_roc_diff", "cluster_roc_diff_diffdist", 
+               "cluster_roc", "cluster_rep_return", "cluster_rep_return_dist", 
+               "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
+
+
+if (script_options$cluster_roc) {
+
+    cluster_roc_draws_raw = load_param_draws(
+    fit_version = script_options$fit_version,
+    model = script_options$model,
+    chain = script_options$chain,
+    prior_predictive = script_options$prior,
+    cluster_roc[roc_dist_idx, cluster_idx, treat_idx]
+    )
+
+    cluster_roc_draws = cluster_roc_draws_raw %>%
+        left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
+        left_join(treat_idx_mapper, by = "treat_idx")
+
+    roc_draws = cluster_roc_draws  %>%
+        group_by(
+            model,
+            fit_version,
+            fit_type,
+            treatment, 
+            roc_distance
+        ) %>%
+        summarise(
+            cluster_roc = rvar_mean(cluster_roc)
+        )
+        
+        
+        
+    summ_roc_draws = cluster_roc_draws %>%
+        median_qi(cluster_roc) %>%
+        to_broom_names()
+        
+        
+    summ_roc_draws %>%
+        filter(roc_distance <= 2500) %>%
+        ggplot(aes(
+            x = roc_distance,
+            y = cluster_roc,
+            ymin = conf.low,
+            ymax = conf.high,
+            colour = treatment
+        )) +
+        geom_pointrange() 
+
+}
+
+
+if (script_options$fix_cluster_roc) {
+    cluster_fix_mu_roc_draws_raw = load_param_draws(
+        fit_version = script_options$fit_version,
+        model = script_options$model,
+        chain = script_options$chain,
+        prior_predictive = script_options$prior,
+        cluster_roc_no_vis[roc_dist_idx, cluster_idx, treat_idx],
+        cluster_roc_delta_deriv[roc_dist_idx, cluster_idx, treat_idx]
+    ) 
+
+
+    cluster_fix_mu_roc_draws = cluster_fix_mu_roc_draws_raw  %>%
+        left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
+        left_join(treat_idx_mapper, by = "treat_idx")
+
+    cluster_fix_roc_draws = cluster_fix_mu_roc_draws %>%
+        mutate(
+            fix_cluster_roc = cluster_roc_no_vis / (1 + cluster_roc_delta_deriv)
+        )
+
+    summ_fix_roc_draws = cluster_fix_roc_draws  %>%
+        group_by(
+            model,
+            fit_version,
+            fit_type,
+            treatment, 
+            roc_distance
+        ) %>%
+        summarise(
+            fix_cluster_roc = rvar_mean(fix_cluster_roc)
+        ) %>%
+        median_qi(fix_cluster_roc) %>%
+        to_broom_names()
+
+}
