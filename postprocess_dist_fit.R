@@ -21,10 +21,13 @@ Options:
   args = if (interactive()) "
   95
   --cores=1 
-  --output-path=temp-data
+  --output-path=tmp
   --load-from-csv 
+  --single-chain
+  --no-prior
+  --no-rate-of-change
   --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
-  --single-chain" else commandArgs(trailingOnly = TRUE)
+  " else commandArgs(trailingOnly = TRUE)
 )
 
 library(magrittr)
@@ -543,7 +546,7 @@ dist_fit_data %<>%
     # for RF model, we only want to use close distances in the close group and 
     # far distances in the far group when averaging across all clusters to get 
     # takeup levels.
-    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "reduced form")) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
+    est_takeup_level = list(cluster_cf_cutoff, TRUE) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
       pmap(organize_by_treatment,  mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
