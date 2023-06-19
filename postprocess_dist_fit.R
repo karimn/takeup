@@ -23,12 +23,13 @@ Options:
   --cores=1 
   --output-path=tmp
   --load-from-csv 
-  --single-chain
-  --no-prior
-  --no-rate-of-change
-  --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
   " else commandArgs(trailingOnly = TRUE)
 )
+
+  # --single-chain
+  # --no-prior
+  # --no-rate-of-change
+  # --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
 
 library(magrittr)
 library(tidyverse)
@@ -173,9 +174,17 @@ dist_fit_data <- tryCatch({
   if (!is_null(script_options$models)) {
     dist_fit %<>%  magrittr::extract(script_options$models)
   }
+
+
+
+  dist_fit_present_lgl = dist_fit %>% map(~str_c(str_remove(.x, fixed(".rds")), r"{-1.csv}")) %>%
+    map_lgl(file.exists)
+
+  dist_fit = dist_fit[dist_fit_present_lgl]
   
   dist_fit %<>% 
-    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
+    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL)))  
+    
 
   if (has_name(dist_fit, "value")) {
     dist_fit_warnings <- dist_fit$warning
