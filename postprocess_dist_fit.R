@@ -177,10 +177,10 @@ dist_fit_data <- tryCatch({
 
 
 
-  dist_fit_present_lgl = dist_fit %>% map(~str_c(str_remove(.x, fixed(".rds")), r"{-1.csv}")) %>%
-    map_lgl(file.exists)
+#  dist_fit_present_lgl = dist_fit %>% map(~str_c(str_remove(.x, fixed(".rds")), r"{-1.csv}")) %>%
+#    map_lgl(file.exists)
 
-  dist_fit = dist_fit[dist_fit_present_lgl]
+#  dist_fit = dist_fit[dist_fit_present_lgl]
   
   dist_fit %<>% 
     map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL)))  
