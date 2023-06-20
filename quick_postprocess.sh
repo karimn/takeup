@@ -38,15 +38,8 @@ fi
 
 STAN_THREADS=$((${CORES} / 4))
 
-	models=(
-		"STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB" 
-		"REDUCED_FORM_NO_RESTRICT"
-		)
 
-	for model in "${models[@]}"
-	do
-
-postprocess_models () {
+postprocess_struct_models () {
     echo "RUNNING: $1"
     Rscript --no-save \
             --no-restore \
@@ -86,13 +79,32 @@ postprocess_models () {
             1 2 3 4
 }
 
+postprocess_rf_models () {
+    echo "RUNNING: $1"
+    Rscript --no-save \
+            --no-restore \
+            --verbose \
+            quick_ate_postprocess.R \
+            ${VERSION} \
+            ${POSTPROCESS_INOUT_ARGS} \
+            --model=$1 \
+            1 2 3 4
 
-#postprocess_models "REDUCED_FORM_NO_RESTRICT"
-#srun -n1 postprocess_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP" &
-#srun -n1 postprocess_models "REDUCED_FORM_NO_RESTRICT" &
-#wait
+    Rscript --no-save \
+            --no-restore \
+            --verbose \
+            quick_ate_postprocess.R \
+            ${VERSION} \
+            ${POSTPROCESS_INOUT_ARGS} \
+            --model=$1 \
+            --prior \
+            1 2 3 4
 
-srun --exclusive --ntasks=1 postprocess_models "REDUCED_FORM_NO_RESTRICT" &
-srun --exclusive --ntasks=1 postprocess_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"	&
+}
+
+
+
+srun --exclusive --ntasks=1 postprocess_struct_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB" &
+srun --exclusive --ntasks=1 postprocess_struct_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB"	&
 wait
 
