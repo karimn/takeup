@@ -13,8 +13,6 @@ Options:
     --output-path=temp-data \
     --cts-interval=200
     " else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
-
 ) 
 
 
@@ -77,12 +75,17 @@ analysis_data <- monitored_nosms_data
 #| balance-setup
 baseline.data = baseline.data %>%
   mutate(
-    baseline_neighbours_worm_knowledge = case_when(
-      neighbours_worms_affect == "yes" ~ TRUE, 
-      neighbours_worms_affect == "no" ~ FALSE
+    fully_aware_externalities = case_when(
+      neighbours_worms_affect == "yes" & worms_affect == "yes" ~ TRUE, 
+      is.na(neighbours_worms_affect) | is.na(worms_affect) ~ NA,
+      TRUE ~ FALSE
+    ),
+    partially_aware_externalities = case_when(
+      neighbours_worms_affect == "yes" | worms_affect == "yes" ~ TRUE,
+      is.na(neighbours_worms_affect) | is.na(worms_affect) ~ NA,
+      TRUE ~ FALSE
     )
   )
-
 
 # Create floor quality variable
 baseline.data = baseline.data %>%
@@ -151,15 +154,43 @@ baseline.data = baseline.data %>%
       TRUE ~ NA
     ), 
   )
+
 baseline.data = baseline.data %>%
   # these are nested lists of responses so we map_lgl and use any()
   mutate(
-    all_can_get_worms = map_lgl(who_worms, ~any(str_detect(.x, "everyone") | (str_detect(.x, "adult") & str_detect(.x, "child")))), 
+    all_can_get_worms = map2_lgl(
+      who_worms, 
+      who_worms_other,
+      ~any(
+        "everyone" %in% .x | 
+        str_detect(str_to_lower(.y), "any") | 
+        (("adult" %in% .x) & ("child" %in% .x)) |
+        ("adult" %in% .x | str_detect(str_to_lower(.y), "adult|man|woman|men|women|person")) & ("child" %in% .x | str_detect(str_to_lower(.y), "child|under|young|teenager|below"))
+    )
+    ), 
     correct_when_treat = map_lgl(when_treat, ~any(.x == "every 6 months")), 
-    know_deworming_stops_worms = map_lgl(stop_worms, ~any(.x == "medicine"))
+    know_deworming_stops_worms = map2_lgl(
+      stop_worms, 
+      stop_worms_other,
+      ~any(.x %in% c(
+        "medicine", 
+        "wearing shoes", 
+        "using toilets", 
+        "wash hands") | str_detect(.y, "cooked|prepar|cook")))
   ) 
 
+baseline.data %>%
+  select(who_worms) %>%
+  mutate(
+    ad_and_child = map_lgl(who_worms, ~any(("adult" %in% .x) & ("child" %in% .x)))
+  ) %>%
+  filter(ad_and_child == TRUE)
 
+baseline.data %>%
+  select(who_worms_other) %>%
+  count(who_worms_other) %>%
+  arrange(-n) %>%
+  print(n = 100)
 
 # creating a single treat x distance variable for balance testing
 cluster_treat_df = analysis_data %>%
@@ -174,34 +205,7 @@ cluster_treat_df = analysis_data %>%
   unique()
 
 
-know_balance_data = analysis_data %>%
-  nest_join(
-    endline.know.table.data %>% 
-      filter(fct_match(know.table.type, "table.A")),
-    by = "KEY.individ", 
-    name = "knowledge_data"
-  ) %>% 
-  mutate(
-    map_dfr(knowledge_data, ~ {
-      tibble(
-        obs_know_person = sum(.x$num.recognized),
-        obs_know_person_prop = mean(.x$num.recognized),
-        knows_other_dewormed = sum(fct_match(.x$dewormed, c("yes", "no")), na.rm = TRUE),
-        knows_other_dewormed_yes = sum(fct_match(.x$dewormed, "yes"), na.rm = TRUE),
-        thinks_other_knows = sum(fct_match(.x$second.order, c("yes", "no")), na.rm = TRUE),
-        thinks_other_knows_yes = sum(fct_match(.x$second.order, "yes"), na.rm = TRUE),
-      )
-    }
-  )) %>%
-  inner_join(
-    cluster_treat_df, 
-    by = "cluster.id"
-  )
 
-
-
-
-know_vars = c("obs_know_person")
 
 
 ## Baseline Balance
@@ -221,6 +225,27 @@ baseline_balance_data = baseline_balance_data %>%
   ) 
 
 
+
+
+baseline_balance_data = baseline_balance_data %>%
+  mutate(time = lubridate::mdy_hms(endtime) - lubridate::mdy_hms(starttime)) %>%
+  filter(time > 10,  time < 3*60) 
+
+
+baseline_balance_data %>%
+  select(school)
+
+
+baseline_balance_data %>%
+  select(reason_diference) %>%
+  count(reason_diference) %>%
+  arrange(-n)
+baseline_balance_data %>%
+  count(right_person)
+
+baseline_balance_data %>%
+  select(cluster.id)
+
 baseline_vars = c(
   "completed_primary", 
   "know_deworming_stops_worms",
@@ -228,7 +253,8 @@ baseline_vars = c(
   "floor_tile_cement",
   "all_can_get_worms",
   "correct_when_treat",
-  "baseline_neighbours_worm_knowledge"
+  "fully_aware_externalities",
+  "partially_aware_externalities"
 )
 
 
@@ -273,7 +299,7 @@ mutate(
 # Probably a better way to get the schools in the sample
 school_treat_df = analysis_school_data %>%
   filter(!is.na(assigned.treatment)) %>%
-  select(any_of(colnames(rct_school_df)), treat_dist, cluster.dist.to.pot, constituency, cluster.id, county, dist_to_pot) %>%
+  select(treat_dist, cluster.dist.to.pot = standard_cluster.dist.to.pot,  cluster.id, county) %>%
   unique()
 
 
@@ -285,10 +311,15 @@ endline_balance_data = endline.data %>%
     by = "cluster.id"
   ) %>%
   mutate(
-    endline_neighbours_worm_knowledge = case_when(
-      neighbours_worms_affect == "yes" ~ TRUE, 
-      neighbours_worms_affect == "no" ~ FALSE, 
-      TRUE ~ NA
+    fully_aware_externalities = case_when(
+      neighbours_worms_affect == "yes" & worms_affect == "yes" ~ TRUE, 
+      is.na(neighbours_worms_affect) | is.na(worms_affect) ~ NA,
+      TRUE ~ FALSE
+    ),
+    partially_aware_externalities = case_when(
+      neighbours_worms_affect == "yes" | worms_affect == "yes" ~ TRUE,
+      is.na(neighbours_worms_affect) | is.na(worms_affect) ~ NA,
+      TRUE ~ FALSE
     )
   ) %>%
   mutate(
@@ -303,12 +334,13 @@ endline_and_baseline_data = bind_rows(
   endline_balance_data %>%
     select(
       treat_dist, 
-      neighbours_worm_knowledge = endline_neighbours_worm_knowledge, 
       all_can_get_worms,
       correct_when_treat, 
       know_deworming_stops_worms,
       constituency, cluster.id, 
-      county
+      county,
+      fully_aware_externalities,
+      partially_aware_externalities
       ) %>%
     mutate(
       type = "endline"
@@ -316,12 +348,13 @@ endline_and_baseline_data = bind_rows(
   baseline_balance_data %>%
     select(
       treat_dist, 
-      neighbours_worm_knowledge = baseline_neighbours_worm_knowledge, 
       all_can_get_worms,
       correct_when_treat, 
       know_deworming_stops_worms,
       constituency, cluster.id,
-      county
+      county,
+      fully_aware_externalities,
+      partially_aware_externalities
       ) %>%
     mutate(
       type = "baseline"
@@ -330,7 +363,8 @@ endline_and_baseline_data = bind_rows(
   na.omit()
 
 endline_vars = c(
-  "endline_neighbours_worm_knowledge", 
+  "fully_aware_externalities",
+  "partially_aware_externalities",
   "all_can_get_worms", 
   "correct_when_treat", 
   "know_deworming_stops_worms"
@@ -342,32 +376,28 @@ endline_balance_fit = feols(
     cluster = ~cluster.id
     ) 
 
-know_balance_fit = feols(
-    data = know_balance_data, 
-    .[know_vars] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot, 
-    ~cluster.id
-    ) 
 baseline_balance_fit = feols(
     data = baseline_balance_data, 
-    .[baseline_vars] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot, 
+    .[baseline_vars] ~ 0 + treat_dist + i(county, ref = "Busia"), 
     ~cluster.id
     ) 
+
 indiv_balance_fit = feols(
     data = analysis_school_data, 
-    .[indiv_balance_vars] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot,
+    .[indiv_balance_vars] ~ 0 + treat_dist + i(county, ref = "Busia"),
     cluster = ~cluster.id
     ) 
+
 school_balance_fit = feols(
-    data = school_treat_df, 
-    .[balance_variables] ~ 0 + treat_dist + i(county, ref = "Busia") + dist_to_pot,
+    data = analysis_school_data, 
+    .[balance_variables] ~ 0 + treat_dist + i(county, ref = "Busia"),
     ~cluster.id
   )
 # put all the baseline balance fits into a list we can map over
 balance_fits = c(
   indiv_balance_fit,
   list("lhs: cluster.dist.to.pot" = school_balance_fit),
-  baseline_balance_fit, 
-  list("lhs: num_recognised" = know_balance_fit)
+  baseline_balance_fit
 )
 
 
@@ -581,8 +611,9 @@ perform_balance_joint_test = function(fit, var, joint_R, close_R, far_R) {
   county_0_mat = matrix(
     0,
     nrow = max(nrow(joint_R), nrow(close_R), nrow(far_R)),
-    ncol = 3
+    ncol = coef(fit) %>% length() - 8
     )
+
   resid_df = fixest::degrees_freedom(fit, type = "resid")
   close_test = car::lht(
     fit,
@@ -626,7 +657,6 @@ balance_joint_tests = map(
 )
 
 
-
 balance_joint_tests %>%
     saveRDS(
         file.path(
@@ -634,7 +664,6 @@ balance_joint_tests %>%
             "cluster_balance_fits.rds"
         )
     )
-
 
 #| baseline-learning
 
