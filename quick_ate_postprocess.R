@@ -12,10 +12,10 @@ Options:
   
   "), 
   args = if (interactive()) "
-  95
+  96
   --output-path=temp-data
-  --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB
-  3 4
+  --model=REDUCED_FORM_NO_RESTRICT
+  1 
   " else commandArgs(trailingOnly = TRUE)
 )
 library(tidyverse)
@@ -23,43 +23,8 @@ library(cmdstanr)
 library(posterior)
 library(tidybayes)
 
-
-
-## Load analysis data
-load(file.path("data", "analysis.RData"))
-standardize <- as_mapper(~ (.) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original)
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-analysis_data <- monitored_nosms_data %>% 
-  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
-
-## Load Stan output
-load_param_draws = function(fit_version, model, chain, prior_predictive = FALSE, ...) {
-  if (prior_predictive == TRUE) {
-    fit_str = str_glue(
-      "data/stan_analysis_data/dist_prior{fit_version}_{model}-{chain}.csv"
-    )
-  } else {
-    fit_str = str_glue(
-      "data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"
-    )
-  }
-
-  fit_obj = as_cmdstan_fit(fit_str)
-  draws = spread_rvars(
-    fit_obj,
-    ...
-  ) %>%
-    mutate(model = model, fit_version = fit_version, fit_type = if_else(prior_predictive, "prior-predict", "fit"))
-  return(draws)
-}
+model_type = if_else(str_detect(script_options$model, "STRUCT"), "structural", "reduced form")
+source("quick_postprocess_functions.R")
 
 # N.B. treat_idx (the second idx, is the mu (signalling) idx)
 mu_idx_mapper = tibble(
@@ -80,15 +45,27 @@ cluster_mapper = analysis_data %>%
     assigned_dist_group
   ) %>% unique()
 
-
-cluster_error_draws_raw = load_param_draws(
-  fit_version = script_options$fit_version,
-  model = script_options$model,
-  chain = script_options$chain,
-  prior_predictive = script_options$prior,
-  cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx],
-  total_error_sd[treat_idx]
-)
+if (model_type == "structural") {
+  cluster_error_draws_raw = load_param_draws(
+    fit_version = script_options$fit_version,
+    model = script_options$model,
+    chain = script_options$chain,
+    prior_predictive = script_options$prior,
+    input_path = script_options$input_path,
+    cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx],
+    total_error_sd[treat_idx]
+  )
+} else {
+  cluster_error_draws_raw = load_param_draws(
+    fit_version = script_options$fit_version,
+    model = script_options$model,
+    chain = script_options$chain,
+    prior_predictive = script_options$prior,
+    input_path = script_options$input_path,
+    cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx]
+  ) %>%
+    mutate(total_error_sd = 1)
+}
 
 rvar_pnorm = rfun(pnorm)
 cluster_error_draws = cluster_error_draws_raw %>%
@@ -106,7 +83,8 @@ cluster_error_draws = cluster_error_draws_raw %>%
   left_join(
     cluster_mapper,
     by = c("cluster_idx" = "cluster_id")
-  )
+  ) %>%
+  mutate(model_type = model_type)
 
 fit_type_str = if_else(script_options$prior, "prior", "fit")
 if (length(script_options$chain) > 1) {
@@ -120,42 +98,20 @@ cluster_error_draws %>%
     file.path(
       script_options$output_path,
       str_glue(
-        "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_cluster_{script_options$model}_{chain_str}.rds"
+        "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_cluster_error_{script_options$model}_{chain_str}.rds"
       )
     ) 
   )
 
 
-incentive_tes =  bind_rows(
-  cluster_error_draws %>%
-    filter(dist_group == assigned_dist_group) %>%
-    filter(mu_treatment == dist_treatment) %>%
-    group_by(fit_type, model, fit_version, dist_treatment, dist_group) %>%
-    summarise(
-      pr_takeup = rvar_mean(pr_takeup)
-    )   %>%
-    group_by(dist_group) %>%
-    mutate(
-      pr_takeup = if_else(dist_treatment == "control", pr_takeup, pr_takeup - pr_takeup[dist_treatment == "control"])
-    ),
-  cluster_error_draws %>%
-    filter(dist_group == assigned_dist_group) %>%
-    filter(mu_treatment == dist_treatment) %>%
-    group_by(fit_type, model, fit_version, dist_treatment) %>%
-    summarise(
-      pr_takeup = rvar_mean(pr_takeup)
-    ) %>%
-    mutate(
-      pr_takeup = if_else(dist_treatment == "control", pr_takeup, pr_takeup - pr_takeup[dist_treatment == "control"])
-    )  %>%
-    mutate(dist_group = "combined")
-) %>%
-  mutate(
-    dist_group = factor(dist_group, levels = c("far", "close", "combined"))
-  ) 
 
+create_tes = function(.data, group_var, levels = FALSE) {
+ if (levels == TRUE) {
+  levels_mult = 0
+ }  else {
+  levels_mult = 1
+ }
 
-create_tes = function(.data, group_var) {
   tes =  bind_rows(
     .data %>%
       group_by(fit_type, model, fit_version, {{ group_var }}, dist_group) %>%
@@ -165,7 +121,7 @@ create_tes = function(.data, group_var) {
       )   %>%
       group_by(dist_group) %>%
       mutate(
-        pr_takeup = if_else({{ group_var }} == "control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "control"])
+        pr_takeup = if_else({{ group_var }} == "control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "control"]*levels_mult)
       ),
     .data %>%
       group_by(fit_type, model, fit_version, {{ group_var }}) %>%
@@ -174,7 +130,7 @@ create_tes = function(.data, group_var) {
         .groups = "drop"
       ) %>%
       mutate(
-        pr_takeup = if_else({{ group_var }} == "control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "control"])
+        pr_takeup = if_else({{ group_var }} == "control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "control"]*levels_mult)
       )  %>%
       mutate(dist_group = "combined")
   ) %>%
@@ -186,24 +142,29 @@ create_tes = function(.data, group_var) {
   
 incentive_tes = cluster_error_draws %>%
       filter(dist_group == assigned_dist_group) %>%
-      filter(mu_treatment == dist_treatment) %>%
-      create_tes(group_var = dist_treatment)
-
-signal_tes = cluster_error_draws %>%
-  filter(dist_treatment == "control") %>%
-  create_tes(group_var = mu_treatment)
-
-private_tes = cluster_error_draws %>%
-  filter(dist_group == assigned_dist_group) %>%
-  filter(mu_treatment == "control") %>%
-  create_tes(group_var = dist_treatment) %>%
-  filter(dist_group == "combined")
-
+      filter((mu_treatment == dist_treatment) | model_type == "reduced form") %>%
+      create_tes(group_var = dist_treatment) %>%
+      mutate(estimand = "overall")
+if (model_type == "structural") {
+  signal_tes = cluster_error_draws %>%
+    filter(dist_treatment == "control") %>%
+    create_tes(group_var = mu_treatment) %>%
+    mutate(estimand = "signal")
+  private_tes = cluster_error_draws %>%
+    filter(dist_group == assigned_dist_group) %>%
+    filter(mu_treatment == "control") %>%
+    create_tes(group_var = dist_treatment) %>%
+    filter(dist_group == "combined") %>%
+    mutate(estimand = "private")
+} else {
+  signal_tes = NULL
+  private_tes = NULL
+}
 
 all_tes = bind_rows(
-  incentive_tes %>% mutate(estimand = "overall"),
-  signal_tes %>% mutate(estimand = "signal"),
-  private_tes %>% mutate(estimand = "private")
+  incentive_tes,
+  signal_tes,
+  private_tes
 ) %>%
   ungroup()
 
@@ -217,9 +178,32 @@ all_tes %>%
     ) 
   )
 
+incentive_levels = cluster_error_draws %>%
+      filter(dist_group == assigned_dist_group) %>%
+      filter((mu_treatment == dist_treatment) | model_type == "reduced form") %>%
+      create_tes(group_var = dist_treatment, levels = TRUE) %>%
+      mutate(estimand = "overall")
+
+incentive_levels %>%
+  saveRDS(
+    file.path(
+      script_options$output_path,
+      str_glue(
+        "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_levels_{script_options$model}_{chain_str}.rds"
+      )
+    ) 
+  )
+
+  
 
 ## Munging stuff
 
+# all_tes = read_rds(
+#     file.path(
+#       script_options$output_path,
+#       "rvar_processed_dist_fit95_ates_STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB_1-2.rds"
+#     ) 
+# )
 # create_cis = function(.data) {
 #   med_fun = function(x) {
 #     mean_x = mean(x) %>% round(3)
@@ -263,7 +247,7 @@ all_tes %>%
 #         mutate(dist_treatment = "bracelet_minus_calendar")
 #     )
 
-# wide_struct_tes %>%
+# clean_wide_tbl = wide_struct_tes %>%
 #   mutate(dist_treatment = factor(dist_treatment, levels = c(
 #     "bracelet",
 #     "calendar",
@@ -273,5 +257,40 @@ all_tes %>%
 #   ))) %>%
 #   mutate(far_minus_close = far - close) %>%
 #   arrange(dist_treatment)   %>%
-#   create_cis() %>%
-#   View()
+#   create_cis()
+
+
+
+
+
+# all_tes %>%
+#     filter(estimand == "overall") %>%
+#     select(
+#       dist_treatment,
+#       dist_group,
+#       pr_takeup
+#     ) %>%
+#     pivot_wider(
+#       names_from = dist_group,
+#       values_from = pr_takeup
+#     ) %>%
+#     select(dist_treatment, combined, close, far) %>%
+#     arrange(dist_treatment) %>%
+#     bind_rows(
+#       # bracelet minus calendar row
+#       all_tes %>%
+#         filter(dist_treatment %in% c("bracelet", "calendar")) %>%
+#         filter(estimand == "overall") %>%
+#         pivot_wider(names_from = dist_treatment, values_from = pr_takeup) %>%
+#         mutate(
+#           bracelet_minus_calendar = bracelet - calendar
+#         ) %>%
+#         select(dist_group, bracelet_minus_calendar) %>%
+#         pivot_wider(
+#           names_from = dist_group,
+#           values_from = bracelet_minus_calendar
+#         ) %>%
+#         mutate(dist_treatment = "bracelet_minus_calendar")
+#     ) %>%
+#     create_cis() %>%
+#     View()
