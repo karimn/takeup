@@ -11,13 +11,15 @@ Options:
   --prior  Postprocess the prior predictive
   --cluster-roc
   --fix-cluster-roc
+  --cluster-takeup-prop
+  --cluster-rep-return-dist
   
   "), 
   args = if (interactive()) "
   101
   --output-path=temp-data
   --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
-  --fix-cluster-roc
+  --cluster-rep-return-dist
   1
   " else commandArgs(trailingOnly = TRUE)
 )
@@ -42,6 +44,8 @@ monitored_nosms_data <- analysis.data %>%
   ungroup()
 analysis_data <- monitored_nosms_data %>% 
   mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+sd_of_dist = sd(analysis_data$cluster.dist.to.pot)
 
 ## Load Stan output
 load_param_draws = function(fit_version, model, chain, prior_predictive = FALSE, ...) {
@@ -203,3 +207,104 @@ if (script_options$fix_cluster_roc) {
 
 }
 
+
+
+if (script_options$cluster_takeup_prop) {
+
+    cluster_prop_draws_raw = load_param_draws(
+      fit_version = script_options$fit_version,
+      model = script_options$model,
+      chain = script_options$chain,
+      prior_predictive = script_options$prior,
+      cluster_takeup_prop[roc_dist_idx, cluster_idx, treat_idx]
+    )
+
+    cluster_prop_draws = cluster_prop_draws_raw %>%
+        left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
+        left_join(treat_idx_mapper, by = "treat_idx")
+
+    prop_draws = cluster_prop_draws  %>%
+        group_by(
+            model,
+            fit_version,
+            fit_type,
+            treatment, 
+            roc_distance
+        ) %>%
+        summarise(
+            cluster_takeup_prop = rvar_mean(cluster_takeup_prop)
+        )
+
+  prop_draws %>%
+    saveRDS(
+      file.path(
+        script_options$output_path,
+        str_glue(
+          "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_prop_draws_{script_options$model}_{chain_str}.rds"
+        )
+      ) 
+    )
+        
+    summ_prop_draws = prop_draws %>%
+        median_qi(cluster_takeup_prop) %>%
+        to_broom_names()
+        
+    summ_prop_draws %>%
+      saveRDS(
+        file.path(
+          script_options$output_path,
+          str_glue(
+            "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_prop_summ_{script_options$model}_{chain_str}.rds"
+          )
+        ) 
+      )
+}
+
+
+if (script_options$cluster_rep_return_dist) {
+    cluster_rep_return_dist_raw = load_param_draws(
+      fit_version = script_options$fit_version,
+      model = script_options$model,
+      chain = script_options$chain,
+      prior_predictive = script_options$prior,
+      cluster_rep_return_dist[roc_dist_idx, cluster_idx, treat_idx]
+    )
+
+    cluster_rep_return_dist_draws = cluster_rep_return_dist_raw %>%
+        left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
+        left_join(treat_idx_mapper, by = "treat_idx")
+
+    rep_return_dist_draws = cluster_rep_return_dist_draws  %>%
+        group_by(
+            model,
+            fit_version,
+            fit_type,
+            treatment, 
+            roc_distance
+        ) %>%
+        summarise(
+            cluster_rep_return_dist = rvar_mean(cluster_rep_return_dist*sd_of_dist)
+        )
+
+    rep_return_dist_draws = rep_return_dist_draws %>%
+      group_by(
+            model,
+            fit_version,
+            fit_type,
+            roc_distance
+      ) %>%
+      mutate(
+        cluster_rep_return_dist_te = cluster_rep_return_dist - cluster_rep_return_dist[treatment == "control"]
+      )
+
+  rep_return_dist_draws %>%
+    saveRDS(
+      file.path(
+        script_options$output_path,
+        str_glue(
+          "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_rep_return_dist_draws_{script_options$model}_{chain_str}.rds"
+        )
+      ) 
+    )
+
+}

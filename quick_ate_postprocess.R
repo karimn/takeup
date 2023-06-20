@@ -14,8 +14,8 @@ Options:
   args = if (interactive()) "
   96
   --output-path=temp-data
-  --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB
-  1 2
+  --model=REDUCED_FORM_NO_RESTRICT
+  1 
   " else commandArgs(trailingOnly = TRUE)
 )
 library(tidyverse)
@@ -23,7 +23,7 @@ library(cmdstanr)
 library(posterior)
 library(tidybayes)
 
-
+model_type = if_else(str_detect(script_options$model, "STRUCT"), "structural", "reduced form")
 
 ## Load analysis data
 load(file.path("data", "analysis.RData"))
@@ -80,7 +80,7 @@ cluster_mapper = analysis_data %>%
     assigned_dist_group
   ) %>% unique()
 
-if (str_detect(script_options$model, "STRUCT")) {
+if (model_type == "structural") {
   cluster_error_draws_raw = load_param_draws(
     fit_version = script_options$fit_version,
     model = script_options$model,
@@ -116,7 +116,8 @@ cluster_error_draws = cluster_error_draws_raw %>%
   left_join(
     cluster_mapper,
     by = c("cluster_idx" = "cluster_id")
-  )
+  ) %>%
+  mutate(model_type = model_type)
 
 fit_type_str = if_else(script_options$prior, "prior", "fit")
 if (length(script_options$chain) > 1) {
@@ -174,22 +175,29 @@ create_tes = function(.data, group_var, levels = FALSE) {
   
 incentive_tes = cluster_error_draws %>%
       filter(dist_group == assigned_dist_group) %>%
-      filter(mu_treatment == dist_treatment) %>%
-      create_tes(group_var = dist_treatment)
-signal_tes = cluster_error_draws %>%
-  filter(dist_treatment == "control") %>%
-  create_tes(group_var = mu_treatment)
-private_tes = cluster_error_draws %>%
-  filter(dist_group == assigned_dist_group) %>%
-  filter(mu_treatment == "control") %>%
-  create_tes(group_var = dist_treatment) %>%
-  filter(dist_group == "combined")
-
+      filter((mu_treatment == dist_treatment) | model_type == "reduced form") %>%
+      create_tes(group_var = dist_treatment) %>%
+      mutate(estimand = "overall")
+if (model_type == "structural") {
+  signal_tes = cluster_error_draws %>%
+    filter(dist_treatment == "control") %>%
+    create_tes(group_var = mu_treatment) %>%
+    mutate(estimand = "signal")
+  private_tes = cluster_error_draws %>%
+    filter(dist_group == assigned_dist_group) %>%
+    filter(mu_treatment == "control") %>%
+    create_tes(group_var = dist_treatment) %>%
+    filter(dist_group == "combined") %>%
+    mutate(estimand = "private")
+} else {
+  signal_tes = NULL
+  private_tes = NULL
+}
 
 all_tes = bind_rows(
-  incentive_tes %>% mutate(estimand = "overall"),
-  signal_tes %>% mutate(estimand = "signal"),
-  private_tes %>% mutate(estimand = "private")
+  incentive_tes,
+  signal_tes,
+  private_tes
 ) %>%
   ungroup()
 
@@ -205,7 +213,7 @@ all_tes %>%
 
 incentive_levels = cluster_error_draws %>%
       filter(dist_group == assigned_dist_group) %>%
-      filter(mu_treatment == dist_treatment) %>%
+      filter((mu_treatment == dist_treatment) | model_type == "reduced form") %>%
       create_tes(group_var = dist_treatment, levels = TRUE) %>%
       mutate(estimand = "overall")
 
