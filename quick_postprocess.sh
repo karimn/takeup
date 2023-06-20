@@ -5,7 +5,7 @@
 #SBATCH --nodes=2                # node count
 #SBATCH --ntasks=2              # total number of tasks across all nodes
 #SBATCH --cpus-per-task=8      # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem-per-cpu=10G         # memory per cpu-core (4G is default)
+#SBATCH --mem-per-cpu=4G         # memory per cpu-core (4G is default)
 #SBATCH --time=0-10:00:00        # maximum time needed (HH:MM:SS)
 #SBATCH --mail-type=begin        # send email when job begins
 #SBATCH --mail-type=end          # send email when job ends
@@ -87,9 +87,12 @@ postprocess_models () {
 }
 
 
-srun -n1 postprocess_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP" &
-srun -n1 postprocess_models "REDUCED_FORM_NO_RESTRICT" &
+#postprocess_models "REDUCED_FORM_NO_RESTRICT"
+#srun -n1 postprocess_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP" &
+#srun -n1 postprocess_models "REDUCED_FORM_NO_RESTRICT" &
+#wait
+
+srun --exclusive --ntasks=1 postprocess_models "REDUCED_FORM_NO_RESTRICT" &
+srun --exclusive --ntasks=1 postprocess_models "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP"	&
 wait
-
-
 
