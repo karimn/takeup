@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 #SBATCH --partition=bigmem2
@@ -44,7 +43,7 @@ source quick_postprocess.sh
 # Rest of your submission script
 
 # Within SLURM tasks
-srun --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB'" &
-srun --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB'" &
+srun --exclusive --ntasks=1 /usr/bin/bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB'" &
+srun --exclusive --ntasks=1 /usr/bin/bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB'" &
 wait
 
