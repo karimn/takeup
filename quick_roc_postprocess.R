@@ -29,44 +29,7 @@ library(posterior)
 library(tidybayes)
 
 
-
-## Load analysis data
-load(file.path("data", "analysis.RData"))
-standardize <- as_mapper(~ (.) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original)
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-analysis_data <- monitored_nosms_data %>% 
-  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
-
-sd_of_dist = sd(analysis_data$cluster.dist.to.pot)
-
-## Load Stan output
-load_param_draws = function(fit_version, model, chain, prior_predictive = FALSE, ...) {
-  if (prior_predictive == TRUE) {
-    fit_str = str_glue(
-      "data/stan_analysis_data/dist_prior{fit_version}_{model}-{chain}.csv"
-    )
-  } else {
-    fit_str = str_glue(
-      "data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"
-    )
-  }
-
-  fit_obj = as_cmdstan_fit(fit_str)
-  draws = spread_rvars(
-    fit_obj,
-    ...
-  ) %>%
-    mutate(model = model, fit_version = fit_version, fit_type = if_else(prior_predictive, "prior-predict", "fit"))
-  return(draws)
-}
+source("quick_postprocess_functions.R")
 
 # N.B. treat_idx (the second idx, is the mu (signalling) idx)
 treat_idx_mapper = tibble(
@@ -91,10 +54,6 @@ roc_dist_idx_mapper = tibble(
     roc_distance = seq(0, 5000, 100)) %>% 
     mutate(roc_dist_idx = seq(n()))
 
-roc_param = c("cluster_roc_diff", "cluster_roc_diff_diffdist", 
-               "cluster_roc", "cluster_rep_return", "cluster_rep_return_dist", 
-               "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
-
 
         
 fit_type_str = if_else(script_options$prior, "prior", "fit")
@@ -111,6 +70,7 @@ if (script_options$cluster_roc) {
       model = script_options$model,
       chain = script_options$chain,
       prior_predictive = script_options$prior,
+      input_path = script_options$input_path,
       cluster_roc[roc_dist_idx, cluster_idx, treat_idx]
     )
 
@@ -166,6 +126,7 @@ if (script_options$fix_cluster_roc) {
         model = script_options$model,
         chain = script_options$chain,
         prior_predictive = script_options$prior,
+        input_path = script_options$input_path,
         cluster_roc_no_vis[roc_dist_idx, cluster_idx, treat_idx],
         cluster_roc_delta_deriv[roc_dist_idx, cluster_idx, treat_idx]
     ) 
@@ -216,6 +177,7 @@ if (script_options$cluster_takeup_prop) {
       model = script_options$model,
       chain = script_options$chain,
       prior_predictive = script_options$prior,
+      input_path = script_options$input_path,
       cluster_takeup_prop[roc_dist_idx, cluster_idx, treat_idx]
     )
 
@@ -267,6 +229,7 @@ if (script_options$cluster_rep_return_dist) {
       model = script_options$model,
       chain = script_options$chain,
       prior_predictive = script_options$prior,
+      input_path = script_options$input_path,
       cluster_rep_return_dist[roc_dist_idx, cluster_idx, treat_idx]
     )
 

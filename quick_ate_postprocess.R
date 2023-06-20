@@ -24,42 +24,7 @@ library(posterior)
 library(tidybayes)
 
 model_type = if_else(str_detect(script_options$model, "STRUCT"), "structural", "reduced form")
-
-## Load analysis data
-load(file.path("data", "analysis.RData"))
-standardize <- as_mapper(~ (.) / sd(.))
-unstandardize <- function(standardized, original) standardized * sd(original)
-monitored_nosms_data <- analysis.data %>% 
-  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
-  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
-            by = "cluster.id") %>% 
-  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
-  group_by(cluster.id) %>% 
-  mutate(cluster_id = cur_group_id()) %>% 
-  ungroup()
-analysis_data <- monitored_nosms_data %>% 
-  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
-
-## Load Stan output
-load_param_draws = function(fit_version, model, chain, prior_predictive = FALSE, ...) {
-  if (prior_predictive == TRUE) {
-    fit_str = str_glue(
-      "data/stan_analysis_data/dist_prior{fit_version}_{model}-{chain}.csv"
-    )
-  } else {
-    fit_str = str_glue(
-      "data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"
-    )
-  }
-
-  fit_obj = as_cmdstan_fit(fit_str)
-  draws = spread_rvars(
-    fit_obj,
-    ...
-  ) %>%
-    mutate(model = model, fit_version = fit_version, fit_type = if_else(prior_predictive, "prior-predict", "fit"))
-  return(draws)
-}
+source("quick_postprocess_functions.R")
 
 # N.B. treat_idx (the second idx, is the mu (signalling) idx)
 mu_idx_mapper = tibble(
@@ -86,6 +51,7 @@ if (model_type == "structural") {
     model = script_options$model,
     chain = script_options$chain,
     prior_predictive = script_options$prior,
+    input_path = script_options$input_path,
     cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx],
     total_error_sd[treat_idx]
   )
@@ -95,6 +61,7 @@ if (model_type == "structural") {
     model = script_options$model,
     chain = script_options$chain,
     prior_predictive = script_options$prior,
+    input_path = script_options$input_path,
     cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx]
   ) %>%
     mutate(total_error_sd = 1)
