@@ -39,7 +39,9 @@ fi
 
 
 postprocess_struct_models () {
-    echo "RUNNING: $1"
+    echo "RUNNING MODEL: $1"
+    echo "RUNNING VERSION: $VERSION"
+
     Rscript --no-save \
             --no-restore \
             --verbose \
@@ -103,7 +105,6 @@ postprocess_rf_models () {
 
 }
 
-export -f postprocess_struct_models postprocess_rf_models
 
 
 
