@@ -26,6 +26,7 @@ if [[ -v IN_SLURM ]]; then
 	
 
   module load -f midway2 gdal/2.4.1 udunits/2.2 proj/6.1 cmake R/4.2.0
+  module load -f R/4.2.0
 
   POSTPROCESS_INOUT_ARGS="--input-path=${SLURM_INOUT_DIR} --output-path=${SLURM_INOUT_DIR}"
 
