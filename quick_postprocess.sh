@@ -47,7 +47,7 @@ postprocess_struct_models () {
             ${VERSION} \
             ${POSTPROCESS_INOUT_ARGS} \
             --model=$1 \
-            1 2 3 4
+            1 2 3 4 > temp/log/struct-postprocess_$1_${VERSION}.txt 2>&1 
 
     Rscript --no-save \
             --no-restore \
@@ -57,7 +57,7 @@ postprocess_struct_models () {
             ${POSTPROCESS_INOUT_ARGS} \
             --model=$1 \
             --prior \
-            1 2 3 4
+            1 2 3 4 > temp/log/struct-postprocess_$1_${VERSION}.txt 2>&1 
 
     Rscript --no-save \
             --no-restore \
@@ -66,7 +66,7 @@ postprocess_struct_models () {
             ${VERSION} \
             ${POSTPROCESS_INOUT_ARGS} \
             --model=$1 \
-            1 2 3 4
+            1 2 3 4 > temp/log/struct-postprocess_$1_${VERSION}.txt 2>&1 
 
     Rscript --no-save \
             --no-restore \
@@ -75,7 +75,7 @@ postprocess_struct_models () {
             ${VERSION} \
             ${POSTPROCESS_INOUT_ARGS} \
             --model=$1 \
-            1 2 3 4
+            1 2 3 4 > temp/log/struct-postprocess_$1_${VERSION}.txt 2>&1 
 }
 
 postprocess_rf_models () {
@@ -87,7 +87,7 @@ postprocess_rf_models () {
             ${VERSION} \
             ${POSTPROCESS_INOUT_ARGS} \
             --model=$1 \
-            1 2 3 4
+            1 2 3 4 > temp/log/rf-postprocess_$1_${VERSION}.txt 2>&1 
 
     Rscript --no-save \
             --no-restore \
@@ -97,7 +97,9 @@ postprocess_rf_models () {
             ${POSTPROCESS_INOUT_ARGS} \
             --model=$1 \
             --prior \
-            1 2 3 4
+            1 2 3 4 > temp/log/rf-postprocess_$1_${VERSION}.txt 2>&1 
+
+
 
 }
 
