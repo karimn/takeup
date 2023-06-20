@@ -1,4 +1,3 @@
-
 #!/usr/bin/Rscript
 script_options <- docopt::docopt(
   stringr::str_glue(
@@ -18,6 +17,7 @@ Options:
   101
   --output-path=temp-data
   --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
+  --fix-cluster-roc
   1
   " else commandArgs(trailingOnly = TRUE)
 )
@@ -92,14 +92,22 @@ roc_param = c("cluster_roc_diff", "cluster_roc_diff_diffdist",
                "cluster_social_multiplier", "cluster_w_cutoff", "cluster_takeup_prop")
 
 
+        
+fit_type_str = if_else(script_options$prior, "prior", "fit")
+if (length(script_options$chain) > 1) {
+  chain_str = str_glue("{min(script_options$chain)}-{max(script_options$chain)}")
+} else {
+  chain_str = script_options$chain
+}
+
 if (script_options$cluster_roc) {
 
     cluster_roc_draws_raw = load_param_draws(
-    fit_version = script_options$fit_version,
-    model = script_options$model,
-    chain = script_options$chain,
-    prior_predictive = script_options$prior,
-    cluster_roc[roc_dist_idx, cluster_idx, treat_idx]
+      fit_version = script_options$fit_version,
+      model = script_options$model,
+      chain = script_options$chain,
+      prior_predictive = script_options$prior,
+      cluster_roc[roc_dist_idx, cluster_idx, treat_idx]
     )
 
     cluster_roc_draws = cluster_roc_draws_raw %>%
@@ -117,30 +125,39 @@ if (script_options$cluster_roc) {
         summarise(
             cluster_roc = rvar_mean(cluster_roc)
         )
+
+  roc_draws %>%
+    saveRDS(
+      file.path(
+        script_options$output_path,
+        str_glue(
+          "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_roc_draws_{script_options$model}_{chain_str}.rds"
+        )
+      ) 
+    )
+
+
+
         
-        
-        
-    summ_roc_draws = cluster_roc_draws %>%
+    summ_roc_draws = roc_draws %>%
         median_qi(cluster_roc) %>%
         to_broom_names()
         
-        
     summ_roc_draws %>%
-        filter(roc_distance <= 2500) %>%
-        ggplot(aes(
-            x = roc_distance,
-            y = cluster_roc,
-            ymin = conf.low,
-            ymax = conf.high,
-            colour = treatment
-        )) +
-        geom_pointrange() 
+      saveRDS(
+        file.path(
+          script_options$output_path,
+          str_glue(
+            "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_roc_summ_{script_options$model}_{chain_str}.rds"
+          )
+        ) 
+      )
 
 }
 
 
 if (script_options$fix_cluster_roc) {
-    cluster_fix_mu_roc_draws_raw = load_param_draws(
+    cluster_fix_roc_draws_raw = load_param_draws(
         fit_version = script_options$fit_version,
         model = script_options$model,
         chain = script_options$chain,
@@ -149,17 +166,16 @@ if (script_options$fix_cluster_roc) {
         cluster_roc_delta_deriv[roc_dist_idx, cluster_idx, treat_idx]
     ) 
 
-
-    cluster_fix_mu_roc_draws = cluster_fix_mu_roc_draws_raw  %>%
+    cluster_fix_roc_draws = cluster_fix_roc_draws_raw  %>%
         left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
         left_join(treat_idx_mapper, by = "treat_idx")
 
-    cluster_fix_roc_draws = cluster_fix_mu_roc_draws %>%
+    cluster_fix_roc_draws = cluster_fix_roc_draws %>%
         mutate(
             fix_cluster_roc = cluster_roc_no_vis / (1 + cluster_roc_delta_deriv)
         )
 
-    summ_fix_roc_draws = cluster_fix_roc_draws  %>%
+    fix_roc_draws = cluster_fix_roc_draws  %>%
         group_by(
             model,
             fit_version,
@@ -169,8 +185,21 @@ if (script_options$fix_cluster_roc) {
         ) %>%
         summarise(
             fix_cluster_roc = rvar_mean(fix_cluster_roc)
-        ) %>%
+        )
+
+    summ_fix_roc_draws = fix_roc_draws %>%        
         median_qi(fix_cluster_roc) %>%
         to_broom_names()
 
+
+    summ_fix_roc_draws %>%
+      filter(roc_distance <= 2500) %>%
+      ggplot(aes(
+        x = roc_distance,
+        y = fix_cluster_roc,
+        colour = treatment
+      )) +
+      geom_point()
+
 }
+
