@@ -228,12 +228,12 @@ transformed parameters {
   if (use_cluster_effects) {
     //use_cluster_effects
     // for now turn off beta level shock
-    // structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];
+    structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];
     structural_cluster_benefit_cost += structural_beta_cluster;
   }
   
   if (use_county_effects) {
-    structural_beta_county[2:3] = structural_beta_county_raw[2:3]; // * structural_beta_county_sd[1];
+    structural_beta_county = structural_beta_county_raw * structural_beta_county_sd[1];
     
     structural_cluster_benefit_cost += structural_beta_county[cluster_county_id];
   }

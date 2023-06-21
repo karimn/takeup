@@ -168,6 +168,7 @@ real expected_delta_deriv_part(real v, real xc, array[] real theta, data array[]
   return v * exp(v_lpdf + wmv_lpdf);
 }
 
+// Calculate Delta'(w) (also returns Delta(w) as first argument)
 vector expected_delta_deriv(real w, real total_error_sd, real u_sd, data array[] real x_r, data array[] int x_i) {
   real F_w = Phi_approx(w / total_error_sd); 
  
@@ -293,7 +294,7 @@ vector calculate_roc_rect(vector phi, vector theta, data array[] real x_r, data 
   
   real w = find_fixedpoint_solution(benefit_cost, mu_rep, total_error_sd, u_sd, x_i[1], x_r[1], x_r[2], x_r[3]);
   real w_control = find_fixedpoint_solution(benefit_cost_control, mu_rep_control, total_error_sd_control, u_sd_control, x_i[1], x_r[1], x_r[2], x_r[3]);
-  
+   
   vector[2] delta = expected_delta_deriv(w_control, total_error_sd, u_sd, x_r, x_i);
 
   real roc_no_vis = -exp(normal_lpdf(w_control | 0, total_error_sd))*dist_beta;
