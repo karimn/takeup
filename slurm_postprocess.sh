@@ -44,8 +44,8 @@ source quick_postprocess.sh
 # Rest of your submission script
 MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB"
 # Within SLURM tasks
-srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_ate_postprocess.R ${MODEL} ${VERSION} ${POSTPROCESS_INOUT_ARGS}" &
-srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_roc_postprocess.R ${MODEL} ${VERSION} ${POSTPROCESS_INOUT_ARGS}" &
-srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_submodel_postprocess.R ${MODEL} ${VERSION} ${POSTPROCESS_INOUT_ARGS}" &
+srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_ate_postprocess.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} ${MODEL}" &
+srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_roc_postprocess.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} ${MODEL}" &
+srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_submodel_postprocess.R ${VERSION} ${POSTPROCESS_INOUT_ARGS} ${MODEL}" &
 wait
 
