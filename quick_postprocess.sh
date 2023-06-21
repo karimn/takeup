@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
 
+postprocess_model () {
+
+    echo "RUNNING SCRIPT: $1"
+    echo "RUNNING VERSION: $2"
+    echo "POSTPROCESS ARGS: $3"
+    echo "RUNNING MODEL: $4"
+    echo "RUNNING PRIOR ARGS: $5"
+
+    Rscript --no-save \
+            --no-restore \
+            --verbose \
+            $1 \
+	    $2 \
+            $3 \
+            --model=$4 \
+            $5 \
+            1 2 3 4 > temp/log/struct-postprocess_$4_$2_$1.txt 2>&1
+
+}
+
 
 postprocess_struct_models () {
     echo "RUNNING MODEL: $1"
@@ -51,7 +71,6 @@ postprocess_rf_models () {
     echo "RUNNING VERSION: $2"
     echo "Postprocess args: $3"
 
-	module load R/4.2.0
 
     Rscript --no-save \
             --no-restore \
