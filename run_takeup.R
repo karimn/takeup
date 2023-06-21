@@ -38,8 +38,8 @@ Options:
   args = if (interactive()) "
     takeup fit \
     --cmdstanr \
-    --outputname=dist_fit95 \
-    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB \
+    --outputname=dist_fit101 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
@@ -462,7 +462,10 @@ models <- lst(
         BELIEFS_ORDER = 1,
         mu_rep_type = 4,
         use_cluster_effects = TRUE,
-        use_county_effects = TRUE
+        use_county_effects = TRUE,
+        structural_beta_county_sd_sd = 0.1,
+        structural_beta_cluster_sd_sd = 0.1
+
       ),
     STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
@@ -484,6 +487,20 @@ models <- lst(
         mu_rep_type = 4,
         use_cluster_effects = FALSE,
         use_county_effects = TRUE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 1,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = FALSE
       )
 )
 
