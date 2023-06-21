@@ -93,7 +93,15 @@ if (length(script_options$chain) > 1) {
   chain_str = script_options$chain
 }
 
+rvar_cols = cluster_error_draws %>%
+  select(where(is_rvar)) %>%
+  colnames()
+
 cluster_error_draws %>%
+  pivot_longer(
+    all_of(rvar_cols),
+    names_to = "variable"
+  )  %>%
   saveRDS(
     file.path(
       script_options$output_path,
@@ -168,7 +176,14 @@ all_tes = bind_rows(
 ) %>%
   ungroup()
 
+all_rvar_cols = all_tes %>%
+  select(where(is_rvar)) %>%
+  colnames()
+
+
+
 all_tes %>%
+  pivot_longer(all_of(all_rvar_cols), names_to = "variable") %>%
   saveRDS(
     file.path(
       script_options$output_path,
@@ -184,7 +199,9 @@ incentive_levels = cluster_error_draws %>%
       create_tes(group_var = dist_treatment, levels = TRUE) %>%
       mutate(estimand = "overall")
 
+
 incentive_levels %>%
+  pivot_longer(where(is_rvar), names_to = "variable") %>%
   saveRDS(
     file.path(
       script_options$output_path,

@@ -55,6 +55,7 @@ prob_draws = prob_draws_raw %>%
     left_join(dist_idx_mapper, by = "dist_treat_idx")
 
 prob_draws %>%
+  pivot_longer(where(is_rvar), names_to = "variable") %>%
   saveRDS(
     file.path(
       script_options$output_path,
@@ -133,6 +134,7 @@ ate_draws = bind_rows(
 )
 
 ate_draws %>%
+  pivot_longer(where(is_rvar), names_to = "variable") %>%
   saveRDS(
     file.path(
       script_options$output_path,
@@ -155,6 +157,7 @@ wtp_draws_raw = load_param_draws(
 )
 
 wtp_draws_raw %>%
+  pivot_longer(where(is_rvar), names_to = "variable") %>%
   saveRDS(
     file.path(
       script_options$output_path,

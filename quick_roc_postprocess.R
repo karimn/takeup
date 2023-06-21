@@ -91,6 +91,7 @@ if (script_options$cluster_roc) {
         )
 
   roc_draws %>%
+    pivot_longer(where(is_rvar), names_to = "variable") %>%
     saveRDS(
       file.path(
         script_options$output_path,
@@ -198,6 +199,7 @@ if (script_options$cluster_takeup_prop) {
         )
 
   prop_draws %>%
+    pivot_longer(where(is_rvar), names_to = "variable") %>%
     saveRDS(
       file.path(
         script_options$output_path,
@@ -261,6 +263,7 @@ if (script_options$cluster_rep_return_dist) {
       )
 
   rep_return_dist_draws %>%
+    pivot_longer(where(is_rvar), names_to = "variable") %>%
     saveRDS(
       file.path(
         script_options$output_path,
