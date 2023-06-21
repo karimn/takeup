@@ -32,12 +32,14 @@ script_options = docopt::docopt(
         --static-signal-distance=<static-signal-distance>  Distance over which PM estimates v* in meters [default: NA]
         --fit-type=<fit-type>  Which fit type to use - prior predictive or posterior draws [default: fit] 
 
+        --fix-mu-at-1  Fix mu at 1 (for B&T model) when running --pred-distance
+
     "),
     args = if (interactive()) "
                             86
-                            control
-                            control
-                            --output-name=static-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+                            ink
+                            ink
+                            --output-name=cutoff-b-ink-mu-ink-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                             --from-csv
                             --num-post-draws=200
                             --rep-cutoff=Inf
@@ -48,9 +50,10 @@ script_options = docopt::docopt(
                             --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                             --data-input-name=full-many-pots-experiment.rds
                             --single-chain
-                            --run-estimation
 
+                            --pred-distance
                             --static-signal-distance=Inf
+                            --fix-mu-at-1
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
@@ -261,7 +264,8 @@ if (script_options$static_signal_pm == TRUE) {
             bounds = script_options$bounds,
             mu_rep_type = mu_rep_type,
             suppress_reputation = script_options$suppress_reputation, 
-            static_signal = NA
+            static_signal = NA,
+            fix_mu_at_1 = FALSE
         ) %>% find_pred_takeup()
     )
 
@@ -297,7 +301,8 @@ pred_functions = map2(
         bounds = script_options$bounds,
         mu_rep_type = mu_rep_type,
         suppress_reputation = script_options$suppress_reputation, 
-        static_signal = .y
+        static_signal = .y,
+        fix_mu_at_1 = FALSE
     ) %>% find_pred_takeup()
 )
 
@@ -467,13 +472,10 @@ pred_functions = map2(
         bounds = script_options$bounds,
         mu_rep_type = mu_rep_type,
         suppress_reputation = script_options$suppress_reputation, 
-        static_signal = .y
+        static_signal = .y,
+        fix_mu_at_1 = script_options$fix_mu_at_1
     ) %>% find_pred_takeup()
 )
-
-
-
-
 
 dist_df = tibble(
         dist = seq(from = 0, to = 2500, by = 100)
@@ -497,113 +499,15 @@ sm_df = sm_df %>%
         sm = (-delta + mu_rep_deriv*delta_v_star) / (1 + mu_rep*delta_v_star_deriv)
     ) 
 
-# sm_df %>%
-#     group_by(dist) %>%
-#     summarise(
-#         estimate = mean(sm), 
-#         conf.low = quantile(sm, 0.05), 
-#         conf.high = quantile(sm, 0.95)
-#     ) %>%
-#     ggplot(aes(
-#         x = dist, 
-#         y = estimate, 
-#         ymin = conf.low, 
-#         ymax = conf.high
-#     )) +
-#     geom_pointrange()
-
-# sm_df %>%
-#     mutate(
-#         roc = 100*dnorm(v_star, sd = sqrt(total_error_sd))*sm
-#     ) %>%
-#     group_by(dist) %>%
-#     summarise(
-#         estimate = mean(roc), 
-#         conf.low = quantile(roc, 0.05), 
-#         conf.high = quantile(roc, 0.95)
-#     ) %>%
-#     ggplot(aes(
-#         x = dist, 
-#         y = estimate, 
-#         ymin = conf.low, 
-#         ymax = conf.high
-#     )) +
-#     geom_pointrange()
+fix_mu_str = if_else(script_options$fix_mu_at_1, "fix-mu-", "")
 
 sm_df %>%
     write_csv(
         file.path(
             script_options$output_path, 
-            str_interp("pred-social-multiplier-${script_options$fit_type}${fit_version}${append_output}.csv")
+            str_interp("pred-social-multiplier-${fix_mu_str}${script_options$fit_type}${fit_version}${append_output}.csv")
         )
     )
 
-# dist_df %>%
-#     mutate(
-#         sm = (-delta + mu_rep_deriv*delta_v_star) / (1 + mu_rep*delta_v_star_deriv)
-#     ) %>%
-#     ggplot(aes(
-#         x = dist, 
-#         y = sm
-#     )) +
-#     geom_point()
-
 
  }
-
-
-
-# pred_functions[[1]](500)
-# true_pred_functions[[1]](500)
-
-# comp_df = tibble(
-#     dist = seq(from = 0, to = 2500, length.out = 20)
-# )
-
-
-
-# pred_df = map_dfr(pred_functions[1:20], 
-#     ~{
-#         comp_df %>%
-#             mutate(
-#                 as_tibble(.x(dist))
-#             )
-#     }, .id = "draw"
-# )
-
-# true_pred_df = map_dfr(
-#     true_pred_functions[1:20], 
-#     ~{
-#         comp_df %>%
-#             mutate(
-#                 as_tibble(.x(dist))
-#             )
-#     },
-#     .id = "draw"
-# )
-
-
-# comp_pred_df = bind_rows(
-#     pred_df %>% mutate(pred_type = "Static Signalling"),
-#     true_pred_df %>% mutate(pred_type = "V Star Signalling")
-# )
-
-
-# comp_pred_df %>%
-#     ggplot(aes(
-#         x = dist, 
-#         y = pred_takeup, 
-#         colour = pred_type, 
-#         group = interaction(draw, pred_type)
-#     )) +
-#     geom_line(alpha = 0.7) +
-#     labs(
-#         colour = "", 
-#         title = "Static Signalling vs V Star Signalling, Control", 
-#         subtitle = "20 posterior draws"
-#     )
-# ggsave(
-#     "temp-plots/static-dynamic-signalling.png",
-#     width = 8,
-#     height = 6, dpi = 500
-# )
