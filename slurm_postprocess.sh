@@ -43,8 +43,29 @@ fi
 source quick_postprocess.sh
 
 # Within SLURM tasks
-srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_ate_postprocess.R ${VERSION} ${MODEL} ${IN_ARG} ${OUT_ARG}" &
-srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_roc_postprocess.R ${VERSION} ${MODEL} ${IN_ARG} ${OUT_ARG}" &
-srun --export=all --exclusive --ntasks=1 bash -c "source quick_postprocess.sh && postprocess_model quick_submodel_postprocess.R ${VERSION} ${MODEL} ${IN_ARG} ${OUT_ARG}" &
+srun --export=all --exclusive --ntasks=1 bash -c \
+  "source quick_postprocess.sh && postprocess_model \
+    quick_ate_postprocess.R \
+    ${VERSION} \
+    ${MODEL} \
+    ${IN_ARG} \
+    ${OUT_ARG}" &
+srun --export=all --exclusive --ntasks=1 bash -c \
+  "source quick_postprocess.sh && postprocess_model \
+    quick_submodel_postprocess.R \
+    ${VERSION} \
+    ${MODEL} \
+    ${IN_ARG} \
+    ${OUT_ARG}" &
+srun --export=all --exclusive --ntasks=1 bash -c \
+  "source quick_postprocess.sh && postprocess_model \
+    quick_roc_postprocess.R \
+    ${VERSION} \
+    ${MODEL} \
+    ${IN_ARG} \
+    ${OUT_ARG} 
+    --cluster-roc \
+    --cluster-takeup-prop \
+    --cluster-rep-return-dist" &
 wait
 

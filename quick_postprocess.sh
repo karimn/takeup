@@ -7,7 +7,7 @@ postprocess_model () {
     echo "RUNNING MODEL: $3"
     echo "INPUT ARGS: $4"
     echo "OUTPUT ARGS: $5"
-    echo "RUNNING PRIOR ARGS: $6"
+    echo "RUNNING ADD ARGS: ${@:6}"
 
     Rscript --no-save \
             --no-restore \
@@ -17,7 +17,7 @@ postprocess_model () {
             --model=$3 \
             $4 \
             $5 \
-            $6 \
+            "${@:6}" \
             1 2 3 4 > temp/log/struct-postprocess_$3_$2_$1.txt 2>&1
 
 }
