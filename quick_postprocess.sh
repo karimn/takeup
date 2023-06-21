@@ -4,19 +4,21 @@ postprocess_model () {
 
     echo "RUNNING SCRIPT: $1"
     echo "RUNNING VERSION: $2"
-    echo "POSTPROCESS ARGS: $3"
-    echo "RUNNING MODEL: $4"
-    echo "RUNNING ADD ARGS: ${@:5}"
+    echo "RUNNING MODEL: $3"
+    echo "INPUT ARGS: $4"
+    echo "OUTPUT ARGS: $5"
+    echo "RUNNING ADD ARGS: ${@:6}"
 
     Rscript --no-save \
             --no-restore \
             --verbose \
             $1 \
 	    $2 \
-            $3 \
-            --model=$4 \
-            "${@:5}" \
-            1 2 3 4 > temp/log/struct-postprocess_$4_$2_$1.txt 2>&1
+            --model=$3 \
+            $4 \
+            $5 \
+            "${@:6}" \
+            1 2 3 4 > temp/log/struct-postprocess_$3_$2_$1.txt 2>&1
 
 }
 
