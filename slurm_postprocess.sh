@@ -44,7 +44,7 @@ source quick_postprocess.sh
 # Rest of your submission script
 
 # Within SLURM tasks
-srun --exclusive --ntasks=1 /usr/bin/bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB'" &
-srun --exclusive --ntasks=1 /usr/bin/bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB'" &
+srun --export=all --exclusive --ntasks=1 /usr/bin/bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB' ${VERSION} ${POSTPROCESS_INOUT_ARGS}" &
+srun --export=all --exclusive --ntasks=1 /usr/bin/bash -c "source quick_postprocess.sh && postprocess_struct_models 'STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB' ${VERSION} ${POSTPROCESS_INOUT_ARGS}" &
 wait
 

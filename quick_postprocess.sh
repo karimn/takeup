@@ -6,6 +6,9 @@ postprocess_struct_models () {
     echo "RUNNING VERSION: $2"
     echo "Postprocess args: $3"
 
+
+	module load R/4.2.0
+
     Rscript --no-save \
             --no-restore \
             --verbose \
@@ -49,6 +52,9 @@ postprocess_rf_models () {
     echo "RUNNING MODEL: $1"
     echo "RUNNING VERSION: $2"
     echo "Postprocess args: $3"
+
+	module load R/4.2.0
+
     Rscript --no-save \
             --no-restore \
             --verbose \
