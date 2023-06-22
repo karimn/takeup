@@ -36,10 +36,13 @@ source("quick_postprocess_functions.R")
 ##
 dist_idx_mapper = tibble(
   dist_treat_idx = 1:8,
-  dist_treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
+  treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
   dist_group = rep(c("close", "far"), each = 4)
 ) %>%
-  mutate(dist_treatment = factor(dist_treatment, levels = c("bracelet", "calendar", "ink", "control")))
+  mutate(
+    treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+    treatment = fct_relabel(treatment, str_to_title)
+  )
 
 prob_draws_raw = load_param_draws(
     fit_version = script_options$fit_version,
@@ -96,7 +99,11 @@ belief_ate_idx_mapper = beliefs_ate_pairs %>%
         belief_ate_idx,
         treatment = assigned_treatment_left, 
         dist_group = assigned_dist_group_left
-    ) 
+    )  %>%
+    mutate(
+      treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+      treatment = fct_relabel(treatment, str_to_title)
+    )
 
 
 ate_draws_raw = load_param_draws(

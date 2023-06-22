@@ -12,9 +12,10 @@ Options:
   
   "), 
   args = if (interactive()) "
-  96
+  95
+  --prior
   --output-path=temp-data
-  --model=REDUCED_FORM_NO_RESTRICT
+  --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
   1 
   " else commandArgs(trailingOnly = TRUE)
 )
@@ -31,13 +32,19 @@ mu_idx_mapper = tibble(
   treat_idx = 1:4,
   mu_treatment = c("control", "ink", "calendar", "bracelet")
 ) %>%
-  mutate(mu_treatment = factor(mu_treatment, levels = c("bracelet", "calendar", "ink", "control")))
+  mutate(
+    mu_treatment = factor(mu_treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+    mu_treatment = fct_relabel(mu_treatment, str_to_title)
+    )
 dist_idx_mapper = tibble(
   dist_treat_idx = 1:8,
-  dist_treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
+  treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
   dist_group = rep(c("close", "far"), each = 4)
 ) %>%
-  mutate(dist_treatment = factor(dist_treatment, levels = c("bracelet", "calendar", "ink", "control")))
+  mutate(
+    treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+    treatment = fct_relabel(treatment, str_to_title)
+    )
 cluster_mapper = analysis_data %>%
   select(
     cluster_id,
@@ -97,6 +104,8 @@ rvar_cols = cluster_error_draws %>%
   select(where(is_rvar)) %>%
   colnames()
 
+
+
 cluster_error_draws %>%
   pivot_longer(
     all_of(rvar_cols),
@@ -129,7 +138,7 @@ create_tes = function(.data, group_var, levels = FALSE) {
       )   %>%
       group_by(dist_group) %>%
       mutate(
-        pr_takeup = if_else({{ group_var }} == "control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "control"]*levels_mult)
+        pr_takeup = if_else({{ group_var }} == "Control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "Control"]*levels_mult)
       ),
     .data %>%
       group_by(fit_type, model, fit_version, {{ group_var }}) %>%
@@ -138,7 +147,7 @@ create_tes = function(.data, group_var, levels = FALSE) {
         .groups = "drop"
       ) %>%
       mutate(
-        pr_takeup = if_else({{ group_var }} == "control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "control"]*levels_mult)
+        pr_takeup = if_else({{ group_var }} == "Control", pr_takeup, pr_takeup - pr_takeup[{{ group_var }} == "Control"]*levels_mult)
       )  %>%
       mutate(dist_group = "combined")
   ) %>%
@@ -147,21 +156,22 @@ create_tes = function(.data, group_var, levels = FALSE) {
     ) 
   return(tes)
 }
-  
+
+
 incentive_tes = cluster_error_draws %>%
       filter(dist_group == assigned_dist_group) %>%
-      filter((mu_treatment == dist_treatment) | model_type == "reduced form") %>%
-      create_tes(group_var = dist_treatment) %>%
+      filter((mu_treatment == treatment) | model_type == "reduced form") %>%
+      create_tes(group_var = treatment) %>%
       mutate(estimand = "overall")
 if (model_type == "structural") {
   signal_tes = cluster_error_draws %>%
-    filter(dist_treatment == "control") %>%
+    filter(treatment == "Control") %>%
     create_tes(group_var = mu_treatment) %>%
     mutate(estimand = "signal")
   private_tes = cluster_error_draws %>%
     filter(dist_group == assigned_dist_group) %>%
-    filter(mu_treatment == "control") %>%
-    create_tes(group_var = dist_treatment) %>%
+    filter(mu_treatment == "Control") %>%
+    create_tes(group_var = treatment) %>%
     filter(dist_group == "combined") %>%
     mutate(estimand = "private")
 } else {
@@ -195,8 +205,8 @@ all_tes %>%
 
 incentive_levels = cluster_error_draws %>%
       filter(dist_group == assigned_dist_group) %>%
-      filter((mu_treatment == dist_treatment) | model_type == "reduced form") %>%
-      create_tes(group_var = dist_treatment, levels = TRUE) %>%
+      filter((mu_treatment == treatment) | model_type == "reduced form") %>%
+      create_tes(group_var = treatment, levels = TRUE) %>%
       mutate(estimand = "overall")
 
 

@@ -36,7 +36,11 @@ treat_idx_mapper = tibble(
   treat_idx = 1:4,
   treatment = c("control", "ink", "calendar", "bracelet")
 ) %>%
-  mutate(treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")))
+  mutate(
+    treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+    treatment = fct_relabel(treatment, str_to_title)
+
+  )
 dist_idx_mapper = tibble(
   dist_treat_idx = 1:8,
   dist_treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
@@ -259,7 +263,7 @@ if (script_options$cluster_rep_return_dist) {
             roc_distance
       ) %>%
       mutate(
-        cluster_rep_return_dist_te = cluster_rep_return_dist - cluster_rep_return_dist[treatment == "control"]
+        cluster_rep_return_dist_te = cluster_rep_return_dist - cluster_rep_return_dist[treatment == "Control"]
       )
 
   rep_return_dist_draws %>%
