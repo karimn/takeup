@@ -75,7 +75,8 @@ if (script_options$cluster_roc) {
       chain = script_options$chain,
       prior_predictive = script_options$prior,
       input_path = script_options$input_path,
-      cluster_roc[roc_dist_idx, cluster_idx, treat_idx]
+      cluster_roc[roc_dist_idx, cluster_idx, treat_idx],
+      cluster_roc_no_vis[roc_dist_idx, cluster_idx, treat_idx]
     )
 
     cluster_roc_draws = cluster_roc_draws_raw %>%
