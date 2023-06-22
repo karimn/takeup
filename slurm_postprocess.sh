@@ -63,7 +63,7 @@ srun --export=all --exclusive --ntasks=1 bash -c \
     ${VERSION} \
     ${MODEL} \
     ${IN_ARG} \
-    ${OUT_ARG} 
+    ${OUT_ARG} \
     --cluster-roc \
     --cluster-takeup-prop \
     --cluster-rep-return-dist" &
