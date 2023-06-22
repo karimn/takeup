@@ -3,7 +3,7 @@
 #SBATCH --partition=bigmem2
 #SBATCH --job-name=quick-takeup        # create a short name for your job
 #SBATCH --nodes=1                # node count
-#SBATCH --ntasks=3              # total number of tasks across all nodes
+#SBATCH --ntasks=6              # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1      # cpu-cores per task (>1 if multi-threaded tasks)
 #SBATCH --mem-per-cpu=50G         # memory per cpu-core (4G is default)
 #SBATCH --time=0-10:00:00        # maximum time needed (HH:MM:SS)
@@ -17,7 +17,11 @@
 LATEST_VERSION=95
 VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
 SLURM_INOUT_DIR=~/scratch-midway2
-MODEL="STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB"
+models=(
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB"
+  "REDUCED_FORM_NO_RESTRICT"
+  )
+
 PRIOR_ARG="" # "--prior"
 
 echo "Version: $VERSION"
@@ -42,30 +46,36 @@ fi
 # Source the functions script
 source quick_postprocess.sh
 
-# Within SLURM tasks
-srun --export=all --exclusive --ntasks=1 bash -c \
-  "source quick_postprocess.sh && postprocess_model \
-    quick_ate_postprocess.R \
-    ${VERSION} \
-    ${MODEL} \
-    ${IN_ARG} \
-    ${OUT_ARG}" &
-srun --export=all --exclusive --ntasks=1 bash -c \
-  "source quick_postprocess.sh && postprocess_model \
-    quick_submodel_postprocess.R \
-    ${VERSION} \
-    ${MODEL} \
-    ${IN_ARG} \
-    ${OUT_ARG}" &
-srun --export=all --exclusive --ntasks=1 bash -c \
-  "source quick_postprocess.sh && postprocess_model \
-    quick_roc_postprocess.R \
-    ${VERSION} \
-    ${MODEL} \
-    ${IN_ARG} \
-    ${OUT_ARG} 
-    --cluster-roc \
-    --cluster-takeup-prop \
-    --cluster-rep-return-dist" &
-wait
 
+
+
+for model in "${models[@]}"
+do
+  # Within SLURM tasks
+  srun --export=all --exclusive --ntasks=1 bash -c \
+    "source quick_postprocess.sh && postprocess_model \
+      quick_ate_postprocess.R \
+      ${VERSION} \
+      ${model} \
+      ${IN_ARG} \
+      ${OUT_ARG}" &
+  srun --export=all --exclusive --ntasks=1 bash -c \
+    "source quick_postprocess.sh && postprocess_model \
+      quick_submodel_postprocess.R \
+      ${VERSION} \
+      ${model} \
+      ${IN_ARG} \
+      ${OUT_ARG}" &
+  srun --export=all --exclusive --ntasks=1 bash -c \
+    "source quick_postprocess.sh && postprocess_model \
+      quick_roc_postprocess.R \
+      ${VERSION} \
+      ${model} \
+      ${IN_ARG} \
+      ${OUT_ARG} 
+      --cluster-roc \
+      --cluster-takeup-prop \
+      --cluster-rep-return-dist" &
+done
+
+wait
