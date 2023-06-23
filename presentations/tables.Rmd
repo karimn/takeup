@@ -38,6 +38,8 @@ params:
 
 ```{r, "startup", include=FALSE}
 library(tidyverse)
+library(posterior)
+library(tidybayes)
 library(marginaleffects)
 library(broom)
 library(knitr)
@@ -49,12 +51,12 @@ library(magrittr)
 if (interactive()) {
     params = lst(
         fit_version = 95,
-        rf_fit_version = 98,
+        rf_fit_version = 95,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
         optim_input_path =  "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots",
         table_output_path = "presentations/tables",
-        struct_models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+        struct_models = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB",
         rf_models = "REDUCED_FORM_NO_RESTRICT",
         show_probs = FALSE,
         cache = TRUE
@@ -189,74 +191,91 @@ custom_save_latex_table = function(table, table_name){
 ```
 
 
-```{r}
 
-## Fit Loading
-load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
+```{r, tidy_output_loading}
 
-# If the fit version is different, we need to load the RF fit
-if (params$fit_version != params$rf_fit_version) {
-  # Only load structural
-  dist_fit_data = dist_fit_data %>%
-    filter(model %in% c(params$struct_models))
+tidy_fit_param_df = bind_rows(
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_fit{params$fit_version}_{params$struct_model}_1-4.rds"
+      )
+    )
+  ),
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_fit{params$rf_fit_version}_{params$rf_model}_1-4.rds"
+      )
+    )
+  )
+)
+tidy_prior_param_df = bind_rows(
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_prior{params$fit_version}_{params$struct_model}_1-4.rds"
+      )
+    )
+  ),
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_prior{params$rf_fit_version}_{params$rf_model}_1-4.rds"
+      )
+    )
+  ),
 
-  rf_env = new.env()
+)
+tidy_param_df = bind_rows(
+  tidy_fit_param_df,
+  tidy_prior_param_df
+)
 
-  with_env = function(f, e = parent.frame()) {
-      stopifnot(is.function(f))
-      environment(f) = e
-      f
-  }
-
-  load_rf_function = function(){
-      load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}_lite.RData")))
-      return(dist_fit_data)
-  }
-
-
-  rf_fit_data = with_env(load_rf_function, rf_env)() %>%
-    filter(model %in% c(params$rf_models))
-
-  dist_fit_data = bind_rows(
-    rf_fit_data, 
-    dist_fit_data
+tidy_param_df = tidy_param_df %>%
+  mutate(
+    model_type = if_else(str_detect(model, "STRUCT"), "structural", "reduced form") %>% factor(),
+    fit_type = factor(fit_type),
+    model = factor(model)
   )
 
-}
-
-dist_fit_data %<>%
+tidy_param_df = tidy_param_df %>%
+  mutate(
+    dist_present = map_lgl(tidy_draws, ~"dist_treatment" %in% colnames(.x)),
+    treat_present = map_lgl(tidy_draws, ~ "treatment" %in% colnames(.x)),
+    dist_group_present = map_lgl(tidy_draws, ~"dist_group" %in% colnames(.x)),
+    param = factor(param)
+    ) %>%
+  mutate(
+    tidy_draws = map_if(
+      tidy_draws,
+      dist_group_present,
+      ~mutate(
+        .x,
+        dist_group = factor(dist_group, levels = c("combined", "close", "far")),
+        dist_group = fct_relabel(dist_group, str_to_title)
+        )
+      ),
+      model_name = if_else(model_type == "structural", "Structural", "Reduced Form"),
+  ) %>%
   left_join(tribble(
     ~ fit_type,        ~ model_color,
       "fit",           "black", 
       "prior-predict", "darkgrey",
-  ), by = "fit_type") %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, c(models_we_want, "REDUCED_FORM_NO_RESTRICT")))
-
-dist_fit_data = dist_fit_data %>%
-  filter(model %in% models_we_want)
+  ), by = "fit_type") 
 
 
 
-delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
-
-belief_data = dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model, c(models_we_want))) %>%
-  pull(beliefs_results) %>%
-  first() 
-
-
-cols_we_want = c(
-    "est_takeup_level",
-    "beliefs_results",
-    "wtp_results",
-    "est_takeup_te",
-    "est_takeup_dist_te"
-)
 ```
 
 
+
 ## Sample Info
-```{r, sample_table}
+```{r, sample_table, eval=FALSE}
 
 stan_data = (dist_fit_data %>%
   filter(fct_match(model_type, "structural")) %>%
@@ -270,15 +289,15 @@ stan_data = (dist_fit_data %>%
 
 
 
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
+# rf_analysis_data <- dist_fit_data %>% 
+#   filter(
+#     fct_match(model_type, "reduced form"),
+#     fct_match(fit_type, "fit"),
+#   ) %$% 
+#   stan_data[[1]]$analysis_data 
 
-rf_N = rf_analysis_data %>%
-  select(dewormed, assigned_treatment, assigned_dist_group) %>%
+rf_N = analysis_data %>%
+  select(dewormed, assigned.treatment, dist.pot.group) %>%
   complete.cases() %>%
   sum()
 print(
@@ -288,720 +307,183 @@ print(
 
 
 
-```{r}
-#| comparing-draws-correlated-posterior,
-#| eval=TRUE
-
-
-full_data_env = new.env()
-
-with_env = function(f, e = parent.frame()) {
-    stopifnot(is.function(f))
-    environment(f) = e
-    f
-}
-
-load_full_data_function = function(){
-    load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}.RData"))) 
-    rf_dist_fit_data = dist_fit_data %>%
-      filter(model %in% params$rf_models)
-    load(file.path("temp-data", str_interp("processed_dist_fit${params$fit_version}.RData"))) 
-    struct_dist_fit_data = dist_fit_data %>%  
-      filter(model %in% params$struct_models)
-    dist_fit_data = bind_rows(
-      rf_dist_fit_data,
-      struct_dist_fit_data
-    )
-    return(dist_fit_data)
-}
-
-
-full_dist_fit_data = with_env(load_full_data_function, full_data_env)() %>%
-  filter(model %in% models_we_want) %>%
-  filter(fct_match(fit_type, "fit"))
-
-```
-
-
 
 ```{r}
-#| sig-diff-draws
-
-#' Prepare Incentive TE Data
-#' 
-#' Filtering so that we have:
-#' visibility matching private benefit (if structural)
-#' comparison within same distance group
-#' control on RHS
-#' Bracelet/calendar/ink on lhs
-prep_incentive_te = function(takeup_te_data, model_type) {
-  if (fct_match(model_type, "structural")) {
-    takeup_te_data = takeup_te_data %>%
-      filter(
-        # make sure visibility and private benefit match
-        mu_assigned_treatment_left == assigned_treatment_left,
-        mu_assigned_treatment_right == assigned_treatment_right
-      )
-  }
-  output_te = takeup_te_data %>%
-    filter(
-      # comparing within same distance group (NA corresponds to reduced form model)
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      # rhs is control, lhs isn't same as rhs 
-      assigned_treatment_left != assigned_treatment_right, 
-      fct_match(assigned_treatment_right, c("control"))
-    ) %>%
-      mutate(
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
-          fct_relabel(str_to_title) %>%
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left),
-        assigned_dist_group_right = fct_explicit_na(assigned_dist_group_right, "combined")  %>%
-          fct_relabel(str_to_title) %>%
-          fct_relevel("Combined")
-        )
-  return(output_te)
-}
-
-#' Prepare Signal TE Data
-#' 
-#' Filtering so that we have:
-#' comparison within same distance group
-#' control private benefit on RHS & LHS
-#' Bracelet/calendar/ink visibility on lhs
-#' Control visibility on RHS
-prep_signal_te = function(takeup_te_data, model_type, fit_type) {
-  if (fct_match(fit_type, "fit") & fct_match(model_type, "structural")) {
-    output_te = takeup_te_data %>%
-      filter(
-      # comparing within same distance group (NA corresponds to reduced form model)
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      # ensure private benefit set to control
-      across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
-      # visibility LHS has to exist
-      !is.na(mu_assigned_treatment_left),
-      # fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
-      fct_match(mu_assigned_treatment_right, "control"),
-      mu_assigned_treatment_left != mu_assigned_treatment_right
-      ) %>%
-      mutate(
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
-          fct_relabel(str_to_title) %>%
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left),
-        mu_assigned_treatment_left = str_to_title(mu_assigned_treatment_left)
-        )
-  } else {
-    output_te = NULL
-  }
-  return(output_te)
-}
+#| create-te-df
 
 
 
-#' Prepare Private Incentive TE Data
-#' 
-#' Filtering so that we have:
-#' comparison within same distance group
-#' control visibility on RHS & LHS
-#' Bracelet/calendar/ink private benefit on lhs
-#' Control private benefit on RHS
-prep_private_te = function(takeup_te_data, model_type, fit_type) {
-  if (fct_match(fit_type, "fit") & fct_match(model_type, "structural")) {
-    output_te = takeup_te_data %>%
-      filter(
-      # same distance comparison
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      # visibility not NA (probably don't need if matching on struct)
-      !is.na(mu_assigned_treatment_left),
-      !is.na(mu_assigned_treatment_right),
-      # visibility control on LHS & RHS
-      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
-      # control private benefit RHS
-      fct_match(assigned_treatment_right, "control"),
-      # LHS != RHS private benefit
-      assigned_treatment_right != assigned_treatment_left
-      )   %>%
-      mutate(
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "combined") %>%
-          fct_relabel(str_to_title) %>%
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left)
-        )
-  } else {
-    output_te = NULL
-  }
-  return(output_te)
-}
+ate_rvar_df = bind_rows(
+  read_rds(
+      file.path(
+        "temp-data",
+        str_glue("rvar_processed_dist_fit{params$fit_version}_ates_{params$struct_models}_1-4.rds")
+      ) 
+  ),
+  read_rds(
+      file.path(
+        "temp-data",
+        str_glue("rvar_processed_dist_fit{params$rf_fit_version}_ates_{params$rf_models}_1-4.rds")
+      ) 
+  )
+)
 
-1+1
-
-```
-
-```{r}
-#| setup-res-table
-1+1
-
-
-pr_comparison_te_df = full_dist_fit_data %>%
-  filter(fit_type == "fit") %>%
-  select(model_type, fit_type, est_takeup_te) %>%
-  unnest(est_takeup_te)  %>%
-  mutate(
-    pr_greater = map_dbl(
-      iter_data,
-      ~ .x %>%
-          summarise(
-            pr_greater = mean(iter_takeup_te > 0, na.rm = TRUE)
-          ) %>% pull()
-        )
-    )
-
-
-calculate_bra_cal_fc_diff = function(data, lhs_treat) {
-data %>%
-  unnest(est_takeup_te) %>%
-  filter(assigned_dist_group_left != "Combined")  %>%
-  unnest(iter_data) %>%
-  select(
-    model_type,
-    {{ lhs_treat }},
-    assigned_dist_group_left,
-    iter_id, iter_takeup_te
-  ) %>%
-  spread(
-    assigned_dist_group_left,
-    iter_takeup_te
-  ) %>%
-  group_by(
-    model_type,
-    {{ lhs_treat }}
-  )  %>%
-  mutate(
-    far_close_diff = Far - Close
-  ) %>%
-  select(model_type, {{ lhs_treat }}, iter_id, far_close_diff) %>%
-  spread({{ lhs_treat }}, far_close_diff)  %>%
-  mutate(
-    bra_fc_minus_cal_fc = Bracelet - Calendar
-  ) %>%
-  group_by(
-    model_type
-  ) %>%
-  summarise(
-    pr_positive = mean(bra_fc_minus_cal_fc > 0),
-    mean_diff = mean(bra_fc_minus_cal_fc),
-    median_diff = median(bra_fc_minus_cal_fc),
-    per_0.05 = quantile(bra_fc_minus_cal_fc, 0.05),
-    per_0.95 = quantile(bra_fc_minus_cal_fc, 0.95)
-  ) 
-}
-
-
-
-incentive_bra_cal_fc_df = full_dist_fit_data %>%
-  filter(fct_match(fit_type, "fit")) %>%
-  select(
-    model_type,
-    est_takeup_te
-  ) %>%
-  mutate(
-    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te)
-  ) %>%
-  calculate_bra_cal_fc_diff(assigned_treatment_left)
-
+create_cis = function(.data) {
+  med_fun = function(x) {
+    mean_x = mean(x) %>% round(3)
+    conf.low = quantile(x, 0.05) %>% round(3)
+    conf.high = quantile(x, 0.95) %>% round(3)
   
-signal_bra_cal_fc_df = full_dist_fit_data %>%
-  filter(fct_match(fit_type, "fit")) %>%
-  select(
-    model_type,
-    fit_type,
-    est_takeup_te
-  ) %>%
-  mutate(
-    est_takeup_te = pmap(
-      list(est_takeup_te, model_type, fit_type),
-      ~prep_signal_te(..1, ..2, ..3)
-      )
-    )  %>%
-  calculate_bra_cal_fc_diff(mu_assigned_treatment_left)
-
-private_bra_cal_fc_df = full_dist_fit_data %>%
-  filter(fct_match(fit_type, "fit")) %>%
-  select(
-    model_type,
-    fit_type,
-    est_takeup_te
-  ) %>%
-  mutate(
-    est_takeup_te = pmap(
-      list(est_takeup_te, model_type, fit_type),
-      ~prep_private_te(..1, ..2, ..3)
-      )
-    )  %>%
-  calculate_bra_cal_fc_diff(assigned_treatment_left)
-
-digits = 3
-
-bra_cal_fc_df = bind_rows(
-  incentive_bra_cal_fc_df %>%
-    mutate(Estimand = "incentive"),
-  signal_bra_cal_fc_df %>%
-    mutate(Estimand = "signal")
-  # private_bra_cal_fc_df %>%
-  #   mutate(Estimand = "private")
-) %>%
-  mutate(
-    treatment = "Bracelet - Calendar"
-  ) %>%
-  mutate(
-    across(c(mean_diff, per_0.05, per_0.95), round, digits),
-    estim_std = if_else(
-      rep(!params$show_probs, n()),
-      linebreak(paste0(mean_diff,"\n", str_glue("({per_0.05}, {per_0.95})")), align = "c"),
-      as.character(round(pr_positive, digits))
+    return_val = linebreak(
+      paste0(
+        mean_x, "\n", str_glue(
+          "({conf.low}, {conf.high})"
+        )
+      ), align = "c"
     )
-  ) %>%
-  select(
-    model_type,
-    treatment,
-    Estimand,
-    estim_std
-  ) %>%
-  spread(
-    model_type, estim_std
-  ) %>%
-  rename(
-    rf_estim = `reduced form`,
-    estim = structural
-  )
-
-
-
-calculate_far_bigger_te = function(data, lhs_treat) {
-  data %>%
-    unnest(est_takeup_te) %>%
-    filter(assigned_dist_group_left != "Combined")  %>%
-    unnest(iter_data) %>%
-    select(
-      model_type,
-      {{ lhs_treat }},
-      assigned_dist_group_left,
-      iter_id, iter_takeup_te
-    ) %>%
-    spread(
-      assigned_dist_group_left,
-      iter_takeup_te
-    ) %>%
-    group_by(
-      model_type,
-      {{ lhs_treat }}
-    ) %>%
-    summarise(
-      mean_est = mean(Far - Close),
-      per_0.05 = quantile(Far - Close, 0.05),
-      per_0.95 = quantile(Far - Close, 0.95),
-      pr_far_bigger = mean(Far > Close)
-    ) 
+    return(return_val)
+  }
+  .data %>%
+    mutate(across(where(is_rvar), med_fun))
 }
 
-incentive_far_bigger_te_df = full_dist_fit_data %>%
-    filter(fct_match(fit_type, "fit")) %>%
+
+create_ate_table = function(.data, .estimand, group_var = treatment) {
+  .data %>%
+    filter(estimand == .estimand) %>%
     select(
-      model_type,
-      est_takeup_te
+      model,
+      {{ group_var }},
+      dist_group,
+      value
     ) %>%
-    mutate(
-      est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te)
+    pivot_wider(
+      names_from = dist_group,
+      values_from = value
     ) %>%
-    calculate_far_bigger_te(assigned_treatment_left) %>%
-    mutate(Estimand = "incentive")
+    select(model, {{ group_var }}, any_of(c("combined", "close", "far"))) %>%
+    arrange({{ group_var }}) %>%
+    bind_rows(
+      # bracelet minus calendar row
+      .data %>%
+        filter({{ group_var }} %in% c("Bracelet", "Calendar")) %>%
+        filter(estimand == .estimand) %>%
+        pivot_wider(names_from = {{ group_var }}, values_from = value) %>%
+        mutate(
+          bracelet_minus_calendar = Bracelet - Calendar
+        ) %>%
+        select(model, dist_group, bracelet_minus_calendar) %>%
+        pivot_wider(
+          names_from = dist_group,
+          values_from = bracelet_minus_calendar
+        ) %>%
+        mutate("{{ group_var }}" := "bracelet_minus_calendar")
+    )
+}
 
-
-signal_far_bigger_te_df = full_dist_fit_data %>%
-  filter(fit_type == "fit" & model_type == "structural") %>%
-  select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
-  mutate(
-    est_takeup_te = pmap(
-      list(est_takeup_te, model_type, fit_type),
-      ~prep_signal_te(..1, ..2, ..3)
-      )
-    )  %>%
-    calculate_far_bigger_te(mu_assigned_treatment_left) %>%
-    mutate(Estimand = "signal")
-
-
-private_far_bigger_te_df = full_dist_fit_data %>%
-  filter(fit_type == "fit" & model_type == "structural") %>%
-  select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
-  mutate(
-    est_takeup_te = pmap(
-      list(est_takeup_te, model_type, fit_type),
-      ~prep_private_te(..1, ..2, ..3)
-      )
-    )  %>%
-    calculate_far_bigger_te(assigned_treatment_left) %>%
-    mutate(Estimand = "private")
-
-
-
-# dist_fit_data %>%
-#   filter(model == params$struct_models) %>%
-#   select(est_takeup_te) %>%
-#   unnest() %>%
-#   filter(
-#     mu_assigned_treatment_left == assigned_treatment_left,
-#     mu_assigned_treatment_right == assigned_treatment_right,
-#     (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right))
-#   ) %>%
-#   filter(assigned_treatment_right == "control") 
-
-
-
-
-
-incentive_te = dist_fit_data %>%
-  mutate(
-    est_takeup_te = map2(est_takeup_te, model_type, prep_incentive_te),
-    model_color = canva_pal(canva_palette_vibrant)(n())
-  ) %>% 
-  unnest(est_takeup_te)  %>%
-  select( 
-    model_type,
-    assigned_treatment = assigned_treatment_left, 
-    assigned_dist = assigned_dist_group_left,
-    mean_est, 
-    per_0.05, 
-    per_0.95
+incentive_ate_df =  ate_rvar_df %>%
+  create_ate_table(
+    .estimand = "overall",
+    group_var = treatment
   )
 
-incentive_control_mean = dist_fit_data %>%
-  select(model_type, fit_type, model, est_takeup_level) %>%
-  unnest(
-    est_takeup_level
-  ) %>%
-  filter(
-    mu_assigned_treatment == assigned_treatment # PB = mu
-    ) %>%
-  filter(assigned_treatment == "control") %>%
-  select( 
-    model_type,
-    assigned_treatment = assigned_treatment, 
-    assigned_dist = assigned_dist_group,
-    mean_est, 
-    per_0.05, 
-    per_0.95
-  )  %>%
-  mutate(
-    assigned_dist = fct_explicit_na(assigned_dist, "combined") %>%
-      fct_relabel(str_to_title) %>%
-      fct_relevel("Combined"),
-    assigned_treatment = str_to_title(assigned_treatment)
-    )
-
-signalling_te = dist_fit_data %>% 
-  select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
-  mutate(
-    est_takeup_te = pmap(
-      list(est_takeup_te, model_type, fit_type),
-      ~prep_signal_te(..1, ..2, ..3)
-      )
-    ) %>%
-    filter(map_lgl(est_takeup_te, ~!is.null(.x))) %>%
-    unnest(est_takeup_te) %>%
-    select(
-      assigned_treatment = mu_assigned_treatment_left,
-      assigned_dist = assigned_dist_group_left, 
-      model_type,
-      mean_est, 
-      per_0.05, 
-      per_0.95
-    )
 
 
+signal_ate_df = ate_rvar_df %>%
+  filter(model == params$struct_models) %>%
+  mutate(mu_treatment = str_to_title(mu_treatment)) %>%
+  create_ate_table(
+    .estimand = "signal",
+    group_var = mu_treatment
+  )
 
-private_te = dist_fit_data %>% 
-  select(model, model_type, model_name, est_takeup_te, fit_type) %>% 
-  mutate(
-    est_takeup_te = pmap(
-      list(est_takeup_te, model_type, fit_type),
-      ~prep_private_te(
-        ..1,
-        ..2,
-        ..3
-      )
-    ),
-    model_color = canva_pal(canva_palette_vibrant)(n())) %>%
-    filter(map_lgl(est_takeup_te, ~!is.null(.x))) %>%
-    unnest(est_takeup_te) %>%
-    select(
-      assigned_treatment = assigned_treatment_left,
-      assigned_dist = assigned_dist_group_left, 
-      model_type,
-      mean_est, 
-      per_0.05, 
-      per_0.95
-    )
+private_ate_df = ate_rvar_df %>%
+  filter(model == params$struct_models) %>%
+  create_ate_table(
+    .estimand = "private",
+    group_var = treatment
+  )
 
-## Differences Between Bracelet and Calendar
-incentive_bracelet_calendar_diff_df = pr_comparison_te_df %>%
-    filter(
-      (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
-      model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_left == assigned_treatment_left)), # same mu and B
-      model_type == "reduced form" | (model_type == "structural" & (mu_assigned_treatment_right == assigned_treatment_right)), # same mu and B
-      fct_match(assigned_treatment_right, "calendar"), 
-      fct_match(assigned_treatment_left, "bracelet")
-    )  %>%
+
+ate_tbl_levels = c(
+    "Bracelet",
+    "Calendar",
+    "Ink",
+    "bracelet_minus_calendar",
+    "Control"
+)
+
+recode_control_mean = function(data) {
+  data %>%
     mutate(
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left),
-      ) %>%
-    select(
-      assigned_treatment = assigned_treatment_left,
-      assigned_dist = assigned_dist_group_left, 
-      model_type,
-      pr_greater,
-      mean_est,
-      per_0.05,
-      per_0.95
-    ) %>%
-    mutate(
-      assigned_treatment_pr = "P(Bracelet > Calendar)",
-      assigned_treatment = "Bracelet - Calendar"
+      treatment = fct_recode(treatment, "Control mean" = "Control", "Bracelet - Calendar" = "bracelet_minus_calendar")
     )
+}
 
-
-private_bracelet_calendar_diff_df = pr_comparison_te_df %>%
-      filter(model_type == "structural") %>%
-      filter(
-      # same distance comparison
-      (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-      # visibility not NA (probably don't need if matching on struct)
-      !is.na(mu_assigned_treatment_left),
-      !is.na(mu_assigned_treatment_right),
-      # visibility control on LHS & RHS
-      across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
-      # LHS != RHS private benefit
-      assigned_treatment_right != assigned_treatment_left,
-      fct_match(assigned_treatment_right, "calendar"), 
-      fct_match(assigned_treatment_left, "bracelet")
-      )   %>%
-    mutate(
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left),
-      ) %>%
-    select(
-      assigned_treatment = assigned_treatment_left,
-      assigned_dist = assigned_dist_group_left, 
-      model_type,
-      mean_est,
-      per_0.05,
-      per_0.95,
-      pr_greater
+spread_rf = function(data) {
+  data %>%
+    mutate(model_type = case_when(
+      model == params$struct_models ~ "struct",
+      model == params$rf_models ~ "rf"
+    )) %>%
+    select(-model) %>%
+    pivot_wider(
+      names_from = model_type,
+      id_cols = treatment,
+      names_glue = "{model_type}_{.value}",
+      values_from = any_of(c("combined", "close", "far", "far_minus_close"))
     ) %>%
-    mutate(
-      assigned_treatment = "Bracelet - Calendar",
-      assigned_treatment_pr = "P(Bracelet > Calendar)"
-    )
+    select(treatment, starts_with("rf"), starts_with("struct"))
+}
 
-signal_bracelet_calendar_diff_df = pr_comparison_te_df %>%
-  filter(
-    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)), # same dist group
-    (assigned_treatment_left == assigned_treatment_right), # same B on LHS and RHS
-    (mu_assigned_treatment_left == "bracelet" & mu_assigned_treatment_right == "calendar"), 
-    assigned_treatment_left == "control" 
+incentive_ate_tbl = incentive_ate_df %>%
+  mutate(treatment = factor(treatment, levels = 
+    ate_tbl_levels
+  )) %>%
+  mutate(far_minus_close = far - close) %>%
+  arrange(treatment)   %>%
+  create_cis() %>%
+  recode_control_mean()  %>%
+  spread_rf() %>%
+  mutate(estimand = "overall")
+
+private_ate_tbl = private_ate_df %>%
+  mutate(treatment = factor(treatment, levels = 
+    ate_tbl_levels
+  )) %>%
+  arrange(treatment)   %>%
+  create_cis() %>%
+  recode_control_mean() %>%
+  spread_rf() %>%
+  mutate(estimand = "private")
+
+signal_ate_tbl = signal_ate_df %>%
+  rename(treatment = mu_treatment) %>%
+  mutate(treatment = factor(treatment, levels = 
+    ate_tbl_levels
+  )) %>%
+  mutate(far_minus_close = far - close) %>%
+  arrange(treatment)   %>%
+  create_cis() %>%
+  recode_control_mean() %>%
+  spread_rf() %>%
+  mutate(estimand = "signal")
+
+
+
+all_ate_tbl = bind_rows(
+  incentive_ate_tbl,
+  signal_ate_tbl,
+  private_ate_tbl
 ) %>%
-    mutate(
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = str_to_title(assigned_treatment_left),
-      ) %>%
-    select(
-      assigned_treatment = assigned_treatment_left,
-      assigned_dist = assigned_dist_group_left, 
-      model_type,
-      mean_est,
-      per_0.05,
-      per_0.95,
-      pr_greater
-    ) %>%
-    mutate(
-      assigned_treatment = "Bracelet - Calendar",
-      assigned_treatment_pr = "P(Bracelet > Calendar)"
-    )
-
-
-fp = str_glue("temp-data/temp-res-{params$rf_fit_version}")
-dir.create(fp)
-
-incentive_te %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  write_csv(
-    file.path(
-      fp,
-      "incentive-te.csv"
-    )
-  )
-
-incentive_bracelet_calendar_diff_df %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  write_csv(
-    file.path(
-      fp,
-      "bra-cal-diff.csv"
-    )
-  )
-
-incentive_far_bigger_te_df %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  write_csv(
-    file.path(
-      fp,
-      "far-big-diff.csv"
-    )
-  )
+  mutate(estimand = factor(estimand, levels = c('private', 'signal', 'overall')) %>% fct_rev) %>%
+  select(estimand, treatment, everything())
 
 
 ```
 
 
 ```{r}
-te_df = bind_rows(
-  incentive_te %>% mutate(estimand = "incentive"),
-  incentive_bracelet_calendar_diff_df %>% mutate(estimand = "incentive", is_diff = TRUE),
-  private_te %>% mutate(estimand = "private"),
-  signalling_te %>% mutate(estimand = "signal"),
-  signal_bracelet_calendar_diff_df %>% mutate(estimand = "signal", is_diff = TRUE),
-  private_bracelet_calendar_diff_df %>% mutate(estimand = "private", is_diff = TRUE),
-  incentive_control_mean %>% mutate(estimand = "control mean")
-) %>%
-  mutate(
-    assigned_treatment = if_else(
-      assigned_treatment == "control" | assigned_treatment == "Control", 
-      "Control mean", 
-      assigned_treatment
-    ),
-    assigned_treatment = factor(
-      assigned_treatment, 
-      levels = c(
-        "Bracelet", 
-        "Calendar", 
-        "Ink", 
-        "Control mean", 
-        "P(Bracelet > Calendar)",
-        "Bracelet - Calendar"
-        ))
-  )
-
-rf_te_input_df = te_df %>%
-  filter(model_type == "reduced form") %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  mutate(
-    estim_value = if_else(
-      (is_diff == FALSE | is.na(is_diff)) | !params$show_probs,
-      linebreak(
-        paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
-        align = "c"
-        ), 
-      as.character(round(pr_greater, 3))
-    ),
-    assigned_treatment = if_else(
-      params$show_probs == TRUE & !is.na(assigned_treatment_pr),
-      fct_recode(assigned_treatment, "Bracelet - Calendar" = "P(Bracelet > Calendar)"),
-      assigned_treatment
-    )
-  ) %>%
-  select(
-    model_type, 
-    assigned_treatment, 
-    assigned_dist, 
-    estim_value, 
-    estimand
-  ) %>%
-  pivot_wider(
-    names_from = assigned_dist, 
-    values_from = estim_value
-  )  %>%
-  rename(
-    rf_Close = Close, 
-    rf_Far = Far, 
-    rf_Combined = Combined
-  )
-
-
-structural_te_input_df = te_df %>%
-  filter(model_type == "structural") %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  mutate(
-    estim_value = if_else(
-      is_diff == FALSE | is.na(is_diff) | !params$show_probs,
-      linebreak(
-        paste0(mean_est, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
-        align = "c"
-        ), 
-      as.character(round(pr_greater, 3))
-    ),
-    assigned_treatment = if_else(
-      params$show_probs == TRUE & !is.na(assigned_treatment_pr),
-      fct_recode(assigned_treatment, "Bracelet - Calendar" = "P(Bracelet > Calendar)"),
-      assigned_treatment
-    )
-  ) %>%
-  select(
-    model_type, 
-    assigned_treatment, 
-    assigned_dist, 
-    estim_value, 
-    estimand
-  ) %>%
-  pivot_wider(
-    id_cols = c(assigned_treatment, estimand),
-    names_from = assigned_dist, 
-    values_from = estim_value
-  )  %>%
-  mutate(across(
-    c(Close, Far), 
-    ~if_else(
-      estimand == "private", 
-      NA_character_, 
-      .x
-    )
-  ))
-
-
-
-te_input_df = right_join(
-  rf_te_input_df,
-  structural_te_input_df,
-  by = c("estimand", "assigned_treatment")
-)  %>%
-  select(-model_type) %>%
-  select(
-    Estimand = estimand, 
-    Treatment = assigned_treatment, 
-    everything()
-  ) %>%
-  mutate(across(c(contains("rf_"), Close, Far), replace_na, "-")) %>%
-  mutate(Estimand = factor(Estimand, levels = c("incentive", "signal", "private", ""))) %>%
-  arrange(Estimand) %>%
-  select(
-    Estimand, 
-    Treatment, 
-    rf_Combined, 
-    rf_Close,
-    rf_Far,
-    Combined,
-    Close,
-    Far
-  )
-
-
-
 latex_group_gap_space = "2em"
 1+2
 ```
@@ -1012,30 +494,23 @@ latex_group_gap_space = "2em"
 
 1+3
 
-te_kbl_df = te_input_df %>%
-  arrange(Estimand, Treatment) %>%
-  mutate(
-    Estimand = if_else(
-      Treatment == "Ink", 
-      Estimand, 
-      factor("")
-    )
-  ) %>%
-  select(-Estimand) %>%
+te_kbl_df = all_ate_tbl %>% 
+  arrange(estimand, treatment) %>%
+  select(-estimand) %>%
   kbl(
     col.names = c(
       # "Estimand", 
       # "Treatment", 
       "Dependent variable: Take-up",
-      paste0("(", 1:6, ")")
+      paste0("(", 1:8, ")")
     ), 
     format = "latex", 
     linesep = "\\addlinespace \\addlinespace \\addlinespace",
     booktabs = TRUE, 
     escape = FALSE, 
-    align = "lcccccc", 
+    align = "lcccccccc", 
     caption = "Results"
-  ) %>%
+  )  %>%
   kable_styling(
     latex_options = c("scale_down")
   ) %>%
@@ -1044,24 +519,26 @@ te_kbl_df = te_input_df %>%
       "Combined", 
       "Close", 
       "Far", 
+      "Far - Close",
       "Combined",
       "Close", 
-      "Far"
+      "Far",
+      "Far - Close"
       ), 
     line = FALSE
   ) %>%
   add_header_above(
     c(
       " " = 1,
-      "Reduced Form" = 3, 
-      "Structural" = 3
+      "Reduced Form" = 4, 
+      "Structural" = 4
       )
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: Overall" = 4, 
-      "Panel B: Signalling" = 4, 
-      "Panel C: Private" = 3
+      "Panel A: Overall" = 5, 
+      "Panel B: Signalling" = 5, 
+      "Panel C: Private" = 5
     ), 
     italic = TRUE,
     escape = FALSE,
@@ -1069,14 +546,9 @@ te_kbl_df = te_input_df %>%
     hline_after = TRUE, 
     hline_before = TRUE,
     bold = TRUE
-  ) %>%
-  # add_indent(c(4, 8)) %>%
-  row_spec(12, hline_after = TRUE) %>%
-  add_indent(12) %>%
-  footnote(
-    escape = FALSE,
-    threeparttable = TRUE
-  )
+  )  %>%
+  row_spec(c(3, 8, 13), hline_after = TRUE) 
+
 
 te_kbl_df %>%
   custom_save_latex_table(
@@ -1091,89 +563,26 @@ x = 1 + 5
 ```{r}
 #| overall-table-only
 
-te_far_bigger_input_df = 
-  bind_rows(
-    incentive_far_bigger_te_df,
-    signal_far_bigger_te_df
-  ) %>%
-  mutate(
-    across(c(mean_est, per_0.05, per_0.95), round, digits),
-    Treatment = case_when(
-      Estimand == "incentive" ~ assigned_treatment_left,
-      Estimand == "private" ~ assigned_treatment_left,
-      Estimand == "signal" ~ mu_assigned_treatment_left
-    ),
-    estim_std = if_else(
-      rep(!params$show_probs, n()),
-      linebreak(paste0(mean_est,"\n", str_glue("({per_0.05}, {per_0.95})")), align = "c"),
-      as.character(round(pr_far_bigger, digits))
-    )
-  ) %>%
-  select(
-    model_type,
-    Treatment,
-    Estimand,
-    estim_std
-  ) %>%
-  spread(
-    model_type, estim_std
-  ) %>%
-  rename(
-    rf_estim = `reduced form`,
-    estim = structural
-  )
 
 
 
 
-overall_te_kbl_df = 
-  te_input_df %>%
-  filter(Estimand == "incentive" | Treatment == "Control mean") %>%
-  left_join(
-    bind_rows(
-      bra_cal_fc_df %>%
-        rename(Treatment = treatment),
-      te_far_bigger_input_df
-    ) %>%
-      mutate(
-        across(where(is.numeric), round, 3),
-        Treatment = factor(Treatment),
-        Estimand = factor(Estimand)
-        ),
-    by = c("Treatment", "Estimand")
-  ) %>%
-  select(
-    Estimand,
-    Treatment,
-    rf_Combined,
-    rf_Close,
-    rf_Far,
-    rf_estim,
-    Combined,
-    Close,
-    Far,
-    estim
-  ) %>%
-  arrange(Estimand, Treatment) %>%
-  mutate(
-    Estimand = if_else(
-      Treatment == "Ink", 
-      Estimand, 
-      factor("")
-    )
-  ) %>%
-  select(-Estimand) %>%
+
+overall_te_kbl_df = all_ate_tbl %>% 
+  arrange(estimand, treatment) %>%
+  filter(estimand == "overall") %>%
+  select(-estimand) %>%
   kbl(
     col.names = c(
       "Dependent variable: Take-up",
       paste0("(", 1:8, ")")
     ), 
+    format = "latex", 
     linesep = "\\addlinespace \\addlinespace \\addlinespace",
     booktabs = TRUE, 
     escape = FALSE, 
     align = "lcccccccc", 
-    caption = "Results"
-  ) %>%
+    caption = "Overall Results") %>%
   kable_styling(
     latex_options = c("scale_down")
   ) %>%
@@ -1181,23 +590,14 @@ overall_te_kbl_df =
     c(" ", 
       "Combined", 
       "Close", 
-      "Far",
-      if_else(
-        params$show_probs,
-        "$\\\\hat{\\\\pi}$($\\\\textrm{TE}_{\\\\text{Far}} > \\\\textrm{TE}_{\\\\text{Close}}$)",
-        "Far - Close"
-      ),
-      "Combined", 
+      "Far", 
+      "Far - Close",
+      "Combined",
       "Close", 
       "Far",
-      if_else(
-        params$show_probs,
-        "$\\\\hat{\\\\pi}$($\\\\textrm{TE}_{\\\\text{Far}} > \\\\textrm{TE}_{\\\\text{Close}}$)",
-        "Far - Close"
-      )
+      "Far - Close"
       ), 
-    line = FALSE,
-    escape = FALSE
+    line = FALSE
   ) %>%
   add_header_above(
     c(
@@ -1206,12 +606,20 @@ overall_te_kbl_df =
       "Structural" = 4
       )
   ) %>%
-  row_spec(4, hline_after = TRUE) %>%
-  add_indent(1:5) %>%
-  footnote(
+  pack_rows(
+    index = c(
+      "Panel A: Overall" = 5
+    ), 
+    italic = TRUE,
     escape = FALSE,
-    threeparttable = TRUE
-  )
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  )  %>%
+  row_spec(c(3), hline_after = TRUE) 
+
+
 
 
 overall_te_kbl_df %>%
@@ -1223,42 +631,16 @@ overall_te_kbl_df %>%
 
 
 ```{r}
+#| private-signal-tbl, results="asis"
 
-decomposed_te_kbl_df = te_input_df %>%
-  select(-contains("rf_")) %>%
-  filter(Estimand == "private" | Estimand == "signal" | Treatment == "Control mean") %>%
-  arrange(Estimand, Treatment) %>%
-  left_join(
-    bind_rows(
-      bra_cal_fc_df %>%
-        rename(Treatment = treatment),
-      te_far_bigger_input_df
-    ) %>%
-      mutate(
-        across(where(is.numeric), round, 3),
-        Treatment = factor(Treatment),
-        Estimand = factor(Estimand)
-        ),
-    by = c("Treatment", "Estimand")
-  ) %>%
-  mutate(
-    Estimand = if_else(
-      Treatment == "Ink", 
-      Estimand, 
-      factor("")
-    )
-  ) %>%
-  select(
-    Treatment,
-    Combined,
-    Close,
-    Far,
-    estim
-  ) %>%
+
+decomposed_te_kbl_df = all_ate_tbl %>% 
+  arrange(estimand, treatment) %>%
+  filter(estimand %in% c("signal", "private")) %>%
+  select(estimand, treatment, contains('struct')) %>%
+  select(-estimand) %>%
   kbl(
     col.names = c(
-      # "Estimand", 
-      # "Treatment", 
       "Dependent variable: Take-up",
       paste0("(", 1:4, ")")
     ), 
@@ -1266,17 +648,16 @@ decomposed_te_kbl_df = te_input_df %>%
     linesep = "\\addlinespace \\addlinespace \\addlinespace",
     booktabs = TRUE, 
     escape = FALSE, 
-    align = "lccc", 
-    caption = "Results"
-  ) %>%
+    align = "lcccccccc", 
+    caption = "Overall Results") %>%
   kable_styling(
-    # latex_options = c("scale_down")
+    latex_options = c("scale_down")
   ) %>%
   add_header_above(
     c(" ", 
       "Combined", 
       "Close", 
-      "Far",
+      "Far", 
       "Far - Close"
       ), 
     line = FALSE
@@ -1289,8 +670,8 @@ decomposed_te_kbl_df = te_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: Signal" = 4, 
-      "Panel B: Private" = 3
+      "Panel A: Signal" = 5,
+      "Panel B: Private" = 5
     ), 
     italic = TRUE,
     escape = FALSE,
@@ -1298,13 +679,11 @@ decomposed_te_kbl_df = te_input_df %>%
     hline_after = TRUE, 
     hline_before = TRUE,
     bold = TRUE
-  ) %>%
-  row_spec(8, hline_after = TRUE) %>%
-  add_indent(1:8) %>%
-  footnote(
-    escape = FALSE,
-    threeparttable = TRUE
-  )
+  )  %>%
+  row_spec(c(3, 8), hline_after = TRUE) 
+
+# Q for Anne:
+# do we want control mean signal/private value or overall control mean at bottom
 
 decomposed_te_kbl_df %>%
   custom_save_latex_table(
@@ -1315,6 +694,16 @@ decomposed_te_kbl_df %>%
 
 ```{r}
 #| beliefs
+
+
+tidy_param_df %>%
+  filter(
+  fct_match(fit_type, "fit"), 
+  fct_match(model, params$struct_model), 
+  fct_match(model_type, "structural"),
+  param %in% c('belief_')
+  ) 
+
 
 
 belief_data = dist_fit_data %>%
