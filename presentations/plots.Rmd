@@ -40,12 +40,12 @@ library(econometr)
 
 if (interactive()) {
   params = lst(
-    fit_version = 85,
-    rf_fit_version = 100,
+    fit_version = 95,
+    rf_fit_version = 95,
     input_path = "data/stan_analysis_data",
     output_path = "temp-data", 
-    struct_model = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
-    rf_model = "REDUCED_FORM_NO_RESTRICT_DIST_CTS",
+    struct_model = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB",
+    rf_model = "REDUCED_FORM_NO_RESTRICT",
     component_checks = FALSE, 
     plot_caption = TRUE,
     cache = FALSE
@@ -169,6 +169,8 @@ monitored_nosms_data <- analysis.data %>%
 
 analysis_data <- monitored_nosms_data
 
+sd_of_dist = sd(analysis_data$cluster.dist.to.pot)
+
 ```
 
 
@@ -177,16 +179,15 @@ analysis_data <- monitored_nosms_data
 
 ```{r}
 #| component-checks,
-#| fig.cap = "Model subcomponents",
+#| fig.cap = "Model subcomponents - MODEL 86",
 #| fig.width = 10, fig.height = 10
-if (params$component_checks) {
   component_files = map(
       c("control", "ink", "calendar", "bracelet"),
       ~file.path(
         "optim", 
         "data",
         str_glue(
-          "pred-social-multiplier-fit{params$fit_version}-cutoff-b-{.x}-mu-{.x}-{params$models}.csv"
+          "pred-social-multiplier-fit86-cutoff-b-{.x}-mu-{.x}-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv"
         )
         )
       ) %>%
@@ -197,23 +198,6 @@ if (params$component_checks) {
         treatment_b = str_extract(file, "(?<=b-)\\w+(?=-mu)"),
         treatment_mu = str_extract(file, "(?<=-mu-)(\\w+)(?=-)")
       )
-
-  library(tidyverse)
-2+2
-  raw_u_sd_alpha = 4
-  raw_u_sd_beta = 1
-  inv_raw_u_sd = rgamma(100000, raw_u_sd_alpha, raw_u_sd_beta)
-  raw_u_sd = 1 / inv_raw_u_sd
-  library(tidyverse)
-  tibble(
-    x = raw_u_sd
-  )  %>%
-  ggplot(aes(
-    x = x
-  )) +
-  geom_histogram(bins = 100, colour = "white")
-
-
 
 
 
@@ -269,7 +253,6 @@ long_struct_df %>%
     theme_minimal() +
     theme(legend.position = "bottom") 
 
-}
 
 
 
@@ -278,7 +261,106 @@ long_struct_df %>%
 
 
 ## Fit Loading
+
+```{r, tidy_output_loading}
+
+tidy_fit_param_df = bind_rows(
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_fit{params$fit_version}_{params$struct_model}_1-4.rds"
+      )
+    )
+  ),
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_fit{params$rf_fit_version}_{params$rf_model}_1-4.rds"
+      )
+    )
+  )
+)
+tidy_prior_param_df = bind_rows(
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_prior{params$fit_version}_{params$struct_model}_1-4.rds"
+      )
+    )
+  ),
+  read_rds(
+    file.path(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_prior{params$rf_fit_version}_{params$rf_model}_1-4.rds"
+      )
+    )
+  ),
+
+)
+tidy_param_df = bind_rows(
+  tidy_fit_param_df,
+  tidy_prior_param_df
+)
+
+tidy_param_df = tidy_param_df %>%
+  mutate(
+    model_type = if_else(str_detect(model, "STRUCT"), "structural", "reduced form") %>% factor(),
+    fit_type = factor(fit_type),
+    model = factor(model)
+  )
+
+tidy_param_df = tidy_param_df %>%
+  mutate(
+    dist_present = map_lgl(tidy_draws, ~"dist_treatment" %in% colnames(.x)),
+    treat_present = map_lgl(tidy_draws, ~ "treatment" %in% colnames(.x)),
+    dist_group_present = map_lgl(tidy_draws, ~"dist_group" %in% colnames(.x)),
+    param = factor(param)
+    ) %>%
+  mutate(
+    # tidy_draws = map_if(tidy_draws, dist_present, ~mutate(.x, treatment = dist_treatment)),
+    # tidy_draws = map_if(
+    #   tidy_draws, 
+    #   dist_present | treat_present, 
+    #   ~mutate(.x, 
+    #     treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+    #     treatment = fct_relabel(treatment, str_to_title)
+    # ),
+    # ),
+    tidy_draws = map_if(
+      tidy_draws,
+      dist_group_present,
+      ~mutate(
+        .x,
+        dist_group = factor(dist_group, levels = c("combined", "close", "far")),
+        dist_group = fct_relabel(dist_group, str_to_title)
+        )
+      ),
+      model_name = if_else(model_type == "structural", "Structural", "Reduced Form"),
+      # tidy_draws = map_if(
+      #   tidy_draws,
+      #   fct_match(param, "ates") & fct_match(model_type, "structural"),
+      #   ~mutate(.x,
+      #     mu_treatment = factor(mu_treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+      #     mu_treatment = fct_relabel(mu_treatment, str_to_title)
+      #   )
+      # )
+  ) %>%
+  left_join(tribble(
+    ~ fit_type,        ~ model_color,
+      "fit",           "black", 
+      "prior-predict", "darkgrey",
+  ), by = "fit_type") 
+
+
+
+```
+
 ```{r, fit_loading}
+#| eval = FALSE
 load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
 
@@ -662,36 +744,70 @@ villages %>%
 #|  fig.note="This plot shows first estimates using the first order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 
-plot_ord_beliefs_est <- function(beliefs_results, 
+
+
+plot_ord_beliefs_est = function(beliefs_results, 
                              top_title = NULL, 
                              width = 0.3, 
                              crossbar_width = 0.2, 
                              order = 1) {
   pos_dodge <- position_dodge(width = width)
 
-  first_plot <- beliefs_results$prob_knows %>% 
-    filter(ord == order) %>% 
-    ggplot(aes(y = assigned_treatment, group = assigned_dist_group)) +
-    geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group), position = pos_dodge, size = 0.4) +
-    geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
-    geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group), position = pos_dodge, alpha = 0.4, size = 2.5) +
-    geom_point(aes(x = per_0.5, color = assigned_dist_group), position = pos_dodge, size = 1.8) +
-    geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
-    scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
-    scale_y_discrete("", labels = str_to_title) +
-    labs(
-      title = "",
-      subtitle = "Panel A: Levels",
-      x = "") +
-    labs(x = "Proportion (%)") +
-    scale_x_continuous(
-      labels = scales::label_percent(suffix = "")
-    )  +
-    theme_minimal() +
-    theme(legend.position = "top") +
-    panel_border(remove = TRUE) +
-    NULL
-  
+  first_plot = beliefs_results %>%
+    filter(param == "belief_probs") %>%
+    select(tidy_draws) %>%
+    unnest(tidy_draws) %>%
+    filter(str_detect(variable, as.character(order))) %>%
+    filter(dist_group %in% c("Close", "Far")) %>%
+    ggplot(aes(
+      y = treatment,
+      group = dist_group,
+      xmin = conf.low,
+      xmax = conf.high,
+      x = value
+    )) +
+      geom_linerange(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        size = 0.4,
+        data = . %>% filter(.width == 0.95)
+        ) +
+      geom_crossbar(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        fatten = 2, 
+        size = 0.4, 
+        width = crossbar_width,
+        data = . %>% filter(.width == 0.8)
+        ) +
+      geom_linerange(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        alpha = 0.4, 
+        size = 2.5,
+        data = . %>% filter(.width == 0.5)
+        ) +
+      geom_point(aes(color = dist_group), position = pos_dodge, size = 1.8) +
+      geom_point(position = pos_dodge, color = "white", size = 0.6) +
+      scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+      scale_y_discrete("", labels = str_to_title) +
+      labs(
+        title = "",
+        subtitle = "Panel A: Levels",
+        x = "") +
+      labs(x = "Proportion (%)") +
+      scale_x_continuous(
+        labels = scales::label_percent(suffix = "")
+      )  +
+      theme_minimal() +
+      theme(legend.position = "top") +
+      panel_border(remove = TRUE) +
+      NULL
+
+
+
+
+
   cowplot::plot_grid(
     if (!is_null(top_title)) { 
       cowplot::ggdraw() +
@@ -705,16 +821,47 @@ plot_ord_beliefs_est <- function(beliefs_results,
         ) +
         
         NULL,
-      
-      beliefs_results$ate_knows %>% 
-        filter(ord == order, assigned_dist_group_left == assigned_dist_group_right) %>% 
-        ggplot(aes(y = assigned_treatment_left, group = assigned_dist_group_left)) +
+
+
+
+      second_plot = beliefs_results %>%
+        filter(param == "belief_ates") %>%
+        select(tidy_draws) %>%
+        unnest(tidy_draws) %>%
+        filter(str_detect(variable, as.character(order))) %>%
+        filter(dist_group %in% c("Close", "Far")) %>%
+        ggplot(aes(
+          y = treatment,
+          group = dist_group,
+          xmin = conf.low,
+          xmax = conf.high,
+          x = value
+          )) +
         geom_vline(xintercept = 0, linetype = "dotted") +
-        geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = assigned_dist_group_left), position = pos_dodge, size = 0.3) +
-        geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = assigned_dist_group_left), position = pos_dodge, fatten = 2, size = 0.4, width = crossbar_width) +
-        geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = assigned_dist_group_left), position = pos_dodge, alpha = 0.4, size = 2.25) +
-        geom_point(aes(x = per_0.5, color = assigned_dist_group_left), position = pos_dodge, size = 1.8) +
-        geom_point(aes(x = per_0.5), position = pos_dodge, color = "white", size = 0.6) +
+        geom_linerange(aes(
+          color = dist_group), 
+          position = pos_dodge, 
+          size = 0.3,
+          data = . %>% filter(.width == 0.90)
+          ) +
+        geom_crossbar(aes(
+          color = dist_group), 
+          position = pos_dodge, 
+          fatten = 2, 
+          size = 0.4, 
+          width = crossbar_width,
+          data = . %>% filter(.width == 0.8)
+          ) +
+        geom_linerange(aes(
+          color = dist_group), 
+          position = pos_dodge, 
+          alpha = 0.4, 
+          size = 2.25,
+          data = . %>% filter(.width == 0.5)
+          ) +
+        geom_point(aes(
+          color = dist_group), position = pos_dodge, size = 1.8) +
+        geom_point(position = pos_dodge, color = "white", size = 0.6) +
         scale_y_discrete(drop = FALSE) +
         scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
         labs(
@@ -741,15 +888,13 @@ plot_ord_beliefs_est <- function(beliefs_results,
     ncol = 1, rel_heights = c(if (!is_null(top_title)) 0.1 else 0, 1, 0.08)
   )
 }
-
-dist_fit_data %>%
+tidy_param_df %>%
   filter(
-    fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want), 
-    fct_match(model_type, "structural")) %>%
-  pull(beliefs_results) %>%
-  first() %>%
-  plot_ord_beliefs_est(order = 1 )
+  fct_match(fit_type, "fit"), 
+  fct_match(model, params$struct_model), 
+  fct_match(model_type, "structural")
+  ) %>%
+  plot_ord_beliefs_est(order = 1)
 
 ```
 
@@ -760,47 +905,112 @@ dist_fit_data %>%
 #|  fig.cap="Second Order Belief Levels and Average Treatment Effects",
 #|  fig.note="This plot shows first estimates using the second order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
-dist_fit_data %>%
+
+tidy_param_df %>%
   filter(
-    fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want),
-    fct_match(model_type, "structural")
-    ) %>%
-  pull(beliefs_results) %>%
-  first() %>%
+  fct_match(fit_type, "fit"), 
+  fct_match(model, params$struct_model), 
+  fct_match(model_type, "structural")
+  ) %>%
   plot_ord_beliefs_est(order = 2)
 
 1+1
-
-# mu = mu_0 exp(linear predictor)
-# mu = \hat{p}_{z,d} x lambda 
-
-# mu = (\hat{p}_{z,d})/(1 - \hat{p}_{z,d}) x lambda 
 
 
 ```
 
 #### Beliefs Plots ####
+
+
+```{r}
+#| single-belief-plot-fun
+
+plot_single_beliefs_est = function(beliefs_results_type_df, 
+                                    order, 
+                                    top_title = NULL, 
+                                    width = 0.3, 
+                                    crossbar_width = 0.2, 
+                                    vline = TRUE) {
+  pos_dodge <- position_dodge(width = width)
+  if (order == 1) {
+    str_title = "First Order Beliefs"
+  } else {
+    str_title = "Second Order Beliefs"
+  }
+
+
+
+  belief_plot = beliefs_results_type_df %>%
+    select(tidy_draws) %>%
+    unnest(tidy_draws) %>%
+    filter(str_detect(variable, as.character(order))) %>%
+    filter(dist_group %in% c("Close", "Far")) %>%
+    ggplot(aes(
+      y = treatment,
+      group = dist_group,
+      xmin = conf.low,
+      xmax = conf.high,
+      x = value
+    )) +
+      geom_linerange(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        size = 0.4,
+        data = . %>% filter(.width == 0.95)
+        ) +
+      geom_crossbar(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        fatten = 2, 
+        size = 0.4, 
+        width = crossbar_width,
+        data = . %>% filter(.width == 0.8)
+        ) +
+      geom_linerange(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        alpha = 0.4, 
+        size = 2.5,
+        data = . %>% filter(.width == 0.5)
+        ) +
+      geom_point(aes(color = dist_group), position = pos_dodge, size = 1.8) +
+      geom_point(position = pos_dodge, color = "white", size = 0.6) +
+      scale_y_discrete(drop = FALSE) +
+      scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+      labs(
+        title = str_title,
+        subtitle = "",
+        x = "", y = "") +
+      theme(
+        legend.position = "bottom"
+      ) + 
+      NULL
+
+  if (vline == TRUE) {
+    belief_plot = belief_plot +
+         geom_vline(xintercept = 0, linetype = "dotted") 
+  }
+        
+  return(belief_plot)
+} 
+
+```
+
 ```{r}
 #| belief-1ord-ate,
 #|  fig.cap="First Order Belief Average Treatment Effects",
 #|  fig.note="This plot shows first estimates using the first order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 
-belief_data = dist_fit_data %>%
-  filter(
-    fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want),
-    fct_match(model_type, "structural")
-    ) %>%
-  pull(beliefs_results) %>%
-  first() 
 
 #### Separate Beliefs ####
-belief_te_1ord = belief_data$ate_knows %>%
-  filter(assigned_treatment_left != "control") %>%
-  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left)) %>%
-  mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)) %>%
+
+belief_te_1ord = tidy_param_df %>%
+  filter(
+    fct_match(model_type, "structural"),
+    fct_match(fit_type, "fit")
+  ) %>%
+  filter(param == "belief_ates") %>%
   plot_single_beliefs_est(
     width = 0.7, 
     order = 1,
@@ -812,12 +1022,11 @@ belief_te_1ord = belief_data$ate_knows %>%
   scale_x_continuous(
     labels = scales::label_percent(suffix = "")
   ) +
+  scale_y_discrete(labels = str_to_title) +
   theme_minimal() + 
   theme(legend.position = "bottom") + 
   default_plot_caption +
     NULL
-
-belief_te_1ord
 
 ggsave(
   plot = belief_te_1ord + labs(subtitle = "Treatment Effects"),
@@ -834,20 +1043,21 @@ ggsave(
 #|  fig.note="This plot shows first estimates using the second order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 
-belief_te_2ord = belief_data$ate_knows %>%
-  filter(assigned_treatment_left != "control") %>%
-  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left)) %>%
-  mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)) %>%
+belief_te_2ord = tidy_param_df %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  filter(param == "belief_ates") %>%
   plot_single_beliefs_est(
     width = 0.7, 
     order = 2,
     crossbar_width = 0.4) +
-    labs(title = "", subtitle = "",
+  labs(
+    title = "", 
     x = "Proportion (%)"
     ) +
   scale_x_continuous(
     labels = scales::label_percent(suffix = "")
   ) +
+  scale_y_discrete(labels = str_to_title) +
   theme_minimal() + 
   theme(legend.position = "bottom") + 
   default_plot_caption +
@@ -869,11 +1079,9 @@ ggsave(
 
 ## Props
 
-belief_1ord_prop_p = belief_data$prob_knows %>%
-    mutate(assigned_treatment = fct_drop(assigned_treatment))  %>%
-    mutate(assigned_treatment_left = assigned_treatment, assigned_treatment_right = assigned_treatment) %>%
-    mutate(assigned_dist_group_left = assigned_dist_group, assigned_dist_group_right = assigned_dist_group) %>%
-    mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)) %>%
+belief_1ord_prop_p = tidy_param_df %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  filter(param == "belief_probs") %>%
   plot_single_beliefs_est(
     width = 0.7, 
     order = 1,
@@ -887,6 +1095,7 @@ belief_1ord_prop_p = belief_data$prob_knows %>%
   scale_x_continuous(
     labels = scales::label_percent(suffix = "")
   )  +
+  scale_y_discrete(labels = str_to_title) +
   default_plot_caption +
     NULL
 
@@ -911,235 +1120,36 @@ ggsave(
 #|  fig.note="This plot shows first estimates using the second order beliefs 
 #|   binomial model. Total sample size: 999 observations at the individual level."
 
-belief_2ord_prop_p = belief_data$prob_knows %>%
-    mutate(assigned_treatment = fct_drop(assigned_treatment)) %>%
-    mutate(assigned_treatment_left = assigned_treatment, assigned_treatment_right = assigned_treatment) %>%
-    mutate(assigned_dist_group_left = assigned_dist_group, assigned_dist_group_right = assigned_dist_group) %>%
-    mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)) %>%
-    plot_single_beliefs_est(
+
+belief_2ord_prop_p = tidy_param_df %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  filter(param == "belief_probs") %>%
+  plot_single_beliefs_est(
     width = 0.7, 
     order = 2,
     crossbar_width = 0.4, 
     vline = FALSE) +
-    labs(subtitle = "Proportion") +
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
   labs(
     x = "Proportion (%)"
   ) +
   scale_x_continuous(
     labels = scales::label_percent(suffix = "")
   )  +
-  theme_minimal() + 
-  theme(legend.position = "bottom") + 
   default_plot_caption +
     NULL
 
-belief_2ord_prop_p + labs(title = "", subtitle = "")
+belief_2ord_prop_p +
+  labs(
+    title = "", 
+    subtitle = ""
+    ) 
 
 ggsave(
   plot = belief_2ord_prop_p,
   file.path(output_basepath, str_glue("belief-prop-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 ```
-
-#### Belief ATEs combined ####
-```{r}
-#| belief-1ord-prop-combined,
-#|  fig.cap="First Order Belief Levels - Combined",
-#|  fig.note="This plot shows estimates using the first order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
-
-
-
-belief_data_control = belief_data$prob_knows %>%
-    filter(assigned_treatment == "control")  %>%
-    select(assigned_treatment, assigned_dist_group, iter_data, ord) %>%
-    unnest(iter_data)
-
-combined_belief_ate = belief_data$prob_knows %>%
-    filter(assigned_treatment != "control") %>%
-    select(assigned_treatment, iter_data, ord) %>%
-    unnest(iter_data) %>%
-    rename(assigned_treatment_left = assigned_treatment) %>%
-    left_join(
-        belief_data_control %>% 
-            rename(assigned_treatment_right = assigned_treatment) %>%
-            select(iter_est_right = iter_est, iter_id, ord, assigned_treatment_right),
-        by = c("iter_id", "ord")
-    ) %>%
-    mutate(
-        iter_est_te = iter_est - iter_est_right
-    )  %>%
-    select(-.chain, -.iteration, -.draw) %>%
-    nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
-    mutate(
-        mean_est = map_dbl(iter_data, ~mean(.x$iter_est_te)), 
-        quants = map(iter_data, quantilize_est, iter_est_te, quant_probs = quant_probs, na.rm = TRUE)
-    )  %>%
-    unnest(quants) %>%
-    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
-    mutate(
-        assigned_treatment_left = fct_drop(assigned_treatment_left), 
-        assigned_treatment_right = fct_drop(assigned_treatment_right)
-    )  %>%
-    mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title)) 
-combined_belief_prop = belief_data$prob_knows %>%
-    select(assigned_treatment, iter_data, ord) %>%
-    unnest(iter_data) %>%
-    rename(assigned_treatment_left = assigned_treatment) %>%
-    select(-.chain, -.iteration, -.draw) %>%
-    nest(iter_data = c(iter_id, iter_est)) %>%
-    mutate(
-        mean_est = map_dbl(iter_data, ~mean(.x$iter_est)), 
-        quants = map(iter_data, quantilize_est, iter_est, quant_probs = quant_probs, na.rm = TRUE)
-    )  %>%
-   unnest(quants) %>%
-    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
-    mutate(
-        assigned_treatment_right = fct_drop(assigned_treatment_left)
-    )  %>%
-    mutate(assigned_treatment_left = fct_relabel(assigned_treatment_left, str_to_title))
-
-combined_1ord_prop_p = combined_belief_prop %>%
-  plot_single_beliefs_est(
-    width = 0.7, 
-    order = 1,
-    crossbar_width = 0.4, 
-    vline = FALSE) +
-    labs(subtitle = "Proportion") +
-    guides(colour = "none") +
-  theme_minimal() + 
-  theme(legend.position = "bottom") + 
-  default_plot_caption +
-  labs(
-    x = "Proportion (%)"
-  ) +
-  scale_x_continuous(
-    labels = scales::label_percent(suffix = "")
-  )  +
-    NULL 
-
-combined_1ord_prop_p +
-  labs(
-    title = "", 
-    subtitle = ""
-  )
-
-ggsave(
-  plot = combined_1ord_prop_p,
-    file.path(output_basepath, str_glue("combined-prop-fob.pdf")), 
-    width = 7.5, 
-    height = 5.0, 
-    dpi = 500
-    )
-```
-
-
-```{r}
-#| belief-2ord-prop-combined,
-#|  fig.cap="Second Order Belief Levels - Combined",
-#|  fig.note="This plot shows estimates using the second order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
-
-combined_belief_2ord_prop_p = combined_belief_prop %>%
-  plot_single_beliefs_est(
-    width = 0.7, 
-    order = 2,
-    crossbar_width = 0.4, 
-    vline = FALSE) +
-    labs(subtitle = "Proportion") +
-  theme_minimal() + 
-  theme(legend.position = "bottom") + 
-    guides(colour = "none") +
-  labs(
-    x = "Proportion (%)"
-  ) +
-  scale_x_continuous(
-    labels = scales::label_percent(suffix = "")
-  )  +
-    NULL
-
-combined_belief_2ord_prop_p +
-  default_plot_caption +
-  labs(title = "", subtitle = "")
-
-ggsave(
-  plot = combined_belief_2ord_prop_p,
-    file.path(output_basepath, str_glue("combined-prop-sob.pdf")), 
-    width = 7.5, 
-    height = 5.0, 
-    dpi = 500
-    )
-
-```
-
-
-```{r}
-#| belief-1ord-ate-combined,
-#|  fig.cap="First Order Belief Average Treatment Effects - Combined",
-#|  fig.note="This plot shows estimates using the first order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
-
-combined_belief_1ord_ate_p = combined_belief_ate %>%
-    plot_single_beliefs_est(order = 1)  +
-    labs(subtitle = "Treatment Effects") +
-  theme_minimal() + 
-  labs(
-    x = "Proportion (%)"
-  ) +
-  scale_x_continuous(
-    labels = scales::label_percent(suffix = "")
-  )  +
-  theme(legend.position = "bottom") + 
-    guides(colour = "none") 
-
-combined_belief_1ord_ate_p +
-  default_plot_caption +
-  labs(title = "", subtitle = "")
-
-ggsave(
-    plot = combined_belief_1ord_ate_p,
-    file.path(output_basepath, str_glue("combined-ate-fob.pdf")), 
-    width = 7.5, 
-    height = 5.0, 
-    dpi = 500
-    )
-
-```
-
-```{r}
-#| belief-2ord-ate-combined,
-#|  fig.cap="Second Order Belief Average Treatment Effects - Combined",
-#|  fig.note="This plot shows estimates using the second order beliefs 
-#|   binomial model. Estimates are combined across the close and far condition. 
-#|   Total sample size: 999 observations at the individual level."
-
-combined_belief_2ord_ate_p = combined_belief_ate %>%
-    plot_single_beliefs_est(order = 2)  +
-    labs(subtitle = "Treatment Effects") +
-  theme_minimal() + 
-  labs(
-    x = "Proportion (%)"
-  ) +
-  scale_x_continuous(
-    labels = scales::label_percent(suffix = "")
-  )  +
-  default_plot_caption +
-  theme(legend.position = "bottom") + 
-    guides(colour = "none")
-
-combined_belief_2ord_ate_p + labs(title = "", subtitle = "")
-
-ggsave(
-  plot = combined_belief_2ord_ate_p,
-    file.path(output_basepath, str_glue("combined-ate-sob.pdf")), 
-    width = 7.5, 
-    height = 5.0, 
-    dpi = 500
-    )
-```
-
 
 #### Disagg Beliefs ####
 
@@ -1498,77 +1508,145 @@ ggsave(
 #### Incentive ATEs ####
 
 
-```{r}
 
-grab_incentive_ate = function(data, model_type_to_plot, nested_data = est_takeup_te) {
-
-  subset_data = data %>%
-    filter(
-      (fct_match(model_type, model_type_to_plot))
-    ) %>% 
-    mutate(
-      {{ nested_data }} :=
-        map_if({{ nested_data }}, fct_match(model_type, "structural"),
-              filter, mu_assigned_treatment_left == assigned_treatment_left, mu_assigned_treatment_right == assigned_treatment_right) %>%
-          map(filter,
-              (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-              assigned_treatment_left != assigned_treatment_right,
-              fct_match(assigned_treatment_right, c("control")),
-              fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"))
-    )  %>%
-    select(model, model_name, {{ nested_data }}, fit_type, model_color) %>% 
-    mutate(
-      {{ nested_data }} := map(
-        {{ nested_data }},
-        mutate,
-        assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left)))
-      )
-    ) 
-    return(subset_data)
-}
-
-```
 
 
 ```{r}
+#| plot-estimands-func
 
-reduced_incentive_level_plot_df = dist_fit_data %>%
-    filter(
-      (fct_match(model_type, "reduced form"))
-    )  %>%
-    mutate(est_takeup_level = map_if(est_takeup_level,
-        # fct_match(fit_type, "prior-predict"), 
-        fit_type == "prior-predict",
-        ~mutate(.x, 
-          across(
-            c(contains("per"), mean_est),
-            ~if_else(
-              !(fct_match(assigned_treatment,  "bracelet") & is.na(assigned_dist_group)),
-              NA_real_,
-              .x 
+plot_estimands = function(.data, 
+                           nested_data, 
+                           y, 
+                           results_group = model, 
+                           group_labels = NULL, 
+                           include_prior_predict = FALSE, 
+                           pos_height = 0.8, 
+                           center_bar_size = 3, 
+                           color_data = .data, 
+                           single_prior_predict = FALSE,
+                           top_levels = c("Bracelet", "Combined")) {
+                            # width = pos_height
+  plot_pos <- ggstance::position_dodgev(height = pos_height)
+  
+  if (single_prior_predict == TRUE) {
+    # Remove prior data that isn't first on plot. We keep data as NA so that 
+    # spacing/height-width ratio remains the same for other plots
+    .data = .data %>%
+      mutate({{ nested_data }} := map_if({{ nested_data }},
+          fct_match(fit_type, "prior-predict"), 
+          ~mutate(.x, 
+            across(
+              c(contains("conf"), value),
+              ~if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(dist_group,  top_levels[2])),
+                NA_real_,
+                .x 
+              )
             )
           )
         )
-      )
-    ) %>%
-    mutate(
-      est_takeup_level = map(
-        est_takeup_level,
-        mutate,
-        assigned_dist_group = fct_explicit_na(assigned_dist_group, "Combined") %>% 
-          fct_relabel(str_to_title) %>% 
-          fct_relevel("Combined"),
-        assigned_treatment = fct_rev(factor(str_to_title(assigned_treatment), 
-                                    levels = c("Bracelet",
-                                                "Calendar",
-                                                "Ink",
-                                                "Control")))
+      ) 
+  # Can't set position in aes() so this does nothing for now
+  # eventually can just filter and add geoms twice 
+    .data = .data %>%
+      mutate({{ nested_data }} := map({{ nested_data }},
+          ~mutate(.x,
+            position = 
+              if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(dist_group,  top_levels[2])),
+                0,
+                pos_height 
+              )
+          )
         )
-        )
-        
+      ) 
+  }
+
+  ggplot_obj <- if (include_prior_predict) {
+    subset_data = .data %>% 
+      unnest({{ nested_data }})
+    subset_data %>%
+      ggplot(aes(x = value, xmin = conf.low, xmax = conf.high, y = {{ y }}, group = model)) +
+      geom_linerange(
+        data = . %>% filter(.width == 0.9 & fct_match(fit_type, "prior-predict")),
+        alpha = 0.15, fatten = 3, size = 10, position = plot_pos) +
+      geom_linerange(
+        data = . %>% filter(fct_match(fit_type, "prior-predict"), .width == 0.8), alpha = 0.1, fatten = 3, size = 6, position = plot_pos) +
+      geom_linerange(
+        data = . %>% filter(fct_match(fit_type, "prior-predict"), .width == 0.5),
+        alpha = 0.1, 
+        fatten = 3, 
+        size = 4, 
+        position = plot_pos
+        ) +
+      NULL
+  } else {
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(
+        x = value, 
+        xmin = conf.low,
+        xmax = conf.high,
+        y = {{ y }}, 
+        group = {{ results_group }})) 
+  }
+  
+  ggplot_obj <- ggplot_obj +
+    geom_linerange(aes(
+      color = {{ results_group }}), 
+      alpha = 0.4, 
+      size = center_bar_size,
+      position = plot_pos,
+      data = .data %>%
+        unnest({{ nested_data }}) %>%
+        filter(.width == 0.5)
+      )  +
+    geom_crossbar(aes(
+      color = {{ results_group }}), 
+      fatten = 0, size = 0.4, width = 0.5, position = plot_pos,
+      data = .data %>%
+        unnest({{ nested_data }}) %>%
+        filter(.width == 0.8)
+      ) +
+    geom_linerange(aes(
+      color = {{ results_group }}), size = 0.4, position = plot_pos,
+      data = .data %>%
+        unnest({{ nested_data }}) %>%
+        filter(.width == 0.9)
+      ) +
+    geom_point(aes(color = {{ results_group }}), position = plot_pos) + 
+    geom_point(color = "white", size = 0.75, position = plot_pos) + 
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: median."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+
+
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select(model, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  ggplot_obj = ggplot_obj + 
+    scale_y_discrete(drop = TRUE)
+  
+  return(ggplot_obj)
+}
+
 ```
 
 ```{r}
@@ -1585,21 +1663,28 @@ reduced_incentive_level_plot_df = dist_fit_data %>%
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval. 
 #|  Point: mean. 9,805 observations from the individual takeup sample used for estimates."
 
-
-reduced_incentive_level_plot = reduced_incentive_level_plot_df %>%
-  plot_estimands(.,est_takeup_level, assigned_treatment, results_group = fit_type) +
+reduced_incentive_level_plot = tidy_param_df %>%
+  filter(param == "levels") %>%
+  filter(fct_match(model_type, "reduced form")) %>%
+  plot_estimands(
+    .,
+    tidy_draws, 
+    treatment, 
+    single_prior_predict = TRUE,
+    results_group = fit_type) +
     scale_x_continuous("", breaks = seq(-1, 1, 0.1)) +
     scale_y_discrete("") +
     # labs(
     #   # title = "Incentive Average Treatment Effect",
     # ) +
-    ggforce::facet_col(vars(assigned_dist_group), 
+    ggforce::facet_col(vars(dist_group), 
                 space = "free",
                 scales = "free_y") +
     NULL  +
     guides(colour = "none") +
     theme_minimal() +
     theme(legend.position = "bottom")
+
 reduced_incentive_level_plot +
   default_plot_caption 
 
@@ -1618,12 +1703,6 @@ ggsave(
 
 
 
-```{r, reduced_incentive_ate_df, eval=TRUE}
-
-reduced_incentive_ate_plot_df = dist_fit_data %>%
-  grab_incentive_ate(., model_type_to_plot = "reduced form") 
-
-```
 
 ```{r}
 #| reduced-incentive-ate-plot,
@@ -1632,10 +1711,15 @@ reduced_incentive_ate_plot_df = dist_fit_data %>%
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
 #|  Thick vertical line: median. Point: mean."
 
-reduced_incentive_ate_plot = reduced_incentive_ate_plot_df %>%
+
+
+reduced_incentive_ate_plot = tidy_param_df %>%
+  filter(param == "ates") %>%
+  filter(fct_match(model_type, "reduced form")) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, treatment != "Control")) %>%
   plot_estimands(., 
-                 est_takeup_te, 
-                 assigned_treatment_left, 
+                 tidy_draws, 
+                 treatment, 
                  results_group = fit_type, 
                  single_prior_predict = TRUE, 
                  top_levels = default_top_levels) +
@@ -1644,7 +1728,7 @@ reduced_incentive_ate_plot = reduced_incentive_ate_plot_df %>%
     labs(
       # title = "Incentive Average Treatment Effect"
     ) +
-    ggforce::facet_col(vars(assigned_dist_group_left), 
+    ggforce::facet_col(vars(dist_group), 
                 space = "free",
                 scales = "free_y") +
     NULL  +
@@ -1683,41 +1767,21 @@ ggsave(
 #|  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
 
 1+1
-grab_signalling_ate = function(data, model_type_to_plot, models_we_want) {
-  data = data %>% 
-    filter(
-      (fct_match(model_type, model_type_to_plot) & fct_match(model, models_we_want) )  
-    ) %>% 
-    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
-    mutate(
-      est_takeup_te = map(
-        est_takeup_te,
-        filter,
-        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-        across(c(assigned_treatment_left, assigned_treatment_right), fct_match, "control"),
-        !is.na(mu_assigned_treatment_left),
-        fct_match(mu_assigned_treatment_left, "bracelet") | !fct_match(mu_assigned_treatment_right, "calendar"),
-        fct_match(mu_assigned_treatment_right, "control"),
-      ) %>% 
-        map(
-          mutate,
-          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-            fct_relabel(str_to_title) %>% 
-            fct_relevel("Combined"),
-          mu_assigned_treatment_left = fct_rev(factor(str_to_title(mu_assigned_treatment_left))),
-        )
-    ) 
-  return(data)
-
-}
 
 default_ate_limits = c(-0.125, 0.15)
 
-structural_signalling_ate_plot = dist_fit_data %>%
-  grab_signalling_ate(., "structural", models_we_want) %>%
+
+
+
+structural_signalling_ate_plot = tidy_param_df %>%
+  filter(
+    fct_match(model_type, "structural"),
+    fct_match(param, "ates")
+    ) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, estimand == "signal")) %>%
       plot_estimands(., 
-                     est_takeup_te, 
-                     mu_assigned_treatment_left, 
+                     tidy_draws, 
+                     mu_treatment, 
                      results_group = fit_type,
                      single_prior_predict = TRUE, 
                      include_prior_predict = FALSE,
@@ -1725,12 +1789,12 @@ structural_signalling_ate_plot = dist_fit_data %>%
         scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
           limits = default_ate_limits
         ) +
-        scale_y_discrete("") +
+        scale_y_discrete("", drop = TRUE) +
         labs(
           # title = "Signaling Average Treatment Effect",
           # subtitle = str_glue("Holding private incentive at the control level.")
           ) +
-        ggforce::facet_col(vars(assigned_dist_group_left), 
+        ggforce::facet_col(vars(dist_group), 
                    space = "free",
                    scales = "free_y") +
         guides(colour = "none") +
@@ -1768,46 +1832,17 @@ ggsave(
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
 #|  Thick vertical line: median. Point: mean.", dependson = c("structural-signalling-ate-plot")
 
-1+1
 
-grab_private_ate = function(data, model_type_to_plot, models_we_want) {
-  data = data %>%  
-    filter(
-      (fct_match(model_type, model_type_to_plot) & fct_match(model, models_we_want) )  
-    ) %>% 
-    select(model, model_name, est_takeup_te, fit_type, model_color) %>% 
-    mutate(
-      est_takeup_te = map(
-        est_takeup_te,
-        filter,
-        (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right)) | (assigned_dist_group_left == assigned_dist_group_right),
-        !is.na(mu_assigned_treatment_left),
-        !is.na(mu_assigned_treatment_right),
-        across(c(mu_assigned_treatment_left, mu_assigned_treatment_right), fct_match, "control"),
-        fct_match(assigned_treatment_left, "bracelet") | !fct_match(assigned_treatment_right, "calendar"),
-        fct_match(assigned_treatment_right, "control")
-        # is.na(assigned_dist_group_left) 
-      ) %>% 
-        map(
-          mutate,
-          assigned_dist_group_left = fct_explicit_na(assigned_dist_group_left, "Combined") %>% 
-            fct_relabel(str_to_title) %>% 
-            fct_relevel("Combined"),
-          assigned_treatment_left = fct_rev(factor(str_to_title(assigned_treatment_left))),
-        )
-    )
-  return(data)
-}
-
-
-
-structural_private_ate_plot = dist_fit_data %>%
-  grab_private_ate(., "structural", models_we_want) %>%
-    # mutate(est_takeup_te = map(est_takeup_te, 
-    # ~mutate(.x, assigned_dist_group_left = fct_rev(assigned_dist_group_left)))) %>%
+structural_private_ate_plot = tidy_param_df %>%
+  filter(
+    fct_match(model_type, "structural"),
+    fct_match(param, "ates")
+    ) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, estimand == "private")) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, treatment != "Control")) %>%
       plot_estimands(., 
-                     est_takeup_te, 
-                     assigned_treatment_left, 
+                     tidy_draws, 
+                     treatment, 
                      results_group = fit_type,
                      single_prior_predict = TRUE, 
                      include_prior_predict = FALSE,
@@ -1817,36 +1852,14 @@ structural_private_ate_plot = dist_fit_data %>%
         ) +
         scale_y_discrete("") +
         labs(
-          # title = "Signaling Average Treatment Effect",
-          # subtitle = str_glue("Holding private incentive at the control level.")
           ) +
-        ggforce::facet_col(vars(assigned_dist_group_left), 
+        ggforce::facet_col(vars(dist_group), 
                    space = "free",
                    scales = "free_y") +
         guides(colour = "none") +
         NULL
 
 
-# structural_private_ate_plot = dist_fit_data %>%
-#   grab_private_ate(., model_type_to_plot = "structural", models_we_want) %>%
-#       plot_estimands(., 
-#                      est_takeup_te, 
-#                      assigned_treatment_left, 
-#                      results_group = fit_type, 
-#                      single_prior_predict = TRUE, 
-#                      top_levels = default_top_levels, 
-#                      center_bar_size = 5) +
-#         scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
-#           limits =  default_ate_limits
-#           ) +
-#         scale_y_discrete("") +
-#         labs(
-#           # title = "Private Incentive Average Treatment Effect",
-#           # subtitle = str_glue("Holding signaling at the control level")
-#           ) +
-#         ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
-#       guides(colour = "none") +
-#         NULL
 
 structural_private_ate_plot +
   default_plot_caption
@@ -1862,33 +1875,6 @@ ggsave(
   dpi = 500
 )
 
-
-single_structural_private_ate_plot = dist_fit_data %>%
-  grab_private_ate(., model_type_to_plot = "structural", models_we_want) %>%
-  mutate(est_takeup_te = map(est_takeup_te, ~filter(.x, assigned_dist_group_left == "Combined"))) %>%
-      plot_single_estimands(., 
-                     est_takeup_te, 
-                     assigned_treatment_left, 
-                     results_group = fit_type, 
-                     single_prior_predict = TRUE, 
-                     include_prior_predict = FALSE,
-                     top_levels = default_top_levels, 
-                     width = 0.7,
-                     crossbar_width = 0.4) +
-        scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
-          limits =  default_ate_limits
-          ) +
-        scale_y_discrete("") +
-        labs(
-          # title = "Private Incentive Average Treatment Effect",
-          # subtitle = str_glue("Holding signaling at the control level")
-          ) +
-        ggforce::facet_col(vars(assigned_dist_group_left), space = "free", scales = "free_y") +
-      guides(colour = "none") +
-        NULL
-
-single_structural_private_ate_plot +
-  default_plot_caption
 
 
 ```
@@ -1911,12 +1897,16 @@ single_structural_private_ate_plot +
 #|   dependson = c("structural-signalling-ate-plot")
 
 1+1
-structural_incentive_ate_plot = dist_fit_data %>%
-  filter(model %in% models_we_want) %>%
-  grab_incentive_ate(., model_type_to_plot = "structural") %>%
+structural_incentive_ate_plot = tidy_param_df %>%
+  filter(
+    fct_match(model_type, "structural"),
+    fct_match(param, "ates")
+    ) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, estimand == "overall")) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, treatment != "Control")) %>%
   plot_estimands(., 
-                 est_takeup_te, 
-                 assigned_treatment_left, 
+                 tidy_draws, 
+                 treatment, 
                  results_group = fit_type, 
                  single_prior_predict = TRUE, 
                  include_prior_predict = FALSE,
@@ -1929,7 +1919,7 @@ structural_incentive_ate_plot = dist_fit_data %>%
     labs(
       # title = "Incentive Average Treatment Effect"
     ) +
-    ggforce::facet_col(vars(assigned_dist_group_left), 
+    ggforce::facet_col(vars(dist_group), 
                 space = "free",
                 scales = "free_y") +
     NULL  +
@@ -1953,14 +1943,6 @@ ggsave(
 ```
 
 
-```{r}
-#| load-wtp
-
-
-wtp_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model_fit_results.rds")) 
-wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model_prior_results.rds"))
-```
-
 ```{r wtp-post}
 #| wtp-post,
 #| fig.cap="Willingness-To-Pay Estimates",
@@ -1970,26 +1952,26 @@ wtp_prior_results <- read_rds(file.path("data", "stan_analysis_data", "wtp_model
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
 #|  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
 #|  with a Bayesian multinomial discrete choice model using a Probit likelihood."
-
-
-
-joint_wtp_results <- dist_fit_data %>%
-  filter(fct_match(fit_type, "fit") & fct_match(model_type, "structural") & fct_match(model, models_we_want)) %>%
-  pull(wtp_results) %>%
-  first()
-
 plot_wtp_results <- function(draws) {
   cowplot::plot_grid(
-
-
-    filter(draws, fct_match(variable, "prob_prefer_calendar")) %>% 
-      left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
-      ggplot(aes(x = val_diff)) +
-      geom_line(aes(y = per_0.5, color = fit_type), show.legend = FALSE) +
-      geom_point(aes(y = per_0.5, color = fit_type), size = 1, show.legend = FALSE) +
-      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = fit_type), alpha = 0.4, show.legend = FALSE) +
+    draws %>%
+      filter(variable == "prob_prefer_calendar") %>%
+      left_join(tibble(pref_value_diff_idx = 1:21, val_diff = -seq(-100, 100, 10)), by = "pref_value_diff_idx")  %>%
+      ggplot(aes(
+        x = val_diff,
+        y = value,
+        ymin = conf.low,
+        ymax = conf.high,
+      ), show.legend = FALSE) +
+      geom_point(
+        size = 1
+      ) +
+      geom_line() +
+      geom_ribbon(
+        data = . %>% filter(.width == 0.8),
+        alpha = 0.4
+      ) +
       scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
-      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
       theme_minimal() +
       labs(
         title = "Probability of Choosing Calendars Over Bracelets",
@@ -1997,31 +1979,39 @@ plot_wtp_results <- function(draws) {
       ) +
       ylim(0, 1) +
       NULL,
-    
-    # filter(draws, fct_match(variable, "strata_wtp_mu")) %>%
-    filter(draws, fct_match(variable, "hyper_wtp_mu")) %>%
-      mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
-      # ggplot(aes(y = str_c(variable, index))) +
-      ggplot(aes(y = str_c(fit_type))) +
-      geom_linerange(aes(xmin = per_0.25, xmax = per_0.75, color = fit_type), alpha = 0.4, size = 3, show.legend = FALSE) +
-      geom_crossbar(aes(x = per_0.5, xmin = per_0.1, xmax = per_0.9, color = fit_type), fatten = 2, size = 0.4, width = 0.2, show.legend = FALSE) +
-      geom_linerange(aes(xmin = per_0.05, xmax = per_0.95, color = fit_type), size = 0.4, show.legend = FALSE) +
-      geom_point(aes(x = mean_est, color = fit_type), size = 2, show.legend = FALSE) +
-      geom_point(aes(x = mean_est, color = fit_type), color = "white", size = 0.8, show.legend = FALSE) +
-      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
-      scale_x_continuous(limits = c(-100, 100), breaks = seq(-100, 100, 10)) +
-      # coord_cartesian(xlim = c(-55, 55)) +
-      theme_minimal() +
-      theme(axis.text.y = element_blank()) +
-      labs(
-        title = "Difference in Valuation of Calendars and Bracelets",
-        # subtitle = "For Each County",
-        x = "KSh",
-        y = "",
-        # caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval.
-        #            Thick vertical line: median. Point: mean."
-      ) +
-      # xlim(-100, 100) +
+  draws %>%
+    filter(variable == "hyper_wtp_mu") %>%
+    mutate(across(c(starts_with("conf"), value), multiply_by, 100)) %>%
+    ggplot(aes(
+      y = fit_type,
+      x = value,
+      xmin = conf.low,
+      xmax = conf.high
+    )) +
+    geom_linerange(
+      data = . %>% filter(.width == 0.5), 
+      aes(color = fit_type), 
+      alpha = 0.4, 
+      size = 3, 
+      show.legend = FALSE) +
+    geom_crossbar(data = . %>% filter(.width == 0.8), aes(color = fit_type), fatten = 2, size = 0.4, width = 0.2, show.legend = FALSE) +
+    geom_linerange(data = . %>% filter(.width == 0.9),
+    size = 0.4, show.legend = FALSE) +
+    geom_point(size = 2, show.legend = FALSE) +
+    geom_point(color = "white", size = 0.8, show.legend = FALSE) +
+        scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
+        scale_x_continuous(limits = c(-100, 100), breaks = seq(-100, 100, 10)) +
+        # coord_cartesian(xlim = c(-55, 55)) +
+        theme_minimal() +
+        theme(axis.text.y = element_blank()) +
+        labs(
+          title = "Difference in Valuation of Calendars and Bracelets",
+          # subtitle = "For Each County",
+          x = "KSh",
+          y = "",
+          # caption = "Line range: 90% credible interval. Outer box: 80% credible interval. Inner box: 50% credible interval.
+          #            Thick vertical line: median. Point: mean."
+        )  +
       default_plot_caption +
       NULL
       ,
@@ -2030,33 +2020,7 @@ plot_wtp_results <- function(draws) {
   )
 }
 
-joint_wtp_results %>%
-  mutate(fit_type = "joint") %>%
-    filter(., fct_match(variable, "prob_prefer_calendar")) %>% 
-      left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index") %>% 
-      ggplot(aes(x = val_diff)) +
-      geom_line(aes(y = per_0.5, color = fit_type), show.legend = FALSE) +
-      geom_point(aes(y = per_0.5, color = fit_type), size = 1, show.legend = FALSE) +
-      geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = fit_type), alpha = 0.4, show.legend = FALSE) +
-      scale_x_continuous("Added Value [KSh]", breaks = seq(-100, 100, 10)) + #, labels = scales::label_number(suffix = " KSh")) +
-      scale_color_manual("", values = c("joint" = "black", "alone" = "red"), aesthetics = c("color", "fill")) +
-      theme_minimal() +
-      labs(
-        title = "Probability of Choosing Calendars Over Bracelets",
-        y = "" 
-      ) +
-      ylim(0, 1) +
-      NULL
 
-
-joint_wtp_results %>%
-    filter(., fct_match(variable, "hyper_wtp_mu")) %>%
-      mutate(across(c(starts_with("per_"), mean_est), multiply_by, 100)) %>%
-      select( 
-        valuation_diff_estimate = per_0.5,
-        conf.low = per_0.05, 
-        conf.high = per_0.95
-      )
 
 
 ```
@@ -2072,9 +2036,13 @@ joint_wtp_results %>%
 #|  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
 #|  with a Bayesian multinomial discrete choice model using a Probit likelihood."
 1+1
-joint_wtp_results %>% 
-  mutate(fit_type = "joint") %>% 
-  plot_wtp_results() 
+
+
+tidy_param_df %>%
+  filter(param == "wtp_params") %>%
+  filter(fit_type == "fit") %>%
+  unnest(tidy_draws) %>%
+  plot_wtp_results()
 
 ```
 
@@ -2092,40 +2060,42 @@ joint_wtp_results %>%
 #|  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
 #|  inner ribbon: 50\\% credibility interval."
 
-
-dist_prob_plot <- dist_fit_data %>% 
+dist_prob_plot = 
+tidy_param_df %>%
   filter(
     fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want),
     fct_match(model_type, "structural")
-    ) %>% #, "STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS"))) %>%
-  transmute(
-    model_name,
-    cluster_takeup_prop = map(cluster_takeup_prop, ~ mutate(.x, roc_distance = roc_distance / 1000)),
-    obs_cluster_takeup_level,
-  ) %>% 
-  mutate(cluster_takeup_prop = map(
-    cluster_takeup_prop, 
-    filter, 
-    assigned_treatment %in% c("control", "bracelet")
-    ),
-    obs_cluster_takeup_level = map(
-      obs_cluster_takeup_level,
-      filter, 
-      assigned_treatment %in% c("control", "bracelet")
-    )
-    ) %>%
-  ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment), data = . %>%  unnest(cluster_takeup_prop)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.3, data = . %>%  unnest(cluster_takeup_prop)) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = assigned_treatment), alpha = 0.3, data = . %>%  unnest(cluster_takeup_prop)) +
+    ) %>% 
+  filter(
+    param == "prop_draws"
+  ) %>%
+  unnest(tidy_draws) %>%
+  filter(treatment %in% c("Bracelet", "Control")) %>%
+  filter(roc_distance <= 2500) %>%
+  ggplot(aes(
+    x = roc_distance / 1000,
+    y = value,
+    ymin = conf.low,
+    ymax = conf.high
+  )) +
+  geom_line(
+    aes(color = treatment)) +
+  geom_ribbon(
+    aes(fill = treatment), alpha = 0.3, 
+    data = . %>%  filter(.width == 0.5)) +
+  geom_ribbon(
+    aes(fill = treatment), 
+    alpha = 0.3, 
+    data = . %>%  filter(.width == 0.9))  +
   geom_rug(
-    aes(dist, color = assigned_treatment),
+    inherit.aes = FALSE,
+    aes(dist, color = treatment),
     alpha = 0.5,
-    data = rf_analysis_data %>%
+    data = analysis_data %>%
       distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
       rename(assigned_treatment = assigned.treatment)  %>%
-      filter(assigned_treatment %in% c("control", "bracelet"))
+      filter(assigned_treatment %in% c("control", "bracelet")) %>%
+      mutate(treatment = str_to_title(assigned_treatment))
   ) +
   labs(
     x = "Distance to Treatment (d) [km]", y = latex2exp::TeX("Take-up Probability, $1 - F_w(w^*(z,d))$") ,
@@ -2133,9 +2103,26 @@ dist_prob_plot <- dist_fit_data %>%
   coord_cartesian(xlim = c(0, 2.5), ylim = c(0, 0.55)) +
   NULL
 
+
+
+
 dist_prob_plot +
   # geom_linerange(aes(assigned_dist_obs / 1000, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), data = . %>% unnest(obs_cluster_takeup_level)) +
-  geom_point(aes(assigned_dist_obs / 1000, y = obs_prop_takeup, colour = assigned_treatment), size = 0.5, show.legend = FALSE, data = . %>% unnest(obs_cluster_takeup_level)) +
+  # geom_point(aes(assigned_dist_obs / 1000, y = obs_prop_takeup, colour = assigned_treatment), size = 0.5, show.legend = FALSE, data = . %>% unnest(obs_cluster_takeup_level)) +
+  geom_point(
+    inherit.aes = FALSE,
+    data = 
+      analysis_data %>%
+        group_by(cluster_id) %>%
+        summarise(
+          obs_pr_takeup = mean(dewormed),
+          dist = unique(cluster.dist.to.pot) / 1000,
+          treatment = unique(assigned.treatment)
+        ) %>%
+            filter(treatment %in% c("control", "bracelet")) %>%
+            mutate(treatment = str_to_title(treatment)),
+    aes(x = dist, y = obs_pr_takeup, colour = treatment), show.legend = FALSE
+    ) + 
   # scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
   ggthemes::scale_color_canva(
     palette = canva_palette_vibrant, 
@@ -2159,72 +2146,48 @@ dist_prob_plot +
 
 
 ```{r}
-#| odds-ratio-plot, eval = FALSE
-library(tidyverse)
-df = tibble(
-  x = seq(from = -4, to = 4, length.out = 100), 
-  y = pnorm(x)
-)
+#| rep-return-tes
 
-df = tibble(
-  x = seq(from = 0.01, to = 0.99, length.out = 100)
-) %>%
-  mutate(
-    lo = x/(1 - x)
-  ) 
+tidy_param_df %>%
+  pull(param) %>%
+  unique()
 
-
-df %>%
-  # filter(x >= 0.6 & x <= 0.9) %>%
-  ggplot(aes(
-    x = x, 
-    y = lo
-  )) +
-  geom_point() +
-  labs(
-    x = "Probability", 
-    y = "Odds Ratio"
-  ) 
-
-```
-
-
-```{r}
-#| rep-return-te-df
-if (params$component_checks) {
-rep_te_plot_df = read_csv(
-  file.path(
-    params$output_path, 
-    str_glue("
-    rep_return_te_diff_draws_dist_fit{params$fit_version}-{params$models}.csv")
-  )
-)
-
-
-1+1
-
+  tidy_param_df %>%
+    filter(
+      param == "rep_return_dist_draws"
+    ) %>%
+    slice(1) 
 
 rep_te_plot_fun = function(data, treat) {
   data %>%
-    filter(distance <= 2500) %>%
-    mutate(distance = distance / 1000) %>%
-    filter(assigned_treatment == treat) %>%
-    ggplot(aes(distance)) +
-    geom_line(aes(y = per_0.5))  +
-    geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
-    geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
-    geom_rug(
-      aes(dist),
-      alpha = 0.5,
-      data = rf_analysis_data %>%
-        distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
-        rename(assigned_treatment = assigned.treatment)  %>%
-        filter(assigned_treatment %in% c("control", treat))
-    ) +
+    select(tidy_draws) %>%
+    unnest(tidy_draws) %>%
+    filter(variable == "cluster_rep_return_dist_te") %>%
+    filter(treatment == treat) %>%
+    filter(roc_distance <= 2500) %>%
+    mutate(across(c(contains("conf"), value), divide_by, 1000)) %>%
+    ggplot(aes(
+      x = roc_distance/1000,
+      y = value,
+      ymin = conf.low,
+      ymax = conf.high
+    )) +
+    geom_line()  +
+    geom_ribbon(data = . %>% filter(.width == 0.5), alpha = 0.4) +
+    geom_ribbon(data = . %>% filter(.width == 0.8), alpha = 0.4)  +
     scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
     labs(
       # title = "Valuation of Reputational Returns in Terms of Distance",
       x = "Distance to Treatment [km]", y = "Distance Value [km]",
+    ) +
+    geom_rug(
+      inherit.aes = FALSE,
+      aes(dist),
+      alpha = 0.5,
+      data = analysis_data %>%
+        distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
+        mutate(assigned_treatment = str_to_title(assigned.treatment))  %>%
+        filter(assigned_treatment %in% c("control", treat))
     ) +
     geom_hline(yintercept = 0, linetype = "longdash") +
     theme(legend.position = "bottom") +
@@ -2233,10 +2196,6 @@ rep_te_plot_fun = function(data, treat) {
 }
 
 
-
-
-
-}
 ```
 
 
@@ -2246,10 +2205,11 @@ rep_te_plot_fun = function(data, treat) {
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model.", dependson = c("rep-return-te-df")
 
-if (params$component_checks) {
-rep_te_plot_fun(rep_te_plot_df, "bracelet") + 
-  dist_caption
-}
+
+tidy_param_df %>%
+  filter(param == "rep_return_dist_draws") %>%
+  filter(fit_type == "fit") %>%
+  rep_te_plot_fun(treat = "Bracelet")
 ```
 
 ```{r}
@@ -2258,10 +2218,11 @@ rep_te_plot_fun(rep_te_plot_df, "bracelet") +
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model.", dependson = "rep-return-te-df"
 
-if (params$component_checks) {
-rep_te_plot_fun(rep_te_plot_df, "calendar") +
-  dist_caption
-}
+tidy_param_df %>%
+  filter(param == "rep_return_dist_draws") %>%
+  filter(fit_type == "fit") %>%
+  rep_te_plot_fun(treat = "Calendar")
+
 ```
 
 ```{r}
@@ -2270,10 +2231,10 @@ rep_te_plot_fun(rep_te_plot_df, "calendar") +
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model." , dependson = "rep-return-te-df"
 
-if (params$component_checks) {
-rep_te_plot_fun(rep_te_plot_df, "ink") +
-  dist_caption
-}
+tidy_param_df %>%
+  filter(param == "rep_return_dist_draws") %>%
+  filter(fit_type == "fit") %>%
+  rep_te_plot_fun(treat = "Ink")
 ```
 
 ```{r}
@@ -2282,35 +2243,47 @@ rep_te_plot_fun(rep_te_plot_df, "ink") +
 #| fig.note="Value priced in terms of walking distance. Estimates generated using 
 #|  decomposition from structural model." 
 
-dist_fit_data %>% 
-  filter(
-    fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want),
-    fct_match(model_type, "structural")
-    ) %>%
-  select(model_name, cluster_rep_return_dist) %>%
-  unnest(cluster_rep_return_dist) %>% 
+tidy_param_df %>%
+  filter(param == "rep_return_dist_draws") %>%
+  filter(fit_type == "fit") %>%
+  filter(model_type == "structural") %>%
+  unnest(tidy_draws) %>%
+  filter(variable == "cluster_rep_return_dist")  %>%
   mutate(
     roc_distance = roc_distance / 1000,
-    across(starts_with("per_"), divide_by, 1000)
+    value = value / 1000,
+    across(starts_with("conf."), divide_by, 1000)
   ) %>% 
-    filter(
-      roc_distance <= 2.5
-    ) %>%
-  filter(assigned_treatment %in% c("control", "bracelet")) %>%
-  ggplot(aes(roc_distance)) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.4) +
-  geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9, fill = assigned_treatment), alpha = 0.4) +
-  geom_rug(
-    aes(dist, color = assigned_treatment),
-    alpha = 0.5,
-    data = rf_analysis_data %>%
-      distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
-      rename(assigned_treatment = assigned.treatment)  %>%
-      filter(assigned_treatment %in% c("control", "bracelet"))
+  filter(treatment %in% c("Control", "Bracelet")) %>%
+  filter(roc_distance <= 2.5) %>%
+  ggplot(aes(
+    x = roc_distance,
+    y = value,
+    ymin = conf.low,
+    ymax = conf.high, 
+    fill = treatment
+  )) +
+  geom_line(aes(colour = treatment)) +
+  geom_ribbon(
+    data = . %>%
+      filter(.width == 0.5),
+    alpha = 0.4
   ) +
-  scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
+  geom_ribbon(
+    data = . %>%
+      filter(.width == 0.8),
+    alpha = 0.4
+  ) +
+  geom_rug(
+    inherit.aes = FALSE,
+    aes(dist, colour = treatment),
+    data = analysis_data %>%
+      distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
+      mutate(treatment = str_to_title(assigned.treatment))  %>%
+      filter(treatment %in% c("Control", "Bracelet")), show.legend = FALSE
+  ) +
+  scale_color_canva("", palette = canva_palette_vibrant, labels = str_to_title) +
+  scale_fill_canva("", palette = canva_palette_vibrant, labels = str_to_title) +
   labs(
     # title = "Valuation of Reputational Returns in Terms of Distance",
     x = "Distance to Treatment [km]", y = "Distance Value [km]",
@@ -2320,65 +2293,7 @@ dist_fit_data %>%
   NULL
 
 
-```
 
-```{r, eval=FALSE}
-
-
-plot_rep_returns_one_by_one = function(data, treatment) {
-    subtitle_str = str_to_title(treatment)
-    plot = data %>%
-        filter(
-          fct_match(fit_type, "fit"), 
-          fct_match(model, models_we_want),
-          fct_match(model_type, "structural")
-          ) %>%
-        select(model_name, cluster_rep_return_dist) %>%
-        unnest(cluster_rep_return_dist) %>% 
-        filter(assigned_treatment == treatment) %>%
-        mutate(
-        roc_distance = roc_distance / 1000,
-        across(starts_with("per_"), divide_by, 1000)
-        ) %>% 
-        filter(
-          roc_distance <= 2.5
-        ) %>%
-        ggplot(aes(roc_distance)) +
-        geom_line(aes(y = per_0.5)) +
-        geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.4) +
-        geom_ribbon(aes(ymin = per_0.1, ymax = per_0.9), alpha = 0.4) +
-        geom_rug(
-          aes(dist, color = assigned_treatment),
-          alpha = 0.75,
-          data = rf_analysis_data %>%
-            filter(fct_match(assigned.treatment, c(treatment))) %>%
-            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-        scale_color_discrete("", aesthetics = c("color", "fill")) +
-        labs(
-        # title = "Valuation of Reputational Returns in Terms of Distance",
-        x = "Distance to Treatment [km]", y = "Distance Value [km]", 
-        subtitle = subtitle_str
-        ) +
-        theme(legend.position = "top") +
-        guides(colour = "none") +
-        NULL
-    return(plot)
-}
-
-
-treatments = c(
-    "bracelet",
-    "calendar",
-    "ink",
-    "control"
-)
-
-single_rep_return_plots = map(treatments, ~ dist_fit_data %>%
-    plot_rep_returns_one_by_one(treatment = .x)  
-)
-
-
-ggsave("temp-plots/anne-check/control-rr.png", width = 8, height = 6, dpi = 500)
 ```
 
 ## Social Multiplier 
@@ -2703,44 +2618,53 @@ summ_sm_df %>%
 
 plot_summ_bc_draws = read_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
 
-p_roc = dist_fit_data %>% 
-  filter(
-    fct_match(fit_type, "fit"), 
-    fct_match(model, models_we_want) ,
-    fct_match(model_type, "structural")
-    ) %>% 
+
+tidy_param_df %>%
+  pull(param) %>%
+  unique()
+
+
+p_roc = tidy_param_df %>%
+  filter(param == "roc_draws") %>%
+  filter(fit_type == "fit", model_type == "structural") %>%
+  unnest(tidy_draws) %>%
   mutate(
-    model_name,
-    cluster_roc = map2(cluster_roc, stan_data, ~ { 
-      mutate(.x,
-        roc_distance = roc_distance / 1000,
-        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
-        across(starts_with("per_"), multiply_by, 1000),
-        across(starts_with("per_"), multiply_by, 100)
-      ) 
-    })
-  ) %>%
-  unnest(cluster_roc) %>% 
-  filter(fct_match(assigned_treatment, c("control","bracelet"))) %>% 
-  filter(roc_distance < 2.5)   %>%
-  ggplot(aes(roc_distance, group = interaction(fit_type, assigned_treatment))) +
-  geom_line(aes(y = per_0.5, color = assigned_treatment)) +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = assigned_treatment), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = assigned_treatment), alpha = 0.25) +
+    roc_distance = roc_distance / 1000,
+    across(c(starts_with("conf"), value), divide_by, sd_of_dist),
+    across(c(starts_with("conf"), value), multiply_by, 1000*100)
+    ) %>%
+    filter(treatment %in% c("Bracelet", "Control")) %>%
+    filter(roc_distance <= 2.5) %>%
+  ggplot(aes(
+    x = roc_distance,
+    y = value,
+    ymin = conf.low,
+    ymax = conf.high,
+    fill = treatment
+  )) +
+  geom_line(aes(colour = treatment)) +
+  geom_ribbon(
+    data = . %>% filter(.width == 0.5), alpha = 0.25
+  ) +
+  geom_ribbon(
+    data = . %>% filter(.width == 0.9), alpha = 0.25
+  ) +
   geom_rug(
     inherit.aes = FALSE,
     aes(dist),
     alpha = 0.75,
-    data = rf_analysis_data %>%
+    data = analysis_data %>%
       filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
-      distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-  geom_line(
-      inherit.aes = FALSE, 
-      aes(x = dist, y = value),
-      data = plot_summ_bc_draws %>%
-          filter(name == "cluster_roc_no_vis"),
-      linetype = "longdash"
-  )  +
+      distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000) %>%
+      mutate(treatment = str_to_title(assigned_treatment))
+      ) +
+  # geom_line(
+  #     inherit.aes = FALSE, 
+  #     aes(x = dist, y = value),
+  #     data = plot_summ_bc_draws %>%
+  #         filter(name == "cluster_roc_no_vis"),
+  #     linetype = "longdash"
+  # )  +
   annotate(
       "text", 
       x = 2.3, 
@@ -2782,6 +2706,92 @@ p_roc
 #|  Line: median.
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
+
+
+
+tidy_param_df %>%
+  filter(param == "roc_draws") %>%
+  filter(model_type == "structural") %>%
+  unnest(tidy_draws) %>%
+  filter(
+    fit_type == "fit" | (fit_type == "prior-predict" & treatment == "Control")
+  ) %>%
+  mutate(
+    roc_distance = roc_distance / 1000,
+    across(c(starts_with("conf"), value), divide_by, sd_of_dist),
+    across(c(starts_with("conf"), value), multiply_by, 1000*100)
+    ) %>%
+    filter(treatment %in% c("Bracelet", "Control")) %>%
+    filter(roc_distance <= 2.5) %>%
+  ggplot(aes(
+    x = roc_distance,
+    y = value,
+    ymin = conf.low,
+    ymax = conf.high,
+    fill = interaction(treatment, fit_type)
+  )) +
+  geom_line(aes(colour = treatment)) +
+  geom_ribbon(
+    data = . %>% filter(.width == 0.5), alpha = 0.25
+  ) +
+  geom_ribbon(
+    data = . %>% filter(.width == 0.9), alpha = 0.25
+  ) +
+  geom_rug(
+    inherit.aes = FALSE,
+    aes(dist),
+    alpha = 0.75,
+    data = analysis_data %>%
+      filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
+      distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000) %>%
+      mutate(treatment = str_to_title(assigned_treatment))
+      ) +
+  # geom_line(
+  #     inherit.aes = FALSE, 
+  #     aes(x = dist, y = value),
+  #     data = plot_summ_bc_draws %>%
+  #         filter(name == "cluster_roc_no_vis"),
+  #     linetype = "longdash"
+  # )  +
+  annotate(
+      "text", 
+      x = 2.3, 
+      y = -9, 
+      label = "Amplification", 
+      size = 4, 
+      alpha = 0.7
+  ) +
+  annotate(
+      "text", 
+      x = 2.3, 
+      y = -7.5, 
+      label = "Mitigation", 
+      size = 4, 
+      alpha = 0.7
+  ) +
+  labs(
+    x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
+  ) +
+  theme(legend.position = "bottom") +
+  scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
+  scale_fill_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
+  dist_caption +
+  NULL
+
+
+
+tidy_param_df %>%
+  filter(fit_type == "fit", model_type == "structural") %>%
+  filter(param == "roc_draws") %>%
+  unnest(tidy_draws) %>%
+  mutate(
+    roc_distance = roc_distance / 1000,
+    across(c(starts_with("conf"), value), divide_by, sd_of_dist),
+    across(c(starts_with("conf"), value), multiply_by, 1000*100)
+    ) %>%
+  filter(treatment %in% c("Bracelet", "Control")) %>%
+  filter(roc_distance <= 2.5) 
+
 
 
 prior_sm_post_df = dist_fit_data %>% 

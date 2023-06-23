@@ -22,13 +22,13 @@ header-includes:
     - \newcommand{\blandscape}{\begin{landscape}}
     - \newcommand{\elandscape}{\end{landscape}}
 params:
-    fit_version: 85
+    fit_version: 95
     rf_fit_version: 98
     input_path: data/stan_analysis_data
     output_path: temp-data 
     optim_input_path: "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots"
     table_output_path: presentations/tables
-    struct_models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+    struct_models: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
     rf_models: REDUCED_FORM_NO_RESTRICT
     show_probs: FALSE
     cache: TRUE
@@ -48,7 +48,7 @@ library(magrittr)
 
 if (interactive()) {
     params = lst(
-        fit_version = 85,
+        fit_version = 95,
         rf_fit_version = 98,
         input_path = "data/stan_analysis_data",
         output_path = "temp-data",
@@ -316,8 +316,9 @@ load_full_data_function = function(){
 }
 
 
-full_dist_fit_data = with_env(load_full_data_function, full_data_env)()  
-  # filter(model %in% models_we_want)
+full_dist_fit_data = with_env(load_full_data_function, full_data_env)() %>%
+  filter(model %in% models_we_want) %>%
+  filter(fct_match(fit_type, "fit"))
 
 ```
 
@@ -641,6 +642,23 @@ private_far_bigger_te_df = full_dist_fit_data %>%
     )  %>%
     calculate_far_bigger_te(assigned_treatment_left) %>%
     mutate(Estimand = "private")
+
+
+
+# dist_fit_data %>%
+#   filter(model == params$struct_models) %>%
+#   select(est_takeup_te) %>%
+#   unnest() %>%
+#   filter(
+#     mu_assigned_treatment_left == assigned_treatment_left,
+#     mu_assigned_treatment_right == assigned_treatment_right,
+#     (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right))
+#   ) %>%
+#   filter(assigned_treatment_right == "control") 
+
+
+
+
 
 incentive_te = dist_fit_data %>%
   mutate(
@@ -3258,18 +3276,14 @@ comp_wide_indiv_bal_df = create_balance_input(
       lhs == "N Indiv" ~ "N individuals", 
       lhs == "N Pot" ~ "N points of treatment",
       lhs == "Cluster Dist To Pot" ~ "Cluster distance to PoT",
-      lhs == "Baseline neighbours worm knowledge" ~ "Understand deworming externality, baseline",
-      lhs == "Endline neighbours worm knowledge" ~ "Understand deworming externality, endline",
-      lhs == "Treated lgl" ~ "Dewormed self", 
-      lhs == "Months since treatment" ~ "Months since last dewormed",
-      lhs == "Know deworming stops worms" ~ "Knowledge of deworming medication", 
-      lhs == "All can get worms" ~ "Know everyone can be infected", 
-      lhs == "Correct when treat" ~ "Know bi-yearly treatment recommended", 
+      lhs == "Treated Lgl" ~ "Dewormed in the past", 
+      lhs == "Know Deworming Stops Worms" ~ "Knows how to prevent worms", 
+      lhs == "All Can Get Worms" ~ "Know everyone can be infected", 
+      lhs == "Correct When Treat" ~ "Know bi-yearly treatment recommended", 
       lhs == "Num recognised" ~ "Number of individuals recognised in community", 
       TRUE ~ lhs
     )
   )
-
 1+1
 
 ```
