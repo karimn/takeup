@@ -53,7 +53,6 @@ summ_sm_df = sm_df %>%
   ) %>%
   mutate(treatment = factor(treatment, levels = c('control', "ink", 'calendar', 'bracelet')))
 
-summ_sm_df
 
 summ_sm_df %>%
   filter(variable == "sm") %>%
@@ -100,19 +99,33 @@ summ_sm_df %>%
   theme_minimal() +
   theme(legend.position = "bottom")
 
+# Put in note:
+
+# Social multiplier plot is not fixing w - at 0.5km the w^* bracelet is different 
+# to the w^* control. This plot is showing you the realised social multiplier for 
+# for the actual programme. When we compare across treatment arms we're comparing 
+# across different marginal cutoff types.
+#
+# The rate of change estimates fix w^* at the control w^* for every single 
+# individual. It's showing the effect of the social multiplier "purely". Need to
+# think of a better way to say this.
+
 
 
 summ_sm_df %>%
-  filter(variable %in% c("sm", "sm_delta_part", "sm_mu_deriv_part")) %>%
+  filter(variable %in% c("sm", "sm_delta_part")) %>%
   filter(dist > 0) %>%
   mutate(dist = dist/1000) %>%
   mutate(
-    treatment = factor(treatment, levels = c("control","bracelet", "ink", "calendar")), 
+    treatment = factor(treatment, levels = c("control","ink", "calendar", "bracelet")), 
     treatment = fct_relabel(treatment, str_to_title),
     type = factor(if_else(str_detect(variable, "part"), "part", "full"), levels = c("part", "full"))
   ) %>%
   ggplot(aes(
-    x = dist, y = per_0.5,
+    x = dist, 
+    y = per_0.5,
+    ymin = per_0.05,
+    ymax = per_0.95,
     colour = treatment
   )) +
   geom_line(aes(linetype = variable), size = 1) +
@@ -147,10 +160,127 @@ summ_sm_df %>%
     size = 3,
     alpha = 0.7
   ) +
-  theme_minimal() +
+  theme_bw() +
+  theme(legend.position = "bottom")   +
+  facet_wrap(~treatment)
+
+summ_sm_df %>%
+  filter(variable %in% c("sm", "sm_delta_part")) %>%
+  filter(dist > 0) %>%
+  mutate(dist = dist/1000) %>%
+  mutate(
+    treatment = factor(treatment, levels = c("control","bracelet", "ink", "calendar")), 
+    treatment = fct_relabel(treatment, str_to_title),
+    type = factor(if_else(str_detect(variable, "part"), "part", "full"), levels = c("part", "full"))
+  ) %>%
+  ggplot(aes(
+    x = dist, 
+    y = per_0.5,
+    ymin = per_0.05,
+    ymax = per_0.95,
+    colour = treatment
+  )) +
+  # geom_pointrange() +
+  geom_line(aes(linetype = variable), size = 1) +
+  labs(
+    x = "Distance to Treatment (d) [km]" ,
+   y = "Social Multiplier", 
+   title = "Decomposing into Multiplier Components (kinda)",
+   colour = ""
+  ) +
+  geom_hline(
+    yintercept = -1, 
+    linetype = "longdash"
+  ) + 
+    guides(fill = "none") +
+  ggthemes::scale_color_canva(
+    "",
+    palette = canva_palette_vibrant
+  ) +
+  annotate(
+    "text", 
+    x = 0.0 + 0.2, 
+    y = -1 - 0.02,
+    label = "Amplification", 
+    size = 3, 
+    alpha = 0.7
+  ) +
+  annotate(
+    "text", 
+    x = 2.5 , 
+    y = -1 + 0.02,
+    label = "Mitigation", 
+    size = 3,
+    alpha = 0.7
+  ) +
+  theme_bw() +
+  theme(legend.position = "bottom")   +
+  facet_wrap(~treatment)
+
+ggsave(
+  "temp-plots/sm-parts-2.pdf",
+  width = 10,
+  height = 10
+)
+
+summ_sm_df %>%
+  filter(variable %in% c("sm", "sm_delta_part", "sm_mu_deriv_part")) %>%
+  filter(dist > 0) %>%
+  mutate(dist = dist/1000) %>%
+  mutate(
+    treatment = factor(treatment, levels = c("control","bracelet", "ink", "calendar")), 
+    treatment = fct_relabel(treatment, str_to_title),
+    type = factor(if_else(str_detect(variable, "part"), "part", "full"), levels = c("part", "full"))
+  ) %>%
+  ggplot(aes(
+    x = dist, 
+    y = per_0.5,
+    ymin = per_0.05,
+    ymax = per_0.95,
+    colour = treatment
+  )) +
+  # geom_pointrange() +
+  geom_line(aes(linetype = variable), size = 1) +
+  labs(
+    x = "Distance to Treatment (d) [km]" ,
+   y = "Social Multiplier", 
+   title = "Decomposing into Multiplier Components (kinda)",
+   colour = ""
+  ) +
+  geom_hline(
+    yintercept = -1, 
+    linetype = "longdash"
+  ) + 
+    guides(fill = "none") +
+  ggthemes::scale_color_canva(
+    "",
+    palette = canva_palette_vibrant
+  ) +
+  annotate(
+    "text", 
+    x = 0.0 + 0.2, 
+    y = -1 - 0.02,
+    label = "Amplification", 
+    size = 3, 
+    alpha = 0.7
+  ) +
+  annotate(
+    "text", 
+    x = 2.5 , 
+    y = -1 + 0.02,
+    label = "Mitigation", 
+    size = 3,
+    alpha = 0.7
+  ) +
+  theme_bw() +
   theme(legend.position = "bottom")  +
   facet_wrap(~type, ncol = 2)
 
+ggsave(
+  "temp-plots/sm-parts.pdf",
+  width = 8,
+  height = 6
+)
 
 
 summ_sm_df %>%
@@ -212,8 +342,6 @@ sm_endog_fix_df = map_dfr(
   ) %>% mutate(treatment = .x)
 )
 
-
-sm_endog_fix_df
 
 summ_sm_endog_fix_df = sm_endog_fix_df %>%
   mutate(
@@ -284,6 +412,7 @@ summ_sm_endog_fix_df %>%
 
 
 
+
 summ_sm_endog_fix_df %>%
   filter(dist > 0) %>%
   mutate(dist = dist/1000) %>%
@@ -328,3 +457,4 @@ comp_sm_df %>%
   )) +
   geom_point() +
   facet_wrap(~variable, scales = "free")
+
