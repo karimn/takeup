@@ -7,11 +7,11 @@ output:
   pdf_document:
     keep_tex: yes
 params:
-  rf_fit_version: 98
-  fit_version: 85
+  rf_fit_version: 95
+  fit_version: 95
   input_path: data/stan_analysis_data
   output_path: temp-data
-  struct_model: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+  struct_model: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
   rf_model: REDUCED_FORM_NO_RESTRICT
   plot_caption: TRUE
   component_checks: FALSE
@@ -70,8 +70,8 @@ knitr::opts_chunk$set(
   warnings = FALSE, 
   warning = FALSE, 
   cache = params$cache, 
-  cache.path = str_glue("takeup-{params$models}{params$fit_version}-figure-cache/"), 
-  fig.path = str_glue("takeup-{params$models}{params$fit_version}-fig/"), 
+  cache.path = str_glue("takeup-{params$struct_model}{params$fit_version}-figure-cache/"), 
+  fig.path = str_glue("takeup-{params$struct_model}{params$fit_version}-fig/"), 
   fig.align = "center"
   )
 
@@ -357,76 +357,6 @@ tidy_param_df = tidy_param_df %>%
 
 
 
-```
-
-```{r, fit_loading}
-#| eval = FALSE
-load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
-
-
-with_env = function(f, e = parent.frame()) {
-    stopifnot(is.function(f))
-    environment(f) = e
-    f
-}
-
-# temp fix
-if (params$fit_version != params$rf_fit_version) {
-  # Only load structural
-  dist_fit_data = dist_fit_data %>%
-    filter(model %in% params$struct_model)
-
-  rf_env = new.env()
-
-  load_rf_function = function(){
-      load(file.path("temp-data", str_interp("processed_dist_fit${params$rf_fit_version}_lite.RData")))
-      return(dist_fit_data)
-  }
-
-
-  rf_fit_data = with_env(load_rf_function, rf_env)() %>%
-    filter(model %in% params$rf_model)
-
-
-  dist_fit_data = bind_rows(
-    rf_fit_data, 
-    dist_fit_data
-  )
-
-}
-
-
-
-dist_fit_data %<>%
-  left_join(tribble(
-    ~ fit_type,        ~ model_color,
-      "fit",           "black", 
-      "prior-predict", "darkgrey",
-  ), by = "fit_type") 
-
-dist_fit_data = dist_fit_data %>%
-  filter(model %in%  models_we_want)
-
-
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
-delta <- function(v, ...) dnorm(v, ...) / ((pnorm(v, ...) * pnorm(v, ..., lower.tail = FALSE)))
-
-stan_data = (dist_fit_data %>%
-  filter(fct_match(model_type, "structural")) %>%
-  select(stan_data) %>%
-  pull())[[1]]
-
-
-structural_prior_present = dist_fit_data %>%
-  filter(
-    fct_match(fit_type, "prior-predict"), 
-    fct_match(model_type, "structural")) %>%
-    nrow() > 0
 ```
 
 
@@ -2616,7 +2546,6 @@ summ_sm_df %>%
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-plot_summ_bc_draws = read_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
 
 
 tidy_param_df %>%
@@ -2707,14 +2636,15 @@ p_roc
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
+# | (fit_type == "prior-predict" & treatment == "Control")
 
 
-tidy_param_df %>%
+roc_plot_df = tidy_param_df %>%
   filter(param == "roc_draws") %>%
   filter(model_type == "structural") %>%
   unnest(tidy_draws) %>%
   filter(
-    fit_type == "fit" | (fit_type == "prior-predict" & treatment == "Control")
+    fit_type == "fit"| (fit_type == "prior-predict" & treatment == "Control")
   ) %>%
   mutate(
     roc_distance = roc_distance / 1000,
@@ -2722,13 +2652,16 @@ tidy_param_df %>%
     across(c(starts_with("conf"), value), multiply_by, 1000*100)
     ) %>%
     filter(treatment %in% c("Bracelet", "Control")) %>%
-    filter(roc_distance <= 2.5) %>%
+    filter(roc_distance <= 2.5)
+    
+  roc_plot = roc_plot_df %>%  
+  filter(fit_type == "fit") %>%
   ggplot(aes(
     x = roc_distance,
     y = value,
     ymin = conf.low,
     ymax = conf.high,
-    fill = interaction(treatment, fit_type)
+    fill = treatment
   )) +
   geom_line(aes(colour = treatment)) +
   geom_ribbon(
@@ -2780,79 +2713,70 @@ tidy_param_df %>%
 
 
 
-tidy_param_df %>%
-  filter(fit_type == "fit", model_type == "structural") %>%
-  filter(param == "roc_draws") %>%
-  unnest(tidy_draws) %>%
-  mutate(
-    roc_distance = roc_distance / 1000,
-    across(c(starts_with("conf"), value), divide_by, sd_of_dist),
-    across(c(starts_with("conf"), value), multiply_by, 1000*100)
-    ) %>%
-  filter(treatment %in% c("Bracelet", "Control")) %>%
-  filter(roc_distance <= 2.5) 
 
 
 
-prior_sm_post_df = dist_fit_data %>% 
-  filter(
-    fct_match(fit_type, "prior-predict"), 
-    fct_match(model, models_we_want) ,
-    fct_match(model_type, "structural")
-    ) %>% 
-  mutate(
-    model_name,
-    cluster_roc = map2(cluster_roc, stan_data, ~ { 
-      mutate(.x,
-        roc_distance = roc_distance / 1000,
-        across(starts_with("per_"), divide_by, sd(.y$analysis_data$cluster.dist.to.pot)), 
-        across(starts_with("per_"), multiply_by, 1000),
-        across(starts_with("per_"), multiply_by, 100)
-      ) 
-    })
-  ) %>%
-  unnest(cluster_roc) %>% 
-  filter(fct_match(assigned_treatment, c("control","bracelet"))) %>% 
-  filter(
-    fct_match(fit_type, "prior-predict") & assigned_treatment == "bracelet"
-  ) %>%
-  filter(roc_distance < 2.5)  
 
 
 
-p_roc + 
+roc_plot
+
+
+
+roc_plot +
+  ## Prior stuff
   geom_line(
-    data = prior_sm_post_df,
-    aes(y = per_0.5), 
-    size = 1, 
+    inherit.aes = FALSE,
+    aes(x = roc_distance, y = value),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict"),
+    colour = "darkgrey",
     linetype = "longdash",
-    color = "grey") 
+    size = 1
+    ) 
 
-p_roc + 
+
+
+
+roc_plot + 
+  ## Prior stuff
   geom_line(
-    data = prior_sm_post_df,
-    aes(y = per_0.5), 
-    size = 1, 
+    inherit.aes = FALSE,
+    aes(x = roc_distance, y = value),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict"),
+    colour = "darkgrey",
     linetype = "longdash",
-    color = "grey")  +
+    size = 1
+    )  +
   geom_ribbon(
-    data = prior_sm_post_df,
-    aes(ymin = per_0.25, ymax = per_0.75), fill = "grey", alpha = 0.25) +
+    inherit.aes = FALSE,
+    data = roc_plot_df %>% filter(fit_type == "prior-predict", .width == 0.5),
+    aes(x = roc_distance, y = value, ymin = conf.low, ymax = conf.high), 
+    fill = "grey", 
+    alpha = 0.25) +
   NULL
 
-p_roc + 
+roc_plot + 
+  ## Prior stuff
   geom_line(
-    data = prior_sm_post_df,
-    aes(y = per_0.5), 
-    size = 1, 
+    inherit.aes = FALSE,
+    aes(x = roc_distance, y = value),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict"),
+    colour = "darkgrey",
     linetype = "longdash",
-    color = "grey")  +
+    size = 1
+    )  +
   geom_ribbon(
-    data = prior_sm_post_df,
-    aes(ymin = per_0.25, ymax = per_0.75), fill = "grey", alpha = 0.25) +
+    inherit.aes = FALSE,
+    data = roc_plot_df %>% filter(fit_type == "prior-predict", .width == 0.5),
+    aes(x = roc_distance, y = value, ymin = conf.low, ymax = conf.high), 
+    fill = "grey", 
+    alpha = 0.25) +
   geom_ribbon(
-    data = prior_sm_post_df, 
-    aes(ymin = per_0.05, ymax = per_0.95), fill = "grey", alpha = 0.25) +
+    inherit.aes = FALSE,
+    data = roc_plot_df %>% filter(fit_type == "prior-predict", .width == 0.9),
+    aes(x = roc_distance, y = value, ymin = conf.low, ymax = conf.high), 
+    fill = "grey", 
+    alpha = 0.25) +
   NULL
 
 ```
@@ -3035,108 +2959,3 @@ dist_checks %>%
 ```
 
 
-
-
-```{r}
-#| roc-amp-mit-line,
-#| fig.cap="Rate of Change Estimates",
-#| fig.note = "This plot shows the rate of change estimated using the structural 
-#|  model. The dashed line corresponds to a multiplier where there is no visibility.
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
-
-library(magrittr)
-rf_analysis_data <- dist_fit_data %>% 
-  filter(
-    fct_match(model_type, "reduced form"),
-    fct_match(fit_type, "fit"),
-  ) %$% 
-  stan_data[[1]]$analysis_data 
-
-plot_summ_bc_draws %>%
-    filter(name == "cluster_roc") %>%
-    filter(treatment %in% c("control", "bracelet")) %>%
-    mutate(k = factor(k)) %>%
-        ggplot(aes(
-            x = dist
-        )) +
-        geom_line(aes(
-            color = treatment,
-            y = value
-        )) +
-        geom_ribbon(
-            data = . %>%
-                filter(.width == 0.5),
-            aes(
-                ymax = .upper, 
-                ymin = .lower,
-                fill = treatment), alpha = 0.3) +
-        geom_ribbon(
-            data = . %>%
-                filter(.width == 0.8),
-            aes(
-                ymax = .upper, 
-                ymin = .lower,
-                fill = treatment), alpha = 0.3) +
-        theme_minimal() +
-        theme( 
-            legend.position = "bottom",
-            legend.title = element_blank()
-        )  +
-        labs(
-            x = "Distance to Treatment (d) [km]", 
-            # y = "Estimated Takeup", 
-            colour = ""
-        ) +
-        guides(
-            linetype = "none"
-        ) +
-        labs(
-            caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
-        ) +
-        geom_line(
-            inherit.aes = FALSE, 
-            aes(x = dist, y = value),
-            data = plot_summ_bc_draws %>%
-                filter(name == "cluster_roc_no_vis"),
-            linetype = "longdash"
-        )  +
-        geom_rug(
-            inherit.aes = FALSE,
-            aes(dist),
-            alpha = 0.75,
-            data = rf_analysis_data %>%
-            filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
-            distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000)) +
-        annotate(
-            "text", 
-            x = 0.3, 
-            y = -12, 
-            label = "Amplification", 
-            size = 4, 
-            alpha = 0.7
-        ) +
-        annotate(
-            "text", 
-            x = 2.3, 
-            y = -7.5, 
-            label = "Mitigation", 
-            size = 4, 
-            alpha = 0.7
-        ) +
-        labs(
-            y = "Rate of Change [pp/km]"
-        ) +
-        ggthemes::scale_color_canva( 
-            "",
-            palette = "Primary colors with a vibrant twist", 
-            labels = str_to_title
-        ) +
-        ggthemes::scale_fill_canva( 
-            "",
-            palette = "Primary colors with a vibrant twist", 
-            labels = str_to_title
-        ) 
-
-``` 

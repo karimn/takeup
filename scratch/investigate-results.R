@@ -4,7 +4,10 @@ library(posterior)
 library(tidybayes)
 
 
-MODEL = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB"
+MODEL = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB"
+
+
+
 
 ## Load analysis data
 load(file.path("data", "analysis.RData"))
@@ -51,10 +54,11 @@ cluster_mapper = analysis_data %>%
     assigned_dist_group
   ) %>% unique()
 
+
 cluster_error_draws_raw = load_param_draws(
-  fit_version = 95,
+  fit_version = 93,
   model = MODEL,
-  chain = 1:2,
+  chain = 1,
   cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx],
   total_error_sd[treat_idx]
 )
@@ -156,52 +160,48 @@ clean_wide_tbl = wide_struct_tes %>%
   arrange(dist_treatment)   %>%
   create_cis()
 
-clean_wide_tbl
-
 clean_wide_tbl %>%
-  write_csv(
-    file.path(
-        "temp-data",
-        "temp-res",
-      str_glue(
-        "struct-ate-{MODEL}.csv"
-      )
-    )
+  View()
+stop()
+
+cluster_error_draws %>%
+  # filter(dist_group == assigned_dist_group) %>%
+  filter(mu_treatment == dist_treatment) %>%
+  group_by(dist_treatment, dist_group) %>%
+  summarise(
+    pr_takeup = rvar_mean(pr_takeup)
+  )   %>%
+  group_by(dist_group) %>%
+  mutate(
+    pr_takeup = if_else(dist_treatment == "control", pr_takeup, pr_takeup - pr_takeup[dist_treatment == "control"])
   )
 
 stop()
 
 
-
-#-------------------------------------------------------------------------------
-library(tidyverse)
-versions = c(99, 98, 97, 96)
-
-fp = file.path(str_glue("temp-data/temp-res-{versions}"))
-
-incentive_file = "incentive-te.csv"
-far_file = "far-big-diff.csv"
-bra_cal_file = "bra-cal-diff.csv"
+## Loading postprocessed output
+load(
+  file.path(
+    "tmp", 
+      "processed_dist_fit95_lite.RData"))
 
 
-incentive_df = imap_dfr(
-  file.path(fp, incentive_file),
-  ~read_csv(.x) %>% mutate(version = versions[.y])
-)
-far_df = imap_dfr(
-  file.path(fp, far_file),
-  ~read_csv(.x) %>% mutate(version = versions[.y])
-)
-bra_cal_df = imap_dfr(
-  file.path(fp, bra_cal_file),
-  ~read_csv(.x) %>% mutate(version = versions[.y])
-)
 
+dist_fit_data %>%
+  filter(model == MODEL) %>%
+  filter(fit_type == "fit") %>%
+  select(est_takeup_te) %>%
+  unnest() %>%
+  filter(
+    mu_assigned_treatment_left == assigned_treatment_left,
+    mu_assigned_treatment_right == assigned_treatment_right,
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right))
+  ) %>%
+  filter(assigned_treatment_right == "control")  %>%
+  filter(mu_assigned_treatment_left == "bracelet") 
 
-version_type_df = tibble(
-  version = versions,
-  type = c("Tighterer SD", "Tighter SD", "No Strata Interactions", "Strata Interactions")
-)
+## Back to rvar output
+
 
 dist_levels = c("Combined", "Far", "Close")
 treat_levels = c("Bracelet", "Calendar", "Ink", "Control")
