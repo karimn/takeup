@@ -6,6 +6,24 @@ date: "12/10/2020"
 output: 
   pdf_document:
     keep_tex: yes
+header-includes:
+    - \usepackage{booktabs}
+    - \usepackage{longtable}
+    - \usepackage{array}
+    - \usepackage{multirow}
+    - \usepackage{wrapfig}
+    - \usepackage{float}
+    - \usepackage{colortbl}
+    - \usepackage{tabu}
+    - \usepackage{threeparttable}
+    - \usepackage{threeparttablex}
+    - \usepackage[normalem]{ulem}
+    - \usepackage[utf8]{inputenc}
+    - \usepackage{makecell}
+    - \usepackage{xcolor}
+    - \usepackage{pdflscape}
+    - \newcommand{\blandscape}{\begin{landscape}}
+    - \newcommand{\elandscape}{\end{landscape}}
 params:
   rf_fit_version: 95
   fit_version: 95
@@ -14,7 +32,7 @@ params:
   struct_model: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
   rf_model: REDUCED_FORM_NO_RESTRICT
   plot_caption: TRUE
-  component_checks: FALSE
+  component_checks: TRUE
   cache: TRUE
 ---
 
@@ -1409,18 +1427,51 @@ overall_pref_gift_df = bind_rows(
     mutate_at(vars(gift_choice, assigned.treatment), list(~ fct_relabel(factor(.), str_to_title))) %>% 
     mutate(assigned.treatment = fct_relevel(assigned.treatment, 
                                             "(All Arms)", "Control Arm", "Ink Arm", "Calendar Arm", "Bracelet Arm")) 
-overall_pref_gift_df %>%                                            
-  filter(gift_choice != "Neither") %>%
-  filter(dewormed == FALSE) %>%
-  filter(str_detect(assigned.treatment, "Calendar|Bracelet")) %>%
-  mutate(
-    assigned_treatment = str_remove(assigned.treatment, " Arm"),
-  )  %>%
-  filter(assigned_treatment == gift_choice)
+
+overall_pref_gift_df
+
+pref_df = analysis_data %>%
+  filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample.pool, !is.na(sms.treatment)) %>% 
+  filter(
+    assigned.treatment %in% c("control", "ink")
+  ) %>%
+  select(
+    gift_choice, 
+    assigned_treatment = assigned.treatment, 
+    dist_group = dist.pot.group,
+    cluster.id,
+    county,
+    dewormed,
+    standard_cluster.dist.to.pot
+    ) %>%
+    mutate(pref_cal = gift_choice == "calendar") 
+
+
+
+pref_fit_control_ink = pref_df %>%
+    fixest::feglm(
+      pref_cal ~ dist_group | county,
+      family = "probit",
+      cluster = ~cluster.id
+    )
+
+pref_fit_control_ink_cov = pref_df %>%
+    fixest::feglm(
+      pref_cal ~ assigned_treatment + dist_group + standard_cluster.dist.to.pot + dewormed | county,
+      family = "probit",
+      cluster = ~cluster.id
+    )
+
+pref_fit_control = pref_df %>%
+  filter(assigned_treatment == "control") %>%
+    fixest::feglm(
+      pref_cal ~ dist_group | county,
+      family = "probit",
+      cluster = ~cluster.id
+    )
 
 
 overall_pref_gift_df %>%                                            
-  filter(gift_choice != "Neither") %>%
     ggplot(aes(gift_choice, pref.prop, fill = dewormed)) +
     geom_col(alpha = 0.5, color = alpha("black", 0.5), position = position_dodge(0.8)) +
     labs(x = "Preferred Gift", y = "Proportion") +
@@ -1433,6 +1484,33 @@ ggsave(
   width = 10,
   height = 10
 )
+```
+
+
+```{r}
+#| pref-fit-table, results="asis"
+
+
+pref_fit_table = fixest::etable(
+  list(
+    "(1) Sample: Control" = pref_fit_control,
+    "(2) Sample: Control + Ink" = pref_fit_control_ink,
+    "(3) Sample: Control + Ink" = pref_fit_control_ink_cov
+  ),
+  dict = c(
+    "dist_groupfar" = "Distance group: Far",
+    "assigned_treatmentink" = "Ink Treatment",
+    "standard_cluster.dist.to.pot" = "Distance to PoT",
+    "dewormedTRUE" = "Dewormed",
+    "pref_cal" = "Prefer calendar"
+  ),
+  tex = TRUE,
+  title = "Preference for Calendar Gift Across Distance",
+  style.tex = fixest::style.tex("aer")
+)
+
+
+pref_fit_table
 ```
 
 #### Incentive ATEs ####
@@ -2051,7 +2129,8 @@ dist_prob_plot +
         ) %>%
             filter(treatment %in% c("control", "bracelet")) %>%
             mutate(treatment = str_to_title(treatment)),
-    aes(x = dist, y = obs_pr_takeup, colour = treatment), show.legend = FALSE
+    aes(x = dist, y = obs_pr_takeup, colour = treatment), show.legend = FALSE, 
+    alpha = 0.3
     ) + 
   # scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
   ggthemes::scale_color_canva(
@@ -2409,10 +2488,11 @@ if (params$component_checks) {
 #| all-social-multiplier,
 #| fig.cap="Estimated Social Multiplier Over Distance",
 #| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#|  model. The plot shows how sensitive take-up is to changes in cost. For the ink and 
+#|  bracelet treatment arm, as distance 
 #|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  greater associated reputational returns. However, for the calendar and control treatment arms
+#|  individuals become increasingly sensitive to changes in costs.
 #|  Line: median.
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
@@ -2423,7 +2503,7 @@ sm_df = map_dfr(
   c("bracelet", "calendar", "ink", "control"), 
   ~read_csv(
     str_glue(
-      "optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-{.x}-mu-{.x}-{params$models}.csv"
+      "optim/data/pred-social-multiplier-fit86-cutoff-b-{.x}-mu-{.x}-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv"
     )
   ) %>% mutate(treatment = .x)
 )
@@ -2538,19 +2618,15 @@ summ_sm_df %>%
 #| rate-of-change,
 #| fig.cap="Rate of Change Estimates",
 #| fig.note = "This plot shows the rate of change estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  model. The plot shows how sensitive take-up is to changes in cost as cost (distance)
+#|  changes. The dashed line indicates the rate of change with no visibility. Estimates
+#|  above the dashed line show that visibility mitigates the increased cost whilst estimates
+#|  below the dashed line indicate an amplification effect. The dashed line is 
+#|  curved due to the Probit functional form.
 #|  Line: median.
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-
-
-tidy_param_df %>%
-  pull(param) %>%
-  unique()
 
 
 p_roc = tidy_param_df %>%
@@ -2628,15 +2704,18 @@ p_roc
 #| rate-of-change-prior,
 #| fig.cap="Rate of Change Estimates",
 #| fig.note = "This plot shows the rate of change estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  model. The plot shows how sensitive take-up is to changes in cost as cost (distance)
+#|  changes. The dashed line indicates the rate of change with no visibility. Estimates
+#|  above the dashed line show that visibility mitigates the increased cost whilst estimates
+#|  below the dashed line indicate an amplification effect. The dashed line is 
+#|  curved due to the Probit functional form. The grey line indicates the prior 
+#|  predictive distribution - this shows what our prior beliefs imply about the 
+#|  rate of change posterior distribution before conditioning on the data.
 #|  Line: median.
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-# | (fit_type == "prior-predict" & treatment == "Control")
+
 
 
 roc_plot_df = tidy_param_df %>%
