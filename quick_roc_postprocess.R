@@ -279,3 +279,74 @@ if (script_options$cluster_rep_return_dist) {
     )
 
 }
+
+if (script_options$sm) {
+
+    sm_raw = load_param_draws(
+      fit_version = script_options$fit_version,
+      model = script_options$model,
+      chain = script_options$chain,
+      prior_predictive = script_options$prior,
+      input_path = script_options$input_path,
+      cbind(
+        cluster_social_multiplier,
+        cluster_mu_rep,
+        cluster_mu_rep_deriv,
+        cluster_delta,
+        cluster_delta_deriv
+      )[roc_dist_idx, cluster_idx, treat_idx],
+      dist_beta_v[,]
+    )
+
+    sm_draws = sm_raw %>%
+        left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
+        left_join(treat_idx_mapper, by = "treat_idx")
+
+    sm_draws_clean = sm_draws  %>%
+        group_by(
+            model,
+            fit_version,
+            fit_type,
+            treatment, 
+            roc_distance
+        ) %>%
+        summarise(
+            sm = rvar_mean(sm),
+            sm_delta_part = rvar_mean(
+              -dist_beta_v / (1 + cluster_mu_rep*cluster_delta_deriv)
+            ),
+            sm_mu_part = rvar_mean(
+              cluster_mu_rep_deriv*cluster_delta / (1 + cluster_mu_rep*cluster_delta_deriv)
+            )
+        )
+
+  sm_draws_clean %>%
+    pivot_longer(where(is_rvar), names_to = "variable") %>%
+    saveRDS(
+      file.path(
+        script_options$output_path,
+        str_glue(
+          "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_sm_draws_{script_options$model}_{chain_str}.rds"
+        )
+      ) 
+    )
+
+
+
+        
+    summ_sm_draws = sm_draws_clean %>%
+      pivot_longer(where(is_rvar), names_to = "variable") %>%
+      median_qi(value) %>%
+      to_broom_names()
+        
+    summ_sm_draws %>%
+      saveRDS(
+        file.path(
+          script_options$output_path,
+          str_glue(
+            "rvar_processed_dist_{fit_type_str}{script_options$fit_version}_sm_summ_{script_options$model}_{chain_str}.rds"
+          )
+        ) 
+      )
+
+}
