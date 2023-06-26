@@ -19,10 +19,15 @@ VERSION=${1:-$LATEST_VERSION} # Get version from command line if provided
 SLURM_INOUT_DIR=~/scratch-midway2
 models=(
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB"
-  "REDUCED_FORM_NO_RESTRICT"
   )
 
-PRIOR_ARG="" # "--prior"
+prior_args=(
+  "--prior"
+  ""
+)
+
+#  "REDUCED_FORM_NO_RESTRICT"
+
 
 echo "Version: $VERSION"
 
@@ -47,37 +52,38 @@ fi
 source quick_postprocess.sh
 
 
-
-for model in "${models[@]}"
+for prior_arg in "${prior_args[@]}"
 do
-  # Within SLURM tasks
-  srun --export=all --exclusive --ntasks=1 bash -c \
-    "source quick_postprocess.sh && postprocess_model \
-      quick_ate_postprocess.R \
-      ${VERSION} \
-      ${model} \
-      ${IN_ARG} \
-      ${OUT_ARG} \
-      ${PRIOR_ARG}" &
-  srun --export=all --exclusive --ntasks=1 bash -c \
-    "source quick_postprocess.sh && postprocess_model \
-      quick_submodel_postprocess.R \
-      ${VERSION} \
-      ${model} \
-      ${IN_ARG} \
-      ${OUT_ARG} \
-      ${PRIOR_ARG}" &
-  srun --export=all --exclusive --ntasks=1 bash -c \
-    "source quick_postprocess.sh && postprocess_model \
-      quick_roc_postprocess.R \
-      ${VERSION} \
-      ${model} \
-      ${IN_ARG} \
-      ${OUT_ARG} \
-      ${PRIOR_ARG} \
-      --cluster-roc \
-      --cluster-takeup-prop \
-      --cluster-rep-return-dist" &
+	for model in "${models[@]}"
+	do
+	  # Within SLURM tasks
+	  srun --export=all --exclusive --ntasks=1 bash -c \
+	    "source quick_postprocess.sh && postprocess_model \
+	      quick_ate_postprocess.R \
+	      ${VERSION} \
+	      ${model} \
+	      ${IN_ARG} \
+	      ${OUT_ARG} \
+	      ${prior_arg}" &
+	  srun --export=all --exclusive --ntasks=1 bash -c \
+	    "source quick_postprocess.sh && postprocess_model \
+	      quick_submodel_postprocess.R \
+	      ${VERSION} \
+	      ${model} \
+	      ${IN_ARG} \
+	      ${OUT_ARG} \
+	      ${prior_arg}" &
+	  srun --export=all --exclusive --ntasks=1 bash -c \
+	    "source quick_postprocess.sh && postprocess_model \
+	      quick_roc_postprocess.R \
+	      ${VERSION} \
+	      ${model} \
+	      ${IN_ARG} \
+	      ${OUT_ARG} \
+	      ${prior_arg} \
+	      --cluster-roc \
+	      --cluster-takeup-prop \
+	      --cluster-rep-return-dist" &
+	done
 done
-
 wait
