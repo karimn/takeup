@@ -15,7 +15,7 @@ Options:
   95
   --output-path=temp-data
   --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
-  1
+  1 2 
   " else commandArgs(trailingOnly = TRUE)
 )
 
@@ -55,7 +55,17 @@ prob_draws_raw = load_param_draws(
 )
 
 prob_draws = prob_draws_raw %>%
-    left_join(dist_idx_mapper, by = "dist_treat_idx")
+    left_join(dist_idx_mapper, by = "dist_treat_idx") 
+
+prob_draws = bind_rows(
+  prob_draws,
+  prob_draws %>%
+    group_by(fit_version, model, fit_type, treatment) %>%
+    summarise(
+      across(where(is_rvar), rvar_mean)
+    ) %>%
+    mutate(dist_group = "combined")
+)
 
 prob_draws %>%
   pivot_longer(where(is_rvar), names_to = "variable") %>%
