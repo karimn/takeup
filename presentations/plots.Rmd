@@ -1430,47 +1430,6 @@ overall_pref_gift_df = bind_rows(
 
 overall_pref_gift_df
 
-pref_df = analysis_data %>%
-  filter(!is.na(gift_choice), monitored, monitor.consent, !hh.baseline.sample.pool, !is.na(sms.treatment)) %>% 
-  filter(
-    assigned.treatment %in% c("control", "ink")
-  ) %>%
-  select(
-    gift_choice, 
-    assigned_treatment = assigned.treatment, 
-    dist_group = dist.pot.group,
-    cluster.id,
-    county,
-    dewormed,
-    standard_cluster.dist.to.pot
-    ) %>%
-    mutate(pref_cal = gift_choice == "calendar") 
-
-
-
-pref_fit_control_ink = pref_df %>%
-    fixest::feglm(
-      pref_cal ~ dist_group | county,
-      family = "probit",
-      cluster = ~cluster.id
-    )
-
-pref_fit_control_ink_cov = pref_df %>%
-    fixest::feglm(
-      pref_cal ~ assigned_treatment + dist_group + standard_cluster.dist.to.pot + dewormed | county,
-      family = "probit",
-      cluster = ~cluster.id
-    )
-
-pref_fit_control = pref_df %>%
-  filter(assigned_treatment == "control") %>%
-    fixest::feglm(
-      pref_cal ~ dist_group | county,
-      family = "probit",
-      cluster = ~cluster.id
-    )
-
-
 overall_pref_gift_df %>%                                            
     ggplot(aes(gift_choice, pref.prop, fill = dewormed)) +
     geom_col(alpha = 0.5, color = alpha("black", 0.5), position = position_dodge(0.8)) +
@@ -1486,32 +1445,6 @@ ggsave(
 )
 ```
 
-
-```{r}
-#| pref-fit-table, results="asis"
-
-
-pref_fit_table = fixest::etable(
-  list(
-    "(1) Sample: Control" = pref_fit_control,
-    "(2) Sample: Control + Ink" = pref_fit_control_ink,
-    "(3) Sample: Control + Ink" = pref_fit_control_ink_cov
-  ),
-  dict = c(
-    "dist_groupfar" = "Distance group: Far",
-    "assigned_treatmentink" = "Ink Treatment",
-    "standard_cluster.dist.to.pot" = "Distance to PoT",
-    "dewormedTRUE" = "Dewormed",
-    "pref_cal" = "Prefer calendar"
-  ),
-  tex = TRUE,
-  title = "Preference for Calendar Gift Across Distance",
-  style.tex = fixest::style.tex("aer")
-)
-
-
-pref_fit_table
-```
 
 #### Incentive ATEs ####
 
