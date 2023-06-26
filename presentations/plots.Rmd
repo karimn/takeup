@@ -15,7 +15,7 @@ params:
   rf_model: REDUCED_FORM_NO_RESTRICT
   plot_caption: TRUE
   component_checks: FALSE
-  cache: FALSE
+  cache: TRUE
 ---
 
 ```{r takeup-present-setup, include=FALSE}
@@ -70,8 +70,8 @@ knitr::opts_chunk$set(
   warnings = FALSE, 
   warning = FALSE, 
   cache = params$cache, 
-  cache.path = str_glue("takeup-{params$models}{params$fit_version}-figure-cache/"), 
-  fig.path = str_glue("takeup-{params$models}{params$fit_version}-fig/"), 
+  cache.path = str_glue("takeup-{params$struct_model}{params$fit_version}-figure-cache/"), 
+  fig.path = str_glue("takeup-{params$struct_model}{params$fit_version}-fig/"), 
   fig.align = "center"
   )
 
@@ -2546,7 +2546,6 @@ summ_sm_df %>%
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-plot_summ_bc_draws = read_csv("temp-data/plot-summ-draws-roc-vis-no-vis.csv")
 
 
 tidy_param_df %>%

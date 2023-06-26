@@ -23,7 +23,7 @@ header-includes:
     - \newcommand{\elandscape}{\end{landscape}}
 params:
     fit_version: 95
-    rf_fit_version: 98
+    rf_fit_version: 95
     input_path: data/stan_analysis_data
     output_path: temp-data 
     optim_input_path: "optim/data/STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP/agg-full-many-pots"
@@ -245,8 +245,6 @@ tidy_param_df = tidy_param_df %>%
 
 tidy_param_df = tidy_param_df %>%
   mutate(
-    dist_present = map_lgl(tidy_draws, ~"dist_treatment" %in% colnames(.x)),
-    treat_present = map_lgl(tidy_draws, ~ "treatment" %in% colnames(.x)),
     dist_group_present = map_lgl(tidy_draws, ~"dist_group" %in% colnames(.x)),
     param = factor(param)
     ) %>%
@@ -695,124 +693,80 @@ decomposed_te_kbl_df %>%
 ```{r}
 #| beliefs
 
-
+belief_df = bind_rows(
 tidy_param_df %>%
   filter(
   fct_match(fit_type, "fit"), 
   fct_match(model, params$struct_model), 
   fct_match(model_type, "structural"),
-  param %in% c('belief_')
-  ) 
-
-
-
-belief_data = dist_fit_data %>%
-  filter(fct_match(fit_type, "fit"), fct_match(model_type, "structural")) %>%
-  pull(beliefs_results) %>%
-  first() 
-
-belief_close_far_input_df = belief_data$ate_knows %>%
-  filter(assigned_treatment_left != "control") %>%
-  filter(assigned_treatment_right == "control") %>%
-  mutate(assigned_treatment_left = fct_drop(assigned_treatment_left))  %>%
-  filter(assigned_dist_group_right == assigned_dist_group_left) %>%
-  mutate(treatment = fct_relabel(assigned_treatment_left, str_to_title))  %>%
-  select(
-    treatment, 
-    distance = assigned_dist_group_right, 
-    estimate = per_0.5, 
-    conf.low = per_0.05, 
-    conf.high = per_0.95, 
-    order = ord
-  )
-
-
-#### Belief ATEs combined ####
-belief_data_control = belief_data$prob_knows %>%
-    filter(assigned_treatment == "control")  %>%
-    select(assigned_treatment, assigned_dist_group, iter_data, ord) %>%
-    unnest(iter_data)
-
-combined_belief_ate = belief_data$prob_knows %>%
-    filter(assigned_treatment != "control") %>%
-    select(assigned_treatment, iter_data, ord) %>%
-    unnest(iter_data) %>%
-    rename(assigned_treatment_left = assigned_treatment) %>%
-    left_join(
-        belief_data_control %>% 
-            rename(assigned_treatment_right = assigned_treatment) %>%
-            select(iter_est_right = iter_est, iter_id, ord, assigned_treatment_right),
-        by = c("iter_id", "ord")
-    ) %>%
-    mutate(
-        iter_est_te = iter_est - iter_est_right
-    )  %>%
-    select(-.chain, -.iteration, -.draw) %>%
-    nest(iter_data = c(iter_id, iter_est_te, iter_est, iter_est_right)) %>%
-    mutate(
-        mean_est = map_dbl(iter_data, ~mean(.x$iter_est_te)), 
-        quants = map(iter_data, quantilize_est, iter_est_te, quant_probs = quant_probs, na.rm = TRUE)
-    )  %>%
-    unnest(quants) %>%
-    mutate(assigned_dist_group_left = "Combined", assigned_dist_group_right = "Combined") %>%
-    mutate(
-        assigned_treatment_left = fct_drop(assigned_treatment_left), 
-        assigned_treatment_right = fct_drop(assigned_treatment_right)
-    )  %>%
-    mutate(treatment = fct_relabel(assigned_treatment_left, str_to_title))  %>%
-    select( 
-      treatment = treatment, 
-      distance = assigned_dist_group_right, 
-      estimate = per_0.5, 
-      conf.low = per_0.05,
-      conf.high = per_0.95,
-      order = ord
-    )
-
-
-belief_input_df = bind_rows(
-  belief_close_far_input_df,
-  combined_belief_ate
-) %>% 
+  param %in% c('belief_probs')
+  ) %>%
+  select(model, tidy_draws) %>%
+  unnest(tidy_draws) %>%
+  filter(.width == 0.9) %>%
+  filter(treatment == "Control") %>%
   mutate(
-    distance = str_to_title(distance), 
-    treatment = fct_rev(treatment), 
-    distance = factor(distance, levels = c("Combined", "Close", "Far"))
-    )
-
-
-
-wide_belief_input_df = belief_input_df %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  mutate(
-    estim_value = linebreak(
-      paste0(estimate, "\n", "(", conf.low, ", ", conf.high, ")"), 
+    across(where(is.numeric), round, 3),
+    estim_std = linebreak(
+      paste0(
+        value, "\n",
+        str_glue(
+          "({conf.low}, {conf.high})"
+        )
+      ),
       align = "c"
-      )
+    )
   ) %>%
-  select(treatment, distance, order, estim_value) %>%
+  select(treatment, dist_group, variable, estim_std)  ,
+tidy_param_df %>%
+  filter(
+  fct_match(fit_type, "fit"), 
+  fct_match(model, params$struct_model), 
+  fct_match(model_type, "structural"),
+  param %in% c('belief_ates')
+  ) %>%
+  select(model, tidy_draws) %>%
+  unnest(tidy_draws) %>%
+  filter(.width == 0.9) %>%
+  mutate(
+    across(where(is.numeric), round, 3),
+    estim_std = linebreak(
+      paste0(
+        value, "\n",
+        str_glue(
+          "({conf.low}, {conf.high})"
+        )
+      ),
+      align = "c"
+    )
+  ) %>%
+  select(treatment, dist_group, variable, estim_std)  
+) %>%
+  mutate(order = if_else(str_detect(variable, "1"), 1, 2)) %>%
+  select(-variable)
+
+
+wide_belief_df = belief_df %>%
   pivot_wider(
-    names_from = c(distance, order), 
-    values_from = estim_value
+    names_from = c(dist_group, order), 
+    values_from = estim_std
   ) %>%
-  select( 
-    treatment, 
-    contains("_1"), 
-    contains("_2")
-  ) %>%
-  arrange(treatment)  %>%
   select(
-    treatment, 
-    Combined_1, 
+    treatment,
+    Combined_1,
     Close_1,
-    Far_1, 
-    Combined_2, 
-    Close_2, 
+    Far_1,
+
+    Combined_2,
+    Close_2,
     Far_2
-  )
+  ) %>%
+  mutate(treatment = factor(treatment, levels = str_to_title(treat_levels_c)) %>% fct_rev) %>%
+  mutate(treatment = fct_recode(treatment, "Control mean" = "Control")) %>%
+  arrange(treatment)
 
 
-wide_belief_tbl = wide_belief_input_df %>%
+wide_belief_tbl = wide_belief_df %>%
   kbl(
     col.names = c(
       # "Estimand", 
@@ -851,6 +805,7 @@ wide_belief_tbl = wide_belief_input_df %>%
     escape = FALSE,
     threeparttable = TRUE
   )
+
 
 wide_belief_tbl %>%
   custom_save_latex_table(
@@ -1223,92 +1178,34 @@ wide_disagg_belief_tbl %>%
 ```{r}
 #| eval=FALSE
 1+1
-wtp_summ_df = dist_fit_data %>% 
-  filter(fct_match(model_type, "structural")) %>% 
-  pull(wtp_results) %>%
-  first()  %>%
-  group_by(variable)  %>%
-  filter(variable == "hyper_wtp_mu") %>%
-  select( 
-    per_0.5,
-    per_0.05, 
-    per_0.95
+
+wtp_input_df = tidy_param_df %>%
+  filter(
+    param == "wtp_params"
   ) %>%
-  mutate(across(where(is.numeric), ~.x*100)) %>%
-  mutate(across(where(is.numeric), round, 3))
-
-
-
-pr_wtp_greater_df = read_csv(
-  file.path(
-    params$output_path, 
-    str_interp("wtp_phi_summary_draws_dist_fit${params$fit_version}.csv")
-  )
-)
-
-pr_wtp_greater_input_df = pr_wtp_greater_df %>%
+  filter(fit_type == "fit") %>%
+  unnest(tidy_draws) %>%
+  filter(.width ==  .90) %>%
+  left_join(tibble(pref_value_diff_idx = 1:21, val_diff = -seq(-100, 100, 10)), by = "pref_value_diff_idx")   %>%
+  filter(val_diff %in% c(-50, 0, 50))  %>%
   mutate(
-    variable = "$\\textrm{Pr}(V_{\\textrm{calendar}} > V_{\\textrm{bracelet}} + 0\\textrm{Ksh})$"
-  ) %>%
-  select(
-    variable, 
-    per_0.5 = phi_mu_std, 
-    per_0.05 = conf.low, 
-    per_0.95 = conf.high) 
-
-misc_param_summaries = read_csv(
-  file.path(
-      params$output_path,
-      str_glue("misc_processed_dist_fit{params$fit_version}.csv")
-  )
-) %>%
-  mutate(across(where(is.numeric), ~.x*100)) %>%
-  mutate(across(where(is.numeric), round, 2))
-
-
-wtp_summ_input_df = bind_rows(
-  wtp_summ_df,
-  misc_param_summaries %>%
-    filter(variable == "wtp_sigma"),
-   pr_wtp_greater_input_df,
-  dist_fit_data %>% 
-    filter(fct_match(model_type, "structural")) %>% 
-    pull(wtp_results) %>%
-    first()  %>%
-    filter(variable == "prob_prefer_calendar") %>%
-    left_join(tibble(index = 1:21, val_diff = -seq(-100, 100, 10)), by = "index")  %>%
-    filter(val_diff %in% c(50, 0, -50)) %>%
-    select(variable, val_diff, per_0.5, per_0.05, per_0.95) %>%
-    mutate(
-      variable = "P(prefer calendar)",
-      variable = paste0(
-        variable, ", offered: ", val_diff, "KSh"
+    across(where(is.numeric), round, 3),
+    estim_std = linebreak(
+      paste0(
+        value, "\n",
+        "(", conf.low, ", ", conf.high, ")"
       )
-    ) %>%
-    select(-val_diff)
-) 
-
-
-
-wtp_summ_tbl = wtp_summ_input_df %>%
-  mutate(
-    variable = case_when(
-      variable == "hyper_wtp_mu" ~ "Valuation difference (Ksh) mean, $\\mu$", 
-      variable == "wtp_sigma" ~ "Valuation difference (Ksh) standard deviation, $\\sigma$", 
-      TRUE ~ variable
-      )
+    )
   ) %>%
-  mutate(across(where(is.numeric), round, 3)) %>%
-  mutate(
-    estim_value = 
-      linebreak(
-        paste0(per_0.5, "\n", "(", per_0.05, ", ", per_0.95, ")"), 
-        align = "c"
-        )
-  ) %>%
-  select( 
-    variable, estim_value
-  ) %>%
+  select(variable, val_diff, estim_std) %>%
+  filter(variable == "prob_prefer_calendar" | val_diff == 0) %>%
+  arrange(variable) %>%
+  mutate(val_diff = if_else(variable == "hyper_wtp_mu", NA_real_, val_diff)) %>%
+  mutate(name = str_glue("Pr(Prefer calendar), offered {val_diff}KSh")) %>%
+  mutate(name = if_else(variable == "hyper_wtp_mu", str_glue("Valuation difference (KSh), mean"), name)) %>%
+  select(name, estim_std) 
+  
+wtp_summ_tbl = wtp_input_df %>%
   kbl(
     col.names = c("Parameter", "Posterior estimates"), 
     booktabs = TRUE, 
@@ -1318,8 +1215,8 @@ wtp_summ_tbl = wtp_summ_input_df %>%
   ) %>%
   pack_rows(
     index = c(
-      "Panel A: Model parameters" = 2, 
-      "Panel B: Estimated preferences" = 4
+      "Panel A: Model parameters" = 1, 
+      "Panel B: Estimated preferences" = 3
     ), 
     italic = TRUE,
     escape = FALSE,
@@ -1335,8 +1232,6 @@ wtp_summ_tbl = wtp_summ_input_df %>%
 
 
 
-wtp_summ_tbl
-
 wtp_summ_tbl %>%
   custom_save_latex_table(
     "wtp-summ-table"
@@ -1346,9 +1241,9 @@ wtp_summ_tbl %>%
 
 ```
 
-```{r, eval=FALSE}
+```{r}
 #| optim-table-main,
-#| eval=FALSE
+#| eval=TRUE
 x = 1+1
 all_optim_df = read_csv(
   file.path(
@@ -1372,7 +1267,7 @@ summ_optim_df = all_optim_df %>%
         ) %>%
         mutate(mean_dist = mean_dist/1000) %>%
         filter(
-            model %in% models_we_want
+            model %in% c(models_we_want, "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP")
         ) %>%
         filter(
             cutoff_type  == "cutoff"
@@ -1556,9 +1451,9 @@ optim_summ_tbl
 ```
 
 
-```{r, eval=FALSE}
+```{r}
 #|optim-summ-table-robust,
-#| dependson = c("optim-summ-table"), eval=FALSE
+#| dependson = c("optim-summ-table")
 optim_summ_robust_tbl = optim_summ_input_df %>%
   arrange(allocation_type, distance_constraint, rep_type, mu_z, B_z) %>%
   select(B_z, mu_z, distance_constraint, n_pot, mean_demand, mean_dist) %>%
@@ -2490,14 +2385,6 @@ create_balance_input = function(tidy_df,
 }
 
 
-N_beliefs_obs_df = analysis_school_data[stan_data$beliefs_obs_index, ] %>%
-  group_by(
-    treat_dist
-  ) %>%
-  summarise(
-    N_indiv = n_distinct(KEY.individ),
-    N_pot = n_distinct(cluster.id)
-  )  
 
 
 
@@ -2555,41 +2442,41 @@ N_baseline_obs = baseline_balance_data %>%
 
 
 
-N_by_treat_dist_df = analysis_school_data %>%
-  group_by(
-    treat_dist
-  ) %>%
-  summarise(
-    N_indiv = n_distinct(KEY.individ),
-    N_pot = n_distinct(cluster.id)
-  )  %>% 
-  mutate(type = "takeup") %>%
-  bind_rows(
-    N_baseline_obs,
-    N_beliefs_obs_df %>% mutate(type = "beliefs"), 
-    N_wtp_obs_df
-  ) %>%
-  mutate(
-    treatment = str_extract(treat_dist, "(?<=treat: ).*(?=\\,)"), 
-    distance = str_extract(treat_dist, "(?<=dist: ).*$")
-  ) %>%
-  select(-treat_dist)  %>%
-  pivot_longer(
-    cols = c(N_indiv, N_pot), names_to = "lhs"
-  ) %>%
-  pivot_wider(
-    names_from = c(treatment, distance),
-    values_from = value
-  )  %>%
-  mutate(
-    type = factor(type, levels = c("baseline", "takeup", "beliefs", "WTP"))
-  ) %>%
-  arrange(type)
+# N_by_treat_dist_df = analysis_school_data %>%
+#   group_by(
+#     treat_dist
+#   ) %>%
+#   summarise(
+#     N_indiv = n_distinct(KEY.individ),
+#     N_pot = n_distinct(cluster.id)
+#   )  %>% 
+#   mutate(type = "takeup") %>%
+#   bind_rows(
+#     N_baseline_obs,
+#     N_beliefs_obs_df %>% mutate(type = "beliefs"), 
+#     N_wtp_obs_df
+#   ) %>%
+#   mutate(
+#     treatment = str_extract(treat_dist, "(?<=treat: ).*(?=\\,)"), 
+#     distance = str_extract(treat_dist, "(?<=dist: ).*$")
+#   ) %>%
+#   select(-treat_dist)  %>%
+#   pivot_longer(
+#     cols = c(N_indiv, N_pot), names_to = "lhs"
+#   ) %>%
+#   pivot_wider(
+#     names_from = c(treatment, distance),
+#     values_from = value
+#   )  %>%
+#   mutate(
+#     type = factor(type, levels = c("baseline", "takeup", "beliefs", "WTP"))
+#   ) %>%
+#   arrange(type)
 
-colnames(N_by_treat_dist_df) = colnames(N_by_treat_dist_df) %>%
-  str_replace("bracelet", "bra") %>%
-  str_replace("control", "con") %>%
-  str_replace("calendar", "cal")
+# colnames(N_by_treat_dist_df) = colnames(N_by_treat_dist_df) %>%
+#   str_replace("bracelet", "bra") %>%
+#   str_replace("control", "con") %>%
+#   str_replace("calendar", "cal")
 
 
 
@@ -3018,38 +2905,38 @@ cts_dist_fits %>%
 
 ```{r, sample_n, results="asis"}
 
-sample_meta_df = N_by_treat_dist_df %>%
-  gather(variable, value, -type, -lhs) %>%
-  group_by(
-    type, lhs
-  ) %>%
-  summarise(
-    n = sum(value, na.rm = TRUE)
-  ) %>%
-  ungroup() %>%
-  spread(lhs, n) %>%
-  mutate(
-    sample = case_when(
-      type == "beliefs" ~ "Beliefs", 
-      type == "takeup" ~ "Takeup", 
-      type == "WTP" ~ "WTP"
-    )
-  ) %>%
-  select(-type) %>%
-  select(sample, everything())
+# sample_meta_df = N_by_treat_dist_df %>%
+#   gather(variable, value, -type, -lhs) %>%
+#   group_by(
+#     type, lhs
+#   ) %>%
+#   summarise(
+#     n = sum(value, na.rm = TRUE)
+#   ) %>%
+#   ungroup() %>%
+#   spread(lhs, n) %>%
+#   mutate(
+#     sample = case_when(
+#       type == "beliefs" ~ "Beliefs", 
+#       type == "takeup" ~ "Takeup", 
+#       type == "WTP" ~ "WTP"
+#     )
+#   ) %>%
+#   select(-type) %>%
+#   select(sample, everything())
 
 
 
-sample_meta_tbl = sample_meta_df %>%
-    kbl(
-        booktabs = TRUE, 
-        format = "latex", 
-        caption = "Sample Size Across Experiments", 
-        align = "lcc",
-        col.names = c("Experiment", "N Individuals", "N PoTs")
-    )  %>%
-    kable_styling()
-sample_meta_tbl
+# sample_meta_tbl = sample_meta_df %>%
+#     kbl(
+#         booktabs = TRUE, 
+#         format = "latex", 
+#         caption = "Sample Size Across Experiments", 
+#         align = "lcc",
+#         col.names = c("Experiment", "N Individuals", "N PoTs")
+#     )  %>%
+#     kable_styling()
+# sample_meta_tbl
 
 ```
 
