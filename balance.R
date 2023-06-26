@@ -226,25 +226,14 @@ baseline_balance_data = baseline_balance_data %>%
 
 
 
-
+# Remove surveys that took less than 10 minutes or more than 3 hours
+# (long right tail of survey times past 500 mins, not sure where we should cut here
+# if at all)
 baseline_balance_data = baseline_balance_data %>%
   mutate(time = lubridate::mdy_hms(endtime) - lubridate::mdy_hms(starttime)) %>%
   filter(time > 10,  time < 3*60) 
 
 
-baseline_balance_data %>%
-  select(school)
-
-
-baseline_balance_data %>%
-  select(reason_diference) %>%
-  count(reason_diference) %>%
-  arrange(-n)
-baseline_balance_data %>%
-  count(right_person)
-
-baseline_balance_data %>%
-  select(cluster.id)
 
 baseline_vars = c(
   "completed_primary", 
@@ -867,7 +856,6 @@ balance_data = lst(
   endline_and_baseline_data,
   endline_vars, 
   baseline_vars,
-  know_vars,
   indiv_balance_vars
 )
 
@@ -892,12 +880,6 @@ dist_balance_cts_fun = function(rhs_var) {
       ) 
 
   ## Know
-  know_balance_cts_fit = feols(
-      data = know_balance_data %>%
-        mutate(dist_measure = {{ rhs_var }}/1000), 
-      .[know_vars] ~ dist_measure + dist_measure^2, 
-      ~cluster.id
-      ) 
 
   ## baseline
   baseline_balance_cts_fit = feols(
@@ -910,7 +892,6 @@ dist_balance_cts_fun = function(rhs_var) {
     return(
       c(
         indiv_balance_cts_fit,
-        list("lhs: num_recognised" = know_balance_cts_fit),
         baseline_balance_cts_fit
       )
     )
@@ -922,10 +903,6 @@ dist_balance_disc_fun = function(rhs_var, interval_length) {
       dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
     )
 
-  know_balance_data = know_balance_data %>%
-    mutate(
-      dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
-    )
   baseline_balance_data = baseline_balance_data %>%
     mutate(
       dist_measure = cut_interval({{ rhs_var }}, length = interval_length )
@@ -938,13 +915,6 @@ dist_balance_disc_fun = function(rhs_var, interval_length) {
       cluster = ~cluster.id
       ) 
 
-  ## Know
-  know_balance_disc_fit = feols(
-      data = know_balance_data,
-      .[know_vars] ~ 0 + dist_measure, 
-      ~cluster.id
-      ) 
-
   ## baseline
   baseline_balance_disc_fit = feols(
       data = baseline_balance_data,
@@ -955,7 +925,6 @@ dist_balance_disc_fun = function(rhs_var, interval_length) {
     return(
       c(
         indiv_balance_disc_fit,
-        list("lhs: num_recognised" = know_balance_disc_fit),
         baseline_balance_disc_fit
       )
     )
