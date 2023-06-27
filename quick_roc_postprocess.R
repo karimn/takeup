@@ -13,13 +13,14 @@ Options:
   --fix-cluster-roc
   --cluster-takeup-prop
   --cluster-rep-return-dist
+  --sm
   
   "), 
   args = if (interactive()) "
-  101
+  95
   --output-path=temp-data
   --model=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
-  --cluster-rep-return-dist
+  --sm
   1
   " else commandArgs(trailingOnly = TRUE)
 )
@@ -281,7 +282,6 @@ if (script_options$cluster_rep_return_dist) {
 }
 
 if (script_options$sm) {
-
     sm_raw = load_param_draws(
       fit_version = script_options$fit_version,
       model = script_options$model,
@@ -295,8 +295,11 @@ if (script_options$sm) {
         cluster_delta,
         cluster_delta_deriv
       )[roc_dist_idx, cluster_idx, treat_idx],
-      dist_beta_v[,]
+      dist_beta_v
     )
+
+
+
 
     sm_draws = sm_raw %>%
         left_join(roc_dist_idx_mapper, by = "roc_dist_idx") %>%
@@ -311,7 +314,8 @@ if (script_options$sm) {
             roc_distance
         ) %>%
         summarise(
-            sm = rvar_mean(sm),
+            sm = rvar_mean(cluster_social_multiplier),
+            dist_beta_v = rvar_mean(dist_beta_v),
             sm_delta_part = rvar_mean(
               -dist_beta_v / (1 + cluster_mu_rep*cluster_delta_deriv)
             ),
@@ -332,9 +336,13 @@ if (script_options$sm) {
     )
 
 
-
         
     summ_sm_draws = sm_draws_clean %>%
+      mutate(across(
+        c(sm, sm_delta_part, sm_mu_part),
+        ~.x/dist_beta_v,
+        .names = "{.col}_rescaled"
+      )) %>%
       pivot_longer(where(is_rvar), names_to = "variable") %>%
       median_qi(value) %>%
       to_broom_names()
