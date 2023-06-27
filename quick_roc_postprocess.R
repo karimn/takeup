@@ -322,7 +322,12 @@ if (script_options$sm) {
             sm_mu_part = rvar_mean(
               cluster_mu_rep_deriv*cluster_delta / (1 + cluster_mu_rep*cluster_delta_deriv)
             )
-        )
+        ) %>%
+      mutate(across(
+        c(sm, sm_delta_part, sm_mu_part),
+        ~.x/dist_beta_v,
+        .names = "{.col}_rescaled"
+      )) 
 
   sm_draws_clean %>%
     pivot_longer(where(is_rvar), names_to = "variable") %>%
@@ -338,11 +343,6 @@ if (script_options$sm) {
 
         
     summ_sm_draws = sm_draws_clean %>%
-      mutate(across(
-        c(sm, sm_delta_part, sm_mu_part),
-        ~.x/dist_beta_v,
-        .names = "{.col}_rescaled"
-      )) %>%
       pivot_longer(where(is_rvar), names_to = "variable") %>%
       median_qi(value) %>%
       to_broom_names()
