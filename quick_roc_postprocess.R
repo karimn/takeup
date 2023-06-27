@@ -93,7 +93,8 @@ if (script_options$cluster_roc) {
             roc_distance
         ) %>%
         summarise(
-            cluster_roc = rvar_mean(cluster_roc)
+            cluster_roc = rvar_mean(cluster_roc),
+            cluster_roc_no_vis = rvar_mean(cluster_roc_no_vis)
         )
 
   roc_draws %>%
@@ -111,7 +112,8 @@ if (script_options$cluster_roc) {
 
         
     summ_roc_draws = roc_draws %>%
-        median_qi(cluster_roc) %>%
+        pivot_longer(where(is_rvar), names_to = "variable") %>%
+        median_qi(value) %>%
         to_broom_names()
         
     summ_roc_draws %>%
