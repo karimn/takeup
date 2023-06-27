@@ -2244,75 +2244,44 @@ tidy_param_df %>%
 #| social-multiplier,
 #| fig.cap="Estimated Social Multiplier Over Distance",
 #| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
+#|  model. The plot shows how sensitive take-up is to changes in cost. For the ink and 
+#|  bracelet treatment arm, as distance 
 #|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
+#|  greater associated reputational returns. However, for the calendar and control treatment arms
+#|  individuals become increasingly sensitive to changes in costs.
 #|  Line: median.
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-if (params$component_checks) {
-bracelet_sm_df = read_csv(
-  str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
-control_sm_df = read_csv(
-  str_glue("optim/data/pred-social-multiplier-fit{params$fit_version}-cutoff-b-control-mu-control-{params$models}.csv"))
-bracelet_prior_sm_df = read_csv(
-  str_glue("optim/data/pred-social-multiplier-prior{params$fit_version}-cutoff-b-bracelet-mu-bracelet-{params$models}.csv"))
-control_prior_sm_df = read_csv(
-  str_glue("optim/data/pred-social-multiplier-prior{params$fit_version}-cutoff-b-control-mu-control-{params$models}.csv"))
-
-sm_df = bind_rows(
-  control_sm_df %>% mutate(treatment = "control", fit_type = "fit"),
-  bracelet_sm_df %>% mutate(treatment = "bracelet", fit_type = "fit"),
-  control_prior_sm_df %>% mutate(treatment = "control", fit_type = "prior"),
-  bracelet_prior_sm_df %>% mutate(treatment = "bracelet", fit_type = "prior")
-)
-
-summ_sm_df = sm_df %>%
-  group_by(
-    treatment, dist, fit_type
-  ) %>%
-  summarise(
-    mean_est = mean(sm), 
-    per_0.05 = quantile(sm, 0.05),
-    per_0.5 = quantile(sm, 0.5),
-    per_0.95 = quantile(sm, 0.95),
-    per_0.25 = quantile(sm, 0.25),
-    per_0.75 = quantile(sm, 0.75)
-  ) %>%
-  mutate(treatment = factor(treatment, levels = c('control', 'bracelet')))
+sm_df = tidy_param_df %>%
+  filter(param == "sm_draws") %>%
+  unnest(tidy_draws) %>%
+  filter(variable == "sm_rescaled") %>%
+  filter(roc_distance <= 2500)
 
 
-plot_sm = function(sm_df, plot_prior = FALSE, plot_prior_uncertainty = FALSE) {
 
+plot_sm = function(sm_df, plot_prior = FALSE, plot_uncertainty = FALSE) {
   sm_df = sm_df %>%
-    filter(dist > 0) %>%
-    mutate(dist = dist/1000)
+    filter(roc_distance > 0) %>%
+    filter(roc_distance <= 2500) %>%
+    mutate(roc_distance = roc_distance/1000)
 
   fit_sm_df = sm_df %>%
     filter(fit_type == "fit")
   sm_treats = sm_df$treatment %>% unique()
   prior_sm_df = sm_df %>%
-    filter(fit_type == "prior") %>%
+    filter(fit_type == "prior-predict")  %>%
     filter(treatment == sm_treats[[1]])
+
 
   p_sm = fit_sm_df %>%
     ggplot(aes(
-      x = dist, 
+      x = roc_distance,
+      y = value,
+      fill = treatment
     )) +
-    geom_line(aes(y = per_0.5, color = treatment)) +
-    geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
-    geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
-    geom_rug(
-      inherit.aes = FALSE,
-      aes(x = dist, color = treatment),
-      alpha = 0.75,
-      data = rf_analysis_data %>%
-        filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
-        distinct(cluster_id, treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000 )) +
-    # scale_color_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
-    # scale_fill_canva("Treatment (z)", labels = str_to_title, palette = "Fun and professional") +
+    geom_line(aes(y = value, color = treatment)) +
     scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
     labs(
       x = "Distance to Treatment (d) [km]" ,
@@ -2325,7 +2294,8 @@ plot_sm = function(sm_df, plot_prior = FALSE, plot_prior_uncertainty = FALSE) {
     scale_color_canva(
       "",
       palette = canva_palette_vibrant
-    )
+    ) +
+    geom_hline(yintercept = -1, linetype = "longdash" )
 
 
   if (plot_prior) {
@@ -2333,167 +2303,48 @@ plot_sm = function(sm_df, plot_prior = FALSE, plot_prior_uncertainty = FALSE) {
     # prior
     geom_line(data = 
       prior_sm_df,
-    aes(y = per_0.5), 
+    aes(y = value), 
     color = "grey", 
     linewidth = 1, 
     linetype = "longdash"
     ) 
 }
 
-  if (plot_prior_uncertainty) {
+  if (plot_uncertainty) {
 
     p_sm = p_sm + 
-    geom_ribbon(
-      data = 
-      prior_sm_df,
-      aes(
-      ymin = per_0.25, 
-      ymax = per_0.75),
-      fill = "grey", alpha = 0.25) +
-    geom_ribbon(
-      data = 
-        prior_sm_df,
-      aes(
-      ymin = per_0.05, 
-      ymax = per_0.95), 
-      fill = "grey", alpha = 0.25) 
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = . %>% filter(.width == 0.9),
+        alpha = 0.4
+      ) +
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = . %>% filter(.width == 0.5),
+        alpha = 0.4
+      ) 
+  }
+
+  if (plot_uncertainty & plot_prior) {
+    p_sm = p_sm + 
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = prior_sm_df %>% filter(.width == 0.9),
+        alpha = 0.4,
+        fill = "grey"
+      ) +
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = prior_sm_df %>% filter(.width == 0.5),
+        alpha = 0.4,
+        fill = "grey"
+      ) 
   }
   return(p_sm)
 }
 
-
-plot_sm(
-  summ_sm_df, 
-  plot_prior = FALSE
-)
-
-}
-```
-
-
-
-```{r}
-#| social-multiplier-prior,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
-
-if (params$component_checks) {
-  plot_sm(
-    summ_sm_df, 
-    plot_prior = TRUE
-  )
-}
-```
-
-
-```{r}
-#| social-multiplier-prior-uncertainty,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost - as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. At 2.5km individuals in the bracelet 
-#|  condition are almost indifferent to an increase in costs (social multiplier close to 0).
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
-
-if (params$component_checks) {
-  plot_sm(
-    summ_sm_df, 
-    plot_prior = TRUE, 
-    plot_prior_uncertainty = TRUE
-  )
-}
-
-
-```
-
-
-```{r}
-#| all-social-multiplier,
-#| fig.cap="Estimated Social Multiplier Over Distance",
-#| fig.note = "This plot shows the social multiplier estimated using the structural 
-#|  model. The plot shows how sensitive take-up is to changes in cost. For the ink and 
-#|  bracelet treatment arm, as distance 
-#|  increases individuals become less and less sensitive to the increased cost due to 
-#|  greater associated reputational returns. However, for the calendar and control treatment arms
-#|  individuals become increasingly sensitive to changes in costs.
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
-
-if (params$component_checks) {
-
-sm_df = map_dfr(
-  c("bracelet", "calendar", "ink", "control"), 
-  ~read_csv(
-    str_glue(
-      "optim/data/pred-social-multiplier-fit86-cutoff-b-{.x}-mu-{.x}-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP.csv"
-    )
-  ) %>% mutate(treatment = .x)
-)
-
-
-
-summ_sm_df = sm_df %>%
-  mutate(sm_rescaled = sm/0.209) %>%
-  group_by(
-    treatment, dist
-  ) %>%
-  summarise(
-    mean_est = mean(sm_rescaled), 
-    per_0.05 = quantile(sm_rescaled, 0.05),
-    per_0.5 = quantile(sm_rescaled, 0.5),
-    per_0.95 = quantile(sm_rescaled, 0.95),
-    per_0.25 = quantile(sm_rescaled, 0.25),
-    per_0.75 = quantile(sm_rescaled, 0.75)
-  ) %>%
-  mutate(treatment = factor(treatment, levels = c('control', "ink", 'calendar', 'bracelet')))
-
-1+2
-
-}
-```
-
-
-```{r}
-#| social-multiplier-plot
-if (params$component_checks) {
-1+2
-summ_sm_df %>%
-  filter(dist > 0) %>%
-  mutate(dist = dist/1000) %>%
-  mutate(
-    treatment = factor(treatment, levels = c("control","bracelet", "ink", "calendar")), 
-    treatment = fct_relabel(treatment, str_to_title)
-  ) %>%
-  ggplot(aes(
-    x = dist, y = per_0.5
-  )) +
-  geom_line(aes(colour = treatment), size = 1) +
-  # geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75, fill = treatment), alpha = 0.25) +
-  # geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95, fill = treatment), alpha = 0.25) +
-  labs(
-    x = "Distance to Treatment (d) [km]" ,
-   y = "Social Multiplier", 
-   colour = ""
-  ) +
-  geom_hline(
-    yintercept = -1, 
-    linetype = "longdash"
-  ) + 
-    guides(fill = "none") +
-  ggthemes::scale_color_canva(
-    palette = canva_palette_vibrant
-  ) +
+sm_df %>%
+  plot_sm(plot_prior = TRUE, plot_uncertainty = FALSE) +
   annotate(
     "text", 
     x = 0.0 + 0.2, 
@@ -2512,40 +2363,103 @@ summ_sm_df %>%
   )
 
 
-  1+1
-
-}
 ```
 
 
 ```{r}
-#| only-bracelet-sm-plot
+#| social-multiplier-uncertainty,
+#| fig.cap="Estimated Social Multiplier Over Distance",
+#| fig.note = "This plot shows the social multiplier estimated using the structural 
+#|  model. The plot shows how sensitive take-up is to changes in cost. For the ink and 
+#|  bracelet treatment arm, as distance 
+#|  increases individuals become less and less sensitive to the increased cost due to 
+#|  greater associated reputational returns. However, for the calendar and control treatment arms
+#|  individuals become increasingly sensitive to changes in costs.
+#|  Line: median.
+#|  Outer ribbon: 90\\% credible interval.
+#|  Inner ribbon: 50\\% credible interval."
 
-if (params$component_checks) {
-summ_sm_df %>%
-  filter(dist > 0) %>%
-  mutate(dist = dist/1000) %>%
-  filter(treatment == "bracelet") %>%
+sm_df %>%
+  plot_sm(plot_prior = TRUE, plot_uncertainty = TRUE) +
+  annotate(
+    "text", 
+    x = 0.0 + 0.2, 
+    y = -1 - 0.02,
+    label = "Amplification", 
+    size = 3, 
+    alpha = 0.7
+  ) +
+  annotate(
+    "text", 
+    x = 2.5 , 
+    y = -1 + 0.02,
+    label = "Mitigation", 
+    size = 3,
+    alpha = 0.7
+  )
+
+```
+
+```{r}
+
+
+tidy_param_df %>%
+  filter(param == "sm_draws") %>%
+  unnest(tidy_draws) %>%
+  filter(variable %in% c("sm_rescaled", "sm_delta_part_rescaled")) %>%
+  filter(roc_distance <= 2500) %>%
+  filter(fit_type == "fit") %>%
   ggplot(aes(
-    x = dist, y = per_0.5
+    x = roc_distance/1000,
+    y = value,
+    linetype = variable,
+    colour = variable
   )) +
   geom_line() +
-  geom_ribbon(aes(ymin = per_0.25, ymax = per_0.75), alpha = 0.25) +
-  geom_ribbon(aes(ymin = per_0.05, ymax = per_0.95), alpha = 0.25) +
-  labs(
-    x = "Distance to Treatment (d) [km]" ,
-   y = "Rescaled Social Multiplier", 
-   colour = ""
-  ) +
+  facet_wrap(~treatment) +
   geom_hline(
-    yintercept = 1, 
+    yintercept = -1,
     linetype = "longdash"
-  ) + 
-    guides(fill = "none") +
-    dist_caption
-1+2
-}
+  ) +
+  labs(
+    x = "Distance [km]",
+    y = "Rescaled Social Muliplier"
+  ) 
+tidy_param_df %>%
+  filter(param == "sm_draws") %>%
+  unnest(tidy_draws) %>%
+  filter(variable %in% c("sm_rescaled", "sm_delta_part_rescaled")) %>%
+  filter(roc_distance <= 2500) %>%
+  filter(fit_type == "fit") %>%
+  ggplot(aes(
+    x = roc_distance/1000,
+    y = value,
+    linetype = variable,
+    colour = variable
+  )) +
+  geom_line() +
+  facet_wrap(~treatment) +
+  geom_hline(
+    yintercept = -1,
+    linetype = "longdash"
+  ) +
+  labs(
+    x = "Distance [km]",
+    y = "Rescaled Social Multiplier"
+  ) +
+  scale_linetype(
+    "",
+    labels = c(TeX("Rescaled Social Multiplier"), TeX("$\\delta$ Component"))
+  ) +
+  scale_color_canva(
+    "",
+    palette = canva_palette_vibrant,
+    labels = c(TeX("Rescaled Social Multiplier"), TeX("$\\delta$ Component"))
+  )
+
+
 ```
+
 
 ```{r}
 #| rate-of-change,
@@ -2560,9 +2474,7 @@ summ_sm_df %>%
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
 
-
-
-p_roc = tidy_param_df %>%
+roc_df = tidy_param_df %>%
   filter(param == "roc_draws") %>%
   filter(fit_type == "fit", model_type == "structural") %>%
   unnest(tidy_draws) %>%
@@ -2572,7 +2484,11 @@ p_roc = tidy_param_df %>%
     across(c(starts_with("conf"), value), multiply_by, 1000*100)
     ) %>%
     filter(treatment %in% c("Bracelet", "Control")) %>%
-    filter(roc_distance <= 2.5) %>%
+    filter(roc_distance <= 2.5) 
+
+
+p_roc = roc_df %>%
+  filter(variable == "cluster_roc") %>%
   ggplot(aes(
     x = roc_distance,
     y = value,
@@ -2598,9 +2514,9 @@ p_roc = tidy_param_df %>%
       ) +
   # geom_line(
   #     inherit.aes = FALSE, 
-  #     aes(x = dist, y = value),
-  #     data = plot_summ_bc_draws %>%
-  #         filter(name == "cluster_roc_no_vis"),
+  #     aes(x = roc_distance, y = value),
+  #     data = roc_df %>%
+  #         filter(variable == "cluster_roc_no_vis"),
   #     linetype = "longdash"
   # )  +
   annotate(
@@ -2628,7 +2544,6 @@ p_roc = tidy_param_df %>%
   dist_caption +
   NULL
 
-p_roc
 
 ```
 
