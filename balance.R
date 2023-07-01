@@ -378,10 +378,12 @@ indiv_balance_fit = feols(
     ) 
 
 school_balance_fit = feols(
-    data = analysis_school_data, 
+    data = analysis_school_data %>%
+      select(any_of(balance_variables), treat_dist, county), 
     .[balance_variables] ~ 0 + treat_dist + i(county, ref = "Busia"),
-    ~cluster.id
+    vcov = "HC"
   )
+
 # put all the baseline balance fits into a list we can map over
 balance_fits = c(
   indiv_balance_fit,
@@ -644,6 +646,7 @@ balance_joint_tests = map(
     far_R = hyp_matrix_far
   )
 )
+
 
 
 balance_joint_tests %>%

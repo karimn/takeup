@@ -32,14 +32,17 @@ script_options = docopt::docopt(
         --static-signal-distance=<static-signal-distance>  Distance over which PM estimates v* in meters [default: NA]
         --fit-type=<fit-type>  Which fit type to use - prior predictive or posterior draws [default: fit] 
 
-        --fix-mu-at-1  Fix mu at 1 (for B&T model) when running --pred-distance
+        --fix-mu-at-1  Fix mu at 1 (for B&T model) when running --pred-distance N.B. This is currently bugged and sets x dot lambda > 1
+
+        --fix-mu-distance=<fix-mu-distance>  Distance to fix mu at in meters. 
+        --fix-delta-distance=<fix-delta-distance>  Distance to fix delta at in meters
 
     "),
     args = if (interactive()) "
                             86
                             ink
                             ink
-                            --output-name=cutoff-b-ink-mu-ink-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
+                            --output-name=TEST-mu-fix-0-cutoff-b-ink-mu-ink-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP
                             --from-csv
                             --num-post-draws=200
                             --rep-cutoff=Inf
@@ -51,13 +54,12 @@ script_options = docopt::docopt(
                             --data-input-name=full-many-pots-experiment.rds
                             --single-chain
 
-                            --pred-distance
+                            --run-estimation
                             --static-signal-distance=Inf
-                            --fix-mu-at-1
+                            --fix-delta-distance=0
                               " 
            else commandArgs(trailingOnly = TRUE)
 )
-
 
 
 # Loading functions
@@ -104,6 +106,7 @@ source(file.path("stan_models", "stan_owen_t.R"))
 
 stan_owen_t = exposed_stan_func$stan_owen_t
 
+
 script_options = script_options %>%
     modify_at(c("dist_cutoff", 
                 "rep_cutoff",
@@ -111,7 +114,14 @@ script_options = script_options %>%
                 "num_cores",
                 "type_lb",
                 "type_ub", 
-                "static_signal_distance"), as.numeric)
+                "static_signal_distance",
+                "fix_mu_distance",
+                "fix_delta_distance"
+                ), as.numeric)
+
+if (length(script_options$fix_mu_distance) == 0) script_options$fix_mu_distance = NULL
+if (length(script_options$fix_delta_distance) == 0) script_options$fix_delta_distance = NULL
+
 fit_version = script_options$fit_version
 
 script_options$bounds = c(script_options$type_lb, script_options$type_ub)
@@ -167,7 +177,9 @@ if (script_options$to_csv) {
         # Fit Loading
         load(file.path("temp-data", str_interp("processed_dist_fit${fit_version}_lite.RData")))
 
-
+        # N.B. This uses old postprocessing output so won't currently run from 
+        # scratch - just load analysis_data here and run from that will work however.
+        # TODO
         stan_data = (dist_fit_data %>%
             slice(1) %>% # just take first model as only using for analysis_data
             pull(stan_data))[[1]]
@@ -247,7 +259,7 @@ sd_of_dist = dist_data$sd_of_dist
 sd_of_dist %>%
     saveRDS("temp-data/sd_of_dist.rds")
 
-if (script_options$static_signal_pm == TRUE) {
+if (script_options$static_signal_pm == TRUE | !is.null(script_options$fix_delta_distance)) {
     # generate dynamic (non-static) prediction functions to calculate static signal 
     # at required cutoff
     true_pred_functions = map(
@@ -265,35 +277,51 @@ if (script_options$static_signal_pm == TRUE) {
             mu_rep_type = mu_rep_type,
             suppress_reputation = script_options$suppress_reputation, 
             static_signal = NA,
-            fix_mu_at_1 = FALSE
+            fix_mu_at_1 = FALSE,
+            fix_mu_distance = script_options$fix_mu_distance,
+            static_delta_v_star = NA
         ) %>% find_pred_takeup()
     )
 
-    static_pred_outputs = map(
-        true_pred_functions, 
-        ~.x(script_options$static_signal_distance)
-    )
+
+    if (script_options$static_signal_pm == TRUE) {
+        static_pred_outputs = map(
+            true_pred_functions, 
+            ~.x(script_options$static_signal_distance)
+        )
+    } 
+
+    if (!is.null(script_options$fix_delta_distance)) {
+        static_pred_outputs = map(
+            true_pred_functions,
+            ~.x(script_options$fix_delta_distance)
+        )
+    }
 
     delta_v_stars = map_dbl(static_pred_outputs, "delta_v_star")
     mu_reps = map_dbl(static_pred_outputs, "mu_rep")
 
     draw_treat_grid$static_signal_value = mu_reps*delta_v_stars
+    draw_treat_grid$static_delta_v_star = delta_v_stars
 }  else {
     draw_treat_grid$static_signal_value = NA
+    draw_treat_grid$static_delta_v_star = NA
 }
 
 
 if (run_estimation == TRUE){
 
-
-pred_functions = map2(
-    draw_treat_grid$draw,
-    draw_treat_grid$static_signal_value,
+pred_functions = pmap(
+    list(
+        draw_treat_grid$draw,
+        draw_treat_grid$static_signal_value,
+        draw_treat_grid$static_delta_v_star
+    ),
     ~extract_params(
         param_draws = struct_param_draws,
         private_benefit_treatment = script_options$private_benefit_z,
         visibility_treatment = script_options$visibility_z,
-        draw_id = .x,
+        draw_id = ..1,
         dist_sd = sd_of_dist,
         j_id = 1,
         rep_cutoff = script_options$rep_cutoff,
@@ -301,8 +329,10 @@ pred_functions = map2(
         bounds = script_options$bounds,
         mu_rep_type = mu_rep_type,
         suppress_reputation = script_options$suppress_reputation, 
-        static_signal = .y,
-        fix_mu_at_1 = FALSE
+        static_signal = ..2,
+        fix_mu_at_1 = FALSE,
+        fix_mu_distance = script_options$fix_mu_distance,
+        static_delta_v_star = ..3
     ) %>% find_pred_takeup()
 )
 

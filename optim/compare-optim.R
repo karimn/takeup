@@ -46,7 +46,7 @@ models_we_want = script_options$model
 
 util_f = eval(parse(text = script_options$welfare_function))
 
-experimental_file = str_glue("target-rep-util-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
+experimental_file = str_glue("target-rep-agg-{script_options$welfare_function}-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP-median-experimental-control-allocation-data.rds")
 oa_df = map_dfr(
     oa_files, 
     read_rds,
@@ -56,7 +56,13 @@ oa_df = map_dfr(
         cutoff_type = if_else(str_detect(file, "no-cutoff"), "no_cutoff", "cutoff"), 
         rep_type = if_else(str_detect(file, "suppress-rep"), "suppress_rep", "rep"), 
         allocation_type = "optimal",
-        distance_constraint = str_extract(file, "(?<=distconstraint-)\\d+") %>% as.numeric
+        distance_constraint = str_extract(file, "(?<=distconstraint-)\\d+") %>% as.numeric,
+        fix_type = case_when(
+            str_detect(file, "mu\\d+-") ~ "fix-mu",
+            str_detect(file, "delta\\d+-") ~ "fix-delta",
+            TRUE ~ "no-fix"
+        ),
+        fix_distance = if_else(fix_type != "no-fix", str_extract(file, "(?<=[mu|delta])\\d+") %>% as.numeric, NA_real_)
     ) 
 
 experimental_oa_df = read_rds(
@@ -105,6 +111,150 @@ subset_oa_df = oa_df %>%
 
 if (!script_options$posterior_median) { # if all draws
 
+    demand_df = subset_oa_df %>%
+        group_by(
+            private_benefit_z,
+            visibility_z, 
+            static_vstar,
+            allocation_type,
+            distance_constraint,
+            fix_type,
+            fix_distance,
+            model, 
+            rep_type,
+            cutoff_type,
+            i,
+            j
+        ) %>%
+        summarise(
+            util = sum(util_f(demand)),
+            mean_demand = mean(demand), 
+            min_demand = min(demand), 
+            median_demand = median(demand),
+            mean_dist = mean(dist),
+            n_pot = n_distinct(j, na.rm = TRUE),
+            target_optim = mean(target_optim)
+        )  %>%
+        mutate(
+            overshoot = 100*(util/target_optim - 1)
+        )
+treat_v = "bracelet"
+
+    fix_oa_df = subset_oa_df %>%
+        filter(private_benefit_z == treat_v  & visibility_z == treat_v) %>%
+        filter(allocation_type != "experimental") %>%
+        filter(static_vstar == FALSE) %>%
+        filter(rep_type == "rep") %>%
+        group_by(
+            private_benefit_z,
+            visibility_z, 
+            static_vstar,
+            allocation_type,
+            distance_constraint,
+            fix_type,
+            fix_distance,
+            model, 
+            rep_type,
+            cutoff_type,
+            i,
+            j
+        )  %>%
+        mutate(any_fix = fix_type != "no-fix")
+
+    fix_demand_df = 
+    demand_df %>%
+        filter(private_benefit_z == treat_v  & visibility_z == treat_v) %>%
+        filter(allocation_type != "experimental") %>%
+        filter(static_vstar == FALSE) %>%
+        filter(rep_type == "rep")
+
+    draw_n = 200
+
+    fix_oa_df %>%
+        filter(!is.na(fix_distance)) %>%
+        # filter(fix_distance == 0) %>%
+        ggplot(aes(
+            x = dist,
+            y = demand,
+            colour = fix_type,
+            group =  interaction(fix_type, draw)
+        )) +
+        geom_line(alpha = 0.5)  +
+        geom_line(
+            inherit.aes = FALSE,
+            aes(x = dist, y = demand, group = draw),
+            data = fix_oa_df %>%
+                filter(fix_type == "no-fix") %>%
+                ungroup() %>%
+                select(-fix_distance, -fix_type),               
+                alpha = 0.3,
+                colour = "black"
+        ) +
+        facet_grid(fix_distance~fix_type) +
+        theme_bw() +
+        theme(legend.position = "bottom") 
+
+    draw_n = 20
+
+    fix_oa_df %>%
+        filter(!is.na(fix_distance)) %>%
+        filter(draw == draw_n) %>%
+        ggplot(aes(
+            x = dist,
+            y = demand,
+            colour = fix_type,
+            group =  interaction(fix_type, draw)
+        )) +
+        geom_line(alpha = 1)  +
+        geom_line(
+            data = fix_oa_df %>%
+                filter(fix_type == "no-fix") %>%
+                filter(draw == draw_n) %>%
+                ungroup() %>%
+                select(-fix_distance),               
+                alpha = 1
+        ) +
+        facet_wrap(~fix_distance, ncol = 1) +
+        theme_bw() +
+        theme(legend.position = "bottom") +
+        geom_vline(
+            data = tibble(
+                xint = c(0, 1250, 2500),
+                fix_distance = c(0, 1250, 2500)
+            ),
+            aes(xintercept = xint),
+            linetype = "longdash"
+        )
+    ggsave(
+        "temp-plots/fixing-plot.pdf",
+        width = 10,
+        height = 10
+    )
+stop()
+
+
+
+    demand_df %>%
+        filter(!is.na(fix_distance)) %>%
+        ggplot(aes(
+            x = mean_dist,
+            y = median_demand,
+            colour = fix_type,
+            group =  interaction(fix_type)
+        )) +
+        geom_line(alpha = 0.5)  +
+        geom_line(
+            data = demand_df %>%
+                filter(fix_type == "no-fix") %>%
+                ungroup() %>%
+                select(-fix_distance),               
+                alpha = 1
+        ) +
+        facet_wrap(~fix_distance, ncol = 1) +
+        theme_bw() +
+        theme(legend.position = "bottom") 
+
+
     summ_optim_df = subset_oa_df %>%
         group_by(
             draw,
@@ -113,6 +263,8 @@ if (!script_options$posterior_median) { # if all draws
             static_vstar,
             allocation_type,
             distance_constraint,
+            fix_type,
+            fix_distance,
             model, 
             rep_type,
             cutoff_type
@@ -131,8 +283,6 @@ if (!script_options$posterior_median) { # if all draws
 
 
 
-
-
     post_summ_optim_df = summ_optim_df %>%
         group_by(
             private_benefit_z,
@@ -140,6 +290,8 @@ if (!script_options$posterior_median) { # if all draws
             static_vstar,
             allocation_type,
             distance_constraint,
+            fix_type,
+            fix_distance,
             model, 
             rep_type,
             cutoff_type
@@ -179,6 +331,8 @@ clean_summ_optim_df = summ_optim_df %>%
         visibility_z, 
         static_vstar,
         distance_constraint,
+        fix_type,
+        fix_distance,
         model, 
         rep_type,
         cutoff_type
@@ -192,12 +346,15 @@ clean_summ_optim_df = summ_optim_df %>%
     ) 
 
 
+
+
+
 clean_summ_optim_df %>%
     filter(rep_type == "rep") %>%
     filter(!is.na(distance_constraint), distance_constraint != 2500) %>%
     ggplot(aes(
         x = n_pot, 
-        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type)
+        fill = interaction(private_benefit_z, visibility_z, static_vstar, rep_type, allocation_type, fix_type, fix_distance)
     )) +
     geom_density(alpha = 0.6) +
     theme_minimal() +
