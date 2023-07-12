@@ -1250,20 +1250,27 @@ all_optim_df = read_csv(
     params$optim_input_path,
     "posterior-clean-summ-optim.csv"
   )
-) 
+)  %>%
+  mutate(fix_type = replace_na(fix_type, "no-fix"))
 
 
+
+optim_group_vars = c(
+        "private_benefit_z",
+        "visibility_z", 
+        "static_vstar",
+        "allocation_type",
+        "distance_constraint",
+        "fix_type",
+        "fix_distance",
+        "rep_type",
+        "model",
+        "cutoff_type"
+)
 
 summ_optim_df = all_optim_df %>%
         group_by(
-            private_benefit_z,
-            visibility_z, 
-            static_vstar,
-            allocation_type,
-            distance_constraint,
-            model, 
-            rep_type,
-            cutoff_type
+          across(optim_group_vars)
         ) %>%
         mutate(mean_dist = mean_dist/1000) %>%
         filter(
@@ -1301,14 +1308,15 @@ summ_optim_df = all_optim_df %>%
     )
 
 
+
 wide_summ_df_rep = summ_optim_df %>%
   filter(rep_type == "rep") %>%
-  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type, -distance_constraint)   %>%
+  gather(variable, value, -any_of(optim_group_vars), -B_z, -mu_z)   %>%
   mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
   mutate(variable = str_remove(variable, "_CI")) %>%
   mutate(variable = str_remove(variable, "_estimate"))  %>%
   pivot_wider(
-    id_cols = c(B_z, mu_z, variable, rep_type, static_vstar, allocation_type, distance_constraint), 
+    id_cols = c(B_z, mu_z, variable, any_of(optim_group_vars)), 
     names_from = CI, 
     values_from = value
   )   %>%
@@ -1331,9 +1339,10 @@ wide_summ_df_rep = summ_optim_df %>%
   )  %>%
   spread(variable, estim_value)
 
+
 wide_summ_df_sup_rep = summ_optim_df %>%
   filter(rep_type == "suppress_rep")  %>%
-  gather(variable, value, -B_z, -mu_z, -static_vstar, -rep_type, -allocation_type, -distance_constraint)   %>%
+  gather(variable, value, -any_of(optim_group_vars), -B_z, -mu_z)   %>%
   mutate(CI = if_else(str_detect(variable, "CI"), "ci", "estim")) %>%
   mutate(variable = str_remove(variable, "_CI")) %>%
   mutate(variable = str_remove(variable, "_estimate")) %>%
@@ -1363,14 +1372,13 @@ wide_summ_df_sup_rep = summ_optim_df %>%
 
 
 
-
-
 optim_summ_input_df = bind_rows(
   wide_summ_df_rep %>% 
     mutate(rep_type = "rep") %>%
     filter(B_z == "control"),
   wide_summ_df_sup_rep %>% mutate(rep_type = "suppress_rep") %>% filter(B_z == mu_z)
 ) %>%
+filter(fix_type == "no-fix" | is.na(fix_type)) %>%
   mutate(
     mu_z = if_else(rep_type == "suppress_rep", "No visibility", mu_z), 
     mu_z = if_else(static_vstar == TRUE & mu_z == "bracelet", "Signal value fixed at 0.5km", mu_z), 
@@ -1409,6 +1417,8 @@ optim_summ_input_df = bind_rows(
     ) 
   ) 
 
+
+
 optim_summ_tbl = optim_summ_input_df %>%
   filter(distance_constraint == 3500 | allocation_type == "experimental") %>%
   arrange(rep_type, mu_z, B_z) %>%
@@ -1423,7 +1433,7 @@ optim_summ_tbl = optim_summ_input_df %>%
     ),
     align = "llccc",
     booktabs = TRUE,
-    format = "latex",
+    # format = "latex",
     escape = FALSE
     ) %>%
   kableExtra::kable_styling(
@@ -1446,14 +1456,61 @@ optim_summ_tbl = optim_summ_input_df %>%
 optim_summ_tbl %>%
   custom_save_latex_table("optim-summ-table")
 
-optim_summ_tbl 
 
 ```
 
 
+
 ```{r}
+#| fixing-optim-table
+
+  fix_optim_tbl = wide_summ_df_rep %>% 
+    mutate(rep_type = "rep") %>%
+    filter(B_z == "bracelet") %>%
+    filter(mu_z == "bracelet")  %>%
+    select(fix_type, fix_distance, n_pot, mean_demand, mean_dist) %>%
+    mutate(fix_type = factor(fix_type, levels = c("no-fix", "fix-mu", "fix-delta"))) %>%
+    arrange(fix_type) %>%
+  knitr::kable(
+    col.names = c(
+      "Fix type", 
+      "Fix distance",
+      "Assigned PoTs", 
+      "Mean take-up", 
+      "Mean distance (km)"
+    ),
+    align = "llccc",
+    booktabs = TRUE,
+    # format = "latex",
+    escape = FALSE
+    ) %>%
+  kableExtra::kable_styling(
+    # latex_options =  c("scale_down")
+  ) %>%
+  pack_rows(
+    index = c(
+      "Panel A: No Fixing" = 1, 
+      "Panel B: Fix Mu" = 3, 
+      "Panel C: Fix Delta" = 3
+    ), 
+    italic = TRUE,
+    escape = FALSE,
+    # latex_gap_space = latex_group_gap_space, 
+    hline_after = TRUE, 
+    hline_before = TRUE,
+    bold = TRUE
+  ) 
+
+
+
+fix_optim_tbl %>%
+  custom_save_latex_table("fix-optim-summ-table")
+
+```
+
+```{r, eval=FALSE}
 #|optim-summ-table-robust,
-#| dependson = c("optim-summ-table")
+#| dependson = c("optim-summ-table"), eval=FALSE
 optim_summ_robust_tbl = optim_summ_input_df %>%
   arrange(allocation_type, distance_constraint, rep_type, mu_z, B_z) %>%
   select(B_z, mu_z, distance_constraint, n_pot, mean_demand, mean_dist) %>%
@@ -2205,6 +2262,7 @@ dworm_endline_comp_tbl_knitr %>%
 
 
 ```{r}
+#| balance-reading
 
 balance_tidy_df = read_csv(
   file.path("temp-data", "balance_tidy_df.csv")
@@ -3031,8 +3089,8 @@ pref_fit_table_no_pp = fixest::etable(
   tex = TRUE,
   depvar = FALSE,
   title = "Preference for Calendar Gift Across Distance",
-  style.tex = fixest::style.tex("aer")
-)
+  style.tex = fixest::style.tex("aer"))
+
 
 pref_fit_table_no_pp
 

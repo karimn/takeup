@@ -2240,6 +2240,32 @@ tidy_param_df %>%
 
 ## Social Multiplier 
 
+
+```{r}
+#| sm-unnest-chunk
+library(posterior)
+library(tidybayes)
+## Unnest causing RAM issues with knitr (?memory leak idk)
+# grab data this way
+sm_df =  bind_rows(
+  tidy_param_df %>%
+    filter(fit_type == "fit") %>%
+    filter(param == "sm_draws") %>%
+    select(tidy_draws) %>%
+    pull() %>%
+    first() %>%
+    mutate(fit_type = "fit"),
+  tidy_param_df %>%
+    filter(fit_type == "prior-predict") %>%
+    filter(param == "sm_draws") %>%
+    select(tidy_draws) %>%
+    pull() %>%
+    first() %>%
+    mutate(fit_type = "prior-predict")
+)
+
+```
+
 ```{r}
 #| social-multiplier,
 #| fig.cap="Estimated Social Multiplier Over Distance",
@@ -2249,15 +2275,8 @@ tidy_param_df %>%
 #|  increases individuals become less and less sensitive to the increased cost due to 
 #|  greater associated reputational returns. However, for the calendar and control treatment arms
 #|  individuals become increasingly sensitive to changes in costs.
-#|  Line: median.
-#|  Outer ribbon: 90\\% credible interval.
-#|  Inner ribbon: 50\\% credible interval."
+#|  Line: median."
 
-sm_df = tidy_param_df %>%
-  filter(param == "sm_draws") %>%
-  unnest(tidy_draws) %>%
-  filter(variable == "sm_rescaled") %>%
-  filter(roc_distance <= 2500)
 
 
 
@@ -2344,6 +2363,7 @@ plot_sm = function(sm_df, plot_prior = FALSE, plot_uncertainty = FALSE) {
 }
 
 sm_df %>%
+  filter(variable == "sm_rescaled") %>%
   plot_sm(plot_prior = TRUE, plot_uncertainty = FALSE) +
   annotate(
     "text", 
@@ -2380,6 +2400,7 @@ sm_df %>%
 #|  Inner ribbon: 50\\% credible interval."
 
 sm_df %>%
+  filter(variable == "sm_rescaled") %>%
   plot_sm(plot_prior = TRUE, plot_uncertainty = TRUE) +
   annotate(
     "text", 
@@ -2401,30 +2422,15 @@ sm_df %>%
 ```
 
 ```{r}
+#| fig.cap="Estimated Social Multiplier Over Distance - Components",
+#| fig.note = "This plot shows the social multiplier components estimated using the structural 
+#|  model. The plot decomposes how much of the social multiplier is driven by the 
+#|  $\\delta$ component versus how much is driven by changes in visibility 
+#|  across distance. The full line shows the entire social multiplier whilst the 
+#|  dashed line shows the $\\delta$ component - the difference between the two 
+#|  lines is driven by changes in $\\mu$ visibility.
+#|  Line: median."
 
-
-tidy_param_df %>%
-  filter(param == "sm_draws") %>%
-  unnest(tidy_draws) %>%
-  filter(variable %in% c("sm_rescaled", "sm_delta_part_rescaled")) %>%
-  filter(roc_distance <= 2500) %>%
-  filter(fit_type == "fit") %>%
-  ggplot(aes(
-    x = roc_distance/1000,
-    y = value,
-    linetype = variable,
-    colour = variable
-  )) +
-  geom_line() +
-  facet_wrap(~treatment) +
-  geom_hline(
-    yintercept = -1,
-    linetype = "longdash"
-  ) +
-  labs(
-    x = "Distance [km]",
-    y = "Rescaled Social Muliplier"
-  ) 
 tidy_param_df %>%
   filter(param == "sm_draws") %>%
   unnest(tidy_draws) %>%
@@ -2473,10 +2479,14 @@ tidy_param_df %>%
 #|  Line: median.
 #|  Outer ribbon: 90\\% credible interval.
 #|  Inner ribbon: 50\\% credible interval."
+library(posterior)
+library(tidyverse)
 
 roc_df = tidy_param_df %>%
   filter(param == "roc_draws") %>%
   filter(fit_type == "fit", model_type == "structural") %>%
+  select(fit_type, model_type, tidy_draws) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, variable %in% c("cluster_roc", "cluster_roc_no_vis"))) %>%
   unnest(tidy_draws) %>%
   mutate(
     roc_distance = roc_distance / 1000,
@@ -2512,13 +2522,13 @@ p_roc = roc_df %>%
       distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000) %>%
       mutate(treatment = str_to_title(assigned_treatment))
       ) +
-  # geom_line(
-  #     inherit.aes = FALSE, 
-  #     aes(x = roc_distance, y = value),
-  #     data = roc_df %>%
-  #         filter(variable == "cluster_roc_no_vis"),
-  #     linetype = "longdash"
-  # )  +
+  geom_line(
+      inherit.aes = FALSE, 
+      aes(x = roc_distance, y = value),
+      data = roc_df %>%
+          filter(variable == "cluster_roc_no_vis"),
+      linetype = "longdash"
+  )  +
   annotate(
       "text", 
       x = 2.3, 
@@ -2569,6 +2579,8 @@ p_roc = roc_df %>%
 roc_plot_df = tidy_param_df %>%
   filter(param == "roc_draws") %>%
   filter(model_type == "structural") %>%
+  select(fit_type, model_type, tidy_draws) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, variable %in% c("cluster_roc", "cluster_roc_no_vis"))) %>%
   unnest(tidy_draws) %>%
   filter(
     fit_type == "fit"| (fit_type == "prior-predict" & treatment == "Control")
@@ -2583,6 +2595,7 @@ roc_plot_df = tidy_param_df %>%
     
   roc_plot = roc_plot_df %>%  
   filter(fit_type == "fit") %>%
+  filter(variable == "cluster_roc") %>%
   ggplot(aes(
     x = roc_distance,
     y = value,
@@ -2606,13 +2619,13 @@ roc_plot_df = tidy_param_df %>%
       distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000) %>%
       mutate(treatment = str_to_title(assigned_treatment))
       ) +
-  # geom_line(
-  #     inherit.aes = FALSE, 
-  #     aes(x = dist, y = value),
-  #     data = plot_summ_bc_draws %>%
-  #         filter(name == "cluster_roc_no_vis"),
-  #     linetype = "longdash"
-  # )  +
+  geom_line(
+      inherit.aes = FALSE, 
+      aes(x = roc_distance, y = value),
+      data = roc_df %>%
+          filter(variable == "cluster_roc_no_vis"),
+      linetype = "longdash"
+  )  +
   annotate(
       "text", 
       x = 2.3, 
@@ -2638,14 +2651,6 @@ roc_plot_df = tidy_param_df %>%
   dist_caption +
   NULL
 
-
-
-
-
-
-
-
-
 roc_plot
 
 
@@ -2655,7 +2660,7 @@ roc_plot +
   geom_line(
     inherit.aes = FALSE,
     aes(x = roc_distance, y = value),
-    data = roc_plot_df %>% filter(fit_type == "prior-predict"),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict") %>% filter(variable == "cluster_roc"),
     colour = "darkgrey",
     linetype = "longdash",
     size = 1
@@ -2669,38 +2674,37 @@ roc_plot +
   geom_line(
     inherit.aes = FALSE,
     aes(x = roc_distance, y = value),
-    data = roc_plot_df %>% filter(fit_type == "prior-predict"),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict") %>% filter(variable == "cluster_roc"),
     colour = "darkgrey",
     linetype = "longdash",
     size = 1
     )  +
   geom_ribbon(
     inherit.aes = FALSE,
-    data = roc_plot_df %>% filter(fit_type == "prior-predict", .width == 0.5),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict") %>% filter(variable == "cluster_roc", .width == 0.5),
     aes(x = roc_distance, y = value, ymin = conf.low, ymax = conf.high), 
     fill = "grey", 
     alpha = 0.25) +
   NULL
 
 roc_plot + 
-  ## Prior stuff
   geom_line(
     inherit.aes = FALSE,
     aes(x = roc_distance, y = value),
-    data = roc_plot_df %>% filter(fit_type == "prior-predict"),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict") %>% filter(variable == "cluster_roc"),
     colour = "darkgrey",
     linetype = "longdash",
     size = 1
     )  +
   geom_ribbon(
     inherit.aes = FALSE,
-    data = roc_plot_df %>% filter(fit_type == "prior-predict", .width == 0.5),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict") %>% filter(variable == "cluster_roc", .width == 0.5),
     aes(x = roc_distance, y = value, ymin = conf.low, ymax = conf.high), 
     fill = "grey", 
     alpha = 0.25) +
   geom_ribbon(
     inherit.aes = FALSE,
-    data = roc_plot_df %>% filter(fit_type == "prior-predict", .width == 0.9),
+    data = roc_plot_df %>% filter(fit_type == "prior-predict") %>% filter(variable == "cluster_roc", .width == 0.9),
     aes(x = roc_distance, y = value, ymin = conf.low, ymax = conf.high), 
     fill = "grey", 
     alpha = 0.25) +
