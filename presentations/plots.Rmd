@@ -55,7 +55,6 @@ library(ggthemes)
 
 library(econometr)
 
-
 if (interactive()) {
   params = lst(
     fit_version = 95,
@@ -109,9 +108,6 @@ knit_hooks$set(plot = function(x, options) {
         sep = '')
 })
 ```
-
-
-
 
 ```{r, plot_setup_stuff}
 default_top_levels = c("Bracelet", "Combined")
@@ -196,9 +192,11 @@ sd_of_dist = sd(analysis_data$cluster.dist.to.pot)
 
 
 ```{r}
+
 #| component-checks,
 #| fig.cap = "Model subcomponents - MODEL 86",
 #| fig.width = 10, fig.height = 10
+
   component_files = map(
       c("control", "ink", "calendar", "bracelet"),
       ~file.path(
@@ -389,12 +387,12 @@ theme_set(theme_minimal() +
 #### Delta Expectation ####
 
 ```{r}
-#| delta-with-u-example,
-#| fig.cap="Net reputational return, $\\mu\\Delta[w^*]$, as a function of cutoff type, $w^*$",
-#| fig.note="This plot shows how expected reputational return, $\\mu\\Delta[w^*]$ 
-#|  varies as cutoff type, $w^*$, changes. As $\\sigma_u$ increases, the 
-#|  reputational return falls as it becomes harder to infer someone's type based 
-#|  off actions." 
+# delta-with-u-example,
+# fig.cap="Net reputational return, $\\mu\\Delta[w^*]$, as a function of cutoff type, $w^*$",
+# fig.note="This plot shows how expected reputational return, $\\mu\\Delta[w^*]$ 
+#  varies as cutoff type, $w^*$, changes. As $\\sigma_u$ increases, the 
+#  reputational return falls as it becomes harder to infer someone's type based 
+#  off actions." 
 
 sim_int <- expand.grid(
   w = seq(-2, 2, 0.1),
@@ -475,13 +473,12 @@ sim_int %>%
 ```
 
 
-
 #### Reported Social Perception ####
 ```{r}
-#| reported-social-perception,
-#|  fig.cap="Reported social perception of some observable activities.",
-#|  fig.note="This plot shows the praise and stigma associated with various activities 
-#|  including deworming."
+# reported-social-perception,
+#  fig.cap="Reported social perception of some observable activities.",
+#  fig.note="This plot shows the praise and stigma associated with various activities 
+#  including deworming."
 
 
 # colnames(baseline.data)
@@ -594,13 +591,13 @@ baseline_praise_stigma_plot_data %>%
 
 #### Distance Randomisation ####
 ```{r}
-#| dist-plot,
-#| fig.cap="Distance to Treatment Location (meters)",
-#| fig.note="This graph shows a density plot of distance to the assigned point of
-#|  treatment from each cluster centroid and household location. Clusters assigned to 
-#|  the close condition have greater density <1.25km whilst those assigned to the 
-#|  far condition place greater density >1.25km. 
-#|  Density estimates use all 9,805 surveyed individuals in the takeup sample."
+# dist-plot,
+# fig.cap="Distance to Treatment Location (meters)",
+# fig.note="This graph shows a density plot of distance to the assigned point of
+#  treatment from each cluster centroid and household location. Clusters assigned to 
+#  the close condition have greater density <1.25km whilst those assigned to the 
+#  far condition place greater density >1.25km. 
+#  Density estimates use all 9,805 surveyed individuals in the takeup sample."
 
 
 
@@ -627,13 +624,13 @@ analysis_data %>%
 
 
 ```{r}
-#| dist-hist,
-#| fig.cap="Distance to Treatment Location (meters)",
-#| fig.note="This graph shows a histogram plot of distance to the assigned point of
-#|  treatment from each cluster centroid and household location. Clusters assigned to 
-#|  the close condition have greater density <1.25km whilst those assigned to the 
-#|  far condition place greater density >1.25km. 
-#|  Density estimates use all 9,805 surveyed individuals in the takeup sample."
+# dist-hist,
+# fig.cap="Distance to Treatment Location (meters)",
+# fig.note="This graph shows a histogram plot of distance to the assigned point of
+#  treatment from each cluster centroid and household location. Clusters assigned to 
+#  the close condition have greater density <1.25km whilst those assigned to the 
+#  far condition place greater density >1.25km. 
+#  Density estimates use all 9,805 surveyed individuals in the takeup sample."
 
 analysis_data %>%  
   mutate(assigned.treatment = fct_relabel(assigned.treatment, str_to_title)) %>% 
@@ -673,10 +670,10 @@ villages = villages %>%
 
 
 ```{r}
-#| pot-distance-overlap,
-#|  fig.cap="Distribution of Distance to Closest Possible Point of Treatment, by Distance Condition",
-#|  fig.note="This plot shows there's significant overlap between the distribution of closest points of treatment 
-#|  across distance condition - i.e. any village assigned to a far PoT could have been assigned to a close PoT and vice versa."
+# pot-distance-overlap,
+#  fig.cap="Distribution of Distance to Closest Possible Point of Treatment, by Distance Condition",
+#  fig.note="This plot shows there's significant overlap between the distribution of closest points of treatment 
+#  across distance condition - i.e. any village assigned to a far PoT could have been assigned to a close PoT and vice versa."
 villages %>% 
   ggplot(aes(dist_to_closest_school)) +
   geom_histogram(aes(y = stat(density), fill = dist.pot.group), colour = "black", position = "identity", binwidth = 100, alpha = 0.5) +
@@ -687,10 +684,10 @@ villages %>%
 #### Belief Facet Plots ####
 
 ```{r}
-#| fob-beliefs-line-plot-post,
-#|  fig.cap="First Order Belief Levels and Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the first order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# fob-beliefs-line-plot-post,
+#  fig.cap="First Order Belief Levels and Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the first order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 
 
@@ -849,6 +846,7 @@ tidy_param_df %>%
 
 
 ```{r}
+
 #| sob-beliefs-line-plot-post,
 #|  fig.cap="Second Order Belief Levels and Average Treatment Effects",
 #|  fig.note="This plot shows first estimates using the second order beliefs 
@@ -945,10 +943,10 @@ plot_single_beliefs_est = function(beliefs_results_type_df,
 ```
 
 ```{r}
-#| belief-1ord-ate,
-#|  fig.cap="First Order Belief Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the first order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-1ord-ate,
+#  fig.cap="First Order Belief Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the first order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 
 #### Separate Beliefs ####
@@ -986,10 +984,10 @@ ggsave(
 
 
 ```{r}
-#| belief-2ord-ate,
-#|  fig.cap="Second Order Belief Average Treatment Effects",
-#|  fig.note="This plot shows first estimates using the second order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-2ord-ate,
+#  fig.cap="Second Order Belief Average Treatment Effects",
+#  fig.note="This plot shows first estimates using the second order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 belief_te_2ord = tidy_param_df %>%
   filter(fct_match(fit_type, "fit")) %>%
@@ -1020,10 +1018,10 @@ ggsave(
 
 
 ```{r}
-#| belief-1ord-prop,
-#|  fig.cap="First Order Belief Levels",
-#|  fig.note="This plot shows first estimates using the first order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-1ord-prop,
+#  fig.cap="First Order Belief Levels",
+#  fig.note="This plot shows first estimates using the first order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 ## Props
 
@@ -1063,10 +1061,10 @@ ggsave(
 
 
 ```{r}
-#| belief-2ord-prop,
-#|  fig.cap="Second Order Belief Levels",
-#|  fig.note="This plot shows first estimates using the second order beliefs 
-#|   binomial model. Total sample size: 999 observations at the individual level."
+# belief-2ord-prop,
+#  fig.cap="Second Order Belief Levels",
+#  fig.note="This plot shows first estimates using the second order beliefs 
+#   binomial model. Total sample size: 999 observations at the individual level."
 
 
 belief_2ord_prop_p = tidy_param_df %>%
@@ -1103,11 +1101,11 @@ ggsave(
 
 
 ```{r}
-#| disagg-fob-close,
-#|  fig.cap="Disaggregated First Order Belief Levels - Close",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-close,
+#  fig.cap="Disaggregated First Order Belief Levels - Close",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 
 cv = function(alpha){
@@ -1212,11 +1210,11 @@ comp_belief_data %>%
 ```
 
 ```{r}
-#| disagg-fob-far,
-#|  fig.cap="Disaggregated First Order Belief Levels - Close",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-far,
+#  fig.cap="Disaggregated First Order Belief Levels - Close",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 comp_belief_data %>%
   filter(belief_type == "1ord") %>%
@@ -1235,11 +1233,11 @@ comp_belief_data %>%
 ```
 
 ```{r}
-#| disagg-fob-far-single-ci,
-#|  fig.cap="Disaggregated First Order Belief Levels - Close",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-far-single-ci,
+#  fig.cap="Disaggregated First Order Belief Levels - Close",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 
 comp_belief_data %>%
@@ -1258,11 +1256,11 @@ comp_belief_data %>%
 
 
 ```{r}
-#| disagg-fob-both,
-#|  fig.cap="Disaggregated First Order Belief Levels",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-fob-both,
+#  fig.cap="Disaggregated First Order Belief Levels",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+1
 
 plot_disagg_ord_beliefs_est <- function(data, 
@@ -1381,11 +1379,11 @@ comp_belief_data %>%
 
 
 ```{r}
-#| disagg-sob-both,
-#|  fig.cap="Disaggregated Second Order Belief Levels",
-#|  fig.note="This plot shows estimates using the first-order beliefs 
-#|   simple means. 
-#|   Total sample size: 999 observations at the individual level."
+# disagg-sob-both,
+#  fig.cap="Disaggregated Second Order Belief Levels",
+#  fig.note="This plot shows estimates using the first-order beliefs 
+#   simple means. 
+#   Total sample size: 999 observations at the individual level."
 1+3
 comp_belief_data %>%
   filter(belief_type == "2ord") %>%
@@ -1400,11 +1398,11 @@ comp_belief_data %>%
 
 
 ```{r}
-#| pref-gift-plot,
-#| fig.cap="Preferences for gift by treatment arm",
-#| fig.note="This plot shows the preference for either the bracelet or calendar gift 
-#|  by each treatment arm/distance condition.",
-#| fig.width=10, fig.height=10
+# pref-gift-plot,
+# fig.cap="Preferences for gift by treatment arm",
+# fig.note="This plot shows the preference for either the bracelet or calendar gift 
+#  by each treatment arm/distance condition.",
+# fig.width=10, fig.height=10
 
 
 pref_gift_df = analysis_data %>%
@@ -1604,6 +1602,7 @@ plot_estimands = function(.data,
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval. 
 #|  Point: mean. 9,805 observations from the individual takeup sample used for estimates."
 
+
 reduced_incentive_level_plot = tidy_param_df %>%
   filter(param == "levels") %>%
   filter(fct_match(model_type, "reduced form")) %>%
@@ -1646,11 +1645,11 @@ ggsave(
 
 
 ```{r}
-#| reduced-incentive-ate-plot,
-#| fig.cap = "Incentive Average Treatment Effect, Reduced Form Model",
-#| fig.note = "Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean."
+# reduced-incentive-ate-plot,
+# fig.cap = "Incentive Average Treatment Effect, Reduced Form Model",
+# fig.note = "Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean."
 
 
 
@@ -1694,18 +1693,18 @@ ggsave(
 
 
 ```{r}
-#| structural-signalling-ate-plot,
-#| fig.cap="Signalling Average Treatment Effect, Structural Model",
-#| fig.note = "This plot shows the average signalling treatment effect estimated
-#|  using the structural model. The prior predictive distribution is overlaid at 
-#|  the top of the plot, which shows the 
-#|  predicted signalling treatment effects before conditioning on the data. The prior is 
-#|  centered at a treatment effect of approximately 0. The plot shows that the signalling effect 
-#|  is greatest for the ink and bracelet treatments and largest in the far condition.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean. Signalling effect calculated using
-#|  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
+# structural-signalling-ate-plot,
+# fig.cap="Signalling Average Treatment Effect, Structural Model",
+# fig.note = "This plot shows the average signalling treatment effect estimated
+#  using the structural model. The prior predictive distribution is overlaid at 
+#  the top of the plot, which shows the 
+#  predicted signalling treatment effects before conditioning on the data. The prior is 
+#  centered at a treatment effect of approximately 0. The plot shows that the signalling effect 
+#  is greatest for the ink and bracelet treatments and largest in the far condition.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean. Signalling effect calculated using
+#  structural model incorporating willingness-to-pay, beliefs, and takeup data." 
 
 1+1
 
@@ -1761,17 +1760,17 @@ ggsave(
 
 
 ```{r}
-#| structural-private-ate-plot,
-#| fig.cap="Private Incentive Average Treatment Effect, Structural Model",
-#| fig.note = "This plot shows the average private incentive treatment effect estimated
-#|  using the structural model. The prior predictive distribution is overlaid at 
-#|  the top of the plot, which shows the 
-#|  predicted priavte incentive treatment effects before conditioning on the data. The prior is 
-#|  centered at a treatment effect of approximately 0. The plot shows that the private incentive effect 
-#|  is greatest for the calendar and bracelet treatments.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean.", dependson = c("structural-signalling-ate-plot")
+# structural-private-ate-plot,
+# fig.cap="Private Incentive Average Treatment Effect, Structural Model",
+# fig.note = "This plot shows the average private incentive treatment effect estimated
+#  using the structural model. The prior predictive distribution is overlaid at 
+#  the top of the plot, which shows the 
+#  predicted priavte incentive treatment effects before conditioning on the data. The prior is 
+#  centered at a treatment effect of approximately 0. The plot shows that the private incentive effect 
+#  is greatest for the calendar and bracelet treatments.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean.", dependson = c("structural-signalling-ate-plot")
 
 
 structural_private_ate_plot = tidy_param_df %>%
@@ -1821,21 +1820,21 @@ ggsave(
 ```
 
 ```{r}
-#| structural-incentive-ate-plot,
-#| fig.cap="Incentive Average Treatment Effect, Structural Model",
-#| fig.note = "This plot shows the average treatment effect estimated
-#|  using the structural model. The prior predictive distribution is overlaid at 
-#|  the top of the plot, which shows the 
-#|  predicted treatment effects before conditioning on the data. The prior is 
-#|  centered at a treatment effect of 0 and the 90\\% credible interval covers the 
-#|  interval $[-0.125,0.125]$. The plot shows that the treatment effect is greatest
-#|  for the bracelet treatment and estimated treatment effects are larger for the 
-#|  bracelet at close than far.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean. Treatment effect calculated using
-#|  structural model incorporating willingness-to-pay, beliefs, and takeup data." ,
-#|   dependson = c("structural-signalling-ate-plot")
+# structural-incentive-ate-plot,
+# fig.cap="Incentive Average Treatment Effect, Structural Model",
+# fig.note = "This plot shows the average treatment effect estimated
+#  using the structural model. The prior predictive distribution is overlaid at 
+#  the top of the plot, which shows the 
+#  predicted treatment effects before conditioning on the data. The prior is 
+#  centered at a treatment effect of 0 and the 90\\% credible interval covers the 
+#  interval $[-0.125,0.125]$. The plot shows that the treatment effect is greatest
+#  for the bracelet treatment and estimated treatment effects are larger for the 
+#  bracelet at close than far.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean. Treatment effect calculated using
+#  structural model incorporating willingness-to-pay, beliefs, and takeup data." ,
+#   dependson = c("structural-signalling-ate-plot")
 
 1+1
 structural_incentive_ate_plot = tidy_param_df %>%
@@ -1884,6 +1883,7 @@ ggsave(
 ```
 
 
+
 ```{r wtp-post}
 #| wtp-post,
 #| fig.cap="Willingness-To-Pay Estimates",
@@ -1893,6 +1893,7 @@ ggsave(
 #|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
 #|  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
 #|  with a Bayesian multinomial discrete choice model using a Probit likelihood."
+
 plot_wtp_results <- function(draws) {
   cowplot::plot_grid(
     draws %>%
@@ -1968,14 +1969,14 @@ plot_wtp_results <- function(draws) {
 
 
 ```{r}
-#| wtp-post-joint,
-#| fig.cap="Willingness-To-Pay Estimates",
-#| fig.note = "Calendar valued at 47.2KSh more than Bracelet with a 90\\% credibility 
-#|  interval of $[41.2, 52.8]$.
-#|  Line range: 90\\% credible interval.
-#|  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
-#|  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
-#|  with a Bayesian multinomial discrete choice model using a Probit likelihood."
+# wtp-post-joint,
+# fig.cap="Willingness-To-Pay Estimates",
+# fig.note = "Calendar valued at 47.2KSh more than Bracelet with a 90\\% credibility 
+#  interval of $[41.2, 52.8]$.
+#  Line range: 90\\% credible interval.
+#  Outer box: 80\\% credible interval. Inner box: 50\\% credible interval.
+#  Thick vertical line: median. Point: mean.  Preferences estimated using 998 individuals
+#  with a Bayesian multinomial discrete choice model using a Probit likelihood."
 1+1
 
 
@@ -1993,13 +1994,13 @@ tidy_param_df %>%
 
 
 ```{r}
-#| take-up-prob-with-obs-takeup-and-linerange,
-#| fig.cap="Structural Model Estimates of Take-up Probability by Distance", 
-#| fig.note="This plot shows estimated take-up probability across bracelet and 
-#|  control over distance. Take-up probability is calculated using the structural 
-#|  model's estimates of $w^*$ in each cluster and taking the complement of the Gaussian CDF 
-#|  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
-#|  inner ribbon: 50\\% credibility interval."
+# take-up-prob-with-obs-takeup-and-linerange,
+# fig.cap="Structural Model Estimates of Take-up Probability by Distance", 
+# fig.note="This plot shows estimated take-up probability across bracelet and 
+#  control over distance. Take-up probability is calculated using the structural 
+#  model's estimates of $w^*$ in each cluster and taking the complement of the Gaussian CDF 
+#  evalutaed at $w^*$. The sample consists of TODO. Outer ribbon: 90\\% credibility interval,
+#  inner ribbon: 50\\% credibility interval."
 
 dist_prob_plot = 
 tidy_param_df %>%
@@ -2088,7 +2089,7 @@ dist_prob_plot +
 
 
 ```{r}
-#| rep-return-tes
+#| rep-return-te
 
 tidy_param_df %>%
   pull(param) %>%
@@ -2142,10 +2143,10 @@ rep_te_plot_fun = function(data, treat) {
 
 
 ```{r}
-#| rep-return-te-dist-bracelet,
-#| fig.cap="Difference in Value of Reputational Return Across Bracelet and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model.", dependson = c("rep-return-te-df")
+# rep-return-te-dist-bracelet,
+# fig.cap="Difference in Value of Reputational Return Across Bracelet and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model.", dependson = c("rep-return-te-df")
 
 
 tidy_param_df %>%
@@ -2155,10 +2156,10 @@ tidy_param_df %>%
 ```
 
 ```{r}
-#| rep-return-te-dist-calendar,
-#| fig.cap="Difference in Value of Reputational Return Across Calendar and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model.", dependson = "rep-return-te-df"
+# rep-return-te-dist-calendar,
+# fig.cap="Difference in Value of Reputational Return Across Calendar and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model.", dependson = "rep-return-te-df"
 
 tidy_param_df %>%
   filter(param == "rep_return_dist_draws") %>%
@@ -2168,10 +2169,10 @@ tidy_param_df %>%
 ```
 
 ```{r}
-#| rep-return-te-dist-ink,
-#| fig.cap="Difference in Value of Reputational Return Across Ink and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model." , dependson = "rep-return-te-df"
+# rep-return-te-dist-ink,
+# fig.cap="Difference in Value of Reputational Return Across Ink and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model." , dependson = "rep-return-te-df"
 
 tidy_param_df %>%
   filter(param == "rep_return_dist_draws") %>%
@@ -2180,10 +2181,10 @@ tidy_param_df %>%
 ```
 
 ```{r}
-#| rep-return-dist-value,
-#| fig.cap="Value of Reputational Return Across Bracelet and Control",
-#| fig.note="Value priced in terms of walking distance. Estimates generated using 
-#|  decomposition from structural model." 
+# rep-return-dist-value,
+# fig.cap="Value of Reputational Return Across Bracelet and Control",
+# fig.note="Value priced in terms of walking distance. Estimates generated using 
+#  decomposition from structural model." 
 
 tidy_param_df %>%
   filter(param == "rep_return_dist_draws") %>%
@@ -2280,6 +2281,7 @@ sm_df =  bind_rows(
 
 
 
+
 plot_sm = function(sm_df, plot_prior = FALSE, plot_uncertainty = FALSE) {
   sm_df = sm_df %>%
     filter(roc_distance > 0) %>%
@@ -2361,6 +2363,7 @@ plot_sm = function(sm_df, plot_prior = FALSE, plot_uncertainty = FALSE) {
   }
   return(p_sm)
 }
+
 
 sm_df %>%
   filter(variable == "sm_rescaled") %>%
@@ -2576,6 +2579,7 @@ p_roc = roc_df %>%
 
 
 
+
 roc_plot_df = tidy_param_df %>%
   filter(param == "roc_draws") %>%
   filter(model_type == "structural") %>%
@@ -2717,16 +2721,16 @@ roc_plot +
 
 
 ```{r,eval=TRUE}
-#| sms-tes,
-#| fig.cap="Average Treatment Effect, with and without SMS"
+# sms-tes,
+# fig.cap="Average Treatment Effect, with and without SMS"
 
 include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-by-sms-incentive.pdf", rel_path = FALSE)
 ```
 
 
 ```{r, eval=TRUE}
-#| sms-te-diff,
-#| fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
+# sms-te-diff,
+# fig.cap="Difference in Average Treatment Effect, Across SMS Treatment and Control"
 
 include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-diff-by-sms-incentive.pdf", rel_path = FALSE)
 ```
@@ -2736,7 +2740,7 @@ include_graphics("~/projects/takeup/temp-data/sms-noreminder/TE-diff-by-sms-ince
 
 
 ```{r}
-#| dist-cts-check
+# dist-cts-check
 schools <- st_as_sf(rct.schools.data, crs = wgs.84)
 villages <- village.centers %>% 
   st_as_sf(coords = c("lon", "lat"), crs = wgs.84)
@@ -2753,11 +2757,11 @@ villages %<>%
 
 
 ```{r}
-#| dist-cts-plot,
-#| fig.cap="Distance to Closest Potential Point of Treatment, by Realised Assignment",
-#| fig.note="This plot shows how the distribution of distance to the closest possible point of 
-#|  treatment, by the realised assignment condition. The plot shows that any village in 
-#|  far condition could have been assigned a close point of treatment." 
+# dist-cts-plot,
+# fig.cap="Distance to Closest Potential Point of Treatment, by Realised Assignment",
+# fig.note="This plot shows how the distribution of distance to the closest possible point of 
+#  treatment, by the realised assignment condition. The plot shows that any village in 
+#  far condition could have been assigned a close point of treatment." 
 
 villages %>% 
   ggplot(aes(dist_to_closest_school/1000)) +
@@ -2888,5 +2892,3 @@ dist_checks %>%
   )
 
 ```
-
-

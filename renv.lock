@@ -97,6 +97,7 @@
       "Hash": "8dcfa99b14c296bc9f1fd64d52fd3ce7",
       "Requirements": []
     },
+
     "MASS": {
       "Package": "MASS",
       "Version": "7.3-58.2",
@@ -543,6 +544,7 @@
         "backports"
       ]
     },
+
     "class": {
       "Package": "class",
       "Version": "7.3-21",
@@ -1889,6 +1891,7 @@
         "testthat"
       ]
     },
+
     "nnet": {
       "Package": "nnet",
       "Version": "7.3-18",
@@ -2258,11 +2261,9 @@
     },
     "renv": {
       "Package": "renv",
-      "Version": "0.16.0",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "c9e8442ab69bc21c9697ecf856c1e6c7",
-      "Requirements": []
+      "Version": "0.17.3",
+      "Source": "Repository"
+
     },
     "reprex": {
       "Package": "reprex",
@@ -2637,6 +2638,7 @@
         "generics"
       ]
     },
+
     "survival": {
       "Package": "survival",
       "Version": "3.5-3",

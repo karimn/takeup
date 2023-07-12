@@ -26,6 +26,7 @@ library(ggmap)
 library(knitr)
 library(bigmemory)
 library(rgeos)
+library(here)
 
 library(econometr)
 
@@ -47,7 +48,7 @@ takeup.date.type <- col_date(datetime.format)
 ```
 
 ```{r}
-raw.data.path <- . %>% file.path("..", "data", "raw-data", .)
+raw.data.path <- . %>% here("data", "raw-data", .)
 ```
 
 # Cluster Survey
@@ -61,7 +62,7 @@ clusters.to.drop <- c(277, # Too close other cluster (I think 503)
                       678, # Hostile community member
                       737) # Data fabrication and medication theft
 
-cluster.wave.county.data <- read_rds("../data/takeup_cluster_wave_county_5.0.rds")
+cluster.wave.county.data <- read_rds(here("data", "takeup_cluster_wave_county_5.0.rds"))
 
 cluster.info.to.drop <- c("uuid:3a491628-a0e8-4be0-9afc-c2cca08fc450", # Bad entries
                           "uuid:fcd3137e-7ddb-4f2e-9140-680e7638e42c",
@@ -70,7 +71,7 @@ cluster.info.to.drop <- c("uuid:3a491628-a0e8-4be0-9afc-c2cca08fc450", # Bad ent
 
 cluster.info <- read_csv(raw.data.path("Cluster Survey V3 July 04.csv"),
                          col_types = list(SubmissionDate = takeup.date.type)) %>% 
-  bind_rows(v3 = ., v1 = read_dta("../data/Cluster Survey V1.dta") %>%
+  bind_rows(v3 = ., v1 = read_dta(here("data", "Cluster Survey V1.dta")) %>%
                    transmute(cluster.id = clusterid,
                              SubmissionDate = submissiondate,
                              KEY = key,
@@ -188,17 +189,17 @@ pot.info %>%
 `village.cluster.id` is not be trusted. Geographic analysis (below) of the closest cluster shows that `cluster.id` is more reliable. 
 
 ```{r villages-data}
-rct.village.codes <- read_csv("../data/village_codes_2.csv", skip = 1, col_names = c("village.cluster.id", "village_name", "village")) %>% 
+rct.village.codes <- read_csv(here("data", "village_codes_2.csv"), skip = 1, col_names = c("village.cluster.id", "village_name", "village")) %>% 
   mutate(village.cluster.id = as.integer(village.cluster.id))
 
 # We're already reading this above (cluster-survey-data), but not in exactly the same format...
-cluster.survey.data <- read_rds("../data/takeup_cluster_survey.rds") 
+cluster.survey.data <- read_rds(here("data", "takeup_cluster_survey.rds"))
 
-rct.villages <- read_rds("../data/rct_target_villages_2.0.rds") %>% 
+rct.villages <- read_rds(here("data", "rct_target_villages_2.0.rds")) %>% 
   mutate(new.village = FALSE) %>% 
   bind_rows(read_rds("../data/rct_target_villages_2.0-4.rds") %>% 
               mutate(new.village = TRUE))
-
+  
 all.villages <- rct.villages %>% 
   bind_rows(anti_join(cluster.survey.data, ., c("cluster.id", "target.village.id"))) %>% 
   mutate(targeted.village = !is.na(new.village),
@@ -287,7 +288,7 @@ rct.counties <- c("Busia", "Siaya", "Kakamega")
 busia.subcounties <- c("butula", "nambale", "teso south", "teso north") 
 siaya.subcounties <- c("gem", "ugenya", "ugunja")
 
-ke.lvl2.adm.data <- read_rds(file.path("..", "data", "adm", "KEN_adm2.rds"))
+ke.lvl2.adm.data <- read_rds(here("data", "adm", "KEN_adm2.rds"))
 #ke.lvl3.adm.data <- read_rds("~/Data/TakeUp/KEN_adm3.rds")
 
 counties.adm.data <- ke.lvl2.adm.data[ke.lvl2.adm.data$NAME_1 %in% rct.counties, ] #, "Vihiga"), ]
@@ -327,7 +328,7 @@ tu.data.reader <- function(file.name, submit.datetime.type = NULL, .other.types 
     validate.coords()
 }
 
-hh.census.data.pre24th <- tu.data.reader(file.path("..", "data", "census_gps_util23.csv"), 
+hh.census.data.pre24th <- tu.data.reader(here("data", "census_gps_util23.csv"), 
                                          submit.datetime.type = col_datetime("%d/%m/%Y %H:%M")) %>% 
   filter(SubmissionDate >= "2016-08-22") %>% 
   mutate_at(vars(present, return, number_individuals, instance, check), as.numeric)
@@ -340,9 +341,11 @@ hh.census.data <- tu.data.reader(raw.data.path("Census.csv"),
                                                      `gps-Longitude` = col_double(),
                                                      `gps-Altitude` = col_double(),
                                                      `gps-Accuracy` = col_double(),
+                                                     deviceid = col_character(),
                                                      gps_work = col_integer())) %>% 
-  filter(SubmissionDate >= "2016-08-25") %>% 
-  bind_rows(select(hh.census.data.pre24th, !c(hhh_name1st_check, directions))) %>% 
+  filter(SubmissionDate >= "2016-08-25") %>%
+  select(!c(starts_with("hhh_two_digits"))) |> 
+  bind_rows(select(hh.census.data.pre24th, !c(hhh_name1st_check, directions, starts_with("hhh_two_digits")))) %>% 
   select(-c(RI, matches("^IC\\d{1,2}$"))) %>% 
   left_join(rct.village.codes, by = "village") %>%
   mutate(village_name = factor(village_name),
@@ -350,27 +353,28 @@ hh.census.data <- tu.data.reader(raw.data.path("Census.csv"),
          return = as.numeric(return),
          hhh_have_phone = factor.have.phone(hhh_have_phone))
 
-missing.gps.data <- read_csv("../data/missing_gps.csv") %>% 
+missing.gps.data <- read_csv(here("data", "missing_gps.csv")) %>% 
   select(KEY, `gps-Latitude`, `gps-Longitude`, gps_work, manual_long, manual_lat) %>% 
   mutate(lon = ifelse(is.na(`gps-Longitude`), manual_long, `gps-Longitude`),
          lat = ifelse(is.na(`gps-Latitude`), manual_lat, `gps-Latitude`),
-         data.source = "missing_gps") %>% 
+         data.source = "missing_gps",
+         across(c("lon", "lat"), as.double)) %>% 
   select(-c(starts_with("gps-"), starts_with("manual_"))) %>% 
   filter(!is.na(KEY), !is.na(lon), !is.na(lat))  
 
-missing.gps.149.data <- read_csv("../data/missing_gps_149.csv") %>% 
+missing.gps.149.data <- read_csv(here("data", "missing_gps_149.csv")) %>% 
   transmute(lon = gpslongitude,
             lat = gpslatitude, 
             KEY = `key of form with missing GPS data`,
             data.source = "missing_gps_149")
 
-missing.gps.360.data <- read_csv("../data/missing_gps_360.csv") %>% 
+missing.gps.360.data <- read_csv(here("data", "missing_gps_360.csv")) %>% 
   transmute(lon = gpslongitude,
             lat = gpslatitude, 
             KEY = `key of form missing GPS data`,
             data.source = "missing_gps_149")
 
-missing.gps.844.data <- read_csv("../data/missing_gps_844.csv") %>%
+missing.gps.844.data <- read_csv(here("data", "missing_gps_844.csv")) %>%
   rename(key.gps = `Key with GPS`,
          key.missing.gps = `Key missing GPS`) %>%
   inner_join(hh.census.data, c("key.gps" = "KEY")) %>% 
@@ -384,7 +388,7 @@ hh.census.data %<>% {
 
 missing.gps.data %<>% 
   bind_rows(missing.gps.149.data, missing.gps.360.data, missing.gps.844.data) %>% 
-  validate.coords
+  validate.coords()
 
 hh.census.data %<>% 
   left_join(missing.gps.data, by = "KEY") %>% 
