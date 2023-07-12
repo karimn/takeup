@@ -96,9 +96,8 @@ ggplot.clusters <- function(selected.clusters,
   if (!suppress.selected.clusters) {
     map.obj <- map.obj + (selected.clusters %>% 
                             spTransform(wgs.84) %>% 
-                            tidy(region = "cluster.id") %>% 
-                            left_join(selected.clusters@data[, c("cluster.id", "cluster.group", "county")], by = c("id" = "cluster.id")) %>% 
-                            geom_polygon(aes(long, lat, group = group, color = county), alpha = 0.2, linetype = "dashed", data = .)) 
+                            sf::st_as_sf() %>%
+                            geom_sf(aes(color = county), alpha = 0.2, linetype = "dashed", data = ., inherit.aes = FALSE))
   }
   
   map.obj <- map.obj + (rct.schools.data %>% 
