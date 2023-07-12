@@ -195,11 +195,11 @@ rct.village.codes <- read_csv(here("data", "village_codes_2.csv"), skip = 1, col
 # We're already reading this above (cluster-survey-data), but not in exactly the same format...
 cluster.survey.data <- read_rds(here("data", "takeup_cluster_survey.rds"))
 
-rct.villages <- read_rds(here("data", "rct_target_villages_2.0.rds") %>% 
+rct.villages <- read_rds(here("data", "rct_target_villages_2.0.rds")) %>% 
   mutate(new.village = FALSE) %>% 
   bind_rows(read_rds("../data/rct_target_villages_2.0-4.rds") %>% 
               mutate(new.village = TRUE))
-
+  
 all.villages <- rct.villages %>% 
   bind_rows(anti_join(cluster.survey.data, ., c("cluster.id", "target.village.id"))) %>% 
   mutate(targeted.village = !is.na(new.village),
