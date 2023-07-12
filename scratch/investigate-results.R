@@ -1,42 +1,274 @@
-
-rm(list = ls())
-
-      beta[CALENDAR_TREATMENT_INDEX] = beta_bracelet_effect + wtp_value_utility * hyper_wtp_mu;
-      beta[BRACELET_TREATMENT_INDEX] = beta_bracelet_effect;
-
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(tidybayes)
 
 
-0.25*0.4
+MODEL = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB"
 
-sigma = 3
-N = 10000
-x = abs(rnorm(N, mean = 0.25, sd = 0.01))
 
-bra_effect = abs(rnorm(N, mean = 0.1, sd = 0.1))
-beta_cal = bra_effect + x * 0.4 
-beta_bra = bra_effect
 
-mean(beta_cal)
-mean(beta_bra)
 
-tibble(
-  beta_cal = beta_cal,
-  beta_bra = beta_bra
+## Load analysis data
+load(file.path("data", "analysis.RData"))
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+analysis_data <- monitored_nosms_data %>% 
+  mutate(assigned_treatment = assigned.treatment, assigned_dist_group = dist.pot.group)
+
+## Load Stan output
+load_param_draws = function(fit_version, model, chain, ...) {
+  fit_obj = as_cmdstan_fit(
+    str_glue("data/stan_analysis_data/dist_fit{fit_version}_{model}-{chain}.csv"))
+  draws = spread_rvars(
+    fit_obj,
+    ...
+  ) %>%
+    mutate(model = model, fit_version = fit_version)
+  return(draws)
+}
+# N.B. treat_idx (the second idx, is the mu (signalling) idx)
+mu_idx_mapper = tibble(
+  treat_idx = 1:4,
+  mu_treatment = c("control", "ink", "calendar", "bracelet")
 ) %>%
-  gather(variable, value) %>%
+  mutate(mu_treatment = factor(mu_treatment, levels = c("bracelet", "calendar", "ink", "control")))
+dist_idx_mapper = tibble(
+  dist_treat_idx = 1:8,
+  dist_treatment = rep(c("control", "ink", "calendar", "bracelet"), 2),
+  dist_group = rep(c("close", "far"), each = 4)
+) %>%
+  mutate(dist_treatment = factor(dist_treatment, levels = c("bracelet", "calendar", "ink", "control")))
+cluster_mapper = analysis_data %>%
+  select(
+    cluster_id,
+    assigned_treatment,
+    assigned_dist_group
+  ) %>% unique()
+
+
+cluster_error_draws_raw = load_param_draws(
+  fit_version = 93,
+  model = MODEL,
+  chain = 1,
+  cluster_cf_cutoff[dist_treat_idx, treat_idx, cluster_idx],
+  total_error_sd[treat_idx]
+)
+rvar_pnorm = rfun(pnorm)
+cluster_error_draws = cluster_error_draws_raw %>%
+  mutate(
+    pr_takeup = rvar_pnorm(-cluster_cf_cutoff, sd = total_error_sd)
+  ) %>%
+  left_join(
+    dist_idx_mapper,
+    by = c("dist_treat_idx")
+  ) %>%
+  left_join(
+    mu_idx_mapper,
+    by = "treat_idx"
+ ) %>%
+  left_join(
+    cluster_mapper,
+    by = c("cluster_idx" = "cluster_id")
+  )
+
+
+
+struct_tes =  bind_rows(
+  cluster_error_draws %>%
+    filter(dist_group == assigned_dist_group) %>%
+    filter(mu_treatment == dist_treatment) %>%
+    group_by(dist_treatment, dist_group) %>%
+    summarise(
+      pr_takeup = rvar_mean(pr_takeup)
+    )   %>%
+    group_by(dist_group) %>%
+    mutate(
+      pr_takeup = if_else(dist_treatment == "control", pr_takeup, pr_takeup - pr_takeup[dist_treatment == "control"])
+    ),
+  cluster_error_draws %>%
+    filter(dist_group == assigned_dist_group) %>%
+    filter(mu_treatment == dist_treatment) %>%
+    group_by(dist_treatment) %>%
+    summarise(
+      pr_takeup = rvar_mean(pr_takeup)
+    ) %>%
+    mutate(
+      pr_takeup = if_else(dist_treatment == "control", pr_takeup, pr_takeup - pr_takeup[dist_treatment == "control"])
+    )  %>%
+    mutate(dist_group = "combined")
+) %>%
+  mutate(
+    dist_group = factor(dist_group, levels = c("far", "close", "combined"))
+  ) 
+  
+wide_struct_tes = struct_tes %>% 
+    pivot_wider(
+      names_from = dist_group,
+      values_from = pr_takeup
+    ) %>%
+    select(dist_treatment, combined, close, far) %>%
+    arrange(dist_treatment) %>%
+    bind_rows(
+      # bracelet minus calendar row
+      struct_tes %>%
+        filter(dist_treatment %in% c("bracelet", "calendar")) %>%
+        pivot_wider(names_from = dist_treatment, values_from = pr_takeup) %>%
+        mutate(
+          bracelet_minus_calendar = bracelet - calendar
+        ) %>%
+        select(dist_group, bracelet_minus_calendar) %>%
+        pivot_wider(
+          names_from = dist_group,
+          values_from = bracelet_minus_calendar
+        ) %>%
+        mutate(dist_treatment = "bracelet_minus_calendar")
+    )
+
+
+create_cis = function(.data) {
+  med_fun = function(x) {
+    mean_x = mean(x) %>% round(3)
+    conf.low = quantile(x, 0.05) %>% round(3)
+    conf.high = quantile(x, 0.95) %>% round(3)
+    return(paste0(
+      mean_x, " (", conf.low, ", ", conf.high, ")"
+    ))
+  }
+  .data %>%
+    mutate(across(where(is_rvar), med_fun))
+}
+
+
+clean_wide_tbl = wide_struct_tes %>%
+  mutate(dist_treatment = factor(dist_treatment, levels = c(
+    "bracelet",
+    "calendar",
+    "ink",
+    "bracelet_minus_calendar",
+    "control"
+  ))) %>%
+  mutate(far_minus_close = far - close) %>%
+  arrange(dist_treatment)   %>%
+  create_cis()
+
+clean_wide_tbl %>%
+  View()
+stop()
+
+cluster_error_draws %>%
+  # filter(dist_group == assigned_dist_group) %>%
+  filter(mu_treatment == dist_treatment) %>%
+  group_by(dist_treatment, dist_group) %>%
+  summarise(
+    pr_takeup = rvar_mean(pr_takeup)
+  )   %>%
+  group_by(dist_group) %>%
+  mutate(
+    pr_takeup = if_else(dist_treatment == "control", pr_takeup, pr_takeup - pr_takeup[dist_treatment == "control"])
+  )
+
+stop()
+
+
+## Loading postprocessed output
+load(
+  file.path(
+    "tmp", 
+      "processed_dist_fit95_lite.RData"))
+
+
+
+dist_fit_data %>%
+  filter(model == MODEL) %>%
+  filter(fit_type == "fit") %>%
+  select(est_takeup_te) %>%
+  unnest() %>%
+  filter(
+    mu_assigned_treatment_left == assigned_treatment_left,
+    mu_assigned_treatment_right == assigned_treatment_right,
+    (assigned_dist_group_left == assigned_dist_group_right) | (is.na(assigned_dist_group_left) & is.na(assigned_dist_group_right))
+  ) %>%
+  filter(assigned_treatment_right == "control")  %>%
+  filter(mu_assigned_treatment_left == "bracelet") 
+
+## Back to rvar output
+
+
+dist_levels = c("Combined", "Far", "Close")
+treat_levels = c("Bracelet", "Calendar", "Ink", "Control")
+
+clean_incentive_df = incentive_df %>%
+  left_join(version_type_df) %>%
+  mutate(
+    assigned_dist = factor(assigned_dist, levels = dist_levels ),
+    assigned_treatment = factor(assigned_treatment, levels = treat_levels) %>% fct_rev
+    )
+
+clean_far_df = far_df %>%
+  left_join(version_type_df) %>%
+  mutate(
+    assigned_treatment = factor(assigned_treatment_left, levels = treat_levels) %>% fct_rev
+    )
+
+clean_bra_cal_df = bra_cal_df %>%
+  left_join(
+    version_type_df
+  )  %>%
+  mutate(
+    assigned_dist = factor(assigned_dist, levels = dist_levels ),
+  )
+
+
+clean_incentive_df %>%
   ggplot(aes(
-    x = value, 
-    fill = variable
+    x = mean_est,
+    xmin = per_0.05,
+    xmax = per_0.95,
+    y = assigned_treatment,
+    colour = type
   )) +
-  geom_histogram()
+  geom_pointrange(position = position_dodge(0.5)) +
+  facet_wrap(~assigned_dist, ncol = 1)
+
+stop()
+
+clean_bra_cal_df %>%
+  ggplot(aes(
+    x = mean_est,
+    xmin = per_0.05,
+    xmax = per_0.95,
+    y = assigned_dist
+  )) +
+  geom_pointrange() +
+  facet_wrap(~type, ncol = 1) +
+  geom_vline(xintercept = 0, linetype = "longdash")
+
+clean_far_df %>%
+  ggplot(aes(
+    x = mean_est,
+    xmin = per_0.05,
+    xmax = per_0.95,
+    y = assigned_treatment
+  )) +
+  geom_pointrange() +
+  facet_wrap(~type, ncol = 1) +
+  geom_vline(xintercept = 0, linetype = "longdash")
 
 
-mean(beta_cal > beta_bra)
 
-mean(beta_cal)
-mean(beta_bra)
 
-# load("data/stan_analysis_data/dist_fit86.RData")
+
+
+stop()
 
 library(magrittr)
 library(tidyverse)
@@ -57,8 +289,7 @@ library(tidybayes)
 library(furrr)
 
 
-models_we_want = "REDUCED_FORM_NO_RESTRICT_DIST_CTS"
-
+models_we_want = "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB"
 
 load_param_draws = function(fit_version, model, chain, ...) {
   fit_obj = as_cmdstan_fit(
@@ -70,6 +301,52 @@ load_param_draws = function(fit_version, model, chain, ...) {
     mutate(chain = chain, model = model, fit_version = fit_version)
   return(draws)
 }
+
+# sd_draws_91 = load_param_draws(
+#   90,
+#   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP",
+#   1,
+#   u_sd[idx_1]
+# )
+
+sd_draws_93 = load_param_draws(
+  93,
+  models_we_want,
+  1,
+  u_sd[idx_1]
+)
+
+assigned_cw = analysis_data %>%
+  select(cluster_id, assigned_treatment, assigned_dist_group) %>%
+  unique()
+
+sd_draws_93 %>%
+  left_join(
+    assigned_cw,
+    by = c("idx_1" = "cluster_id")
+  ) %>%
+  mutate(u_sd = mean(u_sd)) %>%
+  ggplot(aes(
+    x = u_sd,
+    fill = assigned_dist_group
+  )) +
+  geom_histogram( position = position_dodge(0.3)) +
+  facet_wrap(~assigned_treatment, ncol = 1) +
+  theme_minimal()
+
+
+assigned_cw
+
+sd_draws_93 %>%
+  mutate(
+    u_sd = mean(u_sd)
+  ) %>%
+  ggplot(aes(
+    x = u_sd
+  )) +
+  geom_histogram()
+
+stop()
 
 
 beta_draws = load_param_draws(

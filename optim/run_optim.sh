@@ -67,7 +67,6 @@ run_optim () {
         SUP_REP_VAR=""
     fi
 
-    # Gurobi doesn't play nice with renv atm
 
     if [ $SKIP_PREDICTION != 1 ]
     then
@@ -155,19 +154,6 @@ run_optim () {
 
 }
 
-                            # --constraint-type=agg \
-                            # --welfare-function=log \
-                            # --min-cost \
-                            # --optim-input-path=optim/data/agg-log-full-many-pots \
-                            # --optim-input-a-filename=cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            # --optim-input-b-filename=cutoff-b-control-mu-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median-optimal-allocation.rds \
-                            # --comp-output-basename=agg-log-cutoff-cf-b1-control-b2-control-mu1-control-mu2-bracelet-STRUCTURAL_LINEAR_U_SHOCKS-median \
-                            # --output-path=optim/plots/agg-log-full-many-pots \
-                            # --output-basename=agg-log-cutoff-b-control-mu-control-STRUCTURAL_LINEAR_U_SHOCKS-median \
-                            # --cutoff-type=cutoff
-                            # --data-input-name=full-many-pots-experiment.rds \
-                            # --posterior-median \
-                            # --pdf-output-path=presentations/takeup-fig/optim
 
 
 compare_option () {

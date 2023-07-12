@@ -212,9 +212,12 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                              visibility_treatment,
                              beta_b_control,
                              suppress_reputation, 
-                             static_signal) {
+                             static_signal,
+                             fix_mu_at_1 = FALSE,
+                             fix_mu_distance = NULL,
+                             static_delta_v_star
+                             ) {
     function(distance){
-      
         over_cutoff = distance > rep_cutoff # note rep_cutoff not standardised
         distance = distance/dist_sd
         if (private_benefit_treatment == "control") {
@@ -232,7 +235,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           delta_v_star_deriv = NA
           pr_obs = NA 
 
-        }  else {
+        } else {
           if (visibility_treatment == "control") {
             mu_rep_control_param = TRUE
           } else {
@@ -243,10 +246,18 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
           if (!is.null(static_signal)) {
             b = b + static_signal
             mu_rep = 0
-          mu_rep_deriv = NA
-          } else {
+            mu_rep_deriv = NA
+          } else if (fix_mu_at_1 == TRUE) {
+              mu_rep = 1
+              mu_rep_deriv = 0
+          }  else {
+            if (is.null(fix_mu_distance)) {
+              mu_distance = distance
+            } else {
+              mu_distance = fix_mu_distance / dist_sd
+            }
             mu_rep = calculate_mu_rep(
-                dist = distance,
+                dist = mu_distance,
                 base_mu_rep = base_mu_rep,
                 mu_beliefs_effect = 1,
                 beta = mu_beta_z,
@@ -256,7 +267,7 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                 mu_rep_type = mu_rep_type, 
                 control = mu_rep_control_param)
             mu_rep_deriv = calculate_mu_rep_deriv(
-                dist = distance,
+                dist = mu_distance,
                 base_mu_rep = base_mu_rep,
                 mu_beliefs_effect = 1,
                 beta = mu_beta_z,
@@ -278,7 +289,13 @@ find_v_star = function(distance, b, mu_rep, total_error_sd, u_sd, bounds){
                 control = mu_rep_control_param)
             mu_rep[which(over_cutoff)] = cutoff_mu_rep
           }
-
+          # If we fix delta_v_star just load everything onto private benefit and 
+          # set mu to 0 (since we manually add it to B anyway)
+          if (!is.null(static_delta_v_star)) {
+            b  = b + mu_rep*static_delta_v_star
+            mu_rep = 0
+            mu_rep_deriv = NA
+          }
           v_star_soln = find_v_star(
               distance = distance,
               b = b,
@@ -330,7 +347,10 @@ find_pred_takeup = function(params) {
         private_benefit_treatment = params$private_benefit_treatment, 
         visibility_treatment = params$visibility_treatment,
         suppress_reputation = params$suppress_reputation,
-        static_signal = params$static_signal
+        static_signal = params$static_signal,
+        fix_mu_at_1 = params$fix_mu_at_1,
+        fix_mu_distance = params$fix_mu_distance,
+        static_delta_v_star = params$static_delta_v_star
     )
 }
 
@@ -346,7 +366,11 @@ extract_params = function(param_draws,
                           bounds = c(-Inf, Inf),
                           mu_rep_type = 0,
                           suppress_reputation, 
-                          static_signal) {
+                          static_signal,
+                          static_delta_v_star,
+                          fix_mu_at_1 = FALSE,
+                          fix_mu_distance = NULL
+                          ) {
     treatments = c(
         "control",
         "ink",
@@ -396,13 +420,17 @@ extract_params = function(param_draws,
       )  %>%
       pull(.value)
 
+    if (!is.null(static_delta_v_star)) {
+      if (is.na(static_delta_v_star)) {
+        static_delta_v_star = NULL
+      }
+    } 
+
     if (!is.null(static_signal)) {
       if (is.na(static_signal)) {
         static_signal = NULL
       }
-    } else {
-      static_signal = NULL
-    }
+    } 
 
     params = c(
         params, 
@@ -418,7 +446,10 @@ extract_params = function(param_draws,
         "visibility_treatment" = as.character(visibility_treatment), 
         "beta_b_control" = beta_b_control, 
         "suppress_reputation" = suppress_reputation, 
-        "static_signal" = static_signal
+        "static_signal" = static_signal,
+        "fix_mu_at_1" = fix_mu_at_1,
+        "fix_mu_distance" = fix_mu_distance,
+        "static_delta_v_star" = static_delta_v_star
         ) %>%
         as.list()
 

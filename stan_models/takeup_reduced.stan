@@ -8,8 +8,8 @@ data {
 #include takeup_data_sec.stan
 
   int<lower = 0, upper = 1> use_age_group_gp;
-  int<lower = 0, upper = 1> use_dist_cts;
-  int<lower = 0, upper = 1> county_slopes; // Should multilevel model use intercept or slope effect
+  int<lower=0, upper = 1> county_slopes;
+  int<lower=0, upper=1> use_dist_cts;
 
   real<lower = 0> reduced_beta_county_sd_sd;
   real<lower = 0> reduced_beta_cluster_sd_sd;
@@ -22,6 +22,7 @@ data {
   vector<lower = 0>[num_treatments * num_discrete_dist] age_group_alpha_sd;
   vector<lower = 0>[num_treatments * num_discrete_dist] age_group_rho_sd;
   int<lower = 0, upper = 1> sbc;
+
 }
 
 transformed data {
@@ -49,7 +50,7 @@ parameters {
   matrix[use_age_groups ? num_age_groups : 0, num_dist_group_treatments] reduced_beta_age_group_raw;
   row_vector<lower = 0>[use_age_groups ? num_dist_group_treatments : 0] reduced_beta_age_group_alpha;
   row_vector<lower = 0>[use_age_groups && use_age_group_gp ? num_dist_group_treatments : 0] reduced_beta_age_group_rho;
-  
+
   vector[use_dist_cts ? 1 : 0] beta_dist_cts;
 
 }
@@ -73,21 +74,19 @@ transformed parameters {
   reduced_cluster_benefit_cost = reduced_treatment_effect[cluster_assigned_dist_group_treatment];
   
   if (use_cluster_effects) {
-    // keeping track of dims: vector[num_clusters] = reduced_beta_cluster
-    reduced_beta_cluster = reduced_beta_cluster_raw * reduced_beta_cluster_sd;
+    // reduced_beta_cluster = reduced_beta_cluster_raw * reduced_beta_cluster_sd;
+    reduced_beta_cluster = reduced_beta_cluster_raw * 0.1;
     
     reduced_cluster_benefit_cost += reduced_beta_cluster;
   }
   
   if (use_county_effects) {
     vector[num_clusters] county_effects;
-
-    // and dimension of this: matrix[num_counties, num_dist_group_treatments] reduced_beta_county
+    
     reduced_beta_county = reduced_beta_county_raw .* rep_matrix(reduced_beta_county_sd, num_counties);
-
-    if (county_slopes) { // county level TEs (varying slopes by county)
+    if (county_slopes) {
       county_effects = rows_dot_product(cluster_treatment_design_matrix, reduced_beta_county[cluster_county_id]); 
-    } else { // just county level intercepts
+    } else {
       county_effects = reduced_beta_county[cluster_county_id, 1];
     }
     reduced_cluster_benefit_cost += county_effects;
@@ -96,11 +95,7 @@ transformed parameters {
   if (use_age_groups) {
     if (use_age_group_gp) { 
       for (treatment_index in 1:num_dist_group_treatments) {
-        reduced_beta_age_group[, treatment_index] = calc_gp_trend(
-          age_groups_dist, 
-          reduced_beta_age_group_alpha[treatment_index], 
-          reduced_beta_age_group_rho[treatment_index], 
-          reduced_beta_age_group_raw[, treatment_index]);
+        reduced_beta_age_group[, treatment_index] = calc_gp_trend(age_groups_dist, reduced_beta_age_group_alpha[treatment_index], reduced_beta_age_group_rho[treatment_index], reduced_beta_age_group_raw[, treatment_index]);
       }
     } else {
       reduced_beta_age_group = reduced_beta_age_group_raw .* rep_matrix(reduced_beta_age_group_alpha, num_age_groups);
@@ -112,8 +107,7 @@ transformed parameters {
   }
   
   for (age_group_index in 1:num_age_groups) {
-    reduced_cluster_takeup_prob[, age_group_index] = Phi_approx(
-      reduced_cluster_benefit_cost + cluster_treatment_design_matrix * reduced_beta_age_group[age_group_index]');
+    reduced_cluster_takeup_prob[, age_group_index] = Phi_approx(reduced_cluster_benefit_cost + cluster_treatment_design_matrix * reduced_beta_age_group[age_group_index]');
   }
 }
 
@@ -127,7 +121,7 @@ model {
     reduced_beta_cluster_raw ~ std_normal();
   }
   
-  reduced_beta_cluster_sd ~ normal(0, reduced_beta_cluster_sd_sd);
+  reduced_beta_cluster_sd ~ normal(0.1, reduced_beta_cluster_sd_sd);
   
   if (use_county_effects) {
     to_vector(reduced_beta_county_raw) ~ std_normal();
@@ -144,7 +138,7 @@ model {
   }
 
   if (use_dist_cts) {
-    beta_dist_cts ~ normal(0, 5);
+    beta_dist_cts ~ normal(0, 1);
   }
 
   profile("model fitting") {
@@ -159,9 +153,7 @@ model {
             cluster_takeup_count[included_clusters, age_group_index] ~ binomial(
               cluster_size[included_clusters, age_group_index], 
               // reduced_cluster_takeup_prob[included_clusters]
-              Phi_approx(
-                reduced_cluster_benefit_cost[included_clusters] + 
-                cluster_treatment_design_matrix[included_clusters] * reduced_beta_age_group[age_group_index]')
+              Phi_approx(reduced_cluster_benefit_cost[included_clusters] + cluster_treatment_design_matrix[included_clusters] * reduced_beta_age_group[age_group_index]')
             );
           }
         }
@@ -219,25 +211,21 @@ generated quantities {
 
 
     if (county_slopes) {
-      cluster_age_group_cf_benefit_cost[treatment_index] += rep_matrix(
-        (reduced_beta_county * treatment_map_design_matrix[treatment_index]')[cluster_county_id], 
-        num_age_groups);
+      cluster_age_group_cf_benefit_cost[treatment_index] += rep_matrix((reduced_beta_county * treatment_map_design_matrix[treatment_index]')[cluster_county_id], num_age_groups);
     } else {
       cluster_age_group_cf_benefit_cost[treatment_index] += rep_matrix(
-        reduced_beta_county[cluster_county_id, 1], 
-        num_age_groups);
-
+        reduced_beta_county[cluster_county_id, 1],
+        num_age_groups
+      );
     }
 
     if (use_dist_cts) {
       cluster_age_group_cf_benefit_cost[treatment_index] += rep_matrix(beta_dist_cts[1] .* cluster_standard_dist, num_age_groups);
     }
-      
+
     cluster_age_group_cf_cutoff[treatment_index, 1] = - cluster_age_group_cf_benefit_cost[treatment_index]; 
     
-    cluster_cf_benefit_cost[treatment_index] = rows_dot_product(cluster_age_group_cf_benefit_cost[treatment_index], cluster_age_group_prop);
-
-
+    cluster_cf_benefit_cost[treatment_index] = rows_dot_product(cluster_age_group_cf_benefit_cost[treatment_index], cluster_age_group_prop); 
     cluster_cf_cutoff[treatment_index, 1] = rows_dot_product(cluster_age_group_cf_cutoff[treatment_index, 1], cluster_age_group_prop);
   }
   

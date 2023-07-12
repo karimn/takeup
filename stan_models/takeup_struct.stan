@@ -17,7 +17,7 @@ data {
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_PARAM_QUADRATIC;
   int<lower = MIN_COST_MODEL_TYPE_VALUE, upper = MAX_COST_MODEL_TYPE_VALUE> COST_MODEL_TYPE_DISCRETE;
 
-  
+  int<lower= 1, upper = 2> BELIEFS_ORDER;  
   int<lower = 0, upper = 1> use_wtp_model;
   int<lower = 0, upper = 1> use_homoskedastic_shocks;
   
@@ -122,7 +122,10 @@ transformed parameters {
 #include dist_transformed_parameters.stan
 #include wtp_transformed_parameters.stan
 #include beliefs_transformed_parameters.stan
-  
+
+  matrix[num_clusters, num_treatments] centered_cluster_beta_beliefs;
+  matrix[num_clusters, num_treatments] centered_cluster_dist_beta_beliefs;
+
   vector[num_dist_group_treatments] beta;
   
   vector[num_dist_group_treatments] structural_treatment_effect;
@@ -143,12 +146,17 @@ transformed parameters {
   
   vector<lower = 0>[use_cluster_effects ?  num_clusters : num_treatments] u_sd;
   vector<lower = 0>[use_cluster_effects ? num_clusters : num_treatments] total_error_sd;
-  // TODO: make homo default case w/ clustering
-  // if (use_homoskedastic_shocks) {
-  //   u_sd = rep_vector(raw_u_sd[1], num_treatments);  
-  // } else {
-  //   u_sd = raw_u_sd; 
-  // }
+
+
+  if (BELIEFS_ORDER == 1) {
+    centered_cluster_beta_beliefs = centered_cluster_beta_1ord;
+    centered_cluster_dist_beta_beliefs = centered_cluster_dist_beta_1ord;
+  }
+  if (BELIEFS_ORDER == 2) {
+    centered_cluster_beta_beliefs = centered_cluster_beta_2ord;
+    centered_cluster_dist_beta_beliefs = centered_cluster_dist_beta_2ord;
+  }
+
   if (use_cluster_effects) {
     u_sd = raw_u_sd;
   }
@@ -180,7 +188,7 @@ transformed parameters {
   if (!suppress_reputation) { 
     obs_cluster_mu_rep = calculate_mu_rep(
       cluster_incentive_treatment_id, cluster_standard_dist, 
-      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
+      base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_beliefs, centered_cluster_dist_beta_beliefs,
       mu_rep_type);
   }
 
@@ -217,21 +225,16 @@ transformed parameters {
   
   structural_cluster_benefit_cost = structural_treatment_effect[cluster_assigned_dist_group_treatment] - cluster_dist_cost;
   
-  if (0) {
+  if (use_cluster_effects) {
     //use_cluster_effects
     // for now turn off beta level shock
-    // structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];
+    structural_beta_cluster = structural_beta_cluster_raw * structural_beta_cluster_sd[1];
     structural_cluster_benefit_cost += structural_beta_cluster;
   }
   
   if (use_county_effects) {
     structural_beta_county = structural_beta_county_raw * structural_beta_county_sd[1];
     
-    // if (use_wtp_model) { // Calendar = Bracelet + strata_effect
-    //   structural_beta_county[, 3] = structural_beta_county[, 4] + wtp_value_utility * strata_effect_wtp_mu; 
-    // } 
-    
-    // county_effects = rows_dot_product(cluster_treatment_design_matrix, structural_beta_county[cluster_county_id]); 
     structural_cluster_benefit_cost += structural_beta_county[cluster_county_id];
   }
 
@@ -349,13 +352,12 @@ model {
   }
   
   if (use_county_effects) {
-    // to_vector(structural_beta_county_raw) ~ std_normal();
-    structural_beta_county_raw ~ std_normal();
-    structural_beta_county_sd ~ normal(0, structural_beta_county_sd_sd);
+    structural_beta_county_raw ~ normal(0, 0.125);
+    structural_beta_county_sd ~ normal(0, structural_beta_cluster_sd_sd);
   }
-  
+
   raw_u_sd ~ inv_gamma(raw_u_sd_alpha, raw_u_sd_beta);
-  
+
   if (fit_model_to_data) {
     // Take-up Likelihood 
     if (use_binomial) {
@@ -411,7 +413,7 @@ generated quantities {
       for (mu_treatment_index in 1:num_treatments) {
         vector[num_clusters] curr_cluster_mu_rep = calculate_mu_rep(
           { mu_treatment_index }, all_cluster_standard_dist[, curr_assigned_dist_group], 
-          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_1ord, centered_cluster_dist_beta_1ord,
+          base_mu_rep, 1, beliefs_treatment_map_design_matrix, centered_cluster_beta_beliefs, centered_cluster_dist_beta_beliefs,
           mu_rep_type);
         
         if (multithreaded) {

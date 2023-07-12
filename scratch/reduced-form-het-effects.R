@@ -429,6 +429,8 @@ cov_analysis_data = analysis_data %>%
     )
 
 
+#### Fits
+
 probit_fit = analysis_data %>%
     feglm(
         dewormed ~ 0 + assigned_treatment:assigned_dist_group | county, 
@@ -727,7 +729,6 @@ term_dict = c(
         deworming = "Dewormed"
     )
 
-
 etable(
     judgement_fit,
     externality_fit, 
@@ -874,7 +875,7 @@ analysis_data = analysis_data %>%
 
 externality_any_fit = clean_externality_df %>%
     feglm(
-        dewormed ~  0 + frac_externality_knowledge:any_incentive + assigned_treatment:assigned_dist_group,
+        dewormed ~  0 + frac_externality_knowledge:any_incentive + assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
         cluster = ~cluster.id
     )
@@ -882,7 +883,7 @@ externality_any_fit = clean_externality_df %>%
 
 judgement_any_fit = judge_analysis_data %>%
     feglm(
-        dewormed ~  0 + judge_score_dewor:any_incentive + assigned_treatment:assigned_dist_group,
+        dewormed ~  0 + judge_score_dewor:any_incentive + assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
         cluster = ~cluster.id
     )
@@ -904,34 +905,35 @@ cluster_knowledge_any_fit = feglm(
             0 + 
             cluster_obs_know_person:any_incentive  + 
             log(census_cluster_pop) + 
-            assigned_treatment:assigned_dist_group,
+            assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
         cluster = ~cluster.id
     )
 
 fractionalisation_any_fit = analysis_data %>%
     feglm(
-        dewormed ~  0 + fractionalisation:any_incentive + assigned_treatment:assigned_dist_group,
+        dewormed ~  0 + fractionalisation:any_incentive + assigned_treatment:assigned_dist_group | county,
         family = binomial(link = "probit"),
         cluster = ~cluster.id
     )
 
+coef(judgement_any_fit) %>% length()
 het_any_tests = list(
     car::lht(
         judgement_any_fit, 
-        c(1, -1, rep(0, 8))
+        c(1, -1, rep(0, length(coef(judgement_any_fit)) - 2))
     ),
     car::lht(
         externality_any_fit, 
-        c(1, -1, rep(0, 8))
+        c(1, -1, rep(0, length(coef(externality_any_fit)) - 2))
     ),
     car::lht(
         cluster_knowledge_any_fit,
-        c(0, 1, -1, rep(0, 8))
+        c(0, 1, -1, rep(0, length(coef(cluster_knowledge_any_fit)) - 3))
     ),
     car::lht(
         fractionalisation_any_fit, 
-        c(1, -1, rep(0, 8))
+        c(1, -1, rep(0, length(coef(fractionalisation_any_fit)) - 2))
     )
 )
 

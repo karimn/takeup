@@ -28,29 +28,26 @@ Options:
   --save-rds  Save RDS object (default is to save cmdstanr files to csv)
 "),
 
-  # args = if (interactive()) "fit --sequential --outputname=dist_fit28 --update-output" else commandArgs(trailingOnly = TRUE) 
-  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=STRUCTURAL_LINEAR_U_SHOCKS --cmdstanr --include-paths=stan_models --threads=3 --num-mix-groups=1" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup prior --sequential --outputname=test --output-path=data/stan_analysis_data --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --threads=3" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "beliefs fit --chains=8 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --iter=1000 --no-dist" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --models=REDUCED_FORM_NO_RESTRICT --output-path=data/stan_analysis_data --include-paths=stan_models --threads=3 --update --outputname=test --multilevel --age --sequential" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "dist fit --chains=4 --iter 800 --outputname=test --output-path=data/stan_analysis_data --include-paths=stan_models --num-mix-groups=1 --multilevel" else commandArgs(trailingOnly = TRUE)
-  # args = if (interactive()) "takeup fit --cmdstanr --outputname=test --models=STRUCTURAL_LINEAR_U_SHOCKS --output-path=data/stan_analysis_data --force-iter --iter=20 --threads=3 --sequential" else commandArgs(trailingOnly = TRUE)
   args = if (interactive()) "
-    takeup fit \
+    takeup prior \
     --cmdstanr \
-    --outputname=dist_fit93 \
-    --models=REDUCED_FORM_NO_RESTRICT_DIST_CTS  \
+    --outputname=dist_prior95 \
+    --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB \
     --output-path=data/stan_analysis_data \
     --threads=3 \
     --iter 800 \
+    --chains=4 \
     --sequential  \
-    --county-fe \
-    --multilevel \ 
     --update
     " else commandArgs(trailingOnly = TRUE)
   # args = if (interactive()) "takeup cv --models=REDUCED_FORM_NO_RESTRICT --cmdstanr --include-paths=stan_models --update --output-path=data/stan_analysis_data --outputname=test --folds=2 --sequential" else commandArgs(trailingOnly = TRUE)
 
 ) 
+
+
+
+    # --county-fe \
+    # --multilevel \
 
 library(magrittr)
 library(tidyverse)
@@ -178,7 +175,7 @@ models <- lst(
     use_binomial = FALSE,
     use_cost_model = cost_model_types["param_linear"],
     use_private_incentive_restrictions = FALSE,
-    use_cluster_effects = FALSE,
+    use_cluster_effects = script_options$multilevel,
     use_county_effects = script_options$multilevel,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
@@ -196,6 +193,8 @@ models <- lst(
     alg_sol_max_steps = 1e9L,
     alg_sol_rel_tol = 0.0000001,
 
+    # FOB or SOB Beliefs, default FOB
+    BELIEFS_ORDER = 1,
 
     # Priors
     mu_rep_sd = 0.25,
@@ -207,8 +206,8 @@ models <- lst(
     beta_calendar_effect_sd = 0.25,
     beta_bracelet_effect_sd = 0.25,
     
-    structural_beta_county_sd_sd = 0.05,
-    structural_beta_cluster_sd_sd = 0.25,
+    structural_beta_county_sd_sd = 0.1,
+    structural_beta_cluster_sd_sd = 0.1,
     
     wtp_value_utility_sd = 0.0001,
     wtp_value_utility_mean = 0.0,
@@ -244,7 +243,7 @@ models <- lst(
       use_binomial = FALSE,
       use_cost_model = cost_model_types["param_linear"],
       use_private_incentive_restrictions = FALSE,
-      use_cluster_effects = FALSE,
+      use_cluster_effects = script_options$multilevel,
       use_county_effects = script_options$multilevel,
       use_param_dist_cluster_effects = FALSE,
       use_param_dist_county_effects = FALSE,
@@ -304,8 +303,8 @@ models <- lst(
     use_binomial = FALSE,
     use_cost_model = cost_model_types["param_linear"],
     use_private_incentive_restrictions = TRUE,
-    use_cluster_effects = TRUE,
-    use_county_effects = TRUE,
+    use_cluster_effects = script_options$multilevel,
+    use_county_effects = script_options$multilevel,
     use_param_dist_cluster_effects = FALSE,
     use_param_dist_county_effects = FALSE,
     suppress_reputation = FALSE,
@@ -378,6 +377,7 @@ models <- lst(
       list_modify(
         use_dist_cts = TRUE
       ),
+
     STRUCTURAL_LINEAR_U_SHOCKS_NO_SUBMODELS = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
       list_modify(
         fit_wtp_model_to_data = FALSE,
@@ -449,6 +449,51 @@ models <- lst(
         mu_rep_type = 4, # phat mu rep
         fit_beliefs_model_to_data = FALSE,
         fit_wtp_model_to_data = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 1,
+        mu_rep_type = 4,
+        use_cluster_effects = TRUE,
+        use_county_effects = TRUE,
+        structural_beta_county_sd_sd = 0.1,
+        structural_beta_cluster_sd_sd = 0.1
+
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = TRUE,
+        use_county_effects = TRUE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = TRUE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_FOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 1,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = TRUE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_SOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 2,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = FALSE
+      ),
+    STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB = .$STRUCTURAL_LINEAR_U_SHOCKS %>% 
+      list_modify(
+        BELIEFS_ORDER = 1,
+        mu_rep_type = 4,
+        use_cluster_effects = FALSE,
+        use_county_effects = FALSE
       )
 )
 
@@ -508,17 +553,7 @@ analysis_data %<>%
   ))
 
 beliefs_ate_pairs <- cluster_treatment_map %>% 
-  #   if (script_options$no_dist) {
-  #     distinct(., assigned_treatment)
-  #   } else .
-  # } %>%  
-  # filter(fct_match(assigned_dist_group, "close")) %>% 
   mutate(treatment_id = seq(n())) %>% {
-    # if (script_options$no_dist) {
-    #   mutate(., treatment_id_control = 1) %>% 
-    #     filter(treatment_id != treatment_id_control) %>% 
-    #     select(treatment_id, treatment_id_control)
-    # } else { 
       bind_rows(
         left_join(., filter(., fct_match(assigned_treatment, "control")), by = c("assigned_dist_group"), suffix = c("", "_control")) %>% 
           filter(assigned_treatment != assigned_treatment_control) %>% 
@@ -547,14 +582,15 @@ if (script_options$gen_optim) {
 
 stan_data <- lst(
   # Distance Model
-  use_dist_county_effects = script_options$multilevel,
-  use_dist_cluster_effects = script_options$multilevel,
+  use_dist_county_effects = FALSE, # script_options$multilevel
+  use_dist_cluster_effects = FALSE, # script_options$multilevel
+
   
   # Beliefs Model 
-  beliefs_use_stratum_level = script_options$multilevel,
-  beliefs_use_cluster_level = script_options$multilevel,
-  beliefs_use_obs_level = script_options$multilevel,
-  beliefs_use_indiv_intercept = script_options$multilevel,
+  beliefs_use_stratum_level = FALSE, # script_options$multilevel
+  beliefs_use_cluster_level = FALSE, # script_options$multilevel
+  beliefs_use_obs_level = FALSE, # script_options$multilevel
+  beliefs_use_indiv_intercept = FALSE, #script_options$multilevel,
   beliefs_use_dist = !(script_options$no_dist %||% FALSE),
   
   know_table_A_sample_size = 10,
@@ -691,6 +727,9 @@ stan_data <- lst(
 ) %>% 
   list_modify(!!!map(models, pluck, "model_type") %>% set_names(~ str_c("MODEL_TYPE_", .))) %>% 
   list_modify(!!!wtp_stan_data) 
+
+
+
 if (script_options$sbc & !script_options$takeup) {
   stop("Not yet implemented")
 }

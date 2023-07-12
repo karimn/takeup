@@ -19,11 +19,17 @@ Options:
   
   "), 
   args = if (interactive()) "
-  93
+  95
   --cores=1 
+  --output-path=tmp
   --load-from-csv 
-  --single-chain" else commandArgs(trailingOnly = TRUE)
+  " else commandArgs(trailingOnly = TRUE)
 )
+
+  # --single-chain
+  # --no-prior
+  # --no-rate-of-change
+  # --models=STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
 
 library(magrittr)
 library(tidyverse)
@@ -139,6 +145,11 @@ model_info <- tribble(
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_WTP_SUBMODEL",             "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_BELIEFS_SUBMODEL",          "Structural",                                         "structural",
   "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_NO_SUBMODELS",          "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_FOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_HIER_SOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_STRATA_SOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_SOB",             "Structural",                                         "structural",
+  "STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB",             "Structural",                                         "structural",
 
 
   
@@ -163,9 +174,17 @@ dist_fit_data <- tryCatch({
   if (!is_null(script_options$models)) {
     dist_fit %<>%  magrittr::extract(script_options$models)
   }
+
+
+
+#  dist_fit_present_lgl = dist_fit %>% map(~str_c(str_remove(.x, fixed(".rds")), r"{-1.csv}")) %>%
+#    map_lgl(file.exists)
+
+#  dist_fit = dist_fit[dist_fit_present_lgl]
   
   dist_fit %<>% 
-    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL))) 
+    map_if(is.character, ~ tryCatch(load_fit(.x), error = function(err) load_fit(.x, param = NULL)))  
+    
 
   if (has_name(dist_fit, "value")) {
     dist_fit_warnings <- dist_fit$warning
@@ -536,7 +555,7 @@ dist_fit_data %<>%
     # for RF model, we only want to use close distances in the close group and 
     # far distances in the far group when averaging across all clusters to get 
     # takeup levels.
-    est_takeup_level = list(cluster_cf_cutoff, map_lgl(model_type, fct_match, "reduced form")) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
+    est_takeup_level = list(cluster_cf_cutoff, TRUE) %>% # FALSE, map_lgl(model_type, fct_match, "structural")) %>%  
       pmap(organize_by_treatment,  mu_assigned_treatment, assigned_treatment, assigned_dist_group) %>% 
       map2(cluster_cf_cutoff,
            ~ filter(.y, assigned_dist_group_obs == assigned_dist_group) %>%
@@ -585,8 +604,8 @@ if (!script_options$no_rate_of_change) {
           mutate(.x, iter_data = map(iter_data, ~ mutate(.x, iter_est = iter_est * .y), sd(.y$analysis_data$cluster.dist.to.pot))) %>% 
             summarize_roc()
         }
-      }),
-      sim_delta = map2(fit, stan_data, extract_sim_delta),
+      })
+      # sim_delta = map2(fit, stan_data, extract_sim_delta),
     )
 
   any_structural_models = any(dist_fit_data$model_type == "structural")
