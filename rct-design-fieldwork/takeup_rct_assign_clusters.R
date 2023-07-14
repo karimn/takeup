@@ -71,7 +71,6 @@ ggplot.clusters <- function(selected.clusters,
                             suppress.selected.clusters = FALSE,
                             caption = NULL,
                             ...) {
-  
   all.clusters <- gUnaryUnion(selected.clusters) 
  
   if (!is.null(.rct.schools.data)) {
@@ -94,39 +93,26 @@ ggplot.clusters <- function(selected.clusters,
       ggmap()
 
   if (!suppress.selected.clusters) {
-    map.obj <- map.obj + (selected.clusters %>% 
-                            spTransform(wgs.84) %>% 
-                            sf::st_as_sf() %>%
-                            geom_sf(aes(color = county), alpha = 0.2, linetype = "dashed", data = ., inherit.aes = FALSE))
+    cluster_polygons <- selected.clusters |>
+      spTransform(wgs.84) |>  
+      sf::st_as_sf()
+    
+    map.obj <- map.obj + geom_sf(aes(color = county), alpha = 0.5, linetype = "dashed", inherit.aes = FALSE, data = cluster_polygons)
   }
   
-  map.obj <- map.obj + (rct.schools.data %>% 
-                          spTransform(wgs.84) %>% {
-    # map.obj <- map.obj +
-    #   (magrittr::extract(., targetable.schools, ) %>% {
-    #      geom_point(aes(lon, lat), size = 1, color = "blue", data = as.data.frame(.)) 
-    #   }) 
-                  
-    # map.obj <- map.obj +
-    #   (magrittr::extract(., !targetable.schools, ) %>% {
-    #      geom_point(aes(lon, lat, color = county), size = 1, data = as.data.frame(.))
-    #   })
+  cluster_center <- spTransform(rct.schools.data, wgs.84)
   
-      # map.obj <- magrittr::extract(., .$cluster.id %in% selected.clusters$cluster.id, ) %>% { 
-      if (!suppress.selected.clusters) {
-        magrittr::extract(., .$cluster.id %in% selected.clusters$cluster.id, ) %>% { 
-          if (include.cluster.ids) {
-              # geom_point(aes(lon, lat), shape = 3, color = "red", data = as.data.frame(.)) +
-            geom_text(aes(lon, lat, label = cluster.id), data = as.data.frame(.))
-          } else {
-            geom_point(aes(lon, lat), shape = 3, data = as.data.frame(.)) 
-          } 
-        }
-      } else {
-        geom_point(aes(lon, lat), shape = 3, color = alpha("darkred", 0.5), data = as.data.frame(.))
-      }
-    }) 
-    # return(map.obj)
+  if (!suppress.selected.clusters) {
+    cluster_center %<>% magrittr::extract(., .$cluster.id %in% selected.clusters$cluster.id,)
+    
+    if (include.cluster.ids) {
+      map.obj <- map.obj + geom_text(aes(lon, lat, label = cluster.id), data = as.data.frame(cluster_center))
+    } else {
+      map.obj <- map.obj + geom_sf(inherit.aes = FALSE, shape = 3, data = sf::st_as_sf(cluster_center)) 
+    }
+  } else {
+    map.obj <- map.obj + geom_sf(inherit.aes = FALSE, shape = 3, color = alpha("darkred", 0.5), data = sf::st_as_sf(cluster_center))
+  }
   
   map.obj <- map.obj + geom_point(aes(lon, lat), shape = 3, size = 1, data = pilot.locations) +
     labs(x = "", y = "", caption = caption) +
