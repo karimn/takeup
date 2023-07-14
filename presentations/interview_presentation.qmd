@@ -660,6 +660,107 @@ plot_estimands = function(.data,
 
 ```
 
+## Second Order Beliefs about Observability
+
+```{r}
+#| label: belief-2ord-prop
+#| fig-height: 4
+
+plot_single_beliefs_est = function(beliefs_results_type_df, 
+                                    order, 
+                                    top_title = NULL, 
+                                    width = 0.3, 
+                                    crossbar_width = 0.2, 
+                                    vline = TRUE) {
+  pos_dodge <- position_dodge(width = width)
+  if (order == 1) {
+    str_title = "First Order Beliefs"
+  } else {
+    str_title = "Second Order Beliefs"
+  }
+
+
+
+  belief_plot = beliefs_results_type_df %>%
+    select(tidy_draws) %>%
+    unnest(tidy_draws) %>%
+    filter(str_detect(variable, as.character(order))) %>%
+    filter(dist_group %in% c("Close", "Far")) %>%
+    ggplot(aes(
+      y = treatment,
+      group = dist_group,
+      xmin = conf.low,
+      xmax = conf.high,
+      x = value
+    )) +
+      geom_linerange(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        size = 0.4,
+        data = . %>% filter(.width == 0.95)
+        ) +
+      geom_crossbar(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        fatten = 2, 
+        size = 0.4, 
+        width = crossbar_width,
+        data = . %>% filter(.width == 0.8)
+        ) +
+      geom_linerange(aes(
+        color = dist_group), 
+        position = pos_dodge, 
+        alpha = 0.4, 
+        size = 2.5,
+        data = . %>% filter(.width == 0.5)
+        ) +
+      geom_point(aes(color = dist_group), position = pos_dodge, size = 1.8) +
+      geom_point(position = pos_dodge, color = "white", size = 0.6) +
+      scale_y_discrete(drop = FALSE) +
+      scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) + 
+      labs(
+        title = str_title,
+        subtitle = "",
+        x = "", y = "") +
+      theme(
+        legend.position = "bottom"
+      ) + 
+      NULL
+
+  if (vline == TRUE) {
+    belief_plot = belief_plot +
+         geom_vline(xintercept = 0, linetype = "dotted") 
+  }
+        
+  return(belief_plot)
+}
+
+belief_2ord_prop_p = tidy_param_df %>%
+  filter(fct_match(fit_type, "fit")) %>%
+  filter(param == "belief_probs") %>%
+  plot_single_beliefs_est(
+    width = 0.7, 
+    order = 2,
+    crossbar_width = 0.4, 
+    vline = FALSE) +
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
+  labs(
+    x = "Proportion (%)"
+  ) +
+  scale_x_continuous(
+    labels = scales::label_percent(suffix = "")
+  )  +
+  default_plot_caption +
+    NULL
+
+belief_2ord_prop_p +
+  labs(
+    title = "Proportion reporting others know their deworming status", 
+    subtitle = ""
+    ) 
+```
+
 ## Average Treatment Effects
 
 $$
