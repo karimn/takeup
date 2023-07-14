@@ -1,0 +1,1127 @@
+---
+title: "Social Signaling and Prosocial Behavior"
+author: 
+  - name: Edward Jee
+    affiliations:
+      - name: University of Chicago
+  - name: Anne Karing
+    affiliations:
+      - name: University of Chicago
+  - Karim Naguib
+format: 
+  revealjs:
+    slide-number: c/t
+    self-contained: true
+    fig-align: center
+    pointer:
+      pointerSize: 18
+revealjs-plugins:
+  - pointer
+execute: 
+  echo: false
+  warning: false
+  cache: true
+params:
+  rf_fit_version: 95
+  fit_version: 95
+  struct_model: STRUCTURAL_LINEAR_U_SHOCKS_PHAT_MU_REP_FOB
+  rf_model: REDUCED_FORM_NO_RESTRICT
+  plot_caption: TRUE
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(magrittr)
+library(tidyverse)
+library(broom)
+library(ggrepel)
+library(ggmap)
+library(ggstance)
+library(gridExtra)
+library(cowplot)
+library(sf)
+library(rgeos)
+library(sp)
+library(rgeos)
+library(sp)
+library(knitr)
+library(modelr)
+library(car)
+library(rstan)
+library(latex2exp)
+library(ggthemes)
+library(here)
+
+library(econometr)
+
+source(here("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
+source(here("analysis_util.R"))
+source(here("dist_structural_util.R"))
+source(here("multilvlr", "multilvlr_util.R"))
+
+knitr::read_chunk(here("analysis_util.R"), labels = "analysis-util")
+
+options(dplyr.show_progress = FALSE, digits = 4, knitr.kable.NA = '')
+
+fit_version <- params$fit_version
+```
+
+```{r}
+#| label: plot-setup-stuff
+
+default_top_levels = c("Bracelet", "Combined")
+
+if (params$plot_caption) {
+  default_plot_caption = labs(
+    caption = "
+  Line range: 90% credible interval. 
+  Outer box: 80% credible interval. Inner box: 50% credible interval. 
+  Thick vertical line: median. Point: mean."
+  )
+} else {
+  default_plot_caption = labs(caption = "")
+}
+
+dist_caption =  if(params$plot_caption) {
+  labs(
+    caption = "Line: Median. Outer ribbon: 80% credible interval. Inner ribbon: 50% credible interval." 
+  )
+} else {
+  labs(caption = "")
+}
+
+
+
+models_we_want = c(
+  params$struct_model,
+  params$rf_model
+)
+
+
+quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
+
+
+output_basepath = here("temp-data/output_dist_fit{fit_version}")
+dir.create(output_basepath, showWarnings = FALSE)
+canva_palette_vibrant <- "Primary colors with a vibrant twist"
+
+theme_set(theme_minimal() +
+            theme(legend.position = "bottom"))
+
+wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
+
+rct.schools.data <- read_rds(here("data", "takeup_rct_schools.rds"))
+rct.cluster.selection <- read_rds(here("data", "rct_cluster_selection_2.0.rds"))
+cluster.strat.data <- read_rds(here("data", "takeup_processed_cluster_strat.rds"))
+
+load(here("data", "takeup_village_pot_dist.RData"))
+
+load(here("data", "analysis.RData"))
+
+standardize <- as_mapper(~ (.) / sd(.))
+unstandardize <- function(standardized, original) standardized * sd(original)
+
+nosms_data <- analysis.data %>% 
+  filter(sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+monitored_nosms_data <- analysis.data %>% 
+  filter(mon_status == "monitored", sms.treatment.2 == "sms.control") %>% 
+  left_join(village.centers %>% select(cluster.id, cluster.dist.to.pot = dist.to.pot),
+            by = "cluster.id") %>% 
+  mutate(standard_cluster.dist.to.pot = standardize(cluster.dist.to.pot)) %>% 
+  group_by(cluster.id) %>% 
+  mutate(cluster_id = cur_group_id()) %>% 
+  ungroup()
+
+analysis_data <- monitored_nosms_data
+
+sd_of_dist = sd(analysis_data$cluster.dist.to.pot)
+
+default_ate_limits = c(-0.125, 0.15)
+```
+
+# Introduction
+
+## Motivation
+
+* Markets often fail to achieve socially optimal outcomes. 
+    - Governments shape economic incentives - cost and benefits of actions - to realign individual choices. 
+* Yet, these very individual choices are frequently also governed by social norms: they carry reputational costs and benefits.
+    - Individuals take visible actions to signal their type. 
+* Reputational incentives can interact with economic incentives, mitigating or amplifying their effects.
+
+## Research Question 
+
+**How do changes in economic incentives interact with reputational incentives?** 
+
+1. How does the opportunity to signal take-up affect individuals’ decision to deworm?
+2. How does changing distance affect take-up and the reputational returns from deworming?
+    - Do these changes mitigate or amplify the impact of cost on take-up?
+3. What is the optimal allocation of deworming treatment locations in the presence of social multiplier effects?
+
+## Setting: National Mass Deworming Program in Kenya
+  
+* Existing program: school-based mass treatment program.
+* We study prosocial incentives by expanding the program to adults. 
+    - Low private returns.
+    - Social benefit through reduction of disease transmission.
+
+## Experiment
+
+* Vary social norm concerns: increase the visibility of deworming decisions through signal. 
+* Vary the cost of deworming: distance to point of treatment.
+* Implement the experiment at scale in three counties.
+    - Common knowledge of program.
+
+## Treatment Assignment    
+
+<!-- ![](`r here::here("images", "exp_diagram_nosms.jpg")`) -->
+![](../images/exp_diagram_nosms.jpg)
+
+## Experiment Clusters 
+
+```{r}
+#| label: cluster-map
+#| message: false
+#| warning: false
+#| fig-width: 10 
+#| fig-height: 10
+#| fig-align: center
+
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = FALSE, source = "stamen", maptype = "toner") +
+  theme(legend.position = "none", axis.text = element_blank())
+```
+
+# Model
+
+## Theoretical Behavioral Model
+
+$$
+U_i(y;v,\mu) =  B_i(y;v)  + \overbrace{\mu\textrm{E}_{-i}[V\mid y]}^{\textrm{reputational returns}}
+$$
+
+* Prosocial activity/participation, $y \in \{0, 1\}$.
+* Net private benefit of deworming, $B_i(y;v)$.
+* Prosocial type, $V \sim F_V$.
+* $\textrm{E}_{-i}[V\mid y]$ is the inference that others make about own type $v$ based on your action $y$.
+* Visibility of $y$ and desirability to signal, $\mu = x \cdot \lambda$.
+
+::: {.notes}
+
+* Net private benefit includes returns from $v$.
+* Prosocial type, $v$, is unobservable.
+
+:::
+
+## Equilibrium
+
+$$
+B(y=1;v^*) + \mu \Delta[v^*] = 0
+$$
+
+where
+$$
+\begin{align*}
+\Delta[v^*] &= \textrm{E}[{V \mid y =1}] - \textrm{E}[{V\mid y =0}] \\&= \overbrace{\textrm{E}[{V \mid V > v^*}]}^{\textrm{honor}} - \overbrace{\textrm{E}[{V \mid V \leq v^*}]}^{\textrm{stigma}}
+\end{align*}
+$$
+
+
+::: {.notes}
+
+* Equilibrium $v$ is the cutoff prosocial type above which there is take-up, and not otherwise.
+* Assuming that the private value of no take-up is zero.
+
+:::
+
+## Statistical Model
+
+$$
+\textrm{E}[Y_i \mid z,d] = \Pr\left[B_{j[i]}(z,d) + \mu(z,d)\Delta[w_{j[i]}^*(z,d)] + \overbrace{V_i + U_i}^{W_i} > 0\right]
+$$
+
+* $z \in \{\textrm{contol, ink, calendar, bracelet}\}$. 
+* $d \in\{\textrm{close, far}\}$.
+* $\mu(z,d) = x(z,d) \cdot \lambda$ visibility as a function of distance. 
+* $U$ second source of unobservable heterogeneity, cost or taste shocks.  
+
+::: {.notes}
+
+* $W$ is normally distributed, so this is a probit model.
+* Subscript $j$ represents the cluster: we model county and village level heterogeneity.
+* Differences from theoretical model:
+  - _Perceived_ observability responds to both incentive and distance.
+  - Shocks in the model combine both the prosocial type and a non-structural shock. This non-structural shock confounds inference about types conditional on take-up.
+
+:::
+
+## Statistical Model
+
+$$
+\textrm{E}[Y_i \mid z,d] = \Pr\left[B_{j[i]}(z,d) + \mu(z,d)\Delta[w_{j[i]}^*(z,d)] + \overbrace{V_i + U_i}^{W_i} > 0\right]
+$$
+
+where $B_j(z,d) = \beta_j(z) - \delta \cdot d$
+
+* $\beta_j(\textrm{calendar}) = \beta_j(\textrm{bracelet}) + \gamma^\textrm{wtp}\cdot\mu^\textrm{wtp}$.
+
+and $w_j^*(z,d)$ is implicitly defined as
+
+$$
+\begin{align*}
+w_j^*(z,d) &= - B_j(z,d) - \mu(z,d)\Delta[w_j^*(z,d)] 
+\end{align*}
+$$
+
+::: {.notes}
+
+* Private benefit is a simple linear model
+* Reputational benefit is a nonlinear component based on individuals' beliefs about others' perception of their type. In equilibrium we define this as $w^*$, common for all in a cluster/village.
+
+:::
+
+## Net Reputational Returns 
+
+:::: {.columns}
+
+::: {.column width="30%"}
+
+$$
+\begin{align*}
+W &= U + V \\
+U &\sim \mathtt{Normal}(0, \sigma_u) \\
+V &\sim \mathtt{Normal}(0, 1)
+\end{align*}
+$$
+
+:::
+
+::: {.column width="70%"}
+
+```{r}
+#| label: net-rep-returns
+#| fig-width: 10
+#| fig-height: 8 
+
+
+sim_int <- expand.grid(
+  w = seq(-2, 2, 0.1),
+  u_sd = seq(0.0, 2.0, 0.05),
+  mu = seq(0.1, 1, 0.05)
+) %>% 
+  filter(u_sd == 0 | mu == 1) %>% 
+  rowwise() %>% 
+  mutate(
+    mu_delta = mu * calculate_delta(w, sqrt(1 + u_sd^2), u_sd),
+    mu_delta_deriv = mu * calculate_delta_deriv(w, sqrt(1 + u_sd^2), u_sd)
+  ) %>% 
+  ungroup() %>% 
+  pivot_longer(c(mu_delta, mu_delta_deriv), names_to = "delta_type")
+
+
+sim_ints_u_we_want = unique(sim_int$u_sd)[seq(from = 3, to = length(unique(sim_int$u_sd)) - 3, length.out = 3)]
+
+text_df = tibble(
+  w = c(-1.5, 0, 1.5), 
+  text = c("Respectable Acts", "Modal Acts", "Admirable Acts")
+) %>% 
+  mutate(
+    value = calculate_delta(w, sqrt(1 + sim_ints_u_we_want[2]^2), sim_ints_u_we_want[2])
+  )
+
+sigma_text_df = sim_int %>%
+      filter(w == -2) %>%
+      filter(u_sd %in% c(0.5, 1, 1.5)) %>%
+      filter(
+        delta_type == "mu_delta"
+      )
+
+
+sim_int %>% 
+  filter(delta_type == "mu_delta") %>%
+  filter(mu == 1)  %>%
+  mutate(
+    alpha = case_when(
+      u_sd  == 1 ~ 1, 
+      u_sd %in% sigma_text_df$u_sd ~ 0.3, 
+      TRUE ~ 0 
+      )
+  )  %>%
+  ggplot(aes(w, value, alpha = alpha)) +
+  geom_line(
+    aes(group = u_sd)
+  ) +
+  geom_text(
+    inherit.aes = FALSE,
+    data = text_df, 
+    aes(
+      x = w, 
+      y = value*1.1, 
+      label = text)
+  ) +
+  annotate(
+    "text", 
+    x = c(2, 2, 2), 
+    y = sigma_text_df$value*0.95, 
+    label = c(
+      TeX("$\\sigma_u = 0.5$"),
+      TeX("$\\sigma_u = 1$"),
+      TeX("$\\sigma_u = 1.5$")
+    ),
+    alpha = 0.6,
+  hjust=0.5, size = 4, parse = TRUE,
+  vjust = 1
+  ) +
+  labs(
+    x = latex2exp::TeX("$w^*$"),
+    y = latex2exp::TeX(r"{$\mu\Delta\[w^*\]$}")
+  ) +
+  guides(alpha = "none") +
+  theme_minimal() +
+  NULL
+```
+
+:::
+
+::::
+
+::: {.notes}
+
+* As $w^*$ gets higher fewer people participate, only the most honorable. 
+* As it is lower this is social norm that few would deviate from.
+* Note that as $w^*$ gets higher, potentially due to increased costs, we predict some _mitigation_ effect because of signaling.
+* Note that as the variance of $U$ grows bigger, take-up becomes a noiser signal of type.
+
+:::
+
+## Sources of Data
+
+* Observed take-up in response to assigned incentive and distance treatments. 
+  - Identifies: $\beta_j(z), \delta, \sigma_u$.
+* Willingness-to-pay experiment to isolate private and social value of incentives. 
+  - Identifies: $\mu^\textrm{wtp}$.
+* Social observability beliefs data. 
+  - Identifies: $\mu(z,d) = \lambda\cdot\mathsf{logit}^{-1}(\beta^\textrm{bel}_z + \delta_z^\textrm{bel}\cdot d)$. 
+  
+::: {.notes}
+
+* We use two other "sub-models" to help identify $\mu$ and relative value of bracelets vs calendars.
+* These models are jointly fit with the main model.
+* These sub-models identify
+  - The willingness to pay to switch between calendar (assumed to be purely of private benefit) and bracelets
+  - What people believe about how observable their actions are to others
+
+:::
+
+# Results
+
+```{r}
+#| label: tidy-output-loading
+
+tidy_fit_param_df = bind_rows(
+  read_rds(
+    here(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_fit{params$fit_version}_{params$struct_model}_1-4.rds"
+      )
+    )
+  ),
+  read_rds(
+    here(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_fit{params$rf_fit_version}_{params$rf_model}_1-4.rds"
+      )
+    )
+  )
+)
+tidy_prior_param_df = bind_rows(
+  read_rds(
+    here(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_prior{params$fit_version}_{params$struct_model}_1-4.rds"
+      )
+    )
+  ),
+  read_rds(
+    here(
+      "temp-data",
+      str_glue(
+          "tidy_processed_dist_prior{params$rf_fit_version}_{params$rf_model}_1-4.rds"
+      )
+    )
+  ),
+
+)
+tidy_param_df = bind_rows(
+  tidy_fit_param_df,
+  tidy_prior_param_df
+)
+
+tidy_param_df = tidy_param_df %>%
+  mutate(
+    model_type = if_else(str_detect(model, "STRUCT"), "structural", "reduced form") %>% factor(),
+    fit_type = factor(fit_type),
+    model = factor(model)
+  )
+
+tidy_param_df = tidy_param_df %>%
+  mutate(
+    dist_present = map_lgl(tidy_draws, ~"dist_treatment" %in% colnames(.x)),
+    treat_present = map_lgl(tidy_draws, ~ "treatment" %in% colnames(.x)),
+    dist_group_present = map_lgl(tidy_draws, ~"dist_group" %in% colnames(.x)),
+    param = factor(param)
+    ) %>%
+  mutate(
+    # tidy_draws = map_if(tidy_draws, dist_present, ~mutate(.x, treatment = dist_treatment)),
+    # tidy_draws = map_if(
+    #   tidy_draws, 
+    #   dist_present | treat_present, 
+    #   ~mutate(.x, 
+    #     treatment = factor(treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+    #     treatment = fct_relabel(treatment, str_to_title)
+    # ),
+    # ),
+    tidy_draws = map_if(
+      tidy_draws,
+      dist_group_present,
+      ~mutate(
+        .x,
+        dist_group = factor(dist_group, levels = c("combined", "close", "far")),
+        dist_group = fct_relabel(dist_group, str_to_title)
+        )
+      ),
+      model_name = if_else(model_type == "structural", "Structural", "Reduced Form"),
+      # tidy_draws = map_if(
+      #   tidy_draws,
+      #   fct_match(param, "ates") & fct_match(model_type, "structural"),
+      #   ~mutate(.x,
+      #     mu_treatment = factor(mu_treatment, levels = c("bracelet", "calendar", "ink", "control")) %>% fct_rev,
+      #     mu_treatment = fct_relabel(mu_treatment, str_to_title)
+      #   )
+      # )
+  ) %>%
+  left_join(tribble(
+    ~ fit_type,        ~ model_color,
+      "fit",           "black", 
+      "prior-predict", "darkgrey",
+  ), by = "fit_type") 
+
+
+
+```
+
+```{r}
+#| label: plot-estimands-func
+
+plot_estimands = function(.data, 
+                           nested_data, 
+                           y, 
+                           results_group = model, 
+                           group_labels = NULL, 
+                           include_prior_predict = FALSE, 
+                           pos_height = 0.8, 
+                           center_bar_size = 3, 
+                           color_data = .data, 
+                           single_prior_predict = FALSE,
+                           top_levels = c("Bracelet", "Combined")) {
+                            # width = pos_height
+  plot_pos <- ggstance::position_dodgev(height = pos_height)
+  
+  if (single_prior_predict == TRUE) {
+    # Remove prior data that isn't first on plot. We keep data as NA so that 
+    # spacing/height-width ratio remains the same for other plots
+    .data = .data %>%
+      mutate({{ nested_data }} := map_if({{ nested_data }},
+          fct_match(fit_type, "prior-predict"), 
+          ~mutate(.x, 
+            across(
+              c(contains("conf"), value),
+              ~if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(dist_group,  top_levels[2])),
+                NA_real_,
+                .x 
+              )
+            )
+          )
+        )
+      ) 
+  # Can't set position in aes() so this does nothing for now
+  # eventually can just filter and add geoms twice 
+    .data = .data %>%
+      mutate({{ nested_data }} := map({{ nested_data }},
+          ~mutate(.x,
+            position = 
+              if_else(
+                !(fct_match({{ y }},  top_levels[1]) & fct_match(dist_group,  top_levels[2])),
+                0,
+                pos_height 
+              )
+          )
+        )
+      ) 
+  }
+
+  ggplot_obj <- if (include_prior_predict) {
+    subset_data = .data %>% 
+      unnest({{ nested_data }})
+    subset_data %>%
+      ggplot(aes(x = value, xmin = conf.low, xmax = conf.high, y = {{ y }}, group = model)) +
+      geom_linerange(
+        data = . %>% filter(.width == 0.9 & fct_match(fit_type, "prior-predict")),
+        alpha = 0.15, fatten = 3, size = 10, position = plot_pos) +
+      geom_linerange(
+        data = . %>% filter(fct_match(fit_type, "prior-predict"), .width == 0.8), alpha = 0.1, fatten = 3, size = 6, position = plot_pos) +
+      geom_linerange(
+        data = . %>% filter(fct_match(fit_type, "prior-predict"), .width == 0.5),
+        alpha = 0.1, 
+        fatten = 3, 
+        size = 4, 
+        position = plot_pos
+        ) +
+      NULL
+  } else {
+    .data %>% 
+      unnest({{ nested_data }}) %>% 
+      ggplot(aes(
+        x = value, 
+        xmin = conf.low,
+        xmax = conf.high,
+        y = {{ y }}, 
+        group = {{ results_group }})) 
+  }
+  
+  ggplot_obj <- ggplot_obj +
+    geom_linerange(aes(
+      color = {{ results_group }}), 
+      alpha = 0.4, 
+      size = center_bar_size,
+      position = plot_pos,
+      data = .data %>%
+        unnest({{ nested_data }}) %>%
+        filter(.width == 0.5)
+      )  +
+    geom_crossbar(aes(
+      color = {{ results_group }}), 
+      fatten = 0, size = 0.4, width = 0.5, position = plot_pos,
+      data = .data %>%
+        unnest({{ nested_data }}) %>%
+        filter(.width == 0.8)
+      ) +
+    geom_linerange(aes(
+      color = {{ results_group }}), size = 0.4, position = plot_pos,
+      data = .data %>%
+        unnest({{ nested_data }}) %>%
+        filter(.width == 0.9)
+      ) +
+    geom_point(aes(color = {{ results_group }}), position = plot_pos) + 
+    geom_point(color = "white", size = 0.75, position = plot_pos) + 
+    geom_vline(xintercept = 0, linetype = "dotted") +
+    labs(
+      caption = #"Dotted line range: 98% credible interval. 
+                "Line range: 90% credible interval. 
+                 Outer box: 80% credible interval. Inner box: 50% credible interval. 
+                 Thick vertical line: median. Point: median."
+      
+    ) +
+    theme(legend.position = "top", legend.direction = "vertical") +
+    guides(color = guide_legend(ncol = 3)) +
+    NULL
+
+
+  if (!is_null(group_labels) || !is_null(color_data)) {
+    ggplot_obj <- ggplot_obj +
+      scale_color_manual("", 
+                         values = select(color_data, {{ results_group }}, model_color) %>% deframe(), 
+                         labels = if (is_null(group_labels)) { 
+                           color_data %>% 
+                             select(model, model_name) %>% 
+                             deframe() 
+                         } else {
+                           group_labels
+                         }, aesthetics = c("color", "fill"))  
+  }
+  ggplot_obj = ggplot_obj + 
+    scale_y_discrete(drop = TRUE)
+  
+  return(ggplot_obj)
+}
+
+```
+
+## Average Treatment Effects
+
+$$
+\textrm{E}[Y(z, z, d)] - \textrm{E}[Y(\textrm{control, control}, d)]
+$$
+
+```{r}
+#| label: structural-incentive-ate-plot
+#| fig-align: center
+
+structural_incentive_ate_plot = tidy_param_df %>%
+  filter(
+    fct_match(model_type, "structural"),
+    fct_match(param, "ates")
+    ) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, estimand == "overall")) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, treatment != "Control")) %>%
+  plot_estimands(., 
+                 tidy_draws, 
+                 treatment, 
+                 results_group = fit_type, 
+                 single_prior_predict = TRUE, 
+                 include_prior_predict = FALSE,
+                 top_levels = default_top_levels) +
+    scale_x_continuous(
+      "", 
+      breaks = seq(-0.2, 0.2, 0.05), 
+      limits = default_ate_limits) +
+    scale_y_discrete("") +
+    labs(
+      # title = "Incentive Average Treatment Effect"
+    ) +
+    ggforce::facet_col(vars(dist_group), 
+                space = "free",
+                scales = "free_y") +
+    NULL  +
+    guides(colour = "none") +
+    theme_minimal()
+
+structural_incentive_ate_plot +
+  default_plot_caption 
+
+ggsave(
+  plot = structural_incentive_ate_plot,
+  filename = here(
+    output_basepath,
+    "structural-incentive-ate-plot.png"
+  ),
+  width = 7.5,
+  height = 5.0,
+  dpi = 500
+)
+```
+
+::: {.notes}
+
+$$
+Y(\textrm{private, social, distance})
+$$
+:::
+
+## Signaling Average Treatment Effects 
+
+$$
+\textrm{E}[Y(\textrm{control}, z, d)] - \textrm{E}[Y(\textrm{control, control}, d)]
+$$
+
+```{r}
+#| label: structural-signalling-ate-plot
+#| fig-align: center
+
+structural_signalling_ate_plot = tidy_param_df %>%
+  filter(
+    fct_match(model_type, "structural"),
+    fct_match(param, "ates")
+    ) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, estimand == "signal") |> map(\(d) filter(d, fct_match(mu_treatment, c("Bracelet", "Calendar", "Ink"))))) %>%
+      plot_estimands(., 
+                     tidy_draws, 
+                     mu_treatment, 
+                     results_group = fit_type,
+                     single_prior_predict = TRUE, 
+                     include_prior_predict = FALSE,
+                     top_levels = default_top_levels) +
+        scale_x_continuous("", breaks = seq(-0.2, 0.2, 0.05), 
+          limits = default_ate_limits
+        ) +
+        scale_y_discrete("", drop = TRUE) +
+        labs(
+          # title = "Signaling Average Treatment Effect",
+          # subtitle = str_glue("Holding private incentive at the control level.")
+          ) +
+        ggforce::facet_col(vars(dist_group), 
+                   space = "free",
+                   scales = "free_y") +
+        guides(colour = "none") +
+        NULL
+
+structural_signalling_ate_plot +
+  theme_minimal() +
+  default_plot_caption 
+```
+
+::: {.notes}
+
+$$
+Y(\textrm{private, social, distance})
+$$
+
+* It is challenging to compute the migitation effect of signaling; we cannot simply compare the ATE at different distances because we would be evaluating effects at different marginal individuals ($w^*$ is different).
+
+:::
+
+## Take-up Probability by Distance
+
+```{r}
+#| label: take-up-prob-with-obs-takeup-and-linerange
+
+dist_prob_plot = 
+tidy_param_df %>%
+  filter(
+    fct_match(fit_type, "fit"), 
+    fct_match(model_type, "structural")
+    ) %>% 
+  filter(
+    param == "prop_draws"
+  ) %>%
+  unnest(tidy_draws) %>%
+  filter(treatment %in% c("Bracelet", "Control")) %>%
+  filter(roc_distance <= 2500) %>%
+  ggplot(aes(
+    x = roc_distance / 1000,
+    y = value,
+    ymin = conf.low,
+    ymax = conf.high
+  )) +
+  geom_line(
+    aes(color = treatment)) +
+  geom_ribbon(
+    aes(fill = treatment), alpha = 0.3, 
+    data = . %>%  filter(.width == 0.5)) +
+  geom_ribbon(
+    aes(fill = treatment), 
+    alpha = 0.3, 
+    data = . %>%  filter(.width == 0.9))  +
+  geom_rug(
+    inherit.aes = FALSE,
+    aes(dist, color = treatment),
+    alpha = 0.5,
+    data = analysis_data %>%
+      distinct(cluster_id, assigned.treatment, dist = cluster.dist.to.pot / 1000) %>% 
+      rename(assigned_treatment = assigned.treatment)  %>%
+      filter(assigned_treatment %in% c("control", "bracelet")) %>%
+      mutate(treatment = str_to_title(assigned_treatment))
+  ) +
+  labs(
+    x = "Distance to Treatment (d) [km]", y = latex2exp::TeX("Take-up Probability, $1 - F_w(w^*(z,d))$") ,
+  ) +
+  coord_cartesian(xlim = c(0, 2.5), ylim = c(0, 0.55)) +
+  NULL
+
+dist_prob_plot +
+  # geom_linerange(aes(assigned_dist_obs / 1000, ymin = per_0.1, ymax = per_0.9, color = assigned_treatment), data = . %>% unnest(obs_cluster_takeup_level)) +
+  # geom_point(aes(assigned_dist_obs / 1000, y = obs_prop_takeup, colour = assigned_treatment), size = 0.5, show.legend = FALSE, data = . %>% unnest(obs_cluster_takeup_level)) +
+  geom_point(
+    inherit.aes = FALSE,
+    data = 
+      analysis_data %>%
+        group_by(cluster_id) %>%
+        summarise(
+          obs_pr_takeup = mean(dewormed),
+          dist = unique(cluster.dist.to.pot) / 1000,
+          treatment = unique(assigned.treatment)
+        ) %>%
+            filter(treatment %in% c("control", "bracelet")) %>%
+            mutate(treatment = str_to_title(treatment)),
+    aes(x = dist, y = obs_pr_takeup, colour = treatment), show.legend = FALSE, 
+    alpha = 0.3
+    ) + 
+  # scale_color_discrete("", labels = str_to_title, aesthetics = c("color", "fill")) +
+  ggthemes::scale_color_canva(
+    palette = canva_palette_vibrant, 
+    labels = str_to_title
+  ) +
+  ggthemes::scale_fill_canva(
+    palette = canva_palette_vibrant,
+    labels = str_to_title
+  ) +
+  # facet_wrap(vars(assigned_treatment), labeller = labeller(assigned_treatment = str_to_title)) +
+  # facet_grid(rows = vars(assigned_treatment), cols = vars(model_name), labeller = labeller(.default = str_to_title)) +
+  theme(legend.position = "bottom") +
+  dist_caption + 
+  labs(colour = "", fill = "") +
+  NULL
+
+```
+
+::: {.notes}
+
+* Again we can't simply compare slopes at every $d$ because of different marginal individuals.
+
+:::
+
+## Take-up Rate of Change
+
+We want to estimate the causal impact of signals on the _take-up rate-of-change with respect to distance_, holding $d$ and $w^*$ fixed.
+
+$$
+\frac{\partial\textrm{E}[Y(z,d,w)]}{\partial d}\Biggr|_{\substack{z\\d = \tilde{d}\\w=w^*(\textrm{control}, \tilde{d})}} = f_W(w)\cdot\overbrace{\left[- \frac{\partial w^*}{\partial d}\right]}^{\textrm{social multiplier}}
+$$
+
+::: {.notes}
+
+* Here compare the slope of proportion of take-up but holding the marginal population fixed.
+
+:::
+
+---
+
+```{r}
+#| label: social-multiplier
+
+sm_df =  bind_rows(
+  tidy_param_df %>%
+    filter(fit_type == "fit") %>%
+    filter(param == "sm_draws") %>%
+    select(tidy_draws) %>%
+    pull() %>%
+    first() %>%
+    mutate(fit_type = "fit"),
+  tidy_param_df %>%
+    filter(fit_type == "prior-predict") %>%
+    filter(param == "sm_draws") %>%
+    select(tidy_draws) %>%
+    pull() %>%
+    first() %>%
+    mutate(fit_type = "prior-predict")
+)
+
+plot_sm = function(sm_df, plot_prior = FALSE, plot_uncertainty = FALSE) {
+  sm_df = sm_df %>%
+    filter(roc_distance > 0) %>%
+    filter(roc_distance <= 2500) %>%
+    mutate(roc_distance = roc_distance/1000)
+
+  fit_sm_df = sm_df %>%
+    filter(fit_type == "fit")
+  sm_treats = sm_df$treatment %>% unique()
+  prior_sm_df = sm_df %>%
+    filter(fit_type == "prior-predict")  %>%
+    filter(treatment == sm_treats[[1]])
+
+
+  p_sm = fit_sm_df %>%
+    ggplot(aes(
+      x = roc_distance,
+      y = value,
+      fill = treatment
+    )) +
+    geom_line(aes(y = value, color = treatment)) +
+    scale_color_discrete("", aesthetics = c("color", "fill"), labels = str_to_title) +
+    labs(
+      x = "Distance to Treatment (d) [km]" ,
+    y = "Social Multiplier"
+    )  +
+    scale_fill_canva(
+      "",
+      palette = canva_palette_vibrant
+    ) +
+    scale_color_canva(
+      "",
+      palette = canva_palette_vibrant
+    ) +
+    geom_hline(yintercept = -1, linetype = "longdash" )
+
+
+  if (plot_prior) {
+    p_sm = p_sm + 
+    # prior
+    geom_line(data = 
+      prior_sm_df,
+    aes(y = value), 
+    color = "grey", 
+    linewidth = 1, 
+    linetype = "longdash"
+    ) 
+}
+
+  if (plot_uncertainty) {
+
+    p_sm = p_sm + 
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = . %>% filter(.width == 0.9),
+        alpha = 0.4
+      ) +
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = . %>% filter(.width == 0.5),
+        alpha = 0.4
+      ) 
+  }
+
+  if (plot_uncertainty & plot_prior) {
+    p_sm = p_sm + 
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = prior_sm_df %>% filter(.width == 0.9),
+        alpha = 0.4,
+        fill = "grey"
+      ) +
+      geom_ribbon(
+        aes(ymin = conf.low, ymax = conf.high),
+        data = prior_sm_df %>% filter(.width == 0.5),
+        alpha = 0.4,
+        fill = "grey"
+      ) 
+  }
+  return(p_sm)
+}
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+#| label: social-multiplier-uncertainty
+#| fig-width: 5
+#| fig-height: 5
+
+sm_df %>%
+  filter(variable == "sm_rescaled", fct_match(treatment, c("Bracelet", "Control"))) %>%
+  plot_sm(plot_prior = FALSE, plot_uncertainty = TRUE) +
+  annotate(
+    "text", 
+    x = 0.0 + 0.2, 
+    y = -1 - 0.02,
+    label = "Amplification", 
+    size = 3, 
+    alpha = 0.7
+  ) +
+  annotate(
+    "text", 
+    x = 2.5 , 
+    y = -1 + 0.02,
+    label = "Mitigation", 
+    size = 3,
+    alpha = 0.7
+  ) +
+  labs(title = "Social Multiplier") +
+  theme(legend.position = "bottom")
+```
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| label: rate-of-change-plot
+#| fig-width: 5
+#| fig-height: 4.7
+
+roc_df = tidy_param_df %>%
+  filter(param == "roc_draws") %>%
+  filter(fit_type == "fit", model_type == "structural") %>%
+  select(fit_type, model_type, tidy_draws) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, variable %in% c("cluster_roc", "cluster_roc_no_vis"))) %>%
+  unnest(tidy_draws) %>%
+  mutate(
+    roc_distance = roc_distance / 1000,
+    across(c(starts_with("conf"), value), divide_by, sd_of_dist),
+    across(c(starts_with("conf"), value), multiply_by, 1000*100)
+    ) %>%
+    filter(treatment %in% c("Bracelet", "Control")) %>%
+    filter(roc_distance <= 2.5) 
+
+roc_plot_df = tidy_param_df %>%
+  filter(param == "roc_draws") %>%
+  filter(model_type == "structural") %>%
+  select(fit_type, model_type, tidy_draws) %>%
+  mutate(tidy_draws = map(tidy_draws, filter, variable %in% c("cluster_roc", "cluster_roc_no_vis"))) %>%
+  unnest(tidy_draws) %>%
+  filter(
+    fit_type == "fit"| (fit_type == "prior-predict" & treatment == "Control")
+  ) %>%
+  mutate(
+    roc_distance = roc_distance / 1000,
+    across(c(starts_with("conf"), value), divide_by, sd_of_dist),
+    across(c(starts_with("conf"), value), multiply_by, 1000*100)
+    ) %>%
+    filter(treatment %in% c("Bracelet", "Control")) %>%
+    filter(roc_distance <= 2.5)
+    
+  roc_plot = roc_plot_df %>%  
+  filter(fit_type == "fit") %>%
+  filter(variable == "cluster_roc") %>%
+  ggplot(aes(
+    x = roc_distance,
+    y = value,
+    ymin = conf.low,
+    ymax = conf.high,
+    fill = treatment
+  )) +
+  geom_line(aes(colour = treatment)) +
+  geom_ribbon(
+    data = . %>% filter(.width == 0.5), alpha = 0.25
+  ) +
+  geom_ribbon(
+    data = . %>% filter(.width == 0.9), alpha = 0.25
+  ) +
+  geom_rug(
+    inherit.aes = FALSE,
+    aes(dist),
+    alpha = 0.75,
+    data = analysis_data %>%
+      filter(fct_match(assigned.treatment, c("control",  "bracelet"))) %>%
+      distinct(cluster_id, assigned_treatment = assigned.treatment, dist = cluster.dist.to.pot / 1000) %>%
+      mutate(treatment = str_to_title(assigned_treatment))
+      ) +
+  geom_line(
+      inherit.aes = FALSE, 
+      aes(x = roc_distance, y = value),
+      data = roc_df %>%
+          filter(variable == "cluster_roc_no_vis"),
+      linetype = "longdash"
+  )  +
+  annotate(
+      "text", 
+      x = 2.3, 
+      y = -9, 
+      label = "Amplification", 
+      size = 4, 
+      alpha = 0.7
+  ) +
+  annotate(
+      "text", 
+      x = 2.3, 
+      y = -7.5, 
+      label = "Mitigation", 
+      size = 4, 
+      alpha = 0.7
+  ) +
+  labs(
+    title = "Rate of Change",
+    x = "Distance to Treatment (d) [km]", y = latex2exp::TeX(r"{Rate of Change \[pp/km\]}") ,
+  ) +
+  theme(legend.position = "none") +
+  scale_color_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
+  scale_fill_canva("", labels = str_to_title, palette = canva_palette_vibrant) +
+  dist_caption +
+  NULL
+
+roc_plot
+```
+
+:::
+
+::::
+
+::: {.notes}
+
+
+
+:::
