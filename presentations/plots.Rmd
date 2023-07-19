@@ -52,6 +52,7 @@ library(car)
 library(rstan)
 library(latex2exp)
 library(ggthemes)
+library(here)
 
 library(econometr)
 
@@ -69,13 +70,13 @@ if (interactive()) {
   )
 }
 
-source(file.path("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
-source(file.path("analysis_util.R"))
-source(file.path("dist_structural_util.R"))
-source(file.path("multilvlr", "multilvlr_util.R"))
+source(here("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
+source(here("analysis_util.R"))
+source(here("dist_structural_util.R"))
+source(here("multilvlr", "multilvlr_util.R"))
 
 knitr::read_chunk(
-  file.path("analysis_util.R"), 
+  here("analysis_util.R"), 
   labels = "analysis-util"
 )
 
@@ -87,8 +88,8 @@ knitr::opts_chunk$set(
   warnings = FALSE, 
   warning = FALSE, 
   cache = params$cache, 
-  cache.path = str_glue("takeup-{params$struct_model}{params$fit_version}-figure-cache/"), 
-  fig.path = str_glue("takeup-{params$struct_model}{params$fit_version}-fig/"), 
+  cache.path = here(str_glue("takeup-{params$struct_model}{params$fit_version}-figure-cache/")), 
+  fig.path = here(str_glue("takeup-{params$struct_model}{params$fit_version}-fig/")), 
   fig.align = "center"
   )
 
@@ -142,7 +143,7 @@ models_we_want = c(
 quant_probs <- c(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99)
 
 
-output_basepath = str_glue("temp-data/output_dist_fit{fit_version}")
+output_basepath = here("temp-data/output_dist_fit{fit_version}")
 dir.create(output_basepath, showWarnings = FALSE)
 canva_palette_vibrant <- "Primary colors with a vibrant twist"
 
@@ -152,13 +153,13 @@ theme_set(theme_minimal() +
 wgs.84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 kenya.proj4 <- "+proj=utm +zone=36 +south +ellps=clrk80 +units=m +no_defs"
 
-rct.schools.data <- read_rds(file.path("data", "takeup_rct_schools.rds"))
-rct.cluster.selection <- read_rds(file.path("data", "rct_cluster_selection_2.0.rds"))
-cluster.strat.data <- read_rds(file.path("data", "takeup_processed_cluster_strat.rds"))
+rct.schools.data <- read_rds(here("data", "takeup_rct_schools.rds"))
+rct.cluster.selection <- read_rds(here("data", "rct_cluster_selection_2.0.rds"))
+cluster.strat.data <- read_rds(here("data", "takeup_processed_cluster_strat.rds"))
 
-load(file.path("data", "takeup_village_pot_dist.RData"))
+load(here("data", "takeup_village_pot_dist.RData"))
 
-load(file.path("data", "analysis.RData"))
+load(here("data", "analysis.RData"))
 
 standardize <- as_mapper(~ (.) / sd(.))
 unstandardize <- function(standardized, original) standardized * sd(original)
@@ -199,7 +200,7 @@ sd_of_dist = sd(analysis_data$cluster.dist.to.pot)
 
   component_files = map(
       c("control", "ink", "calendar", "bracelet"),
-      ~file.path(
+      ~here(
         "optim", 
         "data",
         str_glue(
@@ -282,7 +283,7 @@ long_struct_df %>%
 
 tidy_fit_param_df = bind_rows(
   read_rds(
-    file.path(
+    here(
       "temp-data",
       str_glue(
           "tidy_processed_dist_fit{params$fit_version}_{params$struct_model}_1-4.rds"
@@ -290,7 +291,7 @@ tidy_fit_param_df = bind_rows(
     )
   ),
   read_rds(
-    file.path(
+    here(
       "temp-data",
       str_glue(
           "tidy_processed_dist_fit{params$rf_fit_version}_{params$rf_model}_1-4.rds"
@@ -300,7 +301,7 @@ tidy_fit_param_df = bind_rows(
 )
 tidy_prior_param_df = bind_rows(
   read_rds(
-    file.path(
+    here(
       "temp-data",
       str_glue(
           "tidy_processed_dist_prior{params$fit_version}_{params$struct_model}_1-4.rds"
@@ -308,7 +309,7 @@ tidy_prior_param_df = bind_rows(
     )
   ),
   read_rds(
-    file.path(
+    here(
       "temp-data",
       str_glue(
           "tidy_processed_dist_prior{params$rf_fit_version}_{params$rf_model}_1-4.rds"
@@ -976,7 +977,7 @@ belief_te_1ord = tidy_param_df %>%
 
 ggsave(
   plot = belief_te_1ord + labs(subtitle = "Treatment Effects"),
-  file.path(
+  here(
     output_basepath, 
     str_glue("belief-te-1ord-plots.pdf")), 
     width = 8, height = 6, dpi = 500)
@@ -1013,7 +1014,7 @@ belief_te_2ord
 
 ggsave(
   plot = belief_te_2ord + labs(subtitle = "Trteatment Effects"),
-  file.path(output_basepath, str_glue("belief-te-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+  here(output_basepath, str_glue("belief-te-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 ```
 
 
@@ -1053,7 +1054,7 @@ belief_1ord_prop_p +
 
 ggsave(
   plot = belief_1ord_prop_p + labs(title = "First Order Beliefs", subtitle = "Proportion"),
-  file.path(output_basepath, str_glue("belief-prop-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+  here(output_basepath, str_glue("belief-prop-1ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 
 ```
 
@@ -1094,7 +1095,7 @@ belief_2ord_prop_p +
 
 ggsave(
   plot = belief_2ord_prop_p,
-  file.path(output_basepath, str_glue("belief-prop-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
+  here(output_basepath, str_glue("belief-prop-2ord-plots.png")), width = 7.5, height = 5.0, dpi = 500)
 ```
 
 #### Disagg Beliefs ####
@@ -1630,7 +1631,7 @@ reduced_incentive_level_plot +
 
 ggsave(
   plot = reduced_incentive_level_plot,
-  filename = file.path(
+  filename = here(
     output_basepath,
     "reduced-incentive-level-plot.png"
   ),
@@ -1680,7 +1681,7 @@ reduced_incentive_ate_plot +
 
 ggsave(
   plot = reduced_incentive_ate_plot,
-  filename = file.path(
+  filename = here(
     output_basepath,
     "reduced-incentive-ate-plot.png"
   ),
@@ -1745,7 +1746,7 @@ structural_signalling_ate_plot +
 
 ggsave(
   plot = structural_signalling_ate_plot,
-  filename = file.path(
+  filename = here(
     output_basepath,
     "structural-signaling-ate-plot.png"
   ),
@@ -1806,7 +1807,7 @@ structural_private_ate_plot +
 
 ggsave(
   plot = structural_private_ate_plot,
-  filename = file.path(
+  filename = here(
     output_basepath,
     "structural-private-ate-plot.pdf"
   ),
@@ -1871,7 +1872,7 @@ structural_incentive_ate_plot +
 
 ggsave(
   plot = structural_incentive_ate_plot,
-  filename = file.path(
+  filename = here(
     output_basepath,
     "structural-incentive-ate-plot.png"
   ),

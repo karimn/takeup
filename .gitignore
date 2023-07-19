@@ -67,3 +67,5 @@ stan_models/u_sd_prior_tune
 stan_models/u_sd_prior_tune.hpp
 
 takeup.Rproj
+
+/.quarto/

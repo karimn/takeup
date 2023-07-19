@@ -12,9 +12,6 @@ bibliography: /home/karim/Documents/library.bib
 ---
 
 ```{r takeup-present-setup, include=FALSE}
-if (interactive()) {
-  setwd("presentations/")
-}
 library(magrittr)
 library(tidyverse)
 library(broom)
@@ -32,14 +29,15 @@ library(car)
 library(rstan)
 library(latex2exp)
 library(ggthemes)
+library(here)
 
 library(econometr)
 
-source(file.path("..", "rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
-source(file.path("..", "analysis_util.R"))
-source(file.path("..", "dist_structural_util.R"))
+source(here("rct-design-fieldwork", "takeup_rct_assign_clusters.R"))
+source(here("analysis_util.R"))
+source(here("dist_structural_util.R"))
 
-knitr::read_chunk(file.path("..", "analysis_util.R"), labels = "analysis-util")
+knitr::read_chunk(here("analysis_util.R"), labels = "analysis-util")
 
 options(dplyr.show_progress = FALSE, digits = 4, knitr.kable.NA = '')
 
@@ -352,16 +350,14 @@ Two primary interventions:
 ## Site Selection
 
 ```{r all-clusters-map, message=FALSE, warning=FALSE, fig.width=7.5, fig.height=3.5}
-ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = FALSE, 
-                source = "stamen", maptype = "toner") +
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = FALSE, source = "stamen", maptype = "toner") +
   theme(legend.position = "none", axis.text = element_blank())
 ```
 
 ## Site Selection
 
 ```{r schools-map, message=FALSE, warning=FALSE, fig.width=7.5, fig.height=3.5}
-ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = TRUE, 
-                source = "stamen", maptype = "toner") +
+ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.selected.clusters = TRUE, source = "stamen", maptype = "toner") +
   theme(axis.text = element_blank())
 ```
     
