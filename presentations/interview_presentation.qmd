@@ -159,14 +159,22 @@ default_ate_limits = c(-0.125, 0.15)
     - Individuals take visible actions to signal their type. 
 * Reputational incentives can interact with economic incentives, mitigating or amplifying their effects.
 
+::: {.notes}
+
+Goal: to talk about the model used in this behavioral study. I don't want to spend too much time on the experiment and its context, but I still need to set the ground for the model.
+
+Signaling: the ability to make one's actions visible to one's peers, particularly useful when contributing to a public good.
+
+:::
+
 ## Research Question 
 
 **How do changes in economic incentives interact with reputational incentives?** 
 
-1. How does the opportunity to signal take-up affect individuals’ decision to deworm?
-2. How does changing distance affect take-up and the reputational returns from deworming?
-    - Do these changes mitigate or amplify the impact of cost on take-up?
-3. What is the optimal allocation of deworming treatment locations in the presence of social multiplier effects?
+1. How does the opportunity to signal affect individuals’ decisions?
+2. How does changing private costs or benefits affect actions and reputational returns?
+  <!-- - Do these changes mitigate or amplify the impact of cost on take-up? -->
+<!-- 3. What is the optimal allocation of deworming treatment locations in the presence of social multiplier effects? -->
 
 ## Setting: National Mass Deworming Program in Kenya
   
@@ -174,6 +182,13 @@ default_ate_limits = c(-0.125, 0.15)
 * We study prosocial incentives by expanding the program to adults. 
     - Low private returns.
     - Social benefit through reduction of disease transmission.
+    
+::: {.notes}
+
+* The national program aims to treat parasitic worm infection in children.
+* Expanding the program because it might stop or slow down reinfection.
+
+::: 
 
 ## Experiment
 
@@ -206,19 +221,25 @@ ggplot.clusters(rct.cluster.selection, include.cluster.ids = FALSE, suppress.sel
 ## Theoretical Behavioral Model
 
 $$
-U_i(y;v,\mu) =  B_i(y;v)  + \overbrace{\mu\textrm{E}_{-i}[V\mid y]}^{\textrm{reputational returns}}
+U_i(y;v,\mu) =  \overbrace{B_i(y;v)}^\textrm{private returns} + \overbrace{\mu\textrm{E}_{-i}[V\mid y]}^{\textrm{reputational returns}}
 $$
 
 * Prosocial activity/participation, $y \in \{0, 1\}$.
-* Net private benefit of deworming, $B_i(y;v)$.
 * Prosocial type, $V \sim F_V$.
+* Net private benefit of deworming, $B_i(y;v)$.
 * $\textrm{E}_{-i}[V\mid y]$ is the inference that others make about own type $v$ based on your action $y$.
 * Visibility of $y$ and desirability to signal, $\mu = x \cdot \lambda$.
 
 ::: {.notes}
 
+* Why are we using a structural model?
+  - To understand the underlying mechanisms: separating private and social returns.
+  - To estimate unobservable counterfactuals.
 * Net private benefit includes returns from $v$.
 * Prosocial type, $v$, is unobservable.
+* What we manipulate in the experiment:
+  - The private cost/benefit (using distance).
+  - The observability of action, $x$. 
 
 :::
 
@@ -240,6 +261,8 @@ $$
 
 * Equilibrium $v$ is the cutoff prosocial type above which there is take-up, and not otherwise.
 * Assuming that the private value of no take-up is zero.
+* We use a heirarchical Bayesian model. 
+* We are really doing model selection here, but we testing the bold conjecture the theoretical model makes about how private costs interact with signaling. 
 
 :::
 
@@ -285,7 +308,8 @@ $$
 ::: {.notes}
 
 * Private benefit is a simple linear model
-* Reputational benefit is a nonlinear component based on individuals' beliefs about others' perception of their type. In equilibrium we define this as $w^*$, common for all in a cluster/village.
+* Reputational benefit is a nonlinear component based on individuals' beliefs about others' perception of their type. In equilibrium we define this as $w^*$, common for all in a cluster/village. $w^*$ is similar to $v^*$ in the theoretical model but allows for confounding if $U$ is very noisy.
+* We need to calculate $w^*$, finding its fixed point equilibrium, using an algebraic solver available in the modeling language. We need to recompute it for every cluster and for every simulation iteration.
 
 :::
 
@@ -405,12 +429,16 @@ sim_int %>%
 
 ## Sources of Data
 
+::: {.incremental}
+
 * Observed take-up in response to assigned incentive and distance treatments. 
   - Identifies: $\beta_j(z), \delta, \sigma_u$.
 * Willingness-to-pay experiment to isolate private and social value of incentives. 
   - Identifies: $\mu^\textrm{wtp}$.
 * Social observability beliefs data. 
   - Identifies: $\mu(z,d) = \lambda\cdot\mathsf{logit}^{-1}(\beta^\textrm{bel}_z + \delta_z^\textrm{bel}\cdot d)$. 
+  
+:::
   
 ::: {.notes}
 
@@ -419,6 +447,7 @@ sim_int %>%
 * These sub-models identify
   - The willingness to pay to switch between calendar (assumed to be purely of private benefit) and bracelets
   - What people believe about how observable their actions are to others
+* I'm not showing the model for beliefs here, only the parameters.
 
 :::
 
@@ -970,6 +999,11 @@ We want to estimate the causal impact of signals on the _take-up rate-of-change 
 
 $$
 \frac{\partial\textrm{E}[Y(z,d,w)]}{\partial d}\Biggr|_{\substack{z\\d = \tilde{d}\\w=w^*(\textrm{control}, \tilde{d})}} = f_W(w)\cdot\overbrace{\left[- \frac{\partial w^*}{\partial d}\right]}^{\textrm{social multiplier}}
+$$
+where
+
+$$
+w^*(z,d) = -B(z,d) - \mu(z,d)\cdot\Delta[w^*(z,d)]
 $$
 
 ::: {.notes}
